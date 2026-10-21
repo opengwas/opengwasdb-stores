@@ -139,13 +139,10 @@ SUITE_COST: dict[str, float] = {
     "plan": 2.5,
     "readiness": 3.0,
     "migration": 1.0,
-    "dbgap-mvp/generate-candidate": 2.0,
-    "dbgap-mvp/pilot": 25.0,
-    "dbgap-mvp/merge-records": 1.0,
-    "dbgap-mvp/proc-accounting": 1.0,
     "opengwas-gwas-vcf-dense": 2.5,
     "finngen-r13-pilot": 2.5,
     "ld-panel-eigendecomposition": 2.0,
+    "dbgap-mvp/test-end-to-end": 3.0,
 }
 
 THREAD_ENV: dict[str, str] = {

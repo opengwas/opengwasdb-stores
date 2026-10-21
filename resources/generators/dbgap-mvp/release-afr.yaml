@@ -1,0 +1,75 @@
+release_config_version: 1
+label: mvp-phs002453-afr
+access_posture: public
+description: >
+  MVP PMID 39024449 African (AFR) ancestry observed-only release: every ready Analysis in the dbGaP phs002453 Source Collection's African bucket. The bound count is the retired partition's 1,368.
+
+source_collection:
+  source_collection_id: dbgap-phs002453
+  connectors:
+    source_metadata_table: resources/generators/dbgap-mvp/connectors/source-metadata-table.tsv
+    acquisition_manifest: resources/generators/dbgap-mvp/connectors/acquisition-manifest.tsv
+  inventory:
+    snapshot_id: dbgap-phs002453-afr-2026-10-21
+    directory: resources/inventories
+
+selection:
+  where:
+    store_key: dense__pmid-39024449__African
+  expect_rows: 1368
+
+build:
+  layout: dense
+  completion_state: observed_only
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.gwas-ssf
+    source-assembly: GRCh38
+    n-workers: 16
+  post:
+    top_hits: true
+    overview: true
+
+defaults:
+  source_genome_build: GRCh38
+  license: dbGaP open access
+  sample_size_scope: analysis_level
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      original_sd_method: declared_standardised
+      sample_size_kind: total
+    case-control:
+      stored_effect_scale: log_or
+      original_effect_scale: log_or
+      original_sd_method: binary_trait
+      sample_size_kind: case_control
+
+release_policy:
+  selection_superpopulation: AFR
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+  - resource_id: canonical-trait-mapping-efo
+    kind: trait_ontology_mapping
+    location: resources/reference-resources/canonical-trait-mapping-efo
+
+ancestry_assignment:
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  extraction_panel: null
+  gates: {tau: 0.50, delta: 0.20, n_min: 5000, residual_max: 0.06}
+
+trait_ontology_mapping:
+  reference_resource_id: canonical-trait-mapping-efo
+
+runtime:
+  cores: 16
+  min_free_gb: 50
+
+output:
+  work_root: /data/opengwasdb/work/p290-mvp/afr

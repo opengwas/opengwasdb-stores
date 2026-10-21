@@ -1,0 +1,1369 @@
+source_analysis_id	source_trait_label	source_trait_id	source_ancestry_label	source_superpopulation	study_design	sample_size	n_cases	n_controls	publication_pmid	store_key
+GCST90475090	hemoglobin A1c (HbA1c, maximum, inv-norm transformed)	A1C_Max_INT	African	AFR	quantitative	98772			39024449	dense__pmid-39024449__African
+GCST90475093	hemoglobin A1c (HbA1c, mean, inv-norm transformed)	A1C_Mean_INT	African	AFR	quantitative	98735			39024449	dense__pmid-39024449__African
+GCST90475096	hemoglobin A1c (HbA1c, minimum, inv-norm transformed)	A1C_Min_INT	African	AFR	quantitative	98578			39024449	dense__pmid-39024449__African
+GCST90475108	alanine transaminase (ALT, maximum, inv-norm transformed)	ALT_Max_INT	African	AFR	quantitative	115123			39024449	dense__pmid-39024449__African
+GCST90475111	alanine transaminase (ALT, mean, inv-norm transformed)	ALT_Mean_INT	African	AFR	quantitative	115128			39024449	dense__pmid-39024449__African
+GCST90475114	alanine transaminase (ALT, minimum, inv-norm transformed)	ALT_Min_INT	African	AFR	quantitative	115132			39024449	dense__pmid-39024449__African
+GCST90475117	aspartate aminotransferase (AST, maximum, inv-norm transformed)	AST_Max_INT	African	AFR	quantitative	112550			39024449	dense__pmid-39024449__African
+GCST90475120	aspartate aminotransferase (AST, mean, inv-norm transformed)	AST_Mean_INT	African	AFR	quantitative	112429			39024449	dense__pmid-39024449__African
+GCST90475123	aspartate aminotransferase (AST, minimum, inv-norm transformed)	AST_Min_INT	African	AFR	quantitative	112345			39024449	dense__pmid-39024449__African
+GCST90475099	albumin (maximum, inv-norm transformed)	Albumin_Max_INT	African	AFR	quantitative	110326			39024449	dense__pmid-39024449__African
+GCST90475102	albumin (mean, inv-norm transformed)	Albumin_Mean_INT	African	AFR	quantitative	110320			39024449	dense__pmid-39024449__African
+GCST90475105	albumin (minimum, inv-norm transformed)	Albumin_Min_INT	African	AFR	quantitative	110337			39024449	dense__pmid-39024449__African
+GCST90476569	brain natriuretic peptide (BNP, maximum, inv-norm transformed)	BNP_Max_INT	African	AFR	quantitative	5826			39024449	dense__pmid-39024449__African
+GCST90476571	brain natriuretic peptide (BNP, mean, inv-norm transformed)	BNP_Mean_INT	African	AFR	quantitative	5833			39024449	dense__pmid-39024449__African
+GCST90476573	brain natriuretic peptide (BNP, minimum, inv-norm transformed)	BNP_Min_INT	African	AFR	quantitative	5835			39024449	dense__pmid-39024449__African
+GCST90475161	blood urea nitrogen (BUN, maximum, inv-norm transformed)	BUN_BSP_Max_INT	African	AFR	quantitative	117530			39024449	dense__pmid-39024449__African
+GCST90475164	blood urea nitrogen (BUN, mean, inv-norm transformed)	BUN_BSP_Mean_INT	African	AFR	quantitative	117876			39024449	dense__pmid-39024449__African
+GCST90475167	blood urea nitrogen (BUN, minimum, inv-norm transformed)	BUN_BSP_Min_INT	African	AFR	quantitative	118165			39024449	dense__pmid-39024449__African
+GCST90475126	basophil (absolute count, maximum, inv-norm transformed)	Baso_Abs_Max_INT	African	AFR	quantitative	45860			39024449	dense__pmid-39024449__African
+GCST90475129	basophil (absolute count, mean, inv-norm transformed)	Baso_Abs_Mean_INT	African	AFR	quantitative	45900			39024449	dense__pmid-39024449__African
+GCST90475132	basophil (absolute count, minimum, inv-norm transformed)	Baso_Abs_Min_INT	African	AFR	quantitative	45901			39024449	dense__pmid-39024449__African
+GCST90475135	basophil (fraction, maximum, inv-norm transformed)	Baso_Fra_Max_INT	African	AFR	quantitative	67485			39024449	dense__pmid-39024449__African
+GCST90475138	basophil (fraction, mean, inv-norm transformed)	Baso_Fra_Mean_INT	African	AFR	quantitative	67485			39024449	dense__pmid-39024449__African
+GCST90475141	basophil (fraction, minimum, inv-norm transformed)	Baso_Fra_Min_INT	African	AFR	quantitative	67485			39024449	dense__pmid-39024449__African
+GCST90475144	bicarbonate (maximum, inv-norm transformed)	Bicarbonate_Max_INT	African	AFR	quantitative	112830			39024449	dense__pmid-39024449__African
+GCST90475147	bicarbonate (mean, inv-norm transformed)	Bicarbonate_Mean_INT	African	AFR	quantitative	112877			39024449	dense__pmid-39024449__African
+GCST90475149	bicarbonate (minimum, inv-norm transformed)	Bicarbonate_Min_INT	African	AFR	quantitative	112877			39024449	dense__pmid-39024449__African
+GCST90476633	creatine kinase-MB (CKMB, absolute, maximum, inv-norm transformed)	CKMB_Abs_Max_INT	African	AFR	quantitative	11705			39024449	dense__pmid-39024449__African
+GCST90476634	creatine kinase-MB (CKMB, absolute, mean, inv-norm transformed)	CKMB_Abs_Mean_INT	African	AFR	quantitative	11686			39024449	dense__pmid-39024449__African
+GCST90476635	creatine kinase-MB (CKMB, absolute, minimum, inv-norm transformed)	CKMB_Abs_Min_INT	African	AFR	quantitative	11664			39024449	dense__pmid-39024449__African
+GCST90476642	C-reactive protein (CRP, L, maximum, inv-norm transformed)	CRP_L_Max_INT	African	AFR	quantitative	5067			39024449	dense__pmid-39024449__African
+GCST90476644	C-reactive protein (CRP, L, mean, inv-norm transformed)	CRP_L_Mean_INT	African	AFR	quantitative	5051			39024449	dense__pmid-39024449__African
+GCST90475236	C-reactive protein (CRP, L, minimum, inv-norm transformed)	CRP_L_Min_INT	African	AFR	quantitative	5042			39024449	dense__pmid-39024449__African
+GCST90476639	C-reactive protein (CRP, dL, maximum, inv-norm transformed)	CRP_dL_Max_INT	African	AFR	quantitative	7922			39024449	dense__pmid-39024449__African
+GCST90475233	C-reactive protein (CRP, dL, mean, inv-norm transformed)	CRP_dL_Mean_INT	African	AFR	quantitative	7924			39024449	dense__pmid-39024449__African
+GCST90475234	C-reactive protein (CRP, dL, minimum, inv-norm transformed)	CRP_dL_Min_INT	African	AFR	quantitative	7913			39024449	dense__pmid-39024449__African
+GCST90475172	calcium (maximum, inv-norm transformed)	Calcium_mg_Max_INT	African	AFR	quantitative	74104			39024449	dense__pmid-39024449__African
+GCST90475175	calcium (mean, inv-norm transformed)	Calcium_mg_Mean_INT	African	AFR	quantitative	74137			39024449	dense__pmid-39024449__African
+GCST90475178	calcium (minimum, inv-norm transformed)	Calcium_mg_Min_INT	African	AFR	quantitative	74760			39024449	dense__pmid-39024449__African
+GCST90475191	chloride  (maximum, inv-norm transformed)	Chloride_BSP_Max_INT	African	AFR	quantitative	112840			39024449	dense__pmid-39024449__African
+GCST90475193	chloride  (mean, inv-norm transformed)	Chloride_BSP_Mean_INT	African	AFR	quantitative	112886			39024449	dense__pmid-39024449__African
+GCST90475196	chloride  (minimum, inv-norm transformed)	Chloride_BSP_Min_INT	African	AFR	quantitative	112827			39024449	dense__pmid-39024449__African
+GCST90475225	creatinine (maximum, inv-norm transformed)	Creat_BSP_Max_INT	African	AFR	quantitative	116285			39024449	dense__pmid-39024449__African
+GCST90475228	creatinine (mean, inv-norm transformed)	Creat_BSP_Mean_INT	African	AFR	quantitative	116707			39024449	dense__pmid-39024449__African
+GCST90475231	creatinine (minimum, inv-norm transformed)	Creat_BSP_Min_INT	African	AFR	quantitative	117108			39024449	dense__pmid-39024449__African
+GCST90475304	erythrocyte sedimentation rate (ESR, maximum, inv-norm transformed)	ESR_Max_INT	African	AFR	quantitative	11936			39024449	dense__pmid-39024449__African
+GCST90475306	erythrocyte sedimentation rate (ESR, mean, inv-norm transformed)	ESR_Mean_INT	African	AFR	quantitative	11936			39024449	dense__pmid-39024449__African
+GCST90475308	erythrocyte sedimentation rate (ESR, minimum, inv-norm transformed)	ESR_Min_INT	African	AFR	quantitative	11935			39024449	dense__pmid-39024449__African
+GCST90475287	eosinophil (absolute count, maximum, inv-norm transformed)	Eos_Abs_Max_INT	African	AFR	quantitative	90403			39024449	dense__pmid-39024449__African
+GCST90475290	eosinophil (absolute count, mean, inv-norm transformed)	Eos_Abs_Mean_INT	African	AFR	quantitative	90448			39024449	dense__pmid-39024449__African
+GCST90475293	eosinophil (absolute count, minimum, inv-norm transformed)	Eos_Abs_Min_INT	African	AFR	quantitative	90479			39024449	dense__pmid-39024449__African
+GCST90475296	eosinophil (fraction, maximum, inv-norm transformed)	Eos_Fra_Max_INT	African	AFR	quantitative	98055			39024449	dense__pmid-39024449__African
+GCST90475299	eosinophil (fraction, mean, inv-norm transformed)	Eos_Fra_Mean_INT	African	AFR	quantitative	98055			39024449	dense__pmid-39024449__African
+GCST90475302	eosinophil (fraction, minimum, inv-norm transformed)	Eos_Fra_Min_INT	African	AFR	quantitative	98055			39024449	dense__pmid-39024449__African
+GCST90475279	estimated glomerular filtration rate (eGFR, maximum, inv-norm transformed)	eGFR_Max_INT	African	AFR	quantitative	110850			39024449	dense__pmid-39024449__African
+GCST90476724	estimated glomerular filtration rate (eGFR, mean, inv-norm transformed)	eGFR_Mean_INT	African	AFR	quantitative	110856			39024449	dense__pmid-39024449__African
+GCST90475284	estimated glomerular filtration rate (eGFR, minimum, inv-norm transformed)	eGFR_Min_INT	African	AFR	quantitative	110854			39024449	dense__pmid-39024449__African
+GCST90475310	ferritin (maximum, inv-norm transformed)	Ferritin_Max_INT	African	AFR	quantitative	30746			39024449	dense__pmid-39024449__African
+GCST90475313	ferritin (mean, inv-norm transformed)	Ferritin_Mean_INT	African	AFR	quantitative	30754			39024449	dense__pmid-39024449__African
+GCST90475316	ferritin (minimum, inv-norm transformed)	Ferritin_Min_INT	African	AFR	quantitative	30762			39024449	dense__pmid-39024449__African
+GCST90475323	glucose (finger stick, maximum, inv-norm transformed)	Glucose_FS_Max_INT	African	AFR	quantitative	25915			39024449	dense__pmid-39024449__African
+GCST90475325	glucose (finger stick, mean, inv-norm transformed)	Glucose_FS_Mean_INT	African	AFR	quantitative	25893			39024449	dense__pmid-39024449__African
+GCST90476785	glucose (finger stick, minimum, inv-norm transformed)	Glucose_FS_Min_INT	African	AFR	quantitative	25853			39024449	dense__pmid-39024449__African
+GCST90475328	glucose (fasting status unknown, maximum, inv-norm transformed)	Glucose_Max_INT	African	AFR	quantitative	117850			39024449	dense__pmid-39024449__African
+GCST90475331	glucose (fasting status unknown, mean, inv-norm transformed)	Glucose_Mean_INT	African	AFR	quantitative	118233			39024449	dense__pmid-39024449__African
+GCST90475334	glucose (fasting status unknown, minimum, inv-norm transformed)	Glucose_Min_INT	African	AFR	quantitative	118147			39024449	dense__pmid-39024449__African
+GCST90475337	hematocrit (maximum, inv-norm transformed)	HCT_Max_INT	African	AFR	quantitative	114986			39024449	dense__pmid-39024449__African
+GCST90475340	hematocrit (mean, inv-norm transformed)	HCT_Mean_INT	African	AFR	quantitative	114988			39024449	dense__pmid-39024449__African
+GCST90475343	hematocrit (minimum, inv-norm transformed)	HCT_Min_INT	African	AFR	quantitative	114988			39024449	dense__pmid-39024449__African
+GCST90475347	high density lipoprotein cholesterol (HDLC, maximum, inv-norm transformed)	HDLC_Max_INT	African	AFR	quantitative	113085			39024449	dense__pmid-39024449__African
+GCST90475351	high density lipoprotein cholesterol (HDLC, mean, inv-norm transformed)	HDLC_Mean_INT	African	AFR	quantitative	113085			39024449	dense__pmid-39024449__African
+GCST90475355	high density lipoprotein cholesterol (HDLC, minimm, inv-norm transformed)	HDLC_Min_INT	African	AFR	quantitative	113085			39024449	dense__pmid-39024449__African
+GCST90475371	hemoglobin (maximum, inv-norm transformed)	Hemoglobin_Max_INT	African	AFR	quantitative	114984			39024449	dense__pmid-39024449__African
+GCST90475375	hemoglobin (mean, inv-norm transformed)	Hemoglobin_Mean_INT	African	AFR	quantitative	114985			39024449	dense__pmid-39024449__African
+GCST90475379	hemoglobin (minimum, inv-norm transformed)	Hemoglobin_Min_INT	African	AFR	quantitative	114985			39024449	dense__pmid-39024449__African
+GCST90475389	PT international normalized ratio (INR, maximum, inv-norm transformed)	INR_Max_INT	African	AFR	quantitative	49321			39024449	dense__pmid-39024449__African
+GCST90475392	PT international normalized ratio (INR, mean, inv-norm transformed)	INR_Mean_INT	African	AFR	quantitative	49317			39024449	dense__pmid-39024449__African
+GCST90475395	PT international normalized ratio (INR, minimum, inv-norm transformed)	INR_Min_INT	African	AFR	quantitative	49241			39024449	dense__pmid-39024449__African
+GCST90475398	iron (maximum, inv-norm transformed)	Iron_Max_INT	African	AFR	quantitative	30676			39024449	dense__pmid-39024449__African
+GCST90475401	iron (mean, inv-norm transformed)	Iron_Mean_INT	African	AFR	quantitative	30698			39024449	dense__pmid-39024449__African
+GCST90475404	iron (minimum, inv-norm transformed)	Iron_Min_INT	African	AFR	quantitative	30698			39024449	dense__pmid-39024449__African
+GCST90475411	low density lipoprotein cholesterol (LDLC, maximum, inv-norm transformed)	LDLC_Max_INT	African	AFR	quantitative	113189			39024449	dense__pmid-39024449__African
+GCST90475415	low density lipoprotein cholesterol (LDLC, mean, inv-norm transformed)	LDLC_Mean_INT	African	AFR	quantitative	113213			39024449	dense__pmid-39024449__African
+GCST90475419	low density lipoprotein cholesterol (LDLC, minimum, inv-norm transformed)	LDLC_Min_INT	African	AFR	quantitative	113217			39024449	dense__pmid-39024449__African
+GCST90475422	lymphocyte (absolute count, maximum, inv-norm transformed)	Lymph_Abs_Max_INT	African	AFR	quantitative	70548			39024449	dense__pmid-39024449__African
+GCST90475425	lymphocyte (absolute count, mean, inv-norm transformed)	Lymph_Abs_Mean_INT	African	AFR	quantitative	70580			39024449	dense__pmid-39024449__African
+GCST90475428	lymphocyte (absolute count, minimum, inv-norm transformed)	Lymph_Abs_Min_INT	African	AFR	quantitative	70597			39024449	dense__pmid-39024449__African
+GCST90475431	lymphocyte (fraction, maximum, inv-norm transformed)	Lymph_Fra_Max_INT	African	AFR	quantitative	81257			39024449	dense__pmid-39024449__African
+GCST90475434	lymphocyte (fraction, mean, inv-norm transformed)	Lymph_Fra_Mean_INT	African	AFR	quantitative	81257			39024449	dense__pmid-39024449__African
+GCST90475437	lymphocyte (fraction, minimum, inv-norm transformed)	Lymph_Fra_Min_INT	African	AFR	quantitative	81257			39024449	dense__pmid-39024449__African
+GCST90475453	mean corpuscular hemoglobin concentration (MCHC, maximum, inv-norm transformed)	MCHC_Max_INT	African	AFR	quantitative	114857			39024449	dense__pmid-39024449__African
+GCST90475457	mean corpuscular hemoglobin concentration (MCHC, mean, inv-norm transformed)	MCHC_Mean_INT	African	AFR	quantitative	114851			39024449	dense__pmid-39024449__African
+GCST90475461	mean corpuscular hemoglobin concentration (MCHC, minimum, inv-norm transformed)	MCHC_Min_INT	African	AFR	quantitative	114841			39024449	dense__pmid-39024449__African
+GCST90475441	mean corpuscular hemoglobin (MCH, maximum, inv-norm transformed)	MCH_Max_INT	African	AFR	quantitative	114852			39024449	dense__pmid-39024449__African
+GCST90475445	mean corpuscular hemoglobin (MCH, mean, inv-norm transformed)	MCH_Mean_INT	African	AFR	quantitative	114855			39024449	dense__pmid-39024449__African
+GCST90475449	mean corpuscular hemoglobin (MCH, minimum, inv-norm transformed)	MCH_Min_INT	African	AFR	quantitative	114836			39024449	dense__pmid-39024449__African
+GCST90475465	mean corpuscular volume (MCV, maximum, inv-norm transformed)	MCV_Max_INT	African	AFR	quantitative	114848			39024449	dense__pmid-39024449__African
+GCST90475469	mean corpuscular volume (MCV, mean, inv-norm transformed)	MCV_Mean_INT	African	AFR	quantitative	114862			39024449	dense__pmid-39024449__African
+GCST90475473	mean corpuscular volume (MCV, minimum, inv-norm transformed)	MCV_Min_INT	African	AFR	quantitative	114863			39024449	dense__pmid-39024449__African
+GCST90475516	mean platelet volume (MPV, maximum, inv-norm transformed)	MPV_Max_INT	African	AFR	quantitative	97007			39024449	dense__pmid-39024449__African
+GCST90475519	mean platelet volume (MPV, mean, inv-norm transformed)	MPV_Mean_INT	African	AFR	quantitative	97007			39024449	dense__pmid-39024449__African
+GCST90475522	mean platelet volume (MPV, minimum, inv-norm transformed)	MPV_Min_INT	African	AFR	quantitative	97007			39024449	dense__pmid-39024449__African
+GCST90475476	magnesium (Mg, maximum, inv-norm transformed)	Mg_BSP_Max_INT	African	AFR	quantitative	43569			39024449	dense__pmid-39024449__African
+GCST90475479	magnesium (Mg, mean, inv-norm transformed)	Mg_BSP_Mean_INT	African	AFR	quantitative	43608			39024449	dense__pmid-39024449__African
+GCST90475481	magnesium (Mg, minimum, inv-norm transformed)	Mg_BSP_Min_INT	African	AFR	quantitative	43617			39024449	dense__pmid-39024449__African
+GCST90475498	monocyte (absolute count, maximum, inv-norm transformed)	Mono_Abs_Max_INT	African	AFR	quantitative	73039			39024449	dense__pmid-39024449__African
+GCST90475501	monocyte (absolute count, mean, inv-norm transformed)	Mono_Abs_Mean_INT	African	AFR	quantitative	73140			39024449	dense__pmid-39024449__African
+GCST90475504	monocyte (absolute count, minimum, inv-norm transformed)	Mono_Abs_Min_INT	African	AFR	quantitative	73142			39024449	dense__pmid-39024449__African
+GCST90475507	monocyte (fraction, maximum, inv-norm transformed)	Mono_Fra_Max_INT	African	AFR	quantitative	82924			39024449	dense__pmid-39024449__African
+GCST90475510	monocyte (fraction, mean, inv-norm transformed)	Mono_Fra_Mean_INT	African	AFR	quantitative	82924			39024449	dense__pmid-39024449__African
+GCST90475513	monocyte (fraction, minimum, inv-norm transformed)	Mono_Fra_Min_INT	African	AFR	quantitative	82924			39024449	dense__pmid-39024449__African
+GCST90475525	neutrophil (absolute count, maximum, inv-norm transformed)	Neut_Abs_Max_INT	African	AFR	quantitative	72245			39024449	dense__pmid-39024449__African
+GCST90475528	neutrophil (absolute count, mean, inv-norm transformed)	Neut_Abs_Mean_INT	African	AFR	quantitative	73258			39024449	dense__pmid-39024449__African
+GCST90475531	neutrophil (absolute count, minimum, inv-norm transformed)	Neut_Abs_Min_INT	African	AFR	quantitative	74049			39024449	dense__pmid-39024449__African
+GCST90475534	neutrophil (fraction, maximum, inv-norm transformed)	Neut_Fra_Max_INT	African	AFR	quantitative	65556			39024449	dense__pmid-39024449__African
+GCST90475537	neutrophil (fraction, mean, inv-norm transformed)	Neut_Fra_Mean_INT	African	AFR	quantitative	65554			39024449	dense__pmid-39024449__African
+GCST90475540	neutrophil (fraction, minimum, inv-norm transformed)	Neut_Fra_Min_INT	African	AFR	quantitative	65556			39024449	dense__pmid-39024449__African
+GCST90476315	prostate-specific antigen (PSA, maximum, inv-norm transformed)	PSA_Max_INT	African	AFR	quantitative	72776			39024449	dense__pmid-39024449__African
+GCST90476318	prostate-specific antigen (PSA, mean, inv-norm transformed)	PSA_Mean_INT	African	AFR	quantitative	72792			39024449	dense__pmid-39024449__African
+GCST90476321	prostate-specific antigen (PSA, minimum, inv-norm transformed)	PSA_Min_INT	African	AFR	quantitative	72856			39024449	dense__pmid-39024449__African
+GCST90476324	prothrombin time (PT, maximum, inv-norm transformed)	PT_Max_INT	African	AFR	quantitative	25149			39024449	dense__pmid-39024449__African
+GCST90476327	prothrombin time (PT, mean, inv-norm transformed)	PT_Mean_INT	African	AFR	quantitative	25136			39024449	dense__pmid-39024449__African
+GCST90476330	prothrombin time (PT, minimum, inv-norm transformed)	PT_Min_INT	African	AFR	quantitative	25103			39024449	dense__pmid-39024449__African
+GCST90476295	platelet count (maximum, inv-norm transformed)	Platelet_Max_INT	African	AFR	quantitative	114580			39024449	dense__pmid-39024449__African
+GCST90476301	platelet count (minimum, inv-norm transformed)	Platelet_Min_INT	African	AFR	quantitative	114799			39024449	dense__pmid-39024449__African
+GCST90476303	potassium (maximum, inv-norm transformed)	Potas_BSP_Max_INT	African	AFR	quantitative	118330			39024449	dense__pmid-39024449__African
+GCST90476306	potassium (mean, inv-norm transformed)	Potas_BSP_Mean_INT	African	AFR	quantitative	118506			39024449	dense__pmid-39024449__African
+GCST90476309	potassium (minimum, inv-norm transformed)	Potas_BSP_Min_INT	African	AFR	quantitative	118507			39024449	dense__pmid-39024449__African
+GCST90476344	red blood cell count (RBC, maximum, inv-norm transformed)	RBC_Max_INT	African	AFR	quantitative	114767			39024449	dense__pmid-39024449__African
+GCST90476348	red blood cell count (RBC, mean, inv-norm transformed)	RBC_Mean_INT	African	AFR	quantitative	114768			39024449	dense__pmid-39024449__African
+GCST90476352	red blood cell count (RBC, minimum, inv-norm transformed)	RBC_Min_INT	African	AFR	quantitative	114768			39024449	dense__pmid-39024449__African
+GCST90476356	red cell diameter width (RDW, maximum, inv-norm transformed)	RDW_Max_INT	African	AFR	quantitative	110467			39024449	dense__pmid-39024449__African
+GCST90476360	red cell diameter width (RDW, mean, inv-norm transformed)	RDW_Mean_INT	African	AFR	quantitative	110558			39024449	dense__pmid-39024449__African
+GCST90476364	red cell diameter width (RDW, minimum, inv-norm transformed)	RDW_Min_INT	African	AFR	quantitative	110610			39024449	dense__pmid-39024449__African
+GCST90476392	sodium (maximum, inv-norm transformed)	Sodium_BSP_Max_INT	African	AFR	quantitative	118412			39024449	dense__pmid-39024449__African
+GCST90476394	sodium (mean, inv-norm transformed)	Sodium_BSP_Mean_INT	African	AFR	quantitative	118487			39024449	dense__pmid-39024449__African
+GCST90476396	sodium (minimum, inv-norm transformed)	Sodium_BSP_Min_INT	African	AFR	quantitative	118415			39024449	dense__pmid-39024449__African
+GCST90476441	transferrin saturation (TSAT, maximum, inv-norm transformed)	TSAT_Max_INT	African	AFR	quantitative	18196			39024449	dense__pmid-39024449__African
+GCST90476444	transferrin saturation (TSAT, mean, inv-norm transformed)	TSAT_Mean_INT	African	AFR	quantitative	18193			39024449	dense__pmid-39024449__African
+GCST90476447	transferrin saturation (TSAT, minimum, inv-norm transformed)	TSAT_Min_INT	African	AFR	quantitative	18189			39024449	dense__pmid-39024449__African
+GCST90476419	total cholesterol (maximum, inv-norm transformed)	TotChol_Max_INT	African	AFR	quantitative	112221			39024449	dense__pmid-39024449__African
+GCST90476423	total cholesterol (mean, inv-norm transformed)	TotChol_Mean_INT	African	AFR	quantitative	112265			39024449	dense__pmid-39024449__African
+GCST90476426	total cholesterol (minimum, inv-norm transformed)	TotChol_Min_INT	African	AFR	quantitative	112278			39024449	dense__pmid-39024449__African
+GCST90476409	total creatine kinase (maximum, inv-norm transformed)	TotalCK_Max_INT	African	AFR	quantitative	25013			39024449	dense__pmid-39024449__African
+GCST90476412	total creatine kinase (mean, inv-norm transformed)	TotalCK_Mean_INT	African	AFR	quantitative	25017			39024449	dense__pmid-39024449__African
+GCST90476415	total creatine kinase (minimum, inv-norm transformed)	TotalCK_Min_INT	African	AFR	quantitative	24978			39024449	dense__pmid-39024449__African
+GCST90476430	triglyceride (maximum, inv-norm transformed)	Trig_Max_INT	African	AFR	quantitative	107605			39024449	dense__pmid-39024449__African
+GCST90476434	triglyceride (mean, inv-norm transformed)	Trig_Mean_INT	African	AFR	quantitative	107730			39024449	dense__pmid-39024449__African
+GCST90476438	triglyceride (minimum, inv-norm transformed)	Trig_Min_INT	African	AFR	quantitative	107786			39024449	dense__pmid-39024449__African
+GCST90479488	troponin I (maximum, inv-norm transformed)	TroponinI_Max_INT	African	AFR	quantitative	10388			39024449	dense__pmid-39024449__African
+GCST90479490	troponin I (mean, inv-norm transformed)	TroponinI_Mean_INT	African	AFR	quantitative	10375			39024449	dense__pmid-39024449__African
+GCST90479492	troponin I (minimum, inv-norm transformed)	TroponinI_Min_INT	African	AFR	quantitative	10318			39024449	dense__pmid-39024449__African
+GCST90476450	white blood cell count (WBC, maximum, inv-norm transformed)	WBC_Max_INT	African	AFR	quantitative	108774			39024449	dense__pmid-39024449__African
+GCST90476453	white blood cell count (WBC, mean, inv-norm transformed)	WBC_Mean_INT	African	AFR	quantitative	108896			39024449	dense__pmid-39024449__African
+GCST90476456	white blood cell count (WBC, minimum, inv-norm transformed)	WBC_Min_INT	African	AFR	quantitative	108942			39024449	dense__pmid-39024449__African
+GCST90479352	pro-brain  natriuretic peptide (proBNP, maximum, inv-norm transformed)	proBNP_Max_INT	African	AFR	quantitative	5287			39024449	dense__pmid-39024449__African
+GCST90479353	pro-brain  natriuretic peptide (proBNP, mean, inv-norm transformed)	proBNP_Mean_INT	African	AFR	quantitative	5289			39024449	dense__pmid-39024449__African
+GCST90479354	pro-brain  natriuretic peptide (proBNP, minimum, inv-norm transformed)	proBNP_Min_INT	African	AFR	quantitative	5296			39024449	dense__pmid-39024449__African
+GCST90477832	Rheumatic disease of the heart valves	Phe_394	African	AFR	case-control	118726	1230	117496	39024449	dense__pmid-39024449__African
+GCST90477837	Heart valve disorders	Phe_395	African	AFR	case-control	116021	5334	110687	39024449	dense__pmid-39024449__African
+GCST90477839	Nonrheumatic mitral valve disorders	Phe_395_1	African	AFR	case-control	118056	2682	115374	39024449	dense__pmid-39024449__African
+GCST90477842	Nonrheumatic aortic valve disorders	Phe_395_2	African	AFR	case-control	119594	2397	117197	39024449	dense__pmid-39024449__African
+GCST90477845	Heart valve replaced	Phe_395_6	African	AFR	case-control	121587	931	120656	39024449	dense__pmid-39024449__African
+GCST90477847	Abnormal heart sounds	Phe_396	African	AFR	case-control	115967	3258	112709	39024449	dense__pmid-39024449__African
+GCST90475918	Hypertension	Phe_401	African	AFR	case-control	116935	94292	22643	39024449	dense__pmid-39024449__African
+GCST90475921	Essential hypertension	Phe_401_1	African	AFR	case-control	116845	93857	22988	39024449	dense__pmid-39024449__African
+GCST90475923	Hypertensive heart and/or renal disease	Phe_401_2	African	AFR	case-control	112649	22462	90187	39024449	dense__pmid-39024449__African
+GCST90477853	Hypertensive heart disease	Phe_401_21	African	AFR	case-control	114864	8634	106230	39024449	dense__pmid-39024449__African
+GCST90475926	Hypertensive chronic kidney disease	Phe_401_22	African	AFR	case-control	115875	14127	101748	39024449	dense__pmid-39024449__African
+GCST90477856	Other hypertensive complications	Phe_401_3	African	AFR	case-control	117304	3465	113839	39024449	dense__pmid-39024449__African
+GCST90477859	Elevated blood pressure reading without diagnosis of hypertension	Phe_402	African	AFR	case-control	109712	8192	101520	39024449	dense__pmid-39024449__African
+GCST90477862	Ischemic Heart Disease	Phe_411	African	AFR	case-control	110452	26859	83593	39024449	dense__pmid-39024449__African
+GCST90477864	Unstable angina (intermediate coronary syndrome)	Phe_411_1	African	AFR	case-control	117568	3328	114240	39024449	dense__pmid-39024449__African
+GCST90477865	Myocardial infarction	Phe_411_2	African	AFR	case-control	117239	7835	109404	39024449	dense__pmid-39024449__African
+GCST90477867	Angina pectoris	Phe_411_3	African	AFR	case-control	113926	7533	106393	39024449	dense__pmid-39024449__African
+GCST90475935	Coronary atherosclerosis	Phe_411_4	African	AFR	case-control	114151	20733	93418	39024449	dense__pmid-39024449__African
+GCST90477869	Other chronic ischemic heart disease, unspecified	Phe_411_8	African	AFR	case-control	116620	11327	105293	39024449	dense__pmid-39024449__African
+GCST90477872	Other forms of chronic heart disease	Phe_414	African	AFR	case-control	117307	4726	112581	39024449	dense__pmid-39024449__African
+GCST90475941	Pulmonary heart disease	Phe_415	African	AFR	case-control	118408	7085	111323	39024449	dense__pmid-39024449__African
+GCST90475943	Acute pulmonary heart disease	Phe_415_1	African	AFR	case-control	120829	3605	117224	39024449	dense__pmid-39024449__African
+GCST90475945	Pulmonary embolism and infarction, acute	Phe_415_11	African	AFR	case-control	120880	3545	117335	39024449	dense__pmid-39024449__African
+GCST90477877	Chronic pulmonary heart disease	Phe_415_2	African	AFR	case-control	118672	3527	115145	39024449	dense__pmid-39024449__African
+GCST90477879	Primary pulmonary hypertension	Phe_415_21	African	AFR	case-control	120969	608	120361	39024449	dense__pmid-39024449__African
+GCST90477882	Cardiomegaly	Phe_416	African	AFR	case-control	115275	3619	111656	39024449	dense__pmid-39024449__African
+GCST90477886	Nonspecific chest pain	Phe_418	African	AFR	case-control	103924	42507	61417	39024449	dense__pmid-39024449__African
+GCST90477887	Precordial pain	Phe_418_1	African	AFR	case-control	119573	609	118964	39024449	dense__pmid-39024449__African
+GCST90477890	Carditis	Phe_420	African	AFR	case-control	119409	2074	117335	39024449	dense__pmid-39024449__African
+GCST90477892	Pericarditis	Phe_420_2	African	AFR	case-control	120533	1246	119287	39024449	dense__pmid-39024449__African
+GCST90477895	Endocarditis	Phe_420_3	African	AFR	case-control	120734	772	119962	39024449	dense__pmid-39024449__African
+GCST90475948	Cardiomyopathy	Phe_425	African	AFR	case-control	118560	7053	111507	39024449	dense__pmid-39024449__African
+GCST90475950	Primary/intrinsic cardiomyopathies	Phe_425_1	African	AFR	case-control	118885	6758	112127	39024449	dense__pmid-39024449__African
+GCST90477901	Secondary/extrinsic cardiomyopathies	Phe_425_2	African	AFR	case-control	120668	783	119885	39024449	dense__pmid-39024449__African
+GCST90477905	Cardiac conduction disorders	Phe_426	African	AFR	case-control	107083	17288	89795	39024449	dense__pmid-39024449__African
+GCST90477907	Atrioventricular [AV] block	Phe_426_2	African	AFR	case-control	119057	2893	116164	39024449	dense__pmid-39024449__African
+GCST90477908	First degree AV block	Phe_426_21	African	AFR	case-control	119719	1415	118304	39024449	dense__pmid-39024449__African
+GCST90477909	Second degree AV block	Phe_426_23	African	AFR	case-control	121368	536	120832	39024449	dense__pmid-39024449__African
+GCST90477910	Atrioventricular block, complete	Phe_426_24	African	AFR	case-control	121500	856	120644	39024449	dense__pmid-39024449__African
+GCST90477914	Bundle branch block	Phe_426_3	African	AFR	case-control	119151	2051	117100	39024449	dense__pmid-39024449__African
+GCST90477916	Right bundle branch block	Phe_426_31	African	AFR	case-control	120438	1024	119414	39024449	dense__pmid-39024449__African
+GCST90477917	Left bundle branch block	Phe_426_32	African	AFR	case-control	120502	879	119623	39024449	dense__pmid-39024449__African
+GCST90477919	Abnormal electrocardiogram [ECG] [EKG]	Phe_426_7	African	AFR	case-control	107978	10831	97147	39024449	dense__pmid-39024449__African
+GCST90477923	Cardiac pacemaker/device in situ	Phe_426_9	African	AFR	case-control	121094	4153	116941	39024449	dense__pmid-39024449__African
+GCST90477925	Cardiac pacemaker in situ	Phe_426_91	African	AFR	case-control	121037	2348	118689	39024449	dense__pmid-39024449__African
+GCST90477927	Cardiac defibrillator in situ	Phe_426_92	African	AFR	case-control	121503	2629	118874	39024449	dense__pmid-39024449__African
+GCST90477929	Cardiac dysrhythmias	Phe_427	African	AFR	case-control	104362	33210	71152	39024449	dense__pmid-39024449__African
+GCST90477931	Paroxysmal tachycardia, unspecified	Phe_427_1	African	AFR	case-control	118810	3882	114928	39024449	dense__pmid-39024449__African
+GCST90477934	Paroxysmal supraventricular tachycardia	Phe_427_11	African	AFR	case-control	120134	1843	118291	39024449	dense__pmid-39024449__African
+GCST90477935	Paroxysmal ventricular tachycardia	Phe_427_12	African	AFR	case-control	120056	2003	118053	39024449	dense__pmid-39024449__African
+GCST90475966	Atrial fibrillation and flutter	Phe_427_2	African	AFR	case-control	118682	9482	109200	39024449	dense__pmid-39024449__African
+GCST90475969	Atrial fibrillation	Phe_427_21	African	AFR	case-control	118847	8873	109974	39024449	dense__pmid-39024449__African
+GCST90475972	Atrial flutter	Phe_427_22	African	AFR	case-control	120231	3470	116761	39024449	dense__pmid-39024449__African
+GCST90475974	Other specified cardiac dysrhythmias	Phe_427_3	African	AFR	case-control	110488	9339	101149	39024449	dense__pmid-39024449__African
+GCST90477938	Cardiac arrest and ventricular	Phe_427_4	African	AFR	case-control	120680	828	119852	39024449	dense__pmid-39024449__African
+GCST90477941	Cardiac arrest	Phe_427_42	African	AFR	case-control	120967	582	120385	39024449	dense__pmid-39024449__African
+GCST90477944	Arrhythmia (cardiac) NOS	Phe_427_5	African	AFR	case-control	111419	8648	102771	39024449	dense__pmid-39024449__African
+GCST90477946	Premature beats	Phe_427_6	African	AFR	case-control	117656	2106	115550	39024449	dense__pmid-39024449__African
+GCST90477947	Supraventricular premature beats	Phe_427_61	African	AFR	case-control	120013	556	119457	39024449	dense__pmid-39024449__African
+GCST90475978	Tachycardia NOS	Phe_427_7	African	AFR	case-control	113676	5094	108582	39024449	dense__pmid-39024449__African
+GCST90477950	Sinoatrial node dysfunction (Bradycardia)	Phe_427_8	African	AFR	case-control	121007	695	120312	39024449	dense__pmid-39024449__African
+GCST90477952	Palpitations	Phe_427_9	African	AFR	case-control	115735	5606	110129	39024449	dense__pmid-39024449__African
+GCST90477955	Congestive heart failure; nonhypertensive	Phe_428	African	AFR	case-control	116379	15405	100974	39024449	dense__pmid-39024449__African
+GCST90477957	Congestive heart failure (CHF) NOS	Phe_428_1	African	AFR	case-control	116880	11137	105743	39024449	dense__pmid-39024449__African
+GCST90477958	Heart failure NOS	Phe_428_2	African	AFR	case-control	119845	1451	118394	39024449	dense__pmid-39024449__African
+GCST90477961	Heart failure with reduced EF [Systolic or combined heart failure]	Phe_428_3	African	AFR	case-control	118736	9104	109632	39024449	dense__pmid-39024449__African
+GCST90477963	Heart failure with preserved EF [Diastolic heart failure]	Phe_428_4	African	AFR	case-control	118420	5379	113041	39024449	dense__pmid-39024449__African
+GCST90477965	Ill-defined descriptions and complications of heart disease	Phe_429	African	AFR	case-control	114186	3053	111133	39024449	dense__pmid-39024449__African
+GCST90477967	Heart transplant/surgery	Phe_429_1	African	AFR	case-control	121064	518	120546	39024449	dense__pmid-39024449__African
+GCST90477969	Abnormal function study of cardiovascular system	Phe_429_2	African	AFR	case-control	117968	1289	116679	39024449	dense__pmid-39024449__African
+GCST90477971	Symptoms involving cardiovascular system	Phe_429_3	African	AFR	case-control	118005	1256	116749	39024449	dense__pmid-39024449__African
+GCST90477974	Intracranial hemorrhage	Phe_430	African	AFR	case-control	121142	1349	119793	39024449	dense__pmid-39024449__African
+GCST90477977	Intracerebral hemorrhage	Phe_430_2	African	AFR	case-control	121477	557	120920	39024449	dense__pmid-39024449__African
+GCST90477979	Subdural hemorrhage	Phe_430_3	African	AFR	case-control	121698	542	121156	39024449	dense__pmid-39024449__African
+GCST90477982	Cerebrovascular disease	Phe_433	African	AFR	case-control	114381	16858	97523	39024449	dense__pmid-39024449__African
+GCST90477984	Occlusion and stenosis of precerebral arteries	Phe_433_1	African	AFR	case-control	117082	3388	113694	39024449	dense__pmid-39024449__African
+GCST90477987	Occlusion of cerebral arteries	Phe_433_2	African	AFR	case-control	118880	7610	111270	39024449	dense__pmid-39024449__African
+GCST90477990	Cerebral artery occlusion, with cerebral infarction	Phe_433_21	African	AFR	case-control	119017	7521	111496	39024449	dense__pmid-39024449__African
+GCST90477993	Cerebral ischemia	Phe_433_3	African	AFR	case-control	116795	8197	108598	39024449	dense__pmid-39024449__African
+GCST90477995	Transient cerebral ischemia	Phe_433_31	African	AFR	case-control	117310	7606	109704	39024449	dense__pmid-39024449__African
+GCST90477999	Acute, but ill-defined cerebrovascular disease	Phe_433_6	African	AFR	case-control	120049	4568	115481	39024449	dense__pmid-39024449__African
+GCST90478002	Late effects of cerebrovascular disease	Phe_433_8	African	AFR	case-control	118994	5530	113464	39024449	dense__pmid-39024449__African
+GCST90478005	Atherosclerosis	Phe_440	African	AFR	case-control	116040	5248	110792	39024449	dense__pmid-39024449__African
+GCST90478007	Atherosclerosis of the extremities	Phe_440_2	African	AFR	case-control	118254	4282	113972	39024449	dense__pmid-39024449__African
+GCST90478008	Atherosclerosis of native arteries of the extremities with ulceration or gangrene	Phe_440_21	African	AFR	case-control	121279	1050	120229	39024449	dense__pmid-39024449__African
+GCST90478011	Atherosclerosis of native arteries of the extremities with intermittent claudication	Phe_440_22	African	AFR	case-control	119068	2794	116274	39024449	dense__pmid-39024449__African
+GCST90478015	Other aneurysm	Phe_442	African	AFR	case-control	119640	3536	116104	39024449	dense__pmid-39024449__African
+GCST90478017	Aortic aneurysm	Phe_442_1	African	AFR	case-control	120250	2825	117425	39024449	dense__pmid-39024449__African
+GCST90478019	Abdominal aortic aneurysm	Phe_442_11	African	AFR	case-control	120603	1773	118830	39024449	dense__pmid-39024449__African
+GCST90478022	Peripheral vascular disease	Phe_443	African	AFR	case-control	115762	9993	105769	39024449	dense__pmid-39024449__African
+GCST90478023	Other specified peripheral vascular disease	Phe_443_8	African	AFR	case-control	120600	769	119831	39024449	dense__pmid-39024449__African
+GCST90478026	Peripheral vascular disease, unspecified	Phe_443_9	African	AFR	case-control	116126	9303	106823	39024449	dense__pmid-39024449__African
+GCST90478027	Arterial embolism and thrombosis	Phe_444	African	AFR	case-control	120649	958	119691	39024449	dense__pmid-39024449__African
+GCST90476001	Other disorders of arteries and arterioles	Phe_447	African	AFR	case-control	119522	1243	118279	39024449	dense__pmid-39024449__African
+GCST90478032	Noninfectious disorders of lymphatic channels	Phe_450	African	AFR	case-control	120674	1249	119425	39024449	dense__pmid-39024449__African
+GCST90478033	Phlebitis and thrombophlebitis	Phe_451	African	AFR	case-control	119664	1130	118534	39024449	dense__pmid-39024449__African
+GCST90476006	Other venous embolism and thrombosis	Phe_452	African	AFR	case-control	118315	7556	110759	39024449	dense__pmid-39024449__African
+GCST90476009	Deep vein thrombosis [DVT]	Phe_452_2	African	AFR	case-control	119901	4478	115423	39024449	dense__pmid-39024449__African
+GCST90478034	Chronic venous hypertension	Phe_453	African	AFR	case-control	121505	703	120802	39024449	dense__pmid-39024449__African
+GCST90478036	Varicose veins	Phe_454	African	AFR	case-control	118376	3597	114779	39024449	dense__pmid-39024449__African
+GCST90478038	Varicose veins of lower extremity	Phe_454_1	African	AFR	case-control	119567	2757	116810	39024449	dense__pmid-39024449__African
+GCST90478040	Varicose veins of lower extremity, symptomtic	Phe_454_11	African	AFR	case-control	120405	1622	118783	39024449	dense__pmid-39024449__African
+GCST90478043	Hemorrhoids	Phe_455	African	AFR	case-control	102646	17547	85099	39024449	dense__pmid-39024449__African
+GCST90478045	Chronic venous insufficiency [CVI]	Phe_456	African	AFR	case-control	117614	5227	112387	39024449	dense__pmid-39024449__African
+GCST90478047	Encounter for long-term (current) use of anticoagulants, antithrombotics, aspirin	Phe_457	African	AFR	case-control	118328	1880	116448	39024449	dense__pmid-39024449__African
+GCST90478050	Encounter for long-term (current) use of aspirin	Phe_457_3	African	AFR	case-control	118593	1557	117036	39024449	dense__pmid-39024449__African
+GCST90478053	Hypotension	Phe_458	African	AFR	case-control	111927	9298	102629	39024449	dense__pmid-39024449__African
+GCST90478056	Orthostatic hypotension	Phe_458_1	African	AFR	case-control	116944	2837	114107	39024449	dense__pmid-39024449__African
+GCST90478058	Iatrogenic hypotension	Phe_458_2	African	AFR	case-control	119955	584	119371	39024449	dense__pmid-39024449__African
+GCST90478061	Hypotension NOS	Phe_458_9	African	AFR	case-control	114148	5728	108420	39024449	dense__pmid-39024449__African
+GCST90478064	Other disorders of circulatory system	Phe_459	African	AFR	case-control	115215	4127	111088	39024449	dense__pmid-39024449__African
+GCST90478065	Blood vessel replaced	Phe_459_7	African	AFR	case-control	120991	694	120297	39024449	dense__pmid-39024449__African
+GCST90478068	Circulatory disease NEC	Phe_459_9	African	AFR	case-control	116323	3033	113290	39024449	dense__pmid-39024449__African
+GCST90479167	Nonspecific abnormal findings on radiologic imaging of heart and coronary circulation	Phe_793_2	African	AFR	case-control	117284	1215	116069	39024449	dense__pmid-39024449__African
+GCST90479064	Cardiac and circulatory congenital anomalies	Phe_747	African	AFR	case-control	120255	944	119311	39024449	dense__pmid-39024449__African
+GCST90479066	Cardiac congenital anomalies	Phe_747_1	African	AFR	case-control	120851	560	120291	39024449	dense__pmid-39024449__African
+GCST90479074	Genitourinary congenital anomalies	Phe_751	African	AFR	case-control	118155	2401	115754	39024449	dense__pmid-39024449__African
+GCST90479077	Congenital anomalies of urinary system	Phe_751_2	African	AFR	case-control	119432	1925	117507	39024449	dense__pmid-39024449__African
+GCST90479079	Cystic kidney disease	Phe_751_21	African	AFR	case-control	119654	1773	117881	39024449	dense__pmid-39024449__African
+GCST90479081	Congenital musculoskeletal deformities of spine	Phe_754	African	AFR	case-control	120957	519	120438	39024449	dense__pmid-39024449__African
+GCST90479085	Congenital anomalies of limbs	Phe_755	African	AFR	case-control	115658	5419	110239	39024449	dense__pmid-39024449__African
+GCST90479088	Congenital deformities of feet	Phe_755_1	African	AFR	case-control	116062	5260	110802	39024449	dense__pmid-39024449__African
+GCST90478743	Superficial cellulitis and abscess	Phe_681	African	AFR	case-control	107038	19518	87520	39024449	dense__pmid-39024449__African
+GCST90478745	Cellulitis and abscess of fingers/toes	Phe_681_1	African	AFR	case-control	116944	2696	114248	39024449	dense__pmid-39024449__African
+GCST90478748	Cellulitis and abscess of face/neck	Phe_681_2	African	AFR	case-control	119184	1268	117916	39024449	dense__pmid-39024449__African
+GCST90478751	Cellulitis and abscess of arm/hand	Phe_681_3	African	AFR	case-control	118943	1481	117462	39024449	dense__pmid-39024449__African
+GCST90478754	Cellulitis and abscess of leg, except foot	Phe_681_5	African	AFR	case-control	117704	3284	114420	39024449	dense__pmid-39024449__African
+GCST90478755	Cellulitis and abscess of foot, toe	Phe_681_6	African	AFR	case-control	120728	846	119882	39024449	dense__pmid-39024449__African
+GCST90478758	Cellulitis and abscess of trunk	Phe_681_7	African	AFR	case-control	118263	2489	115774	39024449	dense__pmid-39024449__African
+GCST90478761	Other local infections of skin and subcutaneous tissue	Phe_686	African	AFR	case-control	117379	1315	116064	39024449	dense__pmid-39024449__African
+GCST90478764	Carbuncle and furuncle	Phe_686_1	African	AFR	case-control	116756	2168	114588	39024449	dense__pmid-39024449__African
+GCST90478769	Symptoms affecting skin	Phe_687	African	AFR	case-control	111165	4122	107043	39024449	dense__pmid-39024449__African
+GCST90478773	Rash and other nonspecific skin eruption	Phe_687_1	African	AFR	case-control	104234	12714	91520	39024449	dense__pmid-39024449__African
+GCST90476168	Localized superficial swelling, mass, or lump	Phe_687_2	African	AFR	case-control	112552	3488	109064	39024449	dense__pmid-39024449__African
+GCST90478777	Disturbance of skin sensation	Phe_687_4	African	AFR	case-control	105130	13353	91777	39024449	dense__pmid-39024449__African
+GCST90478780	Disorder of skin and subcutaneous tissue NO	Phe_689	African	AFR	case-control	109585	5453	104132	39024449	dense__pmid-39024449__African
+GCST90478782	Erythematosquamous dermatosis	Phe_690	African	AFR	case-control	117959	4331	113628	39024449	dense__pmid-39024449__African
+GCST90478784	Seborrheic dermatitis	Phe_690_1	African	AFR	case-control	118121	4277	113844	39024449	dense__pmid-39024449__African
+GCST90478785	Congenital anomalies of skin	Phe_691	African	AFR	case-control	120298	998	119300	39024449	dense__pmid-39024449__African
+GCST90478787	Dyschromia and Vitiligo	Phe_694	African	AFR	case-control	115868	3762	112106	39024449	dense__pmid-39024449__African
+GCST90478788	Vitiligo	Phe_694_1	African	AFR	case-control	121512	645	120867	39024449	dense__pmid-39024449__African
+GCST90478790	Other dyschromia	Phe_694_2	African	AFR	case-control	116089	3079	113010	39024449	dense__pmid-39024449__African
+GCST90476176	Erythematous conditions	Phe_695	African	AFR	case-control	115617	6537	109080	39024449	dense__pmid-39024449__African
+GCST90476179	Lupus (localized and systemic)	Phe_695_4	African	AFR	case-control	121698	992	120706	39024449	dense__pmid-39024449__African
+GCST90476181	Cutaneous lupus erythematosus	Phe_695_41	African	AFR	case-control	121758	607	121151	39024449	dense__pmid-39024449__African
+GCST90478793	Systemic lupus erythematosus	Phe_695_42	African	AFR	case-control	121733	740	120993	39024449	dense__pmid-39024449__African
+GCST90476184	Prurigo and Lichen	Phe_695_7	African	AFR	case-control	118252	3810	114442	39024449	dense__pmid-39024449__African
+GCST90478797	Other specified erythematous conditions	Phe_695_8	African	AFR	case-control	119816	1007	118809	39024449	dense__pmid-39024449__African
+GCST90478799	Psoriasis and related disorder	Phe_696	African	AFR	case-control	120437	1955	118482	39024449	dense__pmid-39024449__African
+GCST90478801	Psoriasis	Phe_696_4	African	AFR	case-control	120931	1711	119220	39024449	dense__pmid-39024449__African
+GCST90476189	Psoriasis vulgaris	Phe_696_41	African	AFR	case-control	121010	1662	119348	39024449	dense__pmid-39024449__African
+GCST90476192	Sarcoidosis	Phe_697	African	AFR	case-control	121655	1827	119828	39024449	dense__pmid-39024449__African
+GCST90478803	Pruritus and related conditions	Phe_698	African	AFR	case-control	113679	4796	108883	39024449	dense__pmid-39024449__African
+GCST90476195	Corns and callosities	Phe_700	African	AFR	case-control	114111	13847	100264	39024449	dense__pmid-39024449__African
+GCST90478806	Other hypertrophic and atrophic conditions	Phe_701	African	AFR	case-control	109175	12128	97047	39024449	dense__pmid-39024449__African
+GCST90478808	Keratoderma, acquired	Phe_701_1	African	AFR	case-control	115593	5144	110449	39024449	dense__pmid-39024449__African
+GCST90478811	Scar conditions and fibrosis of skin	Phe_701_2	African	AFR	case-control	118733	1236	117497	39024449	dense__pmid-39024449__African
+GCST90476199	Keloid scar	Phe_701_4	African	AFR	case-control	120033	2374	117659	39024449	dense__pmid-39024449__African
+GCST90478812	Degenerative skin conditions and other dermatoses	Phe_702	African	AFR	case-control	115368	3642	111726	39024449	dense__pmid-39024449__African
+GCST90478813	Seborrheic keratosis	Phe_702_2	African	AFR	case-control	116174	3192	112982	39024449	dense__pmid-39024449__African
+GCST90478815	Diseases of nail, NOS	Phe_703	African	AFR	case-control	112847	12925	99922	39024449	dense__pmid-39024449__African
+GCST90478817	Ingrowing nail	Phe_703_1	African	AFR	case-control	117318	6417	110901	39024449	dense__pmid-39024449__African
+GCST90478819	Diseases of hair and hair follicles	Phe_704	African	AFR	case-control	113867	7951	105916	39024449	dense__pmid-39024449__African
+GCST90478821	Alopecia	Phe_704_1	African	AFR	case-control	120087	2261	117826	39024449	dense__pmid-39024449__African
+GCST90478823	Alopecia Areata	Phe_704_11	African	AFR	case-control	121415	627	120788	39024449	dense__pmid-39024449__African
+GCST90478826	Other specified diseases of hair and hair follicles	Phe_704_8	African	AFR	case-control	115237	5339	109898	39024449	dense__pmid-39024449__African
+GCST90478829	Disorders of sweat glands	Phe_705	African	AFR	case-control	119387	1865	117522	39024449	dense__pmid-39024449__African
+GCST90478831	Dyshidrosis	Phe_705_1	African	AFR	case-control	120919	633	120286	39024449	dense__pmid-39024449__African
+GCST90478833	Hidradenitis	Phe_705_3	African	AFR	case-control	120967	1079	119888	39024449	dense__pmid-39024449__African
+GCST90478835	Hyperhidrosis	Phe_705_8	African	AFR	case-control	119451	924	118527	39024449	dense__pmid-39024449__African
+GCST90478839	Diseases of sebaceous glands	Phe_706	African	AFR	case-control	107209	18620	88589	39024449	dense__pmid-39024449__African
+GCST90478841	Acne	Phe_706_1	African	AFR	case-control	118517	4324	114193	39024449	dense__pmid-39024449__African
+GCST90478842	Sebaceous cyst	Phe_706_2	African	AFR	case-control	114274	8292	105982	39024449	dense__pmid-39024449__African
+GCST90476214	Other specified diseases of sebaceous glands	Phe_706_8	African	AFR	case-control	112500	6523	105977	39024449	dense__pmid-39024449__African
+GCST90478845	Chronic ulcer of skin	Phe_707	African	AFR	case-control	117826	6201	111625	39024449	dense__pmid-39024449__African
+GCST90478847	Decubitus ulcer	Phe_707_1	African	AFR	case-control	120204	2048	118156	39024449	dense__pmid-39024449__African
+GCST90478849	Chronic ulcer of leg or foot	Phe_707_2	African	AFR	case-control	119409	4469	114940	39024449	dense__pmid-39024449__African
+GCST90478850	Chronic ulcer of unspecified site	Phe_707_3	African	AFR	case-control	119978	1195	118783	39024449	dense__pmid-39024449__African
+GCST90476219	Diffuse diseases of connective	Phe_709	African	AFR	case-control	120955	880	120075	39024449	dense__pmid-39024449__African
+GCST90479306	Atopic/contact dermatitis due to other or unspecified	Phe_939	African	AFR	case-control	105999	19557	86442	39024449	dense__pmid-39024449__African
+GCST90479309	Urticaria	Phe_947	African	AFR	case-control	118133	2350	115783	39024449	dense__pmid-39024449__African
+GCST90478224	Disorders of tooth development	Phe_520	African	AFR	case-control	116831	1475	115356	39024449	dense__pmid-39024449__African
+GCST90478227	Disturbances in tooth eruption	Phe_520_2	African	AFR	case-control	119360	520	118840	39024449	dense__pmid-39024449__African
+GCST90478231	Diseases of hard tissues of teeth	Phe_521	African	AFR	case-control	110084	38020	72064	39024449	dense__pmid-39024449__African
+GCST90478235	Dental caries	Phe_521_1	African	AFR	case-control	110173	37171	73002	39024449	dense__pmid-39024449__African
+GCST90478238	Dental abrasion, erosion and attrition	Phe_521_2	African	AFR	case-control	117688	2252	115436	39024449	dense__pmid-39024449__African
+GCST90478241	Diseases of pulp and periapical tissues	Phe_522	African	AFR	case-control	112773	8716	104057	39024449	dense__pmid-39024449__African
+GCST90478244	Pulpitis and necrosis of tooth pulp	Phe_522_1	African	AFR	case-control	116084	5068	111016	39024449	dense__pmid-39024449__African
+GCST90478247	Periapical abscess	Phe_522_5	African	AFR	case-control	114932	2587	112345	39024449	dense__pmid-39024449__African
+GCST90478251	Gingival and periodontal diseases	Phe_523	African	AFR	case-control	110313	31213	79100	39024449	dense__pmid-39024449__African
+GCST90478255	Gingivitis	Phe_523_1	African	AFR	case-control	113503	9748	103755	39024449	dense__pmid-39024449__African
+GCST90478259	Periodontitis (acute or chronic)	Phe_523_3	African	AFR	case-control	111940	17928	94012	39024449	dense__pmid-39024449__African
+GCST90478262	Acute periodontitis	Phe_523_31	African	AFR	case-control	113779	11304	102475	39024449	dense__pmid-39024449__African
+GCST90478265	Chronic periodontitis	Phe_523_32	African	AFR	case-control	114835	10329	104506	39024449	dense__pmid-39024449__African
+GCST90478268	Dentofacial anomalies, including malocclusion	Phe_524	African	AFR	case-control	117114	2772	114342	39024449	dense__pmid-39024449__African
+GCST90478271	Anomalies of tooth position/malocclusion	Phe_524_3	African	AFR	case-control	119160	1574	117586	39024449	dense__pmid-39024449__African
+GCST90478275	Other diseases of the teeth and supporting structures	Phe_525	African	AFR	case-control	109619	38143	71476	39024449	dense__pmid-39024449__African
+GCST90478279	Loss of teeth or edentulism	Phe_525_1	African	AFR	case-control	115037	23016	92021	39024449	dense__pmid-39024449__African
+GCST90478282	Atrophy of edentulous alveolar ridge	Phe_525_2	African	AFR	case-control	119942	1397	118545	39024449	dense__pmid-39024449__African
+GCST90478285	Diseases of the jaws	Phe_526	African	AFR	case-control	115110	3363	111747	39024449	dense__pmid-39024449__African
+GCST90478288	Temporomandibular joint disorders	Phe_526_4	African	AFR	case-control	118569	1744	116825	39024449	dense__pmid-39024449__African
+GCST90478291	Temporomandibular joint disorder, unspecified	Phe_526_41	African	AFR	case-control	119358	1396	117962	39024449	dense__pmid-39024449__African
+GCST90478296	Diseases of the salivary glands	Phe_527	African	AFR	case-control	117960	2550	115410	39024449	dense__pmid-39024449__African
+GCST90478298	Sialoadenitis	Phe_527_2	African	AFR	case-control	121057	572	120485	39024449	dense__pmid-39024449__African
+GCST90478301	Disturbance of salivary secretion	Phe_527_7	African	AFR	case-control	118974	1657	117317	39024449	dense__pmid-39024449__African
+GCST90478304	Diseases of the oral soft tissues, excluding lesions specific for gingiva and tongue	Phe_528	African	AFR	case-control	114568	3883	110685	39024449	dense__pmid-39024449__African
+GCST90478307	Cellulitis and abscess of oral soft tissues	Phe_528_3	African	AFR	case-control	119463	676	118787	39024449	dense__pmid-39024449__African
+GCST90478313	Diseases of esophagus	Phe_530	African	AFR	case-control	109942	46915	63027	39024449	dense__pmid-39024449__African
+GCST90478316	Esophagitis, GERD and related diseases	Phe_530_1	African	AFR	case-control	110062	45951	64111	39024449	dense__pmid-39024449__African
+GCST90478319	GERD	Phe_530_11	African	AFR	case-control	110086	44287	65799	39024449	dense__pmid-39024449__African
+GCST90478322	Barrett's esophagus	Phe_530_13	African	AFR	case-control	121409	778	120631	39024449	dense__pmid-39024449__African
+GCST90478324	Reflux esophagitis	Phe_530_14	African	AFR	case-control	117639	3287	114352	39024449	dense__pmid-39024449__African
+GCST90478326	Esophageal bleeding (varices/hemorrhage)	Phe_530_2	African	AFR	case-control	120710	996	119714	39024449	dense__pmid-39024449__African
+GCST90478327	Stricture and stenosis of esophagus	Phe_530_3	African	AFR	case-control	120679	753	119926	39024449	dense__pmid-39024449__African
+GCST90478331	Heartburn	Phe_530_9	African	AFR	case-control	118602	1016	117586	39024449	dense__pmid-39024449__African
+GCST90476051	Peptic ulcer (excl. esophageal)	Phe_531	African	AFR	case-control	118107	5093	113014	39024449	dense__pmid-39024449__African
+GCST90478334	Hemorrhage from gastrointestinal ulcer	Phe_531_1	African	AFR	case-control	120981	594	120387	39024449	dense__pmid-39024449__African
+GCST90478336	Gastric ulcer	Phe_531_2	African	AFR	case-control	120215	1070	119145	39024449	dense__pmid-39024449__African
+GCST90478338	Duodenal ulcer	Phe_531_3	African	AFR	case-control	120901	679	120222	39024449	dense__pmid-39024449__African
+GCST90478341	Peptic ulcer, site unspecified	Phe_531_4	African	AFR	case-control	119295	3145	116150	39024449	dense__pmid-39024449__African
+GCST90478343	Dysphagia	Phe_532	African	AFR	case-control	114865	12971	101894	39024449	dense__pmid-39024449__African
+GCST90478346	Gastritis and duodenitis	Phe_535	African	AFR	case-control	110313	7308	103005	39024449	dense__pmid-39024449__African
+GCST90478348	Acute gastritis	Phe_535_1	African	AFR	case-control	118521	758	117763	39024449	dense__pmid-39024449__African
+GCST90478350	Atrophic gastritis	Phe_535_2	African	AFR	case-control	118326	866	117460	39024449	dense__pmid-39024449__African
+GCST90478352	Duodenitis	Phe_535_6	African	AFR	case-control	119992	602	119390	39024449	dense__pmid-39024449__African
+GCST90478354	Other specified gastritis	Phe_535_8	African	AFR	case-control	118068	964	117104	39024449	dense__pmid-39024449__African
+GCST90478357	Gastritis and duodenitis, NOS	Phe_535_9	African	AFR	case-control	114435	3133	111302	39024449	dense__pmid-39024449__African
+GCST90478360	Disorders of function of stomach	Phe_536	African	AFR	case-control	115547	4438	111109	39024449	dense__pmid-39024449__African
+GCST90478362	Gastroparesis	Phe_536_3	African	AFR	case-control	121168	928	120240	39024449	dense__pmid-39024449__African
+GCST90478365	Dyspepsia and other specified disorders of function of stomach	Phe_536_8	African	AFR	case-control	116126	3324	112802	39024449	dense__pmid-39024449__African
+GCST90478368	Other disorders of stomach and duodenum	Phe_537	African	AFR	case-control	117738	1898	115840	39024449	dense__pmid-39024449__African
+GCST90478370	Bariatric surgery	Phe_539	African	AFR	case-control	121649	753	120896	39024449	dense__pmid-39024449__African
+GCST90478372	Appendiceal conditions	Phe_540	African	AFR	case-control	121579	887	120692	39024449	dense__pmid-39024449__African
+GCST90478374	Appendicitis	Phe_540_1	African	AFR	case-control	121654	831	120823	39024449	dense__pmid-39024449__African
+GCST90478376	Acute appendicitis	Phe_540_11	African	AFR	case-control	121725	691	121034	39024449	dense__pmid-39024449__African
+GCST90478378	Abdominal hernia	Phe_550	African	AFR	case-control	113569	14419	99150	39024449	dense__pmid-39024449__African
+GCST90478380	Inguinal hernia	Phe_550_1	African	AFR	case-control	119485	6816	112669	39024449	dense__pmid-39024449__African
+GCST90478382	Diaphragmatic hernia	Phe_550_2	African	AFR	case-control	116187	3387	112800	39024449	dense__pmid-39024449__African
+GCST90478384	Umbilical hernia	Phe_550_4	African	AFR	case-control	120035	3037	116998	39024449	dense__pmid-39024449__African
+GCST90478386	Ventral hernia	Phe_550_5	African	AFR	case-control	120306	1923	118383	39024449	dense__pmid-39024449__African
+GCST90478388	Incisional hernia	Phe_550_6	African	AFR	case-control	121434	842	120592	39024449	dense__pmid-39024449__African
+GCST90478390	Inflammatory bowel disease and other gasteroenteritis and colitis	Phe_555	African	AFR	case-control	120599	1285	119314	39024449	dense__pmid-39024449__African
+GCST90478391	Regional enteritis	Phe_555_1	African	AFR	case-control	121650	567	121083	39024449	dense__pmid-39024449__African
+GCST90478393	Ulcerative colitis	Phe_555_2	African	AFR	case-control	120766	857	119909	39024449	dense__pmid-39024449__African
+GCST90478395	Ulceration of the lower GI tract	Phe_556	African	AFR	case-control	120690	516	120174	39024449	dense__pmid-39024449__African
+GCST90478400	Noninfectious gastroenteritis	Phe_558	African	AFR	case-control	112989	4041	108948	39024449	dense__pmid-39024449__African
+GCST90478403	Intestinal obstruction without mention of hernia	Phe_560	African	AFR	case-control	118505	3065	115440	39024449	dense__pmid-39024449__African
+GCST90478405	Paralytic ileus	Phe_560_1	African	AFR	case-control	120245	827	119418	39024449	dense__pmid-39024449__African
+GCST90478410	Other intestinal obstruction	Phe_560_4	African	AFR	case-control	120539	1758	118781	39024449	dense__pmid-39024449__African
+GCST90478414	Symptoms involving digestive system	Phe_561	African	AFR	case-control	105697	15305	90392	39024449	dense__pmid-39024449__African
+GCST90478416	Diarrhea	Phe_561_1	African	AFR	case-control	108828	10974	97854	39024449	dense__pmid-39024449__African
+GCST90478418	Flatulence	Phe_561_2	African	AFR	case-control	116975	2167	114808	39024449	dense__pmid-39024449__African
+GCST90476072	Diverticulosis and diverticulitis	Phe_562	African	AFR	case-control	108574	11659	96915	39024449	dense__pmid-39024449__African
+GCST90476075	Diverticulosis	Phe_562_1	African	AFR	case-control	108756	10308	98448	39024449	dense__pmid-39024449__African
+GCST90478421	Diverticulitis	Phe_562_2	African	AFR	case-control	119350	1855	117495	39024449	dense__pmid-39024449__African
+GCST90478423	Constipation	Phe_563	African	AFR	case-control	107260	18147	89113	39024449	dense__pmid-39024449__African
+GCST90478426	Functional digestive disorders	Phe_564	African	AFR	case-control	113151	7068	106083	39024449	dense__pmid-39024449__African
+GCST90478429	Irritable Bowel Syndrome	Phe_564_1	African	AFR	case-control	119865	3165	116700	39024449	dense__pmid-39024449__African
+GCST90478432	Abnormal findings on exam of gastrointestinal tract/abdominal area	Phe_564_8	African	AFR	case-control	116824	2132	114692	39024449	dense__pmid-39024449__African
+GCST90478434	Personal history of diseases of digestive system	Phe_564_9	African	AFR	case-control	119732	564	119168	39024449	dense__pmid-39024449__African
+GCST90478437	Anal and rectal conditions	Phe_565	African	AFR	case-control	114436	5262	109174	39024449	dense__pmid-39024449__African
+GCST90478440	Anal and rectal polyp	Phe_565_1	African	AFR	case-control	118331	749	117582	39024449	dense__pmid-39024449__African
+GCST90478443	Peritonitis and retroperitoneal infections	Phe_567	African	AFR	case-control	120762	859	119903	39024449	dense__pmid-39024449__African
+GCST90478444	Other disorders of peritoneum	Phe_568	African	AFR	case-control	120714	586	120128	39024449	dense__pmid-39024449__African
+GCST90478448	Other disorders of intestine	Phe_569	African	AFR	case-control	117515	1492	116023	39024449	dense__pmid-39024449__African
+GCST90476080	Chronic liver disease and cirrhosis	Phe_571	African	AFR	case-control	116358	8971	107387	39024449	dense__pmid-39024449__African
+GCST90476083	Other chronic nonalcoholic liver disease	Phe_571_5	African	AFR	case-control	116617	8587	108030	39024449	dense__pmid-39024449__African
+GCST90478453	Cirrhosis of liver without mention of alcohol	Phe_571_51	African	AFR	case-control	120234	5063	115171	39024449	dense__pmid-39024449__African
+GCST90478454	Liver abscess and sequelae of chronic liver disease	Phe_571_8	African	AFR	case-control	120823	1030	119793	39024449	dense__pmid-39024449__African
+GCST90478457	Ascites (non malignant)	Phe_572	African	AFR	case-control	120646	1020	119626	39024449	dense__pmid-39024449__African
+GCST90478459	Other disorders of liver	Phe_573	African	AFR	case-control	117905	2391	115514	39024449	dense__pmid-39024449__African
+GCST90478460	Hepatomegaly	Phe_573_3	African	AFR	case-control	119955	873	119082	39024449	dense__pmid-39024449__African
+GCST90478462	Nonspecific elevation of levels of transaminase or lactic acid dehydrogenase [LDH]	Phe_573_6	African	AFR	case-control	117983	1654	116329	39024449	dense__pmid-39024449__African
+GCST90476096	Abnormal results of function study of liver	Phe_573_7	African	AFR	case-control	114955	8667	106288	39024449	dense__pmid-39024449__African
+GCST90478465	Abnormal serum enzyme levels	Phe_573_9	African	AFR	case-control	117027	2082	114945	39024449	dense__pmid-39024449__African
+GCST90476099	Cholelithiasis and cholecystitis	Phe_574	African	AFR	case-control	119510	4521	114989	39024449	dense__pmid-39024449__African
+GCST90478468	Cholelithiasis	Phe_574_1	African	AFR	case-control	119547	3634	115913	39024449	dense__pmid-39024449__African
+GCST90478469	Cholelithiasis with other cholecystitis	Phe_574_12	African	AFR	case-control	120975	536	120439	39024449	dense__pmid-39024449__African
+GCST90478472	Cholecystitis without cholelithiasis	Phe_574_3	African	AFR	case-control	120959	1263	119696	39024449	dense__pmid-39024449__African
+GCST90478474	Other biliary tract disease	Phe_575	African	AFR	case-control	118354	2583	115771	39024449	dense__pmid-39024449__African
+GCST90478477	Other disorders of gallbladder	Phe_575_7	African	AFR	case-control	120659	577	120082	39024449	dense__pmid-39024449__African
+GCST90478480	Nonspecific abnormal findings on radiological and other examination of biliary tract	Phe_575_9	African	AFR	case-control	119961	1097	118864	39024449	dense__pmid-39024449__African
+GCST90478482	Diseases of pancreas	Phe_577	African	AFR	case-control	119673	4616	115057	39024449	dense__pmid-39024449__African
+GCST90478485	Acute pancreatitis	Phe_577_1	African	AFR	case-control	120310	3143	117167	39024449	dense__pmid-39024449__African
+GCST90476107	Chronic pancreatitis	Phe_577_2	African	AFR	case-control	121100	1475	119625	39024449	dense__pmid-39024449__African
+GCST90478486	Cyst and pseudocyst of pancreas	Phe_577_3	African	AFR	case-control	121551	729	120822	39024449	dense__pmid-39024449__African
+GCST90478490	Gastrointestinal hemorrhage	Phe_578	African	AFR	case-control	110260	18637	91623	39024449	dense__pmid-39024449__African
+GCST90478491	Hematemesis	Phe_578_1	African	AFR	case-control	120607	837	119770	39024449	dense__pmid-39024449__African
+GCST90478494	Blood in stool	Phe_578_2	African	AFR	case-control	112086	8816	103270	39024449	dense__pmid-39024449__African
+GCST90478497	Hemorrhage of rectum and anus	Phe_578_8	African	AFR	case-control	114060	6559	107501	39024449	dense__pmid-39024449__African
+GCST90478500	Hemorrhage of gastrointestinal tract	Phe_578_9	African	AFR	case-control	116389	4723	111666	39024449	dense__pmid-39024449__African
+GCST90478503	Other symptoms involving abdomen and pelvis	Phe_579	African	AFR	case-control	118406	1498	116908	39024449	dense__pmid-39024449__African
+GCST90478505	Nonspecific abnormal findings in stool contents	Phe_579_8	African	AFR	case-control	114971	2773	112198	39024449	dense__pmid-39024449__African
+GCST90475634	Simple and unspecified goiter	Phe_240	African	AFR	case-control	120785	1259	119526	39024449	dense__pmid-39024449__African
+GCST90475637	Nontoxic nodular goiter	Phe_241	African	AFR	case-control	120196	5733	114463	39024449	dense__pmid-39024449__African
+GCST90475639	Nontoxic uninodular goiter	Phe_241_1	African	AFR	case-control	120182	4160	116022	39024449	dense__pmid-39024449__African
+GCST90475641	Nontoxic multinodular goiter	Phe_241_2	African	AFR	case-control	120702	2803	117899	39024449	dense__pmid-39024449__African
+GCST90477297	Thyrotoxicosis with or without goiter	Phe_242	African	AFR	case-control	120502	2690	117812	39024449	dense__pmid-39024449__African
+GCST90477298	Graves' disease	Phe_242_1	African	AFR	case-control	121555	1020	120535	39024449	dense__pmid-39024449__African
+GCST90477299	Exophthalmos	Phe_242_3	African	AFR	case-control	121277	612	120665	39024449	dense__pmid-39024449__African
+GCST90475646	Hypothyroidism	Phe_244	African	AFR	case-control	119770	7603	112167	39024449	dense__pmid-39024449__African
+GCST90475648	Secondary hypothyroidism	Phe_244_1	African	AFR	case-control	121433	1469	119964	39024449	dense__pmid-39024449__African
+GCST90477303	Acquired hypothyroidism	Phe_244_2	African	AFR	case-control	121064	716	120348	39024449	dense__pmid-39024449__African
+GCST90475652	Hypothyroidism NOS	Phe_244_4	African	AFR	case-control	119851	7099	112752	39024449	dense__pmid-39024449__African
+GCST90477305	Other disorders of thyroid	Phe_246	African	AFR	case-control	119706	1640	118066	39024449	dense__pmid-39024449__African
+GCST90477307	Abnormal results of function study of thyro	Phe_246_7	African	AFR	case-control	119702	1431	118271	39024449	dense__pmid-39024449__African
+GCST90477309	Secondary diabetes mellitus	Phe_249	African	AFR	case-control	118295	2358	115937	39024449	dense__pmid-39024449__African
+GCST90475657	Diabetes mellitus	Phe_250	African	AFR	case-control	115705	51802	63903	39024449	dense__pmid-39024449__African
+GCST90475660	Type 1 diabetes	Phe_250_1	African	AFR	case-control	115861	6451	109410	39024449	dense__pmid-39024449__African
+GCST90477312	Type 1 diabetes with ophthalmic manifestations	Phe_250_13	African	AFR	case-control	120493	738	119755	39024449	dense__pmid-39024449__African
+GCST90477313	Type 1 diabetes with neurological manifestations	Phe_250_14	African	AFR	case-control	120757	847	119910	39024449	dense__pmid-39024449__African
+GCST90475666	Type 2 diabetes	Phe_250_2	African	AFR	case-control	116014	51551	64463	39024449	dense__pmid-39024449__African
+GCST90475668	Type 2 diabetes with ketoacidosis	Phe_250_21	African	AFR	case-control	121082	893	120189	39024449	dense__pmid-39024449__African
+GCST90475669	Type 2 diabetes with renal manifestations	Phe_250_22	African	AFR	case-control	117635	9879	107756	39024449	dense__pmid-39024449__African
+GCST90475672	Type 2 diabetes with ophthalmic manifestations	Phe_250_23	African	AFR	case-control	115018	11204	103814	39024449	dense__pmid-39024449__African
+GCST90475675	Type 2 diabetes with neurological manifestations	Phe_250_24	African	AFR	case-control	115941	16638	99303	39024449	dense__pmid-39024449__African
+GCST90475677	Diabetes type 2 with peripheral circulatory	Phe_250_25	African	AFR	case-control	119264	2956	116308	39024449	dense__pmid-39024449__African
+GCST90475679	Insulin pump user	Phe_250_3	African	AFR	case-control	118639	4132	114507	39024449	dense__pmid-39024449__African
+GCST90475681	Abnormal glucose	Phe_250_4	African	AFR	case-control	107676	20786	86890	39024449	dense__pmid-39024449__African
+GCST90477323	Impaired fasting glucose	Phe_250_41	African	AFR	case-control	115429	9853	105576	39024449	dense__pmid-39024449__African
+GCST90477325	Other abnormal glucose	Phe_250_42	African	AFR	case-control	109482	11690	97792	39024449	dense__pmid-39024449__African
+GCST90475685	Polyneuropathy in diabetes	Phe_250_6	African	AFR	case-control	118602	4528	114074	39024449	dense__pmid-39024449__African
+GCST90475688	Diabetic retinopathy	Phe_250_7	African	AFR	case-control	115212	11781	103431	39024449	dense__pmid-39024449__African
+GCST90477328	Hypoglycemia	Phe_251_1	African	AFR	case-control	118124	2166	115958	39024449	dense__pmid-39024449__African
+GCST90475690	Disorders of parathyroid gland	Phe_252	African	AFR	case-control	120473	2306	118167	39024449	dense__pmid-39024449__African
+GCST90475692	Hyperparathyroidism	Phe_252_1	African	AFR	case-control	120584	2152	118432	39024449	dense__pmid-39024449__African
+GCST90477333	Disorders of the pituitary gland and its hypothalamic control	Phe_253	African	AFR	case-control	120544	1713	118831	39024449	dense__pmid-39024449__African
+GCST90477337	Anterior pituitary disorders	Phe_253_4	African	AFR	case-control	121375	520	120855	39024449	dense__pmid-39024449__African
+GCST90477340	Disorders of adrenal glands	Phe_255	African	AFR	case-control	120338	2075	118263	39024449	dense__pmid-39024449__African
+GCST90477342	Adrenal hyperfunction	Phe_255_1	African	AFR	case-control	121597	746	120851	39024449	dense__pmid-39024449__African
+GCST90477343	Hyperaldosteronism	Phe_255_12	African	AFR	case-control	121718	677	121041	39024449	dense__pmid-39024449__African
+GCST90477349	Testicular dysfunction	Phe_257	African	AFR	case-control	102570	4583	97987	39024449	dense__pmid-39024449__African
+GCST90477351	Testicular hypofunction	Phe_257_1	African	AFR	case-control	103240	4309	98931	39024449	dense__pmid-39024449__African
+GCST90477355	Protein-calorie malnutrition	Phe_260	African	AFR	case-control	117108	5150	111958	39024449	dense__pmid-39024449__African
+GCST90477358	severe protein-calorie malnutrition	Phe_260_2	African	AFR	case-control	120515	995	119520	39024449	dense__pmid-39024449__African
+GCST90477360	Adult failure to thrive	Phe_260_3	African	AFR	case-control	120712	1164	119548	39024449	dense__pmid-39024449__African
+GCST90475699	Vitamin deficiency	Phe_261	African	AFR	case-control	108376	34360	74016	39024449	dense__pmid-39024449__African
+GCST90475701	Vitamin B-complex deficiencies	Phe_261_2	African	AFR	case-control	118599	4527	114072	39024449	dense__pmid-39024449__African
+GCST90475704	Vitamin D deficiency	Phe_261_4	African	AFR	case-control	109262	30648	78614	39024449	dense__pmid-39024449__African
+GCST90477366	Mineral deficiency NEC	Phe_262	African	AFR	case-control	120516	823	119693	39024449	dense__pmid-39024449__African
+GCST90477368	Other nutritional deficiency	Phe_263	African	AFR	case-control	120495	725	119770	39024449	dense__pmid-39024449__African
+GCST90475706	Proteinuria	Phe_269	African	AFR	case-control	117968	4895	113073	39024449	dense__pmid-39024449__African
+GCST90477372	Disorders of protein plasma/amino-acid transport and metabolism	Phe_270	African	AFR	case-control	119104	3200	115904	39024449	dense__pmid-39024449__African
+GCST90477373	Disorders of amino acid metabolism	Phe_270_2	African	AFR	case-control	120741	632	120109	39024449	dense__pmid-39024449__African
+GCST90477376	Disorders of plasma protein metabolism	Phe_270_3	African	AFR	case-control	120347	2497	117850	39024449	dense__pmid-39024449__African
+GCST90477377	Paraproteinemia	Phe_270_32	African	AFR	case-control	121453	2046	119407	39024449	dense__pmid-39024449__African
+GCST90477380	Disorders of carbohydrate transport and metabolism	Phe_271	African	AFR	case-control	116803	5585	111218	39024449	dense__pmid-39024449__African
+GCST90477382	Intestinal disaccharidase deficiencies and disaccharide malabsorption	Phe_271_3	African	AFR	case-control	117021	5430	111591	39024449	dense__pmid-39024449__African
+GCST90475714	Disorders of lipoid metabolism	Phe_272	African	AFR	case-control	114061	82107	31954	39024449	dense__pmid-39024449__African
+GCST90475717	Hyperlipidemia	Phe_272_1	African	AFR	case-control	114081	82035	32046	39024449	dense__pmid-39024449__African
+GCST90475720	Hypercholesterolemia	Phe_272_11	African	AFR	case-control	112891	17737	95154	39024449	dense__pmid-39024449__African
+GCST90475723	Hyperglyceridemia	Phe_272_12	African	AFR	case-control	118937	3011	115926	39024449	dense__pmid-39024449__African
+GCST90475726	Mixed hyperlipidemia	Phe_272_13	African	AFR	case-control	112369	21139	91230	39024449	dense__pmid-39024449__African
+GCST90477387	Unspecified disorder of lipoid metabolism	Phe_272_9	African	AFR	case-control	120151	533	119618	39024449	dense__pmid-39024449__African
+GCST90475730	Gout and other crystal arthrop	Phe_274	African	AFR	case-control	117820	14867	102953	39024449	dense__pmid-39024449__African
+GCST90475734	Gout	Phe_274_1	African	AFR	case-control	118168	14437	103731	39024449	dense__pmid-39024449__African
+GCST90475737	Gouty arthropathy	Phe_274_11	African	AFR	case-control	118600	3538	115062	39024449	dense__pmid-39024449__African
+GCST90477389	Crystal arthropathies	Phe_274_2	African	AFR	case-control	121006	700	120306	39024449	dense__pmid-39024449__African
+GCST90477390	Chondrocalcinosis	Phe_274_21	African	AFR	case-control	121244	536	120708	39024449	dense__pmid-39024449__African
+GCST90475741	Disorders of mineral metabolism	Phe_275	African	AFR	case-control	114875	7832	107043	39024449	dense__pmid-39024449__African
+GCST90477393	Disorders of magnesium metabolism	Phe_275_3	African	AFR	case-control	118268	2851	115417	39024449	dense__pmid-39024449__African
+GCST90475745	Disorders of calcium/phosphorus metabolism	Phe_275_5	African	AFR	case-control	118413	2717	115696	39024449	dense__pmid-39024449__African
+GCST90477396	Hypocalcemia	Phe_275_51	African	AFR	case-control	120586	813	119773	39024449	dense__pmid-39024449__African
+GCST90475746	Disorders of phosphorus metabolism	Phe_275_53	African	AFR	case-control	119717	1606	118111	39024449	dense__pmid-39024449__African
+GCST90475747	Hypercalcemia	Phe_275_6	African	AFR	case-control	120083	2183	117900	39024449	dense__pmid-39024449__African
+GCST90477403	Disorders of fluid, electrolyte, and acid-based balance	Phe_276	African	AFR	case-control	106156	24830	81326	39024449	dense__pmid-39024449__African
+GCST90477405	Electrolyte imbalance	Phe_276_1	African	AFR	case-control	109003	19001	90002	39024449	dense__pmid-39024449__African
+GCST90477406	Hyperosmolality and/or hypernatremia	Phe_276_11	African	AFR	case-control	120354	737	119617	39024449	dense__pmid-39024449__African
+GCST90477409	Hyposmolality and/or hyponatremia	Phe_276_12	African	AFR	case-control	116946	3481	113465	39024449	dense__pmid-39024449__African
+GCST90475752	Hyperpotassemia	Phe_276_13	African	AFR	case-control	117131	5206	111925	39024449	dense__pmid-39024449__African
+GCST90475754	Hypopotassemia	Phe_276_14	African	AFR	case-control	112591	10895	101696	39024449	dense__pmid-39024449__African
+GCST90477413	Acid-base balance disorder	Phe_276_4	African	AFR	case-control	116475	4455	112020	39024449	dense__pmid-39024449__African
+GCST90477416	Acidosis	Phe_276_41	African	AFR	case-control	117073	3926	113147	39024449	dense__pmid-39024449__African
+GCST90477420	Hypovolemia	Phe_276_5	African	AFR	case-control	110517	7420	103097	39024449	dense__pmid-39024449__African
+GCST90477423	Fluid overload	Phe_276_6	African	AFR	case-control	119541	1734	117807	39024449	dense__pmid-39024449__African
+GCST90477426	Other disorders of metabolism	Phe_277	African	AFR	case-control	119341	1536	117805	39024449	dense__pmid-39024449__African
+GCST90477429	Other disorders of lipoid metabolism	Phe_277_5	African	AFR	case-control	119052	1858	117194	39024449	dense__pmid-39024449__African
+GCST90477433	Dysmetabolic syndrome X	Phe_277_7	African	AFR	case-control	120902	1119	119783	39024449	dense__pmid-39024449__African
+GCST90475758	Overweight, obesity and other hyperalimentation	Phe_278	African	AFR	case-control	109205	57785	51420	39024449	dense__pmid-39024449__African
+GCST90475761	Obesity	Phe_278_1	African	AFR	case-control	111076	52351	58725	39024449	dense__pmid-39024449__African
+GCST90475764	Morbid obesity	Phe_278_11	African	AFR	case-control	115819	14258	101561	39024449	dense__pmid-39024449__African
+GCST90477438	Abnormal weight gain	Phe_278_4	African	AFR	case-control	119199	829	118370	39024449	dense__pmid-39024449__African
+GCST90477441	Other immunological findings	Phe_279_7	African	AFR	case-control	120393	820	119573	39024449	dense__pmid-39024449__African
+GCST90476112	Nephritis; nephrosis; renal sclerosis	Phe_580	African	AFR	case-control	119579	2669	116910	39024449	dense__pmid-39024449__African
+GCST90476113	Glomerulonephritis	Phe_580_1	African	AFR	case-control	121356	775	120581	39024449	dense__pmid-39024449__African
+GCST90478511	Nephrotic syndrome without mention of glomerulonephritis	Phe_580_2	African	AFR	case-control	121372	580	120792	39024449	dense__pmid-39024449__African
+GCST90476114	Nephritis and nephropathy without mention of glomerulonephritis	Phe_580_3	African	AFR	case-control	120132	1703	118429	39024449	dense__pmid-39024449__African
+GCST90478515	Nephritis and nephropathy in diseases classified elsewhere	Phe_580_31	African	AFR	case-control	120908	1047	119861	39024449	dense__pmid-39024449__African
+GCST90478516	Nephritis and nephropathy with pathological lesion	Phe_580_32	African	AFR	case-control	120989	677	120312	39024449	dense__pmid-39024449__African
+GCST90476117	Renal failure	Phe_585	African	AFR	case-control	113022	31017	82005	39024449	dense__pmid-39024449__African
+GCST90478521	Acute renal failure	Phe_585_1	African	AFR	case-control	112783	16080	96703	39024449	dense__pmid-39024449__African
+GCST90476120	Renal failure NOS	Phe_585_2	African	AFR	case-control	119113	3371	115742	39024449	dense__pmid-39024449__African
+GCST90476122	Chronic renal failure [CKD]	Phe_585_3	African	AFR	case-control	116292	21844	94448	39024449	dense__pmid-39024449__African
+GCST90476124	Renal dialysis	Phe_585_31	African	AFR	case-control	121478	3002	118476	39024449	dense__pmid-39024449__African
+GCST90476125	End stage renal disease	Phe_585_32	African	AFR	case-control	121033	4335	116698	39024449	dense__pmid-39024449__African
+GCST90476127	Chronic Kidney Disease, Stage III	Phe_585_33	African	AFR	case-control	118108	13744	104364	39024449	dense__pmid-39024449__African
+GCST90476129	Chronic Kidney Disease, Stage IV	Phe_585_34	African	AFR	case-control	120642	4501	116141	39024449	dense__pmid-39024449__African
+GCST90478531	Chronic kidney disease, Stage I or II	Phe_585_4	African	AFR	case-control	117472	5454	112018	39024449	dense__pmid-39024449__African
+GCST90478534	Other disorders of the kidney and ureters	Phe_586	African	AFR	case-control	112994	9375	103619	39024449	dense__pmid-39024449__African
+GCST90476132	Cyst of kidney, acquired	Phe_586_2	African	AFR	case-control	117711	3376	114335	39024449	dense__pmid-39024449__African
+GCST90478536	Stricture/obstruction of ureter	Phe_586_4	African	AFR	case-control	120908	753	120155	39024449	dense__pmid-39024449__African
+GCST90476134	Kidney replaced by transpant	Phe_587	African	AFR	case-control	121733	886	120847	39024449	dense__pmid-39024449__African
+GCST90476135	Disorders resulting from impaired renal function	Phe_588	African	AFR	case-control	120225	4035	116190	39024449	dense__pmid-39024449__African
+GCST90478540	Renal osteodystrophy	Phe_588_1	African	AFR	case-control	121256	957	120299	39024449	dense__pmid-39024449__African
+GCST90476137	Secondary hyperparathyroidism (of renal origin)	Phe_588_2	African	AFR	case-control	120738	3359	117379	39024449	dense__pmid-39024449__African
+GCST90478543	Abnormal results of function study of kidney	Phe_589	African	AFR	case-control	119385	775	118610	39024449	dense__pmid-39024449__African
+GCST90478545	Pyelonephritis	Phe_590	African	AFR	case-control	120548	900	119648	39024449	dense__pmid-39024449__African
+GCST90478548	Urinary tract infection	Phe_591	African	AFR	case-control	108426	15423	93003	39024449	dense__pmid-39024449__African
+GCST90478550	Cystitis and urethritis	Phe_592	African	AFR	case-control	116418	2417	114001	39024449	dense__pmid-39024449__African
+GCST90478553	Cystitis	Phe_592_1	African	AFR	case-control	118397	1416	116981	39024449	dense__pmid-39024449__African
+GCST90478556	Urethritis and urethral syndrome	Phe_592_2	African	AFR	case-control	119655	865	118790	39024449	dense__pmid-39024449__African
+GCST90478559	Hematuria	Phe_593	African	AFR	case-control	113556	12245	101311	39024449	dense__pmid-39024449__African
+GCST90478561	Gross hematuria	Phe_593_1	African	AFR	case-control	118726	4586	114140	39024449	dense__pmid-39024449__African
+GCST90476141	Microscopic hematuria	Phe_593_2	African	AFR	case-control	117061	6604	110457	39024449	dense__pmid-39024449__African
+GCST90478565	Urinary calculus	Phe_594	African	AFR	case-control	118171	5904	112267	39024449	dense__pmid-39024449__African
+GCST90478566	Calculus of kidney	Phe_594_1	African	AFR	case-control	118713	4988	113725	39024449	dense__pmid-39024449__African
+GCST90478568	Calculus of ureter	Phe_594_3	African	AFR	case-control	120993	1317	119676	39024449	dense__pmid-39024449__African
+GCST90478570	Hydronephrosis	Phe_595	African	AFR	case-control	120543	1548	118995	39024449	dense__pmid-39024449__African
+GCST90478573	Other disorders of bladder	Phe_596	African	AFR	case-control	116319	6433	109886	39024449	dense__pmid-39024449__African
+GCST90478575	Bladder neck obstruction	Phe_596_1	African	AFR	case-control	120441	1120	119321	39024449	dense__pmid-39024449__African
+GCST90478578	Functional disorders of bladder	Phe_596_5	African	AFR	case-control	118855	4096	114759	39024449	dense__pmid-39024449__African
+GCST90478580	Other disorders of urethra and urinary tract	Phe_597	African	AFR	case-control	120827	1425	119402	39024449	dense__pmid-39024449__African
+GCST90478582	Urethral stricture (not specified as infectious)	Phe_597_1	African	AFR	case-control	121148	1219	119929	39024449	dense__pmid-39024449__African
+GCST90478585	Abnormal findings on examination of urine	Phe_598	African	AFR	case-control	116967	1784	115183	39024449	dense__pmid-39024449__African
+GCST90478588	Other nonspecific findings on examination of urine	Phe_598_9	African	AFR	case-control	117163	1715	115448	39024449	dense__pmid-39024449__African
+GCST90476148	Other symptoms/disorders or the urinary system	Phe_599	African	AFR	case-control	104575	25457	79118	39024449	dense__pmid-39024449__African
+GCST90478592	Urinary obstruction	Phe_599_1	African	AFR	case-control	120421	743	119678	39024449	dense__pmid-39024449__African
+GCST90478595	Retention of urine	Phe_599_2	African	AFR	case-control	117030	5159	111871	39024449	dense__pmid-39024449__African
+GCST90478597	Dysuria	Phe_599_3	African	AFR	case-control	114211	3393	110818	39024449	dense__pmid-39024449__African
+GCST90476151	Urinary incontinence	Phe_599_4	African	AFR	case-control	115522	8706	106816	39024449	dense__pmid-39024449__African
+GCST90478601	Frequency of urination and polyuria	Phe_599_5	African	AFR	case-control	110378	10100	100278	39024449	dense__pmid-39024449__African
+GCST90478604	Other symptoms involving urinary system	Phe_599_8	African	AFR	case-control	116880	2360	114520	39024449	dense__pmid-39024449__African
+GCST90478607	Other abnormality of urination	Phe_599_9	African	AFR	case-control	114590	4378	110212	39024449	dense__pmid-39024449__African
+GCST90478611	Hyperplasia of prostate	Phe_600	African	AFR	case-control	95389	30813	64576	39024449	dense__pmid-39024449__African
+GCST90478613	Inflammatory diseases of prostate	Phe_601	African	AFR	case-control	97279	7247	90032	39024449	dense__pmid-39024449__African
+GCST90478616	Prostatitis	Phe_601_1	African	AFR	case-control	100591	3401	97190	39024449	dense__pmid-39024449__African
+GCST90478617	Acute prostatitis	Phe_601_11	African	AFR	case-control	103113	683	102430	39024449	dense__pmid-39024449__African
+GCST90478620	Chronic prostatitis	Phe_601_12	African	AFR	case-control	102969	1473	101496	39024449	dense__pmid-39024449__African
+GCST90478622	Orchitis and epididymitis	Phe_601_3	African	AFR	case-control	101943	2682	99261	39024449	dense__pmid-39024449__African
+GCST90478625	Balanoposthitis	Phe_601_4	African	AFR	case-control	103623	781	102842	39024449	dense__pmid-39024449__African
+GCST90478629	Other disorders of prostate	Phe_602	African	AFR	case-control	101945	2026	99919	39024449	dense__pmid-39024449__African
+GCST90478633	Other disorders of testis	Phe_603	African	AFR	case-control	102759	2276	100483	39024449	dense__pmid-39024449__African
+GCST90478635	Hydrocele	Phe_603_1	African	AFR	case-control	103281	1826	101455	39024449	dense__pmid-39024449__African
+GCST90478637	Disorders of penis	Phe_604	African	AFR	case-control	102075	2830	99245	39024449	dense__pmid-39024449__African
+GCST90478639	Redundant prepuce and phimosis/BXO	Phe_604_1	African	AFR	case-control	104104	1456	102648	39024449	dense__pmid-39024449__African
+GCST90478643	Erectile dysfunction [ED]	Phe_605	African	AFR	case-control	94867	47384	47483	39024449	dense__pmid-39024449__African
+GCST90478645	Other disorders of male genital organs	Phe_608	African	AFR	case-control	99477	4075	95402	39024449	dense__pmid-39024449__African
+GCST90478648	Male infertility and abnormal spermatozoa	Phe_609	African	AFR	case-control	104056	701	103355	39024449	dense__pmid-39024449__African
+GCST90478652	Benign mammary dysplasias	Phe_610	African	AFR	case-control	120035	1701	118334	39024449	dense__pmid-39024449__African
+GCST90478654	Cystic mastopathy	Phe_610_1	African	AFR	case-control	15454	980	14474	39024449	dense__pmid-39024449__African
+GCST90478659	Abnormal findings on mammogram or breast exam	Phe_611	African	AFR	case-control	118482	5102	113380	39024449	dense__pmid-39024449__African
+GCST90478661	Abnormal mammogram	Phe_611_1	African	AFR	case-control	14846	1988	12858	39024449	dense__pmid-39024449__African
+GCST90478665	Lump or mass in breast	Phe_611_3	African	AFR	case-control	119002	3384	115618	39024449	dense__pmid-39024449__African
+GCST90478668	Breast conditions, congenital or relating to hormones	Phe_612	African	AFR	case-control	120039	2472	117567	39024449	dense__pmid-39024449__African
+GCST90478670	Hypertrophy of breast (Gynecomastia)	Phe_612_2	African	AFR	case-control	120258	2276	117982	39024449	dense__pmid-39024449__African
+GCST90478672	Other nonmalignant breast conditions	Phe_613	African	AFR	case-control	118385	3022	115363	39024449	dense__pmid-39024449__African
+GCST90478673	Mastodynia	Phe_613_5	African	AFR	case-control	119889	1050	118839	39024449	dense__pmid-39024449__African
+GCST90478675	Other signs and symptoms in breast	Phe_613_7	African	AFR	case-control	120617	645	119972	39024449	dense__pmid-39024449__African
+GCST90478677	Other specified disorders of breast	Phe_613_8	African	AFR	case-control	120682	542	120140	39024449	dense__pmid-39024449__African
+GCST90478681	Inflammatory diseases of female pelvic organs	Phe_614	African	AFR	case-control	13749	5121	8628	39024449	dense__pmid-39024449__African
+GCST90478684	Inflammatory disease of cervix, vagina, and vulva	Phe_614_5	African	AFR	case-control	13725	4843	8882	39024449	dense__pmid-39024449__African
+GCST90478687	Vaginitis and vulvovaginitis	Phe_614_52	African	AFR	case-control	13870	4403	9467	39024449	dense__pmid-39024449__African
+GCST90478689	Endometriosis	Phe_615	African	AFR	case-control	16231	575	15656	39024449	dense__pmid-39024449__African
+GCST90478694	Noninflammatory female genital disorders	Phe_619	African	AFR	case-control	13912	2648	11264	39024449	dense__pmid-39024449__African
+GCST90478696	Disorders of uterus, NEC	Phe_619_2	African	AFR	case-control	15518	1145	14373	39024449	dense__pmid-39024449__African
+GCST90478698	Noninflammatory disorders of vagina	Phe_619_4	African	AFR	case-control	15121	718	14403	39024449	dense__pmid-39024449__African
+GCST90478701	stress incontinence, female	Phe_624_9	African	AFR	case-control	16115	772	15343	39024449	dense__pmid-39024449__African
+GCST90478704	Pain and other symptoms associated with female genital organs	Phe_625	African	AFR	case-control	14896	1607	13289	39024449	dense__pmid-39024449__African
+GCST90478708	Disorders of menstruation and other abnormal bleeding from female genital tract	Phe_626	African	AFR	case-control	14945	5893	9052	39024449	dense__pmid-39024449__African
+GCST90478711	Irregular menstrual cycle/bleeding	Phe_626_1	African	AFR	case-control	14870	4591	10279	39024449	dense__pmid-39024449__African
+GCST90478713	Absent or infrequent menstruation	Phe_626_11	African	AFR	case-control	15804	628	15176	39024449	dense__pmid-39024449__African
+GCST90478716	Excessive or frequent menstruation	Phe_626_12	African	AFR	case-control	15552	2483	13069	39024449	dense__pmid-39024449__African
+GCST90478718	Irregular menstrual cycle	Phe_626_13	African	AFR	case-control	15537	884	14653	39024449	dense__pmid-39024449__African
+GCST90478721	Dysmenorrhea	Phe_626_2	African	AFR	case-control	15613	1438	14175	39024449	dense__pmid-39024449__African
+GCST90478723	Infertility, female	Phe_626_8	African	AFR	case-control	16443	560	15883	39024449	dense__pmid-39024449__African
+GCST90478726	Menopausal and postmenopausal disorders	Phe_627	African	AFR	case-control	14590	4983	9607	39024449	dense__pmid-39024449__African
+GCST90478728	Postmenopausal bleeding	Phe_627_1	African	AFR	case-control	16296	759	15537	39024449	dense__pmid-39024449__African
+GCST90478731	Symptomatic menopause	Phe_627_2	African	AFR	case-control	14933	3210	11723	39024449	dense__pmid-39024449__African
+GCST90478734	Postmenopausal atrophic vaginitis	Phe_627_3	African	AFR	case-control	15773	733	15040	39024449	dense__pmid-39024449__African
+GCST90478737	Ovarian cyst	Phe_628	African	AFR	case-control	15568	1302	14266	39024449	dense__pmid-39024449__African
+GCST90479161	Abnormal Papanicolaou smear of cervix and cervical HPV	Phe_792	African	AFR	case-control	15501	2152	13349	39024449	dense__pmid-39024449__African
+GCST90479163	Papanicolaou smear of cervix or vagina with atypical squamous cells	Phe_792_1	African	AFR	case-control	15992	979	15013	39024449	dense__pmid-39024449__African
+GCST90476276	Elevated prostate specific antigen [PSA]	Phe_796	African	AFR	case-control	100875	18916	81959	39024449	dense__pmid-39024449__African
+GCST90475766	Iron deficiency anemias	Phe_280	African	AFR	case-control	114289	14759	99530	39024449	dense__pmid-39024449__African
+GCST90475768	Iron deficiency anemias, unspecified or notdue to blood loss	Phe_280_1	African	AFR	case-control	114708	13707	101001	39024449	dense__pmid-39024449__African
+GCST90477446	Iron deficiency anemia secondary to blood loss (chronic)	Phe_280_2	African	AFR	case-control	118926	2078	116848	39024449	dense__pmid-39024449__African
+GCST90475771	Other deficiency anemia	Phe_281	African	AFR	case-control	117532	4486	113046	39024449	dense__pmid-39024449__African
+GCST90475773	Megaloblastic anemia	Phe_281_1	African	AFR	case-control	119292	3353	115939	39024449	dense__pmid-39024449__African
+GCST90475775	Other vitamin B12 deficiency anemia	Phe_281_12	African	AFR	case-control	119878	2807	117071	39024449	dense__pmid-39024449__African
+GCST90477452	Deficiency anemias	Phe_281_9	African	AFR	case-control	119858	1081	118777	39024449	dense__pmid-39024449__African
+GCST90475778	Hereditary hemolytic anemias	Phe_282	African	AFR	case-control	120142	2972	117170	39024449	dense__pmid-39024449__African
+GCST90475780	Other hemoglobinopathies	Phe_282_8	African	AFR	case-control	121192	1030	120162	39024449	dense__pmid-39024449__African
+GCST90475782	Aplastic anemia	Phe_284	African	AFR	case-control	120558	1363	119195	39024449	dense__pmid-39024449__African
+GCST90477456	Pancytopenia	Phe_284_1	African	AFR	case-control	120793	1179	119614	39024449	dense__pmid-39024449__African
+GCST90475787	Other anemias	Phe_285	African	AFR	case-control	109306	33007	76299	39024449	dense__pmid-39024449__African
+GCST90477458	Acute posthemorrhagic anemia	Phe_285_1	African	AFR	case-control	118215	1855	116360	39024449	dense__pmid-39024449__African
+GCST90475789	Anemia of chronic disease	Phe_285_2	African	AFR	case-control	117060	7782	109278	39024449	dense__pmid-39024449__African
+GCST90475791	Anemia in chronic kidney disease	Phe_285_21	African	AFR	case-control	119668	5158	114510	39024449	dense__pmid-39024449__African
+GCST90477462	Anemia in neoplastic disease	Phe_285_22	African	AFR	case-control	121159	666	120493	39024449	dense__pmid-39024449__African
+GCST90475795	Coagulation defects	Phe_286	African	AFR	case-control	118939	2785	116154	39024449	dense__pmid-39024449__African
+GCST90475798	Encounter for long-term (current) use of anticoagulants	Phe_286_2	African	AFR	case-control	119585	7589	111996	39024449	dense__pmid-39024449__African
+GCST90477463	Other and unspecified coagulation defects	Phe_286_7	African	AFR	case-control	120581	1080	119501	39024449	dense__pmid-39024449__African
+GCST90475801	Hypercoagulable state	Phe_286_8	African	AFR	case-control	121480	578	120902	39024449	dense__pmid-39024449__African
+GCST90475803	Primary hypercoagulable state	Phe_286_81	African	AFR	case-control	121563	522	121041	39024449	dense__pmid-39024449__African
+GCST90477464	Abnormal coagulation profile	Phe_286_9	African	AFR	case-control	120151	1016	119135	39024449	dense__pmid-39024449__African
+GCST90475806	Purpura and other hemorrhagic conditions	Phe_287	African	AFR	case-control	118189	4483	113706	39024449	dense__pmid-39024449__African
+GCST90475808	Thrombocytopenia	Phe_287_3	African	AFR	case-control	118469	4335	114134	39024449	dense__pmid-39024449__African
+GCST90475811	Diseases of white blood cells	Phe_288	African	AFR	case-control	115215	4513	110702	39024449	dense__pmid-39024449__African
+GCST90475814	Decreased white blood cell count	Phe_288_1	African	AFR	case-control	118742	3735	115007	39024449	dense__pmid-39024449__African
+GCST90475816	Neutropenia	Phe_288_11	African	AFR	case-control	120183	1983	118200	39024449	dense__pmid-39024449__African
+GCST90475818	Elevated white blood cell count	Phe_288_2	African	AFR	case-control	116548	3112	113436	39024449	dense__pmid-39024449__African
+GCST90475820	Other diseases of blood and blood-forming organs	Phe_289	African	AFR	case-control	119301	1102	118199	39024449	dense__pmid-39024449__African
+GCST90477472	Lymphadenitis	Phe_289_4	African	AFR	case-control	116178	3938	112240	39024449	dense__pmid-39024449__African
+GCST90477008	Intestinal infection	Phe_008	African	AFR	case-control	116287	2456	113831	39024449	dense__pmid-39024449__African
+GCST90477011	Bacterial enteritis	Phe_008_5	African	AFR	case-control	120314	1274	119040	39024449	dense__pmid-39024449__African
+GCST90477014	Intestinal infection due to C. difficile	Phe_008_52	African	AFR	case-control	120946	1004	119942	39024449	dense__pmid-39024449__African
+GCST90477017	Tuberculosis	Phe_010	African	AFR	case-control	120010	1302	118708	39024449	dense__pmid-39024449__African
+GCST90477020	Septicemia	Phe_038	African	AFR	case-control	117591	5929	111662	39024449	dense__pmid-39024449__African
+GCST90477022	Gram negative septicemia	Phe_038_1	African	AFR	case-control	120710	693	120017	39024449	dense__pmid-39024449__African
+GCST90477026	Bacteremia	Phe_038_3	African	AFR	case-control	120326	2384	117942	39024449	dense__pmid-39024449__African
+GCST90477029	Bacterial infection NOS	Phe_041	African	AFR	case-control	110811	9090	101721	39024449	dense__pmid-39024449__African
+GCST90477031	Staphylococcus infections	Phe_041_1	African	AFR	case-control	118497	2393	116104	39024449	dense__pmid-39024449__African
+GCST90477034	Methicillin sensitive Staphylococcus aureus	Phe_041_11	African	AFR	case-control	120262	1048	119214	39024449	dense__pmid-39024449__African
+GCST90477036	Methicillin resistant Staphylococcus aureus	Phe_041_12	African	AFR	case-control	120339	1053	119286	39024449	dense__pmid-39024449__African
+GCST90477038	Streptococcus infection	Phe_041_2	African	AFR	case-control	119861	826	119035	39024449	dense__pmid-39024449__African
+GCST90477040	E. coli	Phe_041_4	African	AFR	case-control	119811	816	118995	39024449	dense__pmid-39024449__African
+GCST90477043	H. pylori	Phe_041_8	African	AFR	case-control	118872	2525	116347	39024449	dense__pmid-39024449__African
+GCST90477047	Herpes zoster	Phe_053	African	AFR	case-control	118452	2466	115986	39024449	dense__pmid-39024449__African
+GCST90477051	Herpes simplex	Phe_054	African	AFR	case-control	118580	3882	114698	39024449	dense__pmid-39024449__African
+GCST90477054	Viral hepatitis	Phe_070	African	AFR	case-control	119908	14472	105436	39024449	dense__pmid-39024449__African
+GCST90477055	Viral hepatitis B	Phe_070_2	African	AFR	case-control	120493	1940	118553	39024449	dense__pmid-39024449__African
+GCST90477058	Viral hepatitis C	Phe_070_3	African	AFR	case-control	120624	13231	107393	39024449	dense__pmid-39024449__African
+GCST90477059	Chronic hepatitis	Phe_070_4	African	AFR	case-control	120372	1125	119247	39024449	dense__pmid-39024449__African
+GCST90477062	Hepatitis NOS	Phe_070_9	African	AFR	case-control	119972	1108	118864	39024449	dense__pmid-39024449__African
+GCST90475554	Viral warts & HPV	Phe_078	African	AFR	case-control	117595	4166	113429	39024449	dense__pmid-39024449__African
+GCST90477066	Viral infection	Phe_079	African	AFR	case-control	113752	2635	111117	39024449	dense__pmid-39024449__African
+GCST90477069	Postoperative infection	Phe_080	African	AFR	case-control	120222	1125	119097	39024449	dense__pmid-39024449__African
+GCST90477071	Infection/inflammation of internal prosthetic device; implant; and graft	Phe_081	African	AFR	case-control	121022	939	120083	39024449	dense__pmid-39024449__African
+GCST90477074	Sexually transmitted infections (not HIV or hepatitis)	Phe_090	African	AFR	case-control	116908	3986	112922	39024449	dense__pmid-39024449__African
+GCST90477101	screening for infectious and parasitic diseases	Phe_1010_1	African	AFR	case-control	107895	10215	97680	39024449	dense__pmid-39024449__African
+GCST90477105	screening for malignant neoplasms	Phe_1010_2	African	AFR	case-control	99304	23545	75759	39024449	dense__pmid-39024449__African
+GCST90477108	screening for other diseases and disorders	Phe_1010_3	African	AFR	case-control	97931	43803	54128	39024449	dense__pmid-39024449__African
+GCST90477111	potential health hazards related to communicable diseases	Phe_1010_5	African	AFR	case-control	101674	65978	35696	39024449	dense__pmid-39024449__African
+GCST90477141	Dermatophytosis / Dermatomycosis	Phe_110	African	AFR	case-control	106227	38505	67722	39024449	dense__pmid-39024449__African
+GCST90477144	Dermatophytosis	Phe_110_1	African	AFR	case-control	106572	36994	69578	39024449	dense__pmid-39024449__African
+GCST90477146	Dermatophytosis of nail	Phe_110_11	African	AFR	case-control	111090	28312	82778	39024449	dense__pmid-39024449__African
+GCST90477148	Athlete's foot	Phe_110_12	African	AFR	case-control	111264	10143	101121	39024449	dense__pmid-39024449__African
+GCST90477150	Dermatophytosis of the body	Phe_110_13	African	AFR	case-control	117109	1813	115296	39024449	dense__pmid-39024449__African
+GCST90475564	Dermatomycoses	Phe_110_2	African	AFR	case-control	118652	2110	116542	39024449	dense__pmid-39024449__African
+GCST90477157	Candidiasis	Phe_112	African	AFR	case-control	116178	3468	112710	39024449	dense__pmid-39024449__African
+GCST90477159	Mycoses	Phe_117	African	AFR	case-control	120321	807	119514	39024449	dense__pmid-39024449__African
+GCST90477163	Other infectious and parasitic diseases	Phe_136	African	AFR	case-control	117575	2116	115459	39024449	dense__pmid-39024449__African
+GCST90477077	Burns	Phe_1000	African	AFR	case-control	119304	1757	117547	39024449	dense__pmid-39024449__African
+GCST90477080	Foreign body injury	Phe_1001	African	AFR	case-control	117080	1392	115688	39024449	dense__pmid-39024449__African
+GCST90477091	Crushing or internal injury to organs	Phe_1008	African	AFR	case-control	120604	534	120070	39024449	dense__pmid-39024449__African
+GCST90477094	Injury, NOS	Phe_1009	African	AFR	case-control	104657	10769	93888	39024449	dense__pmid-39024449__African
+GCST90477118	Persons with potential health hazards related to socioeconomic, psychosocial, and other circumstances	Phe_1010_7	African	AFR	case-control	118321	111019	7302	39024449	dense__pmid-39024449__African
+GCST90479183	Fracture of lower limb	Phe_800	African	AFR	case-control	120018	3136	116882	39024449	dense__pmid-39024449__African
+GCST90479185	Fracture of neck of femur	Phe_800_1	African	AFR	case-control	121613	569	121044	39024449	dense__pmid-39024449__African
+GCST90479187	Fracture of unspecified part of femur	Phe_800_2	African	AFR	case-control	121607	524	121083	39024449	dense__pmid-39024449__African
+GCST90479190	Fracture of tibia and fibula	Phe_800_3	African	AFR	case-control	120950	1423	119527	39024449	dense__pmid-39024449__African
+GCST90479194	Fracture of ankle and foot	Phe_801	African	AFR	case-control	119174	4624	114550	39024449	dense__pmid-39024449__African
+GCST90479196	Fracture of foot	Phe_801_1	African	AFR	case-control	121148	1725	119423	39024449	dense__pmid-39024449__African
+GCST90479200	Fracture of upper limb	Phe_803	African	AFR	case-control	120607	2429	118178	39024449	dense__pmid-39024449__African
+GCST90479201	Fracture of humerus	Phe_803_1	African	AFR	case-control	121582	621	120961	39024449	dense__pmid-39024449__African
+GCST90479204	Fracture of radius and ulna	Phe_803_2	African	AFR	case-control	121299	1371	119928	39024449	dense__pmid-39024449__African
+GCST90479207	Fracture of hand or wrist	Phe_804	African	AFR	case-control	119764	3070	116694	39024449	dense__pmid-39024449__African
+GCST90479209	Fracture of vertebral column without mention of spinal cord injury	Phe_805	African	AFR	case-control	121036	973	120063	39024449	dense__pmid-39024449__African
+GCST90479212	Fracture of ribs	Phe_807	African	AFR	case-control	120137	1121	119016	39024449	dense__pmid-39024449__African
+GCST90479215	Fracture of unspecified bones	Phe_809	African	AFR	case-control	119093	1638	117455	39024449	dense__pmid-39024449__African
+GCST90479218	Concussion	Phe_817	African	AFR	case-control	119901	871	119030	39024449	dense__pmid-39024449__African
+GCST90479220	Intracranial hemorrhage (injury)	Phe_818	African	AFR	case-control	121573	607	120966	39024449	dense__pmid-39024449__African
+GCST90479223	Skull and face fracture and other intercranial injury	Phe_819	African	AFR	case-control	118266	4765	113501	39024449	dense__pmid-39024449__African
+GCST90479226	Dislocation	Phe_830	African	AFR	case-control	117878	4350	113528	39024449	dense__pmid-39024449__African
+GCST90479229	Internal derangement of knee	Phe_835	African	AFR	case-control	115636	8051	107585	39024449	dense__pmid-39024449__African
+GCST90479231	Traumatic arthropathy	Phe_836	African	AFR	case-control	119359	2102	117257	39024449	dense__pmid-39024449__African
+GCST90479235	Sprains and strains	Phe_840	African	AFR	case-control	103833	16824	87009	39024449	dense__pmid-39024449__African
+GCST90479238	Rotator cuff (capsule) sprain	Phe_840_2	African	AFR	case-control	119276	2568	116708	39024449	dense__pmid-39024449__African
+GCST90479241	Joint/ligament sprain	Phe_840_3	African	AFR	case-control	115005	3344	111661	39024449	dense__pmid-39024449__African
+GCST90479244	Sprains and strains of back and neck	Phe_841	African	AFR	case-control	113863	3447	110416	39024449	dense__pmid-39024449__African
+GCST90479247	Other sprains and strains	Phe_842	African	AFR	case-control	115999	1451	114548	39024449	dense__pmid-39024449__African
+GCST90479249	Hemorrhage or hematoma complicating a procedure	Phe_850	African	AFR	case-control	119794	985	118809	39024449	dense__pmid-39024449__African
+GCST90479252	Complications of transplants and reattached limbs	Phe_851	African	AFR	case-control	119859	1643	118216	39024449	dense__pmid-39024449__African
+GCST90476283	Complications of cardiac/vascular device, implant, and graft	Phe_854	African	AFR	case-control	119960	2519	117441	39024449	dense__pmid-39024449__African
+GCST90479255	Mechanical complication of unspecified genitourinary device, implant, and graft	Phe_857	African	AFR	case-control	120684	827	119857	39024449	dense__pmid-39024449__African
+GCST90479258	Complication of internal orthopedic device	Phe_858	African	AFR	case-control	120437	2054	118383	39024449	dense__pmid-39024449__African
+GCST90479260	Complication due to other implant and internal device	Phe_859	African	AFR	case-control	120577	665	119912	39024449	dense__pmid-39024449__African
+GCST90479263	Open wounds of head; neck; and trunk	Phe_870	African	AFR	case-control	114859	3654	111205	39024449	dense__pmid-39024449__African
+GCST90479265	Open wound or laceration of eye or eyelid	Phe_870_1	African	AFR	case-control	120899	634	120265	39024449	dense__pmid-39024449__African
+GCST90479269	Open wounds of extremities	Phe_871	African	AFR	case-control	113121	5797	107324	39024449	dense__pmid-39024449__African
+GCST90479272	Open wound of finger(s)	Phe_871_2	African	AFR	case-control	118632	921	117711	39024449	dense__pmid-39024449__African
+GCST90479275	Open wound of foot except toe(s) alone	Phe_871_3	African	AFR	case-control	119849	1187	118662	39024449	dense__pmid-39024449__African
+GCST90479278	Traumatic amputation	Phe_872	African	AFR	case-control	121330	1236	120094	39024449	dense__pmid-39024449__African
+GCST90479280	Broken tooth	Phe_873	African	AFR	case-control	118822	742	118080	39024449	dense__pmid-39024449__African
+GCST90479282	Complication of amputation stump	Phe_874	African	AFR	case-control	121534	547	120987	39024449	dense__pmid-39024449__African
+GCST90479284	Non-healing surgical wound	Phe_875	African	AFR	case-control	121031	888	120143	39024449	dense__pmid-39024449__African
+GCST90479288	Injuries to the nervous system	Phe_907	African	AFR	case-control	119373	1565	117808	39024449	dense__pmid-39024449__African
+GCST90479290	Blister	Phe_911	African	AFR	case-control	119868	707	119161	39024449	dense__pmid-39024449__African
+GCST90479292	Insect bite	Phe_912	African	AFR	case-control	117390	1043	116347	39024449	dense__pmid-39024449__African
+GCST90479295	Superficial injury without mention of infection	Phe_915	African	AFR	case-control	111478	4089	107389	39024449	dense__pmid-39024449__African
+GCST90479298	Contusion	Phe_916	African	AFR	case-control	108500	5649	102851	39024449	dense__pmid-39024449__African
+GCST90479300	Allergic reaction to food	Phe_930	African	AFR	case-control	120636	738	119898	39024449	dense__pmid-39024449__African
+GCST90476290	Anaphylactic shock NOS	Phe_946	African	AFR	case-control	119989	1336	118653	39024449	dense__pmid-39024449__African
+GCST90479311	Allergies, other	Phe_949	African	AFR	case-control	114297	4392	109905	39024449	dense__pmid-39024449__African
+GCST90479313	Spinal cord injury without evidence of spinal bone injury	Phe_952	African	AFR	case-control	121404	642	120762	39024449	dense__pmid-39024449__African
+GCST90479316	Poisoning by antibiotics	Phe_960	African	AFR	case-control	120057	720	119337	39024449	dense__pmid-39024449__African
+GCST90479318	Allergy/adverse effect of penicillin	Phe_960_2	African	AFR	case-control	120876	555	120321	39024449	dense__pmid-39024449__African
+GCST90479327	Poisoning by psychotropic agents	Phe_969	African	AFR	case-control	120187	690	119497	39024449	dense__pmid-39024449__African
+GCST90479332	Adverse drug events and drug allergies	Phe_979	African	AFR	case-control	115042	2240	112802	39024449	dense__pmid-39024449__African
+GCST90476292	Effects radiation NOS	Phe_990	African	AFR	case-control	119927	2196	117731	39024449	dense__pmid-39024449__African
+GCST90479337	Sepsis and SIRS	Phe_994	African	AFR	case-control	117841	4436	113405	39024449	dense__pmid-39024449__African
+GCST90479341	Sepsis	Phe_994_2	African	AFR	case-control	118081	4118	113963	39024449	dense__pmid-39024449__African
+GCST90479343	Septic shock	Phe_994_21	African	AFR	case-control	120916	631	120285	39024449	dense__pmid-39024449__African
+GCST90478855	Osteomyelitis, periostitis, and other infections involving bone	Phe_710	African	AFR	case-control	120586	3034	117552	39024449	dense__pmid-39024449__African
+GCST90478857	Osteomyelitis	Phe_710_1	African	AFR	case-control	120774	2971	117803	39024449	dense__pmid-39024449__African
+GCST90478859	Acute osteomyelitis	Phe_710_11	African	AFR	case-control	121175	1363	119812	39024449	dense__pmid-39024449__African
+GCST90478861	Chronic osteomyelitis	Phe_710_12	African	AFR	case-control	121187	1562	119625	39024449	dense__pmid-39024449__African
+GCST90478863	Unspecified osteomyelitis	Phe_710_19	African	AFR	case-control	120975	2096	118879	39024449	dense__pmid-39024449__African
+GCST90478864	Arthropathy associated with infections	Phe_711	African	AFR	case-control	120642	885	119757	39024449	dense__pmid-39024449__African
+GCST90478865	Pyogenic arthritis	Phe_711_1	African	AFR	case-control	121184	577	120607	39024449	dense__pmid-39024449__African
+GCST90476227	Rheumatoid arthritis and other inflammatory	Phe_714	African	AFR	case-control	119230	3412	115818	39024449	dense__pmid-39024449__African
+GCST90476229	Rheumatoid arthritis	Phe_714_1	African	AFR	case-control	120422	2384	118038	39024449	dense__pmid-39024449__African
+GCST90478872	Other inflammatory spondylopathies	Phe_715	African	AFR	case-control	119544	1961	117583	39024449	dense__pmid-39024449__African
+GCST90478874	Sacroiliitis NEC	Phe_715_1	African	AFR	case-control	120550	1379	119171	39024449	dense__pmid-39024449__African
+GCST90478877	Other arthropathies	Phe_716	African	AFR	case-control	108268	14839	93429	39024449	dense__pmid-39024449__African
+GCST90478880	Unspecified monoarthritis	Phe_716_2	African	AFR	case-control	120419	686	119733	39024449	dense__pmid-39024449__African
+GCST90478883	Arthropathy NOS	Phe_716_9	African	AFR	case-control	110395	11108	99287	39024449	dense__pmid-39024449__African
+GCST90478886	Spinal stenosis	Phe_720	African	AFR	case-control	115275	12719	102556	39024449	dense__pmid-39024449__African
+GCST90478888	Spinal stenosis of lumbar region	Phe_720_1	African	AFR	case-control	117183	7774	109409	39024449	dense__pmid-39024449__African
+GCST90478891	Spondylosis and allied disorders	Phe_721	African	AFR	case-control	109103	19864	89239	39024449	dense__pmid-39024449__African
+GCST90478894	Spondylosis without myelopathy	Phe_721_1	African	AFR	case-control	109262	18090	91172	39024449	dense__pmid-39024449__African
+GCST90478896	Spondylosis with myelopathy	Phe_721_2	African	AFR	case-control	119788	2641	117147	39024449	dense__pmid-39024449__African
+GCST90478901	Intervertebral disc disorders	Phe_722	African	AFR	case-control	109568	22443	87125	39024449	dense__pmid-39024449__African
+GCST90478903	Displacement of intervertebral disc	Phe_722_1	African	AFR	case-control	115821	5178	110643	39024449	dense__pmid-39024449__African
+GCST90478907	Degeneration of intervertebral disc	Phe_722_6	African	AFR	case-control	110420	16839	93581	39024449	dense__pmid-39024449__African
+GCST90478908	Intervertebral disc disorder with myelopath	Phe_722_7	African	AFR	case-control	120208	1706	118502	39024449	dense__pmid-39024449__African
+GCST90478911	Postlaminectomy syndrome	Phe_722_8	African	AFR	case-control	121156	1191	119965	39024449	dense__pmid-39024449__African
+GCST90478914	Other and unspecified disc disorder	Phe_722_9	African	AFR	case-control	118144	1997	116147	39024449	dense__pmid-39024449__African
+GCST90478917	Other disorders of cervical region	Phe_723	African	AFR	case-control	119944	809	119135	39024449	dense__pmid-39024449__African
+GCST90478920	Other and unspecified disorder	Phe_724	African	AFR	case-control	114862	4338	110524	39024449	dense__pmid-39024449__African
+GCST90478922	Disorders of sacrum	Phe_724_1	African	AFR	case-control	120932	709	120223	39024449	dense__pmid-39024449__African
+GCST90478925	Other symptoms referable to back	Phe_724_8	African	AFR	case-control	117213	1705	115508	39024449	dense__pmid-39024449__African
+GCST90478927	Other unspecified back disorders	Phe_724_9	African	AFR	case-control	119536	1710	117826	39024449	dense__pmid-39024449__African
+GCST90478931	Peripheral enthesopathies and allied syndromes	Phe_726	African	AFR	case-control	104336	30430	73906	39024449	dense__pmid-39024449__African
+GCST90478935	Enthesopathy	Phe_726_1	African	AFR	case-control	107929	13532	94397	39024449	dense__pmid-39024449__African
+GCST90478937	Synoviopathy	Phe_726_2	African	AFR	case-control	119837	1033	118804	39024449	dense__pmid-39024449__African
+GCST90478940	Bursitis	Phe_726_3	African	AFR	case-control	116817	4088	112729	39024449	dense__pmid-39024449__African
+GCST90478942	Calcaneal spur; Exostosis NOS	Phe_726_4	African	AFR	case-control	116365	3221	113144	39024449	dense__pmid-39024449__African
+GCST90478946	Other disorders of synovium, tendon, and bursa	Phe_727	African	AFR	case-control	109551	15974	93577	39024449	dense__pmid-39024449__African
+GCST90478948	Synovitis and tenosynovitis	Phe_727_1	African	AFR	case-control	115843	6832	109011	39024449	dense__pmid-39024449__African
+GCST90478950	Bursitis disorders	Phe_727_2	African	AFR	case-control	117925	1712	116213	39024449	dense__pmid-39024449__African
+GCST90478953	Ganglion and cyst of synovium, tendon, and bursa	Phe_727_4	African	AFR	case-control	119043	2742	116301	39024449	dense__pmid-39024449__African
+GCST90478954	Rupture of synovium	Phe_727_5	African	AFR	case-control	120363	686	119677	39024449	dense__pmid-39024449__African
+GCST90478957	Rupture of tendon, nontraumatic	Phe_727_6	African	AFR	case-control	119417	3716	115701	39024449	dense__pmid-39024449__African
+GCST90478962	Fasciitis	Phe_728_7	African	AFR	case-control	114662	10765	103897	39024449	dense__pmid-39024449__African
+GCST90478964	Other disorders of soft tissues	Phe_729	African	AFR	case-control	116384	1810	114574	39024449	dense__pmid-39024449__African
+GCST90478967	Osteitis deformans and osteopathies associated with other disorders classified elsewhere	Phe_731	African	AFR	case-control	121449	646	120803	39024449	dense__pmid-39024449__African
+GCST90478970	Other disorders of bone and cartilage	Phe_733	African	AFR	case-control	115633	2779	112854	39024449	dense__pmid-39024449__African
+GCST90478972	Aseptic necrosis of bone	Phe_733_4	African	AFR	case-control	121192	1381	119811	39024449	dense__pmid-39024449__African
+GCST90478979	Acquired foot deformities	Phe_735	African	AFR	case-control	109517	25565	83952	39024449	dense__pmid-39024449__African
+GCST90478981	Flat foot	Phe_735_1	African	AFR	case-control	114054	10672	103382	39024449	dense__pmid-39024449__African
+GCST90478983	Acquired toe deformities	Phe_735_2	African	AFR	case-control	113899	11847	102052	39024449	dense__pmid-39024449__African
+GCST90478985	Hammer toe (acquired)	Phe_735_21	African	AFR	case-control	116800	7346	109454	39024449	dense__pmid-39024449__African
+GCST90478987	Hallux rigidus	Phe_735_23	African	AFR	case-control	119777	2789	116988	39024449	dense__pmid-39024449__African
+GCST90478990	Hallux valgus (Bunion)	Phe_735_3	African	AFR	case-control	115451	9486	105965	39024449	dense__pmid-39024449__African
+GCST90478992	Other acquired deformities of limbs	Phe_736	African	AFR	case-control	117754	3206	114548	39024449	dense__pmid-39024449__African
+GCST90478994	Acquired deformities of finger	Phe_736_2	African	AFR	case-control	121225	582	120643	39024449	dense__pmid-39024449__African
+GCST90478997	Unequal leg length (acquired)	Phe_736_6	African	AFR	case-control	120910	1078	119832	39024449	dense__pmid-39024449__African
+GCST90479000	Curvature of spine	Phe_737	African	AFR	case-control	119447	1070	118377	39024449	dense__pmid-39024449__African
+GCST90479002	Kyphoscoliosis and scoliosis	Phe_737_3	African	AFR	case-control	120097	845	119252	39024449	dense__pmid-39024449__African
+GCST90479005	Other acquired musculoskeletal deformity	Phe_738	African	AFR	case-control	118188	2095	116093	39024449	dense__pmid-39024449__African
+GCST90479008	Acquired spondylolisthesis	Phe_738_4	African	AFR	case-control	119395	1241	118154	39024449	dense__pmid-39024449__African
+GCST90479010	Contracture of joint	Phe_739	African	AFR	case-control	120668	796	119872	39024449	dense__pmid-39024449__African
+GCST90479013	Osteoarthrosis	Phe_740	African	AFR	case-control	107489	53808	53681	39024449	dense__pmid-39024449__African
+GCST90479016	Osteoarthritis, localized	Phe_740_1	African	AFR	case-control	107898	33018	74880	39024449	dense__pmid-39024449__African
+GCST90479019	Osteoarthrosis, localized, primary	Phe_740_11	African	AFR	case-control	109292	22476	86816	39024449	dense__pmid-39024449__African
+GCST90479021	Osteoarthrosis, localized, secondary	Phe_740_12	African	AFR	case-control	117807	3101	114706	39024449	dense__pmid-39024449__African
+GCST90479024	Osteoarthrosis, generalized	Phe_740_2	African	AFR	case-control	116603	5020	111583	39024449	dense__pmid-39024449__African
+GCST90479026	Osteoarthrosis involving more than one site, but not specified as generalized	Phe_740_3	African	AFR	case-control	119902	1003	118899	39024449	dense__pmid-39024449__African
+GCST90479030	Osteoarthrosis NOS	Phe_740_9	African	AFR	case-control	108279	39400	68879	39024449	dense__pmid-39024449__African
+GCST90479032	Symptoms and disorders of the joints	Phe_741	African	AFR	case-control	105403	17720	87683	39024449	dense__pmid-39024449__African
+GCST90479035	Stiffness of joint	Phe_741_2	African	AFR	case-control	119236	1449	117787	39024449	dense__pmid-39024449__African
+GCST90479038	Difficulty in walking	Phe_741_3	African	AFR	case-control	113712	9233	104479	39024449	dense__pmid-39024449__African
+GCST90479041	Joint effusions	Phe_741_4	African	AFR	case-control	113996	3656	110340	39024449	dense__pmid-39024449__African
+GCST90479044	Derangement of joint, non-traumatic	Phe_742	African	AFR	case-control	116568	2665	113903	39024449	dense__pmid-39024449__African
+GCST90479048	Other derangement of joint	Phe_742_9	African	AFR	case-control	117419	2108	115311	39024449	dense__pmid-39024449__African
+GCST90479051	Osteoporosis, osteopenia and pathological fracture	Phe_743	African	AFR	case-control	116538	6236	110302	39024449	dense__pmid-39024449__African
+GCST90479053	Osteoporosis	Phe_743_1	African	AFR	case-control	120288	2530	117758	39024449	dense__pmid-39024449__African
+GCST90479055	Osteoporosis NOS	Phe_743_11	African	AFR	case-control	120349	2462	117887	39024449	dense__pmid-39024449__African
+GCST90479056	Pathologic fracture	Phe_743_2	African	AFR	case-control	120759	687	120072	39024449	dense__pmid-39024449__African
+GCST90479060	Osteopenia or other disorder of bone and cartilage	Phe_743_9	African	AFR	case-control	118090	3444	114646	39024449	dense__pmid-39024449__African
+GCST90479063	Pain in joint	Phe_745	African	AFR	case-control	109204	86848	22356	39024449	dense__pmid-39024449__African
+GCST90479165	Nonspecific abnormal findings on radiologic imaging of limbs	Phe_793	African	AFR	case-control	118992	664	118328	39024449	dense__pmid-39024449__African
+GCST90477165	Cancer of mouth	Phe_145	African	AFR	case-control	121389	778	120611	39024449	dense__pmid-39024449__African
+GCST90477169	Cancer of larynx, pharynx, nasal cavities	Phe_149	African	AFR	case-control	121523	1039	120484	39024449	dense__pmid-39024449__African
+GCST90477172	Cancer of larynx	Phe_149_4	African	AFR	case-control	121760	546	121214	39024449	dense__pmid-39024449__African
+GCST90477177	Colorectal cancer	Phe_153	African	AFR	case-control	120570	2466	118104	39024449	dense__pmid-39024449__African
+GCST90477179	Colon cancer	Phe_153_2	African	AFR	case-control	120787	2069	118718	39024449	dense__pmid-39024449__African
+GCST90477180	Malignant neoplasm of rectum, rectosigmoid junction, and anus	Phe_153_3	African	AFR	case-control	121466	788	120678	39024449	dense__pmid-39024449__African
+GCST90477183	Cancer of liver and intrahepatic bile duct	Phe_155	African	AFR	case-control	121560	1121	120439	39024449	dense__pmid-39024449__African
+GCST90477185	Malignant neoplasm of liver, primary	Phe_155_1	African	AFR	case-control	121653	977	120676	39024449	dense__pmid-39024449__African
+GCST90477186	Neoplasm of unspecified nature of digestive system	Phe_158	African	AFR	case-control	120669	654	120015	39024449	dense__pmid-39024449__African
+GCST90477188	Malignant neoplasm of other and ill-defined sites within the digestive organs and peritoneum	Phe_159	African	AFR	case-control	121417	524	120893	39024449	dense__pmid-39024449__African
+GCST90477191	Cancer within the respiratory system	Phe_165	African	AFR	case-control	120932	2859	118073	39024449	dense__pmid-39024449__African
+GCST90475572	Cancer of bronchus; lung	Phe_165_1	African	AFR	case-control	121084	2647	118437	39024449	dense__pmid-39024449__African
+GCST90477193	Cancer of bone and connective tissue	Phe_170	African	AFR	case-control	121369	507	120862	39024449	dense__pmid-39024449__African
+GCST90477196	Skin cancer	Phe_172	African	AFR	case-control	120627	939	119688	39024449	dense__pmid-39024449__African
+GCST90477197	Other non-epithelial cancer of skin	Phe_172_2	African	AFR	case-control	120950	709	120241	39024449	dense__pmid-39024449__African
+GCST90477198	Neoplasm of uncertain behavior of skin	Phe_173	African	AFR	case-control	116176	1798	114378	39024449	dense__pmid-39024449__African
+GCST90477199	Breast cancer	Phe_174	African	AFR	case-control	121518	1047	120471	39024449	dense__pmid-39024449__African
+GCST90477200	Breast cancer [female]	Phe_174_1	African	AFR	case-control	16586	853	15733	39024449	dense__pmid-39024449__African
+GCST90477201	Malignant neoplasm of female breast	Phe_174_11	African	AFR	case-control	16582	782	15800	39024449	dense__pmid-39024449__African
+GCST90477202	Cervical cancer and dysplasia	Phe_180	African	AFR	case-control	16154	802	15352	39024449	dense__pmid-39024449__African
+GCST90477204	Cervical intraepithelial neoplasia [CIN] [Cervical dysplasia]	Phe_180_3	African	AFR	case-control	16172	761	15411	39024449	dense__pmid-39024449__African
+GCST90475590	Cancer of prostate	Phe_185	African	AFR	case-control	103424	15097	88327	39024449	dense__pmid-39024449__African
+GCST90475592	Cancer of urinary organs (incl. kidney and bladder)	Phe_189	African	AFR	case-control	120739	3021	117718	39024449	dense__pmid-39024449__African
+GCST90475594	Cancer of kidney and renal pelvis	Phe_189_1	African	AFR	case-control	121455	1817	119638	39024449	dense__pmid-39024449__African
+GCST90475596	Malignant neoplasm of kidney, except pelvis	Phe_189_11	African	AFR	case-control	121493	1739	119754	39024449	dense__pmid-39024449__African
+GCST90477213	Cancer of bladder	Phe_189_2	African	AFR	case-control	121147	1271	119876	39024449	dense__pmid-39024449__African
+GCST90477215	Malignant neoplasm of bladder	Phe_189_21	African	AFR	case-control	121368	1055	120313	39024449	dense__pmid-39024449__African
+GCST90477216	Manlignant and unknown neoplasms of brain and nervous system	Phe_191	African	AFR	case-control	121403	524	120879	39024449	dense__pmid-39024449__African
+GCST90477221	Cancer, suspected or other	Phe_195	African	AFR	case-control	119360	2598	116762	39024449	dense__pmid-39024449__African
+GCST90477223	Malignant neoplasm, other	Phe_195_1	African	AFR	case-control	120518	946	119572	39024449	dense__pmid-39024449__African
+GCST90475604	Radiotherapy	Phe_196	African	AFR	case-control	121504	2300	119204	39024449	dense__pmid-39024449__African
+GCST90477225	Chemotherapy	Phe_197	African	AFR	case-control	120524	2440	118084	39024449	dense__pmid-39024449__African
+GCST90477228	Secondary malignant neoplasm	Phe_198	African	AFR	case-control	120404	4003	116401	39024449	dense__pmid-39024449__African
+GCST90477231	Secondary malignancy of lymph nodes	Phe_198_1	African	AFR	case-control	121058	1538	119520	39024449	dense__pmid-39024449__African
+GCST90477233	Secondary malignancy of respiratory organs	Phe_198_2	African	AFR	case-control	121462	700	120762	39024449	dense__pmid-39024449__African
+GCST90477236	Secondary malignant neoplasm of liver	Phe_198_4	African	AFR	case-control	121571	801	120770	39024449	dense__pmid-39024449__African
+GCST90477239	Secondary malignancy of bone	Phe_198_6	African	AFR	case-control	121434	1469	119965	39024449	dense__pmid-39024449__African
+GCST90477242	Neoplasm of uncertain behavior	Phe_199	African	AFR	case-control	116483	3879	112604	39024449	dense__pmid-39024449__African
+GCST90475607	Myeloproliferative disease	Phe_200	African	AFR	case-control	120782	1270	119512	39024449	dense__pmid-39024449__African
+GCST90477245	Cancer of other lymphoid, histiocytic tissue	Phe_202	African	AFR	case-control	121304	1108	120196	39024449	dense__pmid-39024449__African
+GCST90477246	Non-Hodgkins lymphoma	Phe_202_2	African	AFR	case-control	121417	1038	120379	39024449	dense__pmid-39024449__African
+GCST90477248	Leukemia	Phe_204	African	AFR	case-control	121451	1465	119986	39024449	dense__pmid-39024449__African
+GCST90477249	Multiple myeloma	Phe_204_4	African	AFR	case-control	121763	784	120979	39024449	dense__pmid-39024449__African
+GCST90475616	Benign neoplasm of colon	Phe_208	African	AFR	case-control	106199	31093	75106	39024449	dense__pmid-39024449__African
+GCST90477253	Benign neoplasm of lip, oral cavity, and pharynx	Phe_210	African	AFR	case-control	120669	767	119902	39024449	dense__pmid-39024449__African
+GCST90477255	Benign neoplasm of other parts of digestive system	Phe_211	African	AFR	case-control	119753	980	118773	39024449	dense__pmid-39024449__African
+GCST90477260	Lipoma	Phe_214	African	AFR	case-control	117041	5753	111288	39024449	dense__pmid-39024449__African
+GCST90477262	Lipoma of skin and subcutaneous tissue	Phe_214_1	African	AFR	case-control	118575	2946	115629	39024449	dense__pmid-39024449__African
+GCST90477263	Other benign neoplasm of connective and other soft tissue	Phe_215	African	AFR	case-control	119976	963	119013	39024449	dense__pmid-39024449__African
+GCST90477266	Benign neoplasm of skin	Phe_216	African	AFR	case-control	113865	3834	110031	39024449	dense__pmid-39024449__African
+GCST90477268	Screening for malignant neopla	Phe_216_1	African	AFR	case-control	119211	1017	118194	39024449	dense__pmid-39024449__African
+GCST90477270	Vascular hamartomas and non-neoplastic nevi	Phe_217	African	AFR	case-control	119696	641	119055	39024449	dense__pmid-39024449__African
+GCST90477272	Nevus, non-neoplastic	Phe_217_1	African	AFR	case-control	119781	610	119171	39024449	dense__pmid-39024449__African
+GCST90477274	Benign neoplasm of uterus	Phe_218	African	AFR	case-control	15465	3542	11923	39024449	dense__pmid-39024449__African
+GCST90477277	Uterine leiomyoma	Phe_218_1	African	AFR	case-control	15525	3503	12022	39024449	dense__pmid-39024449__African
+GCST90477280	Benign neoplasm of male genital organs	Phe_222	African	AFR	case-control	102612	1300	101312	39024449	dense__pmid-39024449__African
+GCST90475625	Benign neoplasm of eye	Phe_224	African	AFR	case-control	120648	1240	119408	39024449	dense__pmid-39024449__African
+GCST90475628	Benign neoplasm of eye, uveal	Phe_224_1	African	AFR	case-control	121190	858	120332	39024449	dense__pmid-39024449__African
+GCST90477283	Benign neoplasm of brain and other parts of nervous system	Phe_225	African	AFR	case-control	121511	656	120855	39024449	dense__pmid-39024449__African
+GCST90477285	Benign neoplasm of brain, cranial nerves, meninges	Phe_225_1	African	AFR	case-control	121544	613	120931	39024449	dense__pmid-39024449__African
+GCST90477289	Benign neoplasm of other endocrine glands and other related structures	Phe_227	African	AFR	case-control	120839	2227	118612	39024449	dense__pmid-39024449__African
+GCST90477290	Benign neoplasm of adrenal gland	Phe_227_1	African	AFR	case-control	121230	1058	120172	39024449	dense__pmid-39024449__African
+GCST90477291	Benign neoplasm of pituitary gland and craniopharyngeal duct (pouch)	Phe_227_3	African	AFR	case-control	121774	989	120785	39024449	dense__pmid-39024449__African
+GCST90477294	Hemangioma and lymphangioma, any site	Phe_228	African	AFR	case-control	120656	676	119980	39024449	dense__pmid-39024449__African
+GCST90477480	Sleep disorders	Phe_327	African	AFR	case-control	104012	36203	67809	39024449	dense__pmid-39024449__African
+GCST90477481	Hypersomnia	Phe_327_1	African	AFR	case-control	118354	1097	117257	39024449	dense__pmid-39024449__African
+GCST90477485	Sleep apnea	Phe_327_3	African	AFR	case-control	115965	45335	70630	39024449	dense__pmid-39024449__African
+GCST90477486	Central/nonobstroctive sleep apnea	Phe_327_31	African	AFR	case-control	120445	1230	119215	39024449	dense__pmid-39024449__African
+GCST90477490	Obstructive sleep apnea	Phe_327_32	African	AFR	case-control	115741	38012	77729	39024449	dense__pmid-39024449__African
+GCST90477493	Insomnia	Phe_327_4	African	AFR	case-control	107766	24423	83343	39024449	dense__pmid-39024449__African
+GCST90477495	Organic or persistent insomnia	Phe_327_41	African	AFR	case-control	119830	1738	118092	39024449	dense__pmid-39024449__African
+GCST90477498	Parasomnia	Phe_327_5	African	AFR	case-control	117175	3243	113932	39024449	dense__pmid-39024449__African
+GCST90477502	Sleep related movement disorders	Phe_327_7	African	AFR	case-control	118327	2613	115714	39024449	dense__pmid-39024449__African
+GCST90477503	Restless legs syndrome	Phe_327_71	African	AFR	case-control	120740	1303	119437	39024449	dense__pmid-39024449__African
+GCST90477505	Other cerebral degenerations	Phe_331	African	AFR	case-control	120536	538	119998	39024449	dense__pmid-39024449__African
+GCST90477509	Parkinson's disease	Phe_332	African	AFR	case-control	121604	711	120893	39024449	dense__pmid-39024449__African
+GCST90477511	Extrapyramidal disease and abnormal movement disorders	Phe_333	African	AFR	case-control	119032	3097	115935	39024449	dense__pmid-39024449__African
+GCST90477513	Essential tremor	Phe_333_1	African	AFR	case-control	120816	1505	119311	39024449	dense__pmid-39024449__African
+GCST90477515	Torsion dystonia	Phe_333_4	African	AFR	case-control	121079	781	120298	39024449	dense__pmid-39024449__African
+GCST90477517	Degenerative disease of the spinal cord	Phe_334	African	AFR	case-control	120338	1184	119154	39024449	dense__pmid-39024449__African
+GCST90477519	Multiple sclerosis	Phe_335	African	AFR	case-control	121702	637	121065	39024449	dense__pmid-39024449__African
+GCST90477521	Disorders of the autonomic nervous system	Phe_337	African	AFR	case-control	117668	2866	114802	39024449	dense__pmid-39024449__African
+GCST90477523	Peripheral autonomic neuropathy	Phe_337_1	African	AFR	case-control	117957	2638	115319	39024449	dense__pmid-39024449__African
+GCST90477526	Pain	Phe_338	African	AFR	case-control	103320	24099	79221	39024449	dense__pmid-39024449__African
+GCST90477528	Acute pain	Phe_338_1	African	AFR	case-control	108987	6629	102358	39024449	dense__pmid-39024449__African
+GCST90477532	Chronic pain	Phe_338_2	African	AFR	case-control	107968	18041	89927	39024449	dense__pmid-39024449__African
+GCST90477536	Other headache syndromes	Phe_339	African	AFR	case-control	105192	26073	79119	39024449	dense__pmid-39024449__African
+GCST90477540	Migraine	Phe_340	African	AFR	case-control	117251	11587	105664	39024449	dense__pmid-39024449__African
+GCST90477542	Migrain with aura	Phe_340_1	African	AFR	case-control	120324	1484	118840	39024449	dense__pmid-39024449__African
+GCST90477544	Hemiplegia	Phe_342	African	AFR	case-control	120396	1135	119261	39024449	dense__pmid-39024449__African
+GCST90477547	Other paralytic syndromes	Phe_344	African	AFR	case-control	120306	1732	118574	39024449	dense__pmid-39024449__African
+GCST90477550	Epilepsy, recurrent seizures, convulsions	Phe_345	African	AFR	case-control	118758	6189	112569	39024449	dense__pmid-39024449__African
+GCST90477553	Epilepsy	Phe_345_1	African	AFR	case-control	120179	3418	116761	39024449	dense__pmid-39024449__African
+GCST90477556	Partial epilepsy	Phe_345_12	African	AFR	case-control	120990	1248	119742	39024449	dense__pmid-39024449__African
+GCST90477559	Convulsions	Phe_345_3	African	AFR	case-control	119461	4489	114972	39024449	dense__pmid-39024449__African
+GCST90477564	Other conditions of brain	Phe_348	African	AFR	case-control	119022	2690	116332	39024449	dense__pmid-39024449__African
+GCST90477567	Encephalopathy, not elsewhere classified	Phe_348_8	African	AFR	case-control	119551	2100	117451	39024449	dense__pmid-39024449__African
+GCST90477568	Other conditions of brain, NOS	Phe_348_9	African	AFR	case-control	120094	769	119325	39024449	dense__pmid-39024449__African
+GCST90477570	Other and unspecified disorders of the nervous system	Phe_349	African	AFR	case-control	120455	783	119672	39024449	dense__pmid-39024449__African
+GCST90477574	Abnormal movement	Phe_350	African	AFR	case-control	106821	22599	84222	39024449	dense__pmid-39024449__African
+GCST90477576	Abnormal involuntary movements	Phe_350_1	African	AFR	case-control	116619	3436	113183	39024449	dense__pmid-39024449__African
+GCST90477580	Abnormality of gait	Phe_350_2	African	AFR	case-control	108724	18964	89760	39024449	dense__pmid-39024449__African
+GCST90477581	Lack of coordination	Phe_350_3	African	AFR	case-control	120064	1130	118934	39024449	dense__pmid-39024449__African
+GCST90477586	Other peripheral nerve disorders	Phe_351	African	AFR	case-control	110328	22404	87924	39024449	dense__pmid-39024449__African
+GCST90477588	Disorders of other cranial nerves	Phe_352	African	AFR	case-control	119575	1930	117645	39024449	dense__pmid-39024449__African
+GCST90477590	Trigeminal nerve disorders [CN5]	Phe_352_1	African	AFR	case-control	120560	659	119901	39024449	dense__pmid-39024449__African
+GCST90477593	Facial nerve disorders [CN7]	Phe_352_2	African	AFR	case-control	121031	1218	119813	39024449	dense__pmid-39024449__African
+GCST90477595	Nerve root and plexus disorders	Phe_353	African	AFR	case-control	118892	1946	116946	39024449	dense__pmid-39024449__African
+GCST90477598	Nerve root lesions	Phe_353_2	African	AFR	case-control	119952	1167	118785	39024449	dense__pmid-39024449__African
+GCST90477600	Complex regional/central pain syndrome	Phe_355	African	AFR	case-control	121044	555	120489	39024449	dense__pmid-39024449__African
+GCST90477603	Chronic pain syndrome	Phe_355_1	African	AFR	case-control	116849	7250	109599	39024449	dense__pmid-39024449__African
+GCST90477606	Hereditary and idiopathic peripheral neuropathy	Phe_356	African	AFR	case-control	113600	7826	105774	39024449	dense__pmid-39024449__African
+GCST90477608	Inflammatory and toxic neuropathy	Phe_357	African	AFR	case-control	117481	2596	114885	39024449	dense__pmid-39024449__African
+GCST90477610	Muscular dystrophies and other myopathies	Phe_359	African	AFR	case-control	121034	676	120358	39024449	dense__pmid-39024449__African
+GCST90477612	Myopathy	Phe_359_2	African	AFR	case-control	121074	642	120432	39024449	dense__pmid-39024449__African
+GCST90477083	Symptoms concerning nutrition, metabolism, and development	Phe_1002	African	AFR	case-control	113540	9389	104151	39024449	dense__pmid-39024449__African
+GCST90477085	Other signs and symptoms involving emotional state	Phe_1004	African	AFR	case-control	119283	1596	117687	39024449	dense__pmid-39024449__African
+GCST90477089	Other symptoms	Phe_1005	African	AFR	case-control	102176	21938	80238	39024449	dense__pmid-39024449__African
+GCST90477097	Other tests	Phe_1010	African	AFR	case-control	116840	113028	3812	39024449	dense__pmid-39024449__African
+GCST90477114	Persons encountering health services in circumstances related to reproduction	Phe_1010_6	African	AFR	case-control	120229	2556	117673	39024449	dense__pmid-39024449__African
+GCST90477121	Complications of surgical and medical procedures	Phe_1011	African	AFR	case-control	116218	3108	113110	39024449	dense__pmid-39024449__African
+GCST90477125	Asphyxia and hypoxemia	Phe_1013	African	AFR	case-control	118988	1922	117066	39024449	dense__pmid-39024449__African
+GCST90477128	Effects of other external causes	Phe_1015	African	AFR	case-control	110744	7366	103378	39024449	dense__pmid-39024449__African
+GCST90477131	Other ill-defined and unknown causes of morbidity and mortality	Phe_1019	African	AFR	case-control	108601	12124	96477	39024449	dense__pmid-39024449__African
+GCST90477134	Acquired absence of limb	Phe_1089	African	AFR	case-control	121438	1667	119771	39024449	dense__pmid-39024449__African
+GCST90477137	Acquired absence of organs	Phe_1090	African	AFR	case-control	118683	2670	116013	39024449	dense__pmid-39024449__African
+GCST90477154	Family history	Phe_1100	African	AFR	case-control	115587	3286	112301	39024449	dense__pmid-39024449__African
+GCST90478071	Acute sinusitis	Phe_464	African	AFR	case-control	108440	8248	100192	39024449	dense__pmid-39024449__African
+GCST90478075	Acute upper respiratory infections of multiple or unspecified sites	Phe_465	African	AFR	case-control	98351	30382	67969	39024449	dense__pmid-39024449__African
+GCST90478078	Acute pharyngitis	Phe_465_2	African	AFR	case-control	108806	6152	102654	39024449	dense__pmid-39024449__African
+GCST90478082	Septal Deviations/Turbinate Hypertrophy	Phe_470	African	AFR	case-control	119549	2281	117268	39024449	dense__pmid-39024449__African
+GCST90478083	Nasal polyps	Phe_471	African	AFR	case-control	121104	905	120199	39024449	dense__pmid-39024449__African
+GCST90478085	Chronic pharyngitis and nasopharyngitis	Phe_472	African	AFR	case-control	114210	5949	108261	39024449	dense__pmid-39024449__African
+GCST90478088	Diseases of the larynx and vocal cords	Phe_473	African	AFR	case-control	118651	4969	113682	39024449	dense__pmid-39024449__African
+GCST90478093	Voice disturbance	Phe_473_4	African	AFR	case-control	119150	4052	115098	39024449	dense__pmid-39024449__African
+GCST90478096	Acute and chronic tonsillitis	Phe_474	African	AFR	case-control	119436	1475	117961	39024449	dense__pmid-39024449__African
+GCST90478098	Acute tonsillitis	Phe_474_1	African	AFR	case-control	120175	517	119658	39024449	dense__pmid-39024449__African
+GCST90478100	Chronic tonsillitis and adenoiditis	Phe_474_2	African	AFR	case-control	120860	857	120003	39024449	dense__pmid-39024449__African
+GCST90478103	Chronic sinusitis	Phe_475	African	AFR	case-control	110147	10965	99182	39024449	dense__pmid-39024449__African
+GCST90478107	Allergic rhinitis	Phe_476	African	AFR	case-control	107507	30185	77322	39024449	dense__pmid-39024449__African
+GCST90478109	Epistaxis or throat hemorrhage	Phe_477	African	AFR	case-control	118269	2841	115428	39024449	dense__pmid-39024449__African
+GCST90478111	Throat pain	Phe_478	African	AFR	case-control	118129	751	117378	39024449	dense__pmid-39024449__African
+GCST90478114	Other upper respiratory disease	Phe_479	African	AFR	case-control	111548	4626	106922	39024449	dense__pmid-39024449__African
+GCST90478117	Pneumonia	Phe_480	African	AFR	case-control	114040	10968	103072	39024449	dense__pmid-39024449__African
+GCST90478119	Bacterial pneumonia	Phe_480_1	African	AFR	case-control	118135	2662	115473	39024449	dense__pmid-39024449__African
+GCST90478126	Influenza	Phe_481	African	AFR	case-control	115273	1833	113440	39024449	dense__pmid-39024449__African
+GCST90478129	Acute bronchitis and bronchiolitis	Phe_483	African	AFR	case-control	106216	10756	95460	39024449	dense__pmid-39024449__African
+GCST90476023	Asthma	Phe_495	African	AFR	case-control	117227	12093	105134	39024449	dense__pmid-39024449__African
+GCST90478133	Chronic obstructive asthma	Phe_495_1	African	AFR	case-control	120583	1031	119552	39024449	dense__pmid-39024449__African
+GCST90478137	Asthma with exacerbation	Phe_495_2	African	AFR	case-control	119853	2055	117798	39024449	dense__pmid-39024449__African
+GCST90476026	Chronic airway obstruction	Phe_496	African	AFR	case-control	112489	21238	91251	39024449	dense__pmid-39024449__African
+GCST90478140	Emphysema	Phe_496_1	African	AFR	case-control	119139	2183	116956	39024449	dense__pmid-39024449__African
+GCST90478142	Chronic bronchitis	Phe_496_2	African	AFR	case-control	116636	5556	111080	39024449	dense__pmid-39024449__African
+GCST90478144	Obstructive chronic bronchitis	Phe_496_21	African	AFR	case-control	118019	4683	113336	39024449	dense__pmid-39024449__African
+GCST90478147	Bronchitis	Phe_497	African	AFR	case-control	109808	6453	103355	39024449	dense__pmid-39024449__African
+GCST90478152	Pneumonitis due to inhalation of food or vomitus	Phe_501	African	AFR	case-control	120454	587	119867	39024449	dense__pmid-39024449__African
+GCST90478154	Postinflammatory pulmonary fibrosis	Phe_502	African	AFR	case-control	120517	1003	119514	39024449	dense__pmid-39024449__African
+GCST90478155	Pulmonary congestion and hypostasis	Phe_503	African	AFR	case-control	119745	720	119025	39024449	dense__pmid-39024449__African
+GCST90478157	Other alveolar and parietoalveolar pneumonopathy	Phe_504	African	AFR	case-control	121144	782	120362	39024449	dense__pmid-39024449__African
+GCST90478158	Other pulmonary inflamation or edema	Phe_505	African	AFR	case-control	120632	534	120098	39024449	dense__pmid-39024449__African
+GCST90478160	Empyema and pneumothorax	Phe_506	African	AFR	case-control	121150	880	120270	39024449	dense__pmid-39024449__African
+GCST90478163	Pleurisy; pleural effusion	Phe_507	African	AFR	case-control	117301	3641	113660	39024449	dense__pmid-39024449__African
+GCST90478166	Pulmonary collapse; interstitial and compensatory emphysema	Phe_508	African	AFR	case-control	117367	1778	115589	39024449	dense__pmid-39024449__African
+GCST90478169	Respiratory failure, insufficiency, arrest	Phe_509	African	AFR	case-control	117154	7281	109873	39024449	dense__pmid-39024449__African
+GCST90478171	Respiratory failure	Phe_509_1	African	AFR	case-control	118508	5862	112646	39024449	dense__pmid-39024449__African
+GCST90478172	Respiratory insufficiency	Phe_509_2	African	AFR	case-control	120698	668	120030	39024449	dense__pmid-39024449__African
+GCST90478176	Dependence on respirator [Ventilator] or supplemental oxygen	Phe_509_8	African	AFR	case-control	120005	1765	118240	39024449	dense__pmid-39024449__African
+GCST90478178	Other diseases of lung	Phe_510	African	AFR	case-control	116334	4346	111988	39024449	dense__pmid-39024449__African
+GCST90478181	Other symptoms of respiratory system	Phe_512	African	AFR	case-control	99210	49035	50175	39024449	dense__pmid-39024449__African
+GCST90478183	Wheezing	Phe_512_1	African	AFR	case-control	118015	1497	116518	39024449	dense__pmid-39024449__African
+GCST90478186	Painful respiration	Phe_512_2	African	AFR	case-control	113188	3143	110045	39024449	dense__pmid-39024449__African
+GCST90478190	Shortness of breath	Phe_512_7	African	AFR	case-control	105471	22889	82582	39024449	dense__pmid-39024449__African
+GCST90478193	Cough	Phe_512_8	African	AFR	case-control	100611	22320	78291	39024449	dense__pmid-39024449__African
+GCST90478196	Other dyspnea	Phe_512_9	African	AFR	case-control	103434	18011	85423	39024449	dense__pmid-39024449__African
+GCST90478198	Respiratory abnormalities	Phe_513	African	AFR	case-control	116177	3392	112785	39024449	dense__pmid-39024449__African
+GCST90478200	Hypoventilation	Phe_513_3	African	AFR	case-control	119665	922	118743	39024449	dense__pmid-39024449__African
+GCST90478203	Disorders of diaphragm	Phe_513_8	African	AFR	case-control	120794	757	120037	39024449	dense__pmid-39024449__African
+GCST90478206	Abnormal findings examination of lungs	Phe_514	African	AFR	case-control	113565	8419	105146	39024449	dense__pmid-39024449__African
+GCST90478209	Solitary pulmonary nodule	Phe_514_2	African	AFR	case-control	117707	4889	112818	39024449	dense__pmid-39024449__African
+GCST90478211	Abnormal sputum	Phe_516	African	AFR	case-control	119181	1652	117529	39024449	dense__pmid-39024449__African
+GCST90478213	Hemoptysis	Phe_516_1	African	AFR	case-control	119747	1529	118218	39024449	dense__pmid-39024449__African
+GCST90478216	Other diseases of respiratory system, not elsewhere classified	Phe_519	African	AFR	case-control	114275	4507	109768	39024449	dense__pmid-39024449__African
+GCST90478218	Other diseases of respiratory system, NEC	Phe_519_8	African	AFR	case-control	118575	1016	117559	39024449	dense__pmid-39024449__African
+GCST90478221	Symptoms involving respiratory system and other chest symptoms	Phe_519_9	African	AFR	case-control	118056	1836	116220	39024449	dense__pmid-39024449__African
+GCST90477614	Disorders of the globe	Phe_360	African	AFR	case-control	120965	696	120269	39024449	dense__pmid-39024449__African
+GCST90477618	Retinal detachments and defects	Phe_361	African	AFR	case-control	119644	4034	115610	39024449	dense__pmid-39024449__African
+GCST90477619	Retinal detachment with retinal defect	Phe_361_1	African	AFR	case-control	121352	810	120542	39024449	dense__pmid-39024449__African
+GCST90477623	Other retinal disorders	Phe_362	African	AFR	case-control	109983	20545	89438	39024449	dense__pmid-39024449__African
+GCST90477625	Degeneration of macula and posterior pole of retina	Phe_362_2	African	AFR	case-control	116478	7126	109352	39024449	dense__pmid-39024449__African
+GCST90477626	Macular degeneration, dry	Phe_362_21	African	AFR	case-control	120692	1083	119609	39024449	dense__pmid-39024449__African
+GCST90477628	Cystoid macular degeneration of retina	Phe_362_23	African	AFR	case-control	120500	1795	118705	39024449	dense__pmid-39024449__African
+GCST90477630	Macular puckering of retina	Phe_362_26	African	AFR	case-control	119537	2688	116849	39024449	dense__pmid-39024449__African
+GCST90477632	Drusen (degenerative) of retina	Phe_362_27	African	AFR	case-control	119806	1570	118236	39024449	dense__pmid-39024449__African
+GCST90477633	Macular degeneration (senile) of retina NOS	Phe_362_29	African	AFR	case-control	120923	551	120372	39024449	dense__pmid-39024449__African
+GCST90477635	Other nondiabetic retinopathy	Phe_362_3	African	AFR	case-control	115313	6325	108988	39024449	dense__pmid-39024449__African
+GCST90477637	Separation of retinal layers	Phe_362_31	African	AFR	case-control	121513	510	121003	39024449	dense__pmid-39024449__African
+GCST90477640	Retinal vascular changes and abnomalities	Phe_362_4	African	AFR	case-control	119512	3412	116100	39024449	dense__pmid-39024449__African
+GCST90477643	Peripheral retinal degenerations	Phe_362_6	African	AFR	case-control	119302	3209	116093	39024449	dense__pmid-39024449__African
+GCST90477645	Retinal hemorrhage/ischemia	Phe_362_8	African	AFR	case-control	119364	1267	118097	39024449	dense__pmid-39024449__African
+GCST90477648	Retinal edema	Phe_362_9	African	AFR	case-control	120091	1947	118144	39024449	dense__pmid-39024449__African
+GCST90477650	Chorioretinal inflammations, scars, and other disorders of choroid	Phe_363	African	AFR	case-control	119309	2483	116826	39024449	dense__pmid-39024449__African
+GCST90477652	Chorioretinal scars	Phe_363_3	African	AFR	case-control	119582	2186	117396	39024449	dense__pmid-39024449__African
+GCST90477655	Corneal opacity and other disorders of cornea	Phe_364	African	AFR	case-control	118329	2722	115607	39024449	dense__pmid-39024449__African
+GCST90477657	Corneal opacity	Phe_364_1	African	AFR	case-control	119909	1849	118060	39024449	dense__pmid-39024449__African
+GCST90477659	Corneal degenerations	Phe_364_4	African	AFR	case-control	119474	1445	118029	39024449	dense__pmid-39024449__African
+GCST90475863	Corneal dystrophy	Phe_364_5	African	AFR	case-control	121391	636	120755	39024449	dense__pmid-39024449__African
+GCST90475868	Glaucoma	Phe_365	African	AFR	case-control	114920	38064	76856	39024449	dense__pmid-39024449__African
+GCST90475871	Open-angle glaucoma	Phe_365_1	African	AFR	case-control	115031	30309	84722	39024449	dense__pmid-39024449__African
+GCST90475874	Primary open angle glaucoma	Phe_365_11	African	AFR	case-control	118594	13552	105042	39024449	dense__pmid-39024449__African
+GCST90477665	Primary angle-closure glaucoma	Phe_365_2	African	AFR	case-control	120061	2113	117948	39024449	dense__pmid-39024449__African
+GCST90477668	Cataract	Phe_366	African	AFR	case-control	107711	58665	49046	39024449	dense__pmid-39024449__African
+GCST90477669	Nonsenile Cataract	Phe_366_1	African	AFR	case-control	120180	809	119371	39024449	dense__pmid-39024449__African
+GCST90477673	Senile cataract	Phe_366_2	African	AFR	case-control	106581	53129	53452	39024449	dense__pmid-39024449__African
+GCST90477678	Disorders of refraction and accommodation; blindness and low vision	Phe_367	African	AFR	case-control	107336	81119	26217	39024449	dense__pmid-39024449__African
+GCST90475879	Myopia	Phe_367_1	African	AFR	case-control	105244	20300	84944	39024449	dense__pmid-39024449__African
+GCST90477683	Astigmatism	Phe_367_2	African	AFR	case-control	101062	24678	76384	39024449	dense__pmid-39024449__African
+GCST90477687	Presbyopia	Phe_367_4	African	AFR	case-control	103365	62465	40900	39024449	dense__pmid-39024449__African
+GCST90477690	Hypermetropia	Phe_367_8	African	AFR	case-control	106935	16235	90700	39024449	dense__pmid-39024449__African
+GCST90477692	Blindness and low vision	Phe_367_9	African	AFR	case-control	114740	5341	109399	39024449	dense__pmid-39024449__African
+GCST90477695	Visual disturbances	Phe_368	African	AFR	case-control	105495	14464	91031	39024449	dense__pmid-39024449__African
+GCST90477698	Amblyopia	Phe_368_1	African	AFR	case-control	121123	1038	120085	39024449	dense__pmid-39024449__African
+GCST90477700	Diplopia and disorders of binocular vision	Phe_368_2	African	AFR	case-control	119761	1516	118245	39024449	dense__pmid-39024449__African
+GCST90477702	Anisometropia	Phe_368_3	African	AFR	case-control	120372	641	119731	39024449	dense__pmid-39024449__African
+GCST90477705	Visual field defects	Phe_368_4	African	AFR	case-control	117024	3492	113532	39024449	dense__pmid-39024449__African
+GCST90477708	Subjective visual disturbances	Phe_368_9	African	AFR	case-control	115988	2827	113161	39024449	dense__pmid-39024449__African
+GCST90477712	Infection of the eye	Phe_369	African	AFR	case-control	111668	5483	106185	39024449	dense__pmid-39024449__African
+GCST90477714	Eye infection, viral	Phe_369_2	African	AFR	case-control	120285	881	119404	39024449	dense__pmid-39024449__African
+GCST90477717	Conjunctivitis, infectious	Phe_369_5	African	AFR	case-control	112409	4134	108275	39024449	dense__pmid-39024449__African
+GCST90477720	Keratitis	Phe_370	African	AFR	case-control	116553	3280	113273	39024449	dense__pmid-39024449__African
+GCST90477723	Superficial keratitis	Phe_370_2	African	AFR	case-control	120185	517	119668	39024449	dense__pmid-39024449__African
+GCST90477726	Keratoconjunctivitis	Phe_370_3	African	AFR	case-control	118355	1892	116463	39024449	dense__pmid-39024449__African
+GCST90477729	Keratoconjunctivitis sicca	Phe_370_31	African	AFR	case-control	118797	1630	117167	39024449	dense__pmid-39024449__African
+GCST90477733	Inflammation of the eye	Phe_371	African	AFR	case-control	107542	15490	92052	39024449	dense__pmid-39024449__African
+GCST90475886	Uveitis, noninfectious or NOS	Phe_371_1	African	AFR	case-control	120251	3411	116840	39024449	dense__pmid-39024449__African
+GCST90477737	Conjunctivitis, noninfectious	Phe_371_2	African	AFR	case-control	116771	3911	112860	39024449	dense__pmid-39024449__African
+GCST90477739	Allergic conjunctivitis	Phe_371_21	African	AFR	case-control	117051	3646	113405	39024449	dense__pmid-39024449__African
+GCST90477742	Inflammation of eyelids	Phe_371_3	African	AFR	case-control	110183	8636	101547	39024449	dense__pmid-39024449__African
+GCST90477744	Disorders of conjunctiva	Phe_372	African	AFR	case-control	114367	4008	110359	39024449	dense__pmid-39024449__African
+GCST90477746	Other disorders of eyelids	Phe_374	African	AFR	case-control	116512	4518	111994	39024449	dense__pmid-39024449__African
+GCST90477747	Ectropion or entropion	Phe_374_1	African	AFR	case-control	120620	787	119833	39024449	dense__pmid-39024449__African
+GCST90477749	Ptosis of eyelid	Phe_374_3	African	AFR	case-control	120555	1871	118684	39024449	dense__pmid-39024449__African
+GCST90477751	Dermatochalasis	Phe_374_6	African	AFR	case-control	120757	815	119942	39024449	dense__pmid-39024449__African
+GCST90477752	Disorders of lacrimal system	Phe_375	African	AFR	case-control	120884	663	120221	39024449	dense__pmid-39024449__African
+GCST90477756	Dry eyes	Phe_375_1	African	AFR	case-control	105791	27465	78326	39024449	dense__pmid-39024449__African
+GCST90477757	Epiphora	Phe_375_2	African	AFR	case-control	121121	541	120580	39024449	dense__pmid-39024449__African
+GCST90477760	Disorders of optic nerve and visual pathways	Phe_377	African	AFR	case-control	117952	3917	114035	39024449	dense__pmid-39024449__African
+GCST90477762	Optic atrophy	Phe_377_1	African	AFR	case-control	119413	2374	117039	39024449	dense__pmid-39024449__African
+GCST90477764	Optic neuritis/neuropathy	Phe_377_3	African	AFR	case-control	120262	1313	118949	39024449	dense__pmid-39024449__African
+GCST90477766	Strabismus and other disorders of binocular eye movements	Phe_378	African	AFR	case-control	119677	2781	116896	39024449	dense__pmid-39024449__African
+GCST90477769	Strabismus (not specified as paralytic)	Phe_378_1	African	AFR	case-control	120367	1809	118558	39024449	dense__pmid-39024449__African
+GCST90477771	Paralytic strabismus	Phe_378_5	African	AFR	case-control	121627	506	121121	39024449	dense__pmid-39024449__African
+GCST90477775	Other disorders of eye	Phe_379	African	AFR	case-control	110157	13328	96829	39024449	dense__pmid-39024449__African
+GCST90477777	Scleritis and episcleritis	Phe_379_1	African	AFR	case-control	121397	732	120665	39024449	dense__pmid-39024449__African
+GCST90477781	Disorders of vitreous body	Phe_379_2	African	AFR	case-control	113853	9003	104850	39024449	dense__pmid-39024449__African
+GCST90477783	Aphakia and other disorders of lens	Phe_379_3	African	AFR	case-control	120483	1365	119118	39024449	dense__pmid-39024449__African
+GCST90477786	Disorders of iris and ciliary body	Phe_379_5	African	AFR	case-control	120408	1118	119290	39024449	dense__pmid-39024449__African
+GCST90477788	Pain, swelling or discharge of eye	Phe_379_9	African	AFR	case-control	114874	1932	112942	39024449	dense__pmid-39024449__African
+GCST90477790	Disorders of external ear	Phe_380	African	AFR	case-control	119906	594	119312	39024449	dense__pmid-39024449__African
+GCST90477793	Otitis externa	Phe_380_1	African	AFR	case-control	117115	2777	114338	39024449	dense__pmid-39024449__African
+GCST90477795	Impacted cerumen	Phe_380_4	African	AFR	case-control	111897	10972	100925	39024449	dense__pmid-39024449__African
+GCST90477797	Otitis media and Eustachian tube disorders	Phe_381	African	AFR	case-control	113267	5320	107947	39024449	dense__pmid-39024449__African
+GCST90477799	Otitis media	Phe_381_1	African	AFR	case-control	114441	4008	110433	39024449	dense__pmid-39024449__African
+GCST90477801	Suppurative and unspecified otitis media	Phe_381_11	African	AFR	case-control	115543	2629	112914	39024449	dense__pmid-39024449__African
+GCST90477804	Eustachian tube disorders	Phe_381_2	African	AFR	case-control	119572	1323	118249	39024449	dense__pmid-39024449__African
+GCST90477806	Otalgia	Phe_382	African	AFR	case-control	115804	2261	113543	39024449	dense__pmid-39024449__African
+GCST90477812	Vertiginous syndromes and other disorders of vestibular system	Phe_386	African	AFR	case-control	117756	3194	114562	39024449	dense__pmid-39024449__African
+GCST90477814	Peripheral or central vertigo	Phe_386_2	African	AFR	case-control	118190	2768	115422	39024449	dense__pmid-39024449__African
+GCST90477818	Dizziness and giddiness (Light-headedness and vertigo)	Phe_386_9	African	AFR	case-control	107047	14859	92188	39024449	dense__pmid-39024449__African
+GCST90477819	Other disorders of ear	Phe_388	African	AFR	case-control	119682	566	119116	39024449	dense__pmid-39024449__African
+GCST90477823	Hearing loss	Phe_389	African	AFR	case-control	107791	31058	76733	39024449	dense__pmid-39024449__African
+GCST90475910	Sensorineural hearing loss	Phe_389_1	African	AFR	case-control	110618	20653	89965	39024449	dense__pmid-39024449__African
+GCST90477827	Conductive hearing loss	Phe_389_2	African	AFR	case-control	120514	1037	119477	39024449	dense__pmid-39024449__African
+GCST90477830	Tinnitus	Phe_389_4	African	AFR	case-control	109651	12522	97129	39024449	dense__pmid-39024449__African
+GCST90479094	Back pain	Phe_760	African	AFR	case-control	108750	71046	37704	39024449	dense__pmid-39024449__African
+GCST90479097	Cervicalgia	Phe_761	African	AFR	case-control	108180	26276	81904	39024449	dense__pmid-39024449__African
+GCST90479100	Thoracic or lumbosacral neuritis or radiculitis, unspecified	Phe_763	African	AFR	case-control	113467	14267	99200	39024449	dense__pmid-39024449__African
+GCST90479102	Sciatica	Phe_764	African	AFR	case-control	113160	7374	105786	39024449	dense__pmid-39024449__African
+GCST90479105	Cervical radiculitis	Phe_765	African	AFR	case-control	115159	9222	105937	39024449	dense__pmid-39024449__African
+GCST90479108	Neuralgia, neuritis, and radiculitis NOS	Phe_766	African	AFR	case-control	115336	3893	111443	39024449	dense__pmid-39024449__African
+GCST90479111	Nonallopathic lesions NEC	Phe_769	African	AFR	case-control	120930	2951	117979	39024449	dense__pmid-39024449__African
+GCST90479114	Myalgia and myositis unspecified	Phe_770	African	AFR	case-control	112417	8441	103976	39024449	dense__pmid-39024449__African
+GCST90479118	Swelling of limb	Phe_771_1	African	AFR	case-control	113014	3420	109594	39024449	dense__pmid-39024449__African
+GCST90479120	Cramp of limb	Phe_771_2	African	AFR	case-control	118823	1129	117694	39024449	dense__pmid-39024449__African
+GCST90479121	Symptoms of the muscles	Phe_772	African	AFR	case-control	120006	764	119242	39024449	dense__pmid-39024449__African
+GCST90479123	Muscular wasting and disuse atrophy	Phe_772_1	African	AFR	case-control	121112	530	120582	39024449	dense__pmid-39024449__African
+GCST90479126	Spasm of muscle	Phe_772_2	African	AFR	case-control	112229	4514	107715	39024449	dense__pmid-39024449__African
+GCST90479129	Muscle weakness	Phe_772_3	African	AFR	case-control	112993	12144	100849	39024449	dense__pmid-39024449__African
+GCST90479131	Rhabdomyolysis	Phe_772_4	African	AFR	case-control	120369	1168	119201	39024449	dense__pmid-39024449__African
+GCST90479136	Pain in limb	Phe_773	African	AFR	case-control	98630	42965	55665	39024449	dense__pmid-39024449__African
+GCST90479138	Symptoms involving nervous and musculoskeletal systems	Phe_781	African	AFR	case-control	117454	1661	115793	39024449	dense__pmid-39024449__African
+GCST90479141	Edema	Phe_782_3	African	AFR	case-control	108104	18750	89354	39024449	dense__pmid-39024449__African
+GCST90479143	Fever of unknown origin	Phe_783	African	AFR	case-control	112987	4467	108520	39024449	dense__pmid-39024449__African
+GCST90479147	Abdominal pain	Phe_785	African	AFR	case-control	102780	30171	72609	39024449	dense__pmid-39024449__African
+GCST90479150	Syncope and collapse	Phe_788	African	AFR	case-control	114170	10621	103549	39024449	dense__pmid-39024449__African
+GCST90479152	Nausea and vomiting	Phe_789	African	AFR	case-control	108794	10006	98788	39024449	dense__pmid-39024449__African
+GCST90479154	Nonspecific findings on examination of blood	Phe_790	African	AFR	case-control	119929	523	119406	39024449	dense__pmid-39024449__African
+GCST90479157	Other abnormal blood chemistry	Phe_790_6	African	AFR	case-control	108070	9450	98620	39024449	dense__pmid-39024449__African
+GCST90479158	Gangrene	Phe_791	African	AFR	case-control	121337	1037	120300	39024449	dense__pmid-39024449__African
+GCST90479170	Shock	Phe_797	African	AFR	case-control	120921	625	120296	39024449	dense__pmid-39024449__African
+GCST90479175	Malaise and fatigue	Phe_798	African	AFR	case-control	105503	17722	87781	39024449	dense__pmid-39024449__African
+GCST90479177	Chronic fatigue syndrome	Phe_798_1	African	AFR	case-control	120232	648	119584	39024449	dense__pmid-39024449__African
+GCST90479180	Debility unspecified	Phe_799	African	AFR	case-control	119042	4479	114563	39024449	dense__pmid-39024449__African
+GCST90476579	Colon Cancer/Rectal Cancer	CaColon	African	AFR	case-control	55505	876	54629	39024449	dense__pmid-39024449__African
+GCST90476581	Lung Cancer	CaLung	African	AFR	case-control	55505	547	54958	39024449	dense__pmid-39024449__African
+GCST90476584	Other cancer	CaOth	African	AFR	case-control	55505	2050	53455	39024449	dense__pmid-39024449__African
+GCST90476585	Takes medication for other cancer?	CaOthMed	African	AFR	case-control	55505	928	54577	39024449	dense__pmid-39024449__African
+GCST90475184	Prostate Cancer	CaPros	African	AFR	case-control	48011	5764	42247	39024449	dense__pmid-39024449__African
+GCST90475186	Takes medication for prostate cancer?	CaProsMed	African	AFR	case-control	48011	2414	45597	39024449	dense__pmid-39024449__African
+GCST90476593	Coronary Artery / Coronary Heart Disease (including heart attack, angina)	CircCAD	African	AFR	case-control	55505	5298	50207	39024449	dense__pmid-39024449__African
+GCST90476595	Takes medication for coronary artery/ coronary heart disease?	CircCADMed	African	AFR	case-control	55505	4684	50821	39024449	dense__pmid-39024449__African
+GCST90476597	Congestive Heart Failure	CircCHF	African	AFR	case-control	55505	3230	52275	39024449	dense__pmid-39024449__African
+GCST90476599	Takes medication for congestive heart failure?	CircCHFMed	African	AFR	case-control	55505	3006	52499	39024449	dense__pmid-39024449__African
+GCST90475204	High Cholesterol	CircChol	African	AFR	case-control	55505	28037	27468	39024449	dense__pmid-39024449__African
+GCST90475207	Takes medication for high cholesterol?	CircCholMed	African	AFR	case-control	55505	23091	32414	39024449	dense__pmid-39024449__African
+GCST90476602	Blood clot / Pulmonary Embolism / Deep Vein Thrombosis (DVT)	CircClot	African	AFR	case-control	55505	1779	53726	39024449	dense__pmid-39024449__African
+GCST90476604	Takes medication for blood clot/ pulmonary embolism/ deep vein thrombosis (DVT)?	CircClotMed	African	AFR	case-control	55505	1553	53952	39024449	dense__pmid-39024449__African
+GCST90475213	High blood pressure / hypertension	CircHTN	African	AFR	case-control	55505	38518	16987	39024449	dense__pmid-39024449__African
+GCST90475215	Takes medication for high blood pressure?	CircHTNMed	African	AFR	case-control	55505	35848	19657	39024449	dense__pmid-39024449__African
+GCST90476606	Heart Attack	CircHrtAtk	African	AFR	case-control	55505	3961	51544	39024449	dense__pmid-39024449__African
+GCST90476608	Takes medication for heart attack?	CircHrtAtkMed	African	AFR	case-control	55505	3628	51877	39024449	dense__pmid-39024449__African
+GCST90476614	Other circulatory problem	CircOth	African	AFR	case-control	55505	4081	51424	39024449	dense__pmid-39024449__African
+GCST90476616	Takes medication for circulatory problem?	CircOthMed	African	AFR	case-control	55505	2937	52568	39024449	dense__pmid-39024449__African
+GCST90476618	Peripheral Vascular Disease	CircPVD	African	AFR	case-control	55505	1932	53573	39024449	dense__pmid-39024449__African
+GCST90476620	Takes medication for peripheral vascular disease?	CircPVDMed	African	AFR	case-control	55505	1715	53790	39024449	dense__pmid-39024449__African
+GCST90476622	Stroke	CircStrk	African	AFR	case-control	55505	3765	51740	39024449	dense__pmid-39024449__African
+GCST90476625	Takes medication for stroke?	CircStrkMed	African	AFR	case-control	55505	2878	52627	39024449	dense__pmid-39024449__African
+GCST90476628	Transient Ischemic Attack (TIA)	CircTIA	African	AFR	case-control	55505	1329	54176	39024449	dense__pmid-39024449__African
+GCST90476631	Takes medication for transient ischemic attack (TIA)?	CircTIAMed	African	AFR	case-control	55505	1397	54108	39024449	dense__pmid-39024449__African
+GCST90476648	Biological Father:  Cancer, Colon	DadCaColon	African	AFR	case-control	55505	1987	53518	39024449	dense__pmid-39024449__African
+GCST90476651	Biological Father:  Cancer, Lung	DadCaLung	African	AFR	case-control	55505	2712	52793	39024449	dense__pmid-39024449__African
+GCST90476653	Biological Father:  Cancer, all others	DadCaOth	African	AFR	case-control	55505	2499	53006	39024449	dense__pmid-39024449__African
+GCST90476656	Biological Father:  Cancer, Prostate	DadCaPros	African	AFR	case-control	55505	4328	51177	39024449	dense__pmid-39024449__African
+GCST90476659	Biological Father: Coronary Artery / Coronary Heart Disease	DadCircCAD	African	AFR	case-control	55505	5507	49998	39024449	dense__pmid-39024449__African
+GCST90476662	Biological Father: High cholesterol	DadCircChol	African	AFR	case-control	55505	5446	50059	39024449	dense__pmid-39024449__African
+GCST90476665	Biological Father: High blood pressure	DadCircHTN	African	AFR	case-control	55505	13881	41624	39024449	dense__pmid-39024449__African
+GCST90476667	Biological Father: Stroke / Transient Ischemic Attack (TIA)	DadCircStrk	African	AFR	case-control	55505	4135	51370	39024449	dense__pmid-39024449__African
+GCST90476670	Biological Father: Asthma	DadDoAsth	African	AFR	case-control	55505	1192	54313	39024449	dense__pmid-39024449__African
+GCST90475244	Biological Father: Diabetes / "Sugar"	DadDoDM	African	AFR	case-control	55505	7335	48170	39024449	dense__pmid-39024449__African
+GCST90476675	Biological Father: Kidney Disease	DadDoKid	African	AFR	case-control	55505	1526	53979	39024449	dense__pmid-39024449__African
+GCST90476678	Biological Father: Liver Condition	DadDoLiver	African	AFR	case-control	55505	1394	54111	39024449	dense__pmid-39024449__African
+GCST90476680	Biological Father: Chronic Lung Disease including COPD, Emphysema or Bronchitis	DadDoLung	African	AFR	case-control	55505	1916	53589	39024449	dense__pmid-39024449__African
+GCST90476683	Biological Father: Depression	DadMHDep	African	AFR	case-control	55505	1470	54035	39024449	dense__pmid-39024449__African
+GCST90476686	Biological Father: Alzheimer's / Other Dementia	DadNSAlz	African	AFR	case-control	55505	2411	53094	39024449	dense__pmid-39024449__African
+GCST90476694	Sleep apnea	DoApnea	African	AFR	case-control	55505	15464	40041	39024449	dense__pmid-39024449__African
+GCST90476696	Takes medication for Sleep apnea?	DoApneaMed	African	AFR	case-control	55505	6347	49158	39024449	dense__pmid-39024449__African
+GCST90476698	Asthma	DoAsth	African	AFR	case-control	55505	5678	49827	39024449	dense__pmid-39024449__African
+GCST90476700	Takes medication for asthma?	DoAsthMed	African	AFR	case-control	55505	4269	51236	39024449	dense__pmid-39024449__African
+GCST90476702	Enlarged Prostrate (Benign Prostatic Hyperplasia)	DoBPH	African	AFR	case-control	48011	7836	40175	39024449	dense__pmid-39024449__African
+GCST90476704	Takes medication for enlarged prostrate (Benign prostatic hyperplasia)?	DoBPHMed	African	AFR	case-control	48011	4996	43015	39024449	dense__pmid-39024449__African
+GCST90475264	Diabetes / "Sugar"	DoDM	African	AFR	case-control	55505	16718	38787	39024449	dense__pmid-39024449__African
+GCST90475267	Takes medication for Diabetes/sugar?	DoDMMed	African	AFR	case-control	55505	13958	41547	39024449	dense__pmid-39024449__African
+GCST90476707	Liver condition (ex. Cirrhosis)	DoLiver	African	AFR	case-control	55505	1941	53564	39024449	dense__pmid-39024449__African
+GCST90476708	Takes medication for liver condition (ex. Cirrhosis)?	DoLiverMed	African	AFR	case-control	55505	765	54740	39024449	dense__pmid-39024449__African
+GCST90476710	Chronic lung diseases including COPD, Emphysema and Bronchitis	DoLung	African	AFR	case-control	55505	4394	51111	39024449	dense__pmid-39024449__African
+GCST90476712	Takes medication for Chronic lung diseases including COPD, Emphysema and Bronchitis?	DoLungMed	African	AFR	case-control	55505	3204	52301	39024449	dense__pmid-39024449__African
+GCST90476715	Skin condition (ex. Eczema, Psoriasis)	DoSkin	African	AFR	case-control	55505	6069	49436	39024449	dense__pmid-39024449__African
+GCST90476717	Takes medication for Skin condition (ex. Eczema, Psoriasis)?	DoSkinMed	African	AFR	case-control	55505	3695	51810	39024449	dense__pmid-39024449__African
+GCST90476719	Thyroid problems	DoThy	African	AFR	case-control	55505	3597	51908	39024449	dense__pmid-39024449__African
+GCST90476721	Takes medication for Thyroid problems?	DoThyMed	African	AFR	case-control	55505	2440	53065	39024449	dense__pmid-39024449__African
+GCST90476729	Did  you breastfeed your child/children for at least one month?	FBrstFeed	African	AFR	case-control	3435	1710	1725	39024449	dense__pmid-39024449__African
+GCST90476735	Have you ever had a spontaneous miscarriage?	FMscrg	African	AFR	case-control	3999	1389	2610	39024449	dense__pmid-39024449__African
+GCST90476738	Have you ever been pregnant?	FPreg	African	AFR	case-control	4699	3922	777	39024449	dense__pmid-39024449__African
+GCST90476744	Irritable Bowel Syndrome (IBS)	GIIBS	African	AFR	case-control	55505	2434	53071	39024449	dense__pmid-39024449__African
+GCST90476747	Takes medication for irritable bowel syndrome (IBS)?	GIIBSMed	African	AFR	case-control	55505	1322	54183	39024449	dense__pmid-39024449__African
+GCST90476750	Bowel obstruction	GIObst	African	AFR	case-control	55505	1803	53702	39024449	dense__pmid-39024449__African
+GCST90476752	Takes medication for bowel obstruction?	GIObstMed	African	AFR	case-control	55505	1091	54414	39024449	dense__pmid-39024449__African
+GCST90476755	Other digestive system problems	GIOth	African	AFR	case-control	55505	2664	52841	39024449	dense__pmid-39024449__African
+GCST90476758	Takes medication for other digestive system problems?	GIOthMed	African	AFR	case-control	55505	1572	53933	39024449	dense__pmid-39024449__African
+GCST90476762	Colon Polyps	GIPolyp	African	AFR	case-control	55505	8522	46983	39024449	dense__pmid-39024449__African
+GCST90476763	Takes medication for colon polyps?	GIPolypMed	African	AFR	case-control	55505	1153	54352	39024449	dense__pmid-39024449__African
+GCST90476767	Acid Reflux/GERD	GIReflux	African	AFR	case-control	55505	16132	39373	39024449	dense__pmid-39024449__African
+GCST90476770	Takes medication for acid reflux/GERD?	GIRefluxMed	African	AFR	case-control	55505	12614	42891	39024449	dense__pmid-39024449__African
+GCST90476771	Ulcerative Colitis	GIUC	African	AFR	case-control	55505	513	54992	39024449	dense__pmid-39024449__African
+GCST90476774	Peptic Ulcers	GIUlcer	African	AFR	case-control	55505	2076	53429	39024449	dense__pmid-39024449__African
+GCST90476777	Takes medication for peptic ulcers?	GIUlcerMed	African	AFR	case-control	55505	1221	54284	39024449	dense__pmid-39024449__African
+GCST90476800	Blindness, all causes	HVBlind	African	AFR	case-control	55505	1285	54220	39024449	dense__pmid-39024449__African
+GCST90476801	Takes medication for blindness, all causes?	HVBlindMed	African	AFR	case-control	55505	660	54845	39024449	dense__pmid-39024449__African
+GCST90476805	Cataracts	HVCat	African	AFR	case-control	55505	8261	47244	39024449	dense__pmid-39024449__African
+GCST90476807	Takes medication for Cataracts?	HVCatMed	African	AFR	case-control	55505	2092	53413	39024449	dense__pmid-39024449__African
+GCST90476810	Glaucoma	HVGlauc	African	AFR	case-control	55505	6861	48644	39024449	dense__pmid-39024449__African
+GCST90476812	Takes medication for Glaucoma?	HVGlaucMed	African	AFR	case-control	55505	4849	50656	39024449	dense__pmid-39024449__African
+GCST90476815	Severe hearing loss or partial deafness in one or both ears	HVHear	African	AFR	case-control	55505	7719	47786	39024449	dense__pmid-39024449__African
+GCST90476817	Takes medication for severe hearing loss or partial deafness in one or both ears?	HVHearMed	African	AFR	case-control	55505	1263	54242	39024449	dense__pmid-39024449__African
+GCST90476820	Macular Degeneration	HVMD	African	AFR	case-control	55505	1691	53814	39024449	dense__pmid-39024449__African
+GCST90476821	Takes medication for Macular Degeneration?	HVMDMed	African	AFR	case-control	55505	840	54665	39024449	dense__pmid-39024449__African
+GCST90476824	Tinnitus or ringing in the ears	HVTin	African	AFR	case-control	55505	11465	44040	39024449	dense__pmid-39024449__African
+GCST90476827	Takes medication for tinnitus or ringing in  the ears?	HVTinMed	African	AFR	case-control	55505	1503	54002	39024449	dense__pmid-39024449__African
+GCST90476829	Acute kidney disease with no current dialysis	KDAcute	African	AFR	case-control	55505	1139	54366	39024449	dense__pmid-39024449__African
+GCST90476831	Takes medication for acute kidney disease with no current dialysis?	KDAcuteMed	African	AFR	case-control	55505	715	54790	39024449	dense__pmid-39024449__African
+GCST90475406	Kidney disease with dialysis	KDDial	African	AFR	case-control	55505	873	54632	39024449	dense__pmid-39024449__African
+GCST90475407	Takes medication for kidney disease with dialysis?	KDDialMed	African	AFR	case-control	55505	826	54679	39024449	dense__pmid-39024449__African
+GCST90476836	Kidney disease without dialysis	KDNoDial	African	AFR	case-control	55505	3343	52162	39024449	dense__pmid-39024449__African
+GCST90476838	Takes medication for kidney disease without dialysis?	KDNoDialMed	African	AFR	case-control	55505	1721	53784	39024449	dense__pmid-39024449__African
+GCST90476842	Biological Grandparent (maternal):  Cancer, Breast	MGpCaBrst	African	AFR	case-control	55505	1498	54007	39024449	dense__pmid-39024449__African
+GCST90476844	Biological Grandparent (maternal):  Cancer, Colon	MGpCaColon	African	AFR	case-control	55505	870	54635	39024449	dense__pmid-39024449__African
+GCST90476847	Biological Grandparent (maternal):  Cancer, Lung	MGpCaLung	African	AFR	case-control	55505	978	54527	39024449	dense__pmid-39024449__African
+GCST90476850	Biological Grandparent (maternal):  Cancer, all others	MGpCaOth	African	AFR	case-control	55505	1993	53512	39024449	dense__pmid-39024449__African
+GCST90476852	Biological Grandparent (maternal):  Cancer, Prostate	MGpCaPros	African	AFR	case-control	55505	747	54758	39024449	dense__pmid-39024449__African
+GCST90476856	Biological Grandparent (maternal): Coronary Artery / Coronary Heart Disease	MGpCircCAD	African	AFR	case-control	55505	2632	52873	39024449	dense__pmid-39024449__African
+GCST90476859	Biological Grandparent (maternal): High cholesterol	MGpCircChol	African	AFR	case-control	55505	2247	53258	39024449	dense__pmid-39024449__African
+GCST90476862	Biological Grandparent (maternal): High blood pressure	MGpCircHTN	African	AFR	case-control	55505	6875	48630	39024449	dense__pmid-39024449__African
+GCST90476865	Biological Grandparent (maternal): Stroke / Transient Ischemic Attack (TIA)	MGpCircStrk	African	AFR	case-control	55505	2879	52626	39024449	dense__pmid-39024449__African
+GCST90476867	Biological Grandparent (maternal) (maternal): Asthma	MGpDoAsth	African	AFR	case-control	55505	917	54588	39024449	dense__pmid-39024449__African
+GCST90476870	Biological Grandparent (maternal): Diabetes / "Sugar"	MGpDoDM	African	AFR	case-control	55505	6090	49415	39024449	dense__pmid-39024449__African
+GCST90476871	Biological Grandparent (maternal): Kidney Disease	MGpDoKid	African	AFR	case-control	55505	634	54871	39024449	dense__pmid-39024449__African
+GCST90476875	Biological Grandparent (maternal): Chronic Lung Disease including COPD, Emphysema or Bronchitis	MGpDoLung	African	AFR	case-control	55505	686	54819	39024449	dense__pmid-39024449__African
+GCST90476879	Biological Grandparent (maternal): Depression	MGpMHDep	African	AFR	case-control	55505	919	54586	39024449	dense__pmid-39024449__African
+GCST90476883	Biological Grandparent (maternal): Alzheimer's / Other Dementia	MGpNSAlz	African	AFR	case-control	55505	3009	52496	39024449	dense__pmid-39024449__African
+GCST90476885	Biological Mother:  Cancer, Breast	MomCaBrst	African	AFR	case-control	55505	4197	51308	39024449	dense__pmid-39024449__African
+GCST90476887	Biological Mother:  Cancer, Colon	MomCaColon	African	AFR	case-control	55505	1389	54116	39024449	dense__pmid-39024449__African
+GCST90476890	Biological Mother:  Cancer, Lung	MomCaLung	African	AFR	case-control	55505	1570	53935	39024449	dense__pmid-39024449__African
+GCST90476892	Biological Mother: Cancer, all others	MomCaOth	African	AFR	case-control	55505	3669	51836	39024449	dense__pmid-39024449__African
+GCST90476895	Biological Mother: Coronary Artery / Coronary Heart Disease	MomCircCAD	African	AFR	case-control	55505	5944	49561	39024449	dense__pmid-39024449__African
+GCST90476898	Biological Mother: High cholesterol	MomCircChol	African	AFR	case-control	55505	8340	47165	39024449	dense__pmid-39024449__African
+GCST90476901	Biological Mother: High blood pressure	MomCircHTN	African	AFR	case-control	55505	22718	32787	39024449	dense__pmid-39024449__African
+GCST90476903	Biological Mother: Stroke / Transient Ischemic Attack (TIA)	MomCircStrk	African	AFR	case-control	55505	5082	50423	39024449	dense__pmid-39024449__African
+GCST90476906	Biological Mother: Asthma	MomDoAsth	African	AFR	case-control	55505	2569	52936	39024449	dense__pmid-39024449__African
+GCST90475491	Biological Mother: Diabetes / "Sugar"	MomDoDM	African	AFR	case-control	55505	13594	41911	39024449	dense__pmid-39024449__African
+GCST90476911	Biological Mother: Kidney Disease	MomDoKid	African	AFR	case-control	55505	2274	53231	39024449	dense__pmid-39024449__African
+GCST90476913	Biological Mother: Liver Condition	MomDoLiver	African	AFR	case-control	55505	767	54738	39024449	dense__pmid-39024449__African
+GCST90476916	Biological Mother: Chronic Lung Disease including COPD, Emphysema or Bronchitis	MomDoLung	African	AFR	case-control	55505	1683	53822	39024449	dense__pmid-39024449__African
+GCST90476918	Biological Mother: Bipolar Disorder	MomMHBPD	African	AFR	case-control	55505	612	54893	39024449	dense__pmid-39024449__African
+GCST90476921	Biological Mother: Depression	MomMHDep	African	AFR	case-control	55505	3608	51897	39024449	dense__pmid-39024449__African
+GCST90475495	Biological Mother: Alzheimer's / Other Dementia	MomNSAlz	African	AFR	case-control	55505	4657	50848	39024449	dense__pmid-39024449__African
+GCST90476925	Are you a twin, triplet, or other multiple birth?	MultiBrth	African	AFR	case-control	54090	1439	52651	39024449	dense__pmid-39024449__African
+GCST90476928	Dementia (includes Alzheimer's, Vascular, etc.)	NSDem	African	AFR	case-control	55505	635	54870	39024449	dense__pmid-39024449__African
+GCST90476930	Epilepsy / Seizure disorder	NSEpil	African	AFR	case-control	55505	1388	54117	39024449	dense__pmid-39024449__African
+GCST90476932	Takes medication for epilepsy/seizure disorder?	NSEpilMed	African	AFR	case-control	55505	1029	54476	39024449	dense__pmid-39024449__African
+GCST90476935	Concussion or loss of consciousness	NSLOC	African	AFR	case-control	55505	2682	52823	39024449	dense__pmid-39024449__African
+GCST90476937	Takes medication for concussion or loss of consciousness?	NSLOCMed	African	AFR	case-control	55505	626	54879	39024449	dense__pmid-39024449__African
+GCST90476940	Memory Loss or Impairment	NSMemLoss	African	AFR	case-control	55505	5639	49866	39024449	dense__pmid-39024449__African
+GCST90476942	Takes medication for memory loss or impairment?	NSMemLossMed	African	AFR	case-control	55505	1229	54276	39024449	dense__pmid-39024449__African
+GCST90476944	Migraine Headaches	NSMigrn	African	AFR	case-control	55505	6952	48553	39024449	dense__pmid-39024449__African
+GCST90476946	Takes medication for migraine headaches?	NSMigrnMed	African	AFR	case-control	55505	4304	51201	39024449	dense__pmid-39024449__African
+GCST90476950	Other nervous system problem	NSOth	African	AFR	case-control	55505	3599	51906	39024449	dense__pmid-39024449__African
+GCST90476953	Other Headaches	NSOthHd	African	AFR	case-control	55505	6226	49279	39024449	dense__pmid-39024449__African
+GCST90476956	Takes medication for other headaches?	NSOthHdMed	African	AFR	case-control	55505	3168	52337	39024449	dense__pmid-39024449__African
+GCST90476959	Takes medication for other nervous system problems?	NSOthMed	African	AFR	case-control	55505	2017	53488	39024449	dense__pmid-39024449__African
+GCST90476964	Spinal Cord Injury	NSSCI	African	AFR	case-control	55505	3618	51887	39024449	dense__pmid-39024449__African
+GCST90476967	Takes medication for spinal cord injury?	NSSCIMed	African	AFR	case-control	55505	2075	53430	39024449	dense__pmid-39024449__African
+GCST90476970	Traumatic Brain Injury (TBI)	NSTBI	African	AFR	case-control	55505	1612	53893	39024449	dense__pmid-39024449__African
+GCST90476972	Takes medication for Traumatic Brain Injury (TBI)?	NSTBIMed	African	AFR	case-control	55505	637	54868	39024449	dense__pmid-39024449__African
+GCST90476974	Biological Grandparent (paternal):  Cancer, Breast	PGpCaBrst	African	AFR	case-control	55505	623	54882	39024449	dense__pmid-39024449__African
+GCST90476976	Biological Grandparent (paternal):  Cancer, Colon	PGpCaColon	African	AFR	case-control	55505	612	54893	39024449	dense__pmid-39024449__African
+GCST90476978	Biological Grandparent (paternal):  Cancer, Lung	PGpCaLung	African	AFR	case-control	55505	620	54885	39024449	dense__pmid-39024449__African
+GCST90476981	Biological Grandparent (paternal):  Cancer, all others	PGpCaOth	African	AFR	case-control	55505	1226	54279	39024449	dense__pmid-39024449__African
+GCST90476983	Biological Grandparent (paternal):  Cancer, Prostate	PGpCaPros	African	AFR	case-control	55505	819	54686	39024449	dense__pmid-39024449__African
+GCST90476986	Biological Grandparent (paternal): Coronary Artery / Coronary Heart Disease	PGpCircCAD	African	AFR	case-control	55505	1805	53700	39024449	dense__pmid-39024449__African
+GCST90476988	Biological Grandparent (paternal): High cholesterol	PGpCircChol	African	AFR	case-control	55505	1528	53977	39024449	dense__pmid-39024449__African
+GCST90476991	Biological Grandparent (paternal): High blood pressure	PGpCircHTN	African	AFR	case-control	55505	4271	51234	39024449	dense__pmid-39024449__African
+GCST90476994	Biological Grandparent (paternal): Stroke / Transient Ischemic Attack (TIA)	PGpCircStrk	African	AFR	case-control	55505	1725	53780	39024449	dense__pmid-39024449__African
+GCST90476998	Biological Grandparent (paternal): Diabetes / "Sugar"	PGpDoDM	African	AFR	case-control	55505	3515	51990	39024449	dense__pmid-39024449__African
+GCST90477003	Biological Grandparent (paternal): Depression	PGpMHDep	African	AFR	case-control	55505	581	54924	39024449	dense__pmid-39024449__African
+GCST90477006	Biological Grandparent (paternal): Alzheimer's / Other Dementia	PGpNSAlz	African	AFR	case-control	55505	1577	53928	39024449	dense__pmid-39024449__African
+GCST90479361	Biological Sibling:  Cancer, Breast	SibCaBrst	African	AFR	case-control	55505	3291	52214	39024449	dense__pmid-39024449__African
+GCST90479363	Biological Sibling:  Cancer, Colon	SibCaColon	African	AFR	case-control	55505	1456	54049	39024449	dense__pmid-39024449__African
+GCST90479366	Biological Sibling:  Cancer, Lung	SibCaLung	African	AFR	case-control	55505	1644	53861	39024449	dense__pmid-39024449__African
+GCST90479368	Biological Sibling:  Cancer, all others	SibCaOth	African	AFR	case-control	55505	3019	52486	39024449	dense__pmid-39024449__African
+GCST90479371	Biological Sibling:  Cancer, Prostate	SibCaPros	African	AFR	case-control	55505	2246	53259	39024449	dense__pmid-39024449__African
+GCST90479373	Biological Sibling: Coronary Artery / Coronary Heart Disease	SibCircCAD	African	AFR	case-control	55505	3253	52252	39024449	dense__pmid-39024449__African
+GCST90479376	Biological Sibling: High cholesterol	SibCircChol	African	AFR	case-control	55505	6739	48766	39024449	dense__pmid-39024449__African
+GCST90479379	Biological Sibling: High blood pressure	SibCircHTN	African	AFR	case-control	55505	14054	41451	39024449	dense__pmid-39024449__African
+GCST90479382	Biological Sibling: Stroke / Transient Ischemic Attack (TIA)	SibCircStrk	African	AFR	case-control	55505	2605	52900	39024449	dense__pmid-39024449__African
+GCST90479385	Biological Sibling: Asthma	SibDoAsth	African	AFR	case-control	55505	5022	50483	39024449	dense__pmid-39024449__African
+GCST90479388	Biological Sibling: Diabetes / "Sugar"	SibDoDM	African	AFR	case-control	55505	10599	44906	39024449	dense__pmid-39024449__African
+GCST90479390	Biological Sibling: Kidney Disease	SibDoKid	African	AFR	case-control	55505	2310	53195	39024449	dense__pmid-39024449__African
+GCST90479393	Biological Sibling: Liver Condition	SibDoLiver	African	AFR	case-control	55505	1246	54259	39024449	dense__pmid-39024449__African
+GCST90479396	Biological Sibling: Chronic Lung Disease including COPD, Emphysema or Bronchitis	SibDoLung	African	AFR	case-control	55505	1829	53676	39024449	dense__pmid-39024449__African
+GCST90479398	Biological Sibling: Bipolar Disorder	SibMHBPD	African	AFR	case-control	55505	1676	53829	39024449	dense__pmid-39024449__African
+GCST90479401	Biological Sibling: Depression	SibMHDep	African	AFR	case-control	55505	3789	51716	39024449	dense__pmid-39024449__African
+GCST90479403	Biological Sibling: Schizophrenia	SibMHSCZ	African	AFR	case-control	55505	1227	54278	39024449	dense__pmid-39024449__African
+GCST90479405	Biological Sibling: Alzheimer's / Other Dementia	SibNSAlz	African	AFR	case-control	55505	803	54702	39024449	dense__pmid-39024449__African
+GCST90476378	Gout	SkMsGout	African	AFR	case-control	55505	6538	48967	39024449	dense__pmid-39024449__African
+GCST90476381	Takes medication for gout?	SkMsGoutMed	African	AFR	case-control	55505	4708	50797	39024449	dense__pmid-39024449__African
+GCST90479408	Ostearthritis	SkMsOA	African	AFR	case-control	55505	7222	48283	39024449	dense__pmid-39024449__African
+GCST90479410	Takes medication for Osteoarthritis?	SkMsOAMed	African	AFR	case-control	55505	4686	50819	39024449	dense__pmid-39024449__African
+GCST90479413	Osteoporosis	SkMsOP	African	AFR	case-control	55505	1498	54007	39024449	dense__pmid-39024449__African
+GCST90479415	Takes medication for osteoporosis?	SkMsOPMed	African	AFR	case-control	55505	1154	54351	39024449	dense__pmid-39024449__African
+GCST90479419	Other skeletal/muscular problem	SkMsOth	African	AFR	case-control	55505	10139	45366	39024449	dense__pmid-39024449__African
+GCST90479423	Other Arthritis	SkMsOthArth	African	AFR	case-control	55505	13856	41649	39024449	dense__pmid-39024449__African
+GCST90479426	Takes medication for other arthritis?	SkMsOthArthMed	African	AFR	case-control	55505	7417	48088	39024449	dense__pmid-39024449__African
+GCST90479429	Takes medication for other skeletal/muscular problem?	SkMsOthMed	African	AFR	case-control	55505	6044	49461	39024449	dense__pmid-39024449__African
+GCST90479432	Rheumatoid Arthritis	SkMsRA	African	AFR	case-control	55505	7050	48455	39024449	dense__pmid-39024449__African
+GCST90479435	Takes medication for Rheumatoid Arthritis?	SkMsRAMed	African	AFR	case-control	55505	4384	51121	39024449	dense__pmid-39024449__African
+GCST90479439	Feeling excessively sleepy during the day (does not include regular naps)	SlpExcDy	African	AFR	case-control	35351	9617	25734	39024449	dense__pmid-39024449__African
+GCST90479443	Trouble falling asleep when you first go to bed	SlpFall	African	AFR	case-control	35351	15498	19853	39024449	dense__pmid-39024449__African
+GCST90479446	Feeling unsatisfied or not rested by your night's sleep	SlpUnsat	African	AFR	case-control	35351	14502	20849	39024449	dense__pmid-39024449__African
+GCST90479450	Waking up in the morning earlier than planned or desired	SlpWakeAM	African	AFR	case-control	35351	14806	20545	39024449	dense__pmid-39024449__African
+GCST90479454	Waking up during the night and not easily going back to sleep	SlpWakePM	African	AFR	case-control	35351	18414	16937	39024449	dense__pmid-39024449__African
+GCST90479457	In your lifetime, have you smoked a total of at least 100 cigarettes?	Smk100	African	AFR	case-control	53416	35244	18172	39024449	dense__pmid-39024449__African
+GCST90479462	Smokeless tobacco (Chewing tobacco or snuff)	SmkChewConv	African	AFR	case-control	29548	1995	27553	39024449	dense__pmid-39024449__African
+GCST90479465	Do you currently smoke cigarettes?	SmkCur	African	AFR	case-control	22130	7968	14162	39024449	dense__pmid-39024449__African
+GCST90479468	Do you smoke now?	SmkNowConv	African	AFR	case-control	37909	14691	23218	39024449	dense__pmid-39024449__African
+GCST90479470	Other tobacco products	SmkOthConv	African	AFR	case-control	28639	1816	26823	39024449	dense__pmid-39024449__African
+GCST90475152	body mass index (BMI, maximum, inv-normal transformed)	BMI_Max_INT	African	AFR	quantitative	118995			39024449	dense__pmid-39024449__African
+GCST90475155	body mass index (BMI, mean, inv-normal transformed)	BMI_Mean_INT	African	AFR	quantitative	118993			39024449	dense__pmid-39024449__African
+GCST90475158	body mass index (BMI, minimum, inv-normal transformed)	BMI_Min_INT	African	AFR	quantitative	118992			39024449	dense__pmid-39024449__African
+GCST90475251	diastolic blood pressure (DBP, maximum, inv-normal transformed)	Diastolic_Max_INT	African	AFR	quantitative	119274			39024449	dense__pmid-39024449__African
+GCST90475254	diastolic blood pressure (DBP, mean, inv-normal transformed)	Diastolic_Mean_INT	African	AFR	quantitative	119332			39024449	dense__pmid-39024449__African
+GCST90476691	diastolic blood pressure (DBP, minimum, inv-normal transformed)	Diastolic_Min_INT	African	AFR	quantitative	119331			39024449	dense__pmid-39024449__African
+GCST90475367	What is your height? (cm, inv-normal transformed)	HeightSRCm_INT	African	AFR	quantitative	51137			39024449	dense__pmid-39024449__African
+GCST90475358	height (maximum, inv-normal transformed)	Height_Max_INT	African	AFR	quantitative	119011			39024449	dense__pmid-39024449__African
+GCST90475361	height (mean, inv-normal transformed)	Height_Mean_INT	African	AFR	quantitative	119012			39024449	dense__pmid-39024449__African
+GCST90475364	height (minimum, inv-normal transformed)	Height_Min_INT	African	AFR	quantitative	119012			39024449	dense__pmid-39024449__African
+GCST90476333	heart rate (HR, maximum, inv-normal transformed)	Pulse_Max_INT	African	AFR	quantitative	119336			39024449	dense__pmid-39024449__African
+GCST90476337	heart rate (HR, mean, inv-normal transformed)	Pulse_Mean_INT	African	AFR	quantitative	119336			39024449	dense__pmid-39024449__African
+GCST90476340	heart rate (HR, minimum, inv-normal transformed)	Pulse_Min_INT	African	AFR	quantitative	119330			39024449	dense__pmid-39024449__African
+GCST90479459	At what age did you start to smoke cigarettes regularly? (inv-normal transformed)	SmkAge_INT	African	AFR	quantitative	20602			39024449	dense__pmid-39024449__African
+GCST90479473	How many years have you or did you smoke cigarettes? (inv-normal transformed)	SmkYrs_INT	African	AFR	quantitative	21334			39024449	dense__pmid-39024449__African
+GCST90476399	systolic blood pressure (SBP, maximum, inv-normal transformed)	Systolic_Max_INT	African	AFR	quantitative	119334			39024449	dense__pmid-39024449__African
+GCST90476402	systolic blood pressure (SBP, mean, inv-normal transformed)	Systolic_Mean_INT	African	AFR	quantitative	119331			39024449	dense__pmid-39024449__African
+GCST90479483	systolic blood pressure (SBP, minimum, inv-normal transformed)	Systolic_Min_INT	African	AFR	quantitative	119322			39024449	dense__pmid-39024449__African
+GCST90476468	What is your weight? (pounds, inv-normal transformed)	WeightSRLb_INT	African	AFR	quantitative	52481			39024449	dense__pmid-39024449__African
+GCST90476459	weight (maximum, inv-normal transformed)	Weight_Max_INT	African	AFR	quantitative	119284			39024449	dense__pmid-39024449__African
+GCST90476462	weight (mean, inv-normal transformed)	Weight_Mean_INT	African	AFR	quantitative	119279			39024449	dense__pmid-39024449__African
+GCST90476465	weight (minimum, inv-normal transformed)	Weight_Min_INT	African	AFR	quantitative	119286			39024449	dense__pmid-39024449__African
+GCST90476298	platelet count (mean, inv-norm transformed)	Platelet_Mean_INT	African	AFR	quantitative	114731			39024449	dense__pmid-39024449__African

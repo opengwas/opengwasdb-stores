@@ -84,12 +84,10 @@ EXEMPTIONS: dict[str, str] = {
     # The R GWAS-SSF Ragged/Hybrid generators (Chen 2023, Sun 2018, the
     # OGS-00004/5 pilots) call it through resources/generators/lib/ancestry.R.
     "gwas_catalog/ancestry_assign.py": "#300 (Chen and Sun as release configs; R generators deleted)",
-    # The MVP pilot drives `opengwasdb resolve-analyses` its own way.
-    "dbgap/mvp/pilot/wrapper.py": "#290 (dbGaP MVP)",
 }
 
 #: Tickets an exemption may cite: the source moves still to come (epic #282).
-RETIRING_TICKETS: frozenset[str] = frozenset({"#288", "#289", "#290", "#291", "#300"})
+RETIRING_TICKETS: frozenset[str] = frozenset({"#288", "#289", "#291", "#300"})
 
 
 def _docstring_nodes(tree: ast.AST) -> set[int]:
@@ -171,7 +169,9 @@ class PerSourceStatisticsTests(unittest.TestCase):
             "gwas_catalog/source_metadata_adapter.py",
             "gwas_catalog/write_acquisition_manifest.py",
             "ukb_b/generate_candidate.py",
-            "dbgap/mvp/generate_candidate.py",
+            "dbgap/metadata.py",
+            "dbgap/mvp/source_metadata_adapter.py",
+            "dbgap/mvp/acquire_dbgap_phs002453.py",
             "finngen/acquire.py",
             "eqtlgen/generate.py",
         ):

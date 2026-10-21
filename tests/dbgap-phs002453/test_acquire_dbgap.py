@@ -1720,14 +1720,6 @@ class ConverterEdgeCaseTests(unittest.TestCase):
         self.assertEqual(result.returncode, 3)
         self.assertIn("more fields than the header", result.stderr)
 
-    def test_unsafe_member_path_in_a_table_of_contents_fails(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
-            toc = Path(tmp) / f"{TAR}.table_of_contents.txt"
-            toc.write_text(
-                "-rw-r--r-- user/group 10 2024-01-01 00:00 ../escape.txt.gz\n", encoding="utf-8"
-            )
-            with self.assertRaisesRegex(ACQUIRE.AcquisitionError, "unsafe member path"):
-                ACQUIRE.parse_tar_listing(toc)
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

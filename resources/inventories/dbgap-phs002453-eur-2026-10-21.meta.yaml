@@ -1,0 +1,48 @@
+snapshot_id: dbgap-phs002453-eur-2026-10-21
+source_collection_id: dbgap-phs002453
+frozen_at: '2026-10-21T00:14:06Z'
+frozen_by: manifest_generation.freeze
+selection:
+  where:
+    store_key: dense__pmid-39024449__European
+  expect_rows: 1669
+rows: 1669
+readiness_counts:
+  ok: 1669
+ready_rows: 1669
+ready_bytes: 989188530123
+study_design_counts:
+  case-control: 1470
+  quantitative: 199
+ready_study_design_counts:
+  case-control: 1470
+  quantitative: 199
+duplicate_content_groups: []
+inventory_tsv_sha256: 8940245bd3a6223ef8dee3e6470b5dcce6b9dbf54c46c2f295fb84d5b41c457b
+source_metadata_table:
+  frozen:
+    path: dbgap-phs002453-eur-2026-10-21.source-metadata.tsv
+    sha256: f7de2a511bc74dfa1fc5680bccb8fc5ca4dd4701379e90958d3827ca960316f2
+    bytes: 236337
+    rows: 1669
+  original:
+    path: /home/gh13047/.cache/orchestrate/opengwasdb-stores-282/worktrees/290/resources/generators/dbgap-mvp/connectors/source-metadata-table.tsv
+    sha256: d6ef94233396a1615102afa7397fa3556c3317019e2090df4d2c63901d92e7cb
+    bytes: 883045
+    rows: 6022
+acquisition_manifest:
+  frozen:
+    path: dbgap-phs002453-eur-2026-10-21.acquisition-manifest.tsv
+    sha256: 903d1faca6e6ec9b3a8487bd4b9a1ce57a77f9b261aa7a4d96aeb66e0cedb4f1
+    bytes: 933338
+    rows: 1669
+  original:
+    path: /home/gh13047/.cache/orchestrate/opengwasdb-stores-282/worktrees/290/resources/generators/dbgap-mvp/connectors/acquisition-manifest.tsv
+    sha256: e24a1a7549a55dd20d20e33f693d97a5e5f822b51ec430b5bd4f2a9f48e0e348
+    bytes: 3366477
+    rows: 6022
+    readiness_counts:
+      ok: 6022
+    pass_lineage: null
+  unselected_entries: 4353
+lineage: []

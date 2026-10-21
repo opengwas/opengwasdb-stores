@@ -506,7 +506,11 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                         [row.analysis_id for row in rows],
                         lambda: collection_analysis_ids(provenance_path),
                     )
-                    self.assertEqual(len(declared), 704)
+                    if config.imputation_score_declarations is not None:
+                        # The GWAS Catalog collection's reviewed declarations.
+                        self.assertEqual(len(declared), 704)
+                    else:
+                        self.assertEqual(declared, {})
                     continue
                 metadata = read_analysis_metadata(provenance_path, ready)
                 manifest = derive_resolver_manifest(rows, config, metadata)

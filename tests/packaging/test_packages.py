@@ -21,11 +21,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 PACKAGE_ROOT = REPO_ROOT / "src" / "manifest_generation"
 
 # Directories under the package that are deliberately not packages, and why.
-NOT_PACKAGES: dict[str, str] = {
-    # The pilot copies guard/sitecustomize.py into a run directory and puts that
-    # on the resolver child's PYTHONPATH; it is never imported from here.
-    "manifest_generation.providers.dbgap.mvp.pilot.guard": "a sitecustomize.py copied into a resolver child's PYTHONPATH",
-}
+NOT_PACKAGES: dict[str, str] = {}
 
 
 def packages_on_disk() -> set[str]:
