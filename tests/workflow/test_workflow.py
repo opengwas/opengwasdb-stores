@@ -95,20 +95,27 @@ def find_snakemake_cmd() -> list[str]:
 
 
 def create_fixture_vcf(path: Path) -> Path:
-    """Create a minimal 2-variant GRCh38 GWAS-VCF fixture file."""
+    """Create a minimal 2-variant GRCh38 GWAS-VCF fixture file.
+
+    `FORMAT/EZ` is declared and written because opengwasdb's VCF reader queries
+    it unconditionally: without the tag bcftools fails the whole query, and the
+    build reports success while writing a Store with no association cells at
+    all (#303, opengwas/opengwasdb#290).
+    """
     path.parent.mkdir(parents=True, exist_ok=True)
     content = (
         "##fileformat=VCFv4.2\n"
         '##FILTER=<ID=PASS,Description="All filters passed">\n'
         '##INFO=<ID=AF,Number=A,Type=Float,Description="Allele Frequency">\n'
+        '##FORMAT=<ID=EZ,Number=A,Type=Float,Description="Z-score">\n'
         '##FORMAT=<ID=ES,Number=A,Type=Float,Description="Effect size">\n'
         '##FORMAT=<ID=SE,Number=A,Type=Float,Description="Standard error">\n'
         '##FORMAT=<ID=LP,Number=A,Type=Float,Description="-log10(p-value)">\n'
         '##FORMAT=<ID=AF,Number=A,Type=Float,Description="Allele frequency">\n'
         '##FORMAT=<ID=SS,Number=A,Type=Float,Description="Sample size">\n'
         "#CHROM\tPOS\tID\tREF\tALT\tQUAL\tFILTER\tINFO\tFORMAT\tTRAIT\n"
-        "chr1\t10000\trs1\tA\tG\t.\tPASS\tAF=0.2\tES:SE:LP:AF:SS\t0.1:0.02:5.0:0.2:10000\n"
-        "chr1\t20000\trs2\tC\tT\t.\tPASS\tAF=0.4\tES:SE:LP:AF:SS\t-0.2:0.03:8.0:0.4:10000\n"
+        "chr1\t10000\trs1\tA\tG\t.\tPASS\tAF=0.2\tEZ:ES:SE:LP:AF:SS\t5.0:0.1:0.02:5.0:0.2:10000\n"
+        "chr1\t20000\trs2\tC\tT\t.\tPASS\tAF=0.4\tEZ:ES:SE:LP:AF:SS\t-6.666667:-0.2:0.03:8.0:0.4:10000\n"
     )
     with gzip.open(path, "wt", encoding="utf-8") as f:
         f.write(content)
@@ -238,9 +245,12 @@ def create_completed_child_bundle(
     `post` follows what a completion supports: `top_hits` is false because
     `complete-dense` builds the Top-Hit Index inline and the planner refuses a
     separate step; rho is false for the same reason dense rho is optional;
-    overview and validate stay on. The bundle's `analyses.tsv` is the parent's:
-    completion keeps the parent's Analyses, and the membership table stays with
-    the release even though the completion step never reads it.
+    `overview` is false because no completion assertion reads the overview page
+    and the workflow suite budgets one fixture-scale end-to-end run per
+    process; `validate` stays on, because validation is the gate that publishes
+    the child. The bundle's `analyses.tsv` is the parent's: completion keeps the
+    parent's Analyses, and the membership table stays with the release even
+    though the completion step never reads it.
 
     `derived_from`/`status` are the only keys the workflow reads; the rest are
     what a real Release Bundle carries.
@@ -279,7 +289,7 @@ def create_completed_child_bundle(
         "post": {
             "top_hits": False,
             "rho": False,
-            "overview": True,
+            "overview": False,
             "validate": True,
         },
         "artifacts": {"root": art_root_str},
@@ -1077,6 +1087,73 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertEqual(set(scheduled), {"validate", "register", store_id})
 
 
+_TWO_ID_COMPLETION: dict[str, Any] | None = None
+
+
+def two_id_completion_template() -> dict[str, Any]:
+    """The one two-id completion pair this process builds, built on first use (#303).
+
+    Returns `parent_id`, `child_id`, `analysis_id`, the built `stores` and
+    `artifacts` directories, the entry point's `release_result`, and the
+    `TemporaryDirectory` that holds them (kept here so the template outlives
+    every test that copies it). A test that may mutate the pair copies `stores`
+    and `artifacts` into its own directories; the template is never written
+    again.
+
+    Later completion tickets (#304-#309) need this same fixture shape, so the
+    pair is built at most once per process rather than once per class: that is
+    what keeps the workflow suite's fixture-scale cost at one parent build plus
+    one completion rather than one per completion test.
+
+    The parent's `top_hits` and `overview` post steps and the child's `overview`
+    are off, because no assertion here reads them; completion never reads them
+    either. `validate` and publication stay on -- they are the gate and the
+    state under test.
+    """
+    global _TWO_ID_COMPLETION
+    if _TWO_ID_COMPLETION is not None:
+        return _TWO_ID_COMPLETION
+
+    parent_id = "OGS-00101"
+    child_id = "OGS-00102"
+    temp_dir = tempfile.TemporaryDirectory()
+    root = Path(temp_dir.name)
+    stores = root / "stores"
+    stores.mkdir()
+    artifacts = root / "artifacts"
+    artifacts.mkdir()
+
+    signal_vcf = create_signal_fixture_vcf(root / "signal.vcf.gz")
+    create_dense_fixture_store(
+        stores,
+        store_id=parent_id,
+        artifact_root=artifacts,
+        vcf_path=signal_vcf,
+        post_top_hits=False,
+        post_overview=False,
+    )
+    ld_panel = create_signal_ld_panel(root / "ld-panel")
+    create_completed_child_bundle(
+        stores,
+        child_id=child_id,
+        parent_id=parent_id,
+        ld_panel=ld_panel,
+        artifact_root=artifacts,
+    )
+    release_result = run_release([child_id], registry_root=stores, artifact_root=artifacts)
+
+    _TWO_ID_COMPLETION = {
+        "temp_dir": temp_dir,
+        "stores": stores,
+        "artifacts": artifacts,
+        "release_result": release_result,
+        "parent_id": parent_id,
+        "child_id": child_id,
+        "analysis_id": f"test_analysis_{parent_id}",
+    }
+    return _TWO_ID_COMPLETION
+
+
 class TestWorkflowTwoIdReferenceCompletion(unittest.TestCase):
     """Reference completion end to end, through the entry point (#303).
 
@@ -1093,49 +1170,21 @@ class TestWorkflowTwoIdReferenceCompletion(unittest.TestCase):
     `reference_completed` while imputing nothing would pass every weaker
     assertion here.
 
-    The pair costs one parent build plus one completion, so `setUpClass` builds
-    it once and each test copies the result, as
-    `TestWorkflowEndToEndAndResumption` does.
+    The pair costs one parent build plus one completion, so it comes from the
+    module-level `two_id_completion_template` -- built once per process, shared
+    with later completion tickets -- and each test copies it.
     """
-
-    PARENT_ID = "OGS-00101"
-    CHILD_ID = "OGS-00102"
-    ANALYSIS_ID = f"test_analysis_{PARENT_ID}"
 
     @classmethod
     def setUpClass(cls) -> None:
-        """Build the parent and complete the child, in one entry-point run naming the child."""
-        cls._class_tmp = tempfile.TemporaryDirectory()
-        root = Path(cls._class_tmp.name)
-        cls.template_stores = root / "stores"
-        cls.template_stores.mkdir()
-        cls.template_artifacts = root / "artifacts"
-        cls.template_artifacts.mkdir()
-
-        signal_vcf = create_signal_fixture_vcf(root / "signal.vcf.gz")
-        create_dense_fixture_store(
-            cls.template_stores,
-            store_id=cls.PARENT_ID,
-            artifact_root=cls.template_artifacts,
-            vcf_path=signal_vcf,
-        )
-        ld_panel = create_signal_ld_panel(root / "ld-panel")
-        create_completed_child_bundle(
-            cls.template_stores,
-            child_id=cls.CHILD_ID,
-            parent_id=cls.PARENT_ID,
-            ld_panel=ld_panel,
-            artifact_root=cls.template_artifacts,
-        )
-        cls.release_result = run_release(
-            [cls.CHILD_ID],
-            registry_root=cls.template_stores,
-            artifact_root=cls.template_artifacts,
-        )
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        cls._class_tmp.cleanup()
+        """Take this process's one built pair, building it on the first class that asks."""
+        template = two_id_completion_template()
+        cls.PARENT_ID: str = template["parent_id"]
+        cls.CHILD_ID: str = template["child_id"]
+        cls.ANALYSIS_ID: str = template["analysis_id"]
+        cls.template_stores: Path = template["stores"]
+        cls.template_artifacts: Path = template["artifacts"]
+        cls.release_result = template["release_result"]
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -1149,7 +1198,7 @@ class TestWorkflowTwoIdReferenceCompletion(unittest.TestCase):
         self.temp_dir.cleanup()
 
     def use_completed_pair(self) -> None:
-        """Copy the class's one built pair into this test's own directories."""
+        """Copy the shared template pair into this test's own directories."""
         shutil.rmtree(self.stores_dir)
         shutil.rmtree(self.artifact_root)
         shutil.copytree(self.template_stores, self.stores_dir)
@@ -1169,8 +1218,8 @@ class TestWorkflowTwoIdReferenceCompletion(unittest.TestCase):
         )
 
         expected_steps = {
-            self.PARENT_ID: ["build", "top-hits", "overview", "validate", "register"],
-            self.CHILD_ID: ["complete", "overview", "validate", "register"],
+            self.PARENT_ID: ["build", "validate", "register"],
+            self.CHILD_ID: ["complete", "validate", "register"],
         }
         for store_id, steps in expected_steps.items():
             rec_dir = paths.records_dir(store_id, root=self.template_artifacts)
@@ -1235,66 +1284,89 @@ class TestWorkflowTwoIdReferenceCompletion(unittest.TestCase):
             f"exactly the VCF's observed positions should be observed: {status_by_alid}",
         )
 
-    def test_observed_only_returns_exactly_the_vcfs_observations(self) -> None:
-        """`observed_only=True` on the child returns the VCF's eleven observed associations.
+    def test_observed_only_returns_exactly_the_parents_observed_associations(self) -> None:
+        """`observed_only=True` returns the parent's decoded z, se and eaf unchanged, by ALID.
 
-        Expected values are the VCF literals `create_signal_fixture_vcf` wrote
-        (z, and `SIGNAL_SE`), not the parent Store read back through the code
-        under test: comparing the child to a parent query would pass even if
-        completion mangled both. A Dense Store keeps z as int16 at scale 1024
-        and se as float16, so the comparison carries that quantization and no
-        more.
+        Completion reproducing every observed cell bit for bit is the property
+        ADR 0037 Decision 2 gates a replacement on, so the parent Store is the
+        right expected value here and the comparison is exact: a tolerance would
+        accept a one-quantum change to an observed value, which is exactly what
+        completion must never make.
+
+        Beside it, the fixture's own meaningfulness: the parent's decoded z and
+        se must each sit within one quantum of the VCF literals
+        `create_signal_fixture_vcf` writes -- one step of the `int16` fixed-point
+        z plane (`opengwasdb.encoding.plan.DEFAULT_Z_SCALE`, 1/1024) and one
+        `float16` step for se, the encoding the Store's manifest declares. Without
+        that, a Store holding no observed cells at all would pass the exactness
+        check vacuously.
         """
+        import numpy as np
+        from opengwasdb.encoding.plan import DEFAULT_Z_SCALE
+
         self.use_completed_pair()
-        child_store = paths.store_path(self.CHILD_ID, root=self.artifact_root)
 
-        q = query_store(child_store)
-        try:
-            obs = q.analysis(self.ANALYSIS_ID, observed_only=True)
-            alids = [q.variants_table()[int(index)]["alid"] for index in obs["variant_index"]]
-        finally:
-            q.close()
+        def decoded(store_p: Path) -> dict[str, tuple[float, float, float]]:
+            q = query_store(store_p)
+            try:
+                rows = q.analysis(self.ANALYSIS_ID, observed_only=True)
+                table = q.variants_table()
+            finally:
+                q.close()
+            self.assertNotIn("imputed", set(rows["association_status"].tolist()))
+            return {
+                table[int(index)]["alid"]: (float(z), float(se), float(eaf))
+                for index, z, se, eaf in zip(
+                    rows["variant_index"], rows["z"], rows["se"], rows["eaf"], strict=True
+                )
+            }
 
-        observed = {
-            alid: (float(z), float(se))
-            for alid, z, se in zip(alids, obs["z"], obs["se"], strict=True)
-        }
-        expected = {
-            SIGNAL_ALID[i]: (SIGNAL_Z[i], SIGNAL_SE)
-            for i in range(len(SIGNAL_POSITIONS))
-            if i != SIGNAL_HELD_OUT_INDEX
-        }
+        parent = decoded(paths.store_path(self.PARENT_ID, root=self.artifact_root))
+        child = decoded(paths.store_path(self.CHILD_ID, root=self.artifact_root))
+        expected_alids = [
+            SIGNAL_ALID[i] for i in range(len(SIGNAL_POSITIONS)) if i != SIGNAL_HELD_OUT_INDEX
+        ]
+        self.assertEqual(sorted(parent), sorted(expected_alids), "the parent holds exactly the VCF's observations")
+        self.assertEqual(sorted(child), sorted(expected_alids), "observed_only returns the observed associations only")
 
-        self.assertEqual(sorted(observed), sorted(expected), "observed_only returns the observed associations only")
-        self.assertNotIn("imputed", set(obs["association_status"].tolist()))
-        for alid, (z, se) in expected.items():
-            got_z, got_se = observed[alid]
-            self.assertAlmostEqual(got_z, z, delta=1 / 1024, msg=f"z changed for {alid}")
-            self.assertAlmostEqual(got_se, se, delta=1e-3, msg=f"se changed for {alid}")
+        z_quantum = 1.0 / DEFAULT_Z_SCALE
+        se_quantum = float(np.spacing(np.float16(SIGNAL_SE)))
+        index_by_alid = {alid: i for i, alid in enumerate(SIGNAL_ALID)}
+        for alid in expected_alids:
+            parent_z, parent_se, parent_eaf = parent[alid]
+            child_z, child_se, child_eaf = child[alid]
+            self.assertEqual(child_z, parent_z, f"z changed for {alid}")
+            self.assertEqual(child_se, parent_se, f"se changed for {alid}")
+            self.assertTrue(
+                child_eaf == parent_eaf or (np.isnan(child_eaf) and np.isnan(parent_eaf)),
+                f"eaf changed for {alid}: {child_eaf!r} != {parent_eaf!r}",
+            )
+
+            i = index_by_alid[alid]
+            self.assertLessEqual(
+                abs(parent_z - SIGNAL_Z[i]), z_quantum, f"decoded z for {alid} is not the VCF literal"
+            )
+            self.assertLessEqual(
+                abs(parent_se - SIGNAL_SE), se_quantum, f"decoded se for {alid} is not the VCF literal"
+            )
 
     def test_a_rerun_executes_zero_jobs(self) -> None:
-        """Re-running the entry point over the published pair reports nothing to be done.
+        """Re-running the entry point over a copy of the published pair executes 0 jobs.
 
-        The entry point short-circuits before Snakemake when the dry run
-        schedules nothing, so neither id's records may change: "only build what
-        the bundle and its records say is missing" is what lets a completed
-        pair be re-run safely.
-
-        This runs against the class's own directories rather than a copy: see
-        `test_a_rerun_of_a_copied_artifact_root_reschedules_the_completion` for
-        why a copy cannot stand in for them today.
+        A copy stands in for an operator's other checkout: it has no Snakemake
+        provenance for its paths, so the dry run decides from mtimes alone. Nothing
+        may be rewritten either -- the entry point short-circuits before Snakemake
+        when nothing is scheduled, and no record's mtime may move.
         """
+        self.use_completed_pair()
+
         mtimes_before: dict[str, dict[Path, int]] = {}
         for store_id in (self.PARENT_ID, self.CHILD_ID):
-            rec_dir = paths.records_dir(store_id, root=self.template_artifacts)
+            rec_dir = paths.records_dir(store_id, root=self.artifact_root)
             mtimes_before[store_id] = {p: p.stat().st_mtime_ns for p in rec_dir.glob("*.json")}
-            self.assertTrue(mtimes_before[store_id], f"the built pair has no records for {store_id}")
+            self.assertTrue(mtimes_before[store_id], f"the copied pair has no records for {store_id}")
 
-        res = run_release(
-            [self.CHILD_ID],
-            registry_root=self.template_stores,
-            artifact_root=self.template_artifacts,
-        )
+        res = run_release([self.CHILD_ID], registry_root=self.stores_dir, artifact_root=self.artifact_root)
 
         self.assertEqual(res.returncode, 0, f"Re-run failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
         self.assertIn("nothing to be done", res.stdout)
@@ -1305,38 +1377,6 @@ class TestWorkflowTwoIdReferenceCompletion(unittest.TestCase):
                     mtime,
                     f"Record {rec_p.name} of {store_id} was rewritten by an idempotent re-run",
                 )
-
-    @unittest.expectedFailure
-    def test_a_rerun_of_a_copied_artifact_root_reschedules_the_completion(self) -> None:
-        """A copied artifact root must also report nothing to be done -- it does not (#303 finding).
-
-        The entry point finishes every release's deferred publication after
-        Snakemake's last job (`register(..., finalize=False)` in
-        `workflow/Snakefile`), and that rewrite bumps the mtime of the parent's
-        `records/register.json` -- the input the child's `complete` job
-        consumed. So the parent's register record ends up newer than the
-        child's `records/complete.json`, and by mtime alone the completion is
-        stale.
-
-        Snakemake's own provenance normally hides this: it stores the input's
-        checksum, and the deferred rewrite is byte-identical, so a rerun in the
-        directories that built the pair is a no-op (the test above). A copy has
-        no provenance for its new paths, falls back to mtime, reschedules
-        `complete`, and the published-release guard of #195 refuses the run --
-        advising `--config force=1`, which would replace an already published
-        Store.
-
-        #303 tests today's behaviour and may not change `src/` or `workflow/`,
-        so this is recorded rather than fixed. When the completion's input
-        stops going stale this becomes an unexpected success: remove the
-        marker, which is the whole point of recording it here.
-        """
-        self.use_completed_pair()
-
-        res = run_release([self.CHILD_ID], registry_root=self.stores_dir, artifact_root=self.artifact_root)
-
-        self.assertEqual(res.returncode, 0, f"Re-run failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
-        self.assertIn("nothing to be done", res.stdout)
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):

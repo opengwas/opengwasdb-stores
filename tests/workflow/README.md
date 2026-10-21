@@ -65,9 +65,9 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
 
 11. **Reference completion end to end, under two ids (#303)**:
    - One entry-point run naming only the Reference-Completed child builds and publishes its Observed-Only parent, then completes, validates and publishes the child under its own id. Each id's register record reports success, each Store sits at its id's published path with no `.partial` left behind, and `opengwasdb validate` exits 0 on both.
-   - The child is a real completion, not an empty one: its manifest reports `completion_state: reference_completed` with its own `release_id`, the position the fixture VCF holds out but the fixture LD panel covers comes back `imputed`, and `observed_only=True` returns exactly the VCF's observed associations, matched by ALID against the values written in the fixture.
-   - Re-running the entry point over the published pair executes 0 jobs, prints its "nothing to be done" line and leaves every record's mtime unchanged. A *copy* of the artifact root does not, for a reason in `workflow/Snakefile` rather than in the fixture; `test_workflow.py` records that case as an expected failure.
-   - The fixture is the signal profile later completion tickets reuse: `create_signal_fixture_vcf`, `create_signal_ld_panel` and `create_completed_child_bundle` in `test_workflow.py`.
+   - The child is a real completion, not an empty one: its manifest reports `completion_state: reference_completed` with its own `release_id`, the position the fixture VCF holds out but the fixture LD panel covers comes back `imputed`, and `observed_only=True` returns the parent's observed associations with identical z, se and eaf by ALID — compared exactly, not within a tolerance.
+   - Re-running the entry point over the published pair executes 0 jobs, prints its "nothing to be done" line and leaves every record's mtime unchanged. That holds from a copy of the artifact root too, which stands in for another checkout with no shared Snakemake provenance: finishing a deferred publication rewrites neither `validation.yaml` nor `records/register.json` when they already hold the marker's bytes, so no consumer's record goes stale.
+   - The pair is built at most once per process (`two_id_completion_template`), and the fixture is the signal profile later completion tickets reuse: `create_signal_fixture_vcf`, `create_signal_ld_panel` and `create_completed_child_bundle` in `test_workflow.py`.
 
 ## Running the suite
 
