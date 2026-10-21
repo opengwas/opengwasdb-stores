@@ -60,9 +60,13 @@ a wrong Store Family attribution sends the review to the wrong place.
    resolver's `trimws(tolower(x))`; case/whitespace variants collapse and their
    occurrence counts sum.
 3. **Attribution**: `store_families` is derived from a sibling `release.yaml`
-   (`store_family_id`/`family`), else the Store Release id of a bundle under
-   `stores/<store-id>/` (the one home for a Release Bundle since #252), else
-   the bundle directory name, and is rendered sorted and comma-separated.
+   (`store_family_id`/`family`), else from the Store Release id of the
+   `stores/<store-id>/` bundle the Manifest sits in (the one home for a Release
+   Bundle since #252), and is rendered sorted and comma-separated. It is
+   derived from the bundle directory alone -- never from an earlier `stores`
+   component in the path -- and there is no fallback: a Manifest anywhere else
+   raises `UnsupportedManifestLocationError` naming the directory, because a
+   guessed label merges distinct releases into one bucket.
 4. **Ordering**: the queue is descending by `occurrence_count` with an
    alphabetical tie-break, so output is deterministic.
 5. **Empty is not an error**: a Manifest with no unmapped rows, or with no
