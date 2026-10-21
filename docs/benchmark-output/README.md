@@ -47,3 +47,19 @@ planned Step through `workflow/release.py` on the capability runtime
 (`opengwasdb` commit `1c2c85d`). The HM3 timing in the artifact is the core
 `opengwasdb#272` seam, `benchmarks._query_shapes.measure_hm3_extract`, surfaced
 by the stores#212 report.
+
+## Observed-view check, OGS-00009 → OGS-00010 (ADR 0037, #302)
+
+`resources/scripts/observed-view-check.py` writes
+`ogs00009_ogs00010_observed_view_check.json`: the prototype check that every
+observed cell of the Observed-Only Store survives reference completion
+unchanged. It maps the whole variant axis, then compares decoded Z, SE, EAF and
+the imputed flag over seeded random and edge-stratum chunk-rows:
+
+```bash
+pixi run python resources/scripts/observed-view-check.py \
+  --parent OGS-00009 --child OGS-00010 --n-random 1000 --seed 20261021 \
+  --out docs/benchmark-output/ogs00009_ogs00010_observed_view_check.json
+```
+
+It also writes a per-band `.jsonl` beside `--out`; that file is not tracked.
