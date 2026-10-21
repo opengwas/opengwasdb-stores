@@ -14,8 +14,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00006` | 2023-chen-full-european | ragged | observed_only | built | - | 1,400 | 0 | - | - | passed_with_warnings |
 | `OGS-00007` | 2018-sun-pilot-10 | ragged | observed_only | built | - | 10 | 0 | - | - | passed |
 | `OGS-00008` | ukb-b-pilot-10 | dense | observed_only | candidate | - | 10 | 0 | - | - | - |
-| `OGS-00009` | ukb-b-full-observed | dense | observed_only | candidate | - | 2,024 | 0 | - | - | - |
-| `OGS-00010` | ukb-b-full-completed | dense | reference_completed | candidate | - | 2,024 | 0 | - | - | - |
+| `OGS-00009` | ukb-b-full | dense | reference_completed | candidate | - | 2,514 | 0 | - | - | passed_with_warnings |
 | `OGS-00011` | eur-hybrid-full | hybrid | observed_only | accepted | - | 3,169 | 1,614 | - | - | passed_with_warnings |
 | `OGS-00012` | mvp-phs002453-eur | dense | observed_only | accepted | - | 1,669 | 0 | - | - | not_run |
 | `OGS-00013` | mvp-phs002453-afr | dense | observed_only | accepted | - | 1,368 | 0 | - | - | not_run |
@@ -44,7 +43,6 @@ Every value below is derived from the Release Bundle's `analyses.tsv`; `NA` mean
 | `OGS-00007` | Sun BB | 29875488 | plasma | SomaScan | EUR | 3301 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00008` | Ben Elsworth | NA | NA | NA | EUR | 352094-462933 | NA |
 | `OGS-00009` | Ben Elsworth | NA | NA | NA | EUR | 10339-463010 | NA |
-| `OGS-00010` | Ben Elsworth | NA | NA | NA | EUR | 10339-463010 | NA |
 | `OGS-00011` | mixed (662) | mixed (758) | NA | NA | NA | 15-2586691 | https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00012` | NA | NA | NA | NA | EUR | 5266-451195 | NA |
 | `OGS-00013` | NA | NA | NA | NA | AFR | 3435-121774 | NA |

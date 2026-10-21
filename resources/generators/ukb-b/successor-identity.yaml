@@ -1,70 +1,56 @@
-# Successor identity and replacement lineage for the restored full ukb-b release (#219).
+# Identity for the full restored ukb-b release (#219, #222, #312).
 #
-# Owner decisions recorded at
-# https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6132878514
-#   (restored 2,514-Analysis replacement + production UKB EUR panel path) and
-# https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6133853820
-#   (successor identity / replacement lineage / bundle-retention clarification).
+# Owner decision, 2026-10-21 (refines #222's of 14 Oct in light of ADR 0037):
+#   https://github.com/opengwas/opengwasdb-stores/issues/312#issuecomment-6326686714
+# which refines
+#   https://github.com/opengwas/opengwasdb-stores/issues/222#issuecomment-6158898093
 #
-# This file codifies identity and lineage ONLY. It implies no Store Release
-# acceptance and no production build, and it does not construct or store
-# OGS-00031 or build OGS-00030.
+# OGS-00009 is the full restored UKB-B Store, the 2,514 Analyses frozen in
+# #219, as one single-id Reference-Completed release (ADR 0037): one bundle
+# with `build` and `complete` blocks, completed against the owner-approved UKB
+# EUR panel. OGS-00010, OGS-00030 and OGS-00031 are dropped and their ids are
+# retired, never reused (ADR 0022). Nothing external depends on the old pair.
+#
+# This file records identity only. It implies no acceptance and no build.
 source_collection_id: opengwas-gwas-vcf
 store_key: ukb-b
 
-historical:
-  observed: OGS-00009
-  completed: OGS-00010
-  store_artifacts: preserve            # physical Stores must never be deleted
-  release_bundle_retention: waived     # old bundle *definitions* need not be permanently archived
-  retire_only_when: successor-activation-ready
-  git_history_and_evidence: preserve   # minimal artifact lineage / evidence / Git history stays
-  status: unchanged                    # not edited by this plan
+store:
+  store_id: OGS-00009
+  label: ukb-b-full
+  layout: dense
+  completion_state: reference_completed   # single id, no derived_from (ADR 0037)
+  membership: 2514                        # frozen Source Inventory ukb-b-restored-2026-10-11
+  completion_reference: ukb-hg38-eur-ld   # /data/opengwasdb/reference/ld, ancestry EUR (EUR -> ukb)
+  status: candidate                       # acceptance is the owner's
+  replaces: >-
+    the 2,024-Analysis OGS-00009 candidate, re-emitted in place (490 added,
+    none removed), and its two-id completed child OGS-00010
 
-successors:
-  observed:
-    store_id: OGS-00030
-    label: ukb-b-full-observed-restored
-    layout: dense
-    completion_state: observed_only
-    membership: 2514
-    replaces: OGS-00009
-    candidate_bundle: staged            # OGS-00030 candidate bundle emitted to staging, not registered
-    store_artifact: not_built
-    registered: false
-  completed:
-    store_id: OGS-00031
-    label: ukb-b-full-completed-restored
-    layout: dense
-    completion_state: reference_completed
-    derived_from: OGS-00030
-    replaces: OGS-00010
-    candidate_bundle: absent            # not constructed/stored yet
-    store_artifact: not_built
-    registered: false
-    reference_status: pending-qualification-and-activation   # owner already approved the UKB EUR panel
+retired:
+  # Retired unused: no bundle of the new plan takes these ids, and no run may
+  # reuse them.
+  OGS-00010: the old OGS-00009's two-id completed child (ADR 0007); its bundle is removed
+  OGS-00030: the observed successor #219 reserved; its candidate was only staged, never registered
+  OGS-00031: the completed successor #219 reserved; never emitted
 
-lineage:
-  # The Release Bundle schema has no `supersedes` field; replacement is recorded
-  # here and by the historical releases' own status transition at the release
-  # gate, never by editing OGS-00009/OGS-00010 now.
-  OGS-00030: {replaces: OGS-00009, relation: successor-observed}
-  OGS-00031: {replaces: OGS-00010, derived_from: OGS-00030, relation: successor-completed}
+# What happens to the Stores published under the old ids. #312 supersedes
+# #219's "preserve the physical Stores byte-identical always": once the new
+# OGS-00009 is built, completed and its observed-view check has passed, the
+# previous UKB-B Stores (the old OGS-00009 and OGS-00010) are deleted. The old
+# OGS-00009 Store stays published until the new build phase replaces it, and
+# OGS-00010's until then.
+published_stores:
+  OGS-00009: 2,024-Analysis observed Store, replaced by the new build phase (a forced run) and deleted once the new OGS-00009 completes
+  OGS-00010: 2,024-Analysis completed Store, deleted after the new OGS-00009 completes
 
 acceptance: none-implied
 production_build: not-run
 notes: >
-  Retention clarification (issue #219 comment 6133853820): old bundle
-  definitions may be retired / need not be permanently archived only once
-  successor activation is genuinely ready; there is no premature deletion of
-  active bundles while OGS-00030 is staged and OGS-00031 is absent. Physical
-  OGS-00009/OGS-00010 Stores, minimal artifact lineage/evidence and Git history
-  stay. The restored membership is the frozen Source Inventory
-  ukb-b-restored-2026-10-11 (2,514 Analyses). Ancestry assignment in the staged
-  candidate is source_fallback, not AF; core #277 (assign-ancestry liftover) and
-  the focused VCF blocker core #278 (one-pass resolver cannot stream GWAS-VCF
-  metrics) remain open. #207 is the historical SSF-foundation issue (merged via
-  #210), not new implementation scope. Physical OGS-00009/OGS-00010 Store
-  artifacts are preserved byte-identical ALWAYS; only their bundle definitions
-  may be retired or removed once successor activation is genuinely ready, and
-  nothing is removed now.
+  Ancestry in the bundle is the provider's population label (source_fallback,
+  EUR), not an AF-based assignment; the owner accepted it for this build, with
+  no AF assignment first (#312, 2026-10-21). The panel's qualification is the
+  owner's approval (#219, #312) on read-only layout evidence; the gaps #219
+  recorded are kept in the ukb-hg38-eur-ld resource notes. The pre-#312 plan, with
+  OGS-00030/31 as successors, is in git history and in
+  docs/ukb-restored-successors-plan.md.

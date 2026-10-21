@@ -112,17 +112,32 @@ by two pure-Python tools:
   earlier candidate; a bundle that has been accepted is refused. Store Release
   Build does not build a candidate until it is accepted (#247).
 
+`config-candidate.yaml` is `OGS-00009` (#312). It is one single-id
+Reference-Completed release (ADR 0037): its `completion_reference`
+(`ukb-hg38-eur-ld`) is qualified and active, so the bundle declares the
+observed `build` block and a `complete-dense` block against the panel that
+Reference Resource declares, with no `derived_from`. A reference short of
+qualified and active emits the bundle observed-only instead, says so on
+stderr, and records the reference and `blocked: true` under `validation.yaml`'s
+`acceptance` block. The generator refuses a malformed reference (not a mapping,
+an unknown or missing key, an unknown `qualification` or `activation`), any
+unknown config key, and a config that still reserves a completed id
+(`completed_store_id`, `planned_completed_store_id`): OGS-00010, OGS-00030 and
+OGS-00031 are retired unused (`ogstores.paths.RETIRED_STORE_IDS`).
+
 ```sh
+# The baseline #219 reconciled against was the 2,024-Analysis OGS-00009
+# bundle, replaced by #312: `git show 9b899b7:stores/OGS-00009/analyses.tsv`.
 python3 -m manifest_generation.providers.ukb_b.inventory reconcile \
   --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
-  --built-baseline stores/OGS-00009/analyses.tsv
+  --built-baseline <the 2,024-Analysis baseline analyses.tsv>
 
 python3 -m manifest_generation.providers.ukb_b.inventory freeze \
   --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
   --snapshot-id ukb-b-restored-2026-10-11 \
   --upstream-batch-evidence resources/inventories/ukb-b-restored-2026-10-11.upstream-batches.json
 
-python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00017
+python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00009
 ```
 
 The intended membership is anchored to the upstream batch count from the

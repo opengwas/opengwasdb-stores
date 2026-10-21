@@ -159,8 +159,8 @@ releases:
     incomplete_membership: true
     published_format: '0.1.0'
     intended_source_inventory: 2514
-    intended_state: preliminary
-    intended_source: 'preliminary UKB intended/available count for #219; integrity verification pending'
+    intended_state: frozen
+    intended_source: 'frozen Source Inventory ukb-b-restored-2026-10-11 (frozen 2026-10-12T00:48:51Z, #219), which OGS-00009 declares since #312'
     restored_available: 490
     host_validation: 'published Store built 2026-09-19, validated/registered 2026-09-20 (9,847,701 variants; build 5.92 h, validate 1.30 h)'
     host_registration: 'host records/register.json from 2026-09-20'
@@ -168,11 +168,12 @@ releases:
     hm3_present: false
     blockers:
       - >-
-        The 2,024-Analysis artifact is incomplete. The UKB source copy has
-        finished with a preliminary intended/available count of 2,514 and 490
-        restored against the prior 2,024 built; integrity verification is
-        pending and 3 historical API-metadata exclusions remain unresolved, so
-        the intended and admitted totals are not yet frozen or accepted (#219).
+        The published 2,024-Analysis artifact is incomplete. Since #312 the
+        OGS-00009 bundle declares the frozen 2,514-Analysis inventory, all
+        buildable (the provider JSON resolution supplies the 3 rows the API
+        resolution left unresolved), so the 490 restored Analyses need the
+        bundle's forced rebuild. (Until #312 this entry recorded the count as
+        preliminary and the totals as not yet frozen, #219.)
 
   OGS-00010:
     built_analyses: 2024
@@ -193,6 +194,11 @@ releases:
         OGS-00010 derives from the incomplete OGS-00009. It is a valid
         historical artifact but is not a valid completed descendant of the
         restored membership.
+      - >-
+        Retired unused by #312 (2026-10-21): its bundle is removed and the id is
+        never reused. OGS-00009 completes its own Store (ADR 0037). This entry
+        records the published Store until it is deleted, once the new OGS-00009
+        is completed.
     blockers:
       - 'requires a compatible complete observed parent (#219/#222)'
 

@@ -1,0 +1,18 @@
+store_id: OGS-99001
+layout: dense
+completion_state: observed_only
+build:
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.gwas-vcf
+    source-assembly: hg19
+    n-workers: 1
+post:
+  top_hits: true
+  overview: true
+indexed_subsets:
+- name: hm3
+  resource_id: hapmap3-hg38
+  variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
+  reference_assembly: GRCh38
+  checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398

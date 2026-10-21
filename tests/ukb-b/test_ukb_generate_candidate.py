@@ -1,20 +1,32 @@
 #!/usr/bin/env python3
-"""Hermetic tests for the restored ukb-b candidate emitter (issue #219).
+"""Hermetic tests for the restored ukb-b candidate emitter (issues #219, #312).
 
-Fixture-scale and network-free. They pin the contracts the ticket names:
+Fixture-scale and network-free. They pin the contracts the tickets name:
 exact membership reconciliation, identity (path/size/sha256) taken from the
 frozen inventory rather than the resolution table, preserved meaningful
 exclusions, and refusal to emit a schema-invalid or duplicate bundle. How the
 bundle lands in the registry is the shared emitter's, tested in tests/emit.
 
+Since #312 the generator emits one bundle per Store id (ADR 0037): a qualified,
+active completion reference adds the `complete` block to the Store's own
+bundle, and anything short of that leaves today's observed-only bundle byte for
+byte. `TestRegisteredOGS00009` holds the real registered bundle to the same.
+
 Run from the repository root:
 
     python3 tests/ukb-b/test_ukb_generate_candidate.py
+    python3 tests/ukb-b/test_ukb_generate_candidate.py --write-goldens   # by hand only
 """
 
 from __future__ import annotations
 
+import contextlib
 import csv
+import io
+import re
+import subprocess
+import sys
+import tarfile
 import tempfile
 import unittest
 from pathlib import Path
@@ -26,8 +38,26 @@ import yaml
 from manifest_generation.providers.ukb_b import generate_candidate as candidate
 from manifest_generation.providers.ukb_b import inventory as ukb_inventory
 from ogstores import bundle
+from ogstores import plan as plan_module
+from ogstores.paths import RETIRED_STORE_IDS
 
 INVENTORY_COLUMNS = ukb_inventory.INVENTORY_COLUMNS
+
+#: The tree before #312. The observed-only bundle is pinned against the bytes
+#: this revision emits from the same fixture, so the pinned values come from the
+#: base code and never from the code under test.
+BASE_REVISION = "9b899b7"
+
+CREATED_AT = "2026-10-12T00:00:00Z"
+FIXTURE_STORE_ID = "OGS-99001"
+FIXTURE_IDS = ("ukb-b-1", "ukb-b-2", "ukb-b-3")
+FIXTURE_RESOURCE_ID = "fixture-eur-ld"
+FIXTURE_LD_PANEL = "/fixture/reference/ld"
+
+#: What the base code emits for the fixture, committed so the suite needs no
+#: git history and no network. See `fixtures/observed-bundle/README.md`.
+GOLDEN_ROOT = Path(__file__).resolve().parent / "fixtures" / "observed-bundle"
+PINNED_FILES = ("release.yaml", "build.yaml", "analyses.tsv", "validation.yaml")
 
 
 def write_tsv(path: Path, columns, rows) -> None:
@@ -101,6 +131,15 @@ def base_config() -> dict:
         "resolution_snapshot_id": "fixture-resolution",
         "build_options": {"source-reader-capability": "opengwasdb.gwas-vcf", "source-assembly": "hg19", "n-workers": 1},
         "post": {"top_hits": True, "overview": True},
+        "indexed_subsets": [
+            {
+                "name": "hm3",
+                "resource_id": "hapmap3-hg38",
+                "variant_list": "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+                "reference_assembly": "GRCh38",
+                "checksum": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+            }
+        ],
         "defaults": {
             "license": "UK Biobank terms of access",
             "consortium": "MRC-IEU",
@@ -112,6 +151,155 @@ def base_config() -> dict:
             "ancestry_assignment_method": "source_fallback",
         },
     }
+
+
+def make_fixture(root: Path) -> Path:
+    """Lay out what `main()` reads under `root`, as a checkout does; return the config path.
+
+    Paths in the config are relative to `root`, which each run passes as
+    `--repo-root`, so the base code and the code under test read the same
+    files. `root` also declares the fixture's LD panel Reference Resource.
+    """
+    sources = {analysis_id: make_source(root / "source", analysis_id) for analysis_id in FIXTURE_IDS}
+    write_tsv(root / "inventory.tsv", INVENTORY_COLUMNS, [inventory_row(sources[i], i) for i in FIXTURE_IDS])
+    resolution = [resolution_row(i) for i in FIXTURE_IDS]
+    write_tsv(root / "resolution.tsv", list(resolution[0]), resolution)
+    declared = [
+        {"analysis_id": i, "source_label": f"label {i}", "source_genome_build": "GRCh37", "inclusion_reason": "declared intent"}
+        for i in FIXTURE_IDS
+    ]
+    write_tsv(root / "declared.tsv", list(declared[0]), declared)
+    write_ld_resource(root, ancestry_dir="EUR")
+    config_p = root / "config.yaml"
+    config_p.write_text(
+        yaml.safe_dump(
+            {**base_config(), "inventory": "inventory.tsv", "resolution": "resolution.tsv", "declared": "declared.tsv"},
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    return config_p
+
+
+def write_ld_resource(root: Path, *, ancestry_dir: str) -> None:
+    resource = root / "resources" / "reference-resources" / FIXTURE_RESOURCE_ID / "resource.yaml"
+    resource.parent.mkdir(parents=True, exist_ok=True)
+    resource.write_text(
+        yaml.safe_dump(
+            {
+                "resource_id": FIXTURE_RESOURCE_ID,
+                "kind": "ld_panel",
+                "ancestry": "EUR",
+                "genome_build": "GRCh38",
+                "location": FIXTURE_LD_PANEL,
+                "location_kind": "external_directory",
+                "ancestry_dir": ancestry_dir,
+                "status": "available",
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+def fixture_argv(root: Path) -> list[str]:
+    """`main()`'s argv for the fixture; `--config` and `--registry-root` resolve against `--repo-root`.
+
+    The temp directory is the last token, so the YAML line-wrapping of the
+    recorded command, decided only by the text before each break, never
+    depends on how long the host's temp path is.
+    """
+    return [
+        FIXTURE_STORE_ID,
+        "--config", "config.yaml",
+        "--registry-root", "stores",
+        "--created-at", CREATED_AT,
+        "--repo-root", str(root),
+    ]
+
+
+def normalise_golden(text: str, fixture: Path) -> str:
+    """Replace what the fixture's temp directory, or the generator's own bytes, decide.
+
+    `{fixture}` is the temp directory. `inventory_sha256` hashes an inventory
+    that records that directory and each source's mtime. The generator version
+    is the sha256 of the generator module, which any change to it moves.
+    """
+    text = text.replace(str(fixture), "{fixture}")
+    text = re.sub(r"^(\s*inventory_sha256: )[0-9a-f]{64}$", r"\1{fixture-digest}", text, flags=re.MULTILINE)
+    return re.sub(r"^(\s*version: )sha256:[0-9a-f]{64}$", r"\1{generator-digest}", text, flags=re.MULTILINE)
+
+
+def emit_with_the_base_generator(work: Path, argv: list[str]) -> None:
+    """Emit the fixture with the generator as it stood before #312.
+
+    Only `--write-goldens` calls this; the suite never reads the base tree.
+    `git archive` unpacks `BASE_REVISION`'s `src/`, and running the generator
+    with `-m` from there imports that tree's `manifest_generation` and
+    `ogstores`, ahead of this checkout's editable install.
+    """
+    archive = work / "base"
+    archive.mkdir()
+    try:
+        tarball = subprocess.run(
+            ["git", "archive", BASE_REVISION, "src", "pixi.toml"], cwd=REPO_ROOT, check=True, capture_output=True
+        ).stdout
+    except subprocess.CalledProcessError as exc:
+        raise AssertionError(
+            f"cannot read the base tree {BASE_REVISION}: {exc.stderr.decode().strip()}; "
+            "regenerating the goldens needs that commit in the clone"
+        ) from exc
+    with tarfile.open(fileobj=io.BytesIO(tarball)) as tar:
+        tar.extractall(archive, filter="data")
+    # The package refuses to import outside a checkout; the generator reads neither.
+    (archive / "stores").mkdir()
+    result = subprocess.run(
+        [sys.executable, "-m", "manifest_generation.providers.ukb_b.generate_candidate", *argv],
+        cwd=archive / "src",
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        raise AssertionError(f"the base generator failed: {result.stderr}")
+
+
+def write_goldens() -> list[Path]:
+    """Emit the fixture from `BASE_REVISION` and write the observed-bundle goldens.
+
+    Run by hand when the fixture changes:
+
+        pixi run -e dev python3 tests/ukb-b/test_ukb_generate_candidate.py --write-goldens
+    """
+    with tempfile.TemporaryDirectory() as td:
+        fixture = Path(td) / "fixture"
+        fixture.mkdir()
+        make_fixture(fixture)
+        emit_with_the_base_generator(Path(td), fixture_argv(fixture))
+        written = []
+        for name in PINNED_FILES:
+            destination = GOLDEN_ROOT / name
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            emitted = (fixture / "stores" / FIXTURE_STORE_ID / name).read_text(encoding="utf-8")
+            destination.write_text(normalise_golden(emitted, fixture), encoding="utf-8")
+            written.append(destination)
+        return written
+
+
+def strip_acceptance(text: str) -> str:
+    """`validation.yaml` without its top-level `acceptance` block, which #312 added."""
+    return re.sub(r"^acceptance:\n(?: .*\n)*", "", text, flags=re.MULTILINE)
+
+
+def phase_names(steps) -> dict[str, list[str]]:
+    """Every step's name, grouped by the phase it says it belongs to."""
+    phases: dict[str, list[str]] = {}
+    for step in steps:
+        phases.setdefault(step.phase, []).append(step.name)
+    return phases
+
+
+def option(argv: list[str], flag: str) -> str:
+    return argv[argv.index(flag) + 1]
 
 
 class UkbCandidateTest(unittest.TestCase):
@@ -329,5 +517,271 @@ class UkbCandidateTest(unittest.TestCase):
         self.assertNotIn("ancestry_records", without["source_snapshot"])
 
 
+class TestOneBundlePerStore(unittest.TestCase):
+    """#312: one Store id, one bundle (ADR 0037), as #308 did for the dbGaP MVP.
+
+    A qualified and active completion reference puts both phases in the
+    Store's own bundle. A declared reference short of that emits today's
+    observed-only bundle, says so on stderr and records the reference in
+    `validation.yaml`; a malformed one is refused. No completed id is minted
+    either way.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self._tmp.name)
+        self.config_p = make_fixture(self.root)
+        self.config = yaml.safe_load(self.config_p.read_text(encoding="utf-8"))
+        self.registry = self.root / "stores"
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def emit(self) -> Path:
+        self.config_p.write_text(yaml.safe_dump(self.config, sort_keys=False), encoding="utf-8")
+        self.assertEqual(candidate.main(fixture_argv(self.root)), 0)
+        return self.registry / FIXTURE_STORE_ID
+
+    def qualify(self, **changes) -> None:
+        self.config["completion_reference"] = {
+            "resource_id": FIXTURE_RESOURCE_ID,
+            "qualification": "qualified",
+            "activation": "active",
+            **changes,
+        }
+
+    def emit_capturing_stderr(self) -> str:
+        stderr = io.StringIO()
+        with contextlib.redirect_stderr(stderr):
+            self.emit()
+        return stderr.getvalue()
+
+    def document(self, name: str) -> dict:
+        return yaml.safe_load((self.registry / FIXTURE_STORE_ID / name).read_text(encoding="utf-8"))
+
+    def emitted(self, name: str) -> str:
+        return normalise_golden((self.registry / FIXTURE_STORE_ID / name).read_text(encoding="utf-8"), self.root)
+
+    def golden(self, name: str) -> str:
+        return (GOLDEN_ROOT / name).read_text(encoding="utf-8")
+
+    def bundle_directories(self) -> list[str]:
+        return sorted(path.name for path in self.registry.iterdir() if not path.name.startswith("."))
+
+    def test_a_qualified_active_reference_emits_one_bundle_with_both_phases(self) -> None:
+        self.qualify()
+        self.emit()
+
+        self.assertEqual(self.bundle_directories(), [FIXTURE_STORE_ID])
+        self.assertIsNone(self.document("release.yaml")["derived_from"])
+        build = self.document("build.yaml")
+        self.assertEqual(build["completion_state"], "reference_completed")
+        self.assertEqual(
+            build["complete"],
+            {"command": "complete-dense", "options": {"ld-panel": FIXTURE_LD_PANEL, "ancestry": "EUR"}},
+        )
+        # Everything else in the recipe is the observed bundle's, as the base code emitted it.
+        observed = yaml.safe_load(self.golden("build.yaml"))
+        self.assertEqual(
+            {key: value for key, value in build.items() if key not in ("completion_state", "complete")},
+            {key: value for key, value in observed.items() if key != "completion_state"},
+        )
+        self.assertEqual(list(build), ["store_id", "layout", "completion_state", "build", "complete", "post", "indexed_subsets"])
+        for name in ("release.yaml", "analyses.tsv"):
+            self.assertEqual(self.emitted(name), self.golden(name), f"{name} differs from the base code's bytes")
+        self.assertEqual(strip_acceptance(self.emitted("validation.yaml")), self.golden("validation.yaml"))
+        self.assertEqual(
+            self.document("validation.yaml")["acceptance"],
+            {
+                "completion_reference": {
+                    "resource_id": FIXTURE_RESOURCE_ID,
+                    "qualification": "qualified",
+                    "activation": "active",
+                    "blocked": False,
+                }
+            },
+        )
+        text = "".join((self.registry / FIXTURE_STORE_ID / name).read_text(encoding="utf-8") for name in PINNED_FILES)
+        for retired in sorted(RETIRED_STORE_IDS):
+            self.assertNotIn(retired, text)
+        self.assertNotIn("derived_from: OGS", text)
+
+    def test_no_completion_reference_emits_todays_observed_bundle_byte_for_byte(self) -> None:
+        stderr = self.emit_capturing_stderr()
+
+        for name in PINNED_FILES:
+            self.assertEqual(self.emitted(name), self.golden(name), f"{name} differs from the base code's bytes")
+        self.assertNotIn("complete", self.document("build.yaml"))
+        self.assertNotIn("completion_reference", stderr)
+        self.assertEqual(self.bundle_directories(), [FIXTURE_STORE_ID])
+
+    def test_a_reference_short_of_qualified_and_active_emits_observed_only_loudly(self) -> None:
+        references = {
+            "pending qualification": {"qualification": "pending"},
+            "pending activation": {"activation": "pending"},
+            "on hold and blocked": {"qualification": "hold", "activation": "blocked"},
+        }
+        for case, changes in references.items():
+            with self.subTest(case):
+                self.qualify(**changes)
+                stderr = self.emit_capturing_stderr()
+
+                for name in ("release.yaml", "build.yaml", "analyses.tsv"):
+                    self.assertEqual(self.emitted(name), self.golden(name), f"{name} differs from the base code's bytes")
+                self.assertEqual(strip_acceptance(self.emitted("validation.yaml")), self.golden("validation.yaml"))
+                reference = self.config["completion_reference"]
+                self.assertEqual(
+                    self.document("validation.yaml")["acceptance"],
+                    {"completion_reference": {**reference, "blocked": True}},
+                )
+                self.assertNotIn("complete", self.document("build.yaml"))
+                for named in ("observed-only", FIXTURE_RESOURCE_ID, reference["qualification"], reference["activation"]):
+                    self.assertIn(named, stderr)
+                self.assertEqual(self.bundle_directories(), [FIXTURE_STORE_ID])
+
+    def test_a_malformed_completion_reference_is_refused(self) -> None:
+        well_formed = {"resource_id": FIXTURE_RESOURCE_ID, "qualification": "qualified", "activation": "active"}
+        cases = {
+            "not a mapping": (FIXTURE_RESOURCE_ID, "mapping"),
+            "misspelled key": (
+                {"resource_id": FIXTURE_RESOURCE_ID, "qualifcation": "qualified", "activation": "active"},
+                "qualifcation",
+            ),
+            "no resource_id": ({"qualification": "qualified", "activation": "active"}, "resource_id"),
+            "null resource_id": ({**well_formed, "resource_id": None}, "resource_id"),
+            "no activation": ({"resource_id": FIXTURE_RESOURCE_ID, "qualification": "qualified"}, "activation"),
+            "unknown qualification": ({**well_formed, "qualification": "Qualified"}, "'Qualified'"),
+            "unknown activation": ({**well_formed, "activation": "activ"}, "'activ'"),
+        }
+        for case, (reference, named) in cases.items():
+            with self.subTest(case):
+                self.config["completion_reference"] = reference
+                with self.assertRaisesRegex(candidate.CandidateError, re.escape(named)):
+                    self.emit()
+                self.assertFalse(self.registry.exists())
+
+    def test_a_misspelled_completion_reference_key_is_refused(self) -> None:
+        self.qualify()
+        self.config["completion_refrence"] = self.config.pop("completion_reference")
+        with self.assertRaisesRegex(candidate.CandidateError, "completion_refrence"):
+            self.emit()
+        self.assertFalse(self.registry.exists())
+
+    def test_a_config_that_still_reserves_a_completed_id_is_refused(self) -> None:
+        for key in ("completed_store_id", "planned_completed_store_id"):
+            with self.subTest(key):
+                self.config.pop("completed_store_id", None)
+                self.config.pop("planned_completed_store_id", None)
+                self.config[key] = "OGS-00031"
+                with self.assertRaisesRegex(candidate.CandidateError, "ADR 0037"):
+                    self.emit()
+                self.assertFalse(self.registry.exists())
+
+    def test_a_config_naming_another_store_id_is_refused(self) -> None:
+        self.config["store_id"] = "OGS-00009"
+        with self.assertRaisesRegex(candidate.CandidateError, "OGS-00009"):
+            self.emit()
+        self.assertFalse(self.registry.exists())
+
+        self.config["store_id"] = FIXTURE_STORE_ID
+        self.emit()
+        self.assertEqual(self.bundle_directories(), [FIXTURE_STORE_ID])
+
+    def test_a_panel_whose_directory_is_not_its_ancestry_is_refused(self) -> None:
+        # complete-dense joins one --ancestry into the panel path and the Analyses'
+        # ancestry filter, which is what kept the `ukb` directory unusable (#219).
+        write_ld_resource(self.root, ancestry_dir="ukb")
+        self.qualify()
+        with self.assertRaisesRegex(candidate.CandidateError, "ancestry_dir"):
+            self.emit()
+        self.assertFalse(self.registry.exists())
+
+    def test_the_single_id_bundle_passes_the_contract_and_plans_both_phases(self) -> None:
+        self.qualify()
+        self.emit()
+
+        loaded = bundle.load(FIXTURE_STORE_ID, registry_root=self.registry)
+        self.assertEqual(list(bundle.check(loaded, registry_root=self.registry)), [])
+        self.assertTrue(loaded.completes_own_store)
+        steps = plan_module.plan(loaded, artifact_root=self.root / "artifacts")
+        self.assertEqual(
+            phase_names(steps),
+            {
+                "build": ["build", "top-hits", "indexed-subset-hm3", "overview", "validate"],
+                "completion": [
+                    "complete",
+                    "completion-indexed-subset-hm3",
+                    "completion-overview",
+                    "completion-validate",
+                    "completion-observed-view-check",
+                ],
+            },
+        )
+        complete = next(step for step in steps if step.name == "complete")
+        self.assertEqual(complete.argv[:2], ["opengwasdb", "complete-dense"])
+        self.assertEqual(option(complete.argv, "--ld-panel"), FIXTURE_LD_PANEL)
+        self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
+
+
+class TestRegisteredOGS00009(unittest.TestCase):
+    """The real OGS-00009 (#312): the frozen 2,514 Analyses, completed under its own id."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.config = yaml.safe_load((REPO_ROOT / candidate.DEFAULT_CONFIG).read_text(encoding="utf-8"))
+        cls.loaded = bundle.load("OGS-00009", registry_root=REPO_ROOT / "stores")
+        resource_id = cls.config["completion_reference"]["resource_id"]
+        cls.declaration = yaml.safe_load(
+            (REPO_ROOT / "resources" / "reference-resources" / resource_id / "resource.yaml").read_text(encoding="utf-8")
+        )
+
+    def test_the_tracked_config_names_ogs00009_and_reserves_no_completed_id(self) -> None:
+        self.assertEqual(self.config["store_id"], "OGS-00009")
+        for key in ("completed_store_id", "planned_completed_store_id"):
+            self.assertNotIn(key, self.config)
+        self.assertEqual(self.config["completion_reference"]["resource_id"], "ukb-hg38-eur-ld")
+        self.assertEqual(self.config["completion_reference"]["qualification"], "qualified")
+        self.assertEqual(self.config["completion_reference"]["activation"], "active")
+
+    def test_ogs00009_is_the_frozen_inventory_under_one_single_id_bundle(self) -> None:
+        self.assertEqual(list(bundle.check(self.loaded, registry_root=REPO_ROOT / "stores")), [])
+        self.assertEqual(self.loaded.status, "candidate")
+        self.assertEqual(self.loaded.completion_state, "reference_completed")
+        self.assertIsNone(self.loaded.derived_from)
+        self.assertTrue(self.loaded.completes_own_store)
+        inventory = ukb_inventory.read_inventory(REPO_ROOT / self.config["inventory"])
+        members, excluded = bundle.membership_ids(self.loaded)
+        self.assertEqual(len(inventory), 2514)
+        self.assertEqual(sorted(members + excluded), sorted(row["analysis_id"] for row in inventory))
+
+    def test_ogs00009_plans_both_phases_against_the_declared_panel(self) -> None:
+        steps = plan_module.plan(self.loaded, artifact_root="/fixture/artifacts")
+        phases = phase_names(steps)
+        self.assertEqual(phases["build"][0], "build")
+        self.assertEqual(phases["completion"][0], "complete")
+        self.assertEqual(phases["completion"][-1], "completion-observed-view-check")
+        complete = next(step for step in steps if step.name == "complete")
+        self.assertEqual(complete.argv[:2], ["opengwasdb", "complete-dense"])
+        self.assertEqual(option(complete.argv, "--ld-panel"), self.declaration["location"])
+        self.assertEqual(self.declaration["location"], "/data/opengwasdb/reference/ld")
+        self.assertEqual(option(complete.argv, "--ancestry"), self.declaration["ancestry_dir"])
+        self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
+
+    def test_ogs00009_records_its_qualified_active_reference(self) -> None:
+        validation = yaml.safe_load((REPO_ROOT / "stores" / "OGS-00009" / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(
+            validation["acceptance"]["completion_reference"],
+            {**self.config["completion_reference"], "blocked": False},
+        )
+
+    def test_the_retired_ids_have_no_bundle(self) -> None:
+        for retired in sorted(RETIRED_STORE_IDS):
+            self.assertFalse((REPO_ROOT / "stores" / retired).exists(), retired)
+
+
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    if "--write-goldens" in sys.argv[1:]:
+        for path in write_goldens():
+            print(path.relative_to(REPO_ROOT))
+    else:
+        unittest.main(verbosity=2)

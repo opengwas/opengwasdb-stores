@@ -27,7 +27,7 @@ from __future__ import annotations
 
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 import typer.main
 import yaml
@@ -41,6 +41,7 @@ from opengwasdb.model.manifest_columns import (
     resolve_manifest_columns,
 )
 from opengwasdb.readers import known_capabilities
+from ogstores.paths import RETIRED_STORE_IDS
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
@@ -98,6 +99,26 @@ def derive_post_command(layout: str, step_name: str) -> str:
     raise ValueError(f"unknown post step {step_name!r}")
 
 
+def store_phases(stores_dir: Path, store_ids: Iterable[str]) -> list[tuple[str, str]]:
+    """Each Store's Build Recipe phases to reconcile, in the order Store Release Build runs them.
+
+    An observed-only release reconciles its `build` block and a two-id child
+    its `complete` block. A single-id Reference-Completed release (ADR 0037,
+    #312) reconciles both: its build phase as an observed-only release would,
+    then the completion of the Store that phase published.
+    """
+    pairs: list[tuple[str, str]] = []
+    for store_id in store_ids:
+        build_cfg = load_yaml(stores_dir / store_id / "build.yaml")
+        if build_cfg.get("completion_state") != "reference_completed":
+            pairs.append((store_id, "build"))
+        elif load_yaml(stores_dir / store_id / "release.yaml").get("derived_from"):
+            pairs.append((store_id, "complete"))
+        else:
+            pairs.extend([(store_id, "build"), (store_id, "complete")])
+    return pairs
+
+
 def test_reconcile_stores() -> None:
     active_cli = introspect_active_cli()
     check(len(active_cli) > 0, "Introspected active opengwasdb CLI commands")
@@ -112,8 +133,10 @@ def test_reconcile_stores() -> None:
     stores_dir = REPO_ROOT / "stores"
     verified_executable: dict[str, bool] = {}
 
-    for i in range(1, 11):
-        store_id = f"OGS-{i:05d}"
+    # The retired ids have no bundle: OGS-00010 retired when OGS-00009 came to
+    # complete its own Store (#312).
+    early = (sid for sid in (f"OGS-{i:05d}" for i in range(1, 11)) if sid not in RETIRED_STORE_IDS)
+    for store_id, phase in store_phases(stores_dir, early):
         store_path = stores_dir / store_id
         check(store_path.is_dir(), f"Store directory {store_path} exists")
 
@@ -137,12 +160,12 @@ def test_reconcile_stores() -> None:
         check(completion_state in ("observed_only", "reference_completed"), f"{store_id} valid completion_state: {completion_state}")
 
         # AC1: Real opengwasdb subcommand on active CLI
-        if completion_state == "reference_completed":
+        if phase == "complete":
             check("complete" in build_cfg, f"{store_id} reference_completed release has 'complete' block")
             cmd = build_cfg["complete"]["command"]
             options = build_cfg["complete"].get("options", {})
         else:
-            check("build" in build_cfg, f"{store_id} observed_only release has 'build' block")
+            check("build" in build_cfg, f"{store_id} {completion_state} release has 'build' block")
             cmd = build_cfg["build"]["command"]
             options = build_cfg["build"].get("options", {})
 
@@ -255,9 +278,10 @@ def test_reconcile_stores() -> None:
             analyses_valid = manifest_ids == expected_ids
 
         elif cmd in ("complete-ragged", "complete-dense", "complete-hybrid"):
-            # Child release derived from parent
-            parent_id = rel_cfg.get("derived_from")
-            check(parent_id is not None, f"{store_id} derived_from is {parent_id}")
+            # A two-id child completes its parent; a single-id release completes
+            # the Store its own build phase, reconciled just before, published.
+            # Either must have been reconciled as executable (checked below).
+            parent_id = rel_cfg.get("derived_from") or store_id
             check("ld-panel" in options, f"{store_id} {cmd} specifies ld-panel")
             check("ancestry" in options, f"{store_id} {cmd} specifies ancestry")
             # Verify ld-panel is the root panel directory, not ending with /EUR
