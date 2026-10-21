@@ -12,7 +12,7 @@ Responsibilities:
      is accepted and recorded as `resumed: true` in `validation.yaml`.
 3. Harvests observed measurements from step records:
    `format_version`, `n_variants`, `n_analyses`, `n_associations`, `store_bytes`,
-   `build_elapsed_s`, and `validate_status`.
+   `build_elapsed_s`, `completion_state`, and `validate_status`.
    The verdict, `checks`, `warnings` and `errors` are this run's alone: they come
    from `opengwasdb validate --format json`, and nothing is carried from the
    Validation Record being replaced (#195). A candidate's Phase B evidence is
@@ -62,6 +62,12 @@ OBSERVED_FIELDS: tuple[str, ...] = (
     "store_bytes",
     "build_elapsed_s",
     "validate_status",
+    # The completion state of the Store this publication published (#307,
+    # ADR 0037). It follows the phase, not the bundle's declaration: the build
+    # phase of a single-id release publishes an Observed-Only Store. Records
+    # written before #307 do not carry it and are not migrated; the master list
+    # reports their bundle's declared state instead.
+    "completion_state",
 )
 BUILD_ENVIRONMENT_FIELDS: tuple[str, ...] = (
     "opengwasdb_version",
@@ -386,6 +392,25 @@ def _validate_step(planned_steps: list[Step]) -> str:
     return "validate"
 
 
+def published_completion_state(bundle_obj: Bundle, phase: str) -> str:
+    """The completion state of the Store a phase's publication publishes (#307, ADR 0037).
+
+    The phase being published, never the bundle's declaration: under single-id
+    completion a bundle declares `reference_completed` while its build phase
+    publishes the Observed-Only Store, which is what users can query until the
+    swap. A build phase publishes an Observed-Only Store by definition; a
+    completion phase publishes a completed one; a two-id child's single phase
+    is planned as a completion and publishes a completed Store (ADR 0007), so
+    it reports the declaration the planner already acted on. This reads the
+    plan and the bundle, never a Store (ADR 0023).
+    """
+    if phase == COMPLETION_PHASE:
+        return "reference_completed"
+    if bundle_obj.completes_own_store:
+        return "observed_only"
+    return bundle_obj.completion_state or ""
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
@@ -466,6 +491,9 @@ def harvest_observed_measurements(
         "store_bytes": store_bytes,
         "build_elapsed_s": round(total_elapsed, 3),
         "validate_status": validate_status,
+        "completion_state": published_completion_state(
+            bundle_obj, planned_steps[0].phase if planned_steps else BUILD_PHASE
+        ),
     }
 
     # Variant-reference provenance (issue #148). A declared pre-stage records

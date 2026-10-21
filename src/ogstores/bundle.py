@@ -321,6 +321,20 @@ class NotBuildableError(ValueError):
     """The release workflow was asked to build a bundle its Release Status does not allow (#247)."""
 
 
+def is_completion_pending(bundle: Bundle, published: str | None) -> bool:
+    """Whether `published` is the Observed-Only Store this release's completion has not replaced yet.
+
+    One predicate for every reader of the published completion state: the
+    master list marks such a row "completion pending" and readiness reports it
+    as the declared order of business (issue #307). Only a release that
+    completes its own Store publishes an Observed-Only Store under the id it
+    will complete; a two-id child publishes only its completed Store, so for it
+    the same pair is a contradiction and not a pending completion (ADR 0007,
+    ADR 0037).
+    """
+    return bundle.completes_own_store and published == "observed_only"
+
+
 def is_buildable(bundle: Bundle) -> bool:
     """Return whether the release workflow may build this bundle (`BUILDABLE_STATUSES`)."""
     return bundle.status in BUILDABLE_STATUSES
@@ -1355,6 +1369,7 @@ __all__ = [
     "build_refusal",
     "check",
     "is_buildable",
+    "is_completion_pending",
     "is_legal_status_transition",
     "load",
     "membership_ids",

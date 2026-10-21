@@ -678,6 +678,21 @@ observed  format_version  n_variants  n_associations  store_bytes
 `n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
 excluded manifest rows visible (issue #217).
 
+`completion_state` is the completion state of the Store users can query, not
+the bundle's declaration (issue #307, ADR 0037). `register` records it as
+`observed.completion_state` at publication, so a release that completes its own
+Store reads `observed_only` while completion runs and `reference_completed`
+after the swap. A Validation Record written before that field carries none: the
+column then keeps the declared value, which is the state an Observed-Only
+release's or a two-id child's Store was published in, except for a release that
+completes its own Store, whose earlier publication can only have been the
+Observed-Only one, so its row reports `observed_only`. Where the published state
+is `observed_only` and the bundle declares `reference_completed`, `STORES.md`
+marks the cell `observed_only (completion pending)`; `stores.tsv` keeps the bare
+state so a machine reader still sees a documented value. A record whose state
+contradicts its bundle otherwise -- an Observed-Only Store under a two-id
+child's id -- is refused rather than published.
+
 `store_uri` is a pure function of the identifier (`<artifact-root>/<store-id>/store.opengwasdb`, ADRs 0022 and 0030). The one-time migration-note fallback that previously preferred a legacy family-first path is removed (issue #137), so the published location is where a Store must live, resolved from deployment configuration, never a stale note.
 
 ### Readiness reconciliation (issue #217)
@@ -690,7 +705,11 @@ membership, observed build, built membership, Reference Completion, the
 required format-0.2.0 `by_variant` index, the optional HM3 Indexed Variant
 Subset, Store validation, registration, format/runtime, lineage and warnings.
 `missing` and `unknown` are not passes, and a candidate-generation record is
-reported as a gap in Store validation rather than as a clean verdict.
+reported as a gap in Store validation rather than as a clean verdict. The
+interim single-id state -- `reference_completed` declared while the
+Observed-Only Store is published -- is reported as that declared order of
+business on the Reference Completion, format/runtime and observed-build
+channels, never as a mismatched artifact (issue #307, ADR 0037).
 
 The manifest count is a *selection*, not intended membership: an authoritative
 Source Inventory is reported separately and stays `unknown` where none is
