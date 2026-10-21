@@ -74,6 +74,41 @@ of opengwasdb#281 (whose `ColumnMapReader` already streams metrics and whose
 built-in `finngen-r13` map reproduces this reader's rules) together with the
 Release Bundle's Column Map (#292).
 
+### What the comparison run establishes
+
+The comparison run in `/data/opengwasdb/work/288-MVXoxt` reconciles the
+collection completely; only Analysis Resolution is missing.
+
+- **Files.** 2,754 Analyses and 2,754 files in the release's `source/`
+  directory: 0 unmatched by name, 0 size mismatches and 0 checksum mismatches.
+  The 19 endpoints acquisition reused from the earlier `raw/finngen-r13-10/`
+  capture are symlinks, and three endpoints were re-hashed by hand, one of them
+  through a symlink; the frozen Source Inventory's `sha256` equals the committed
+  bundle's `checksum` on all 2,754 rows.
+- **Membership.** 2,751 case-control and 3 quantitative endpoints, all ready.
+  The emitted candidate has 2,754 rows and excludes every one of them as
+  `resolution_failed`, so its membership is not a FinnGen decision.
+- **`analyses.tsv`.** 28 of the 35 columns it shares with the committed bundle
+  are byte-identical, including `checksum`, `size_bytes`, `n_cases`,
+  `n_controls`, `sample_size`, both method tiers, `source_genome_build`, the
+  licence, the consortium, `source_reader_capability` and the Finnish Source
+  Ancestry Label. The differences: `source_file` (2,754) because the committed
+  bundle names the retired `/data/opengwasdb/finngen-r13/` tree;
+  `source_label` and `analysis_label` (1, `ALCODELIRIUM`) because the adapter
+  trims the manifest's trailing non-breaking space as the GWAS Catalog adapter
+  does; `analysis_id` and `analysis_group_id` (2,754 each) because the committed
+  bundle prefixes the Source Collection id and groups each Analysis by the
+  manifest's `category`, where the pipeline reads `source_analysis_id` and a
+  collection-wide default (`candidate_workflow._analyses_row`, issue #300's
+  lane); and `inclusion_reason`/`exclude_from_build` (2,754) because of the gap
+  above. The pipeline's schema adds `analysis_index`, `downloaded_file`, the
+  four `imputation_score_*` columns and `maf_threshold`, and drops the committed
+  `source_category`, whose content `analysis_group_id` carried.
+- **Ancestry.** Unmeasured: every record is a controlled failure, so no row
+  carries an Assigned Ancestry and the measured-EUR difference the ticket
+  expects is not observable yet. The committed bundle is `unassigned` and empty
+  here too.
+
 Every endpoint is resolved, without exception: the pipeline reads no declared
 ancestry or effect scale. The quantitative IRN endpoints' method tier declares
 `declared_standardised` (they are standardised over the whole cohort by
