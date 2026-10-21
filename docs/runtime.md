@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `4e922566d7fa4c13a11be3637069da63e48be28c` (core `dev`) |
-| Core merge | opengwas/opengwasdb PR #276 (bounded Dense validation, core #254); first pinned at PR #275 (`1be2a15`) |
+| Revision | `023774a7881940c497e3bdb6710637819b023755` (head of core PR #291) |
+| Core merge | opengwas/opengwasdb PR #291 (`check-observed-view`, core #289), on top of `dev` with #277, #278, #281 and #282; earlier pins: PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -147,3 +147,11 @@ capability set plus the reduced validation memory bound (full-run peak RSS on
 OGS-00009 33.7 → 2.35 GiB, OGS-00010 36.5 → 3.01 GiB, validate clean). The
 earlier prohibition stands: do not install an uncommitted core checkout as the
 chosen runtime, and treat any future repin as a deliberate coordinated change.
+
+## Coordination with core #289
+
+Core opengwas/opengwasdb#289 adds `opengwasdb check-observed-view`, the
+Observed-View Check that gates a single-id completion's swap (stores #306,
+ADR 0037). The pin was raised to `023774a7`, the head of its PR #291, so the
+tracked runtime has the command; it is re-pinned to the merge commit once that
+PR is on `dev`.
