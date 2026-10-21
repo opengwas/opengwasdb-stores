@@ -951,6 +951,13 @@ class FeaturesTest(unittest.TestCase):
                     self.assertNotIn("TEMP B-TREE", plan)
                 self.assertIn("SEARCH", keyset)
 
+    def test_filtering_on_the_derived_columns_searches_an_index(self) -> None:
+        for column in ("ancestry_category", "outcome_type", "trait_class", "assigned_ancestry"):
+            with self.subTest(column=column):
+                plan = self.plan(f"SELECT id FROM listed_analyses WHERE {column} = ? ORDER BY id LIMIT 10", "x")
+                self.assertRegex(plan, rf"SEARCH analyses USING (COVERING )?INDEX analyses_by_{column} ")
+                self.assertNotIn("TEMP B-TREE", plan)
+
     def test_a_region_lookup_uses_the_chromosome_and_position_index(self) -> None:
         plan = self.plan("SELECT id FROM listed_analyses WHERE trait_chr = ? AND trait_bp BETWEEN ? AND ?",
                          "13", 1, 2)

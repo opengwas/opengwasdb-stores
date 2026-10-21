@@ -22,7 +22,7 @@ import sqlite3
 from collections.abc import Iterable
 from pathlib import Path
 
-from analysis_catalog import BUILDER_VERSION
+from analysis_catalog import BUILDER_VERSION, summary
 from analysis_catalog.policy import POLICY, Decision
 
 KEEP_VERSIONS = 5
@@ -64,6 +64,8 @@ def compute_version(decisions: Iterable[Decision], registry: Path) -> str:
     _feed(digest, "policy", "\n".join(POLICY).encode("utf-8"))
     for source in sorted(PACKAGE_DIR.rglob("*.py")):
         _feed(digest, f"source/{source.relative_to(PACKAGE_DIR)}", source.read_bytes())
+    # The summary template shapes `summary.html`, so a fix to it is a new version.
+    _feed(digest, "summary_template", _read(summary.SOURCE))
     for decision in sorted(decisions, key=lambda d: d.store_id):
         root = registry / decision.store_id
         _feed(digest, f"{decision.store_id}/decision", f"{decision.decision}\n{decision.reason}".encode("utf-8"))

@@ -194,7 +194,8 @@ with the row-value form.
 
 - **The version** is the first 16 hex digits of a SHA-256 over: the builder's
   version and every `*.py` source file of the package, which includes the
-  serving policy; and every file of every registered Release Bundle directory,
+  serving policy; the summary template (`docs/reports/analysis-catalog-summary.qmd`);
+  and every file of every registered Release Bundle directory,
   with each Store's decision and reason. That is every file of every registered
   Release Bundle, plus the builder's source. It does not include the build time
   or the registry commit.
