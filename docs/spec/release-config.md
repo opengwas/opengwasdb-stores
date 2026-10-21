@@ -40,7 +40,7 @@ key.
 | `description` | Yes | Prose for `release.yaml`. |
 | `notes` | No | Prose; the candidate's own evidence notes follow it in `release.yaml`. |
 | `source_collection` | Yes | The Source Collection and its files (below). |
-| `selection` | Yes | The Selection, in #283's grammar: exactly one of `all: true`, `analyses: [...]` or `where: {...}`. |
+| `selection` | Yes | The Selection, in #283's grammar: exactly one of `all: true`, `analyses: [...]` or `where: {...}`, with an optional `expect_rows` membership bound. |
 | `build` | Yes | The Build Recipe shape `build.yaml` carries (below). |
 | `indexed_subsets`, `indexed_subsets_opt_out` | No | Dense and Hybrid releases declare the maintained `hm3` Indexed Variant Subset by default; `[]` with a reason opts out; a Ragged release declares none (stores #210). |
 | `defaults` | Yes | Collection-wide Analytical Metadata defaults and the method tiers (below). |

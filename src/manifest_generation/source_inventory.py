@@ -761,6 +761,64 @@ def frozen_for_release_problems(
     return problems
 
 
+def _listed(values: Sequence[str], limit: int = 20) -> str:
+    shown = ", ".join(str(value) for value in values[:limit])
+    more = len(values) - limit
+    return shown + (f", ... and {more} more" if more > 0 else "")
+
+
+def selection_partition_problems(
+    releases: Sequence[tuple[str, str, Sequence[str]]],
+    *,
+    collection_ids: Iterable[str] | None = None,
+) -> list[str]:
+    """Why several Selections of one Source Collection do not partition it, if they do not.
+
+    Every entry is ``(label, source_collection_id, analysis_ids)``. The retired
+    dbGaP MVP partition proved its five ancestry buckets disjoint and complete
+    (#290); the shared preflight proves the same thing about Selections. Two
+    Selections over one collection must name the same collection, must not take
+    one Analysis into two Store Releases, and -- when the collection's Source
+    Metadata Table is available -- must together select every Analysis it
+    intends.
+    """
+    problems: list[str] = []
+    if not releases:
+        return problems
+    collection = releases[0][1]
+    for label, source_collection_id, _ids in releases:
+        if source_collection_id != collection:
+            problems.append(
+                f"Selection {label!r} names Source Collection {source_collection_id!r}, but another "
+                f"Selection in this preflight names {collection!r}; one preflight is one collection"
+            )
+    owner: dict[str, str] = {}
+    for label, _collection, ids in releases:
+        for analysis_id in ids:
+            if analysis_id in owner:
+                problems.append(
+                    f"Analysis {analysis_id} is selected by both {owner[analysis_id]!r} and "
+                    f"{label!r}; Selections of one Source Collection must be disjoint"
+                )
+            else:
+                owner[analysis_id] = label
+    if collection_ids is not None:
+        intended = set(collection_ids)
+        missing = sorted(intended - set(owner))
+        extra = sorted(set(owner) - intended)
+        if missing:
+            problems.append(
+                f"{len(missing)} Analysis/Analyses the Source Collection intends are selected by no "
+                f"Selection: {_listed(missing)}"
+            )
+        if extra:
+            problems.append(
+                f"{len(extra)} selected Analysis/Analyses are not in the Source Collection: "
+                f"{_listed(extra)}"
+            )
+    return problems
+
+
 @dataclass(frozen=True)
 class PreflightResult:
     """The machine-readable preflight report plus its blocking failures."""
@@ -813,6 +871,16 @@ def preflight(
 
     readiness = counts(row.readiness_status for row in rows)
     ready = [row for row in rows if row.ready]
+
+    # A Selection may declare the intended size of its membership (#290). The
+    # frozen inventory is the member set, so a count that no longer matches is a
+    # drifted freeze, named with both numbers.
+    expected_rows = getattr(config.selection, "expect_rows", None)
+    if expected_rows is not None and len(rows) != expected_rows:
+        failures.append(
+            f"frozen inventory {inventory_path} has {len(rows)} row(s), but the Selection "
+            f"{config.selection.as_dict()} expects {expected_rows}"
+        )
 
     # --- ready records completeness -----------------------------------------
     invalid_ready: list[str] = []
@@ -1078,6 +1146,7 @@ def preflight(
         "selection": {
             "source_collection_id": config.source_collection_id,
             "selection": config.selection.as_dict(),
+            "expect_rows": getattr(config.selection, "expect_rows", None),
             "config_path": str(config.path),
         },
         "plan": {

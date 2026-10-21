@@ -230,6 +230,12 @@ selection:
     study_design: [quantitative, case-control]   # a list is membership
 ```
 
+Any form may also carry `expect_rows: N`, the Selection's intended size. It is
+a bound, not a filter: `freeze` refuses a Selection that takes a different
+number of rows, by name, and preflight re-checks the frozen inventory against
+it. It is recorded in the provenance with the rule, so a changed bound is a
+reviewed re-freeze under a new snapshot id (#290).
+
 Rule values are strings or integers, compared with the cell's text; a blank
 cell matches nothing. A rule column must be canonical and carried by the table.
 Refused: a list naming an Analysis the table does not intend or naming one
@@ -318,6 +324,15 @@ must still exist, and a build it declares (`genome_assembly`, as a GWAS-SSF
 else the release config's default. A sidecar declaring no build is counted.
 Harmonisation is not a preflight requirement: the GWAS Catalog downloader gates
 it at acquisition and records a failure as `metadata_rejected`.
+
+### Preflighting several Selections together
+
+`pixi run preflight --config A --config B ...` preflights each release config,
+then checks that the Selections of their one Source Collection partition it:
+they name the same collection, no Analysis is selected twice, and each
+Selection's declared `expect_rows` matches its frozen inventory. The retired
+dbGaP MVP partition proved exactly this for its five ancestry buckets (#290);
+the check now follows the Selections rather than a written-out partition.
 
 ## Pilot prefixes
 
