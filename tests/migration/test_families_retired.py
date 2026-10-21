@@ -44,6 +44,9 @@ RETIRED_DIRECTORIES: tuple[str, ...] = ("families", ".rebuild133")
 # past, not an instruction: the ADRs describe the family-first layout they
 # superseded, and these dated audits are evidence of runs that have happened.
 EXEMPT_PREFIXES: tuple[str, ...] = (
+    # This suite is the rule rather than a reader: it has to spell out what it
+    # forbids.
+    "tests/migration/test_families_retired.py",
     "docs/adr/",
     "docs/release-seam-audit.md",
     "docs/software-management-audit.md",

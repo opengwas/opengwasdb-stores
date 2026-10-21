@@ -151,8 +151,12 @@ class TestBundleContract(unittest.TestCase):
             for path in registry.iterdir()
             if path.is_dir() and paths.is_valid_store_id(path.name)
         )
+        # OGS-00018-00021 are reserved elsewhere and never allocated; the six
+        # bundles migrated in #252 take the next free ids.
         self.assertEqual(
-            store_ids, [f"OGS-{number:05d}" for number in [*range(1, 18)]]
+            store_ids,
+            [f"OGS-{number:05d}" for number in [*range(1, 18)]]
+            + [f"OGS-{number:05d}" for number in range(22, 28)],
         )
         for store_id in store_ids:
             errors = bundle.check(
