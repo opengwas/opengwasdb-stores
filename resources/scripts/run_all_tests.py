@@ -36,7 +36,9 @@ R_SUITES: list[Suite] = [
     ("effect-scale-validation (R)", "r", ["tests/effect-scale-validation/run_tests.R"]),
     ("emit-registry (R)", "r", ["tests/emit-registry/run_tests.R"]),
     ("indexed-subsets-generator-defaults (R)", "r", ["tests/indexed-subsets/test_generator_defaults.R"]),
+    ("finngen-r13-pilot", "r", ["tests/finngen-r13-pilot/run_tests.R"]),
     ("metadata-resolvers/gwas-catalog-ssf", "r", ["tests/metadata-resolvers/gwas-catalog-ssf/run_tests.R"]),
+    ("metadata-resolvers/finngen-manifest", "r", ["tests/metadata-resolvers/finngen-manifest/run_tests.R"]),
     ("metadata-resolvers/opengwas-api", "r", ["tests/metadata-resolvers/opengwas-api/run_tests.R"]),
     ("metadata-resolvers/trait-ontology-mapping", "r", ["tests/metadata-resolvers/trait-ontology-mapping/run_tests.R"]),
     ("materialise-gwas-ssf-ragged", "r", ["tests/materialise-gwas-ssf-ragged/run_tests.R"]),
@@ -142,6 +144,7 @@ SUITE_COST: dict[str, float] = {
     "dbgap-mvp/merge-records": 1.0,
     "dbgap-mvp/proc-accounting": 1.0,
     "opengwas-gwas-vcf-dense": 2.5,
+    "finngen-r13-pilot": 2.5,
     "ld-panel-eigendecomposition": 2.0,
 }
 
