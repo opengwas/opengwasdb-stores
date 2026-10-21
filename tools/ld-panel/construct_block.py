@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import tempfile
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -108,7 +109,18 @@ def construct_block(
     polymorphic = ~all_missing & ~invariant
     above = maf >= maf_threshold if maf_threshold is not None else mac >= mac_threshold
     below = polymorphic & ~above
-    kept = np.flatnonzero(polymorphic & above)
+    # An ALID naming two source records is ambiguous to every consumer: gnomAD
+    # splits multi-allelic sites, so the insertion G>GA and the deletion GA>G
+    # at one position both become pos:G:GA. Exclude every record of such an
+    # ALID, even when another of them would be dropped anyway (#241).
+    alids = []
+    for v in variants:
+        try: alids.append(canonical_alid(v["chrom"], v["pos"], str(v["allele1"]), str(v["allele2"])))
+        except ValueError: alids.append(None)
+    records = Counter(a for a in alids if a is not None)
+    shared = np.array([a is not None and records[a] > 1 for a in alids], dtype=bool)
+    collided = polymorphic & above & shared
+    kept = np.flatnonzero(polymorphic & above & ~shared)
     if not len(kept):
         raise ValueError("no variants remain after variant-floor/invariant filtering")
     missing_rate = 1 - called / g.shape[0]
@@ -161,10 +173,11 @@ def construct_block(
         "mac_threshold": None if maf_threshold is not None else mac_threshold,
         "maf_threshold": maf_threshold,
         "n_variants_all_missing": int(all_missing.sum()), "n_variants_invariant": int(invariant.sum()),
-        "n_variants_below_floor": int(below.sum()),
+        "n_variants_below_floor": int(below.sum()), "n_variants_alid_collision": int(collided.sum()),
         "below_floor_mac_counts": {str(int(m)): int(c) for m, c in zip(*np.unique(mac[below], return_counts=True))},
         "missing_call_rate": float(missing_rate.mean()),
         "max_missing_call_rate_retained": float(missing_rate[kept].max()),
+        "retained_missing_call_rate_over": {str(c): int((missing_rate[kept] > c).sum()) for c in (.05, .1, .5)},
         "cumulative_variance_target": cumulative_variance_target,
         "component_floor": component_floor, "components_retained": k,
         "achieved_variance": achieved,

@@ -93,7 +93,9 @@ def test_maf_floor() -> None:
           "dropped-variant classes are miscounted")
     check(p["below_floor_mac_counts"] == {"6": 1}, "below-floor MAC strata are wrong")
     check(np.isclose(p["missing_call_rate"], (45 + n) / (n * g.shape[1])), "input missingness is wrong")
-    check(np.isclose(p["max_missing_call_rate_retained"], 45 / n), "retained missingness is wrong")
+    check(np.isclose(p["max_missing_call_rate_retained"], 45 / n) and
+          p["retained_missing_call_rate_over"] == {"0.05": 1, "0.1": 1, "0.5": 0},
+          "retained missingness is wrong")
     mac_only = module.construct_block(g, variants, mac_threshold=7, component_floor=5).provenance
     check(mac_only["mac_threshold"] == 7 and mac_only["maf_threshold"] is None and
           mac_only["n_variants_retained"] == 22 and mac_only["below_floor_mac_counts"] == {"6": 2},
@@ -115,6 +117,25 @@ def test_maf_floor() -> None:
           region[region.index("--samples-file") + 1] == "AMR.ids" and
           "--force-samples" not in region and region[region.index("--output-type") + 1] == "z",
           "region extraction must subset by index and fail on absent samples")
+
+
+def test_alid_collisions() -> None:
+    # gnomAD splits multi-allelic sites, so the insertion G>GA and the deletion
+    # GA>G at one position both canonicalise to ALID 1:100:G:GA (#241).
+    rng = np.random.default_rng(7)
+    g = rng.binomial(2, .3, (60, 4)).astype(float)
+    variants = [{"chrom": "1", "pos": 100, "allele1": "G", "allele2": "GA"},
+                {"chrom": "1", "pos": 100, "allele1": "GA", "allele2": "G"},
+                {"chrom": "1", "pos": 100, "allele1": "G", "allele2": "A"},
+                {"chrom": "1", "pos": 101, "allele1": "C", "allele2": "T"}]
+    result = module.construct_block(g, variants, mac_threshold=1, component_floor=1)
+    check([r["SNP"] for r in result.variant_table] == ["1:100:A:G", "1:101:C:T"] and
+          result.provenance["n_variants_alid_collision"] == 2,
+          "an ALID naming two source records must be excluded, both copies")
+    g[:, 1] = 0  # the deletion is invariant here, yet the ALID still names two records
+    again = module.construct_block(g, variants, mac_threshold=1, component_floor=1).provenance
+    check((again["n_variants_retained"], again["n_variants_alid_collision"], again["n_variants_invariant"]) == (2, 1, 1),
+          "a collision must be excluded even when its other record would be dropped anyway")
 
 
 def ld_fixture(n: int = 120, seed: int = 241) -> tuple[np.ndarray, list[dict[str, object]]]:
@@ -334,7 +355,7 @@ def test_plink_raw_input() -> None:
 
 
 def main() -> None:
-    test_block(); test_maf_floor(); test_verify_block(); test_heldout_calibration()
+    test_block(); test_maf_floor(); test_alid_collisions(); test_verify_block(); test_heldout_calibration()
     test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_amr_pilot_mapping(); test_amr_pilot_membership()
     test_index_validation(); test_compressed_pvar_input()
