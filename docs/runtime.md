@@ -9,7 +9,7 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `023774a7881940c497e3bdb6710637819b023755` (head of core PR #291) |
+| Revision | `023774a7881940c497e3bdb6710637819b023755`, the branch core PR #291 merged into `dev` as `d405de0` (its second parent, so an ancestor of `dev`) |
 | Core merge | opengwas/opengwasdb PR #291 (`check-observed-view`, core #289), on top of `dev` with #277, #278, #281 and #282; earlier pins: PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
@@ -153,9 +153,13 @@ chosen runtime, and treat any future repin as a deliberate coordinated change.
 Core opengwas/opengwasdb#289 adds `opengwasdb check-observed-view`, the
 Observed-View Check that gates a single-id completion's swap (stores #306,
 ADR 0037). The pin was raised to `023774a7`, the head of its PR #291, so the
-tracked runtime has the command; it is re-pinned to the merge commit once that
-PR is on `dev`. A release that completes its own Store (ADR 0037) on a runtime
-without the command is refused before anything is written, by
+tracked runtime has the command. That PR has merged into core `dev` as
+`d405de0`, whose second parent is `023774a7`, so the pin is permanently in
+`dev`'s history. It stays at `023774a7` rather than `d405de0`, because
+`d405de0` also brings core #288 (the strand-aware hg19 lift), which stores epic
+#282 holds until the #222 build lands. A release that completes its own Store
+(ADR 0037) on a runtime without the command is refused before anything is
+written, by
 `resources.verify_observed_view_check_for_releases`, which the entry point calls
 in its dry run and its run, and the Snakefile in `onstart`, beside the Indexed
 Variant Subset guard.
