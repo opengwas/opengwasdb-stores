@@ -16,7 +16,8 @@ and only what made that Store:
   their records planned them (`planned_argv`, which `register` held the
   executed argv to), and the manifest the bundle's `analyses.tsv` makes now
   must be the one the Store was built from (`work/analyses.tsv`), excluding
-  the same Analyses;
+  the same Analyses (`work/analyses.exclusions.json`, which must be present
+  and readable: missing evidence is not an empty baseline);
 - once the completion phase has published (`records/completion-register.json`),
   the same for its `complete`.
 
@@ -119,8 +120,23 @@ def _manifest_rows(path: Path) -> tuple[list[str], dict[str, dict[str, str]]]:
 
 
 def _excluded(sidecar: Path) -> set[str]:
-    document = _read_json(sidecar) or {}
-    return {str(entry.get("analysis_id")) for entry in document.get("dropped") or []}
+    """The Analyses an exclusion audit sidecar drops; a ValueError, naming it, if it cannot say.
+
+    A missing or unreadable sidecar is not "no exclusions": read as that, the
+    published Store's excluded Analyses would go unchecked (#305).
+    """
+    try:
+        document = json.loads(sidecar.read_text(encoding="utf-8"))
+    except FileNotFoundError as exc:
+        raise ValueError(f"no exclusion audit sidecar at {sidecar}") from exc
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"the exclusion audit sidecar {sidecar} cannot be read: {exc}") from exc
+    dropped = document.get("dropped") if isinstance(document, dict) else None
+    if not isinstance(dropped, list) or not all(
+        isinstance(entry, dict) and isinstance(entry.get("analysis_id"), str) for entry in dropped
+    ):
+        raise ValueError(f"the exclusion audit sidecar {sidecar} does not list its dropped Analyses by `analysis_id`")
+    return {entry["analysis_id"] for entry in dropped}
 
 
 def _membership_changes(b: Bundle, root: Path) -> list[str]:
@@ -130,17 +146,21 @@ def _membership_changes(b: Bundle, root: Path) -> list[str]:
     published_sidecar = paths.build_manifest_sidecar_path(store_id, root=root)
     if not published.is_file():
         return [f"{store_id}: membership cannot be compared: no derived build manifest at {published}"]
+    try:
+        excluded_then = _excluded(published_sidecar)
+    except ValueError as exc:
+        return [f"{store_id}: membership cannot be compared: {exc}"]
     with tempfile.TemporaryDirectory() as scratch:
         current, current_sidecar = Path(scratch) / "analyses.tsv", Path(scratch) / "exclusions.json"
         try:
             manifest.materialise_build_manifest(b.analyses_path, current, current_sidecar)
         except manifest.ManifestError as exc:
             return [f"{store_id}: membership: {b.analyses_path} no longer makes a build manifest: {exc}"]
-        if current.read_bytes() == published.read_bytes() and _excluded(current_sidecar) == _excluded(published_sidecar):
+        excluded_now = _excluded(current_sidecar)
+        if current.read_bytes() == published.read_bytes() and excluded_now == excluded_then:
             return []
         current_columns, current_rows = _manifest_rows(current)
         published_columns, published_rows = _manifest_rows(published)
-        excluded_now, excluded_then = _excluded(current_sidecar), _excluded(published_sidecar)
 
     details = [f"analysis {a!r} added" for a in current_rows if a not in published_rows]
     details += [f"analysis {a!r} removed" for a in published_rows if a not in current_rows]

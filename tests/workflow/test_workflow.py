@@ -2395,6 +2395,33 @@ class TestWorkflowTheOneAmendmentOfAnAcceptedBundle(PublishedReleaseCopies):
             self.refusal(stores, artifacts, store_id),
         )
 
+    def test_missing_or_unreadable_exclusion_evidence_is_refused_naming_it(self) -> None:
+        """The published `work/analyses.exclusions.json` is the baseline's excluded Analyses, never "none" by default.
+
+        Read as no exclusions, a missing sidecar would let a bundle that now
+        excludes nothing pass for a Store that excluded Analyses.
+        """
+        stores, artifacts, store_id = self.single_id_copy()
+        sidecar = paths.build_manifest_sidecar_path(store_id, root=artifacts)
+        document = json.loads(sidecar.read_text(encoding="utf-8"))
+        self.assertEqual(self.refusal(stores, artifacts, store_id), "")
+
+        for case, text in (
+            ("malformed JSON", json.dumps(document)[:-1]),
+            ("not an object", json.dumps([document])),
+            ("no dropped list", json.dumps({**document, "dropped": "test_analysis"})),
+            ("an entry with no analysis_id", json.dumps({**document, "dropped": [{"row_index": 0}]})),
+            ("deleted", None),
+        ):
+            with self.subTest(case=case):
+                if text is None:
+                    sidecar.unlink()
+                else:
+                    sidecar.write_text(text, encoding="utf-8")
+                refusal = self.refusal(stores, artifacts, store_id)
+                self.assertIn(f"{store_id}: membership cannot be compared", refusal)
+                self.assertIn(str(sidecar), refusal)
+
     def test_a_changed_complete_block_is_refused_once_the_completion_has_published(self) -> None:
         stores, artifacts, store_id = self.single_id_copy()
         self.edit_yaml(
