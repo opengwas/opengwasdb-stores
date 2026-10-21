@@ -48,19 +48,6 @@ CATALOG_PACKAGE = "analysis_catalog"
 CATALOG_OGSTORES_SURFACE = {"ogstores", "ogstores.bundle", "ogstores.paths"}
 
 
-def outside_catalog_surface(module: str) -> bool:
-    """An `ogstores` import beyond `ogstores.bundle` and `ogstores.paths`.
-
-    `from ogstores import bundle` names `ogstores.bundle`, and `from
-    ogstores.bundle import check` names a member of it, as in
-    `outside_shared_surface`; the catalog's surface is narrower.
-    """
-    if module.split(".")[0] != "ogstores" or module in CATALOG_OGSTORES_SURFACE:
-        return False
-    parent = module.rsplit(".", 1)[0]
-    return parent == "ogstores" or parent not in CATALOG_OGSTORES_SURFACE
-
-
 def imports_catalog(module: str) -> bool:
     return module.split(".")[0] == CATALOG_PACKAGE
 
@@ -142,17 +129,18 @@ def includes_generation(target: str) -> bool:
     return "generate.smk" in target or bool(GENERATION_PATHS.search(target))
 
 
-def outside_shared_surface(module: str) -> bool:
-    """An `ogstores` import beyond `CONTRACT_AND_SHARED_LAYOUT`.
+def outside_shared_surface(module: str, allowed: set[str] = CONTRACT_AND_SHARED_LAYOUT) -> bool:
+    """An `ogstores` import beyond `allowed`.
 
     `from ogstores import bundle` names the module `ogstores.bundle`; `from
     ogstores.bundle import check` names a member of it, so a name is allowed
-    when it, or its parent other than bare `ogstores`, is listed.
+    when it, or its parent other than bare `ogstores`, is listed. Manifest
+    Generation's surface is the default; the catalog's is `CATALOG_OGSTORES_SURFACE`.
     """
-    if module.split(".")[0] != "ogstores" or module in CONTRACT_AND_SHARED_LAYOUT:
+    if module.split(".")[0] != "ogstores" or module in allowed:
         return False
     parent = module.rsplit(".", 1)[0]
-    return parent == "ogstores" or parent not in CONTRACT_AND_SHARED_LAYOUT
+    return parent == "ogstores" or parent not in allowed
 
 
 class ScannerTest(unittest.TestCase):
@@ -211,8 +199,8 @@ class ScannerTest(unittest.TestCase):
     def test_the_catalog_surface_is_narrower_than_the_shared_one(self) -> None:
         allowed = ["ogstores", "ogstores.bundle", "ogstores.bundle.check", "ogstores.paths.artifact_root", "os"]
         refused = ["ogstores.index", "ogstores.manifest", "ogstores.register", "ogstores.index.render_stores_tsv"]
-        self.assertEqual([m for m in allowed if outside_catalog_surface(m)], [])
-        self.assertEqual([m for m in refused if outside_catalog_surface(m)], refused)
+        self.assertEqual([m for m in allowed if outside_shared_surface(m, CATALOG_OGSTORES_SURFACE)], [])
+        self.assertEqual([m for m in refused if outside_shared_surface(m, CATALOG_OGSTORES_SURFACE)], refused)
 
     def test_an_import_of_the_catalog_is_found(self) -> None:
         modules = imported_modules("import analysis_catalog.build\nfrom analysis_catalog import publish\nimport analysis\n")
@@ -321,7 +309,7 @@ class AnalysisCatalogBoundaryTest(unittest.TestCase):
         for path in sorted(package.rglob("*.py")):
             relative = path.relative_to(REPO_ROOT)
             for module in imported_modules(path.read_text(encoding="utf-8")):
-                if outside_catalog_surface(module) or GENERATION_MODULES.match(module):
+                if outside_shared_surface(module, CATALOG_OGSTORES_SURFACE) or GENERATION_MODULES.match(module):
                     offenders.append(f"{relative}: imports {module}")
         self.assertEqual(offenders, [], "\n".join(offenders))
 
