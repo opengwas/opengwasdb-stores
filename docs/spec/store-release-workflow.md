@@ -682,12 +682,16 @@ excluded manifest rows visible (issue #217).
 the bundle's declaration (issue #307, ADR 0037). `register` records it as
 `observed.completion_state` at publication, so a release that completes its own
 Store reads `observed_only` while completion runs and `reference_completed`
-after the swap. A Validation Record written before that field carries none, and
-the column keeps the declared value, which for an Observed-Only Store and for a
-two-id child is the state its Store was published in. Where the published state
+after the swap. A Validation Record written before that field carries none: the
+column then keeps the declared value, which is the state an Observed-Only
+release's or a two-id child's Store was published in, except for a release that
+completes its own Store, whose earlier publication can only have been the
+Observed-Only one, so its row reports `observed_only`. Where the published state
 is `observed_only` and the bundle declares `reference_completed`, `STORES.md`
 marks the cell `observed_only (completion pending)`; `stores.tsv` keeps the bare
-state so a machine reader still sees a documented value.
+state so a machine reader still sees a documented value. A record whose state
+contradicts its bundle otherwise -- an Observed-Only Store under a two-id
+child's id -- is refused rather than published.
 
 `store_uri` is a pure function of the identifier (`<artifact-root>/<store-id>/store.opengwasdb`, ADRs 0022 and 0030). The one-time migration-note fallback that previously preferred a legacy family-first path is removed (issue #137), so the published location is where a Store must live, resolved from deployment configuration, never a stale note.
 

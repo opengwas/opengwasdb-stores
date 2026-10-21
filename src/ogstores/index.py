@@ -23,12 +23,15 @@ can query, not the bundle's declaration (#307). `register` records it as
 `observed.completion_state` in the Validation Record of each publication, so a
 single-id release reads `observed_only` while completion runs and
 `reference_completed` after the swap. A record written before that field
-carries none, and the row keeps the declared value, which for an
-Observed-Only Store and for a two-id child is the state the record's Store was
-published in. When a row's published state is `observed_only` while its bundle
-declares `reference_completed`, `STORES.md` marks the cell
+carries none, and the row keeps the declared value, which for an Observed-Only
+Store and for a two-id child is the state the record's Store was published in.
+A release that completes its own Store is the exception: its earlier
+publication can only have been the Observed-Only Store, so its row reports
+`observed_only` (ADR 0037). When a row's published state is `observed_only`
+while its bundle declares `reference_completed`, `STORES.md` marks the cell
 `observed_only (completion pending)`; `stores.tsv` keeps the bare state so a
-machine reader still sees a documented value.
+machine reader still sees a documented value. A record that contradicts its
+bundle in any other way is refused rather than published.
 
 See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0028, 0030.
 """
@@ -154,11 +157,7 @@ def render_stores_row(
     # The published Store's completion state (#307), from the record `register`
     # wrote at publication. Never from build.yaml's declaration, which under
     # single-id completion reads `reference_completed` while the Observed-Only
-    # Store is what is published. A record written before #307 carries no such
-    # key, so the row falls back to the declared state -- which is the published
-    # state for an Observed-Only Store and for a two-id child -- and renders
-    # exactly as it did before. A record that carries the key must carry a
-    # documented state: anything else is refused rather than published.
+    # Store is what is published.
     if "completion_state" in obs:
         recorded_completion_state = obs["completion_state"]
         if recorded_completion_state not in PUBLISHED_COMPLETION_STATES:
@@ -167,8 +166,35 @@ def render_stores_row(
                 f"{recorded_completion_state!r}, not one of the documented states "
                 f"{sorted(PUBLISHED_COMPLETION_STATES)}"
             )
+        # The record and the declaration differ only while a release that
+        # completes its own Store sits between its two publications (ADR 0037).
+        # Anything else -- a two-id child whose record claims an Observed-Only
+        # Store, say -- contradicts the bundle, so it is refused rather than
+        # rendered as a pending completion.
+        if recorded_completion_state != declared_completion_state and not (
+            bundle.is_completion_pending(bundle_obj, recorded_completion_state)
+        ):
+            raise ValueError(
+                f"{store_id}: validation.yaml records observed.completion_state "
+                f"{recorded_completion_state!r} but the bundle declares "
+                f"{declared_completion_state!r}, and only a release that completes "
+                "its own Store can have an Observed-Only Store published under its id"
+            )
         completion_state = str(recorded_completion_state)
+    elif bundle_obj.completes_own_store and isinstance(obs, dict) and obs:
+        # A record that records a publication but predates #307 wrote no
+        # `completion_state`. ADR 0037's one amendment lets an accepted
+        # `observed_only` bundle gain a `complete` block, so such a bundle can
+        # declare `reference_completed` while its published Store is still the
+        # Observed-Only one. No `register` on `dev` ever wrote a field-less
+        # record for a completed single-id Store: #304 and #307 land together.
+        # Reporting the declaration would claim a completed Store that does not
+        # exist, so the record's own publication is what the row says.
+        completion_state = "observed_only"
     else:
+        # Two-id children and Observed-Only releases published before #307: the
+        # declaration is the state their Store was published in, so those rows
+        # render byte for byte as they did.
         completion_state = declared_completion_state
 
     format_version = obs.get("format_version")
@@ -279,26 +305,15 @@ def tolerated_gaps_by_store(
     return gaps
 
 
-def completion_is_pending(declared: str, published: str) -> bool:
-    """Whether a row reports an Observed-Only Store whose completion is declared but unpublished.
-
-    Under single-id completion a bundle declares `reference_completed` while
-    its Observed-Only Store is published, for as long as completion runs
-    (ADR 0037). The row reports the published state (#307) and the human view
-    marks it, so a reader sees both facts without reading `build.yaml`.
-    """
-    return declared == "reference_completed" and published == "observed_only"
-
-
 def render_stores_md(
     bundles: list[Bundle],
     rows: list[dict[str, str]],
     tolerated_gaps: dict[str, tuple[bundle.ToleratedGap, ...]] | None = None,
 ) -> str:
     """Render human-readable STORES.md table."""
-    # A row carries only its own columns, so the declaration a pending marker
-    # needs comes from the bundle, looked up by id.
-    declared_by_id = {b.store_id: (b.completion_state or "") for b in bundles}
+    # A row carries only its own columns, so the bundle the pending marker needs
+    # comes from the same list, looked up by id.
+    bundles_by_id = {b.store_id: b for b in bundles}
     lines: list[str] = [
         "# OpenGWASDB Store Releases",
         "",
@@ -315,7 +330,11 @@ def render_stores_md(
         lbl = row["label"] or "-"
         lay = row["layout"] or "-"
         comp = row["completion_state"] or "-"
-        if completion_is_pending(declared_by_id.get(row["store_id"], ""), row["completion_state"]):
+        # The same predicate readiness uses for the interim state (#307).
+        bundle_obj = bundles_by_id.get(row["store_id"])
+        if bundle_obj is not None and bundle.is_completion_pending(
+            bundle_obj, row["completion_state"]
+        ):
             comp += " (completion pending)"
         st = row["status"] or "-"
         fmt = row["format_version"] or "-"
@@ -497,7 +516,6 @@ regenerate_index = generate_index
 __all__ = [
     "COLUMNS",
     "build_index",
-    "completion_is_pending",
     "generate_by_label_symlinks",
     "generate_index",
     "regenerate_index",
