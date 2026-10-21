@@ -2516,7 +2516,9 @@ def build_candidate_tables(
     quality_checks_tsv, quality_check_summary = _quality_check_tables(outcomes, config)
     warnings.extend(quality_checks.warning_lines(quality_check_summary))
     targets = [
-        {"analysis_id": outcome.analysis_id}
+        # The Store's Analysis id, like every other sidecar: this one joins to
+        # ``analyses.tsv`` (#288).
+        {"analysis_id": outcome.store_analysis_id}
         | {column: getattr(outcome.metadata, column) for column in ANALYSIS_TARGETS_COLUMNS[1:]}
         for outcome in outcomes
         if outcome.metadata.targeted
