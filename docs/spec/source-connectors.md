@@ -193,8 +193,8 @@ file for that Analysis -- an explained absence (see Freeze).
 | `source_analysis_id` | Yes, every row | The Analysis the file was acquired for: its claim. Unique. |
 | `status` | Yes, every row | The readiness vocabulary of `source_inventory.py`: `ok` and `already_present` are ready; `missing_remote_harmonised_yaml`, `header_rejected`, `metadata_rejected`, `data_absent_upstream`, `data_failed`, `yaml_failed`, `dry_run` and `error` record why there is no usable file. An unknown status is refused. |
 | `location` | Column yes; value on every ready row | The exact local path acquisition wrote. Becomes the inventory's `data_file`. |
-| `bytes` | Column yes; value on every ready row | The file's size in bytes, with no leading zero. Becomes `data_bytes`. |
-| `sha256` | Column yes; value on every ready row | The file's lower-case sha256. |
+| `bytes` | Column yes; value on every ready row | The file's size in bytes, with no leading zero. Becomes `data_bytes`. On a refused row it is the size the run holds the Analysis to (see the FinnGen writer below). |
+| `sha256` | Column yes; value on every ready row | The file's lower-case sha256. On a refused row it is the digest the run holds the Analysis to, so the refusal does not erase its own pin. |
 | `source_url` | No | Where the file was fetched from. Becomes `data_url`. |
 | `sidecar_location`, `sidecar_url`, `sidecar_bytes` | No | A per-Analysis metadata file acquisition fetched with it (GWAS-SSF `-meta.yaml`). Become `yaml_file`, `yaml_url`, `yaml_bytes`. |
 | `error` | No | The acquisition error, when there was one. |
@@ -264,13 +264,17 @@ same acquisition as the shared Acquisition Manifest at
 `--release-dir` with `--manifest`, `--source-dir` or `--out` is refused.
 
 **A recorded digest is identity evidence.** In the canonical mode, the manifest
-at `--out` is the pin: an existing file whose bytes no longer match the `sha256`
-that manifest already records for its Analysis is refused by name -- status
-`data_failed`, its `location`, `bytes` and `sha256` left empty, the error naming
-the Analysis and both digests -- and never re-hashed into a fresh row. In
-compatibility mode a row's own `checksum` is the pin, as the R emitter leaves it
-blank on a fresh emit: a mismatch refuses the bytes before promotion, leaving
-the staged `.part` file and the recorded checksum untouched.
+at `--out` is the pin, read from every row that carries a digest whether that row
+is ready or refused. An existing file whose bytes no longer match is refused by
+name -- status `data_failed`, `location` empty, the error naming the Analysis and
+both digests -- and never re-hashed into a fresh row. A fresh download is held to
+the same pin and refused *before* promotion if it does not match. A refused row
+keeps the pin in `bytes` and `sha256`, so the next retry is held to it rather
+than accepting the bytes the previous run refused; only a ready row's `bytes` and
+`sha256` describe a file on disk. In compatibility mode a row's own `checksum` is
+the pin, as the R emitter leaves it blank on a fresh emit: a mismatch refuses the
+bytes before promotion, leaving the staged `.part` file and the recorded checksum
+untouched.
 
 ## Selection
 

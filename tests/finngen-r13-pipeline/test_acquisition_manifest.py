@@ -232,15 +232,55 @@ class FinnGenAcquisitionManifestTest(unittest.TestCase):
         self.assertEqual(second.returncode, 1, second.stdout + second.stderr)
         entry = load_acquisition_manifest(self.out).entry("PRESENT")
         self.assertFalse(entry.ready)
-        self.assertEqual(entry.sha256, "")
         self.assertEqual(entry.location, "")
-        self.assertEqual(entry.bytes, None)
+        # The refusal keeps the pin: the identity the run held, never the bytes
+        # it found.
+        self.assertEqual(entry.sha256, recorded.sha256)
+        self.assertEqual(entry.bytes, recorded.bytes)
         for fragment in (
             "PRESENT",
             recorded.sha256,
             hashlib.sha256(tampered).hexdigest(),
         ):
             self.assertIn(fragment, entry.error)
+
+    def test_a_refusal_keeps_its_pin_for_the_next_retry(self) -> None:
+        """A failed row carries the identity it was held to, so a retry is still
+        refused: a pin that a refusal erased would let the third run accept the
+        tampered bytes as already present."""
+        self.assertEqual(self.run_acquire("--only-analysis-id", "PRESENT").returncode, 0)
+        recorded = load_acquisition_manifest(self.out).entry("PRESENT")
+        target = self.source_dir / "finngen_R13_PRESENT.gz"
+        target.write_bytes(self.payload[:-21] + b"tampered bytes\n")
+
+        for attempt in (1, 2):
+            run = self.run_acquire("--only-analysis-id", "PRESENT")
+            self.assertEqual(run.returncode, 1, f"attempt {attempt}: {run.stdout}{run.stderr}")
+            entry = load_acquisition_manifest(self.out).entry("PRESENT")
+            self.assertFalse(entry.ready, f"attempt {attempt}")
+            self.assertEqual(entry.sha256, recorded.sha256, f"attempt {attempt}")
+            self.assertEqual(entry.bytes, recorded.bytes, f"attempt {attempt}")
+            self.assertEqual(entry.location, "", f"attempt {attempt}")
+
+    def test_a_changed_upstream_payload_is_refused_before_promotion(self) -> None:
+        """The pin follows a re-download too: changed upstream bytes are never
+        promoted over it, and the recorded digest stays what it was."""
+        self.assertEqual(self.run_acquire("--only-analysis-id", "PRESENT").returncode, 0)
+        recorded = load_acquisition_manifest(self.out).entry("PRESENT")
+        target = self.source_dir / "finngen_R13_PRESENT.gz"
+        target.unlink()
+        EndpointHandler.payload = self.payload + b"changed upstream\n"
+        try:
+            run = self.run_acquire("--only-analysis-id", "PRESENT")
+            self.assertEqual(run.returncode, 1, run.stdout + run.stderr)
+            self.assertFalse(target.exists())
+            entry = load_acquisition_manifest(self.out).entry("PRESENT")
+            self.assertFalse(entry.ready)
+            self.assertEqual(entry.sha256, recorded.sha256)
+            self.assertEqual(entry.bytes, recorded.bytes)
+            self.assertEqual(entry.location, "")
+        finally:
+            EndpointHandler.payload = self.payload
 
     def test_the_written_manifest_is_what_the_shared_freeze_reads(self) -> None:
         """The real seam: the shared freeze reconciles the table against it."""

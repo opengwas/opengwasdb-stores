@@ -63,6 +63,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -220,20 +221,48 @@ def fetch(
     return ("resumed" if resumed else "downloaded"), etag
 
 
+@dataclass(frozen=True)
+class Identity:
+    """The identity a recorded row is held to: its sha256 and its size.
+
+    Kept apart from the row's mutable readiness fields (``status``,
+    ``location``) so that a refusal can write the pin back into a failed row:
+    a run whose pin vanished with its failure would accept the very bytes it
+    refused, the next time it ran.
+    """
+
+    sha256: str
+    bytes: str
+
+
+def _refused(
+    record: dict[str, str], pin: Identity | None, error: str
+) -> dict[str, str]:
+    """Refuse one Analysis's bytes while keeping the identity it was held to."""
+    record["status"] = "data_failed"
+    record["location"] = ""
+    record["bytes"] = pin.bytes if pin else ""
+    record["sha256"] = pin.sha256 if pin else ""
+    record["error"] = error
+    return record
+
+
 def acquire_one(
     row: Mapping[str, str],
     source_dir: Path,
     *,
     timeout: float,
-    recorded: Mapping[str, str] = {},
+    recorded: Mapping[str, Identity] | None = None,
 ) -> dict[str, str]:
     """One endpoint's Acquisition Manifest row: its file, or the reason there is none.
 
-    ``recorded`` is what the manifest this run replaces already says each
-    endpoint's bytes are. A file that no longer matches is refused by name
-    rather than being re-hashed into a fresh row: the digest is identity
-    evidence, so the record keeps no ``location``, ``bytes`` or ``sha256``.
+    ``recorded`` is the identity the manifest this run replaces already holds for
+    each endpoint. A file that no longer matches is refused by name, and a
+    download that does not match is refused before promotion; either way the
+    row keeps the pin, with no ``location``, so the next retry is held to it
+    too.
     """
+    recorded = recorded or {}
     phenocode = row["phenocode"]
     target = source_dir / source_file_name(phenocode)
     record = {
@@ -244,27 +273,37 @@ def acquire_one(
         "sha256": "",
         "error": "",
     }
-    expected = recorded.get(phenocode, "")
+    pin = recorded.get(phenocode)
+    expected = pin.sha256 if pin else ""
     try:
         if target.is_file() and expected:
             actual = sha256_file(target)
             if actual != expected:
-                record["status"] = "data_failed"
-                record["error"] = (
+                return _refused(
+                    record,
+                    pin,
                     f"existing file {target} no longer matches the sha256 the manifest this run "
                     f"replaces recorded for {phenocode}: recorded {expected}, found {actual}. "
                     "Identity no longer matches, so the file is refused rather than re-hashed; "
-                    "remove it to re-acquire, or restore the recorded bytes"
+                    "remove it to re-acquire, or restore the recorded bytes",
                 )
-                return record
         if target.is_file():
             record["status"] = "already_present"
         else:
-            fetch(row["path_https"], target, timeout=timeout)
+            # The pin follows a fresh download too: changed upstream bytes are
+            # refused before they are promoted over the recorded identity.
+            fetch(row["path_https"], target, timeout=timeout, expected_sha256=expected)
             record["status"] = "ok"
         record["location"] = str(target)
         record["bytes"] = str(target.stat().st_size)
         record["sha256"] = sha256_file(target)
+    except ChecksumMismatch as exc:
+        return _refused(
+            record,
+            pin,
+            f"{phenocode}: {exc}. Identity no longer matches, so the bytes were not "
+            "promoted and the recorded digest stands",
+        )
     except urllib.error.HTTPError as exc:
         record["status"] = (
             "data_absent_upstream" if exc.code == 404 else "data_failed"
@@ -310,19 +349,22 @@ def write_pass_lineage(
     return sidecar
 
 
-def recorded_checksums(out: Path) -> dict[str, str]:
-    """The digests the Acquisition Manifest at ``out`` already records, per Analysis.
+def recorded_identities(out: Path) -> dict[str, Identity]:
+    """The identity the Acquisition Manifest at ``out`` already holds, per Analysis.
 
-    A run re-acquiring into the same manifest is held to them; a manifest that
-    does not exist yet (a new pass) pins nothing, and the provider publishes no
-    digests to pin the first run against.
+    Read from every row with a digest, ready or refused: a refusal records the
+    identity it was held to, so a pin survives the failure that cited it. A
+    manifest that does not exist yet (a new pass) pins nothing, and the provider
+    publishes no digests to pin the first run against.
     """
     out = Path(out)
     if not out.is_file():
         return {}
     manifest = load_acquisition_manifest(out)
     return {
-        entry.source_analysis_id: entry.sha256
+        entry.source_analysis_id: Identity(
+            sha256=entry.sha256, bytes=str(entry.bytes) if entry.bytes is not None else ""
+        )
         for entry in manifest.entries
         if entry.sha256
     }
@@ -356,7 +398,7 @@ def acquire_endpoints(
         wanted_set = set(wanted)
         rows = [row for row in rows if row["phenocode"] in wanted_set]
     source_dir.mkdir(parents=True, exist_ok=True)
-    recorded = recorded_checksums(out)
+    recorded = recorded_identities(out)
     with ThreadPoolExecutor(max_workers=workers) as executor:
         acquired = list(
             executor.map(
