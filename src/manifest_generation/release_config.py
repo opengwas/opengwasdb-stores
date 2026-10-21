@@ -22,6 +22,8 @@ one, written for each Store Release. It says, and nothing else says:
 - the **Reference Resources** (``reference_resources``) and what uses them:
   ancestry assignment, effect-scale validation and Trait Ontology Mapping's
   Canonical Trait Mapping Table;
+- for a region-filtered release, the **region policy** acquisition filters its
+  files to (``region_policy``, #300), with the QC panel it always keeps;
 - the run's **runtime** and **Work Root** (``runtime``, ``output``).
 
 Loading is a gate: an unknown key at any level, a missing required field, a
@@ -31,6 +33,7 @@ never ignored or defaulted. ``docs/spec/release-config.md`` is the schema.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -40,6 +43,7 @@ import yaml
 
 from manifest_generation import quality_checks
 from manifest_generation.freeze import frozen_paths
+from manifest_generation.region_filter import ASSOCIATION_COVERAGES, RegionPolicy
 from manifest_generation.indexed_subsets import (
     INDEXED_SUBSETS_KEY,
     INDEXED_SUBSETS_OPT_OUT_KEY,
@@ -89,6 +93,8 @@ BUILD_POST_KEYS: tuple[str, ...] = ("top_hits", "overview", "rho", "validate")
 TRAIT_ONTOLOGY_MAPPING_KIND: str = "trait_ontology_mapping"
 #: The kind of Reference Resource ancestry assignment measures against.
 ANCESTRY_MIXTURE_KIND: str = "ancestry_mixture"
+#: The kind of Reference Resource every region policy keeps (#300).
+QC_PANEL_KIND: str = "qc_panel"
 
 #: Ancestry-assignment gate defaults: the resolver flags' values when a config
 #: names none (``candidate_workflow.resolver_settings``).
@@ -173,6 +179,11 @@ class ReleaseConfig:
     min_free_gb: float
     work_root: Path
     required_resource_ids: tuple[str, ...] = field(default=())
+    #: The region policy acquisition filters this release's files to (#300),
+    #: or ``None`` for a release acquired unfiltered.
+    region_policy: RegionPolicy | None = None
+    #: The ``qc_panel`` Reference Resource the region policy always keeps.
+    qc_panel_resource_id: str | None = None
 
     # -- what preflight reads ---------------------------------------------------
 
@@ -206,15 +217,22 @@ TOP_LEVEL_REQUIRED = (
 )
 TOP_LEVEL_OPTIONAL = (
     "access_posture", "notes", INDEXED_SUBSETS_KEY, INDEXED_SUBSETS_OPT_OUT_KEY,
-    "quality_checks", "effect_scale_validation", "runtime",
+    "quality_checks", "effect_scale_validation", "runtime", "region_policy",
 )
 DEFAULTS_OPTIONAL = (
     "source_genome_build", "license", "publication_doi", "consortium",
     "sample_size_scope", "analysis_group_id", "info_score_threshold", "maf_threshold",
+    "tissue", "context",
 )
 #: The text defaults ``analyses.tsv`` carries where the Source Metadata Table is blank.
 TEXT_DEFAULTS = ("source_genome_build", "license", "publication_doi", "consortium",
-                 "sample_size_scope", "analysis_group_id")
+                 "sample_size_scope", "analysis_group_id", "tissue", "context")
+REGION_POLICY_REQUIRED = (
+    "region_policy_id", "association_coverage", "trans_flank_bp", "significant_p", "suggestive_p",
+    "suggestive_lead_min_distance_bp", "qc_panel_resource_id",
+)
+#: Only for ``cis_plus_signals``, and required there.
+REGION_POLICY_OPTIONAL = ("cis_flank_bp",)
 METHOD_TIER_KEYS = ("stored_effect_scale", "original_effect_scale", "original_sd_method",
                     "sample_size_kind")
 RELEASE_POLICY_OPTIONAL = (
@@ -591,6 +609,12 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         TRAIT_ONTOLOGY_MAPPING_KIND,
     )
 
+    region_policy = qc_panel_resource_id = None
+    if document.get("region_policy") is not None:
+        region_policy, qc_panel_resource_id = _region_policy(
+            document["region_policy"], _where(path, "region_policy"), declared
+        )
+
     # -- runtime and Work Root -----------------------------------------------------
     runtime = _block(document.get("runtime") or {}, _where(path, "runtime"), (),
                      ("cores", "min_free_gb"))
@@ -655,6 +679,66 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
                 [ancestry_reference_resource_id]
                 + [resource_id for _ancestry, resource_id in effect_scale_references]
                 + [trait_mapping_resource_id]
+                + ([qc_panel_resource_id] if qc_panel_resource_id else [])
             )
         ),
+        region_policy=region_policy,
+        qc_panel_resource_id=qc_panel_resource_id,
     )
+
+
+def _region_policy(value: Any, where: str, declared) -> tuple[RegionPolicy, str]:
+    """``region_policy`` (#300): what acquisition filters this release's files to.
+
+    The policy is the R ``gwas-ssf-ragged`` generator's (``manifest_generation.region_filter``).
+    A cis flank belongs to ``cis_plus_signals`` and only to it, and every
+    policy keeps a declared ``qc_panel`` resource.
+    """
+    block = _block(value, where, REGION_POLICY_REQUIRED, REGION_POLICY_OPTIONAL)
+    coverage = _text(block["association_coverage"], f"{where}.association_coverage")
+    if coverage not in ASSOCIATION_COVERAGES:
+        raise ReleaseConfigError(
+            f"{where}.association_coverage {coverage!r} is not one of {', '.join(ASSOCIATION_COVERAGES)}"
+        )
+
+    def bases(key: str) -> int:
+        number = block[key]
+        if type(number) is not int or number < 1:
+            raise ReleaseConfigError(f"{where}.{key} must be a whole number of bases >= 1, not {number!r}")
+        return number
+
+    def probability(key: str) -> float:
+        number = block[key]
+        try:
+            parsed = float(str(number)) if not isinstance(number, bool) else math.nan
+        except ValueError:
+            parsed = math.nan
+        if not 0 < parsed <= 1:
+            raise ReleaseConfigError(f"{where}.{key} must be a p-value in (0, 1], not {number!r}")
+        return parsed
+
+    significant_p, suggestive_p = probability("significant_p"), probability("suggestive_p")
+    if significant_p > suggestive_p:
+        raise ReleaseConfigError(
+            f"{where}.significant_p {significant_p} is above suggestive_p {suggestive_p}: a "
+            "significant hit must also be suggestive"
+        )
+    cis_flank_bp = None
+    if coverage == "cis_plus_signals":
+        if block.get("cis_flank_bp") is None:
+            raise ReleaseConfigError(f"{where}.cis_flank_bp is required for cis_plus_signals")
+        cis_flank_bp = bases("cis_flank_bp")
+    elif block.get("cis_flank_bp") is not None:
+        raise ReleaseConfigError(
+            f"{where}.cis_flank_bp is only for cis_plus_signals; this policy is {coverage}"
+        )
+    policy = RegionPolicy(
+        region_policy_id=_text(block["region_policy_id"], f"{where}.region_policy_id"),
+        association_coverage=coverage,
+        trans_flank_bp=bases("trans_flank_bp"),
+        significant_p=significant_p,
+        suggestive_p=suggestive_p,
+        suggestive_lead_min_distance_bp=bases("suggestive_lead_min_distance_bp"),
+        cis_flank_bp=cis_flank_bp,
+    )
+    return policy, declared(block["qc_panel_resource_id"], f"{where}.qc_panel_resource_id", QC_PANEL_KIND)

@@ -189,6 +189,66 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
         self.assertEqual(config.ancestry_gates["n_min"], 200)
         self.assertEqual(config.cores, 8)
 
+    def region_policy(self, document, **policy) -> None:
+        """Give ``document`` a region policy (#300), and the QC panel it keeps."""
+        document["reference_resources"].append({
+            "resource_id": "qc-panel-hg38",
+            "kind": "qc_panel",
+            "location": "resources/reference-resources/qc-panel-hg38/qc_panel.tsv",
+        })
+        document["region_policy"] = {
+            "region_policy_id": "sig-trans-1mb_suggestive-leads",
+            "association_coverage": "signals_only",
+            "trans_flank_bp": 1000000,
+            "significant_p": 5.0e-8,
+            "suggestive_p": 1.0e-5,
+            "suggestive_lead_min_distance_bp": 100000,
+            "qc_panel_resource_id": "qc-panel-hg38",
+            **policy,
+        }
+
+    def test_a_region_policy_loads_with_the_qc_panel_it_keeps(self) -> None:
+        from manifest_generation.region_filter import RegionPolicy
+
+        config = self.load(self.region_policy)
+        self.assertEqual(
+            config.region_policy,
+            RegionPolicy("sig-trans-1mb_suggestive-leads", "signals_only", 1_000_000, 5e-8, 1e-5, 100_000),
+        )
+        self.assertEqual(config.qc_panel_resource_id, "qc-panel-hg38")
+        self.assertIn("qc-panel-hg38", config.required_resource_ids)
+        cis = self.load(lambda d: self.region_policy(
+            d, association_coverage="cis_plus_signals", cis_flank_bp=1000000,
+            region_policy_id="cis-1mb_sig-trans-1mb_suggestive-leads",
+        ))
+        self.assertEqual(cis.region_policy.cis_flank_bp, 1_000_000)
+        self.assertIsNone(self.load().region_policy)
+
+    def test_a_region_policy_is_refused_unless_it_is_complete_and_consistent(self) -> None:
+        self.assertRefused(lambda d: self.region_policy(d, association_coverage="cis"),
+                           "region_policy.association_coverage", "'cis'")
+        self.assertRefused(lambda d: self.region_policy(d, association_coverage="cis_plus_signals"),
+                           "region_policy.cis_flank_bp")
+        self.assertRefused(lambda d: self.region_policy(d, cis_flank_bp=1000000),
+                           "region_policy.cis_flank_bp", "signals_only")
+        self.assertRefused(lambda d: self.region_policy(d, significant_p=1e-4),
+                           "significant_p", "suggestive_p")
+        self.assertRefused(lambda d: self.region_policy(d, trans_flank_bp=-1), "trans_flank_bp")
+        self.assertRefused(lambda d: self.region_policy(d, flank=1), "region_policy", "flank")
+
+        def without_panel(document):
+            self.region_policy(document)
+            del document["region_policy"]["qc_panel_resource_id"]
+        self.assertRefused(without_panel, "qc_panel_resource_id")
+
+        def panel_of_another_kind(document):
+            self.region_policy(document, qc_panel_resource_id="fixture-ancestry-mixture")
+        self.assertRefused(panel_of_another_kind, "fixture-ancestry-mixture", "qc_panel")
+
+    def test_tissue_and_context_are_release_wide_defaults(self) -> None:
+        config = self.load(lambda d: d["defaults"].update(tissue="plasma", context="SomaScan"))
+        self.assertEqual((config.defaults["tissue"], config.defaults["context"]), ("plasma", "SomaScan"))
+
     def test_the_work_root_is_repository_relative_like_every_path(self) -> None:
         config = self.load(lambda d: d["output"].update(work_root="work/relative"))
         self.assertEqual(config.work_root, REPO_ROOT / "work/relative")

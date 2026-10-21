@@ -22,12 +22,20 @@ still there.
 ``<manifest-stem>.meta.yaml`` (``acquisition_manifest.pass_lineage_path``)
 records the run: the originals' manifest, the tool, the policy and each
 filtered file's counts. Freeze checksums it into the inventory's provenance.
+
+Usage (the release config names the policy, its QC panel and the Source
+Metadata Table whose target spans a cis policy reads):
+    python3 -m manifest_generation.region_filtered_acquisition \\
+        --config <release config> --originals <originals' Acquisition Manifest> \\
+        --out-dir <filtered files> --out <Acquisition Manifest> [--workers N]
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
+import sys
 from dataclasses import asdict
 from multiprocessing import Pool
 from pathlib import Path
@@ -35,7 +43,7 @@ from typing import Any, Mapping, Sequence
 
 import yaml
 
-from manifest_generation import region_filter
+from manifest_generation import REPO_ROOT, region_filter
 from manifest_generation.acquisition_manifest import (
     ACQUISITION_MANIFEST,
     AcquisitionEntry,
@@ -50,7 +58,10 @@ from manifest_generation.region_filter import (
     RegionPolicy,
     TargetSpan,
     filter_file,
+    load_qc_panel,
 )
+from manifest_generation.release_config import ReleaseConfig, load_release_config
+from manifest_generation.source_metadata_table import load_source_metadata_table
 from manifest_generation.source_inventory import InventoryError, atomic_write, sha256_file
 
 #: The columns this acquisition writes.
@@ -245,3 +256,54 @@ def _write_run_record(
         pass_lineage_path(manifest_path),
         yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100),
     )
+
+
+def target_spans(config: ReleaseConfig) -> dict[str, TargetSpan]:
+    """Each Analysis's target span from the Source Metadata Table the release config names."""
+    if config.connectors is None:
+        raise RegionFilteredAcquisitionError(
+            f"{config.path}: a cis region policy reads target spans from the Source Metadata "
+            "Table, and source_collection.connectors names none"
+        )
+    table = load_source_metadata_table(config.connectors.source_metadata_table)
+    return {
+        row["source_analysis_id"]: TargetSpan(
+            row["target_chromosome"], int(row["target_start"]), int(row["target_end"])
+        )
+        for row in table.rows
+        if row.get("target_chromosome")
+    }
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--config", required=True, type=Path, help="the release config naming the region policy")
+    parser.add_argument("--originals", required=True, type=Path,
+                        help="the Acquisition Manifest of the downloaded originals")
+    parser.add_argument("--out-dir", required=True, type=Path, help="where the filtered files go")
+    parser.add_argument("--out", required=True, type=Path, help="the Acquisition Manifest to write")
+    parser.add_argument("--workers", type=int, default=1)
+    args = parser.parse_args(argv)
+    try:
+        config = load_release_config(args.config, REPO_ROOT)
+        if config.region_policy is None:
+            raise RegionFilteredAcquisitionError(f"{args.config} declares no region_policy")
+        resource = config.reference_resources[config.qc_panel_resource_id]
+        manifest = acquire_region_filtered(
+            load_acquisition_manifest(args.originals),
+            policy=config.region_policy,
+            qc_panel=load_qc_panel(Path(resource.location), resource.resource_id),
+            targets=target_spans(config) if config.region_policy.cis_flank_bp is not None else {},
+            out_dir=args.out_dir,
+            manifest_path=args.out,
+            workers=args.workers,
+        )
+    except (InventoryError, RegionFilterError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    print(f"Acquisition Manifest {args.out}: {manifest.readiness_counts}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

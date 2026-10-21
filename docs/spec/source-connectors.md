@@ -154,8 +154,15 @@ pipeline.
 ### Region-filtered acquisition
 
 A release whose config declares a `region_policy` ([release config](release-config.md#region_policy))
-is acquired filtered, for scale (ADR 0036, clarified by #300), by
-`manifest_generation.region_filtered_acquisition`. It reads the Acquisition Manifest of the downloaded originals, checks each
+is acquired filtered, for scale (ADR 0036, clarified by #300):
+
+```sh
+python3 -m manifest_generation.region_filtered_acquisition \
+  --config <release config> --originals <originals' Acquisition Manifest> \
+  --out-dir <filtered files> --out <Acquisition Manifest> [--workers N]
+```
+
+It reads the Acquisition Manifest of the downloaded originals, checks each
 original's sha256 against it, filters the original with the shared region
 filter (`manifest_generation.region_filter`) into `<out-dir>/<id>.filtered.tsv.gz`,
 records the filtered file's location, size and sha256 with its lineage
