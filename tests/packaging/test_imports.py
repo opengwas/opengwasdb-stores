@@ -56,6 +56,7 @@ EXEMPT_TESTS: dict[str, str] = {
     "tests/hapmap3-resource/test_hapmap3_resource.py": "the HapMap3 Reference Resource verifier (tools/reference-resources)",
     "tests/hm3-benchmark-report/test_release_benchmark_report.py": "release-benchmark-report.py, which imports another checkout",
     "tests/packaging/test_discovery.py": "the test runner, tests/run_all_tests.py",
+    "tests/packaging/test_tool_paths.py": "the moved tools' default paths (tools/, and the test runner)",
     "tests/finngen-r13-pipeline/test_pipeline_end_to_end.py":
         "the phase-b-candidate stage-test fixtures, whose directory is not a package",
     "tests/workflow/test_release_faults.py": "Store Release Build tests importing their sibling test module",

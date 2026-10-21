@@ -86,7 +86,7 @@ from typing import Any, Iterable, Mapping, Sequence  # noqa: E402
 import numpy as np  # noqa: E402
 import yaml  # noqa: E402
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[1]
 STORE_ID = "OGS-00011"
 INVENTORY_SIDECARS = REPO_ROOT / "stores" / STORE_ID / "sidecars"
 ANCESTRY_TSV = INVENTORY_SIDECARS / "ancestry.tsv"

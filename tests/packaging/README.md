@@ -47,13 +47,18 @@ Covered:
   that still do it are exempt, each citing the ticket that moves its source
   onto the pipeline (#288-#291, #300), and an exemption that no longer finds a
   violation fails.
-- `test_layout.py` (#317, ADR 0038): one home per kind of thing. No
-  importable Python package lives outside `src/` and `tests/`, and no module
-  at the repository root. Nothing under `resources/` is code (by suffix, a
-  Snakefile, or a shebang line) except the legacy R generators, each listed in
-  `LEGACY_R_GENERATORS` with the stage-2 ticket that retires it; a listed file
-  that is gone fails, so the list only shrinks. `resources/scripts/` stays
-  gone. A positive control pins each scanner.
+- `test_layout.py` (#317, ADR 0038): one home per kind of thing. No `.py`
+  file lives outside `src/`, `tests/`, `tools/` and `workflow/`, which
+  catches a root module or a namespace package such as `rogue/module.py`, and
+  only `src/` and `tests/` hold packages. Nothing under `resources/` is code
+  (by suffix, a Snakefile, or a shebang line) except the legacy R generators,
+  each listed in `LEGACY_R_GENERATORS` with the stage-2 ticket that retires
+  it; a listed file that is gone fails, so the list only shrinks.
+  `resources/scripts/` stays gone. A positive control pins each scanner.
+- `test_tool_paths.py` (#317): every moved script that derives the repository
+  root from `__file__` resolves its defaults inside this checkout. It runs
+  `check_allele_orientation.py --plan-only`, the site build with stand-in
+  renderers, and otherwise the defaults each tool computes when loaded.
 - `test_packages.py` (#249): `pyproject.toml`'s package list equals the
   directories under `src/manifest_generation` that hold an `__init__.py`, and
   every directory of Python there is a package, except `pilot/guard` (a
@@ -61,5 +66,5 @@ Covered:
 
 ```sh
 pixi run test --suite packaging/discovery --suite packaging/imports --suite packaging/boundary \
-  --suite packaging/packages --suite packaging/layout
+  --suite packaging/packages --suite packaging/layout --suite packaging/tool-paths
 ```

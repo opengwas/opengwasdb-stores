@@ -10,7 +10,8 @@ Regenerates a tiny synthetic panel (fixtures/generate_fixtures.py) and drives
 both scripts as subprocesses exactly as a real backfill run would, asserting
 on the npz files they produce rather than on internal helper functions,
 matching this repository's testing convention (see
-tests/ancestry-assignment/run_tests.py).
+tests/materialise-gwas-ssf-ragged/run_tests.R, which drives its script the
+same way).
 
 Requires numpy/scipy, e.g. via `pixi run test` (feature: python).
 """
