@@ -95,10 +95,10 @@ OGS-00008:
   sample_size: 352094-462933
   source_url: NA
 OGS-00009:
-  n_manifest: 2024
-  n_admitted: 2024
+  n_manifest: 2514
+  n_admitted: 2514
   n_excluded: 0
-  n_analyses: 2024
+  n_analyses: 2514
   first_author: Ben Elsworth
   publication_pmid: NA
   tissue: NA

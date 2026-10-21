@@ -10,7 +10,7 @@ bundle lands in the registry is the shared emitter's, tested in tests/emit.
 Since #312 the generator emits one bundle per Store id (ADR 0037): a qualified,
 active completion reference adds the `complete` block to the Store's own
 bundle, and anything short of that leaves today's observed-only bundle byte for
-byte.
+byte. `TestRegisteredOGS00009` holds the real registered bundle to the same.
 
 Run from the repository root:
 
@@ -656,6 +656,51 @@ class TestOneBundlePerStore(unittest.TestCase):
         complete = next(step for step in steps if step.name == "complete")
         self.assertEqual(complete.argv[:2], ["opengwasdb", "complete-dense"])
         self.assertEqual(option(complete.argv, "--ld-panel"), FIXTURE_LD_PANEL)
+        self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
+
+
+class TestRegisteredOGS00009(unittest.TestCase):
+    """The real OGS-00009 (#312): the frozen 2,514 Analyses, completed under its own id."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.config = yaml.safe_load((REPO_ROOT / candidate.DEFAULT_CONFIG).read_text(encoding="utf-8"))
+        cls.loaded = bundle.load("OGS-00009", registry_root=REPO_ROOT / "stores")
+        resource_id = cls.config["completion_reference"]["resource_id"]
+        cls.declaration = yaml.safe_load(
+            (REPO_ROOT / "resources" / "reference-resources" / resource_id / "resource.yaml").read_text(encoding="utf-8")
+        )
+
+    def test_the_tracked_config_names_ogs00009_and_reserves_no_completed_id(self) -> None:
+        self.assertEqual(self.config["store_id"], "OGS-00009")
+        for key in ("completed_store_id", "planned_completed_store_id"):
+            self.assertNotIn(key, self.config)
+        self.assertEqual(self.config["completion_reference"]["resource_id"], "ukb-hg38-eur-ld")
+        self.assertEqual(self.config["completion_reference"]["qualification"], "qualified")
+        self.assertEqual(self.config["completion_reference"]["activation"], "active")
+
+    def test_ogs00009_is_the_frozen_inventory_under_one_single_id_bundle(self) -> None:
+        self.assertEqual(list(bundle.check(self.loaded, registry_root=REPO_ROOT / "stores")), [])
+        self.assertEqual(self.loaded.status, "candidate")
+        self.assertEqual(self.loaded.completion_state, "reference_completed")
+        self.assertIsNone(self.loaded.derived_from)
+        self.assertTrue(self.loaded.completes_own_store)
+        inventory = ukb_inventory.read_inventory(REPO_ROOT / self.config["inventory"])
+        members, excluded = bundle.membership_ids(self.loaded)
+        self.assertEqual(len(inventory), 2514)
+        self.assertEqual(sorted(members + excluded), sorted(row["analysis_id"] for row in inventory))
+
+    def test_ogs00009_plans_both_phases_against_the_declared_panel(self) -> None:
+        steps = plan_module.plan(self.loaded, artifact_root="/fixture/artifacts")
+        phases = phase_names(steps)
+        self.assertEqual(phases["build"][0], "build")
+        self.assertEqual(phases["completion"][0], "complete")
+        self.assertEqual(phases["completion"][-1], "completion-observed-view-check")
+        complete = next(step for step in steps if step.name == "complete")
+        self.assertEqual(complete.argv[:2], ["opengwasdb", "complete-dense"])
+        self.assertEqual(option(complete.argv, "--ld-panel"), self.declaration["location"])
+        self.assertEqual(self.declaration["location"], "/data/opengwasdb/reference/ld")
+        self.assertEqual(option(complete.argv, "--ancestry"), self.declaration["ancestry_dir"])
         self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
 
 

@@ -146,6 +146,12 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "n-workers": 32,
         },
         "post": {"top_hits": True, "overview": True},
+        # #312 re-emitted OGS-00009 as one single-id release (ADR 0037): the
+        # same build phase, then completion under the same id.
+        "complete": {
+            "command": "complete-dense",
+            "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR"},
+        },
     },
     "OGS-00010": {
         "phase": "complete",
@@ -298,17 +304,22 @@ class TestRegistryMigration(unittest.TestCase):
         """The key is the only addition; options, command and post are unchanged.
 
         Note: OGS-00012/13/14/16 additionally carry the owner-authorized
-        execution-only `n-workers: 16` amendment.
+        execution-only `n-workers: 16` amendment, and OGS-00009 its completion
+        phase (#312).
         """
         for store_id, expected in EXPECTED_UNRELATED.items():
             build = load_build(store_id)
             phase = expected["phase"]
+            completion = {"complete"} if "complete" in expected else set()
             record_check()
             self.assertEqual(
                 set(build),
-                {"store_id", "layout", "completion_state", phase, "post", "indexed_subsets"},
+                {"store_id", "layout", "completion_state", phase, "post", "indexed_subsets"} | completion,
                 store_id,
             )
+            if completion:
+                record_check()
+                self.assertEqual(build["complete"], expected["complete"], store_id)
             record_check()
             self.assertEqual(build[phase]["command"], expected["command"], store_id)
             record_check()
