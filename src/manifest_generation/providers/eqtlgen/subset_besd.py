@@ -73,7 +73,9 @@ def probe_ids_from_analyses(analyses_path: str | Path) -> list[str]:
 
     ``source_probe_id`` is the BESD probe a row came from, and is authoritative
     where it is present (opengwasdb#283); otherwise the ``analysis_id`` is the
-    probe ID, because a BESD Analysis is named by its probe (issue #319).
+    probe ID, because a BESD Analysis is named by its probe (issue #319). A
+    legacy namespaced manifest (``<probe>::<tissue>``) therefore no longer
+    resolves: no production caller routes one through here.
     """
     analyses_path = Path(analyses_path)
     with analyses_path.open(newline="", encoding="utf-8") as handle:
