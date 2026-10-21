@@ -346,6 +346,36 @@ def _committed_validation(bundle_obj: Bundle) -> Channel:
     )
 
 
+COMPLETE_RECORD_FIELDS: tuple[str, ...] = (
+    "n_analyses",
+    "n_variants",
+    "n_associations",
+    "association_coverage",
+    "reference_assembly",
+)
+
+
+def _validation_record_completeness(bundle_obj: Bundle, committed: Channel) -> Channel:
+    """Whether the committed Validation Record carries every measurement the catalog lists.
+
+    Counts, coverage and assembly are recorded only as a producing step reported
+    them, and ``null`` otherwise (#322), so a record can pass validation and
+    still be incomplete. The channel names exactly which measurements are null
+    (#326). Only a Store validation record has an ``observed`` block to read.
+    """
+    if committed.state in (EvidenceState.MISSING, EvidenceState.UNKNOWN):
+        return Channel(
+            EvidenceState.MISSING,
+            f"no Store Validation Record to read measurements from: {committed.detail}",
+        )
+    observed = (bundle_obj.validation or {}).get("observed")
+    observed = observed if isinstance(observed, Mapping) else {}
+    null = [field for field in COMPLETE_RECORD_FIELDS if observed.get(field) is None]
+    if null:
+        return Channel(EvidenceState.MISSING, "recorded null: " + ", ".join(null))
+    return Channel(EvidenceState.PASS, "counts, coverage and assembly recorded")
+
+
 def _store_validation_channel(entry: Mapping[str, Any], committed: Channel) -> Channel:
     """Store validation evidence: committed verdict first, host history otherwise.
 
@@ -975,6 +1005,9 @@ def reconcile_release(
     # The committed Validation Record channel is named separately so a
     # candidate-generation record cannot hide behind the host history.
     channels["committed_validation_record"] = committed
+    channels["validation_record_completeness"] = _validation_record_completeness(
+        bundle_obj, committed
+    )
 
     if entry.get("incomplete_membership") and built.analyses is not None:
         built = BuiltEvidence(

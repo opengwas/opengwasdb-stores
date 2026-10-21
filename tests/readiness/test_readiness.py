@@ -208,6 +208,63 @@ class TestEvidenceChannels(unittest.TestCase):
         )
         self.assertIn("candidate-generation", record.channels["store_validation"].detail)
 
+    def test_validation_record_completeness_names_each_null_measurement(self) -> None:
+        observed = {
+            "n_analyses": 1,
+            "n_variants": 10,
+            "n_associations": None,
+            "association_coverage": None,
+            "reference_assembly": None,
+        }
+        b = create_mock_bundle(
+            self.stores,
+            "OGS-00006",
+            validation_data={**STORE_VALIDATION, "observed": observed},
+        )
+        record = self._reconcile(b, {"releases": {}})
+        channel = record.channels["validation_record_completeness"]
+        # A record the catalog cannot fully describe is a gap, and it names
+        # exactly what is null: absence is not zero (#326).
+        self.assertEqual(channel.state, EvidenceState.MISSING)
+        self.assertTrue(channel.is_gap)
+        self.assertIn("n_associations, association_coverage, reference_assembly", channel.detail)
+        self.assertNotIn("n_analyses", channel.detail)
+
+        complete = {
+            "n_analyses": 1,
+            "n_variants": 10,
+            "n_associations": 5,
+            "association_coverage": "full_gwas",
+            "reference_assembly": "GRCh38",
+        }
+        b = create_mock_bundle(
+            self.stores,
+            "OGS-00007",
+            validation_data={**STORE_VALIDATION, "observed": complete},
+        )
+        record = self._reconcile(b, {"releases": {}})
+        self.assertEqual(
+            record.channels["validation_record_completeness"].state, EvidenceState.PASS
+        )
+
+    def test_validation_record_completeness_is_missing_without_a_store_validation(self) -> None:
+        none = create_mock_bundle(self.stores, "OGS-00008")
+        candidate = create_mock_bundle(
+            self.stores, "OGS-00009", validation_data=CANDIDATE_EVIDENCE
+        )
+        for b in (none, candidate):
+            record = self._reconcile(b, {"releases": {}})
+            self.assertEqual(
+                record.channels["validation_record_completeness"].state,
+                EvidenceState.MISSING,
+            )
+
+    def test_markdown_shows_validation_record_completeness(self) -> None:
+        ledger = readiness.load_ledger()
+        releases = readiness.reconcile_registry(ledger=ledger)
+        text = readiness.render_readiness_markdown(releases, ledger)
+        self.assertIn("validation_record_completeness", text)
+
     def test_required_index_and_optional_hm3_are_distinct(self) -> None:
         ragged = create_mock_bundle(
             self.stores, "OGS-00012", layout="ragged", indexed_subsets=False
