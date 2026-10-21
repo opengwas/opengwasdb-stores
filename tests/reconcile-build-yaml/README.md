@@ -17,7 +17,10 @@ CLI (pinned to `dev` SHA `a9e8bc8` via issue #106):
    BESD probe derivation for `OGS-00001` is validated unconditionally via a committed fixture
    `tests/reconcile-build-yaml/fixtures/pilot-10.epi` (a 10-row provenance slice of authentic eQTLGen
    pilot probe records), verifying probe ID derivation and `::{tissue}` namespace qualification
-   portably in CI without relying on `/data/besd`.
+   portably in CI without relying on `/data/besd`. Since issue #319 that `::` qualification is
+   accepted only for the two tolerated legacy releases (`OGS-00001`, `OGS-00002`); any other
+   `build-ragged-besd` release passes no `tissue` option and names each Analysis by its bare probe
+   id, recording the tissue in the manifest's `tissue` column.
 4. **Derived Executability:** Derives and verifies that all seven store releases are executable today
    against the active pinned environment.
 5. **Assembly Mismatch Resolution:** Confirms that for Dense and Hybrid releases (`OGS-00003`,
