@@ -11,6 +11,7 @@ from __future__ import annotations
 import shutil
 import sqlite3
 import subprocess
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -18,12 +19,9 @@ from pathlib import Path
 from ogstores import bundle as release_bundle
 from ogstores.paths import is_valid_store_id
 
-from analysis_catalog import database, publish, report
+from analysis_catalog import database, publish, report, summary
+from analysis_catalog.errors import CatalogError
 from analysis_catalog.policy import Decision, decide
-
-
-class CatalogError(RuntimeError):
-    """The catalog cannot be built, and nothing was written."""
 
 
 @dataclass(frozen=True)
@@ -42,8 +40,17 @@ def build_catalog(
     artifact_root: Path | str,
     *,
     built_at: str | None = None,
+    renderer: Callable[[Path], None] = summary.render,
 ) -> BuildResult:
+    """Publish the catalog version for `registry` under `artifact_root`.
+
+    `renderer` writes `summary.html` into the version directory once its other
+    files are there. It raises to refuse the build: the version is not promoted
+    and `current` stays where it was.
+    """
     registry, artifact_root = Path(registry), Path(artifact_root)
+    if renderer is summary.render:
+        summary.quarto_path()
     commit = registry_commit(registry)
     decisions = tuple(
         decide(release_bundle.load(store_id, registry_root=registry), registry)
@@ -68,6 +75,7 @@ def build_catalog(
             partial, decisions, version=version, built_at=built_at, registry_commit=commit,
             previous=(publish.versions_dir(artifact_root) / previous, previous) if previous else None,
         )
+        renderer(partial)
         partial.rename(final)
     except BaseException:
         shutil.rmtree(partial, ignore_errors=True)

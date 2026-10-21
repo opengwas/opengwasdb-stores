@@ -71,6 +71,8 @@ DERIVED_COLUMNS: dict[str, str] = {
     "outcome_type": "TEXT CHECK (outcome_type IN ('binary', 'continuous'))",
     "trait_class": "TEXT NOT NULL CHECK (trait_class IN ('phenotype', 'molecular'))",
     "ancestry_category": "TEXT",
+    # 1 when the Release Manifest had no `analysis_label` and `source_label` stands in for it.
+    "label_from_source": "INTEGER NOT NULL CHECK (label_from_source IN (0, 1))",
 }
 
 ANALYSIS_COLUMNS: dict[str, str] = {

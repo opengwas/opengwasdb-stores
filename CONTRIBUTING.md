@@ -428,12 +428,13 @@ Use the Pixi environments pinned by this repository:
 ```bash
 pixi run env-check
 pixi run bundle-check
-pixi run catalog                 # the Analysis Catalog; see docs/spec/analysis-catalog.md
+pixi run catalog                 # the Analysis Catalog and its summary.html; see docs/spec/analysis-catalog.md
 pixi run test
 pixi run test-python
 pixi run test-r
 pixi run test --suite workflow   # one named suite (repeatable)
 pixi run --environment docs docs-smoke
+pixi run --environment dev catalog-summary-smoke   # smoke render of the catalog summary
 ```
 
 `pixi run test` finds the Python suites itself (#257): every
