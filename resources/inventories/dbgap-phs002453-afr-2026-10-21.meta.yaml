@@ -1,6 +1,6 @@
 snapshot_id: dbgap-phs002453-afr-2026-10-21
 source_collection_id: dbgap-phs002453
-frozen_at: '2026-10-21T00:14:09Z'
+frozen_at: '2026-10-21T09:38:27Z'
 frozen_by: manifest_generation.freeze
 selection:
   where:
@@ -26,7 +26,7 @@ source_metadata_table:
     bytes: 189788
     rows: 1368
   original:
-    path: /home/gh13047/.cache/orchestrate/opengwasdb-stores-282/worktrees/290/resources/generators/dbgap-mvp/connectors/source-metadata-table.tsv
+    path: resources/generators/dbgap-mvp/connectors/source-metadata-table.tsv
     sha256: d6ef94233396a1615102afa7397fa3556c3317019e2090df4d2c63901d92e7cb
     bytes: 883045
     rows: 6022
@@ -37,7 +37,7 @@ acquisition_manifest:
     bytes: 765921
     rows: 1368
   original:
-    path: /home/gh13047/.cache/orchestrate/opengwasdb-stores-282/worktrees/290/resources/generators/dbgap-mvp/connectors/acquisition-manifest.tsv
+    path: resources/generators/dbgap-mvp/connectors/acquisition-manifest.tsv
     sha256: e24a1a7549a55dd20d20e33f693d97a5e5f822b51ec430b5bd4f2a9f48e0e348
     bytes: 3366477
     rows: 6022

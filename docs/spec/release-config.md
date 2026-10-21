@@ -50,6 +50,7 @@ key.
 | `ancestry_assignment` | Yes | What Analysis Resolution measures ancestry against (below). |
 | `effect_scale_validation` | No | Phenotype-SD evidence settings (below). |
 | `trait_ontology_mapping` | Yes | The Canonical Trait Mapping Table (below). |
+| `region_policy` | No | For a region-filtered release, the regions acquisition filters its files to (below, #300). |
 | `runtime` | No | `cores` (default 1, capped at 64 by preflight) and `min_free_gb` (default 0). |
 | `output` | Yes | `work_root`: the root of the Store Release's Work Root, absolute or repository-relative like every path here. The resolution root is deployment configuration and `output.resolution_root` is refused (#284). |
 
@@ -94,10 +95,11 @@ resolver measures overlap against).
 | `analysis_group_id` | No | Default blank. |
 | `info_score_threshold` | No | The INFO floor in [0,1] a declared Analysis requests; default 0.6 (#175). |
 | `maf_threshold` | No | The MAF floor in [0,0.5] each Analysis requests; absent is no MAF filter (#176). |
+| `tissue`, `context` | No | The measured tissue and assay context (`plasma`, `SomaScan`), as `analyses.tsv` carries them (#300). |
 
-`source_genome_build`, `license`, `publication_doi` and `consortium` are
-collection-wide facts: an Analysis whose Source Metadata Table row carries a
-value keeps it, and one whose cell is blank takes the default. A metadata
+`source_genome_build`, `license`, `publication_doi`, `consortium`, `tissue` and
+`context` are release-wide facts: an Analysis whose Source Metadata Table row
+carries a value keeps it, and one whose cell is blank takes the default. A metadata
 adapter never writes a collection-wide fact into the table (#283).
 
 ### `release_policy`
@@ -111,6 +113,24 @@ adapter never writes a collection-wide fact into the table (#283).
 | `maf_filter_exempt_genotyping_technologies` | No | Technologies exempt from the MAF floor (#176). |
 | `maf_filter_exempt_analyses` | No | The reviewed per-Analysis MAF-floor exemptions (#176). |
 | `effect_placeholder_exclusions` | No | The reviewed effect-placeholder listing the `effect_placeholder_rows` Quality Check reads (#285). |
+
+### `region_policy`
+
+A region-filtered release -- Chen 2023, Sun 2018 -- keeps only the regions its
+policy names, and acquisition applies it: download, filter, delete the original,
+recording the policy in each filtered file's lineage (ADR 0036 clarified by #300,
+[region-filtered acquisition](source-connectors.md#region-filtered-acquisition)).
+The policy is per release config.
+
+| Key | Required | Description |
+|---|---:|---|
+| `region_policy_id` | Yes | The policy's name, recorded in lineage (`sig-trans-1mb_suggestive-leads`). |
+| `association_coverage` | Yes | `signals_only`, or `cis_plus_signals` to keep a cis flank around each Analysis's target. |
+| `cis_flank_bp` | For `cis_plus_signals` only | Bases kept either side of the Source Metadata Table's target span (`target_chromosome`, `target_start`, `target_end`); refused for `signals_only`. |
+| `trans_flank_bp` | Yes | Bases kept either side of every significant row outside the cis window. |
+| `significant_p`, `suggestive_p` | Yes | p-values in (0, 1]; `significant_p` may not exceed `suggestive_p`. |
+| `suggestive_lead_min_distance_bp` | Yes | How far apart, strictly more than, the suggestive leads kept on one chromosome are. |
+| `qc_panel_resource_id` | Yes | A declared `qc_panel` Reference Resource, whose positions every filtered file keeps so Analysis Resolution can measure ancestry and SD. Preflight requires it present. |
 
 ### Reference Resources
 

@@ -112,6 +112,16 @@ The rules that make this hold:
   in the Acquisition Manifest the original's location and checksum and the tool
   that changed it. Nothing is built for this until a source needs it.
 
+  *Clarified by #300:* filtering to a release's region policy at acquisition
+  is a second, deliberate case, made for scale: download, filter, delete the
+  original. It keeps the same lineage rule, and the lineage also records the
+  region policy's parameters. The QC-panel regions are always kept, so that
+  Analysis Resolution can still measure ancestry and SD. The original is
+  deleted only after the filtered file's checksum is recorded. The filter is
+  the registry's (`manifest_generation.region_filter`) and may move upstream
+  later; the policy is per release config
+  ([spec](../spec/source-connectors.md#region-filtered-acquisition)).
+
 ## Considered options
 
 - **Adapters as code the pipeline calls** (`fetch(analysis_ids)`). This is a

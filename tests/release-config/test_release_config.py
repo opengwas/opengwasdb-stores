@@ -33,6 +33,20 @@ from manifest_generation.source_inventory import frozen_for_release_problems, sh
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
+#: Work-root prefixes a shipped snapshot may name, each with the ticket and the
+#: reason: a `/data/opengwasdb/work` directory is disposable unless a built
+#: release already binds it, and then it is named where it is kept (#300).
+DURABLE_WORK_ROOTS: dict[str, str] = {
+    # The dbGaP MVP's metadata refresh. OGS-00012..16's accepted
+    # `analyses.tsv` name its `gwas-ssf` mirror as `source_file`, and the
+    # Resolution Records' fingerprints name the same paths, so a regenerated
+    # MVP Selection must freeze them where they are (#290). #292 part 2 reads
+    # dbGaP's own raw GIA files instead and retires this entry.
+    "/data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z/": (
+        "#290 the accepted dbGaP MVP bundles' metadata refresh"
+    ),
+}
+
 
 def minimal_config(root: Path) -> dict[str, Any]:
     """The smallest valid release config, with every path under ``root``."""
@@ -188,6 +202,66 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
         self.assertEqual(config.quality_check_overrides, {"build_eligible_rows": 5})
         self.assertEqual(config.ancestry_gates["n_min"], 200)
         self.assertEqual(config.cores, 8)
+
+    def region_policy(self, document, **policy) -> None:
+        """Give ``document`` a region policy (#300), and the QC panel it keeps."""
+        document["reference_resources"].append({
+            "resource_id": "qc-panel-hg38",
+            "kind": "qc_panel",
+            "location": "resources/reference-resources/qc-panel-hg38/qc_panel.tsv",
+        })
+        document["region_policy"] = {
+            "region_policy_id": "sig-trans-1mb_suggestive-leads",
+            "association_coverage": "signals_only",
+            "trans_flank_bp": 1000000,
+            "significant_p": 5.0e-8,
+            "suggestive_p": 1.0e-5,
+            "suggestive_lead_min_distance_bp": 100000,
+            "qc_panel_resource_id": "qc-panel-hg38",
+            **policy,
+        }
+
+    def test_a_region_policy_loads_with_the_qc_panel_it_keeps(self) -> None:
+        from manifest_generation.region_filter import RegionPolicy
+
+        config = self.load(self.region_policy)
+        self.assertEqual(
+            config.region_policy,
+            RegionPolicy("sig-trans-1mb_suggestive-leads", "signals_only", 1_000_000, 5e-8, 1e-5, 100_000),
+        )
+        self.assertEqual(config.qc_panel_resource_id, "qc-panel-hg38")
+        self.assertIn("qc-panel-hg38", config.required_resource_ids)
+        cis = self.load(lambda d: self.region_policy(
+            d, association_coverage="cis_plus_signals", cis_flank_bp=1000000,
+            region_policy_id="cis-1mb_sig-trans-1mb_suggestive-leads",
+        ))
+        self.assertEqual(cis.region_policy.cis_flank_bp, 1_000_000)
+        self.assertIsNone(self.load().region_policy)
+
+    def test_a_region_policy_is_refused_unless_it_is_complete_and_consistent(self) -> None:
+        self.assertRefused(lambda d: self.region_policy(d, association_coverage="cis"),
+                           "region_policy.association_coverage", "'cis'")
+        self.assertRefused(lambda d: self.region_policy(d, association_coverage="cis_plus_signals"),
+                           "region_policy.cis_flank_bp")
+        self.assertRefused(lambda d: self.region_policy(d, cis_flank_bp=1000000),
+                           "region_policy.cis_flank_bp", "signals_only")
+        self.assertRefused(lambda d: self.region_policy(d, significant_p=1e-4),
+                           "significant_p", "suggestive_p")
+        self.assertRefused(lambda d: self.region_policy(d, trans_flank_bp=-1), "trans_flank_bp")
+        self.assertRefused(lambda d: self.region_policy(d, flank=1), "region_policy", "flank")
+
+        def without_panel(document):
+            self.region_policy(document)
+            del document["region_policy"]["qc_panel_resource_id"]
+        self.assertRefused(without_panel, "qc_panel_resource_id")
+
+        def panel_of_another_kind(document):
+            self.region_policy(document, qc_panel_resource_id="fixture-ancestry-mixture")
+        self.assertRefused(panel_of_another_kind, "fixture-ancestry-mixture", "qc_panel")
+
+    def test_tissue_and_context_are_release_wide_defaults(self) -> None:
+        config = self.load(lambda d: d["defaults"].update(tissue="plasma", context="SomaScan"))
+        self.assertEqual((config.defaults["tissue"], config.defaults["context"]), ("plasma", "SomaScan"))
 
     def test_the_work_root_is_repository_relative_like_every_path(self) -> None:
         config = self.load(lambda d: d["output"].update(work_root="work/relative"))
@@ -423,7 +497,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         lineage) still has the sha256 the freeze recorded; the frozen subsets
         beside the inventory are checked by ``load_frozen_connectors``.
         """
-        from manifest_generation.freeze import load_frozen_connectors
+        from manifest_generation.freeze import load_frozen_connectors, original_path
 
         scratch = ("/tmp/", "/data/opengwasdb/work/")
         for path in shipped_release_configs():
@@ -439,12 +513,72 @@ class ShippedReleaseConfigTests(unittest.TestCase):
             for entry in recorded:
                 with self.subTest(config=path.name, original=entry["path"]):
                     self.assertFalse(entry["path"].startswith(scratch), entry["path"])
-                    original = Path(entry["path"])
+                    # Inside the checkout it is recorded relative to it (#300).
+                    self.assertFalse(entry["path"].startswith(str(REPO_ROOT)), entry["path"])
+                    original = original_path(entry["path"])
                     if original.is_file():
                         self.assertEqual(sha256_file(original), entry["sha256"])
             table, manifest = load_frozen_connectors(config.inventory_provenance_path)
             self.assertEqual(len(table.rows), provenance["rows"])
             self.assertEqual(len(manifest.entries), provenance["rows"])
+
+    def test_no_shipped_snapshot_names_a_scratch_path_anywhere_in_its_lineage(self) -> None:
+        """Not in the provenance, the frozen manifest's rows, its run record or the originals it names.
+
+        A committed snapshot names files that outlive the run that wrote it:
+        an original filtered from a scratch copy is recorded where it is kept
+        (#300). One work-root directory is allowed because a built release
+        already binds it (``DURABLE_WORK_ROOTS``), and it must still be bound.
+        """
+        import csv
+
+        from manifest_generation.freeze import original_path
+
+        scratch = ("/tmp/", "/var/tmp/", "/data/opengwasdb/work/", f"{Path.home()}/.cache/")
+        durable = tuple(DURABLE_WORK_ROOTS)
+        bound: set[str] = set()
+
+        def strings(value):
+            if isinstance(value, str):
+                yield value
+            elif isinstance(value, dict):
+                for item in value.values():
+                    yield from strings(item)
+            elif isinstance(value, list):
+                for item in value:
+                    yield from strings(item)
+
+        def tsv(path):
+            with Path(path).open(encoding="utf-8", newline="") as fh:
+                return list(csv.DictReader(fh, delimiter="\t"))
+
+        for path in shipped_release_configs():
+            config = load_release_config(path, REPO_ROOT)
+            provenance_path = config.inventory_provenance_path
+            provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
+            lineage = {"provenance": provenance, "frozen manifest": tsv(
+                provenance_path.parent / provenance["acquisition_manifest"]["frozen"]["path"]
+            )}
+            run = provenance["acquisition_manifest"]["original"]["pass_lineage"]
+            if run is not None and original_path(run["path"]).is_file():
+                record = yaml.safe_load(original_path(run["path"]).read_text(encoding="utf-8"))
+                lineage["run record"] = record
+                originals = (record or {}).get("originals")
+                if originals and original_path(originals["path"]).is_file():
+                    lineage["originals"] = tsv(original_path(originals["path"]))
+            for where, value in lineage.items():
+                with self.subTest(config=path.name, where=where):
+                    texts = list(strings(value))
+                    bound.update(root for root in durable if any(t.startswith(root) for t in texts))
+                    self.assertEqual(
+                        [
+                            text for text in texts
+                            if text.startswith(scratch) and not text.startswith(durable)
+                        ],
+                        [],
+                    )
+        # An allowance that no shipped snapshot uses is stale, not a licence.
+        self.assertEqual(sorted(durable), sorted(bound))
 
     def test_the_ogs_00011_config_reproduces_its_inventory_and_resolver_settings(self) -> None:
         from manifest_generation.candidate_workflow import (
@@ -489,6 +623,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
             read_analysis_metadata,
             read_imputation_score_declarations,
         )
+        from manifest_generation.freeze import original_path
         from manifest_generation.source_inventory import read_inventory
 
         for path in shipped_release_configs():
@@ -496,11 +631,12 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                 config = load_candidate_configuration(path, REPO_ROOT)
                 provenance_path = config.base.inventory_provenance_path
                 provenance = yaml.safe_load(provenance_path.read_text(encoding="utf-8"))
-                if not Path(provenance["source_metadata_table"]["original"]["path"]).is_file():
+                if not original_path(provenance["source_metadata_table"]["original"]["path"]).is_file():
                     self.skipTest("the collection's Source Metadata Table is not on this host")
                 rows = read_inventory(config.base.inventory_path)
                 ready = [row.analysis_id for row in rows if row.ready]
-                if len(ready) > 100:
+                declares = config.imputation_score_declarations is not None
+                if declares and len(ready) > 100:
                     declared = read_imputation_score_declarations(
                         config.imputation_score_declarations,
                         [row.analysis_id for row in rows],
@@ -516,7 +652,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                 manifest = derive_resolver_manifest(rows, config, metadata)
                 self.assertEqual([row.analysis_id for row in manifest], ready)
                 # The shared table's declarations for these Analyses, and only those.
-                self.assertTrue(any(row.imputation_score_column for row in manifest))
+                self.assertEqual(any(row.imputation_score_column for row in manifest), declares)
 
     def test_the_pilot_configs_select_exactly_their_trial_store_releases(self) -> None:
         for name, store_id in (

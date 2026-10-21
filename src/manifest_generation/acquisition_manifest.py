@@ -12,11 +12,14 @@ One row per Analysis means one file per Analysis. A file several Analyses
 share -- eQTLGen's BESD file set -- cannot be recorded yet and is refused as a
 duplicate file; #291 extends the manifest when eQTLGen moves.
 
-A file acquisition had to reformat before any reader could open it -- a
-structural change a Column Map cannot express, such as splitting one file into
-one per Analysis -- carries its lineage: the original's location and sha256 and
-the tool that reformatted it, so a Release Bundle traces back to what the
-provider published.
+A file acquisition changed carries its lineage, so a Release Bundle traces
+back to what the provider published: the original's location and sha256 and
+the tool that changed it. Acquisition changes a file in two cases (ADR 0036,
+clarified by #300): a structural change a Column Map cannot express, such as
+splitting one file into one per Analysis, and filtering it to a release's
+region policy, for scale. A region-filtered file's lineage also records the
+policy's parameters (``region_policy``, ``manifest_generation.region_filter``),
+and its original is deleted once that lineage is recorded.
 
 Loading is a gate: an unknown column or status, a ready file missing its
 location, size or checksum, a partial lineage, or a duplicate Analysis or file
@@ -31,10 +34,11 @@ specifies every column.
 
 from __future__ import annotations
 
+import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Mapping
+from typing import Any, Mapping
 
 from manifest_generation.connector_tsv import (
     ConnectorSpec,
@@ -42,6 +46,7 @@ from manifest_generation.connector_tsv import (
     raise_problems,
     read_connector,
 )
+from manifest_generation.region_filter import ASSOCIATION_COVERAGES
 from manifest_generation.source_inventory import (
     KNOWN_READINESS_STATUSES,
     READY_STATUSES,
@@ -57,8 +62,14 @@ REQUIRED_COLUMNS: tuple[str, ...] = ("source_analysis_id", "status", "location",
 #: The file facts a ready row must record.
 READY_FIELDS: tuple[str, ...] = ("location", "bytes", "sha256")
 
-#: The lineage of a reformatted file: all three, or none.
+#: The lineage of a file acquisition changed: all three, or none. A file whose
+#: original was filtered before acquisition checksummed it, and is gone, has
+#: no ``original_sha256``; it must then record ``original_bytes`` (#300).
 LINEAGE_COLUMNS: tuple[str, ...] = ("original_location", "original_sha256", "reformat_tool")
+
+#: Lineage a file may add: the original's size, and for a region-filtered file
+#: the region policy it was filtered to, one canonical JSON object.
+OPTIONAL_LINEAGE_COLUMNS: tuple[str, ...] = ("original_bytes", "region_policy")
 
 OPTIONAL_COLUMNS: tuple[str, ...] = (
     "source_url",
@@ -66,7 +77,7 @@ OPTIONAL_COLUMNS: tuple[str, ...] = (
     "sidecar_url",
     "sidecar_bytes",
     "error",
-) + LINEAGE_COLUMNS
+) + LINEAGE_COLUMNS + OPTIONAL_LINEAGE_COLUMNS
 
 #: Every canonical column, in the order a writer emits them.
 COLUMNS: tuple[str, ...] = REQUIRED_COLUMNS + OPTIONAL_COLUMNS
@@ -97,18 +108,30 @@ def pass_lineage_path(manifest_path: Path) -> Path:
 
 @dataclass(frozen=True)
 class Lineage:
-    """Where a reformatted file came from, and what reformatted it."""
+    """Where a changed file came from, and what changed it.
+
+    ``original_sha256`` is empty only for an original filtered before it was
+    checksummed, which ``original_bytes`` then identifies. ``region_policy``
+    is the parsed policy a region-filtered file was filtered to.
+    """
 
     original_location: str
     original_sha256: str
     reformat_tool: str
+    original_bytes: int | None = None
+    region_policy: Mapping[str, Any] | None = None
 
-    def as_dict(self) -> dict[str, str]:
-        return {
+    def as_dict(self) -> dict[str, Any]:
+        document: dict[str, Any] = {
             "original_location": self.original_location,
             "original_sha256": self.original_sha256,
             "reformat_tool": self.reformat_tool,
         }
+        if self.original_bytes is not None:
+            document["original_bytes"] = self.original_bytes
+        if self.region_policy is not None:
+            document["region_policy"] = dict(self.region_policy)
+        return document
 
 
 @dataclass(frozen=True)
@@ -221,24 +244,92 @@ def _row_problems(row: Mapping[str, str]) -> list[str]:
         absent = [column for column in READY_FIELDS if not value(column)]
         if absent:
             problems.append(f"a ready file needs {', '.join(absent)}")
-    for column in ("bytes", "sidecar_bytes"):
+    for column in ("bytes", "sidecar_bytes", "original_bytes"):
         if value(column) and not _SIZE.match(value(column)):
             problems.append(f"{column} {value(column)!r} is not a size in bytes")
     for column in ("sha256", "original_sha256"):
         if value(column) and not _SHA256.match(value(column)):
             problems.append(f"{column} {value(column)!r} is not a lower-case sha256 digest")
-    if any(value(column) for column in LINEAGE_COLUMNS):
-        absent = [column for column in LINEAGE_COLUMNS if not value(column)]
+    if any(value(column) for column in LINEAGE_COLUMNS + OPTIONAL_LINEAGE_COLUMNS):
+        absent = [
+            column for column in LINEAGE_COLUMNS
+            if not value(column) and not (column == "original_sha256" and value("original_bytes"))
+        ]
         if absent:
             problems.append(f"lineage needs {', '.join(LINEAGE_COLUMNS)}; {', '.join(absent)} empty")
         if status not in READY_STATUSES:
             problems.append(f"lineage is recorded on a {status or 'status-less'!r} entry with no ready file")
+        if value("region_policy"):
+            problems.extend(_region_policy_problems(value("region_policy")))
+    return problems
+
+
+def _region_policy_problems(text: str) -> list[str]:
+    """Why a recorded region policy is not a complete one (docs/spec/source-connectors.md).
+
+    It names the policy, its coverage, its flanks and thresholds, the QC panel
+    every policy keeps (``resource_id`` and ``sha256``), and for a cis policy
+    its flank and the ``target`` span it was applied to.
+    """
+    try:
+        policy = json.loads(text)
+    except ValueError:
+        return [f"region_policy {text!r} is not JSON"]
+    if not isinstance(policy, dict):
+        return [f"region_policy {text!r} is not a JSON object"]
+    problems = []
+
+    def whole(value: Any) -> bool:
+        return type(value) is int and value >= 1
+
+    def probability(value: Any) -> bool:
+        return type(value) in (int, float) and 0 < value <= 1
+
+    if not isinstance(policy.get("region_policy_id"), str) or not policy["region_policy_id"]:
+        problems.append("region_policy names no region_policy_id")
+    coverage = policy.get("association_coverage")
+    if coverage not in ASSOCIATION_COVERAGES:
+        problems.append(
+            f"region_policy association_coverage {coverage!r} is not one "
+            f"of {', '.join(ASSOCIATION_COVERAGES)}"
+        )
+    for key, valid, what in (
+        ("trans_flank_bp", whole, "a whole number of bases"),
+        ("suggestive_lead_min_distance_bp", whole, "a whole number of bases"),
+        ("significant_p", probability, "a p-value in (0, 1]"),
+        ("suggestive_p", probability, "a p-value in (0, 1]"),
+    ):
+        if not valid(policy.get(key)):
+            problems.append(f"region_policy {key} {policy.get(key)!r} is not {what}")
+    panel = policy.get("qc_panel")
+    if not (
+        isinstance(panel, dict)
+        and isinstance(panel.get("resource_id"), str) and panel["resource_id"]
+        and isinstance(panel.get("sha256"), str) and _SHA256.match(panel["sha256"])
+    ):
+        problems.append(f"region_policy qc_panel {panel!r} names no resource_id and sha256")
+    if coverage == "cis_plus_signals":
+        if not whole(policy.get("cis_flank_bp")):
+            problems.append(f"region_policy cis_flank_bp {policy.get('cis_flank_bp')!r} is not a whole number of bases")
+        target = policy.get("target")
+        if not (
+            isinstance(target, dict)
+            and isinstance(target.get("chromosome"), str) and target["chromosome"]
+            and whole(target.get("start")) and whole(target.get("end"))
+        ):
+            problems.append(f"region_policy target {target!r} is not a chromosome, start and end")
+    elif "cis_flank_bp" in policy or "target" in policy:
+        problems.append(f"region_policy cis_flank_bp and target belong to cis_plus_signals, not {coverage!r}")
     return problems
 
 
 def _entry(row: Mapping[str, str]) -> AcquisitionEntry:
     lineage = (
-        Lineage(*(row[column] for column in LINEAGE_COLUMNS))
+        Lineage(
+            *(row.get(column, "") for column in LINEAGE_COLUMNS),
+            original_bytes=int(row["original_bytes"]) if row.get("original_bytes") else None,
+            region_policy=json.loads(row["region_policy"]) if row.get("region_policy") else None,
+        )
         if row.get("original_location")
         else None
     )

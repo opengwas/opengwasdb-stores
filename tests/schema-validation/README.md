@@ -12,15 +12,11 @@ Run from the repository root:
 pixi run Rscript tests/schema-validation/run_tests.R
 ```
 
-This proves:
+This proves (its checks that a clean manifest emits with `checks.schema:
+passed` and that a `log_or` row without counts fails the emit ran the R
+`gwas-ssf-ragged` generator, retired with #300; the shared pipeline runs the
+same schema in `candidate_workflow.validate_candidate_analyses`):
 
-- a manifest that resolves cleanly emits with `checks.schema: passed`;
-- a manifest with a real opengwasdb schema violation --
-  `stored_effect_scale: log_or` with no `n_cases`/`n_controls` in the source
-  row, the same shape of gap issue #15's `ieu-a-7` example exposed -- fails
-  `--mode=emit` loudly with a message naming the violation, and
-  `validation.yaml` records `checks.schema: failed` with that message rather
-  than silently staying `not_run`;
 - issue #51 AC3's two named example violations -- an out-of-vocabulary
   `original_sd_method` and a missing required column (`sample_size_scope`)
   -- each fail `src/manifest_generation/schema_validate.py` directly with a message

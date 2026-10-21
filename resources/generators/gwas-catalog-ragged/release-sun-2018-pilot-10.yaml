@@ -1,0 +1,154 @@
+# Release config for the first 10 Sun et al. 2018 INTERVAL SomaScan plasma
+# pQTL Analyses (PMID 29875488): the Trial Store Release OGS-00007 was built
+# as (#300).
+#
+# The release config schema is docs/spec/release-config.md. It replaces
+# resources/generators/pqtl-interval-2018/config-pilot-10.yaml and the R
+# gwas-ssf-ragged generator, both retired with #300; OGS-00007's
+# generator.commands still cite them, and git history keeps them.
+#
+# Connectors (ADR 0036):
+#   - the Source Metadata Table is the GWAS Catalog's rows for the 3,283 Sun
+#     Analyses the tracked SomaScan target table resolves, with their target
+#     annotation, written by
+#     manifest_generation.providers.gwas_catalog.somascan_targets from the
+#     GWAS Catalog's table (frozen read-only on /data for OGS-00011),
+#     resources/reference-resources/somascan/sun-2018-analysis-targets.tsv and
+#     somascan-targets.tsv;
+#   - the Acquisition Manifest lists the 10 files the shared region filter
+#     wrote to this policy, QC panel kept, into the read-only
+#     /data/opengwasdb/raw/ebi-sun-pqtl-10/filtered-qc-2026-10-21/
+#     (manifest_generation.region_filtered_acquisition --keep-originals). It
+#     read the originals in /data/opengwasdb/raw/ebi-sun-pqtl-10/ in place:
+#     OGS-00007 still cites them, so they were only read and are kept, and the
+#     lineage names them there with their sha256. Its run record checksums the
+#     plan and summary the candidate carries (sparse_regions.tsv,
+#     filter_summary.tsv). Each file holds the rows R's
+#     filter kept for OGS-00007, plus 8,690 to 8,705 QC-panel rows.
+
+release_config_version: 1
+
+label: 2018-sun-pilot-10
+access_posture: public
+description: >
+  The first 10 Sun et al. 2018 INTERVAL SomaScan plasma-proteome pQTL Analyses
+  (PMID 29875488), a Trial Store Release of a cis-plus-signals ragged GWAS-SSF
+  release: each source file is filtered at acquisition to a 1 Mb cis window
+  around its target gene, significant-trans flanks and suggestive leads, and
+  keeps the QC panel.
+notes: >
+  The sources carry no allele frequencies, so Assigned Ancestry is the Source
+  Metadata Table's super-population (source_trusted_no_af, #287), and their
+  effects are declared standardised, so no phenotype SD is estimated.
+
+source_collection:
+  source_collection_id: gwas-catalog-ssf
+  connectors:
+    source_metadata_table: resources/generators/gwas-catalog-ragged/connectors/sun-2018.source-metadata.tsv
+    acquisition_manifest: resources/generators/gwas-catalog-ragged/connectors/sun-2018-pilot-10.acquisition-manifest.tsv
+  inventory:
+    snapshot_id: gwas-catalog-ssf-sun-2018-pilot-10-2026-10-21c
+    directory: resources/inventories
+
+# OGS-00007's 10: a deterministic prefix of the candidate table, written out
+# (docs/spec/release-config.md#pilot-prefixes).
+selection:
+  analyses:
+    - GCST005806
+    - GCST90240120
+    - GCST90240121
+    - GCST90240122
+    - GCST90240123
+    - GCST90240124
+    - GCST90240125
+    - GCST90240126
+    - GCST90240127
+    - GCST90240128
+
+build:
+  layout: ragged
+  completion_state: observed_only
+  command: build-ragged-ssf
+  options:
+    stored-effect-scale: sd
+  post:
+    top_hits: true
+    overview: false
+
+defaults:
+  source_genome_build: GRCh38
+  license: EBI GWAS Catalog terms of use
+  publication_doi: 10.1038/s41586-018-0175-2
+  consortium: INTERVAL; Sun et al. 2018
+  sample_size_scope: analysis_level
+  analysis_group_id: PMID29875488
+  tissue: plasma
+  context: SomaScan
+  # A MAF request of 0 filters nothing; it makes the Resolution Record count the
+  # rows with no allele frequency, the evidence trust_source_ancestry_without_af
+  # needs (#287).
+  maf_threshold: 0
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      # Declared standardised, as OGS-00007 carries it: the resolver estimates
+      # no SD and the Analysis is included with original_sd blank (#300).
+      original_sd_method: declared_standardised
+      sample_size_kind: total
+
+release_policy:
+  selection_superpopulation: EUR
+  trust_source_ancestry_without_af: true
+
+# The R generator's cis-1mb_sig-trans-1mb_suggestive-leads, with the QC panel
+# every region policy keeps.
+region_policy:
+  region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
+  association_coverage: cis_plus_signals
+  cis_flank_bp: 1000000
+  trans_flank_bp: 1000000
+  significant_p: 5.0e-8
+  suggestive_p: 1.0e-5
+  suggestive_lead_min_distance_bp: 100000
+  qc_panel_resource_id: qc-panel-hg38
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    ancestry: multi
+    super_populations: [AFR, AMR, EAS, EUR, MID, NAF, SAS]
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    location_kind: external_file
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+  - resource_id: qc-panel-hg38
+    kind: qc_panel
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: resources/reference-resources/qc-panel-hg38/qc_panel.tsv
+    location_kind: tracked_file
+  - resource_id: canonical-trait-mapping-efo
+    kind: trait_ontology_mapping
+    location: resources/reference-resources/canonical-trait-mapping-efo
+    location_kind: tracked_directory
+    version: "3"
+
+ancestry_assignment:
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  extraction_panel: null
+
+effect_scale_validation:
+  reference_resources: []
+
+trait_ontology_mapping:
+  reference_resource_id: canonical-trait-mapping-efo
+
+runtime:
+  cores: 32
+  min_free_gb: 10
+
+output:
+  work_root: /data/opengwasdb/work/gwas-catalog-ragged
