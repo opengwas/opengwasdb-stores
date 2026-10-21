@@ -297,9 +297,9 @@ Analysis rather than `0` (issue #133), and every row's `analysis_id` must match
 `^[A-Za-z0-9][A-Za-z0-9._-]*$` so that the identifier the
 [Analysis Catalog](../adr/0039-analysis-catalog.md) publishes as
 `<store_id>:<analysis_id>` always splits on `:` into two parts and the id is a
-usable filename (issue #319). Excluded
-rows are checked by the `analysis_id` rule too, since the Analysis Catalog still
-names them. All three were silent-failure classes found
+usable filename (issue #319). The
+rule covers every row of the Release Manifest, excluded rows included, because
+`analysis_id` is also the resolver's per-Analysis filename. All three were silent-failure classes found
 in the committed bundles; the checks make a reintroduction fail `bundle-check`
 rather than a summary. `OGS-00001` and `OGS-00002` keep their `<probe>::<tissue>`
 `analysis_id` values, which an accepted bundle may not be edited to remove
