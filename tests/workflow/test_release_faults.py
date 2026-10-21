@@ -28,7 +28,9 @@ written. One boundary of each kind is crashed here.
 
 One case more kills a release that completes its own Store (ADR 0037)
 part-way through its completion phase's deletion of the Store it replaced
-(`old-store-deleting`, #309), and the next run finishes it.
+(`old-store-deleting`, #309), and the next run finishes it. That release is a
+copy of the published one whose bundle gained a `complete` block (#305), so
+its run is the completion phase alone.
 
 Each boundary has its own directories, so Snakemake's metadata for one cannot
 make another look up to date.
@@ -62,15 +64,11 @@ from test_workflow import (  # noqa: E402
     SNAKEFILE_PATH,
     create_dense_fixture_store,
     find_snakemake_cmd,
-    prepare_single_id_signal_release,
     release_argv,
     run_release,
 )
 
 STORE_ID = "OGS-00099"
-# A release that completes its own Store (ADR 0037), killed while its
-# completion phase deletes the Store it replaced (#309).
-SINGLE_ID_STORE_ID = "OGS-00111"
 
 # One register-job boundary of each kind Snakemake can see; the register suite
 # crashes the transaction at all of them.
@@ -284,10 +282,6 @@ class TestEveryBoundaryThroughTheEntryPoint(PublishedReleaseFixture):
         self.assertIn("nothing to be done", again.stdout)
 
 
-    # A fresh release, not a copy of `single_id_completion_template`: until
-    # #305 merges, the #195 guard refuses an unforced completion over a
-    # published Store, so only a fresh release reaches the deletion (a forced
-    # run archives). The end-of-epic test-cost pass converts it once #305 is in.
     def test_a_single_id_completion_killed_mid_deletion_is_finished_by_the_next_run(self) -> None:
         """A whole-stack SIGKILL with the replaced Observed-Only Store half deleted; the next run finishes (#309).
 
@@ -296,13 +290,19 @@ class TestEveryBoundaryThroughTheEntryPoint(PublishedReleaseFixture):
         deletion and the publication, and the run after it executes no job.
         This is the one end-to-end deletion case: the register suite crashes
         the transaction at every deletion boundary.
+
+        The release is a copy of the published one, its bundle amended to
+        complete its own Store (#305): the killed run is an unforced
+        completion phase over the published Observed-Only Store, which
+        deletes it as a fresh single-id run does, with no build phase first.
         """
         boundary = "old-store-deleting"
         self.assertIn(boundary, register.PUBLICATION_BOUNDARIES)
-        sid = SINGLE_ID_STORE_ID
-        td = Path(tempfile.mkdtemp(prefix="release_fault_single_id_"))
-        self.addCleanup(shutil.rmtree, td, True)
-        stores, artifacts = prepare_single_id_signal_release(td, sid)
+        sid = STORE_ID
+        stores, artifacts = self.published_copy(aged=False)
+        test_workflow.amend_to_complete_own_store(
+            stores, sid, ld_panel=test_workflow.create_signal_ld_panel(stores.parent / "ld-panel")
+        )
 
         killed = run_release(
             [sid], registry_root=stores, artifact_root=artifacts,
