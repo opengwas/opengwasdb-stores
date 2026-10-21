@@ -37,6 +37,7 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import contextlib
 import csv
 import gzip
 import hashlib
@@ -589,6 +590,39 @@ def _cli_invocation(
 
 
 def _run_cli(fixture: Fixture, *args: str, **kwargs) -> subprocess.CompletedProcess:
+    """Drive the operator entry point in this process, then report as a subprocess would.
+
+    The suite's subject is what the entry point does, not that ``python -m`` can
+    start it: reaching ``generate_candidate.main`` in this interpreter runs the
+    same argparse, the same stages and the same files. A fresh interpreter for
+    every run costs about 1.4 s here (``load_candidate_configuration`` imports
+    ``opengwasdb``), which made this suite the repository's slowest (#282).
+
+    Tests that assert on the process itself -- an uncaught exception's
+    traceback, a killed run's inherited lock -- use :func:`_run_cli_subprocess`.
+    """
+    command, env = _cli_invocation(fixture, *args, **kwargs)
+    stdout, stderr = io.StringIO(), io.StringIO()
+    previous_cwd = os.getcwd()
+    # The subprocess got exactly this environment; give the in-process run the
+    # same one, so the fake resolver's own variables reach it either way.
+    with mock.patch.dict(os.environ, env, clear=True):
+        os.chdir(REPO_ROOT)
+        try:
+            with contextlib.redirect_stdout(stdout), contextlib.redirect_stderr(stderr):
+                try:
+                    code = generate_candidate.main(command[3:])
+                except SystemExit as exc:  # argparse refusing a flag, as `python -m` would
+                    code = exc.code if isinstance(exc.code, int) else 0
+        finally:
+            os.chdir(previous_cwd)
+    return subprocess.CompletedProcess(command, code, stdout.getvalue(), stderr.getvalue())
+
+
+def _run_cli_subprocess(
+    fixture: Fixture, *args: str, **kwargs
+) -> subprocess.CompletedProcess:
+    """Run the entry point as ``python3 -m manifest_generation.generate_candidate``."""
     command, env = _cli_invocation(fixture, *args, **kwargs)
     return subprocess.run(
         command, cwd=str(REPO_ROOT), env=env, capture_output=True, text=True, check=False
@@ -717,7 +751,8 @@ class CandidateWorkflowTests(unittest.TestCase):
     # -- happy path and policy -------------------------------------------------
 
     def test_full_pipeline_mixed_designs_and_controlled_outcomes(self) -> None:
-        result = _run_cli(self.fixture)
+        # Through `python3 -m`: the whole operator entry point, in a new process.
+        result = _run_cli_subprocess(self.fixture)
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
 
         bundle_dir = self.fixture.registry_root / STORE_ID
@@ -3214,7 +3249,8 @@ class EntryPointStageTests(unittest.TestCase):
         self.assertEqual(pinned.resolver, "opengwasdb")
 
     def test_a_legacy_config_is_refused_by_the_entry_point(self) -> None:
-        result = _run_cli(
+        # Through `python3 -m`: an operator must see an error, never a traceback.
+        result = _run_cli_subprocess(
             self.fixture,
             config_path=REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/config-full.yaml",
         )
@@ -3280,11 +3316,11 @@ class SharedResolutionRecordsTests(unittest.TestCase):
         config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
         return config_path
 
-    def _run(self, *args: str, **kwargs):
+    def _run(self, *args: str, runner=_run_cli, **kwargs):
         """Run the entry point; return (result, the Analyses this run resolved)."""
         self._runs += 1
         log = self.fixture.root / f"resolved-{self._runs}.log"
-        result = _run_cli(self.fixture, *args, resolved_log=log, **kwargs)
+        result = runner(self.fixture, *args, resolved_log=log, **kwargs)
         resolved = log.read_text(encoding="utf-8").split() if log.exists() else []
         return result, sorted(resolved)
 
@@ -3417,8 +3453,9 @@ class SharedResolutionRecordsTests(unittest.TestCase):
     # -- 2. reuse and invalidation ---------------------------------------------
 
     def test_an_unchanged_run_re_resolves_nothing(self) -> None:
+        # Through `python3 -m`: this is the reuse behaviour an operator sees.
         outcomes = self._all_success_outcomes()
-        first, resolved = self._run(outcomes=outcomes)
+        first, resolved = self._run(outcomes=outcomes, runner=_run_cli_subprocess)
         self.assertEqual(first.returncode, 0, first.stderr)
         self.assertEqual(resolved, READY_IDS)
         receipt = self._receipt()

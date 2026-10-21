@@ -133,3 +133,17 @@ pixi run --environment dev python3 tests/phase-b-candidate/test_phase_b_candidat
 # or through the repo orchestrator
 pixi run test-python
 ```
+
+### Where the entry point runs
+
+Tests drive `manifest_generation.generate_candidate.main` in the test process,
+not through `python3 -m`: one fresh interpreter per run costs about 1.4 s here
+(`load_candidate_configuration` imports `opengwasdb`), and a suite of them made
+this one the repository's slowest (#282). The same argparse, the same stages and
+the same files are exercised either way.
+
+Tests that assert on the process itself do spawn one: the full mixed-design
+pipeline and an unchanged second run go through `python3 -m` (`_run_cli_subprocess`),
+the legacy-config test proves it fails without a traceback, and the killed-run
+test starts the entry point with `Popen` so its resolver can outlive it. The fake
+resolver, and the real one where a test uses it, always run as subprocesses.
