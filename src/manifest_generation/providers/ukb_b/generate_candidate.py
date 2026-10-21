@@ -1,10 +1,17 @@
 #!/usr/bin/env python3
-"""Emit the restored full ukb-b observed Release Manifest Candidate (issue #219).
+"""Emit the restored full ukb-b Release Manifest Candidate (issues #219, #312).
 
 Turns the frozen Source Inventory (`resources/inventories/ukb-b-restored-2026-10-11.tsv`)
 plus the recorded OpenGWAS API resolution into a current-shape candidate Release
 Bundle under `stores/<store-id>/`, and refuses to emit anything that does not
 pass the registry's executable bundle contract.
+
+One Store id gets one bundle (ADR 0037, #312). A `completion_reference` that is
+`qualified` and `active` puts both phases in that bundle: the observed `build`
+block, unchanged, and a `complete-dense` block against the LD panel its
+Reference Resource declares, with `completion_state: reference_completed` and
+no `derived_from`. Anything short of that emits the observed-only bundle
+exactly as before. No second, completed id is ever minted.
 
 What it owns, and what it deliberately does not:
 
@@ -26,8 +33,8 @@ What it owns, and what it deliberately does not:
 
 Usage:
 
-    python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00017
-    python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00017 \\
+    python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00009
+    python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00009 \\
         --ancestry-records /data/opengwasdb/work/epic232/219/ancestry.tsv
 """
 
@@ -107,6 +114,21 @@ ANCESTRY_RECORD_COLUMNS: tuple[str, ...] = (
 )
 
 
+#: Config keys ADR 0007 used to reserve a second, `derived_from`-linked completed
+#: Store id. ADR 0037 completes a Store under its own id, so a config that still
+#: declares one is refused rather than ignored: dropping it silently would emit
+#: an observed-only bundle for a Store its author meant to complete (#308, #312).
+RETIRED_CONFIG_KEYS: tuple[str, ...] = ("completed_store_id", "planned_completed_store_id")
+
+#: The ids the two-id UKB-B plan used, retired unused by #312 so no later run
+#: reuses them (ADR 0022): OGS-00010, the old OGS-00009's completed child, and
+#: OGS-00030/31, the successor pair #219 reserved.
+RETIRED_IDS: tuple[str, ...] = ("OGS-00010", "OGS-00030", "OGS-00031")
+
+#: The completion command for this generator's Dense Stores.
+COMPLETE_COMMAND = "complete-dense"
+
+
 class CandidateError(ValueError):
     """The inputs cannot produce a schema-valid candidate Release Bundle."""
 
@@ -161,7 +183,61 @@ def load_config(path: Path) -> CandidateConfig:
     document = yaml.safe_load(path.read_text(encoding="utf-8"))
     if not isinstance(document, dict):
         raise CandidateError(f"candidate config {path} is not a YAML mapping")
+    retired = [key for key in RETIRED_CONFIG_KEYS if key in document]
+    if retired:
+        raise CandidateError(
+            f"candidate config {path} declares {', '.join(retired)}: a reference-completed Store "
+            "is published under its own id, and its one bundle declares both phases (ADR 0037). "
+            f"{', '.join(RETIRED_IDS)} are retired unused (#312) and ids are never reused. "
+            "Remove the key."
+        )
     return CandidateConfig(path=path, document=document)
+
+
+def reference_is_qualified_and_active(reference: Mapping) -> bool:
+    """Whether an owner decision has qualified and activated a completion reference.
+
+    A declared resource is not enough on its own: both `qualification` and
+    `activation` must say so, as for the dbGaP MVP references (#308).
+    """
+    return (
+        bool(reference.get("resource_id"))
+        and reference.get("qualification") == "qualified"
+        and reference.get("activation") == "active"
+    )
+
+
+def completion_block(config: Mapping, repo_root: Path) -> dict | None:
+    """The `complete` block a qualified, active reference declares, else ``None``.
+
+    The panel and ancestry come from the reference's Reference Resource
+    declaration, so the bundle names the panel the repository declares rather
+    than a second copy of its path.
+    """
+    reference = config.get("completion_reference") or {}
+    if not isinstance(reference, Mapping) or not reference_is_qualified_and_active(reference):
+        return None
+    resource_id = str(reference["resource_id"])
+    path = repo_root / "resources" / "reference-resources" / resource_id / "resource.yaml"
+    if not path.is_file():
+        raise CandidateError(f"completion_reference {resource_id!r} names no Reference Resource: {path} does not exist")
+    declaration = yaml.safe_load(path.read_text(encoding="utf-8"))
+    if not isinstance(declaration, Mapping) or declaration.get("kind") != "ld_panel":
+        raise CandidateError(f"{path}: completion_reference {resource_id!r} is not a kind: ld_panel declaration")
+    location = declaration.get("location")
+    ancestry = declaration.get("ancestry")
+    if not isinstance(location, str) or not location.strip() or not isinstance(ancestry, str) or not ancestry.strip():
+        raise CandidateError(f"{path}: an LD panel for completion declares one 'location' and one 'ancestry'")
+    # complete-dense joins one --ancestry into both the panel path
+    # (<ld-panel>/<ancestry>/<chr>/) and the Analyses' ancestry filter, so the
+    # directory must be named for the ancestry (#219: `ukb` could not be).
+    if declaration.get("ancestry_dir", ancestry) != ancestry:
+        raise CandidateError(
+            f"{path}: ancestry_dir {declaration['ancestry_dir']!r} is not ancestry {ancestry!r}; "
+            f"`opengwasdb {COMPLETE_COMMAND} --ancestry` names both the panel directory and the "
+            "Analyses it completes, so no single value would serve"
+        )
+    return {"command": COMPLETE_COMMAND, "options": {"ld-panel": location, "ancestry": ancestry}}
 
 
 def _index_by_id(rows: Sequence[Mapping[str, str]], what: str) -> dict[str, dict[str, str]]:
@@ -439,17 +515,24 @@ def render_release_yaml(
     }
 
 
-def render_build_yaml(store_id: str, config: Mapping) -> dict:
+def render_build_yaml(store_id: str, config: Mapping, complete: Mapping | None = None) -> dict:
+    """A Build Recipe. `complete` adds the completion phase beside the unchanged build (ADR 0037).
+
+    `post` serves both phases; `complete-dense` builds the Top-Hit Index
+    inline, so the planner gives the completion phase no `top_hits` step.
+    """
     build: dict = {
         "store_id": store_id,
         "layout": "dense",
-        "completion_state": "observed_only",
+        "completion_state": "reference_completed" if complete else "observed_only",
         "build": {
             "command": "build-dense-vcf",
             "options": dict(config.get("build_options") or {}),
         },
-        "post": dict(config.get("post") or {"top_hits": True, "overview": True}),
     }
+    if complete:
+        build["complete"] = dict(complete)
+    build["post"] = dict(config.get("post") or {"top_hits": True, "overview": True})
     indexed = config.get("indexed_subsets")
     if indexed:
         build["indexed_subsets"] = indexed
@@ -533,7 +616,12 @@ def main(argv: list[str] | None = None) -> int:
 
     config = load_config(_resolve(repo_root, args.config))
     document = config.document
-    config_relative = Path(args.config)
+    if document.get("store_id", args.store_id) != args.store_id:
+        raise CandidateError(
+            f"candidate config {config.path} is for {document['store_id']}, not {args.store_id}"
+        )
+    # Before anything is read or written, so a bad reference emits nothing.
+    complete = completion_block(document, repo_root)
 
     inventory_path = Path(args.inventory) if args.inventory else _resolve(repo_root, str(document["inventory"]))
     resolution_path = Path(args.resolution) if args.resolution else _resolve(repo_root, str(document["resolution"]))
@@ -589,7 +677,7 @@ def main(argv: list[str] | None = None) -> int:
         created_at=created_at,
         ancestry_records_identity=ancestry_identity,
     )
-    build = render_build_yaml(args.store_id, document)
+    build = render_build_yaml(args.store_id, document, complete)
     validation = render_validation_yaml(
         n_rows=len(rows),
         n_buildable=n_buildable,
