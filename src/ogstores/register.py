@@ -758,9 +758,16 @@ def forced_completion(release_run: str | None, store_id: str, root: Path | str) 
     but the build phase's publication has moved that snapshot into its archive,
     `replaced/<release_run>/`, by then. So it is the build phase's register
     record, which names that archive, that says the run was forced. A null
-    `replaced_archive`, or another run's archive, means it was not. A record
-    without one, or with one that is neither, is refused rather than read as
-    unforced, which would delete what a forced run archives.
+    `replaced_archive`, or another run's archive, means it was not.
+
+    So does a record with no `replaced_archive` at all. The field arrived with
+    #195, and `register` has written it ever since, so such a record was
+    written by a run before #195; and a forced run reruns the build phase and
+    rewrites `register.json`, so this run did not force it. Every Store
+    published before #195 has such a record, and completing one under its own
+    id (#305) meets it. A `replaced_archive` that is neither text nor null is
+    refused rather than read as unforced, which would delete what a forced run
+    archives.
     """
     if not release_run:
         return False
@@ -768,14 +775,15 @@ def forced_completion(release_run: str | None, store_id: str, root: Path | str) 
     if record is None:
         # Nothing published to replace: `register_release` refuses that itself.
         return False
-    if not isinstance(record.get("replaced_archive", False), (str, type(None))):
+    replaced_archive = record.get("replaced_archive")
+    if not isinstance(replaced_archive, (str, type(None))):
         record_p = paths.record_path(store_id, REGISTER_STEPS[BUILD_PHASE], root=root)
-        found = repr(record["replaced_archive"]) if "replaced_archive" in record else "no `replaced_archive`"
         raise RegisterError(
             f"Cannot tell whether the run {release_run} forced {store_id}: the build phase's register "
-            f"record {record_p} has {found}, not an archive path or null. Nothing was changed."
+            f"record {record_p} has `replaced_archive` {replaced_archive!r}, not an archive path or null. "
+            "Nothing was changed."
         )
-    return record["replaced_archive"] == str(paths.replaced_dir(store_id, release_run, root=root))
+    return replaced_archive == str(paths.replaced_dir(store_id, release_run, root=root))
 
 
 def remove_publication_marker(store_id: str, root: Path | str) -> None:

@@ -1221,22 +1221,19 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         self.assertFalse(register.forced_completion(None, b.store_id, artifact_root), "outside the entry point")
 
     def test_unreadable_force_provenance_is_refused_and_nothing_is_deleted(self) -> None:
-        """A build register record with no `replaced_archive`, or one neither text nor null, is refused (#309).
+        """A build register record whose `replaced_archive` is neither text nor null is refused (#309).
 
         Read as unforced, it would let a forced run's completion phase delete
         the Store it must archive. `force` is computed as the Snakefile's
         `completion_register` computes it.
         """
-        for case, value in (("missing", None), ("a number", 42), ("a list", ["replaced"])):
+        for case, value in (("a number", 42), ("a list", ["replaced"])):
             with self.subTest(case=case):
                 b, stores_root, artifact_root = self.built_and_completed(Path(tempfile.mkdtemp(dir=self.td)))
                 self.publish_build_phase(b, stores_root, artifact_root)
                 register_p = paths.record_path(b.store_id, "register", root=artifact_root)
                 record = json.loads(register_p.read_text())
-                if case == "missing":
-                    del record["replaced_archive"]
-                else:
-                    record["replaced_archive"] = value
+                record["replaced_archive"] = value
                 register_p.write_text(json.dumps(record))
 
                 with self.assertRaises(RegisterError) as ctx:
@@ -1253,6 +1250,114 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
                 self.assertTrue(paths.partial_store_path(b.store_id, root=artifact_root).is_dir())
                 self.assertFalse((paths.store_dir(b.store_id, root=artifact_root) / "replaced").exists())
                 self.assertFalse(paths.publication_marker(b.store_id, root=artifact_root).exists())
+
+    # The key sets of the records Store Release Build wrote before #195, as
+    # every published Store's records/ holds them (OGS-00001, 04, 09 and 11,
+    # read on 21 Oct 2026). register.json has no `replaced_archive`, which
+    # arrived with #195. OGS-00009's step records also carry `skipped` and
+    # `skip_reason`.
+    PRE_195_REGISTER_KEYS = frozenset({
+        "argv", "elapsed_seconds", "end_time", "exit_code", "inputs", "opengwasdb_executable",
+        "opengwasdb_rev", "opengwasdb_version", "outputs", "planned_argv", "published_store",
+        "record_path", "start_time", "stderr", "stdout", "step", "store_id", "success",
+    })
+    PRE_195_STEP_KEYS = PRE_195_REGISTER_KEYS | {"skipped", "skip_reason"}
+
+    def rewrite_record(self, record_p: Path, keys: frozenset[str], **values: Any) -> bytes:
+        """`record_p` with exactly the key set `keys`: `values` set, every other key kept or dropped."""
+        record = {**json.loads(record_p.read_text()), **values}
+        record = {key: value for key, value in record.items() if key in keys}
+        self.assertEqual(set(record), keys)
+        record_p.write_text(json.dumps(record))
+        return record_p.read_bytes()
+
+    def assert_completed_and_deleted(self, b: Bundle, artifact_root: Path, build_register: bytes) -> None:
+        """The completed Store is published; the replaced one is deleted, and its three records archived."""
+        archive = paths.replaced_dir(b.store_id, self.STAMP, root=artifact_root)
+        self.assertEqual((paths.store_path(b.store_id, root=artifact_root) / "version.txt").read_text(), "completed")
+        self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "validation.yaml"])
+        self.assertEqual(
+            sorted(p.name for p in (archive / "records").iterdir()),
+            [f"{OBSERVED_VIEW_CHECK_STEP}.json", "register.json"],
+        )
+        self.assertEqual((archive / "records" / "register.json").read_bytes(), build_register)
+
+    def test_a_build_register_record_from_before_195_completes_unforced(self) -> None:
+        """No `replaced_archive`: written before #195, so no run of this release was forced since (#309).
+
+        Every published Store's register record is like this, so completing
+        a Store built before single-id completion (#305) meets it.
+        """
+        b, stores_root, artifact_root = self.built_and_completed()
+        self.publish_build_phase(b, stores_root, artifact_root)
+        register_p = paths.record_path(b.store_id, "register", root=artifact_root)
+        build_register = self.rewrite_record(register_p, self.PRE_195_REGISTER_KEYS)
+
+        force = register.forced_completion("20261021T130000Z", b.store_id, artifact_root)
+        self.assertIs(force, False)
+        with patch.object(run, "utc_stamp", return_value=self.STAMP):
+            register_release(
+                bundle.load(b.store_id, registry_root=stores_root),
+                registry_root=stores_root,
+                artifact_root=artifact_root,
+                force=force,
+                phase="completion",
+            )
+
+        self.assert_completed_and_deleted(b, artifact_root, build_register)
+
+    def test_build_phase_records_from_before_195_hold_all_the_completion_phase_reads(self) -> None:
+        """The completion phase registers over build-phase records shaped as published Stores' are (#309).
+
+        `build`, `top-hits`, `overview` and `validate` as OGS-00009's records/
+        holds them: their key set, a `validate` run without `--format json`
+        that printed `valid`, and their elapsed seconds. The release's elapsed
+        total counts them, and nothing else in the path reads them.
+        """
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            self.STORE_ID,
+            completion_state="reference_completed",
+            command="complete-dense",
+            options={"ld-panel": "/data/ld", "ancestry": "EUR"},
+            post={"top_hits": True, "rho": False, "overview": True, "validate": True},
+        )
+        self.publish_build_phase(b, stores_root, artifact_root)
+        partial = str(paths.partial_store_path(b.store_id, root=artifact_root))
+        published = {
+            "build": {"elapsed_seconds": 21298.442, "stdout": '{"n_analyses": 2, "n_variants": 1000}\n'},
+            "top-hits": {"elapsed_seconds": 2335.25, "stdout": "done\n"},
+            "overview": {"elapsed_seconds": 1.932, "stdout": f"wrote {partial}/overview.html\n"},
+            "validate": {
+                "elapsed_seconds": 4688.449, "stdout": "valid\n", "argv": ["opengwasdb", "validate", partial],
+            },
+        }
+        for step, values in published.items():
+            self.rewrite_record(
+                paths.record_path(b.store_id, step, root=artifact_root),
+                self.PRE_195_STEP_KEYS,
+                published_store=None,
+                skipped=False,
+                skip_reason=None,
+                **values,
+            )
+        build_register = self.rewrite_record(
+            paths.record_path(b.store_id, "register", root=artifact_root), self.PRE_195_REGISTER_KEYS
+        )
+
+        with patch.object(run, "utc_stamp", return_value=self.STAMP):
+            written = register_release(
+                bundle.load(b.store_id, registry_root=stores_root),
+                registry_root=stores_root,
+                artifact_root=artifact_root,
+                force=register.forced_completion("20261021T130000Z", b.store_id, artifact_root),
+                phase="completion",
+            )
+
+        self.assert_completed_and_deleted(b, artifact_root, build_register)
+        # The four build-phase steps above, then four completion steps of 5 s each.
+        self.assertEqual(written["observed"]["build_elapsed_s"], 28344.073)
+        self.assertEqual(written["status"], "passed")
 
     def test_a_marker_written_before_deletion_existed_still_archives(self) -> None:
         """A pending marker without `replaced_store`, as a crash before #309 left it, archives the Store."""
