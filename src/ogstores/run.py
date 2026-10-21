@@ -1729,6 +1729,20 @@ def execute_step(
     return result
 
 
+def first_json_object(text: str) -> dict[str, Any]:
+    """The verdict a step printed on stdout: the first JSON object in `text` (#306, #309).
+
+    The first, because `execute_step` may capture a step that exits non-zero
+    twice: whatever follows the first object, a second copy or anything else,
+    is not read. Leading whitespace is skipped. Raises ValueError when `text`
+    does not start with a JSON value, or when that value is not an object.
+    """
+    value, _ = json.JSONDecoder().raw_decode(text.lstrip())
+    if not isinstance(value, dict):
+        raise ValueError(f"a JSON {type(value).__name__}, not an object")
+    return value
+
+
 def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
     """Each name in a verdict's `failures`, with its count where the verdict holds one.
 
@@ -1772,9 +1786,7 @@ def observed_view_check_failure(
     if exit_code == 2:
         return f"{where} was refused by {step.argv[1]} (exit 2); verdict: {output}\n{stderr}"
     try:
-        # The first object: a step that exits non-zero has its output captured twice.
-        verdict, _ = json.JSONDecoder().raw_decode(stdout.lstrip())
-        failing = _observed_view_failure_counts(verdict)
+        failing = _observed_view_failure_counts(first_json_object(stdout))
     except (ValueError, KeyError, TypeError) as exc:
         return (
             f"{where} failed with exit code {exit_code}; verdict unreadable: {exc!r}; "
@@ -1893,6 +1905,7 @@ __all__ = [
     "completing_own_stores",
     "execute_step",
     "fault_boundary",
+    "first_json_object",
     "force_requested",
     "forced_by_transaction",
     "forced_releases",
