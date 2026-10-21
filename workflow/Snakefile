@@ -47,7 +47,7 @@ from pathlib import Path
 from snakemake.exceptions import WorkflowError
 
 # `ogstores` is installed editable into the pixi environment (#257).
-from ogstores import bundle, index, manifest, paths, register, resources, run, runtime
+from ogstores import amendment, bundle, index, manifest, paths, register, resources, run, runtime
 from ogstores.plan import (
     BUILD_PHASE,
     COMPLETION_PHASE,
@@ -176,6 +176,18 @@ onstart:
             get_bundle(store_id) for store_id in sorted({sid for _, sid in scheduled})
         )
     except bundle.NotBuildableError as exc:
+        raise WorkflowError(str(exc))
+    # A bundle that completes its own Store and no longer plans the Store it
+    # published is refused, unless forced, beyond the one amendment ADR 0037
+    # allows: gaining a `complete` block (#305).
+    try:
+        amendment.refuse_changed_bundles(
+            sorted({sid for _, sid in scheduled}),
+            registry_root=REGISTRY_ROOT,
+            artifact_root=get_artifact_root(),
+            forced=run.forced_by_transaction(config.get("release_run"), scheduled),
+        )
+    except amendment.AmendmentError as exc:
         raise WorkflowError(str(exc))
     # Completion-phase jobs over the release's own published Observed-Only
     # Store are its next step, not a rebuild of it (#305, ADR 0037).

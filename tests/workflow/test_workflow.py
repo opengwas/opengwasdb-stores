@@ -31,14 +31,18 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    Validation Record; a re-run executes 0 jobs.
 13. Completing a published Observed-Only Store later (#305, ADR 0037): a
    Store built by the workflow as it was before #304 completes, once its
-   bundle gains a `complete` block, with no build-phase job scheduled; an
-   unforced rebuild of an amended release's build phase is still refused;
-   and a forced run of a completed single-id release rebuilds both phases.
+   bundle gains a `complete` block, with no build-phase job scheduled; a
+   bundle that completes its own Store and no longer plans the Store it
+   published is refused before any job runs, naming it, while post steps and
+   observed-only or two-id releases are not checked; an unforced rebuild of an
+   amended release's build phase is still refused; and a forced run of a
+   completed single-id release rebuilds both phases.
 """
 
 from __future__ import annotations
 
 import base64
+import contextlib
 import gzip
 import io
 import json
@@ -54,6 +58,7 @@ import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from unittest import mock
 from typing import Any
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -1919,6 +1924,152 @@ class TestWorkflowCompletingAStoreBuiltBefore304(PublishedReleaseCopies):
             "Nothing was written. To replace one, name its id as a target and add `--config force=1`; the "
             "replaced Store, its records and its validation.yaml are archived under replaced/<UTC>/ beside it "
             "(#195).\n",
+        )
+
+
+class TestWorkflowTheOneAmendmentOfAnAcceptedBundle(PublishedReleaseCopies):
+    """A bundle that completes its own Store allows one amendment only (#305, ADR 0037).
+
+    Gaining a `complete` block is allowed: `TestWorkflowCompletingAStoreBuiltBefore304`
+    shows it runs the completion phase only. Once such a release's build phase
+    has published, its bundle must still plan the Store-writing steps its
+    records ran (`variant-reference`, `build`), with the membership its Store
+    was built from; once its completion phase has published, the `complete`
+    its record ran. Post steps are re-runnable in-place additions, so a new
+    declaration, or a planner that has moved on since, is no change to refuse.
+    Observed-only and two-id releases are not checked, as before #305.
+
+    The cases copy #304's single-id and #303's two-id templates. One refusal
+    goes through the entry point; the others ask `amendment.refuse_changed_bundles`.
+    """
+
+    def single_id_copy(self) -> tuple[Path, Path, str]:
+        template = single_id_completion_template()
+        stores, artifacts = self.published_copy(template["stores"], template["artifacts"])
+        return stores, artifacts, template["store_id"]
+
+    def edit_yaml(self, path: Path, edit) -> None:
+        import yaml
+
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+        edit(document)
+        path.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+    def record_older_planner(self, artifacts: Path, store_id: str, step: str) -> None:
+        """Rewrite a step's record as the planner before `--format json` would have planned it.
+
+        Every production release built before that planner change records its
+        `validate` this way.
+        """
+        record_p = paths.record_path(store_id, step, root=artifacts)
+        written = record_p.stat()
+        record = json.loads(record_p.read_text(encoding="utf-8"))
+        self.assertIn("--format", record["planned_argv"], step)
+        record["planned_argv"] = [t for t in record["planned_argv"] if t not in ("--format", "json")]
+        record_p.write_text(json.dumps(record, indent=2) + "\n", encoding="utf-8")
+        os.utime(record_p, ns=(written.st_atime_ns, written.st_mtime_ns))
+
+    def refusal(self, stores: Path, artifacts: Path, store_id: str) -> str:
+        """What `refuse_changed_bundles` refuses for this release, or "" when it lets it through."""
+        from ogstores import amendment
+
+        try:
+            amendment.refuse_changed_bundles([store_id], registry_root=stores, artifact_root=artifacts)
+        except amendment.AmendmentError as exc:
+            return str(exc)
+        return ""
+
+    def test_observed_only_and_two_id_releases_are_not_checked_even_after_planner_drift(self) -> None:
+        template = two_id_completion_template()
+        stores, artifacts = self.published_copy(template["stores"], template["artifacts"])
+        for store_id in (template["parent_id"], template["child_id"]):
+            self.record_older_planner(artifacts, store_id, "validate")
+
+        res = run_release([template["child_id"]], registry_root=stores, artifact_root=artifacts)
+
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertIn("nothing to be done", res.stdout)
+
+    def test_a_changed_build_argv_is_refused_before_anything_is_written_naming_it(self) -> None:
+        stores, artifacts, store_id = self.single_id_copy()
+        self.edit_yaml(
+            stores / store_id / "build.yaml", lambda doc: doc["build"]["options"].update({"source-assembly": "hg19"})
+        )
+
+        refusal = self.assert_refused_before_any_write(stores, artifacts, store_id)
+
+        self.assertIn(
+            f"{store_id}: build phase step 'build': `--source-assembly hg38` became `--source-assembly hg19`", refusal
+        )
+
+    def test_a_release_another_run_held_at_the_probe_is_checked_once_this_run_holds_it(self) -> None:
+        """No run succeeds without checking every such release it touches, and no dry run hides one it could not.
+
+        The probe says another run holds the release's lock, and that run is
+        gone by the time this one takes the lock: the release is checked then,
+        before any job. Patching the probe stands in for that race, which no
+        timing reproduces.
+        """
+        from ogstores import release
+
+        stores, artifacts, store_id = self.single_id_copy()
+        self.edit_yaml(
+            stores / store_id / "build.yaml", lambda doc: doc["build"]["options"].update({"source-assembly": "hg19"})
+        )
+        words = [store_id, "--cores", "1", "--config", f"registry_root={stores}", f"artifact_root={artifacts}"]
+
+        for dry_run in (False, True):
+            with self.subTest(dry_run=dry_run):
+                out, err = io.StringIO(), io.StringIO()
+                with (
+                    mock.patch.object(release, "held_by_live_runs", return_value=frozenset({store_id})),
+                    contextlib.redirect_stdout(out),
+                    contextlib.redirect_stderr(err),
+                ):
+                    code = release.main([*words, "--dry-run"] if dry_run else words)
+                if dry_run:
+                    self.assertIn(
+                        f"release-dry: {store_id} is held by another run, so its bundle is not checked here", out.getvalue()
+                    )
+                else:
+                    self.assertEqual(code, 1, out.getvalue() + err.getvalue())
+                    self.assertIn("`--source-assembly hg38` became `--source-assembly hg19`", err.getvalue())
+
+    def test_a_new_post_step_or_a_post_step_planned_differently_is_not_refused(self) -> None:
+        stores, artifacts, store_id = self.single_id_copy()
+        self.edit_yaml(stores / store_id / "build.yaml", lambda doc: doc["post"].update({"rho": True}))
+        for step in ("validate", "completion-validate"):
+            self.record_older_planner(artifacts, store_id, step)
+
+        self.assertEqual(self.refusal(stores, artifacts, store_id), "")
+
+    def test_a_changed_membership_is_refused_naming_the_analyses(self) -> None:
+        stores, artifacts, store_id = self.single_id_copy()
+        analyses_p = stores / store_id / "analyses.tsv"
+        header, row = analyses_p.read_text(encoding="utf-8").splitlines()
+        fields = dict(zip(header.split("\t"), row.split("\t"), strict=True))
+        added = {**fields, "analysis_id": "test_analysis_added", "trait_name": "Added Trait"}
+        fields["sample_size"] = "20000"
+        analyses_p.write_text(
+            "\n".join([header, *("\t".join(r[c] for c in header.split("\t")) for r in (fields, added))]) + "\n",
+            encoding="utf-8",
+        )
+
+        self.assertIn(
+            f"{store_id}: membership: analysis 'test_analysis_added' added; "
+            f"analysis 'test_analysis_{store_id}' changed (sample_size)",
+            self.refusal(stores, artifacts, store_id),
+        )
+
+    def test_a_changed_complete_block_is_refused_once_the_completion_has_published(self) -> None:
+        stores, artifacts, store_id = self.single_id_copy()
+        self.edit_yaml(
+            stores / store_id / "build.yaml", lambda doc: doc["complete"]["options"].update({"min-cor": 0.5})
+        )
+
+        self.assertIn(
+            f"{store_id}: completion phase step 'complete': `--min-cor 0.0` became `--min-cor 0.5`",
+            self.refusal(stores, artifacts, store_id),
         )
 
 

@@ -124,9 +124,22 @@ that would rebuild any part of the build phase is refused as before.
 
 **A Store published as Observed-Only can be completed later.** Its accepted
 `observed_only` bundle may gain a `complete` block and switch to
-`completion_state: reference_completed`, the only change an accepted bundle
-allows (ADR 0037). Then `pixi run release <ID>` runs the completion phase
-alone.
+`completion_state: reference_completed`. That is the only change an accepted
+bundle allows (ADR 0037). Then `pixi run release <ID>` runs the completion
+phase alone. For a bundle that completes its own Store, the entry point
+refuses, before any job runs and naming what changed, a bundle that no longer
+plans the Store it published:
+- a different argv for a step that wrote the Store (`variant-reference`,
+  `build`), or such a step added or dropped;
+- a different membership (the derived build manifest, and the Analyses it
+  excludes);
+- once the completion phase has published, a different `complete`.
+
+Post steps are re-runnable in-place additions, so new ones, or ones planned
+differently since, are not refused. Observed-only and two-id releases are not
+checked. `release.yaml`'s prose and provenance are left to review.
+`--config force=1` still rebuilds a named release from its bundle as it now
+stands.
 
 ### Production Execution vs. Fixture-Scale Tests
 

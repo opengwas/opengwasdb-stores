@@ -62,7 +62,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from ogstores import bundle, paths, register, resources, run, runtime
+from ogstores import amendment, bundle, paths, register, resources, run, runtime
 
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
 
@@ -471,6 +471,11 @@ def lock_holder(store_id: str, root: Path | str) -> str | None:
         os.close(fd)
 
 
+def held_by_live_runs(registry_root: Path, root: Path | str) -> frozenset[str]:
+    """The registered releases whose lock a live run holds; it reads, never writes."""
+    return frozenset(store_id for store_id in registered_ids(registry_root) if lock_holder(store_id, root) is not None)
+
+
 def release_outputs(store_id: str, root: Path | str) -> list[Path]:
     """The outputs Snakemake may mark incomplete for a release: its records and derived manifest."""
     records = paths.records_dir(store_id, root=root)
@@ -653,11 +658,27 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     scheduled = scheduled_releases(result.stdout + result.stderr)
     jobs = scheduled_jobs(result.stdout + result.stderr)
     try:
-        _, left_out = resolve_targets(inv, registry_root)
+        requested, left_out = resolve_targets(inv, registry_root)
         bundle.refuse_unbuildable(_bundles(registry_root, (store_id for _, store_id in scheduled)))
     except bundle.NotBuildableError as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
         return result.returncode
+    try:
+        unchecked = amendment.refuse_changed_bundles(
+            requested,
+            registry_root=registry_root,
+            artifact_root=root,
+            forced=run.forced_releases(force, inv.targets),
+            held=held_by_live_runs(registry_root, root),
+        )
+    except amendment.AmendmentError as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
+        return result.returncode
+    for store_id in sorted(unchecked):
+        print(
+            f"release-dry: {store_id} is held by another run, so its bundle is not checked here; "
+            "the real run checks it once it holds the release's lock"
+        )
     for refusal in left_out:
         print(f"release-dry: left out of `all`: {refusal}")
     busy = {}
@@ -715,6 +736,7 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
 
 GUARD_ERRORS: tuple[type[BaseException], ...] = (
     bundle.NotBuildableError,
+    amendment.AmendmentError,
     ReleaseInProgressError,
     run.StoreExistsError,
     run.ForceSnapshotPendingError,
@@ -734,8 +756,27 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     requested, left_out = resolve_targets(inv, registry_root)
     for refusal in left_out:
         print(f"release: left out of `all`: {refusal}")
-    for store_id in sorted(requested):
+    # So is a bundle that no longer plans the Store it published, beyond the
+    # one amendment ADR 0037 allows, gaining a `complete` block (#305). One
+    # another live run holds has records that run may be rewriting: it is
+    # checked once this run holds its lock, before any job, or the run is
+    # refused as in progress.
+    held = amendment.refuse_changed_bundles(
+        requested,
+        registry_root=registry_root,
+        artifact_root=root,
+        forced=run.forced_releases(force, inv.targets),
+        held=held_by_live_runs(registry_root, root),
+    )
+    for store_id in sorted({*requested, *held}):
         locks.acquire(store_id)
+    amendment.refuse_changed_bundles(
+        held,
+        registry_root=registry_root,
+        artifact_root=root,
+        forced=run.forced_releases(force, inv.targets),
+        parents=False,
+    )
     for message in recover_releases(inv, registry_root, root, locks):
         print(message)
     # A leftover snapshot is refused before the dry run, so an operator sees the
@@ -873,6 +914,7 @@ __all__ = [
     "SNAPSHOT_RESOLUTIONS",
     "UsageError",
     "finish_publication",
+    "held_by_live_runs",
     "lock_holder",
     "main",
     "parse_invocation",
