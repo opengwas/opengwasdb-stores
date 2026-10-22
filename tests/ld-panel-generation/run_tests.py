@@ -396,6 +396,24 @@ def test_conversion_markers() -> None:
           "a marker naming other members must not match")
 
 
+def test_run_all_stops_on_first_failure() -> None:
+    # #354: a failing stage must stop the queue, not drain it. A subprocess
+    # already reading a chromosome finishes; one not yet started never runs.
+    ran: list[int] = []
+    def fail_first(item: int) -> None:
+        ran.append(item)
+        if item == 0: raise RuntimeError("conversion failed")
+    try:
+        panel.run_all(fail_first, [0, 1, 2, 3], workers=1)
+        check(False, "run_all swallowed the first failure")
+    except RuntimeError as exc:
+        check(str(exc) == "conversion failed", f"run_all raised a different exception: {exc}")
+    check(ran == [0], f"a queued item ran after the first failure: {ran}")
+    done: list[int] = []
+    panel.run_all(done.append, [9, 10, 11, 12], workers=2)
+    check(sorted(done) == [9, 10, 11, 12], f"run_all did not run every item: {done}")
+
+
 def test_canonical_effect_allele_ld_orientation() -> None:
     dosage = np.tile([0.0, 1.0, 2.0, 1.0], 10)
     # PLINK exports ALT dosage. Variant 1's canonical effect allele is ALT,
@@ -551,7 +569,7 @@ def test_plink_raw_input() -> None:
 def main() -> None:
     test_block(); test_maf_floor(); test_alid_collisions(); test_call_rate(); test_run_panels_floor_resume()
     test_verify_block(); test_heldout_calibration(); test_pair_records(); test_panel_summary()
-    test_conversion_markers()
+    test_conversion_markers(); test_run_all_stops_on_first_failure()
     test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_amr_regions(); test_amr_pilot_mapping(); test_amr_pilot_membership()
     test_index_validation(); test_compressed_pvar_input()

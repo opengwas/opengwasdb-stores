@@ -29,7 +29,9 @@ Run it under ``taskset`` with at most --cpus CPUs, and PYTHONNOUSERSITE=1.
 from __future__ import annotations
 
 import argparse, csv, json, os, subprocess, sys
-from concurrent.futures import ThreadPoolExecutor
+from collections.abc import Callable, Iterable
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from typing import TypeVar
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -40,6 +42,8 @@ from materialize_reference import VCF, conversion_command
 from run_amr_pilot import (AMR, HERE, PILOT, Steps, calibration_summary, directory_bytes, environment,
                            read_ids, reconcile_membership, revision, sha256, source_identity, utc)
 
+T = TypeVar("T")
+
 
 def block_label(row: dict[str, str]) -> str: return f"{row['chr']}_{row['start']}-{row['end']}"
 
@@ -48,6 +52,29 @@ def block_label(row: dict[str, str]) -> str: return f"{row['chr']}_{row['start']
 # MAC, nothing about which members. Markers are read, never rewritten, so it is
 # still what the built panel carries.
 LEGACY_MARKER = "plink2 PASS-only biallelic conversion of the AMR members; MAC >= 1"
+
+
+def run_all(fn: Callable[[T], object], items: Iterable[T], workers: int) -> None:
+    """Run ``fn`` over ``items`` on at most ``workers`` threads, all or nothing.
+
+    Submissions stay at most ``workers`` deep, so the first exception -- a step's
+    SystemExit, or Ctrl-C's KeyboardInterrupt -- cancels everything still queued
+    and no further item starts. Items whose subprocess is already running finish
+    before the exception leaves here: killing plink2 mid-chromosome would leave
+    a half-written PGEN for the next run to trip over (#354).
+    """
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        pending: set[Future[object]] = set()
+        try:
+            for item in items:
+                pending.add(pool.submit(fn, item))
+                if len(pending) < workers: continue
+                done, pending = wait(pending, return_when=FIRST_COMPLETED)
+                for future in done: future.result()
+            for future in pending: future.result()
+        except BaseException:
+            pool.shutdown(cancel_futures=True)
+            raise
 
 
 def conversion_marker(pass_only: bool, mac: int | None, members_sha: str | None) -> str:
@@ -237,8 +264,7 @@ def main() -> int:
             if not marker_matches(marker.read_text(), expected_marker):
                 raise SystemExit(f"pgen/AMR/chr{chrom}.complete records a different conversion "
                                  f"({marker.read_text().strip()}); refusing to reconvert chr{chrom}")
-        with ThreadPoolExecutor(max_workers=args.readers) as pool:
-            for future in [pool.submit(convert, c) for c in pending]: future.result()
+        run_all(convert, pending, args.readers)
         receipt["conversion"] = {c: conversion_counts(out / "pgen/AMR" / f"chr{c}.log") for c in chromosomes}
 
         # 3. Construction.
@@ -259,8 +285,7 @@ def main() -> int:
                 "--keep", str(members / "AMR.keep"), "--chrom", row["chr"], "--start", row["start"],
                 "--end", row["end"], "--base", str(base(row)),
                 "--out", str(out / "verify" / f"{block_label(row)}.json")], check=False)
-        with ThreadPoolExecutor(max_workers=args.jobs) as pool:
-            list(pool.map(verify, [r for r in built if not verified(r)]))
+        run_all(verify, [r for r in built if not verified(r)], args.jobs)
         steps.run("underresolved_0.9", [py, str(HERE / "find_underresolved_blocks.py"), "--panel", str(out / "panel"),
                                         "--ancestry", "AMR", "--thresh", "0.9",
                                         "--out", str(out / "verify/underresolved_0.9.txt")])
