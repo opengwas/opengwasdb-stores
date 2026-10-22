@@ -27,7 +27,8 @@ chromosome carries a JSON .complete marker naming its QC and members hash; one
 recording a different conversion refuses rather than being reconverted.
 run_panels skips valid blocks built under the same floor, a block already
 verified clean since it was built is not verified again, and a calibration
-result newer than its chromosome's conversion is reused. Each invocation writes
+result newer than its chromosome's conversion and recorded under the same
+settings is reused. Each invocation writes
 runs/<UTC>/receipt.json and runs/<UTC>/regions.tsv; summary.json covers the
 whole declared panel, not only the chromosomes this invocation touched.
 
@@ -128,8 +129,29 @@ def marker_matches(text: str, expected: str) -> bool:
     return (text == LEGACY_MARKER and described.get("pass_only") is True and described.get("mac") == 1)
 
 
+def calibration_current(result: Path, converted: Path, *, maf: float, max_missing: float,
+                        replicates: int) -> bool:
+    """Whether ``result`` measured this conversion under this run's settings.
+
+    A result is current only when it is newer than the chromosome's ``.complete``
+    marker and records the same MAF floor, call-rate ceiling and replicate count.
+    Changing any of those leaves the conversion -- and so its marker -- untouched,
+    and a result measured from an earlier conversion is not a measurement of this
+    one (#354).
+    """
+    if not (converted.exists() and result.exists()
+            and result.stat().st_mtime > converted.stat().st_mtime):
+        return False
+    try:
+        recorded = json.loads(result.read_text()).get("settings") or {}
+    except (OSError, json.JSONDecodeError):
+        return False
+    return all(recorded.get(name) == value for name, value in
+               (("maf_threshold", maf), ("max_missing_rate", max_missing), ("replicates", replicates)))
+
+
 def panel_summary(out: Path, regions_file: Path, calibration: list[dict[str, str]], run: Path, *,
-                  maf: float, max_missing: float, n_individuals: int) -> dict[str, object]:
+                  maf: float, max_missing: float, replicates: int, n_individuals: int) -> dict[str, object]:
     """The panel as it stands, over every invocation so far.
 
     Declared blocks come from the full regions file, not from the --chromosomes
@@ -141,9 +163,11 @@ def panel_summary(out: Path, regions_file: Path, calibration: list[dict[str, str
     A verification report counts only when it is younger than the provenance of
     the block it verified: a rebuilt block is unverified until re-verified, and
     saying so beats crediting its predecessor's report (#354). Calibration
-    follows the same rule against the chromosome's conversion marker: only a
-    newer result is a measurement, a step that ran and left none is reported as
-    failed with its log, and a result no attempt this run credited is stale.
+    follows the same rule against the chromosome's conversion marker and the
+    settings it recorded: only a newer result measured under this run's MAF
+    floor, call-rate ceiling and replicate count is a measurement, a step that
+    ran and left none is reported as failed with its log, and a result no
+    attempt this run credited is stale.
     """
     with regions_file.open(newline="") as fh: regions = list(csv.DictReader(fh, delimiter="\t"))
     failed: dict[str, str] = {}
@@ -176,14 +200,17 @@ def panel_summary(out: Path, regions_file: Path, calibration: list[dict[str, str
         converted = out / "pgen/AMR" / f"chr{row['chr']}.complete"
         log = run / "logs" / f"calibrate_{label}.log"
         # The same freshness rule the run step resumes on: a result measured
-        # from an earlier conversion is not a measurement of this one.
-        fresh = result.exists() and converted.exists() and result.stat().st_mtime > converted.stat().st_mtime
-        if fresh:
+        # from an earlier conversion, or under other settings, is not a
+        # measurement of this one.
+        current = calibration_current(result, converted, maf=maf, max_missing=max_missing,
+                                      replicates=replicates)
+        if current:
             calibrations[label] = calibration_summary(json.loads(result.read_text()))
         elif log.exists():
-            # The step ran and left no fresher result, so the file on disk (if
-            # any) measures the conversion it replaced: name the log rather than
-            # publishing it (#354 fix round 1).
+            # The step ran and left no current result, so the file on disk (if
+            # any) measures another conversion or other QC: name the log rather
+            # than publishing it (a result measured from an earlier conversion
+            # is not a measurement of this one, #354).
             calibrations[label] = {"failed": str(log)}
         else:
             # Nothing ran, so what is on disk was not measured from this
@@ -329,12 +356,14 @@ def main() -> int:
                                         "--out", str(out / "verify/underresolved_0.9.txt")])
 
         # 5. Held-out calibration on the pilot's blocks, under the final QC. A
-        # result newer than the conversion it was measured from is reused: it
-        # costs replicates x two panels per block, and nothing else changed.
+        # result newer than the conversion it was measured from and recorded
+        # under the same settings is reused: it costs replicates x two panels
+        # per block, and nothing else changed.
         for row in calibration:
             label, result = block_label(row), out / "calibration" / f"{block_label(row)}.json"
             converted = out / "pgen/AMR" / f"chr{row['chr']}.complete"
-            if result.exists() and converted.exists() and result.stat().st_mtime > converted.stat().st_mtime:
+            if calibration_current(result, converted, maf=args.maf, max_missing=args.max_missing,
+                                   replicates=args.replicates):
                 continue
             # check=False: a failed calibration is reported as {"failed": log} in
             # the summary, not a reason to abandon the rest of the panel.
@@ -347,7 +376,8 @@ def main() -> int:
 
         # The panel as it stands, over every invocation so far.
         summary = panel_summary(out, args.regions, calibration, run, maf=args.maf,
-                                max_missing=args.max_missing, n_individuals=len(amr))
+                                max_missing=args.max_missing, replicates=args.replicates,
+                                n_individuals=len(amr))
         receipt["status"] = "completed"
     except BaseException as exc:
         receipt["status"] = f"stopped: {exc}"
