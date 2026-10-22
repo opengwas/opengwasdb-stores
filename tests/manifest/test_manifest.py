@@ -544,6 +544,20 @@ class TestBuildManifestIsCurrent(unittest.TestCase):
         self.source.write_text(original + "d\t3\t\t\n", encoding="utf-8")
         self.assertFalse(self.current())
 
+    def test_a_manifest_with_other_line_endings_is_not_current(self) -> None:
+        self.manifest.write_bytes(self.manifest.read_bytes().replace(b"\n", b"\r\n"))
+        self.assertFalse(self.current())
+
+    def test_a_quoted_cell_holding_a_newline_is_current_against_its_own_materialisation(self) -> None:
+        write_tsv(
+            self.source,
+            self.COLUMNS,
+            [{"analysis_id": "a", "analysis_index": "0", "inclusion_reason": '"two\nlines"'}],
+        )
+        materialise_build_manifest(self.source, self.manifest, self.sidecar)
+        self.assertIn(b"two\nlines", self.manifest.read_bytes())
+        self.assertTrue(self.current())
+
     def test_a_missing_output_or_a_source_that_cannot_be_materialised_is_not_current(self) -> None:
         self.assertFalse(self.current(self.dir / "absent.tsv"))
         self.source.write_text("analysis_id\n", encoding="utf-8")

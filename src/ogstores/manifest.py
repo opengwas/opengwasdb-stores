@@ -199,11 +199,11 @@ def build_manifest_is_current(
         return False
     try:
         result, manifest_text = _derive_build_manifest(source_path, manifest, sidecar)
-        existing_manifest = manifest.read_text(encoding="utf-8")
+        existing_manifest = manifest.read_bytes()
         existing_sidecar = json.loads(sidecar.read_text(encoding="utf-8"))
     except (ManifestError, OSError, ValueError):
         return False
-    if not isinstance(existing_sidecar, dict) or existing_manifest != manifest_text:
+    if not isinstance(existing_sidecar, dict) or existing_manifest != manifest_text.encode("utf-8"):
         return False
     wanted = result.to_dict()
     for key in _SIDECAR_PROVENANCE_PATHS:

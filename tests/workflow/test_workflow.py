@@ -968,6 +968,42 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
             self.records_of(paths.store_dir(store_id, root=self.artifact_root) / "work"), work_before
         )
 
+    def assert_scheduled_and_refused(self, store_id: str) -> None:
+        dry = run_release([store_id, "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        scheduled = scheduled_targets(dry.stdout)
+        self.assertIn("analyses.exclusions", scheduled, dry.stdout)
+        self.assertIn("build", scheduled, dry.stdout)
+        self.assertIn("would refuse", dry.stdout)
+        res = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("Nothing was written", res.stderr)
+
+    def test_changed_content_with_an_older_mtime_still_schedules_the_build_and_is_refused(self) -> None:
+        """A content mismatch invalidates the job whatever the mtimes say (#339)."""
+        self.use_completed_build()
+        analyses_p = self.stores_dir / self.STORE_ID / "analyses.tsv"
+        analyses_p.write_text(analyses_p.read_text(encoding="utf-8").replace("Test Trait", "Other Trait"), encoding="utf-8")
+        os.utime(analyses_p, ns=(10**9, 10**9))
+        self.assert_scheduled_and_refused(self.STORE_ID)
+
+    def test_a_corrupt_sidecar_with_older_mtimes_schedules_the_build_and_is_refused(self) -> None:
+        self.use_completed_build()
+        sidecar = paths.build_manifest_sidecar_path(self.STORE_ID, root=self.artifact_root)
+        written = sidecar.stat()
+        sidecar.write_text("{not json", encoding="utf-8")
+        os.utime(sidecar, ns=(written.st_atime_ns, written.st_mtime_ns))
+        self.assert_scheduled_and_refused(self.STORE_ID)
+
+    def test_identical_content_schedules_nothing_whatever_the_mtimes(self) -> None:
+        self.use_completed_build()
+        analyses_p = self.stores_dir / self.STORE_ID / "analyses.tsv"
+        for ns in (10**9, 4 * 10**18):
+            os.utime(analyses_p, ns=(ns, ns))
+            dry = run_release([self.STORE_ID, "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+            self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+            self.assertEqual(scheduled_targets(dry.stdout), [], dry.stdout)
+
     def test_a_registry_file_with_changed_content_schedules_the_build_and_is_refused(self) -> None:
         store_id = self.STORE_ID
         self.use_completed_build()

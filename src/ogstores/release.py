@@ -62,7 +62,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from ogstores import amendment, bundle, paths, register, resources, run, runtime
+from ogstores import amendment, bundle, manifest, paths, register, resources, run, runtime
 from ogstores.plan import plan as plan_steps
 
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
@@ -225,6 +225,49 @@ def forced_run_outputs(forced: Iterable[str], registry_root: Path, root: Path) -
             outputs.append(str(manifest_p))
         outputs.append(str(paths.record_path(store_id, first.name, root=root)))
     return outputs
+
+
+def stale_manifest_outputs(store_ids: Iterable[str], registry_root: Path, root: Path) -> list[str]:
+    """The build manifests whose `work/` copies the bundle would no longer produce (#339).
+
+    Snakemake decides by mtime, so a changed `analyses.tsv` with an older mtime,
+    or a sidecar it cannot read, would schedule nothing. Each named release
+    (and the parents it derives from) whose manifest and sidecar exist but
+    are not `manifest.build_manifest_is_current` has its manifest named here,
+    to be rerun with everything downstream. Nothing is written.
+    """
+    registered = set(registered_ids(registry_root))
+    outputs: list[str] = []
+    seen: set[str] = set()
+    pending = [store_id for store_id in store_ids if store_id in registered]
+    while pending:
+        store_id = pending.pop()
+        if store_id in seen:
+            continue
+        seen.add(store_id)
+        b = bundle.load(store_id, registry_root=registry_root)
+        if b.derived_from and b.derived_from in registered:
+            pending.append(b.derived_from)
+        manifest_p = paths.build_manifest_path(store_id, root=root)
+        sidecar_p = paths.build_manifest_sidecar_path(store_id, root=root)
+        if not (manifest_p.is_file() and sidecar_p.is_file()):
+            continue
+        if manifest_p in plan_steps(b, artifact_root=root)[0].inputs and not manifest.build_manifest_is_current(
+            b.analyses_path, manifest_p, sidecar_p
+        ):
+            outputs.append(str(manifest_p))
+    return sorted(outputs)
+
+
+def force_run_files(inv: Invocation, force: bool, registry_root: Path, root: Path) -> list[str]:
+    """Everything the entry point reruns whatever Snakemake's mtimes say: forced releases and stale manifests."""
+    try:
+        named, _ = resolve_targets(inv, registry_root)
+    except bundle.NotBuildableError:
+        named = []  # refused, with its reason, by the caller's own check
+    files = forced_run_outputs(run.forced_releases(force, inv.targets), registry_root, root)
+    files += stale_manifest_outputs(named, registry_root, root)
+    return list(dict.fromkeys(files))
 
 
 def snakemake_argv(
@@ -718,7 +761,7 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
         snakemake_argv(
             inv,
             dry_run=True,
-            force_run=forced_run_outputs(run.forced_releases(force, inv.targets), registry_root, root),
+            force_run=force_run_files(inv, force, registry_root, root),
         ),
         cwd=snakemake_directory(), env=snakemake_env(root, create=False),
         capture_output=True, text=True
@@ -860,7 +903,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     # refusal and its resolutions, not the IncompleteFilesException it causes.
     run.refuse_pending_force_snapshots([(root, store_id) for store_id in requested])
 
-    force_run = forced_run_outputs(run.forced_releases(force, inv.targets), registry_root, root)
+    force_run = force_run_files(inv, force, registry_root, root)
     plan = subprocess.run(
         snakemake_argv(inv, dry_run=True, force_run=force_run),
         cwd=snakemake_directory(), env=snakemake_env(root, create=False),
