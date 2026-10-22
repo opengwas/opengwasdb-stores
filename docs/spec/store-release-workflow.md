@@ -934,19 +934,16 @@ resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
                                the code is
                                src/manifest_generation/source_inventory.py.
 
-resources/generators/<family-id>/
+resources/generators/<generator>/
     README.md                  the exact commands
-    config-<label>.yaml
-    inventory.py               freeze a Source Inventory, then preflight it
-    generate.R|py              inventory + config -> stores/OGS-xxxxx/
-
-resources/generators/lib/                  shared helpers
-resources/generators/lib/source-formats/   Source-Format-scoped generation code
+    release-<label>.yaml       the release config: identity, Selection, Build Recipe shape
+    connectors/                the Source Metadata Table and Acquisition Manifest it freezes
+    generation-*.yaml          what a run recorded
 ```
 
-The entry-point directory is scoped to the generator's historical family slug (ADR 0028), while the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
+A generator's directory is scoped to its historical family slug (ADR 0028); the code that reads it is the shared pipeline, and a source plugs in through the connector files, not through code the pipeline calls (ADR 0036). This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
 
-A generator has the same shape as the build workflow: discover upstream, select rows, shell out to `opengwasdb` for the statistics, write the bundle.
+Manifest Generation has the same shape as the build workflow: freeze, resolve through `opengwasdb`, decide the release policy, render, emit.
 
 ### The Source Inventory seam
 

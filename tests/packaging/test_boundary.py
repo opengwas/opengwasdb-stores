@@ -4,7 +4,7 @@
 The two workflows meet only at the Release Bundle. Store Release Build is
 `src/ogstores`, `workflow/Snakefile` and `workflow/release.py`; Manifest
 Generation is the `manifest_generation` package (`src/manifest_generation`),
-plus the legacy R generators under `resources/generators/` until they retire.
+plus the R metadata resolvers that remain under `resources/generators/`.
 Store Release Build may not import either, or run them by module or by path.
 
 Store Release Build also reads nothing from the shared resolution area where
@@ -33,7 +33,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 # covers `resources.generators` and anything else a generator might import.
 GENERATION_MODULES = re.compile(r"^(manifest_generation|resources)(\.|$)")
 # ... and as a string handed to a subprocess: `-m manifest_generation...`, or
-# a path into the package or the legacy generators.
+# a path into the package or into resources/generators.
 GENERATION_PATHS = re.compile(r"manifest_generation|resources/generators")
 
 # What a reference to the shared resolution area (#284) looks like by name: its
