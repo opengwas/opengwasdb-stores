@@ -140,7 +140,10 @@ def panel_summary(out: Path, regions_file: Path, calibration: list[dict[str, str
     anything else is a failure -- because only the files survive across runs.
     A verification report counts only when it is younger than the provenance of
     the block it verified: a rebuilt block is unverified until re-verified, and
-    saying so beats crediting its predecessor's report (#354).
+    saying so beats crediting its predecessor's report (#354). Calibration
+    follows the same rule against the chromosome's conversion marker: only a
+    newer result is a measurement, a step that ran and left none is reported as
+    failed with its log, and a result no attempt this run credited is stale.
     """
     with regions_file.open(newline="") as fh: regions = list(csv.DictReader(fh, delimiter="\t"))
     failed: dict[str, str] = {}
@@ -170,10 +173,22 @@ def panel_summary(out: Path, regions_file: Path, calibration: list[dict[str, str
     calibrations: dict[str, object] = {}
     for row in calibration:
         label, result = block_label(row), out / "calibration" / f"{block_label(row)}.json"
-        # A step that exited non-zero wrote no result: name its log rather than
-        # letting the block look uncalibrated.
-        calibrations[label] = (calibration_summary(json.loads(result.read_text())) if result.exists()
-                               else {"failed": str(run / "logs" / f"calibrate_{label}.log")})
+        converted = out / "pgen/AMR" / f"chr{row['chr']}.complete"
+        log = run / "logs" / f"calibrate_{label}.log"
+        # The same freshness rule the run step resumes on: a result measured
+        # from an earlier conversion is not a measurement of this one.
+        fresh = result.exists() and converted.exists() and result.stat().st_mtime > converted.stat().st_mtime
+        if fresh:
+            calibrations[label] = calibration_summary(json.loads(result.read_text()))
+        elif log.exists():
+            # The step ran and left no fresher result, so the file on disk (if
+            # any) measures the conversion it replaced: name the log rather than
+            # publishing it (#354 fix round 1).
+            calibrations[label] = {"failed": str(log)}
+        else:
+            # Nothing ran, so what is on disk was not measured from this
+            # conversion and must not read as one.
+            calibrations[label] = {"stale": str(result)}
     underresolved = out / "verify/underresolved_0.9.txt"
     return {
         "blocks_declared": len(regions),

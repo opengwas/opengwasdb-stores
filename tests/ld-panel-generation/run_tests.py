@@ -352,9 +352,26 @@ def test_panel_summary() -> None:
         regions = out / "regions.tsv"
         regions.write_text("chr\tstart\tend\tancestry\n22\t100\t200\tAMR\n22\t300\t400\tAMR\n"
                            "22\t500\t600\tAMR\n22\t700\t800\tAMR\n")
+        # Calibration follows the same freshness rule as the run step: only a
+        # result newer than the conversion it was measured from is a measurement.
+        marker = out / "pgen/AMR/chr22.complete"
+        marker.parent.mkdir(parents=True)
+        marker.write_text(panel.conversion_marker(True, 1, "0" * 64))
+        converted = marker.stat().st_mtime
+        (out / "calibration").mkdir()
+        for label, offset in (("22_100-200", 60), ("22_300-400", -60)):
+            result = out / "calibration" / f"{label}.json"
+            result.write_text(json.dumps({"n_train": 1, "n_test": 1, "n_shared_variants": 0,
+                                          "n_alid_record_mismatch": 0, "skipped": "fixture"}))
+            os.utime(result, (converted + offset, converted + offset))
         run = out / "runs/20261022T000000Z"
-        summary = panel.panel_summary(out, regions, [{"chr": "22", "start": "500", "end": "600"}], run,
-                                      maf=.01, max_missing=.2, n_individuals=g.shape[0])
+        (run / "logs").mkdir(parents=True)
+        (run / "logs/calibrate_22_500-600.log").write_text("exited 2\n")
+        summary = panel.panel_summary(
+            out, regions, [{"chr": "22", "start": "100", "end": "200"},
+                           {"chr": "22", "start": "300", "end": "400"},
+                           {"chr": "22", "start": "500", "end": "600"}], run,
+            maf=.01, max_missing=.2, n_individuals=g.shape[0])
         blocks = summary["blocks"]
         check(sorted(blocks) == ["22_100-200", "22_300-400", "22_500-600", "22_700-800"] and
               summary["blocks_declared"] == 4,
@@ -367,9 +384,16 @@ def test_panel_summary() -> None:
         check(blocks["22_500-600"]["status"] == "empty", "a block with no variants left must read as empty")
         check(blocks["22_700-800"] == {"status": "failed", "error": "not built"},
               "a declared block with neither outputs nor an error must read as failed")
-        # A calibration step that wrote no result is a failure, not an absence.
-        check(summary["calibration"] == {"22_500-600": {"failed": str(run / "logs/calibrate_22_500-600.log")}},
-              f"a missing calibration result must be reported as failed: {summary['calibration']}")
+        calibration = summary["calibration"]
+        check(calibration["22_100-200"] == {"n_train": 1, "n_test": 1, "n_shared_variants": 0,
+                                            "n_alid_record_mismatch": 0, "skipped": "fixture"},
+              f"a result newer than its conversion must be reported as a measurement: {calibration['22_100-200']}")
+        # #354 fix round 1: a retry that fails leaves the earlier result on disk,
+        # and publishing it would report a measurement of the previous conversion.
+        check(calibration["22_300-400"] == {"stale": str(out / "calibration/22_300-400.json")},
+              f"a result older than its conversion must not be published: {calibration['22_300-400']}")
+        check(calibration["22_500-600"] == {"failed": str(run / "logs/calibrate_22_500-600.log")},
+              f"a calibration this run attempted is reported as failed: {calibration['22_500-600']}")
 
 
 def test_conversion_markers() -> None:
