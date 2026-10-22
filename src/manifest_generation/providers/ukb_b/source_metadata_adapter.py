@@ -14,12 +14,13 @@ joins the two into the canonical Source Metadata Table the shared freeze reads
 and a release config beside it.
 
 It reuses the resolution the restored inventory already recorded
-(``providers.ukb_b.provider_metadata``): ``resolve_record`` applies the live
-resolver's contract to one provider JSON with the exact-ID check (``json.id``
-must be the frozen analysis id) and the batch check (``ukb-b``), and
-``build_resolution_rows`` derives the study design, the total sample size and
-the case/control counts from it. What the adapter adds is the *canonical*
-projection and the refusals:
+(``providers.ukb_b.provider_metadata``): ``read_provider_records`` applies the
+live resolver's contract to each provider JSON with the exact-ID check
+(``json.id`` must be the frozen analysis id) and the batch check (``ukb-b``),
+and hands back a ``ProviderRecord`` carrying the study design, the total sample
+size, the case/control counts, the provider's own trait label, population and
+author. The adapter projects the canonical table from those records directly
+(#282 review); it adds the *refusals*:
 
 - **Intent is the declared selection.** Every declared Analysis must have a
   provider JSON, and no other Analysis is written. A declared id listed twice,
@@ -72,7 +73,7 @@ from typing import Mapping, Sequence
 from manifest_generation import REPO_ROOT
 from manifest_generation.connector_tsv import listed, raise_problems, write_connector
 from manifest_generation.providers.ukb_b.provider_metadata import (
-    build_resolution_rows,
+    ProviderRecord,
     read_provider_records,
 )
 from manifest_generation.source_ancestry import (
@@ -206,33 +207,32 @@ def convert(
 
 def convert_rows(
     declared_by_id: Mapping[str, Mapping[str, str]],
-    records: Mapping[str, object],
+    records: Mapping[str, ProviderRecord],
     translation: SourceLabelTranslation,
 ) -> list[dict[str, str]]:
-    """The canonical rows for ``declared_by_id``'s Analyses, in declared order."""
-    resolved = {
-        row["analysis_id"]: row
-        for row in build_resolution_rows(
-            records,  # type: ignore[arg-type]
-            inclusion_reason="all ukb-b traits in the OpenGWAS IGD collection (data/ukb-b/manifest.tsv)",
-        )
-    }
+    """The canonical rows for ``declared_by_id``'s Analyses, in declared order.
+
+    Each row is read off the Analysis's ``ProviderRecord`` -- the provider JSON's
+    own trait label, population and author, and the resolution contract's
+    sample-size kind and counts -- so no intermediate projection stands between
+    the source and the canonical table (#282 review).
+    """
     rows: list[dict[str, str]] = []
     problems: list[str] = []
     for analysis_id, declared in declared_by_id.items():
-        resolution = resolved.get(analysis_id)
-        if resolution is None:  # pragma: no cover - read_provider_records covers every id
+        record = records.get(analysis_id)
+        if record is None:  # pragma: no cover - read_provider_records covers every id
             problems.append(f"{analysis_id}: no provider record")
             continue
         declared_label = (declared.get("source_label") or "").strip()
-        provider_label = resolution["source_label"].strip()
+        provider_label = record.trait.strip()
         if declared_label and declared_label != provider_label:
             problems.append(
                 f"{analysis_id}: declared Source Trait Label {declared_label!r} is not the "
                 f"provider's {provider_label!r}"
             )
             continue
-        ancestry_label = resolution["source_ancestry_label"].strip()
+        ancestry_label = record.population.strip()
         try:
             superpopulation = translation.superpopulation(ancestry_label)
         except UnknownSourceAncestryLabel as exc:
@@ -244,11 +244,10 @@ def convert_rows(
                 "to no super-population"
             )
             continue
-        record = records[analysis_id]
         # The raw value: a provider JSON `null` is an absent author, never the
         # string `str(None)` (#289 review). `provider_metadata` already reads it
         # that way; this keeps the adapter honest on its own too.
-        first_author = (getattr(record, "author", "") or "").strip()
+        first_author = (record.author or "").strip()
         if not first_author:
             problems.append(
                 f"{analysis_id}: provider JSON records no author, and a first author has no "
@@ -256,7 +255,7 @@ def convert_rows(
             )
             continue
         study_design = (
-            "case-control" if resolution["sample_size_kind"] == "case_control" else "quantitative"
+            "case-control" if record.sample_size_kind == "case_control" else "quantitative"
         )
         rows.append(
             {
@@ -266,9 +265,9 @@ def convert_rows(
                 "source_ancestry_label": ancestry_label,
                 "source_superpopulation": superpopulation,
                 "study_design": study_design,
-                "sample_size": resolution["sample_size"],
-                "n_cases": resolution["n_cases"] if study_design == "case-control" else "",
-                "n_controls": resolution["n_controls"] if study_design == "case-control" else "",
+                "sample_size": record.sample_size,
+                "n_cases": record.n_cases if study_design == "case-control" else "",
+                "n_controls": record.n_controls if study_design == "case-control" else "",
                 "first_author": first_author,
             }
         )

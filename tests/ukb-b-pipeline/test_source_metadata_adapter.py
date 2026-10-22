@@ -65,6 +65,18 @@ EXPECTED_ROWS = [
 ]
 
 
+#: The same rows as the file the adapter writes, byte for byte: the committed
+#: connector (`resources/generators/ukb-b/connectors/source-metadata-table.tsv`)
+#: is this renderer's output at 2,514 rows, and the fixture pins its bytes.
+EXPECTED_TABLE = (
+    "\n".join(
+        ["\t".join(adapter.OUTPUT_COLUMNS)]
+        + ["\t".join(row[column] for column in adapter.OUTPUT_COLUMNS) for row in EXPECTED_ROWS]
+    )
+    + "\n"
+)
+
+
 class AdapterTest(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory(prefix="ukb-b-adapter-")
@@ -86,6 +98,13 @@ class AdapterTest(unittest.TestCase):
         self.convert()
         table = load_source_metadata_table(self.out)
         self.assertEqual([dict(row) for row in table.rows], EXPECTED_ROWS)
+
+    def test_the_committed_connector_regenerates_byte_for_byte(self) -> None:
+        # The fixture is the connector's shape, and the table's bytes are pinned:
+        # column order, tab separation and the trailing newline are the
+        # committed connector's, not whatever the writer happens to do.
+        self.convert()
+        self.assertEqual(self.out.read_text(encoding="utf-8"), EXPECTED_TABLE)
 
     def test_a_quantitative_trait_carries_no_case_counts(self) -> None:
         # The provider declares no usable ncase/ncontrol pair for it, and a zero
