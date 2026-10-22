@@ -19,7 +19,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import csv
-import tempfile
+import json
 import unittest
 from pathlib import Path
 
@@ -29,7 +29,7 @@ from manifest_generation import REPO_ROOT
 from manifest_generation.freeze import load_frozen_connectors
 from manifest_generation.release_config import load_release_config
 from manifest_generation.selection import select
-from manifest_generation.source_inventory import read_inventory
+from manifest_generation.source_inventory import read_inventory, sha256_file
 
 FULL_CONFIG = REPO_ROOT / "resources" / "generators" / "ukb-b" / "release-full.yaml"
 PROBE_CONFIG = REPO_ROOT / "resources" / "generators" / "ukb-b" / "release-probe-10.yaml"
@@ -153,6 +153,42 @@ class ProbeConfigTest(unittest.TestCase):
         full = load_release_config(FULL_CONFIG, REPO_ROOT)
         self.assertNotEqual(config.work_root, full.work_root)
         self.assertNotEqual(config.inventory_snapshot_id, full.inventory_snapshot_id)
+
+
+class ReceiptsTest(unittest.TestCase):
+    """The committed receipts are #219's, by the hash its committed receipt records."""
+
+    def test_the_committed_checksum_receipt_is_the_recorded_one(self) -> None:
+        receipt = json.loads(
+            (REPO_ROOT / "resources" / "inventories" / "ukb-b-restored-2026-10-11.receipt.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        committed = REPO_ROOT / "resources" / "generators" / "ukb-b" / "receipts" / (
+            "ukb-b-restored-2026-10-11.checksums.json"
+        )
+        self.assertEqual(sha256_file(committed), receipt["checksum_receipt_sha256"])
+        self.assertEqual(
+            len(json.loads(committed.read_text(encoding="utf-8"))["entries"]), 2514
+        )
+
+    def test_the_committed_lineage_names_the_committed_receipts(self) -> None:
+        lineage = yaml.safe_load(
+            (
+                REPO_ROOT
+                / "resources"
+                / "generators"
+                / "ukb-b"
+                / "connectors"
+                / "acquisition-manifest.meta.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        for name in ("checksums", "integrity", "verification"):
+            recorded = lineage["evidence"][name]
+            path = REPO_ROOT / recorded["path"]
+            self.assertTrue(path.is_file(), recorded["path"])
+            self.assertEqual(sha256_file(path), recorded["sha256"], recorded["path"])
+        self.assertEqual(lineage["readiness_counts"], {"ok": 2514})
 
 
 class TempRegistryLayoutTest(unittest.TestCase):
