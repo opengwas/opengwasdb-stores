@@ -23,10 +23,10 @@ Covered by `tests/emit-registry/run_tests.R`:
 - Emitting over a bundle that has been accepted is refused, and the bundle is
   untouched.
 - Every other legacy generator's `--mode=emit-registry` is covered in its own
-  suite: FinnGen's in `tests/finngen-r13-pilot`, the BESD generator's in
-  `tests/eqtlgen-besd-ragged/test_emit_registry.py`. The R `gwas-ssf-ragged` and
-  `gwas-ssf-hybrid` generators retired with #300 and ukb-b's
-  `opengwas-gwas-vcf-dense` with its R path (#289).
+  suite: the BESD generator's in `tests/eqtlgen-besd-ragged/test_emit_registry.py`.
+  The R `gwas-ssf-ragged` and `gwas-ssf-hybrid` generators retired with #300,
+  FinnGen's R path with #288 and ukb-b's `opengwas-gwas-vcf-dense` with its R
+  path (#289).
 
 ```sh
 pixi run test --suite "emit-registry (R)"

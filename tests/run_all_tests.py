@@ -36,9 +36,7 @@ Splits = dict[str, list[tuple[str, list[str]]]]
 R_SUITES: list[Suite] = [
     ("emit-registry (R)", "r", ["tests/emit-registry/run_tests.R"]),
     ("indexed-subsets-generator-defaults (R)", "r", ["tests/indexed-subsets/test_generator_defaults.R"]),
-    ("finngen-r13-pilot", "r", ["tests/finngen-r13-pilot/run_tests.R"]),
     ("metadata-resolvers/gwas-catalog-ssf", "r", ["tests/metadata-resolvers/gwas-catalog-ssf/run_tests.R"]),
-    ("metadata-resolvers/finngen-manifest", "r", ["tests/metadata-resolvers/finngen-manifest/run_tests.R"]),
     ("metadata-resolvers/trait-ontology-mapping", "r", ["tests/metadata-resolvers/trait-ontology-mapping/run_tests.R"]),
     ("materialise-gwas-ssf-ragged", "r", ["tests/materialise-gwas-ssf-ragged/run_tests.R"]),
     ("schema-validation", "r", ["tests/schema-validation/run_tests.R"]),
@@ -137,7 +135,6 @@ SUITE_COST: dict[str, float] = {
     "workflow": 30.0,
     "phase-b-candidate": 3.0,
     "schema-validation": 12.0,
-    "finngen-r13-pilot": 7.0,
     "emit-registry (R)": 5.5,
     "run": 5.0,
     "materialise-gwas-ssf-ragged": 4.0,
