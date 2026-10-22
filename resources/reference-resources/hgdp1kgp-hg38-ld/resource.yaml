@@ -49,8 +49,10 @@ notes: >
   for production) to measure what the reduced sample size costs in imputation
   quality, holding ancestry fixed. That result gates whether these panels ship.
 
-  Analyses assigned AMR, MID or NAF have no panel and remain observed-only:
-  `ld_regions_hg38.tsv` defines blocks for AFR/EAS/EUR/SAS only.
+  Analyses assigned AMR have their own panel, `hgdp1kgp-hg38-amr-ld`, built on
+  the EUR layout; see ADR 0020's amendment. Analyses assigned MID or NAF still
+  have no panel and remain observed-only, because `ld_regions_hg38.tsv` defines
+  blocks for AFR/EAS/EUR/SAS only.
 
   Canonical EUR boundaries were recovered from the 1,357 block artifacts at
   /data/opengwasdb/reference/ukb-hg38/EUR and pinned in ld_regions_hg38.tsv;
