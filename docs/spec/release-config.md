@@ -51,6 +51,7 @@ key.
 | `ancestry_assignment` | Yes | What Analysis Resolution measures ancestry against (below). |
 | `effect_scale_validation` | No | Phenotype-SD evidence settings (below). |
 | `trait_ontology_mapping` | Yes | The Canonical Trait Mapping Table (below). |
+| `column_map` | No; required exactly when `build.options.source-reader-capability` is `opengwasdb.column-map` | The Column Map the release reads its sources through: `builtin: <name>` or `path: <file>`, one of the two (below, #292). |
 | `region_policy` | No | For a region-filtered release, the regions acquisition filters its files to (below, #300). |
 | `runtime` | No | `cores` (default 1, capped at 64 by preflight) and `min_free_gb` (default 0). |
 | `output` | Yes | `work_root`: the root of the Store Release's Work Root, absolute or repository-relative like every path here. The resolution root is deployment configuration and `output.resolution_root` is refused (#284). |
@@ -239,6 +240,29 @@ another QC panel sha256 or another target span, a policy declared over
 unfiltered files, and region-filtered files under a config that declares no
 `region_policy` ([source connectors](source-connectors.md#region-filtered-acquisition)).
 
+### `column_map`
+
+A release that reads its sources through the `opengwasdb.column-map` Source
+Reader Capability names its Column Map, and no other release may:
+`build.options.source-reader-capability: opengwasdb.column-map` and a
+`column_map` block go together, and either without the other is refused.
+
+- `builtin` is the name of a map OpenGWASDB ships (`gwas-ssf`, `finngen-r13`).
+- `path` is a map file this release carries, absolute or repository-relative.
+  Its file name must be a valid `column_maps/` file name (a `.toml` name of the
+  Indexed Variant Subset grammar).
+
+The resolver is passed it as `--column-map`, a built-in's name or the file's
+path. `build.yaml` binds it as `column_map: {name, sha256, file}`, with no
+`file` for a built-in, and a carried map is copied into the bundle's
+`column_maps/`. `name` and `sha256` are what OpenGWASDB records as each
+Resolution Record's `resolution_config.column_map`, so a built-in's checksum is
+the file the pinned package ships. The checksum is part of the resolution
+contract: a changed map makes every Resolution Record stale and the resolver
+re-resolves them. The Column Map's contract and how Store Release Build uses it
+are in [Source connectors](source-connectors.md) and the
+[release metadata schema](../release-metadata-schema.md#column-map-binding).
+
 ### Reference Resources
 
 `reference_resources` lists each resource the run uses: `resource_id`, `kind`
@@ -253,6 +277,14 @@ refused. Four blocks use them, by id:
   that resource's declaration, `resources/reference-resources/<id>/resource.yaml`,
   not of this entry; a missing declaration or `genome_build` is refused, because
   the resolver never guesses a build (opengwasdb#277).
+  `liftover_chain_resource_id` (optional) names the chain the resolver lifts a
+  source build that differs from that reference build with: a `liftover_chain`
+  resource, whose declaration states its `from_genome_build`,
+  `to_genome_build` and `sha256`. The resolver is passed `--chain-file` for its
+  `location`; a chain whose `to_genome_build` is not the reference build, or
+  whose file no longer has the declared checksum, is refused. Without it the
+  resolver refuses a source on another build. The chain's checksum is part of
+  the resolution contract.
   `maf_floor` (default 0.01), `extraction_panel` (default none) and `gates`
   (`tau` 0.50, `delta` 0.20, `n_min` 5000, `residual_max` 0.06) are passed to
   the resolver as written.

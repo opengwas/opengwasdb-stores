@@ -22,6 +22,11 @@ Variant Subsets. It does two things, both before any expensive work:
   `verify_hm3_resource.py`); this is the cheap guard the registry can run
   without opening a Store.
 
+It also re-hashes the Column Map a bundle carries against its Build Recipe's
+binding before a build (#292): `column_maps/<file>` must still have the bound
+sha256, or the run is refused naming the map, and `stage_column_map` copies the
+verified bytes to the path `plan()` passes as `--column-map`.
+
 It also holds the capability guard of the Observed-View Check (stores #306): a
 release that completes its own Store is refused on a runtime without
 `opengwasdb check-observed-view`, before anything is written.
@@ -53,6 +58,10 @@ from ogstores.plan import (
 
 class ReferenceResourceError(RuntimeError):
     """A declared subset's maintained Reference Resource is not the one used."""
+
+
+class ColumnMapChecksumError(ReferenceResourceError):
+    """A bundle's carried Column Map no longer has the checksum its Build Recipe binds."""
 
 
 class IndexedSubsetRuntimeError(RuntimeError):
@@ -270,6 +279,95 @@ def verify_indexed_subsets_for_releases(
                 ) from exc
 
 
+def verify_column_map(loaded: bundle_module.Bundle) -> Path | None:
+    """The carried Column Map's path once its bytes match the binding; ``None`` when none is carried.
+
+    A built-in map is carried nowhere, so there is nothing to re-hash: its
+    checksum is the pinned package's, which `bundle.check()` compared.
+    """
+    try:
+        binding = bundle_module.column_map_binding(loaded.build)
+    except ValueError as exc:
+        raise ColumnMapChecksumError(f"Release {loaded.store_id}: {exc}") from exc
+    if binding is None or binding.file is None:
+        return None
+    path = Path(loaded.root) / bundle_module.column_map_path(binding.file)
+    if not path.is_file() or path.is_symlink():
+        raise ColumnMapChecksumError(
+            f"Release {loaded.store_id}: Column Map {binding.name!r} is bound to "
+            f"{bundle_module.column_map_path(binding.file)}, which the bundle does not carry "
+            "as a regular file"
+        )
+    actual = _sha256_file(path)
+    if actual != binding.sha256:
+        raise ColumnMapChecksumError(
+            f"Release {loaded.store_id}: Column Map {binding.name!r} "
+            f"({bundle_module.column_map_path(binding.file)}) has sha256 {actual}, but "
+            f"build.yaml binds {binding.sha256}; a build never reads a map that is not the "
+            "one its Resolution Records were made with"
+        )
+    return path
+
+
+def verify_staged_column_map(
+    loaded: bundle_module.Bundle, artifact_root: Path | str, inputs: Iterable[Path | str]
+) -> None:
+    """Refuse a build step whose staged Column Map no longer has the bound checksum.
+
+    Snakemake treats an existing staged copy as up to date, so a resumed or
+    retried build could read a copy changed since it was staged. A step that
+    lists the staged map among its inputs is checked here, immediately before
+    it runs: the bytes it will read must be the binding's (#292).
+    """
+    binding = bundle_module.column_map_binding(loaded.build)
+    if binding is None or binding.file is None:
+        return
+    staged = paths.column_map_path(loaded.store_id, binding.file, root=artifact_root)
+    if staged not in {Path(item) for item in inputs}:
+        return
+    actual = _sha256_file(staged) if staged.is_file() and not staged.is_symlink() else None
+    if actual != binding.sha256:
+        raise ColumnMapChecksumError(
+            f"Release {loaded.store_id}: the staged Column Map {binding.name!r} ({staged}) "
+            f"{'has sha256 ' + actual if actual else 'is not a regular file'}, but build.yaml binds "
+            f"{binding.sha256}; delete it to stage the bundle's copy again"
+        )
+
+
+def verify_column_maps_for_releases(
+    scheduled: Iterable[tuple[str, str]], *, registry_root: Path | str
+) -> None:
+    """Refuse a run whose scheduled bundle carries a Column Map that is not the one it binds.
+
+    `scheduled` is the Snakemake dry run's `[(artifact_root, store_id)]`. A
+    release with no carried map returns at once (#292).
+    """
+    for _root, store_id in scheduled:
+        verify_column_map(bundle_module.load(store_id, registry_root=registry_root))
+
+
+def stage_column_map(loaded: bundle_module.Bundle, destination: Path | str) -> Path:
+    """Copy the verified carried map to `destination`, the path `plan()` passes to the build.
+
+    The bytes are re-hashed here, at the moment of the copy, so a map edited
+    after the run's check is still refused by name.
+    """
+    source = verify_column_map(loaded)
+    if source is None:
+        raise ColumnMapChecksumError(f"Release {loaded.store_id} binds no carried Column Map to stage")
+    destination = Path(destination)
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_name(f".{destination.name}.partial")
+    temporary.write_bytes(source.read_bytes())
+    if _sha256_file(temporary) != bundle_module.column_map_binding(loaded.build).sha256:  # type: ignore[union-attr]
+        temporary.unlink()
+        raise ColumnMapChecksumError(
+            f"Release {loaded.store_id}: Column Map {source} changed while it was staged"
+        )
+    temporary.replace(destination)
+    return destination
+
+
 def verify_observed_view_check_for_releases(
     scheduled: Iterable[tuple[str, str]],
     *,
@@ -304,12 +402,17 @@ def verify_observed_view_check_for_releases(
 
 
 __all__ = [
+    "ColumnMapChecksumError",
     "IndexedSubsetRuntimeError",
     "ObservedViewCheckRuntimeError",
     "ReferenceResourceError",
     "load_resource_declaration",
     "probe_opengwasdb_observed_view_capability",
     "probe_opengwasdb_subset_capability",
+    "stage_column_map",
+    "verify_column_map",
+    "verify_column_maps_for_releases",
+    "verify_staged_column_map",
     "verify_indexed_subsets_for_releases",
     "verify_observed_view_check_for_releases",
     "verify_variant_list_resource",

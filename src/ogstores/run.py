@@ -999,7 +999,7 @@ _REGISTER_RULES: dict[str, str] = {"register": BUILD_PHASE, "completion_register
 def job_record(rule: str, step: str | None) -> str | None:
     """The record a workflow job writes: its step's, its phase's register's, or None.
 
-    `build_manifest` writes no record. The preflight tells a completion-phase
+    `build_manifest` and `column_map` write no record. The preflight tells a completion-phase
     job from a build-phase one by this name (#305).
     """
     if step is not None:

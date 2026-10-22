@@ -9,7 +9,8 @@ pipeline calls. This specification covers the two connector files that meet at
 the **Acquisition Manifest** (what acquisition produced) -- the **Selection** a
 release config declares, and the frozen Source Inventory freeze writes (#283).
 The release config is specified in [release-config.md](release-config.md)
-(#287); the Column Map is specified with the ticket that builds it (#292).
+(#287). How a collection's files are read -- the Source Reader Capability and
+the Column Map -- is [Reading the source files](#reading-the-source-files) (#292).
 
 | Contract | Owner |
 |---|---|
@@ -19,6 +20,20 @@ The release config is specified in [release-config.md](release-config.md)
 | Selection | `src/manifest_generation/selection.py` |
 | Freeze and the frozen Source Inventory | `src/manifest_generation/freeze.py` |
 | Inventory columns and readiness vocabulary | `src/manifest_generation/source_inventory.py`, documented in [`resources/inventories/README.md`](../../resources/inventories/README.md) |
+
+## Reading the source files
+
+Each Analysis's `source_file` is read by an OpenGWASDB Source Reader Capability
+(`source_reader_capability`). A tabular collection with no dedicated reader is
+read through `opengwasdb.column-map` and a **Column Map**, a TOML file naming
+which provider column supplies each field (opengwasdb ADR 0063). The release
+config names the map ([`column_map`](release-config.md#column_map)), and the
+resolver and each build command take it as `--column-map PATH|NAME`: a file
+path, or the name of a built-in map. A source on another genome build is
+passed `--chain-file`, the declared liftover chain
+([`ancestry_assignment`](release-config.md#reference-resources)). The binding,
+the commands that take the flag and the checksum contract are in the
+[release metadata schema](../release-metadata-schema.md#column-map-binding).
 
 ## Connector files
 

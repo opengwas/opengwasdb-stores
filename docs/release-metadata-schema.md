@@ -280,7 +280,7 @@ to the CURIE form.
 | `trait_ontology_id` | No | Ontology or controlled-vocabulary identifier for the analysed Trait, when available. CURIE format, for example `EFO:0001073`, `OBA:VT0001253` or `Orphanet:101960`; blank when unmapped. When the source maps the Trait to several terms, the CURIEs are joined by exactly `", "` in the source's order (`MONDO:0005150, EFO:1001492`), and `trait_ontology_label` keeps the source's label verbatim: labels are not split per term, because a term's own label may contain a comma (#286). Never a URI. Never a gene or protein identifier: `bundle.check()` rejects Ensembl, HGNC, Entrez/NCBI Gene, and UniProt identifiers, bare or authority-qualified (issue #141). Not required to be unique. |
 | `trait_ontology_mapping_method` | Yes | Controlled value describing how `trait_ontology_id`/`trait_ontology_label` were resolved: `source_provided`, `canonical_table_lookup`, or `unmapped`. The #130 `external_authority_lookup` value is retired: gene/target identity is annotation, not a Trait Ontology Mapping (issue #141). Registry-only. |
 | `source_file` | Yes | Source file or filtered source file consumed by the builder. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`), where source identity is currently recorded only as an unverified path prefix (a known integrity gap tracked in issue #134). |
-| `source_reader_capability` | No | The OpenGWASDB reader that consumes `source_file` (for example `opengwasdb.gwas-ssf`). The builder reads it per row and falls back to the Build Recipe's `source-reader-capability` when absent. Required on any row with a numeric `info_score_threshold`. `opengwasdb.column-map` reads the row through the bundle's Column Map, which the Build Recipe must then bind; see "Column Map binding". |
+| `source_reader_capability` | No | The OpenGWASDB reader that consumes `source_file` (for example `opengwasdb.gwas-ssf`). The builder reads it per row and falls back to the Build Recipe's `source-reader-capability` when absent. Required on any row with a numeric `info_score_threshold`. `opengwasdb.column-map` reads the row through the bundle's Column Map, which the Build Recipe must then bind, and which the resolver and every build command are passed as `--column-map` with its checksum checked at each use; see "Column Map binding" and its checksum contract. |
 | `source_bundle_id` | No | Identifier for a multi-file Source Bundle when one file is insufficient. |
 | `checksum` | Yes | Checksum for `source_file` or source bundle manifest. Omitted in legacy monolithic BESD releases (`OGS-00001` and `OGS-00002`; known integrity gap tracked in issue #134). When both `checksum` and `checksum_algorithm` are present, `bundle.check()` validates the digest length for `md5` (32), `sha1` (40), or `sha256` (64) hex; an unsupported algorithm is rejected. |
 | `checksum_algorithm` | Yes | Algorithm used for `checksum`, for example `sha256`. |
@@ -647,8 +647,9 @@ one pass:
   unknown key, an empty `name`, a `sha256` that is not 64 lower-case hex
   characters, a `file` outside the grammar, or no `file` with a `name` that is
   not a built-in;
-- `column-map` in `build.options` or `complete.options`. The flag will be
-  composed from the checksummed binding, never passed through around it.
+- `column-map` in `build.options`, `complete.options` or a `variant_reference`
+  block's `options`. The flag is composed from the checksummed binding, never
+  passed through around it.
 
 The contract checks a carried map **shallowly**. It must be UTF-8 TOML with a
 `column_map_version` and a `name` equal to the binding's. Its full validation,
@@ -661,10 +662,37 @@ OpenGWASDB ships: `bundle.check()` takes the built-in names, and each file's
 checksum, from `opengwasdb.readers.column_map` and refuses any other value,
 naming both.
 
-Store Release Build does not yet pass the map to OpenGWASDB, although the
-pinned `opengwasdb` now has the Column Map reader (opengwasdb#281). The rest of
-#292 part 2 follows: `--column-map` on resolution and on every build command,
-and a changed map making its Resolution Records stale.
+**The checksum contract.** The binding's `name` and `sha256` are one value
+everywhere the map is used, and each use is checked against it:
+
+- Manifest Generation passes the resolver `--column-map` (a built-in's name, or
+  the release config's `column_map.path`). Every mapped Resolution Record's
+  `resolution_config.column_map` must equal the binding, and the map's checksum
+  is part of the resolver's settings digest and of the receipt's resolution
+  contract, so **a changed map makes its Resolution Records stale**: the
+  resolver re-resolves them, and `verify` refuses records made under another
+  map. The emitter writes the binding and copies a non-built-in map to
+  `column_maps/<file>`.
+- Store Release Build passes `--column-map` to every build command that reads
+  source files through it: `build-dense-vcf`, `build-hybrid` and the
+  `variant-reference` pre-stage. A completion reads a Store and takes none; a
+  command that takes no map (`build-ragged-ssf`) is refused for a bundle that
+  binds one. A built-in goes by name. A carried map goes as a copy staged at
+  `<artifact root>/<store id>/work/column_maps/<file>`, as the derived build
+  manifest is, so the planned argv is the same from any checkout.
+- Before any build the release entry point, and the Snakefile's `onstart` and
+  `column_map` rule, re-hash `column_maps/<file>` against the binding and
+  refuse a mismatch, naming the map. The staging rule re-hashes again as it
+  copies. Snakemake treats an existing staged copy as up to date, so each step
+  that lists it as an input checks the staged bytes against the binding
+  immediately before it runs (`resources.verify_staged_column_map`), and a
+  retried build whose staged copy changed is refused naming the map.
+- `plan()` is a pure function (ADR 0031): it reads only the binding's recorded
+  fields. That a built-in's `sha256` is the pinned package's is `check()`'s to
+  say.
+
+`assign-ancestry` and `estimate-phenotype-sd` take no map yet (opengwasdb ADR
+0063, opengwas/opengwasdb#285).
 
 ### The passthrough rule
 

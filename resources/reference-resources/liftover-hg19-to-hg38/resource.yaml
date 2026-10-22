@@ -1,0 +1,21 @@
+resource_id: liftover-hg19-to-hg38
+label: UCSC liftOver chain, hg19 to hg38
+kind: liftover_chain
+from_genome_build: GRCh37
+to_genome_build: GRCh38
+location: /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz
+location_kind: external_file
+sha256: 5c0598e500ceb5a78c73086929e8ef993aec309bcafb595139b53d440b125a1d
+description: >
+  UCSC `hg19ToHg38.over.chain.gz`, the chain `opengwasdb resolve-analyses
+  --chain-file` lifts a GRCh37 (hg19) source to the GRCh38 reference build
+  with. It is required when a source's genome build differs from the
+  Ancestry Reference Panel's: the resolver refuses a cross-build source
+  without one. A release config names it as
+  `ancestry_assignment.liftover_chain_resource_id`.
+status: available
+notes: >
+  The chain lives outside this repository under the configured reference
+  root and is never tracked here. Its sha256 is part of the resolver's
+  settings digest and of each Resolution Record's fingerprint, so replacing
+  the file re-resolves every Analysis lifted through it.

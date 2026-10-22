@@ -39,10 +39,13 @@ Verifies:
 from __future__ import annotations
 
 import builtins
+import hashlib
+import importlib.resources
 import json
 import os
 import sys
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -1773,6 +1776,163 @@ class TestArtifactRootConfiguration(unittest.TestCase):
         self.assertNotEqual(default_steps[0].argv, overridden_steps[0].argv)
 
 
+class TestColumnMapPlan(unittest.TestCase):
+    """plan() composes `--column-map` from the Build Recipe's binding (#292, opengwasdb ADR 0063).
+
+    A built-in map goes by name; a carried one by the copy staged under the
+    release's work directory, which the first step lists as an input. The flag
+    reaches every applicable build command, the variant-reference pre-stage
+    included, and no completion command.
+    """
+
+    SHA = "ab" * 32
+
+    def bundle(
+        self,
+        *,
+        layout: str = "dense",
+        command: str = "build-dense-vcf",
+        binding: dict | None = None,
+        root: str = "stores/OGS-00093",
+        variant_reference: dict | None = None,
+        build_options: dict | None = None,
+        store_id: str = "OGS-00093",
+    ) -> Bundle:
+        options = {"source-reader-capability": "opengwasdb.column-map", **(build_options or {})}
+        block: dict = {"command": command, "options": options}
+        if variant_reference is not None:
+            options["variant-reference"] = "/ref/panel.txt"
+            block["variant_reference"] = variant_reference
+        build: dict = {
+            "store_id": store_id,
+            "layout": layout,
+            "completion_state": "observed_only",
+            "build": block,
+            "post": {"top_hits": False, "rho": False, "overview": False, "validate": False},
+        }
+        if binding is not None:
+            build["column_map"] = binding
+        return Bundle(
+            store_id=store_id,
+            root=Path(root),
+            release={"store_id": store_id, "status": "accepted"},
+            build=build,
+            analyses_path=Path(root) / "analyses.tsv",
+        )
+
+    CARRIED = {"name": "mvp-map", "sha256": SHA, "file": "mvp-map.toml"}
+    #: The built-in's checksum, from the file the pinned package ships.
+    BUILTIN = {
+        "name": "gwas-ssf",
+        "sha256": hashlib.sha256(
+            importlib.resources.files("opengwasdb.readers").joinpath("column_maps/gwas-ssf.toml").read_bytes()
+        ).hexdigest(),
+    }
+
+    @staticmethod
+    def value(step: Step) -> str:
+        return step.argv[step.argv.index("--column-map") + 1]
+
+    def test_a_built_in_map_is_passed_by_name_on_a_dense_build(self) -> None:
+        steps = plan(self.bundle(binding=self.BUILTIN), artifact_root="/art")
+        record_check()
+        self.assertEqual([s.name for s in steps], ["build"])
+        self.assertEqual(self.value(steps[0]), "gwas-ssf")
+        self.assertEqual(steps[0].inputs, [paths.build_manifest_path("OGS-00093", root="/art")])
+
+    def test_a_carried_map_is_passed_as_its_staged_copy_and_is_a_step_input(self) -> None:
+        staged = Path("/art/OGS-00093/work/column_maps/mvp-map.toml")
+        steps = plan(self.bundle(binding=self.CARRIED), artifact_root="/art")
+        record_check()
+        self.assertEqual(self.value(steps[0]), str(staged))
+        self.assertEqual(paths.column_map_path("OGS-00093", "mvp-map.toml", root="/art"), staged)
+        self.assertIn(staged, steps[0].inputs)
+
+    def test_the_planned_argv_does_not_depend_on_where_the_bundle_is_checked_out(self) -> None:
+        """Re-planning from another checkout is not argv drift (`amendment._phase_changes`)."""
+        here = plan(self.bundle(binding=self.CARRIED, root="/a/checkout/stores/OGS-00093"), artifact_root="/art")
+        there = plan(self.bundle(binding=self.CARRIED, root="/b/work/312/checkout/stores/OGS-00093"), artifact_root="/art")
+        record_check()
+        self.assertEqual([s.argv for s in here], [s.argv for s in there])
+
+    def test_planning_a_built_in_map_opens_no_file_even_with_a_cold_cache(self) -> None:
+        """ADR 0031: the built-in's packaged checksum is `check()`'s to verify, never `plan()`'s."""
+        import ogstores.bundle as bundle_module
+
+        bundle_module._builtin_column_maps.cache_clear()
+        bundle = self.bundle(binding=self.BUILTIN)
+        with mock.patch.object(Path, "open", side_effect=AssertionError("plan() opened a file")), \
+                mock.patch.object(builtins, "open", side_effect=AssertionError("plan() opened a file")):
+            steps = plan(bundle, artifact_root="/art")
+        record_check()
+        self.assertEqual(self.value(steps[0]), "gwas-ssf")
+
+    def test_a_hybrid_build_takes_the_map_too(self) -> None:
+        steps = plan(self.bundle(layout="hybrid", command="build-hybrid", binding=self.BUILTIN))
+        record_check()
+        self.assertEqual(self.value(steps[0]), "gwas-ssf")
+
+    def test_the_variant_reference_pre_stage_reads_through_the_same_map(self) -> None:
+        for layout, command in (("dense", "build-dense-vcf"), ("hybrid", "build-hybrid")):
+            with self.subTest(layout=layout):
+                steps = plan(
+                    self.bundle(
+                        layout=layout, command=command, binding=self.CARRIED,
+                        variant_reference={"output": "/ref/panel.txt"},
+                    ),
+                    artifact_root="/art",
+                )
+                record_check()
+                self.assertEqual([s.name for s in steps], ["variant-reference", "build"])
+                self.assertEqual(steps[0].argv[1], "extract-variant-reference")
+                self.assertEqual(self.value(steps[0]), self.value(steps[1]))
+                self.assertIn(paths.column_map_path("OGS-00093", "mvp-map.toml", root="/art"), steps[0].inputs)
+
+    def test_every_planned_argv_parses_against_the_real_cli(self) -> None:
+        for binding in (self.BUILTIN, self.CARRIED):
+            for step in plan(
+                self.bundle(binding=binding, variant_reference={"output": "/ref/panel.txt"}), artifact_root="/art"
+            ):
+                validate_step_argv_against_cli(self, step)
+
+    def test_a_bundle_that_binds_no_map_plans_no_flag(self) -> None:
+        for step in plan(self.bundle(binding=None, build_options={"source-reader-capability": "opengwasdb.gwas-ssf"})):
+            record_check()
+            self.assertNotIn("--column-map", step.argv)
+
+    def test_a_command_that_takes_no_map_is_refused_not_silently_unmapped(self) -> None:
+        bundle = self.bundle(layout="ragged", command="build-ragged-ssf", binding=self.BUILTIN)
+        with self.assertRaisesRegex(ValueError, "binds Column Map 'gwas-ssf', but 'build-ragged-ssf' reads no source"):
+            plan(bundle)
+
+    def test_the_completion_phase_takes_none(self) -> None:
+        """A single-id release's completion reads a Store, not sources."""
+        base = self.bundle(binding=self.BUILTIN)
+        build = {
+            **base.build,
+            "completion_state": "reference_completed",
+            "complete": {"command": "complete-dense", "options": {"ancestry": "EUR"}},
+        }
+        steps = plan(replace(base, build=build), artifact_root="/art")
+        record_check()
+        phases = {s.phase for s in steps}
+        self.assertEqual(phases, {"build", "completion"})
+        for step in steps:
+            self.assertEqual("--column-map" in step.argv, step.phase == "build" and step.name == "build")
+
+    def test_variant_reference_options_may_not_pass_the_flag(self) -> None:
+        bundle = self.bundle(
+            binding=self.CARRIED,
+            variant_reference={"output": "/ref/panel.txt", "options": {"column-map": "elsewhere.toml"}},
+        )
+        with self.assertRaisesRegex(ValueError, r"variant_reference.options must not set \['column-map'\]"):
+            plan(bundle)
+
+    def test_a_malformed_binding_is_refused_not_composed(self) -> None:
+        with self.assertRaisesRegex(ValueError, "OGS-00093: .*name must be a non-empty string"):
+            plan(self.bundle(binding={"name": "", "sha256": self.SHA, "file": "x.toml"}))
+
+
 class TestPostDefaults(unittest.TestCase):
     """Post-processing keys constant across every Release are defaults (issue #128)."""
 
@@ -2471,6 +2631,7 @@ def main() -> None:
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanSingleIdReferenceCompleted))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestBuildManifestSeam))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestArtifactRootConfiguration))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestColumnMapPlan))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPostDefaults))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestVariantReferencePreStage))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestIndexedSubsets))
