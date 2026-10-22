@@ -275,7 +275,11 @@ build from these tools:
 | Require ≥ 80% of individuals called | `construct_block --max-missing 0.2`, inclusive at exactly 80%. Drops are counted as `n_variants_high_missing`. |
 | For a shared ALID, keep one record | Of the records that pass every filter, keep the one with the higher MAF, then the higher call rate, then the first. Provenance records `alid_collision_rule: keep_highest_maf`. |
 
-Measured on the pilot blocks' own genotypes and FILTER values:
+Measured on the pilot blocks' own genotypes and FILTER values by
+`tools/ld-panel/pilot_qc_effect.py`, which reruns plink2
+`--freq --missing variant-only` over the pilot's pfiles and writes
+[`data/amr-ld-pilot-qc-effect.json`](data/amr-ld-pilot-qc-effect.json); that JSON
+reproduces this table exactly.
 
 | | Records / variants |
 |---|---:|
@@ -328,12 +332,21 @@ and ADR 0020 is amended.
 | Blocks built | 1,357 / 1,357; none empty or failed |
 | `verify_block` (binding, spectrum, EAF, core load) | 1,357 pass; binding error ≤ 5.4e-15 |
 | `find_underresolved_blocks --thresh 0.9` | 0 |
-| Within-block duplicated ALIDs (separate scan of every TSV) | 0 |
+| Duplicated ALIDs within a block (separate scan of every TSV) | 0 |
+| ALIDs held by two adjacent blocks (shared boundary position) | 1,198 |
 | Floor as approved in every block's provenance | yes: MAF 0.01, `max_missing_rate` 0.2, `keep_highest_maf`, n = 345 |
 | Rank | 306–344, median 344 |
 | Components for 0.99 | 250–330, median 284; 151 blocks at the 250 floor |
 | Components at the 0.9 truncation | 23–239, median 132, all stored |
 | Retained rows more than 5% missing | 6.0%; the maximum is the 20% ceiling |
+
+Both block checks count the SNP column of every block table. The 1,198
+cross-boundary ALIDs are the layout, not a duplicate: adjacent EUR-layout blocks
+share their boundary position and plink2's `--from-bp/--to-bp` include both
+ends, so a variant kept at a boundary is written into both blocks. They fall on
+1,186 of the panel's 1,335 adjacent block pairs, and no ALID repeats inside one
+block. UKB EUR on chr22, where this layout comes from, has the same shape: 12
+ALIDs in two adjacent blocks, across 12 of its 19 edges.
 
 Held-out calibration under the final QC, on the pilot's five blocks (20
 replicates per panel, all accepted):
