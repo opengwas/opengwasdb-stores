@@ -1738,33 +1738,43 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
     return failures
 
 
+def _stat_problems(
+    analysis_id: str, what: str, path: Path, recorded_bytes: Any, recorded_mtime_ns: Any
+) -> list[str]:
+    """Why ``path`` is no longer the size and mtime a resolver record was produced against.
+
+    ``what`` names it in the diagnostics ("source file", "source member x.esi").
+    """
+    try:
+        stat = path.stat()
+    except OSError:
+        return [
+            f"{analysis_id}: {what} for the resolver record cannot be inspected: {path}"
+        ]
+    failures: list[str] = []
+    if recorded_bytes != stat.st_size:
+        failures.append(
+            f"{analysis_id}: {what} size is {stat.st_size} but the resolver "
+            f"record was produced against {recorded_bytes!r}; re-run resolution"
+        )
+    if recorded_mtime_ns != stat.st_mtime_ns:
+        failures.append(
+            f"{analysis_id}: {what} mtime is {stat.st_mtime_ns} but the "
+            f"resolver record was produced against {recorded_mtime_ns!r}; re-run resolution"
+        )
+    return failures
+
+
 def _verify_source_file_unchanged(
     row: ResolverRow, fingerprints: Mapping[str, Any]
 ) -> list[str]:
     """Require the source file to still match the size/mtime the resolver recorded."""
     if row.source_probe_id:
         return _verify_member_files_unchanged(row, fingerprints)
-    try:
-        stat = Path(row.source_file).stat()
-    except OSError:
-        return [
-            f"{row.analysis_id}: source file for the resolver record cannot be "
-            f"inspected: {row.source_file}"
-        ]
-    failures: list[str] = []
-    recorded_bytes = fingerprints.get("source_file_bytes")
-    if recorded_bytes != stat.st_size:
-        failures.append(
-            f"{row.analysis_id}: source file size is {stat.st_size} but the resolver "
-            f"record was produced against {recorded_bytes!r}; re-run resolution"
-        )
-    recorded_mtime = fingerprints.get("source_file_mtime_ns")
-    if recorded_mtime != stat.st_mtime_ns:
-        failures.append(
-            f"{row.analysis_id}: source file mtime is {stat.st_mtime_ns} but the "
-            f"resolver record was produced against {recorded_mtime!r}; re-run resolution"
-        )
-    return failures
+    return _stat_problems(
+        row.analysis_id, "source file", Path(row.source_file),
+        fingerprints.get("source_file_bytes"), fingerprints.get("source_file_mtime_ns"),
+    )
 
 
 def _verify_member_files_unchanged(
@@ -1782,28 +1792,14 @@ def _verify_member_files_unchanged(
     failures: list[str] = []
     for suffix in BESD_MEMBERS:
         member = Path(f"{row.source_file}{suffix}")
-        try:
-            stat = member.stat()
-        except OSError:
-            failures.append(
-                f"{row.analysis_id}: source member file for the resolver record cannot be "
-                f"inspected: {member}"
-            )
-            continue
         was = recorded.get(suffix)
         if not isinstance(was, Mapping):
             failures.append(f"{row.analysis_id}: resolver record has no {suffix} in source_member_files")
             continue
-        if was.get("bytes") != stat.st_size:
-            failures.append(
-                f"{row.analysis_id}: source member {member.name} size is {stat.st_size} but the "
-                f"resolver record was produced against {was.get('bytes')!r}; re-run resolution"
-            )
-        if was.get("mtime_ns") != stat.st_mtime_ns:
-            failures.append(
-                f"{row.analysis_id}: source member {member.name} mtime is {stat.st_mtime_ns} but "
-                f"the resolver record was produced against {was.get('mtime_ns')!r}; re-run resolution"
-            )
+        failures.extend(_stat_problems(
+            row.analysis_id, f"source member {member.name}", member,
+            was.get("bytes"), was.get("mtime_ns"),
+        ))
     return failures
 
 
