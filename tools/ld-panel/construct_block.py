@@ -14,7 +14,6 @@ import json
 import os
 import subprocess
 import tempfile
-from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -83,6 +82,7 @@ def construct_block(
     interval: str = "unknown",
     mac_threshold: int = 50,
     maf_threshold: float | None = None,
+    max_missing_rate: float | None = None,
     cumulative_variance_target: float = 0.99,
     component_floor: int = 250,
 ) -> BlockResult:
@@ -91,7 +91,8 @@ def construct_block(
     The floor is ``maf_threshold`` when given, else ``mac_threshold``; a MAF
     floor replaces the MAC floor rather than adding to it (#241). MAF is the
     minor-allele count over twice the called individuals, so missing calls do
-    not dilute it.
+    not dilute it. ``max_missing_rate``, when given, drops variants with a
+    larger share of individuals uncalled.
     """
     g = np.asarray(genotypes, dtype=np.float64)
     if g.ndim != 2 or g.shape[1] != len(variants):
@@ -99,7 +100,8 @@ def construct_block(
     if individual_ids is not None and len(individual_ids) != g.shape[0]:
         raise ValueError("individual_ids length does not match genotypes")
     if (not 0 < cumulative_variance_target <= 1 or mac_threshold < 0 or component_floor < 0
-            or (maf_threshold is not None and not 0 <= maf_threshold <= .5)):
+            or (maf_threshold is not None and not 0 <= maf_threshold <= .5)
+            or (max_missing_rate is not None and not 0 <= max_missing_rate <= 1)):
         raise ValueError("invalid construction threshold")
     if g.shape[0] < 2:
         raise ValueError("at least two individuals are required")
@@ -117,18 +119,29 @@ def construct_block(
     polymorphic = ~all_missing & ~invariant
     above = maf >= maf_threshold if maf_threshold is not None else mac >= mac_threshold
     below = polymorphic & ~above
+    missing_rate = (g.shape[0] - called) / g.shape[0]
+    high_missing = polymorphic & above & (missing_rate > max_missing_rate if max_missing_rate is not None
+                                          else np.zeros(g.shape[1], dtype=bool))
+    eligible = polymorphic & above & ~high_missing
     # An ALID naming two source records is ambiguous to every consumer: gnomAD
-    # splits multi-allelic sites, so the insertion G>GA and the deletion GA>G
-    # at one position both become pos:G:GA. Exclude every record of such an
-    # ALID, even when another of them would be dropped anyway (#241).
+    # splits multi-allelic sites, so the deletion GA>G and the insertion G>GA
+    # at one position both become pos:G:GA (#241, #348). Of the eligible
+    # records sharing an ALID, keep the one with the higher MAF (then call
+    # rate, then input order): the record a GWAS reporting that ALID most
+    # likely means.
     alids = variant_alids(variants)
-    records = Counter(a for a in alids if a is not None)
-    shared = np.array([a is not None and records[a] > 1 for a in alids], dtype=bool)
-    collided = polymorphic & above & shared
-    kept = np.flatnonzero(polymorphic & above & ~shared)
+    best: dict[str, int] = {}
+    for i in np.flatnonzero(eligible):
+        alid = alids[i]
+        if alid is None: continue
+        j = best.get(alid)
+        if j is None or (maf[i], -missing_rate[i]) > (maf[j], -missing_rate[j]): best[alid] = int(i)
+    winners = set(best.values())
+    collided = np.array([bool(eligible[i]) and a is not None and i not in winners for i, a in enumerate(alids)],
+                        dtype=bool)
+    kept = np.flatnonzero(eligible & ~collided)
     if not len(kept):
         raise ValueError("no variants remain after variant-floor/invariant filtering")
-    missing_rate = 1 - called / g.shape[0]
 
     x = filled[:, kept]
     x -= x.mean(axis=0)
@@ -179,9 +192,11 @@ def construct_block(
         "interval": interval, "n_individuals": int(g.shape[0]),
         "n_variants_input": int(g.shape[1]), "n_variants_retained": len(table),
         "mac_threshold": None if maf_threshold is not None else mac_threshold,
-        "maf_threshold": maf_threshold,
+        "maf_threshold": maf_threshold, "max_missing_rate": max_missing_rate,
+        "alid_collision_rule": "keep_highest_maf",
         "n_variants_all_missing": int(all_missing.sum()), "n_variants_invariant": int(invariant.sum()),
-        "n_variants_below_floor": int(below.sum()), "n_variants_alid_collision": int(collided.sum()),
+        "n_variants_below_floor": int(below.sum()), "n_variants_high_missing": int(high_missing.sum()),
+        "n_variants_alid_collision": int(collided.sum()),
         "n_variants_zero_variance": zero_variance,
         "below_floor_mac_counts": {str(int(m)): int(c) for m, c in zip(*np.unique(mac[below], return_counts=True))},
         "missing_call_rate": float(missing_rate.mean()),
@@ -284,6 +299,7 @@ def main() -> int:
     floor = ap.add_mutually_exclusive_group()
     floor.add_argument("--mac", type=int, default=50)
     floor.add_argument("--maf", type=float, help="MAF floor over called individuals; replaces --mac")
+    ap.add_argument("--max-missing", type=float, help="Drop variants with a larger share of individuals uncalled")
     ap.add_argument("--cumvar", type=float, default=.99); ap.add_argument("--min-k", type=int, default=250)
     ap.add_argument("--plink2", default="plink2")
     args = ap.parse_args()
@@ -291,7 +307,8 @@ def main() -> int:
         g, variants, ids = _plink_extract(args, Path(tmp))
         result = construct_block(g, variants, individual_ids=ids,
             interval=f"{args.chrom}:{args.start}-{args.end}", mac_threshold=args.mac,
-            maf_threshold=args.maf, cumulative_variance_target=args.cumvar, component_floor=args.min_k)
+            maf_threshold=args.maf, max_missing_rate=args.max_missing,
+            cumulative_variance_target=args.cumvar, component_floor=args.min_k)
     _atomic_outputs(args.out, result)
     return 0
 

@@ -216,9 +216,10 @@ The steps ran one at a time, with one genotype reader, BLAS at one thread and a
      291,411, 116,794, 141,543 and 134,043 duplicated ALIDs, 1.3–2.0% of rows.
    - Effect: core maps both rows to one Store variant. #228 (AFR) and #230 (EAS)
      complete against these panels.
-   - Fix on this branch: `construct_block` now excludes every record of a shared
-     ALID. That is 9–16% of above-floor records in these AMR blocks, mostly
-     homopolymer indels. The shipped panels are unchanged and need their own ticket.
+   - The pilot excluded every record of a shared ALID: 9–16% of above-floor
+     records in these blocks, mostly homopolymer indels. After the owner's
+     decision below, `construct_block` keeps the more frequent record instead.
+     The shipped panels are unchanged; #348 tracks them.
    - UKB EUR (`ld/EUR`) has no duplicates on chr22.
 2. **A MAF floor over called individuals admits sparsely called sites** (see
    Retained variants above). The MAC ≥ 50 floor at n ≈ 800 kept most of them out
@@ -261,3 +262,34 @@ This is evidence for the owner's decision, not acceptance.
    AFR-boundary sensitivity and an imputation test across an edge.
 5. **Shipped panels:** the duplicated-ALID defect in the shipped panels should be
    resolved before #228 and #230 complete against them.
+
+## Owner decisions after the pilot (2026-10-22)
+
+The owner accepts this quality as the best available until a better AMR
+reference exists, and is considering the genome-wide build. Variant QC for any
+build from these tools:
+
+| Rule | Implementation |
+|---|---|
+| Drop variants that are not PASS | `conversion_command(pass_only=True)`, which is plink2 `--var-filter`, at conversion. FILTER does not survive into the PGEN. |
+| Require ≥ 80% of individuals called | `construct_block --max-missing 0.2`, inclusive at exactly 80%. Drops are counted as `n_variants_high_missing`. |
+| For a shared ALID, keep one record | Of the records that pass every filter, keep the one with the higher MAF, then the higher call rate, then the first. Provenance records `alid_collision_rule: keep_highest_maf`. |
+
+Measured on the pilot blocks' own genotypes and FILTER values:
+
+| | Records / variants |
+|---|---:|
+| Pass MAF ≥ 0.01 | 47,466 |
+| …and PASS and ≥ 80% called | 38,891 |
+| Collision pairs among those (no ALID names more than two) | 938 |
+| Retained if both records of a pair are dropped | 37,015 |
+| **Retained when one record is kept** | **37,953** |
+
+PASS and the call-rate rule resolve most collisions on their own: the pilot's
+drop-all rule removed 6,504 records. In a remaining pair, the two records differ
+in MAF by a median of about 0.10, so they are distinct variants. The kept record
+is the one a GWAS reporting that ALID most likely means; the ALID itself cannot
+say which.
+
+`run_amr_pilot.py` now applies all three rules by default. The calibration and
+boundary numbers above predate them.

@@ -18,10 +18,10 @@ def valid(base: Path) -> bool:
     except (OSError, ValueError, KeyError): return False
 
 
-def built_floor(base: Path) -> tuple[int | None, float | None]:
-    """(MAC, MAF) floor a block was built with; blocks predating #241 carry only a MAC floor."""
+def built_floor(base: Path) -> tuple[int | None, float | None, float | None]:
+    """(MAC, MAF, missingness) floor a block was built with; blocks predating #241 carry only a MAC floor."""
     p = json.loads(base.with_suffix(".provenance.json").read_text())
-    return p.get("mac_threshold"), p.get("maf_threshold")
+    return p.get("mac_threshold"), p.get("maf_threshold"), p.get("max_missing_rate")
 
 
 def build(job: tuple[str, ...]) -> tuple[str, int, str]:
@@ -41,12 +41,13 @@ def main() -> int:
     floor = ap.add_mutually_exclusive_group()
     floor.add_argument("--mac", type=int, default=50)
     floor.add_argument("--maf", type=float, help="MAF floor over called individuals; replaces --mac")
+    ap.add_argument("--max-missing", type=float, help="Drop variants with a larger share of individuals uncalled")
     ap.add_argument("--cumvar", type=float, default=.99); ap.add_argument("--min-k", type=int, default=250)
     ap.add_argument("--force", action="store_true", help="Rebuild blocks with valid existing outputs")
     args = ap.parse_args()
     if args.jobs < 1: ap.error("--jobs must be >= 1")
     script = Path(__file__).with_name("construct_block.py")
-    floor = (None, args.maf) if args.maf is not None else (args.mac, None)
+    floor = ((None, args.maf) if args.maf is not None else (args.mac, None)) + (args.max_missing,)
     jobs, stale = [], []
     with args.regions.open() as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
@@ -63,6 +64,7 @@ def main() -> int:
                    "--keep", str(keep), "--chrom", row["chr"], "--start", row["start"],
                    "--end", row["end"], "--out", str(base),
                    *(("--maf", str(args.maf)) if args.maf is not None else ("--mac", str(args.mac))),
+                   *(("--max-missing", str(args.max_missing)) if args.max_missing is not None else ()),
                    "--cumvar", str(args.cumvar), "--min-k", str(args.min_k))
             jobs.append((f"{anc}/{row['chr']}/{base.name}", *cmd))
     if stale:

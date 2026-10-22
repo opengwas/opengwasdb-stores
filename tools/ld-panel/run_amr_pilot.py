@@ -12,9 +12,10 @@ wall time, CPU time, peak RSS and exit status are recorded in receipt.json:
    filtered on);
 2. preflight: GRCh38 header, tabix index, source identity and every member in
    each VCF header (the implementation revision is recorded before any step);
-3. extraction: each block's region and members read by index, converted with
-   no frequency floor, so the floor is construct_block's alone;
-4. construction: run_panels with the MAF floor and one worker;
+3. extraction: each block's region and members read by index, converted
+   PASS-only with no frequency floor, so the floor is construct_block's alone;
+4. construction: run_panels with the MAF floor, the call-rate ceiling and one
+   worker;
 5. verification: verify_block per block and find_underresolved_blocks at 0.9;
 6. calibration: heldout_calibration per block;
 7. boundaries: boundary_ld either side of each block edge, for the AMR members
@@ -189,6 +190,8 @@ def main() -> int:
     ap.add_argument("--mapping", type=Path, default=PILOT / "populations_to_superpop.tsv")
     ap.add_argument("--samples", type=Path, default=PILOT / "phase3-amr-samples.tsv")
     ap.add_argument("--maf", type=float, default=.01); ap.add_argument("--window", type=int, default=250_000)
+    ap.add_argument("--max-missing", type=float, default=.2,
+                    help="Largest share of members uncalled at a retained variant (owner decision, #241)")
     ap.add_argument("--replicates", type=int, default=20); ap.add_argument("--cpus", type=int, default=4)
     args = ap.parse_args()
     if len(os.sched_getaffinity(0)) > args.cpus:
@@ -256,11 +259,11 @@ def main() -> int:
             (out / "pgen/AMR").mkdir(parents=True, exist_ok=True)
             steps.run(f"convert_{label}", conversion_command(Path("plink2"), block_vcf, members / "AMR.keep",
                                                              out / "pgen/AMR" / f"chr{b['chr']}", None,
-                                                             threads=args.cpus, memory_mb=16000))
+                                                             threads=args.cpus, memory_mb=16000, pass_only=True))
         steps.run("construct", [py, str(HERE / "run_panels.py"), "--genotype-root", str(out / "pgen"),
                                 "--reference-root", str(out / "panel"), "--regions", str(args.blocks),
                                 "--members", str(members), "--ancestries", "AMR", "--jobs", "1",
-                                "--maf", str(args.maf)])
+                                "--maf", str(args.maf), "--max-missing", str(args.max_missing)])
         failures = (out / "panel/failures.tsv").read_text()
         if failures: raise SystemExit(f"block construction failed:\n{failures}")
 
@@ -277,10 +280,12 @@ def main() -> int:
                                                      "--out", str(out / "verify" / f"{label}.json")], check=False)
             steps.run(f"calibrate_{label}", [py, str(HERE / "heldout_calibration.py"), *pfile,
                                              "--cohort", str(source / "cohort_populations.tsv"), "--maf", str(args.maf),
+                                             "--max-missing", str(args.max_missing),
                                              "--replicates", str(args.replicates),
                                              "--out", str(out / "calibration" / f"{label}.json")])
             provenance = json.loads(base.with_suffix(".provenance.json").read_text())
             floor_ok = (provenance["maf_threshold"] == args.maf and provenance["mac_threshold"] is None
+                        and provenance["max_missing_rate"] == args.max_missing
                         and provenance["n_individuals"] == len(amr))
             report = out / "verify" / f"{label}.json"
             # A verifier that crashed wrote no report: record that rather than stop the pilot.
@@ -308,12 +313,13 @@ def main() -> int:
                 prefix = out / "pgen" / f"edge-{cohort}" / label; prefix.parent.mkdir(parents=True, exist_ok=True)
                 steps.run(f"convert_edge_{cohort}_{label}", conversion_command(
                     Path("plink2"), edge_vcf, members / f"{cohort}.keep", prefix, None,
-                    threads=args.cpus, memory_mb=16000))
+                    threads=args.cpus, memory_mb=16000, pass_only=True))
                 result = out / "boundary" / f"{cohort}_{label}.json"
                 steps.run(f"boundary_{cohort}_{label}", [py, str(HERE / "boundary_ld.py"), "--pfile", str(prefix),
                                                          "--keep", str(members / f"{cohort}.keep"), "--chrom", chrom,
                                                          "--edge", str(edge), "--window", str(args.window),
-                                                         "--maf", str(args.maf), "--out", str(result)])
+                                                         "--maf", str(args.maf), "--max-missing", str(args.max_missing),
+                                                         "--out", str(result)])
                 summary["boundaries"].append({"cohort": cohort, **json.loads(result.read_text())})
         receipt["status"] = "completed"
     except BaseException as exc:

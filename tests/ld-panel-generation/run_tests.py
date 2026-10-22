@@ -94,8 +94,8 @@ def test_maf_floor() -> None:
     check(p["maf_threshold"] == .01 and p["mac_threshold"] is None,
           "a MAF floor must replace, not add to, the MAC floor")
     classes = ("n_variants_all_missing", "n_variants_invariant", "n_variants_below_floor",
-               "n_variants_alid_collision", "n_variants_zero_variance")
-    check(tuple(p[c] for c in classes) == (1, 1, 1, 0, 1), "dropped-variant classes are miscounted")
+               "n_variants_high_missing", "n_variants_alid_collision", "n_variants_zero_variance")
+    check(tuple(p[c] for c in classes) == (1, 1, 1, 0, 0, 1), "dropped-variant classes are miscounted")
     check(sum(p[c] for c in classes) + p["n_variants_retained"] == p["n_variants_input"],
           "dropped-variant classes do not account for every input variant")
     check(p["below_floor_mac_counts"] == {"6": 1}, "below-floor MAC strata are wrong")
@@ -127,27 +127,54 @@ def test_maf_floor() -> None:
 
 
 def test_alid_collisions() -> None:
-    # gnomAD splits multi-allelic sites, so the insertion G>GA and the deletion
-    # GA>G at one position both canonicalise to ALID 1:100:G:GA (#241).
+    # gnomAD splits multi-allelic sites, so the deletion GA>G and the insertion
+    # G>GA at one position both canonicalise to ALID 1:100:G:GA (#241, #348).
+    # Of the records passing every filter, the one with the higher MAF is kept.
+    n = 200
     rng = np.random.default_rng(7)
-    g = rng.binomial(2, .3, (60, 4)).astype(float)
-    variants = [{"chrom": "1", "pos": 100, "allele1": "G", "allele2": "GA"},
-                {"chrom": "1", "pos": 100, "allele1": "GA", "allele2": "G"},
+    rare = np.r_[np.ones(20), np.zeros(n - 20)]  # MAC 20
+    common = rng.binomial(2, .3, n).astype(float)
+    g = np.column_stack([rare, common, rng.binomial(2, .3, n), rng.binomial(2, .2, n)])
+    variants = [{"chrom": "1", "pos": 100, "allele1": "GA", "allele2": "G"},
+                {"chrom": "1", "pos": 100, "allele1": "G", "allele2": "GA"},
                 {"chrom": "1", "pos": 100, "allele1": "G", "allele2": "A"},
                 {"chrom": "1", "pos": 101, "allele1": "C", "allele2": "T"}]
     result = module.construct_block(g, variants, mac_threshold=1, component_floor=1)
-    check([r["SNP"] for r in result.variant_table] == ["1:100:A:G", "1:101:C:T"] and
-          result.provenance["n_variants_alid_collision"] == 2,
-          "an ALID naming two source records must be excluded, both copies")
-    g[:, 1] = 0  # the deletion is invariant here, yet the ALID still names two records
-    again = module.construct_block(g, variants, mac_threshold=1, component_floor=1).provenance
-    check((again["n_variants_retained"], again["n_variants_alid_collision"], again["n_variants_invariant"]) == (2, 1, 1),
-          "a collision must be excluded even when its other record would be dropped anyway")
+    common_mac = min(common.sum(), 2 * n - common.sum())
+    check([r["SNP"] for r in result.variant_table] == ["1:100:G:GA", "1:100:A:G", "1:101:C:T"] and
+          result.variant_table[0]["MAC"] == common_mac and result.provenance["n_variants_alid_collision"] == 1,
+          "a shared ALID must keep only its more frequent record")
+    sparse = g.copy(); sparse[:60, 1] = np.nan  # the common insertion is 30% missing
+    again = module.construct_block(sparse, variants, mac_threshold=1, max_missing_rate=.2, component_floor=1)
+    check(again.variant_table[0]["MAC"] == 20 and again.provenance["n_variants_alid_collision"] == 0 and
+          again.provenance["n_variants_high_missing"] == 1,
+          "a collision is resolved among the records that pass every filter")
     # A record no ALID can name is tolerated wherever construction drops it.
     malformed = [*variants, {"chrom": "1", "pos": 102, "allele1": "C", "allele2": "C"}]
-    built = module.construct_block(np.column_stack([g, np.zeros(60)]), malformed, mac_threshold=1, component_floor=1)
-    x, _ = module.standardised_ea_dosages(np.column_stack([g, np.zeros(60)]), malformed, built.variant_table)
-    check(x.shape == (60, 2), "an unnameable dropped record broke dosage standardisation")
+    built = module.construct_block(np.column_stack([g, np.zeros(n)]), malformed, mac_threshold=1, component_floor=1)
+    x, _ = module.standardised_ea_dosages(np.column_stack([g, np.zeros(n)]), malformed, built.variant_table)
+    check(x.shape == (n, 3), "an unnameable dropped record broke dosage standardisation")
+
+
+def test_call_rate() -> None:
+    # #241 owner decision: retain a variant only when at least 80% of individuals are called.
+    n = 345
+    rng = np.random.default_rng(80)
+    def with_missing(k: int) -> np.ndarray:
+        column = rng.binomial(2, .3, n).astype(float); column[:k] = np.nan; return column
+    g = np.column_stack([with_missing(69), with_missing(70), with_missing(0)])  # 20.0%, 20.3%, 0%
+    variants = [{"chrom": "1", "pos": 100 + i, "allele1": "C", "allele2": "G"} for i in range(3)]
+    p = module.construct_block(g, variants, maf_threshold=.01, max_missing_rate=.2, component_floor=1).provenance
+    check(p["n_variants_retained"] == 2 and p["n_variants_high_missing"] == 1 and p["max_missing_rate"] == .2,
+          "the call-rate ceiling is not inclusive at exactly 80% called")
+    unfiltered = module.construct_block(g, variants, maf_threshold=.01, component_floor=1).provenance
+    check(unfiltered["n_variants_retained"] == 3 and unfiltered["max_missing_rate"] is None,
+          "without a ceiling, missingness must filter nothing")
+    command = materialize.conversion_command(Path("plink2"), Path("chr1.vcf.bgz"), Path("AMR.keep"),
+                                             Path("AMR/chr1"), None, pass_only=True)
+    check("--var-filter" in command and "--var-filter" not in materialize.conversion_command(
+              Path("plink2"), Path("chr1.vcf.bgz"), Path("AFR.keep"), Path("AFR/chr1"), 50),
+          "PASS-only must be opt-in at conversion")
 
 
 def test_run_panels_floor_resume() -> None:
@@ -166,6 +193,9 @@ def test_run_panels_floor_resume() -> None:
         other = run("--maf", ".01")
         check(other.returncode != 0 and "floor" in other.stderr,
               "a block built under another floor must not be resumed as if it were current")
+        ceiling = run("--mac", "50", "--max-missing", ".2")
+        check(ceiling.returncode != 0 and "floor" in ceiling.stderr,
+              "a block built without a missingness ceiling must not be resumed under one")
 
 
 def ld_fixture(n: int = 120, seed: int = 241) -> tuple[np.ndarray, list[dict[str, object]]]:
@@ -385,7 +415,7 @@ def test_plink_raw_input() -> None:
 
 
 def main() -> None:
-    test_block(); test_maf_floor(); test_alid_collisions(); test_run_panels_floor_resume()
+    test_block(); test_maf_floor(); test_alid_collisions(); test_call_rate(); test_run_panels_floor_resume()
     test_verify_block(); test_heldout_calibration()
     test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_amr_pilot_mapping(); test_amr_pilot_membership()

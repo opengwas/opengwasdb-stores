@@ -22,9 +22,10 @@ R2_CUTS = (.2, .5, .8)
 
 
 def cross_boundary_ld(genotypes: np.ndarray, variants: list[dict[str, object]], edge: int, *,
-                      maf_threshold: float) -> dict[str, object]:
+                      maf_threshold: float, max_missing_rate: float | None = None) -> dict[str, object]:
     # construct_block applies exactly the panel's floor; its decomposition is unused.
-    rows = construct_block(genotypes, variants, maf_threshold=maf_threshold, component_floor=0).variant_table
+    rows = construct_block(genotypes, variants, maf_threshold=maf_threshold, max_missing_rate=max_missing_rate,
+                           component_floor=0).variant_table
     x, _ = standardised_ea_dosages(genotypes, variants, rows)
     position = np.array([int(r["BP"]) for r in rows])
     left, right = position < edge, position > edge
@@ -42,14 +43,16 @@ def main() -> int:
     ap.add_argument("--pfile", type=Path, required=True); ap.add_argument("--keep", type=Path, required=True)
     ap.add_argument("--chrom", required=True); ap.add_argument("--edge", type=int, required=True)
     ap.add_argument("--window", type=int, required=True, help="Base pairs either side of the boundary")
-    ap.add_argument("--maf", type=float, required=True); ap.add_argument("--plink2", default="plink2")
+    ap.add_argument("--maf", type=float, required=True); ap.add_argument("--max-missing", type=float)
+    ap.add_argument("--plink2", default="plink2")
     ap.add_argument("--out", type=Path, required=True, help="Result JSON")
     args = ap.parse_args()
     source = SimpleNamespace(plink2=args.plink2, pfile=args.pfile, bfile=None, chrom=args.chrom,
                              start=max(1, args.edge - args.window), end=args.edge + args.window, keep=args.keep)
     with tempfile.TemporaryDirectory(prefix="ld-boundary-") as tmp:
         genotypes, variants, _ = _plink_extract(source, Path(tmp))
-    result = cross_boundary_ld(genotypes, variants, args.edge, maf_threshold=args.maf)
+    result = cross_boundary_ld(genotypes, variants, args.edge, maf_threshold=args.maf,
+                               max_missing_rate=args.max_missing)
     result.update(chrom=args.chrom, window=args.window, keep=str(args.keep))
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")

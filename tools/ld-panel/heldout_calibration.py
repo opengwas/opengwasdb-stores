@@ -34,21 +34,22 @@ def split_individuals(populations: list[str], *, test_fraction: float, seed: int
 
 
 def calibrate_block(genotypes: np.ndarray, variants: list[dict[str, object]], populations: list[str], *,
-                    maf_threshold: float, test_fraction: float = 1 / 3, mask_fraction: float = .2,
+                    maf_threshold: float, max_missing_rate: float | None = None,
+                    test_fraction: float = 1 / 3, mask_fraction: float = .2,
                     replicates: int = 20, ncp: float = 8.0, thresh: float = .9, min_cor: float = .7,
                     component_floor: int = 250, seed: int = 20261022) -> dict[str, object]:
     from opengwasdb.completion.impute import impute_z_block
 
     g = np.asarray(genotypes, dtype=np.float64)
     test = split_individuals(populations, test_fraction=test_fraction, seed=seed)
-    built = {"held_out": construct_block(g[~test], variants, maf_threshold=maf_threshold,
-                                         component_floor=component_floor),
-             "test_in_sample": construct_block(g[test], variants, maf_threshold=maf_threshold,
-                                               component_floor=component_floor)}
+    floor = {"maf_threshold": maf_threshold, "max_missing_rate": max_missing_rate, "component_floor": component_floor}
+    built = {"held_out": construct_block(g[~test], variants, **floor),
+             "test_in_sample": construct_block(g[test], variants, **floor)}
     # z-scores exist only where the variant passes the floor in both halves.
     in_test = {r["SNP"] for r in built["test_in_sample"].variant_table}
     shared = [r for r in built["held_out"].variant_table if r["SNP"] in in_test]
-    settings = {"maf_threshold": maf_threshold, "test_fraction": test_fraction, "mask_fraction": mask_fraction,
+    settings = {"maf_threshold": maf_threshold, "max_missing_rate": max_missing_rate,
+                "test_fraction": test_fraction, "mask_fraction": mask_fraction,
                 "replicates": replicates, "ncp": ncp, "thresh": thresh, "min_cor": min_cor,
                 "component_floor": component_floor, "seed": seed}
     counts = {"n_train": int((~test).sum()), "n_test": int(test.sum()), "n_shared_variants": len(shared)}
@@ -99,7 +100,8 @@ def main() -> int:
     ap.add_argument("--chrom", required=True)
     ap.add_argument("--start", type=int, required=True); ap.add_argument("--end", type=int, required=True)
     ap.add_argument("--cohort", type=Path, required=True, help="TSV with sample and population columns")
-    ap.add_argument("--maf", type=float, required=True); ap.add_argument("--replicates", type=int, default=20)
+    ap.add_argument("--maf", type=float, required=True); ap.add_argument("--max-missing", type=float)
+    ap.add_argument("--replicates", type=int, default=20)
     ap.add_argument("--seed", type=int, default=20261022); ap.add_argument("--plink2", default="plink2")
     ap.add_argument("--out", type=Path, required=True, help="Result JSON")
     args = ap.parse_args()
@@ -110,7 +112,8 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="ld-calibrate-") as tmp:
         genotypes, variants, ids = _plink_extract(source, Path(tmp))
     result = calibrate_block(genotypes, variants, [population_of[i] for i in ids],
-                             maf_threshold=args.maf, replicates=args.replicates, seed=args.seed)
+                             maf_threshold=args.maf, max_missing_rate=args.max_missing,
+                             replicates=args.replicates, seed=args.seed)
     result["block"] = f"{args.chrom}/{args.start}-{args.end}"
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps(result, indent=2, sort_keys=True) + "\n")
