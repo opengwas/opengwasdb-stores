@@ -62,7 +62,14 @@ from ogstores.plan import plan
 #: #291 whose first parent is PR #288's merge: stores #312's OGS-00009 rebuild
 #: needs #288's strand-aware hg19 lift. The range `023774a..d405de0` is #288's
 #: commits and merge plus the #291 merge; #288 is its only functional change.
-PINNED_OPENGWASDB_REVISION: str = "d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c"
+#: Then to `d8896e4`, the core `dev` merge of PR #305, for OGS-00027 (#314):
+#: `build-ragged-besd` drops an ESI entry whose lifted variant another entry also
+#: claims, and `validate` requires each Analysis's CSR `variant_index` segment to
+#: be strictly increasing, so the 13 hg19 eQTLGen SNPs that collide on one hg38
+#: variant after the lift no longer reach a Store. The range
+#: `d405de0..d8896e4` is #304's three commits and its merge plus a docs-only
+#: merge (#293); #304 is its only functional change.
+PINNED_OPENGWASDB_REVISION: str = "d8896e46677ae9d54f1fc08a974e8c7e41d105cc"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference
