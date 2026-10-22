@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from unittest import mock
 from pathlib import Path
@@ -109,24 +110,23 @@ class PruneWorktreesTestCase(unittest.TestCase):
         self.add_detached_worktrees()
         self.add_empty_and_nested()
 
-        self.cwd_proc = self.start(["sleep", "60"], cwd=self.trees / "in-use-cwd")
+        self.cwd_proc = self.start(["sleep", "3600"], cwd=self.trees / "in-use-cwd")
         self.argv_proc = self.start(
-            ["sh", "-c", "sleep 60; :", "sh", str(self.trees / "in-use-argv" / "pixi.toml")], cwd=self.root)
+            ["sh", "-c", "sleep 3600; :", "sh", str(self.trees / "in-use-argv" / "pixi.toml")], cwd=self.root)
         self.ignore(self.trees / "in-use-fd", "log")
         (self.trees / "in-use-fd" / "log").write_text("")
         with open(self.trees / "in-use-fd" / "log") as log:  # inherited: the path is in no argument
-            self.fd_proc = subprocess.Popen(["sleep", "60"], cwd=self.root, stdin=log)
-        self.procs.append(self.fd_proc)
+            self.fd_proc = self.start(["sleep", "3600"], cwd=self.root, stdin=log)
         self.string_proc = self.start(
-            ["sh", "-c", f"sleep 60; : see {self.trees / 'in-use-string'}."], cwd=self.root)
+            ["sh", "-c", f"sleep 3600; : see {self.trees / 'in-use-string'}."], cwd=self.root)
         (self.root / "link").symlink_to(self.trees)  # another spelling of the same directory
         self.link_proc = self.start(
-            ["sh", "-c", "sleep 60; :", "sh", str(self.root / "link" / "in-use-link" / "pixi.toml")], cwd=self.root)
+            ["sh", "-c", "sleep 3600; :", "sh", str(self.root / "link" / "in-use-link" / "pixi.toml")], cwd=self.root)
         # A directory whose name merely starts with a worktree's: not a use of "decoy".
         (self.trees / "decoy-cwd").mkdir()
-        self.start(["sleep", "60"], cwd=self.trees / "decoy-cwd")
+        self.start(["sleep", "3600"], cwd=self.trees / "decoy-cwd")
         # Mentions a sibling whose name merely starts with "decoy": not a use of "decoy".
-        self.start(["sh", "-c", "sleep 60; :", "sh", str(self.trees / "decoy-other" / "x")], cwd=self.root)
+        self.start(["sh", "-c", "sleep 3600; :", "sh", str(self.trees / "decoy-other" / "x")], cwd=self.root)
 
     def add_worktree(self, name: str) -> None:
         git(self.primary, "worktree", "add", "-q", "-b", f"branch/{name}", str(self.trees / name), "origin/dev")
@@ -188,10 +188,29 @@ class PruneWorktreesTestCase(unittest.TestCase):
         with open(exclude, "a") as fh:
             fh.write(pattern + "\n")
 
-    def start(self, argv: list[str], cwd: Path) -> subprocess.Popen:
-        proc = subprocess.Popen(argv, cwd=cwd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    def start(self, argv: list[str], cwd: Path, **kwargs) -> subprocess.Popen:
+        """A fixture process that is still running when this returns: a process that
+        exited early would be found "unused" and pass for the wrong reason."""
+        kwargs.setdefault("stdout", subprocess.DEVNULL)
+        kwargs.setdefault("stderr", subprocess.DEVNULL)
+        proc = subprocess.Popen(argv, cwd=cwd, **kwargs)
         self.procs.append(proc)
+        want = kwargs.get("executable") or shutil.which(argv[0]) or argv[0]
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline and proc.poll() is None:
+            try:  # until the exec has happened: /proc/<pid>/exe is no longer the forked test process
+                if os.path.samefile(f"/proc/{proc.pid}/exe", want):
+                    break
+            except OSError:
+                pass
+            time.sleep(0.02)
+        time.sleep(0.2)  # a process that cannot run (an unknown multi-call name) dies at once
+        self.assertIsNone(proc.poll(), f"fixture process {argv} exited with {proc.returncode}")
         return proc
+
+    def assert_fixture_processes_running(self) -> None:
+        for proc in self.procs:  # one that has run out, or died, would read as "unused"
+            self.assertIsNone(proc.poll(), f"fixture process {proc.args} is no longer running")
 
     def _stop_processes(self) -> None:
         for proc in self.procs:
@@ -199,6 +218,7 @@ class PruneWorktreesTestCase(unittest.TestCase):
             proc.wait()
 
     def run_tool(self, *args: str, cwd: Path | None = None) -> subprocess.CompletedProcess:
+        self.assert_fixture_processes_running()
         return subprocess.run(
             [sys.executable, str(TOOL), *args], cwd=cwd or self.trees / "here",
             env=GIT_ENV, capture_output=True, text=True)
@@ -241,7 +261,7 @@ class PruneWorktreesTestCase(unittest.TestCase):
         reason = self.verdicts(self.run_tool())["in-use-cwd"][1]
         self.assertIn("in use", reason)
         self.assertIn(f"pid {self.cwd_proc.pid}", reason)
-        self.assertIn("sleep 60", reason)
+        self.assertIn("sleep 3600", reason)
 
     def test_a_process_with_the_path_in_its_argv_is_named(self) -> None:
         reason = self.verdicts(self.run_tool())["in-use-argv"][1]
@@ -253,7 +273,9 @@ class PruneWorktreesTestCase(unittest.TestCase):
         exe.parent.mkdir()
         shutil.copy2(shutil.which("sleep"), exe)
         self.ignore(self.trees / "merged", "bin/")  # the worktree stays clean: only the process pins it
-        proc = self.start([str(exe), "60"], cwd=self.root)
+        # argv[0] is the real name, so a multi-call `sleep` (uutils, busybox) still dispatches,
+        # and no argument holds the worktree's path: only the executable pins it.
+        proc = self.start(["sleep", "3600"], cwd=self.root, executable=str(exe))
         reason = self.verdicts(self.run_tool())["merged"]
         self.assertEqual(reason[0], "KEPT", reason)
         self.assertIn(f"pid {proc.pid}", reason[1])
@@ -379,7 +401,7 @@ class PruneWorktreesTestCase(unittest.TestCase):
             real_remove(wt)
             removed.append(wt.path)
             if len(removed) == 1:  # a process starts in "squashed" while the first is being removed
-                self.start(["sleep", "60"], cwd=self.trees / "squashed")
+                self.start(["sleep", "3600"], cwd=self.trees / "squashed")
 
         with mock.patch.object(tool, "remove", remove_then_start_a_process_in_squashed):
             code, out = self.run_in_process(tool, ["--no-fetch", "--apply"])
