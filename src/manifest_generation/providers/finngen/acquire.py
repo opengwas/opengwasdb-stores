@@ -36,10 +36,10 @@ Usage:
         --out /data/opengwasdb/raw/finngen-r13/connectors/<date>/finngen-r13-full.acquisition-manifest.tsv \
         --workers 8
 
-**Compatibility mode** (``--release-dir``), kept until the R generator retires
-with acceptance criterion 1 (#288): the R path emits a working bundle first, so
-acquisition reads its ``analyses.tsv`` and fills in what it acquired, exactly as
-it did before this script became the Acquisition Manifest writer:
+**Compatibility mode** (``--release-dir``), kept because the recorded receipts
+of OGS-00003 and OGS-00017 cite it: the R-era path emitted a working bundle
+first, so acquisition reads its ``analyses.tsv`` and fills in what it acquired,
+exactly as it did before this script became the Acquisition Manifest writer:
 
     python3 -m manifest_generation.providers.finngen.acquire --release-dir=<release dir>
 
@@ -422,7 +422,7 @@ def acquire_endpoints(
 
 
 # ---------------------------------------------------------------------------
-# Compatibility mode: the R path's working bundle (until acceptance criterion 1)
+# Compatibility mode: the R era's working bundle (the recorded receipts cite it)
 # ---------------------------------------------------------------------------
 
 

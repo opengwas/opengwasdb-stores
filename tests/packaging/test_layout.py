@@ -35,14 +35,9 @@ CODE_SUFFIXES = frozenset({".py", ".r", ".rmd", ".qmd", ".sh", ".smk", ".ipynb",
 
 # The legacy R generators, and the stage-2 ticket of epic #282 that retires
 # each. A shared helper retires with the last generator that sources it.
-FINNGEN = "#288 (FinnGen onto the pipeline: AC1 deletes the R generator)"
 UKB_B = "#289 (ukb-b onto the pipeline)"
 BOTH = "#288 and #289, whichever retires the last R generator"
 LEGACY_R_GENERATORS: dict[str, str] = {
-    "resources/generators/finngen-r13/generate.R": FINNGEN,
-    "resources/generators/lib/finngen_r13_pilot.R": FINNGEN,
-    "resources/generators/lib/metadata_resolvers/finngen_manifest.R": FINNGEN,
-    "resources/generators/lib/source-formats/finngen-r13-dense/generate.R": FINNGEN,
     "resources/generators/ukb-b/generate.R": UKB_B,
     "resources/generators/lib/opengwas_gwas_vcf_dense.R": UKB_B,
     "resources/generators/lib/metadata_resolvers/opengwas_api.R": UKB_B,

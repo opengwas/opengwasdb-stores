@@ -11,6 +11,13 @@ per-Analysis metadata sidecar). They go through the one entry point --
 pipeline needs nothing FinnGen-specific beyond its connectors and its release
 config.
 
+Every Analysis reads through opengwasdb's built-in ``finngen-r13`` Column Map
+(#292): the collection's reader capability is ``opengwasdb.column-map``, the
+Build Recipe binds the map by name and the pinned package's checksum, and the
+bundle carries no map file because the bytes are the package's. This is the
+only reader that streams source metrics, so it is the one Analysis Resolution
+uses (#288).
+
 The fixture machinery is the phase-b-candidate suite's, loaded by path because
 its directory is not an importable package (see ``tests/packaging/test_imports``):
 its fake resolver, its CLI invocation and its temporary-directory conventions.
@@ -23,6 +30,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+import importlib.resources
 import importlib.util
 import json
 import sys
@@ -40,6 +48,9 @@ STAGE_TEST = REPO_ROOT / "tests" / "phase-b-candidate" / "test_phase_b_candidate
 STORE_ID = "OGS-99188"
 SNAPSHOT_ID = "finngen-r13-fixture-2026-10-21"
 TRAIT_TABLE_RESOURCE_ID = "canonical-trait-mapping-efo"
+#: The reader that streams source metrics, and the built-in map it reads through (#292).
+MAP_CAPABILITY = "opengwasdb.column-map"
+BUILTIN_MAP = "finngen-r13"
 #: The one fixture row shape: a case-control FinnGen endpoint.
 ANALYSES = [
     # (phenocode, phenotype, n_cases, n_controls)
@@ -58,6 +69,14 @@ TRAIT_TABLE_TEXT = (
     "trait_label\ttrait_ontology_id\ttrait_ontology_label\n"
     "weight\tEFO:0004338\tbody weight\n"
 )
+
+
+def packaged_map_sha256(name: str) -> str:
+    """The built-in map's checksum, from the bytes the pinned package ships."""
+    data = importlib.resources.files("opengwasdb.readers").joinpath(
+        f"column_maps/{name}.toml"
+    ).read_bytes()
+    return hashlib.sha256(data).hexdigest()
 
 
 def _stage_module():
@@ -172,11 +191,14 @@ class FinnGenEndToEndTest(unittest.TestCase):
                 "completion_state": "observed_only",
                 "command": "build-dense-vcf",
                 "options": {
-                    "source-reader-capability": "opengwasdb.finngen-r13",
+                    "source-reader-capability": MAP_CAPABILITY,
                     "source-assembly": "hg38",
                 },
                 "post": {"top_hits": True, "overview": True},
             },
+            # The built-in map the rows read through: bound by name and the
+            # pinned package's checksum, with no carried file (#292).
+            "column_map": {"builtin": BUILTIN_MAP},
             "defaults": {
                 "source_genome_build": "GRCh38",
                 "license": "FinnGen public data",
@@ -249,20 +271,28 @@ class FinnGenEndToEndTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         run_root = self.fixture.work_root / STORE_ID
 
-        # prepare: the resolver manifest is FinnGen's reader, tier and counts.
+        # prepare: the resolver manifest is FinnGen's Column Map reader, tier and counts.
         manifest = self.stage._read_tsv(run_root / "resolver" / "analyses.tsv")
         self.assertEqual([row["analysis_id"] for row in manifest],
                          [phenocode for phenocode, *_ in ANALYSES])
         for row in manifest:
-            self.assertEqual(row["source_reader_capability"], "opengwasdb.finngen-r13")
+            self.assertEqual(row["source_reader_capability"], MAP_CAPABILITY)
             self.assertEqual(row["stored_effect_scale"], "log_or")
             self.assertEqual(row["original_sd_method"], "binary_trait")
         self.assertEqual(
             [row["sample_size"] for row in manifest], ["433889", "400500", "400000"]
         )
-        # resolve: the fake resolver's receipt names every record it kept.
+        # resolve: the fake resolver's receipt names every record it kept, and
+        # each record's fingerprint carries the map the resolver was passed.
         receipt = json.loads((run_root / "resolver" / "resolution_receipt.json").read_text())
         self.assertEqual(sorted(receipt["records"]), [phenocode for phenocode, *_ in ANALYSES])
+        fingerprint = {"name": BUILTIN_MAP, "sha256": packaged_map_sha256(BUILTIN_MAP)}
+        area = Path(receipt["resolution_area"])
+        for phenocode, *_ in ANALYSES:
+            record = json.loads((area / receipt["records"][phenocode]["record"]).read_text())
+            self.assertEqual(
+                record["fingerprints"]["resolution_config"]["column_map"], fingerprint
+            )
 
         bundle_dir = self.fixture.registry_root / STORE_ID
         self.assertTrue((bundle_dir / "release.yaml").is_file())
@@ -285,7 +315,7 @@ class FinnGenEndToEndTest(unittest.TestCase):
         )
         for row in analyses:
             self.assertEqual(row["exclude_from_build"], "")
-            self.assertEqual(row["source_reader_capability"], "opengwasdb.finngen-r13")
+            self.assertEqual(row["source_reader_capability"], MAP_CAPABILITY)
             self.assertEqual(row["stored_effect_scale"], "log_or")
             self.assertEqual(row["original_sd_method"], "binary_trait")
             self.assertEqual(row["sample_size_kind"], "case_control")
@@ -299,6 +329,19 @@ class FinnGenEndToEndTest(unittest.TestCase):
                                  f"finngen_R13_{row['source_analysis_id']}.gz"))
         self.assertEqual([(row["n_cases"], row["n_controls"]) for row in analyses],
                          [("132", "433757"), ("500", "400000"), ("200000", "200000")])
+
+        # The Build Recipe binds the built-in map and the bundle carries no map
+        # file: the bytes are the pinned OpenGWASDB package's.
+        build = yaml.safe_load((bundle_dir / "build.yaml").read_text())
+        self.assertEqual(
+            build["column_map"],
+            {"name": BUILTIN_MAP, "sha256": packaged_map_sha256(BUILTIN_MAP)},
+        )
+        self.assertFalse((bundle_dir / "column_maps").exists())
+        self.assertEqual(
+            (self.fixture.work_root / STORE_ID / "bundle" / "column_maps").exists(),
+            False,
+        )
 
         self.assertEqual(
             bundle_module.check(

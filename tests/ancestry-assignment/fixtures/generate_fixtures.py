@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Deterministically (re)generates the tiny ancestry-mixture reference + release
-fixtures used by tests/opengwas-gwas-vcf-dense/test_annotation.py and
-tests/finngen-r13-pilot/test_annotation.py (see ../README.md).
+fixtures used by tests/opengwas-gwas-vcf-dense/test_annotation.py (see
+../README.md).
 
 Run from the repository root: python3 tests/ancestry-assignment/fixtures/generate_fixtures.py
 """

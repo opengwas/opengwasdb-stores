@@ -1239,23 +1239,18 @@ Three implementations exist:
   presence only when `unit` is absent or unrecognised (issue #50: the `ukb-b`
   batch reports every trait on the SD scale, so inferring scale from
   case/control-count presence alone is wrong for that batch).
-- `resources/generators/lib/metadata_resolvers/finngen_manifest.R`
-  (`resolve_finngen_manifest_metadata()`, issue #57), for FinnGen's public
-  endpoint manifest. Binary endpoint rows carry `num_cases` and `num_controls`
-  and resolve to `log_or`/`case_control`. FinnGen encodes its
+- `src/manifest_generation/providers/finngen/source_metadata_adapter.py`
+  (issue #288, `docs/spec/source-connectors.md`), FinnGen's endpoint manifest,
+  for the `finngen-r13` Source Collection. It keeps the classification the
+  collection's retired R resolver applied: binary endpoint rows carry
+  `num_cases` and `num_controls` and are `case-control`; FinnGen encodes its
   inverse-rank-normalised quantitative endpoints with
   `category = Quantitative endpoints`, the total N in `num_cases`, and
-  `num_controls = 0`; those rows resolve to `sd`/`total` without
-  misrepresenting that total as a case count. Any other shape is explicit
-  `unresolved`.
-- `src/manifest_generation/providers/finngen/source_metadata_adapter.py`
-  (issue #288, `docs/spec/source-connectors.md`), the same classification as
-  Python, for the shared pipeline. It applies the identical rules and refuses
-  an endpoint it cannot describe honestly rather than leaving it `unresolved`;
-  the release config's method tiers turn `study_design` into
-  `stored_effect_scale`/`sample_size_kind`. Both implementations stay while the
-  R generator is the only path that resolves FinnGen: the pinned `opengwasdb`
-  cannot read the format yet (#288).
+  `num_controls = 0`, and those rows are `quantitative` without
+  misrepresenting that total as a case count. It refuses an endpoint it cannot
+  describe honestly rather than leaving it `unresolved`; the release config's
+  method tiers turn `study_design` into
+  `stored_effect_scale`/`sample_size_kind`.
 
 ### Trait ontology mapping resolver
 

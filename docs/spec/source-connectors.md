@@ -204,10 +204,8 @@ several (a complex such as AMP kinase) or none; `target_mhc`;
 `src/manifest_generation/providers/finngen/source_metadata_adapter.py` converts
 FinnGen's published `finngen_R13_manifest.tsv` -- one row per endpoint, with
 `phenocode`, `phenotype`, `category`, `num_cases`, `num_controls` -- into the
-canonical table (#288). Its classification is the R metadata resolver's
-(`resources/generators/lib/metadata_resolvers/finngen_manifest.R`), which stays
-while the R generator is the only path that resolves FinnGen, and it keeps it
-exactly:
+canonical table (#288). Its classification is the retired R metadata
+resolver's, and it keeps it exactly:
 
 | Provider column | Canonical column |
 |---|---|
@@ -422,9 +420,9 @@ endpoint upstream no longer serves is `data_absent_upstream`; a failed transfer
 is `data_failed`; the manifest is written either way and the run exits non-zero,
 so an unattended retry reuses every completed file.
 
-The second is a **compatibility mode**, kept only until the R generator retires
-with FinnGen's acceptance criterion 1 (#288), because that generator emits a
-working bundle before acquisition runs:
+The second is a **compatibility mode** the R era used, because its generator
+emitted a working bundle before acquisition ran; it stays because the recorded
+receipts of OGS-00003 and OGS-00017 cite it (#288):
 
 ```sh
 python3 -m manifest_generation.providers.finngen.acquire --release-dir=<dir>
