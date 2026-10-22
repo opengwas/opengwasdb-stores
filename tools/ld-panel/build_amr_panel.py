@@ -19,10 +19,17 @@ Stages, each a subprocess whose cost is recorded:
    find_underresolved_blocks at 0.9;
 5. calibration: heldout_calibration on the pilot's five blocks.
 
-Every stage resumes. A converted chromosome carries a .complete marker,
-run_panels skips valid blocks built under the same floor, and a block already
-verified clean since it was built is not verified again. Each invocation writes
-runs/<UTC>/receipt.json, and summary.json covers the panel as it stands.
+Every stage resumes, and each receipt is checked before it is trusted (#354).
+Membership is frozen against the panel's own members/AMR.keep.sha256, from a
+fresh copy in runs/<UTC>/members, so a changed sample list refuses the run
+instead of finishing the panel under another membership. A converted
+chromosome carries a JSON .complete marker naming its QC and members hash; one
+recording a different conversion refuses rather than being reconverted.
+run_panels skips valid blocks built under the same floor, a block already
+verified clean since it was built is not verified again, and a calibration
+result newer than its chromosome's conversion is reused. Each invocation writes
+runs/<UTC>/receipt.json and runs/<UTC>/regions.tsv; summary.json covers the
+whole declared panel, not only the chromosomes this invocation touched.
 
 Run it under ``taskset`` with at most --cpus CPUs, and PYTHONNOUSERSITE=1.
 """
@@ -31,9 +38,9 @@ from __future__ import annotations
 import argparse, csv, json, os, shutil, sys
 from collections.abc import Callable, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
-from typing import TypeVar
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import TypeVar
 
 import numpy as np
 
