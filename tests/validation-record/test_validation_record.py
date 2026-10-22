@@ -38,11 +38,11 @@ This suite asserts the container migration:
      never a version these Stores carry: it names a retired pre-reset encoding.
   7. `observed` carries every `OBSERVED_FIELDS` key, and beyond them only the
      keys `register` documents writing when they apply, with a documented value:
-     `variant_reference` (issue #148, docs/release-metadata-schema.md) and
-     `resumed` (docs/spec/store-release-workflow.md). A record from a recipe
-     naming a variant reference, as OGS-00005's re-registration is, carries
-     `variant_reference` legitimately. Any other extra key is not the register
-     shape.
+     `variant_reference` (issue #148, docs/release-metadata-schema.md), `resumed`
+     (docs/spec/store-release-workflow.md), and the `rsid_conflicts` counts a
+     Hybrid build reports (issue #225). A record from a recipe naming a variant
+     reference, as OGS-00005's re-registration is, carries `variant_reference`
+     legitimately. Any other extra key is not the register shape.
   8. `observed.completion_state` is the completion state of the Store the
      record's publication published, not the bundle's declaration (#307,
      ADR 0037): `observed_only` for a single-id release's build phase,
@@ -89,6 +89,14 @@ MIGRATED: tuple[str, ...] = ("OGS-00004", "OGS-00007")
 CONDITIONAL_OBSERVED_VALUES: dict[str, frozenset[object]] = {
     "variant_reference": frozenset({"provided", "extracted"}),
     "resumed": frozenset({True}),
+}
+
+# The conditional observed keys whose value is a block rather than a scalar, and
+# the keys that block carries: the counts a Hybrid build's rsid harvest reports
+# (issue #225). The build's `sample` names variants, not a measurement, so
+# `register` leaves it in the step record.
+CONDITIONAL_OBSERVED_MAPPINGS: dict[str, tuple[str, ...]] = {
+    "rsid_conflicts": ("policy", "n_keys", "n_variants"),
 }
 
 # The observed key #307 added: the completion state of the Store the record's
@@ -225,15 +233,22 @@ class TestCommittedValidationRecords(unittest.TestCase):
                 )
             extra = set(observed) - set(OBSERVED_FIELDS)
             self.assertEqual(
-                extra - set(CONDITIONAL_OBSERVED_VALUES),
+                extra - set(CONDITIONAL_OBSERVED_VALUES) - set(CONDITIONAL_OBSERVED_MAPPINGS),
                 set(),
                 f"{store_id}.observed carries keys register does not document writing",
             )
-            for key in sorted(extra):
+            for key in sorted(extra & set(CONDITIONAL_OBSERVED_VALUES)):
                 self.assertIn(
                     observed[key],
                     CONDITIONAL_OBSERVED_VALUES[key],
                     f"{store_id}.observed.{key} is {observed[key]!r}, not a documented value",
+                )
+            for key in sorted(extra & set(CONDITIONAL_OBSERVED_MAPPINGS)):
+                self.assertEqual(
+                    set(observed[key]),
+                    set(CONDITIONAL_OBSERVED_MAPPINGS[key]),
+                    f"{store_id}.observed.{key} carries {sorted(observed[key])}, not the "
+                    f"{sorted(CONDITIONAL_OBSERVED_MAPPINGS[key])} a record holds",
                 )
             self.assertEqual(
                 record["validator"]["name"],
