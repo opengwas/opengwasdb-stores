@@ -58,8 +58,10 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    builds and publishes the Observed-Only Ragged Store from a GWAS-SSF source,
    completes it, passes the Ragged Observed-View Check, given the LD panel
    and ancestry the bundle completes against, and publishes the completed
-   Store at its path; and a perturbed observed Z fails the check, naming it,
-   and the Observed-Only Store stays published.
+   Store at its path; a perturbed observed Z fails the check, naming it, and
+   the Observed-Only Store stays published; a published Observed-Only Ragged
+   release whose bundle gains a `complete-ragged` block runs only its
+   completion phase; and a forced run rebuilds and completes it in one run.
 """
 
 from __future__ import annotations
@@ -3221,10 +3223,19 @@ class TestWorkflowForcedRunOfACompletedSingleIdRelease(unittest.TestCase):
     #195 replaces any release, and the completion phase then completes the new
     Store and replaces it in turn. The completion's records are rebuilt with
     it, never left over from the completion they described.
+
+    A subclass runs the same test on another layout's release: its template
+    and the records its two phases write (#336).
     """
 
+    PHASE_RECORDS = TestWorkflowSingleIdReferenceCompletion.PHASE_RECORDS
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return single_id_completion_template()
+
     def setUp(self) -> None:
-        template = single_id_completion_template()
+        template = self.build_template()
         self.store_id: str = template["store_id"]
         self.temp_dir = tempfile.TemporaryDirectory()
         td = Path(self.temp_dir.name)
@@ -3254,7 +3265,7 @@ class TestWorkflowForcedRunOfACompletedSingleIdRelease(unittest.TestCase):
         )
 
         self.assertEqual(res.returncode, 0, f"forced run failed:\n{res.stdout}\n{res.stderr}")
-        for name in TestWorkflowSingleIdReferenceCompletion.PHASE_RECORDS:
+        for name in self.PHASE_RECORDS:
             record = json.loads((records / f"{name}.json").read_text(encoding="utf-8"))
             self.assertTrue(record["success"], name)
             self.assertNotEqual((records / f"{name}.json").read_bytes(), old_records[f"{name}.json"], f"{name} was not rebuilt")
@@ -3607,13 +3618,23 @@ class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
     with nothing left to do. The bundle then gains a `complete-hybrid` block,
     the one amendment ADR 0037 allows, and an unforced run completes the
     Store. `TestWorkflowCompletingAStoreBuiltBefore304` shows the same for a
-    Dense Store the workflow built before #304.
+    Dense Store the workflow built before #304. A subclass runs the same test
+    on another layout's release: its template, layout and completion command
+    (#336).
     """
+
+    LAYOUT = "hybrid"
+    COMMAND = "complete-hybrid"
+    COMPLETION_RECORDS = TestWorkflowSingleIdHybridReferenceCompletion.COMPLETION_RECORDS
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return hybrid_single_id_completion_template()
 
     def test_the_amended_bundle_runs_only_the_completion_phase(self) -> None:
         import yaml
 
-        template = hybrid_single_id_completion_template()
+        template = self.build_template()
         store_id = template["store_id"]
         self.assertIsNotNone(template["complete_started"], "the template's run never reached `complete`")
         stores, artifacts = copy_snapshot(template["complete_started"], built=template, into=self.td)
@@ -3628,7 +3649,7 @@ class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
         self.assertEqual([t for t in scheduled_targets(published.stdout) if t != store_id], [])
 
         amend_to_complete_own_store(
-            stores, store_id, ld_panel=Path(declared["complete"]["options"]["ld-panel"]), command="complete-hybrid"
+            stores, store_id, ld_panel=Path(declared["complete"]["options"]["ld-panel"]), command=self.COMMAND
         )
         store_dir = paths.store_dir(store_id, root=artifacts)
         build_phase_before = {
@@ -3639,20 +3660,17 @@ class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
         res = run_release([store_id], registry_root=stores, artifact_root=artifacts, checkout=checkout)
 
         self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
-        self.assertEqual(
-            [t for t in scheduled_targets(dry.stdout) if t != store_id],
-            TestWorkflowSingleIdHybridReferenceCompletion.COMPLETION_RECORDS,
-        )
+        self.assertEqual([t for t in scheduled_targets(dry.stdout) if t != store_id], self.COMPLETION_RECORDS)
         self.assertNotIn("would refuse", dry.stdout)
         self.assertEqual(res.returncode, 0, f"the completion failed:\n{res.stdout}\n{res.stderr}")
         for p, (mtime, content) in build_phase_before.items():
             self.assertEqual((p.stat().st_mtime_ns, p.read_bytes()), (mtime, content), f"{p} was rewritten")
         rec_dir = paths.records_dir(store_id, root=artifacts)
-        for step in TestWorkflowSingleIdHybridReferenceCompletion.COMPLETION_RECORDS:
+        for step in self.COMPLETION_RECORDS:
             self.assertTrue(json.loads((rec_dir / f"{step}.json").read_text(encoding="utf-8"))["success"], step)
         manifest_doc = json.loads((paths.store_path(store_id, root=artifacts) / "manifest.json").read_text())
         self.assertEqual(
-            (manifest_doc["primary_layout"], manifest_doc["completion_state"]), ("hybrid", "reference_completed")
+            (manifest_doc["primary_layout"], manifest_doc["completion_state"]), (self.LAYOUT, "reference_completed")
         )
 
 
@@ -3844,6 +3862,36 @@ class TestWorkflowSingleIdRaggedFailingObservedViewCheck(TestWorkflowSingleIdFai
         start, end = (int(offset) for offset in ragged["offsets"][0:2])
         (position,) = np.flatnonzero(ragged["variant_index"][start:end] == int(found["variant_index"][0])) + start
         ragged["z"][position] = ragged["z"][position] + scale
+
+
+class TestWorkflowCompletingAPublishedRaggedStore(TestWorkflowCompletingAPublishedHybridStore):
+    """A published Observed-Only Ragged Store is completed later under its id, with no rebuild (#336, #305).
+
+    The release is `ragged_single_id_completion_template`'s. Its build phase
+    also builds a Top-Hit Index, a post step the amendment check leaves out of
+    its comparison.
+    """
+
+    LAYOUT = "ragged"
+    COMMAND = "complete-ragged"
+    COMPLETION_RECORDS = TestWorkflowSingleIdRaggedReferenceCompletion.COMPLETION_RECORDS
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return ragged_single_id_completion_template()
+
+
+class TestWorkflowForcedRunOfACompletedRaggedRelease(TestWorkflowForcedRunOfACompletedSingleIdRelease):
+    """`--config force=1` on a completed Ragged release rebuilds, publishes and completes it in one run (#336)."""
+
+    PHASE_RECORDS = (
+        TestWorkflowSingleIdRaggedReferenceCompletion.BUILD_PHASE_RECORDS
+        + TestWorkflowSingleIdRaggedReferenceCompletion.COMPLETION_RECORDS
+    )
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return ragged_single_id_completion_template()
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
