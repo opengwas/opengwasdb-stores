@@ -68,3 +68,10 @@ notes: >
   `gpm-hg38-eur-ld` declares the same cohort's panel at the generation host's
   `/local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38`,
   which is absent here; reconciling the two is follow-up #335.
+
+  Also qualified and active for the dbGaP MVP EUR Store (2026-10-22, #227).
+  OGS-00012 completes against this panel on the same owner decision of
+  2026-10-21, and both the UKB-B and the dbGaP MVP configs record
+  `qualification: qualified` and `activation: active`, the activation being the
+  `EUR -> ukb` alias above. The panel was not re-verified for that release: the
+  gaps in the paragraph above stand unchanged.
