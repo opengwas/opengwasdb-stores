@@ -34,11 +34,9 @@ PACKAGE_HOMES = ("src/", "tests/")
 CODE_SUFFIXES = frozenset({".py", ".r", ".rmd", ".qmd", ".sh", ".smk", ".ipynb", ".js", ".pl"})
 
 # The R code under resources/, and the ticket that retires each. Every
-# generator's R path has retired (epic #282 stage 2), so what is left holds no
-# generator: two metadata resolvers curation's R-resolver round-trip still
-# sources, and the last shared helpers, which go with this cleanup.
+# generator's R path has retired (epic #282 stage 2); what is left of it is
+# what curation's R-resolver round-trip still sources.
 EPIC_CLEANUP = "#282 (curation's R-resolver round-trip still sources these)"
-LAST_R_GENERATOR = "#282 (gone with the last R generator)"
 LEGACY_R_GENERATORS: dict[str, str] = {
     # These two lost their generator when ukb-b's R path retired with #289, but
     # the curation suites (tests/curation/test_promotion.py, test_e2e_pipeline.py)
@@ -46,9 +44,6 @@ LEGACY_R_GENERATORS: dict[str, str] = {
     # round-trips: no ticket yet moves curation off the R resolver.
     "resources/generators/lib/metadata_resolvers/canonical_trait_table.R": EPIC_CLEANUP,
     "resources/generators/lib/metadata_resolvers/ontology_contract.R": EPIC_CLEANUP,
-    "resources/generators/lib/build_environment.R": LAST_R_GENERATOR,
-    "resources/generators/lib/indexed_subsets.R": LAST_R_GENERATOR,
-    "resources/generators/lib/schema_validate.R": LAST_R_GENERATOR,
 }
 
 

@@ -1418,9 +1418,8 @@ is the executable check of all of them.
 
 Every future Dense and Hybrid Store Release declares the maintained `hm3`
 Indexed Variant Subset by default (stores #210, epic #214); a Ragged-only release
-does not. A generator resolves that declaration through
-`src/manifest_generation/indexed_subsets.py` (or its R mirror
-`resources/generators/lib/indexed_subsets.R`), which reads the one maintained
+does not. The pipeline resolves that declaration through
+`src/manifest_generation/indexed_subsets.py`, which reads the one maintained
 `hapmap3-hg38` Reference Resource, so no writer copies the list path, assembly
 or checksum. The default is not a requirement:
 
