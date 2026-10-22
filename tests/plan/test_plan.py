@@ -5,6 +5,9 @@ Verifies:
 - OGS-00003 Dense observed-only golden test against external JSON fixture.
 - OGS-00004 and OGS-00005 Hybrid observed-only golden tests against external JSON fixtures.
 - OGS-00006 and OGS-00007 Ragged SSF observed-only golden tests against external JSON fixtures.
+- Single-id completion (ADR 0037): OGS-00003 (Dense) and OGS-00011 (Hybrid) gaining a `complete`
+  block plan both phases against golden fixtures, the build phase being the observed-only plan;
+  a Ragged one is refused.
 - Committed registry (#211): the eight Dense-component bundles declare `hm3`, and
   the declared subset Step sits before overview/validate; the four Ragged-only
   bundles declare none and plan unchanged.
@@ -1156,7 +1159,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 analyses_path=Path("stores/OGS-00088/analyses.tsv"),
             )
             # Without a parent it is a single-id release, which completes its
-            # own Store, and only a Dense one is planned (ADR 0037).
+            # own Store, and a Ragged one is not planned (ADR 0037).
             with self.assertRaises(ValueError) as ctx:
                 plan(bundle_no_parent)
             record_check()
@@ -1684,9 +1687,9 @@ class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
         rho = next(s for s in steps if s.name == "completion-rho")
         self.assertEqual(rho.argv, ["opengwasdb", "build-dense-rho", self.STORE])
 
-    def test_a_layout_other_than_dense_is_refused(self) -> None:
-        """The Observed-View Check supports only Dense Stores, so nothing else is planned (ADR 0037)."""
-        for layout, command in (("hybrid", "complete-hybrid"), ("ragged", "complete-ragged")):
+    def test_a_ragged_layout_is_refused(self) -> None:
+        """The Observed-View Check compares no Ragged Store yet, so a Ragged one is not planned (ADR 0037)."""
+        for layout, command in (("ragged", "complete-ragged"),):
             with self.subTest(layout=layout):
                 bundle_obj = self.completed(
                     layout,
@@ -1698,6 +1701,54 @@ class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
                 record_check()
                 self.assertIn(repr(layout), str(ctx.exception))
                 self.assertIn("ADR 0037", str(ctx.exception))
+
+
+class TestPlanSingleIdHybridReferenceCompleted(unittest.TestCase):
+    """A Hybrid release without `derived_from` completes its own Store, as a Dense one does (ADR 0037, #333).
+
+    The fixture is OGS-00011's committed recipe gaining a `complete-hybrid`
+    block. The golden was written by the planner before Hybrid was admitted:
+    its observed-only plan of OGS-00011, then its completion phase for the
+    amended bundle, which carries no layout rule of its own.
+    """
+
+    GOLDEN = REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00011-single-id-completed.json"
+    STORE = "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    COMPLETE_BLOCK = {
+        "command": "complete-hybrid",
+        "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR", "n-workers": 24},
+    }
+
+    def completed(self) -> Bundle:
+        observed = load("OGS-00011")
+        return Bundle(
+            store_id=observed.store_id,
+            root=observed.root,
+            release=observed.release,
+            build={**observed.build, "completion_state": "reference_completed", "complete": self.COMPLETE_BLOCK},
+            analyses_path=observed.analyses_path,
+        )
+
+    def test_both_phases_match_the_golden(self) -> None:
+        """Build phase as today, then complete-hybrid, the HM3 subset, overview, validate and the check."""
+        steps = plan(self.completed())
+        assert_steps_match_golden(self, steps, self.GOLDEN)
+        record_check()
+        self.assertEqual(
+            [s.name for s in steps if s.phase == "completion"],
+            [
+                "complete", "completion-indexed-subset-hm3", "completion-overview", "completion-validate",
+                "completion-observed-view-check",
+            ],
+        )
+        for step in steps:
+            validate_step_argv_against_cli(self, step)
+
+    def test_the_build_phase_is_the_observed_only_plan(self) -> None:
+        """What OGS-00011 plans today is its build phase, step for step (ADR 0037, #305)."""
+        steps = plan(self.completed())
+        record_check()
+        self.assertEqual([s for s in steps if s.phase == "build"], plan(load("OGS-00011")))
 
 
 class TestBuildManifestSeam(unittest.TestCase):

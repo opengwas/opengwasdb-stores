@@ -51,8 +51,8 @@ exactly what the same bundle plans as `observed_only`, then the completion
 phase, `complete` from the id's published Store into its staged Store
 followed by the declared post steps under `completion-` record names, and
 last the Observed-View Check, which gates the replacement of the published
-Store. Only a Dense release is planned this way. A two-id child (`derived_from`) plans as
-before.
+Store. Dense and Hybrid releases are planned this way, not Ragged ones. A two-id
+child (`derived_from`) plans as before.
 
 This is the only place in the repository that knows how to invoke
 `opengwasdb`, which is why the Snakefile's rules and the master list's
@@ -274,7 +274,7 @@ REGISTER_STEPS: dict[str, str] = {
 COMPLETED_RELEASE_SUFFIX: str = "-completed"
 # Only the layouts the Observed-View Check can compare complete their own
 # Store; the others keep needing a two-id child (ADR 0037).
-SINGLE_ID_COMPLETION_LAYOUTS: frozenset[str] = frozenset({"dense"})
+SINGLE_ID_COMPLETION_LAYOUTS: frozenset[str] = frozenset({"dense", "hybrid"})
 # The Observed-View Check compares the published Store with the staged
 # completed one before the completion phase publishes (ADR 0037, Decision 2).
 # Its seed is one fixed default for every release, the ADR's benchmark seed,
