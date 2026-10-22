@@ -124,6 +124,11 @@ reference_resources:
     location_kind: external_file
     fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
     # Canonical declaration: resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml
+  - resource_id: liftover-hg19-to-hg38
+    kind: liftover_chain
+    location: /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz
+    location_kind: external_file
+    # Canonical declaration: resources/reference-resources/liftover-hg19-to-hg38/resource.yaml
   - resource_id: canonical-trait-mapping-efo
     kind: trait_ontology_mapping
     location: resources/reference-resources/canonical-trait-mapping-efo
@@ -132,6 +137,8 @@ reference_resources:
 
 ancestry_assignment:
   reference_resource_id: ukb-ancestry-mixture-hg38
+  # eQTLGen is hg19, the reference GRCh38: the resolver lifts through this chain (#292).
+  liftover_chain_resource_id: liftover-hg19-to-hg38
   maf_floor: 0.01
   extraction_panel: null
   gates:
