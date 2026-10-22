@@ -984,6 +984,42 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
         self.assertIn("Nothing was written", res.stderr)
 
+    def assert_forced_run_rebuilds(self, store_id: str) -> None:
+        """Dry run and real run of `force=1` both rebuild the published release and archive its Store (#339)."""
+        build_record = paths.record_path(store_id, "build", root=self.artifact_root)
+        old_start = json.loads(build_record.read_text(encoding="utf-8"))["start_time"]
+
+        dry = run_release(
+            [store_id, "--dry-run"],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            config={"force": "1"},
+        )
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertEqual(
+            scheduled_targets(dry.stdout),
+            ["analyses.exclusions", "build", "top-hits", "overview", "validate", "register", store_id],
+            dry.stdout,
+        )
+        self.assertIn("would snapshot the records", dry.stdout)
+
+        res = run_release(
+            [store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root, config={"force": "1"}
+        )
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertNotEqual(json.loads(build_record.read_text(encoding="utf-8"))["start_time"], old_start)
+        archives = list((paths.store_dir(store_id, root=self.artifact_root) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+
+    def test_a_forced_run_rebuilds_an_unchanged_release_from_the_same_checkout(self) -> None:
+        self.use_completed_build()
+        self.assert_forced_run_rebuilds(self.STORE_ID)
+
+    def test_a_forced_run_rebuilds_an_unchanged_release_from_a_fresh_registry_copy(self) -> None:
+        self.use_completed_build()
+        self.rewrite_registry_analyses(self.STORE_ID)
+        self.assert_forced_run_rebuilds(self.STORE_ID)
+
     def test_a_forced_run_rebuilds_the_store_from_a_changed_registry_file(self) -> None:
         store_id = self.STORE_ID
         self.use_completed_build()

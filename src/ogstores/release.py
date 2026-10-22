@@ -63,6 +63,7 @@ from pathlib import Path
 from typing import Iterable
 
 from ogstores import amendment, bundle, paths, register, resources, run, runtime
+from ogstores.plan import plan as plan_steps
 
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
 
@@ -205,10 +206,40 @@ def snakemake_directory() -> Path:
     return Path(os.environ.get(SNAKEMAKE_DIRECTORY_ENV) or paths.REPO_ROOT)
 
 
+def forced_run_outputs(forced: Iterable[str], registry_root: Path, root: Path) -> list[str]:
+    """The files whose jobs a forced release reruns, so it rebuilds whatever its mtimes and content say (#339).
+
+    Snakemake's `--forcerun <file>` reruns the job that writes the file and
+    every job downstream of it. For each forced release that is its build
+    manifest, when its first step reads one, and its first planned step's
+    record: the whole build phase, and through its `register` record the
+    completion phase of a release that completes its own Store. Only the
+    forced releases are named, so no other release in the run is touched.
+    """
+    outputs: list[str] = []
+    for store_id in sorted(set(forced)):
+        b = bundle.load(store_id, registry_root=registry_root)
+        first = plan_steps(b, artifact_root=root)[0]
+        manifest_p = paths.build_manifest_path(store_id, root=root)
+        if manifest_p in first.inputs:
+            outputs.append(str(manifest_p))
+        outputs.append(str(paths.record_path(store_id, first.name, root=root)))
+    return outputs
+
+
 def snakemake_argv(
-    inv: Invocation, *, dry_run: bool, extra_config: dict[str, str] | None = None
+    inv: Invocation,
+    *,
+    dry_run: bool,
+    extra_config: dict[str, str] | None = None,
+    force_run: Iterable[str] = (),
 ) -> list[str]:
-    """The one Snakemake command line, with the ids before `--config`, which takes every word after it."""
+    """The one Snakemake command line, with the ids before `--config`, which takes every word after it.
+
+    `force_run` is the entry point's own `--forcerun`, from `forced_run_outputs`;
+    an operator cannot pass one (`UNSAFE_OPTIONS`). It follows the targets, since
+    it takes every word up to the next option.
+    """
     argv = [sys.executable, "-m", "snakemake", "--snakefile", str(SNAKEFILE), "--cores", inv.cores]
     if dry_run:
         argv.append("--dry-run")
@@ -217,6 +248,9 @@ def snakemake_argv(
     if inv.rerun_incomplete:
         argv.append("--rerun-incomplete")
     argv.extend(inv.targets)
+    force_run = list(force_run)
+    if force_run:
+        argv.extend(["--forcerun", *force_run])
     config = {**inv.config, **(extra_config or {})}
     if config:
         argv.append("--config")
@@ -681,7 +715,12 @@ def _run_snakemake(
 def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> int:
     """Show the plan and what the guard would do, writing nothing."""
     result = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), env=snakemake_env(root, create=False),
+        snakemake_argv(
+            inv,
+            dry_run=True,
+            force_run=forced_run_outputs(run.forced_releases(force, inv.targets), registry_root, root),
+        ),
+        cwd=snakemake_directory(), env=snakemake_env(root, create=False),
         capture_output=True, text=True
     )
     sys.stdout.write(result.stdout)
@@ -821,8 +860,10 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     # refusal and its resolutions, not the IncompleteFilesException it causes.
     run.refuse_pending_force_snapshots([(root, store_id) for store_id in requested])
 
+    force_run = forced_run_outputs(run.forced_releases(force, inv.targets), registry_root, root)
     plan = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), env=snakemake_env(root, create=False),
+        snakemake_argv(inv, dry_run=True, force_run=force_run),
+        cwd=snakemake_directory(), env=snakemake_env(root, create=False),
         capture_output=True, text=True
     )
     if plan.returncode != 0:
@@ -876,7 +917,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
             # The hand-off spares the Snakefile's `onstart` check from probing
             # the same runtime's subcommands again; it still checks the pin.
             returncode, interrupted = _run_snakemake(
-                snakemake_argv(inv, dry_run=False, extra_config={"release_run": stamp}),
+                snakemake_argv(inv, dry_run=False, extra_config={"release_run": stamp}, force_run=force_run),
                 locks.fds(),
                 extra_env={runtime.VERIFIED_RUNTIME_ENV: identity.handoff()},
                 root=root,
