@@ -25,11 +25,13 @@
 #
 # A Store's completion is declared in its one bundle, with both a `build` and a
 # `complete` block, once its `completion_reference` is `qualified` and `active`.
-# Every reference is pending, on hold or blocked today, so every Store is emitted
-# observed-only. The retired generator recorded the intended completion recipe
-# beside the bundle as `<observed id>.completion-plan.yaml`; the pipeline does
-# not, and a published Observed-Only Store is completed later by ADR 0037's one
-# bundle amendment (#305). See README.md.
+# A reference is qualified and active only where its entry below says so (owner
+# decision 2026-10-21); AMR is on hold and META is not applicable, so those two
+# Stores stay observed-only. Issue #221 emitted all five observed-only; a
+# published Observed-Only Store is completed later by ADR 0037's one bundle
+# amendment (#305), and the retired generator recorded the intended completion
+# recipe beside the bundle as `<observed id>.completion-plan.yaml`, which the
+# pipeline does not. See README.md.
 #
 # The owner decision "reorder the IDs" (2026-10-13) placed META ahead of
 # FinnGen. FinnGen's bundle was migrated OGS-00016 -> OGS-00017 under ADR
@@ -73,9 +75,10 @@ generator_commands:
 #
 # `completion_reference` records the DECLARED reference only. A declaration of
 # `status: available` is not a qualification or a science PASS: `qualification`
-# and `activation` are separate, and are `pending`/`blocked` for every reference
-# here. The emitter never promotes a reference to qualified from this file, and
-# a missing suggested panel does not prevent a pending completed definition.
+# and `activation` are separate, and each is stated per reference below. The MVP
+# pipeline does not emit a completed bundle from this file; it records which
+# panel an ADR 0037 bundle amendment may name. A missing suggested panel does
+# not prevent a pending completed definition.
 stores:
   EUR:
     observed_store_id: OGS-00012
@@ -89,14 +92,17 @@ stores:
     planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
     resolution: pending
     completion_reference:
-      resource_id: gpm-hg38-eur-ld
+      # Qualified and active (#227, owner decision 2026-10-21). Qualification is
+      # the owner's approval of this panel for completion; activation is the
+      # `EUR -> ukb` alias under /data/opengwasdb/reference/ld, which lets
+      # complete-dense's one --ancestry name both the panel directory and the
+      # Analyses. The earlier `gpm-hg38-eur-ld` declaration named a Resource
+      # whose location is absent on this host; #335 retires it.
+      resource_id: ukb-hg38-eur-ld
       ancestry: EUR
       declared_status: available
-      qualification: pending
-      activation: pending
-      # PROPOSED canonical EUR location; the actual alias is NOT active and the
-      # whole-panel qualification/activation is pending (#239). Retained only as
-      # a truthful suggested path, never as a qualified reference.
+      qualification: qualified
+      activation: active
       suggested_ld_panel: /data/opengwasdb/reference/ld
   AFR:
     observed_store_id: OGS-00013

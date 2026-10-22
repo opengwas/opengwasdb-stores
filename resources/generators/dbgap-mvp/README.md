@@ -82,12 +82,15 @@ unused: no Store is allocated those ids, and none is ever reused. They appear
 here, and in `config-candidate.yaml`'s comment, only as that record.
 
 All five configs are `completion_state: observed_only`, and the pipeline does
-not emit a reference-completed bundle. No MVP reference is qualified and active
-today: each `completion_reference` in `config-candidate.yaml` is pending, on
-hold or blocked. Once one is, its published Observed-Only Store is completed on
-the Store Release Build side: the accepted bundle gains a `complete` block, the
-one amendment ADR 0037 allows (#305), and the run completes that Store under its
-own id. The retired generator's `<observed id>.completion-plan.yaml` receipt has
+not emit a reference-completed bundle: a `completion_reference` is a
+declaration, and a `complete` block arrives only through the amendment below.
+A Store whose reference is `qualified`/`active` is completed on the Store
+Release Build side: the accepted bundle gains a `complete` block, the one
+amendment ADR 0037 allows (#305), and the run completes that Store under its own
+id. EUR is the first (owner decision 2026-10-21; OGS-00012 against the UKB EUR
+panel). AFR and EAS are still pending, AMR is on hold and META is not
+applicable, so OGS-00014 and OGS-00016 stay observed-only.
+The retired generator's `<observed id>.completion-plan.yaml` receipt has
 no pipeline equivalent.
 
 ## Regeneration against the committed bundles
