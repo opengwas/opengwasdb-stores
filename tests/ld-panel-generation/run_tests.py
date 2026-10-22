@@ -2,7 +2,7 @@
 """Fixture-driven tests for issues #35-40's in-repository implementation."""
 from __future__ import annotations
 
-import csv, importlib.util, json, shutil, subprocess, sys, tempfile
+import csv, importlib.util, json, os, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +28,13 @@ assert verify_spec.loader; verify_spec.loader.exec_module(verify)
 calibration_spec = importlib.util.spec_from_file_location("heldout_calibration", SCRIPT.with_name("heldout_calibration.py"))
 calibration = importlib.util.module_from_spec(calibration_spec); sys.modules[calibration_spec.name] = calibration
 assert calibration_spec.loader; calibration_spec.loader.exec_module(calibration)
+# The runner imports its siblings by bare name, so it loads after them.
+pilot_spec = importlib.util.spec_from_file_location("run_amr_pilot", SCRIPT.with_name("run_amr_pilot.py"))
+pilot = importlib.util.module_from_spec(pilot_spec); sys.modules[pilot_spec.name] = pilot
+assert pilot_spec.loader; pilot_spec.loader.exec_module(pilot)
+panel_spec = importlib.util.spec_from_file_location("build_amr_panel", SCRIPT.with_name("build_amr_panel.py"))
+panel = importlib.util.module_from_spec(panel_spec); sys.modules[panel_spec.name] = panel
+assert panel_spec.loader; panel_spec.loader.exec_module(panel)
 
 checks = 0
 def check(value: bool, message: str) -> None:
@@ -311,6 +318,60 @@ def test_heldout_calibration() -> None:
     check(np.median(held_out) < .5, f"masked z-scores without LD scored as recovered: {held_out}")
 
 
+def test_pair_records() -> None:
+    # #348: the split can keep a different record of one ALID on each side, so
+    # the halves share no dosage to standardise. It pairs nothing and is counted.
+    train = [{"SNP": "1:100:G:GA", "REF": "G", "ALT": "GA"},
+             {"SNP": "1:101:C:T", "REF": "C", "ALT": "T"}]
+    test = [{"SNP": "1:100:G:GA", "REF": "GA", "ALT": "G"},
+            {"SNP": "1:101:C:T", "REF": "C", "ALT": "T"}]
+    shared, mismatched = calibration.pair_records(train, test)
+    check(shared == [train[1]] and mismatched == 1,
+          f"an ALID the halves kept different records of must be counted, not shared: {shared}, {mismatched}")
+
+
+def test_panel_summary() -> None:
+    # #354: a panel's summary must name every block the panel declares -- not
+    # just the chromosomes this invocation touched -- and must not credit a
+    # verification report written before the block it verified.
+    g, variants = ld_fixture()
+    built = module.construct_block(g, variants, mac_threshold=1, component_floor=5)
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        for name in ("22/100-200", "22/300-400"):
+            module._atomic_outputs(out / "panel/AMR" / name, built)
+            (out / "verify").mkdir(exist_ok=True)
+            (out / "verify" / f"{name.replace('/', '_')}.json").write_text(json.dumps({"failures": []}))
+        def provenance(name: str) -> float:
+            return (out / "panel/AMR" / name).with_suffix(".provenance.json").stat().st_mtime
+        fresh, stale = out / "verify/22_100-200.json", out / "verify/22_300-400.json"
+        os.utime(fresh, (provenance("22/100-200") + 60, provenance("22/100-200") + 60))
+        os.utime(stale, (provenance("22/300-400") - 60, provenance("22/300-400") - 60))
+        (out / "panel/failures.tsv").write_text(
+            "AMR/22/500-600\t1\tSystemExit: no variants remain after filtering\n")
+        regions = out / "regions.tsv"
+        regions.write_text("chr\tstart\tend\tancestry\n22\t100\t200\tAMR\n22\t300\t400\tAMR\n"
+                           "22\t500\t600\tAMR\n22\t700\t800\tAMR\n")
+        run = out / "runs/20261022T000000Z"
+        summary = panel.panel_summary(out, regions, [{"chr": "22", "start": "500", "end": "600"}], run,
+                                      maf=.01, max_missing=.2, n_individuals=g.shape[0])
+        blocks = summary["blocks"]
+        check(sorted(blocks) == ["22_100-200", "22_300-400", "22_500-600", "22_700-800"] and
+              summary["blocks_declared"] == 4,
+              f"the summary must name every declared block: {sorted(blocks)}")
+        check(blocks["22_100-200"]["status"] == "built" and blocks["22_100-200"]["verification_failures"] == [],
+              "a block verified clean after it was built was not reported clean")
+        check(blocks["22_300-400"]["status"] == "built" and
+              blocks["22_300-400"]["verification_failures"] == ["not_verified"],
+              "a verification report older than the block it verified was credited")
+        check(blocks["22_500-600"]["status"] == "empty", "a block with no variants left must read as empty")
+        check(blocks["22_700-800"] == {"status": "failed", "error": "not built"},
+              "a declared block with neither outputs nor an error must read as failed")
+        # A calibration step that wrote no result is a failure, not an absence.
+        check(summary["calibration"] == {"22_500-600": {"failed": str(run / "logs/calibrate_22_500-600.log")}},
+              f"a missing calibration result must be reported as failed: {summary['calibration']}")
+
+
 def test_canonical_effect_allele_ld_orientation() -> None:
     dosage = np.tile([0.0, 1.0, 2.0, 1.0], 10)
     # PLINK exports ALT dosage. Variant 1's canonical effect allele is ALT,
@@ -465,7 +526,7 @@ def test_plink_raw_input() -> None:
 
 def main() -> None:
     test_block(); test_maf_floor(); test_alid_collisions(); test_call_rate(); test_run_panels_floor_resume()
-    test_verify_block(); test_heldout_calibration()
+    test_verify_block(); test_heldout_calibration(); test_pair_records(); test_panel_summary()
     test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_amr_regions(); test_amr_pilot_mapping(); test_amr_pilot_membership()
     test_index_validation(); test_compressed_pvar_input()

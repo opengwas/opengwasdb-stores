@@ -44,6 +44,69 @@ from run_amr_pilot import (AMR, HERE, PILOT, Steps, calibration_summary, directo
 def block_label(row: dict[str, str]) -> str: return f"{row['chr']}_{row['start']}-{row['end']}"
 
 
+def panel_summary(out: Path, regions_file: Path, calibration: list[dict[str, str]], run: Path, *,
+                  maf: float, max_missing: float, n_individuals: int) -> dict[str, object]:
+    """The panel as it stands, over every invocation so far.
+
+    Declared blocks come from the full regions file, not from the --chromosomes
+    subset this invocation builds: a genome-wide panel's summary names every
+    block the panel declares, and a block this host never touched is reported
+    from what is on disk rather than left out. Status is read off the disk --
+    provenance means built, a recorded "no variants remain" means empty, and
+    anything else is a failure -- because only the files survive across runs.
+    A verification report counts only when it is younger than the provenance of
+    the block it verified: a rebuilt block is unverified until re-verified, and
+    saying so beats crediting its predecessor's report (#354).
+    """
+    with regions_file.open(newline="") as fh: regions = list(csv.DictReader(fh, delimiter="\t"))
+    failed: dict[str, str] = {}
+    failures = out / "panel/failures.tsv"
+    for line in (failures.read_text().splitlines() if failures.exists() else []):
+        label, _, error = line.split("\t", 2)
+        failed[label] = error  # a later attempt's error replaces an earlier one
+    blocks: dict[str, object] = {}
+    for row in regions:
+        label, report = block_label(row), out / "verify" / f"{block_label(row)}.json"
+        base = out / "panel/AMR" / row["chr"] / f"{row['start']}-{row['end']}"
+        provenance = base.with_suffix(".provenance.json")
+        if provenance.exists():
+            p = json.loads(provenance.read_text())
+            current = report.exists() and report.stat().st_mtime > provenance.stat().st_mtime
+            v = json.loads(report.read_text()) if current else {"failures": ["not_verified"]}
+            blocks[label] = {"status": "built", "verification_failures": v["failures"], "provenance": p,
+                             **{k: v.get(k) for k in ("rank", "components_at_thresh", "achieved_variance",
+                                                      "condition_number", "binding_relative_error")}}
+        else:
+            error = failed.get(f"AMR/{row['chr']}/{row['start']}-{row['end']}", "not built")
+            blocks[label] = {"status": "empty" if "no variants remain" in error else "failed", "error": error}
+    built_blocks = [b for b in blocks.values() if b["status"] == "built"]
+    classes = ("n_variants_input", "n_variants_all_missing", "n_variants_invariant", "n_variants_below_floor",
+               "n_variants_high_missing", "n_variants_alid_collision", "n_variants_zero_variance",
+               "n_variants_retained")
+    calibrations: dict[str, object] = {}
+    for row in calibration:
+        label, result = block_label(row), out / "calibration" / f"{block_label(row)}.json"
+        # A step that exited non-zero wrote no result: name its log rather than
+        # letting the block look uncalibrated.
+        calibrations[label] = (calibration_summary(json.loads(result.read_text())) if result.exists()
+                               else {"failed": str(run / "logs" / f"calibrate_{label}.log")})
+    underresolved = out / "verify/underresolved_0.9.txt"
+    return {
+        "blocks_declared": len(regions),
+        "blocks_by_status": {s: sum(b["status"] == s for b in blocks.values()) for s in ("built", "empty", "failed")},
+        "blocks_failing_verification": sorted(k for k, b in blocks.items()
+                                              if b["status"] == "built" and b["verification_failures"]),
+        "underresolved_at_0.9": [l for l in underresolved.read_text().splitlines() if l] if underresolved.exists() else [],
+        "variant_totals": {c: sum(b["provenance"][c] for b in built_blocks) for c in classes},
+        "floor_as_approved": all(b["provenance"]["maf_threshold"] == maf and b["provenance"]["mac_threshold"] is None
+                                 and b["provenance"]["max_missing_rate"] == max_missing
+                                 and b["provenance"].get("alid_collision_rule") == "keep_highest_maf"
+                                 and b["provenance"]["n_individuals"] == n_individuals for b in built_blocks),
+        "calibration": calibrations,
+        "blocks": blocks,
+    }
+
+
 def conversion_counts(log: Path) -> list[str]:
     """plink2's own account of what conversion loaded, filtered and kept."""
     return [line.strip() for line in log.read_text().splitlines()
@@ -94,7 +157,11 @@ def main() -> int:
     run = out / "runs" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     for directory in ("tmp", "members", "pgen/AMR", "panel", "verify", "calibration"):
         (out / directory).mkdir(parents=True, exist_ok=True)
-    regions_file = out / "regions.tsv"  # the blocks this panel holds, read by run_panels
+    # The blocks this run builds, read by run_panels. It lives in the run
+    # directory because it is that invocation's subset of the declared panel:
+    # a rerun with other --chromosomes must not inherit the previous one.
+    run.mkdir(parents=True, exist_ok=True)
+    regions_file = run / "regions.tsv"
     with regions_file.open("w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(regions[0]), delimiter="\t", lineterminator="\n")
         writer.writeheader(); writer.writerows(regions)
@@ -144,12 +211,6 @@ def main() -> int:
                                 "--reference-root", str(out / "panel"), "--regions", str(regions_file),
                                 "--members", str(members), "--ancestries", "AMR", "--jobs", str(args.jobs),
                                 "--maf", str(args.maf), "--max-missing", str(args.max_missing)])
-        failed: dict[str, str] = {}
-        failures = out / "panel/failures.tsv"
-        for line in (failures.read_text().splitlines() if failures.exists() else []):
-            label, _, error = line.split("\t", 2)
-            failed[label] = error  # a later attempt's error replaces an earlier one
-
         # 4. Verification of every built block not already verified clean since it was built.
         def base(row: dict[str, str]) -> Path: return out / "panel/AMR" / row["chr"] / f"{row['start']}-{row['end']}"
         def verified(row: dict[str, str]) -> bool:
@@ -179,38 +240,8 @@ def main() -> int:
                 "--out", str(out / "calibration" / f"{block_label(row)}.json")])
 
         # The panel as it stands, over every invocation so far.
-        blocks: dict[str, object] = {}
-        for row in regions:
-            label, report = block_label(row), out / "verify" / f"{block_label(row)}.json"
-            provenance = base(row).with_suffix(".provenance.json")
-            if provenance.exists():
-                p = json.loads(provenance.read_text())
-                v = json.loads(report.read_text()) if report.exists() else {"failures": ["not_verified"]}
-                blocks[label] = {"status": "built", "verification_failures": v["failures"], "provenance": p,
-                                 **{k: v.get(k) for k in ("rank", "components_at_thresh", "achieved_variance",
-                                                          "condition_number", "binding_relative_error")}}
-            else:
-                error = failed.get(f"AMR/{row['chr']}/{row['start']}-{row['end']}", "not built")
-                blocks[label] = {"status": "empty" if "no variants remain" in error else "failed", "error": error}
-        built_blocks = [b for b in blocks.values() if b["status"] == "built"]
-        classes = ("n_variants_input", "n_variants_all_missing", "n_variants_invariant", "n_variants_below_floor",
-                   "n_variants_high_missing", "n_variants_alid_collision", "n_variants_zero_variance",
-                   "n_variants_retained")
-        summary = {
-            "blocks_declared": len(regions),
-            "blocks_by_status": {s: sum(b["status"] == s for b in blocks.values()) for s in ("built", "empty", "failed")},
-            "blocks_failing_verification": sorted(k for k, b in blocks.items()
-                                                  if b["status"] == "built" and b["verification_failures"]),
-            "underresolved_at_0.9": [l for l in (out / "verify/underresolved_0.9.txt").read_text().splitlines() if l],
-            "variant_totals": {c: sum(b["provenance"][c] for b in built_blocks) for c in classes},
-            "floor_as_approved": all(b["provenance"]["maf_threshold"] == args.maf and b["provenance"]["mac_threshold"] is None
-                                     and b["provenance"]["max_missing_rate"] == args.max_missing
-                                     and b["provenance"].get("alid_collision_rule") == "keep_highest_maf"
-                                     and b["provenance"]["n_individuals"] == len(amr) for b in built_blocks),
-            "calibration": {block_label(r): calibration_summary(json.loads(
-                (out / "calibration" / f"{block_label(r)}.json").read_text())) for r in calibration},
-            "blocks": blocks,
-        }
+        summary = panel_summary(out, args.regions, calibration, run, maf=args.maf,
+                                max_missing=args.max_missing, n_individuals=len(amr))
         receipt["status"] = "completed"
     except BaseException as exc:
         receipt["status"] = f"stopped: {exc}"
