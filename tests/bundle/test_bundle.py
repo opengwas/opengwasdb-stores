@@ -248,11 +248,14 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertFalse((REPO_ROOT / "stores" / "OGS-00021").exists())
 
-    def test_ogs_00027_is_accepted_for_building_on_the_bundle_as_emitted(self) -> None:
+    def test_ogs_00027_is_built_from_the_accepted_bundle_with_its_acceptance_carried(self) -> None:
         """The owner accepted the full eQTLGen candidate (#314 comment 6345246939).
 
         `accepted` is the fixed-input gate for building; `human_acceptance` stays
-        pending because scientific acceptance follows the built Store.
+        pending because scientific acceptance follows the built Store. The Store
+        was then built and validated at opengwasdb d8896e4, and `register`
+        replaced the candidate record with its own, carrying the acceptance
+        evidence under `acceptance.acceptance` with the commit it came from.
         """
         loaded = bundle.load("OGS-00027", registry_root=REPO_ROOT / "stores")
         record_check()
@@ -261,7 +264,23 @@ class TestBundleContract(unittest.TestCase):
         self.assertEqual(loaded.status, "accepted")
         record_check()
         self.assertEqual(loaded.release["accepted_at"], "2026-10-22T16:00:43Z")
-        acceptance = loaded.validation["acceptance"]
+        record_check()
+        self.assertEqual(loaded.validation["status"], "passed")
+        record_check()
+        self.assertEqual(
+            loaded.validation["validator"]["version"],
+            "opengwasdb@d8896e46677ae9d54f1fc08a974e8c7e41d105cc",
+        )
+        observed = loaded.validation["observed"]
+        record_check()
+        self.assertEqual(
+            (observed["n_analyses"], observed["n_variants"], observed["n_associations"]),
+            (19250, 8927061, 127112772),
+        )
+        carried = loaded.validation["acceptance"]
+        record_check()
+        self.assertEqual(carried["commit"], "2c0396c7280f38b0b9ca1465a5a5ed2a48c995ce")
+        acceptance = carried["acceptance"]
         record_check()
         self.assertEqual(acceptance["status"], "accepted")
         record_check()
