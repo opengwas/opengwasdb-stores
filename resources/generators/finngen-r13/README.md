@@ -103,13 +103,13 @@ A regeneration is a **comparison** run: emit into a temporary registry
 (`--registry-root`) and diff against `stores/OGS-00017`, exactly as #287 did
 for OGS-00011. The commands above keep the registry, the Work Root and the
 Resolution Area in scratch, so neither can emit over `stores/OGS-00017`. The
-full run resolves 2,754 endpoints — 2.16 TB of source files — so it is
-scheduled around the host's backup window.
+full run resolves 2,754 endpoints — 2.16 TB of source files — in about 19
+minutes at `--cores 24`, and is recorded below.
 
-**That full comparison has not been run yet.** The 10-Analysis probe below is
-the only FinnGen resolution this pipeline has made at the current pin, so
-OGS-00017's regeneration, and with it the collection's move onto the pipeline,
-is still open.
+**The full comparison has been run:** on 2026-10-22 all 2,754 Analyses resolved
+and emitted into a temporary registry, nothing excluded, and every difference
+from `stores/OGS-00017` is explained under "Criterion 1: the full comparison"
+below. The 10-Analysis probe was the bounded step before it.
 
 ## The 10-Analysis probe (#288)
 
@@ -170,36 +170,109 @@ The probe adds `analysis_index`, `downloaded_file`, the three
 one column of the accepted bundle it drops is `source_category` (its content
 is `analysis_group_id` now).
 
-## What the earlier comparison runs establish
+## Criterion 1: the full comparison
 
-The comparison runs in `/data/opengwasdb/work/288-MVXoxt` (before the identity
-work) and `/data/opengwasdb/work/288-r3-*` (the frozen `2026-10-22` snapshot)
-reconciled the collection's files completely, before the Column Map existed;
-with the Column Map above the Analyses resolve too, as the probe shows for ten
-of them. The full re-run is still to be made.
+**Result.** The full 2,754-Analysis resolve ran once against the final code into
+a temporary registry: **2,754 resolved, 0 failed or controlled-failure records,
+2,754 admitted, 0 excluded, `bundle.check()` clean**. `stores/OGS-00017` was
+never written, and the working tree stayed clean throughout.
 
-- **Files.** 2,754 Analyses and 2,754 files in the release's `source/`
-  directory: 0 unmatched by name, 0 size mismatches and 0 checksum mismatches.
-  The 19 endpoints acquisition reused from the earlier `raw/finngen-r13-10/`
-  capture are symlinks, and three endpoints were re-hashed by hand, one of them
-  through a symlink; the frozen Source Inventory's `sha256` equals the committed
-  bundle's `checksum` on all 2,754 rows.
-- **Membership.** 2,751 case-control and 3 quantitative endpoints, all ready.
-  Stage 1's candidate excluded all 2,754 as `resolution_failed`; the probe's
-  candidate includes all ten of its Analyses, so the full run's membership is
-  expected to be all 2,754.
-- **`analyses.tsv`.** With the reader still un-resolvable, 30 of the 35
-  columns the candidate shares with the committed bundle were byte-identical
-  over the whole table, including `analysis_id` and `analysis_group_id` on all
-  2,754 rows, `checksum`, `size_bytes`, `n_cases`, `n_controls`, `sample_size`,
-  both method tiers, `source_genome_build`, the licence and the consortium.
-  The differences the probe now shows at full scale join them: `source_file`
-  (2,754), the reader capability (2,754), the now-measured ancestry (2,754),
-  `inclusion_reason` (2,754) and `ALCODELIRIUM`'s trimmed label (1).
-- **Ancestry.** Measured, not declared: every probe row carries an Assigned
-  Ancestry of EUR from the source allele frequencies, so the committed bundle's
-  `unassigned` is the one thing the full run is expected to change on every
-  row.
+**Run.** `generate-candidate OGS-00017 --config …/release-r13-full.yaml
+--cores 24` with `--registry-root /data/opengwasdb/work/288/stores
+--work-root …/288/work --resolution-root …/288/res`, detached, on
+`opengwasdb 0.3.0` at `d405de0` with `--column-map finngen-r13`. About **19
+minutes** wall: median **6.4 s** per Analysis (max 15.4 s), 19,863 s of worker
+time over 24 workers, and about 206,400 rows read per Analysis — the whole
+file, since the Column Map reader has to decompress each endpoint to stream
+its metrics. Preflight re-checked all 2,754 source files: 0 missing, 0 size
+mismatches. Evidence: `/data/opengwasdb/work/288/` (`run.log`, the bundle, the
+receipt, the records, and `diff.py`/`diff.json`).
+
+**Diff against `stores/OGS-00017`.**
+
+- **Membership:** 2,754 = 2,754, nothing missing or extra on either side, and
+  **0 excluded** — `sidecars/exclusions.tsv` is a header only, and
+  `exclude_from_build` is blank on all 2,754 rows as it is in the accepted
+  bundle. So there is no exclusion reason to explain, and the 1 % stop
+  condition never came close. The split is the accepted one: 2,751
+  case-control and 3 quantitative endpoints.
+- **Files.** `checksum`, `checksum_algorithm` and `size_bytes` are
+  byte-identical on all 2,754 rows, so the regenerated Analysis set reads the
+  same bytes the accepted build read; the 19 endpoints acquisition reused from
+  the earlier `raw/finngen-r13-10/` capture are still symlinks that resolve.
+- **`analyses.tsv`:** 28 of the 35 shared columns are byte-identical on all
+  2,754 rows — `analysis_id`, `source_analysis_id`, the trait columns,
+  `source_url`, `source_bundle_id`, the file identity and build,
+  `source_ancestry_label`, both effect scales and the SD method,
+  `sample_size_kind`/`scope`, `sample_size`, `n_cases`/`n_controls`,
+  `analysis_group_id`, the licence and the consortium. Seven differ:
+  - `source_reader_capability` (2,754): `opengwasdb.finngen-r13` became
+    `opengwasdb.column-map`.
+  - `assigned_ancestry` and `ancestry_assignment_method` (2,754): the accepted
+    bundle is `unassigned`/`unassigned`, because nothing resolved when it was
+    made; the regeneration measures **EUR** (`af_assigned`).
+  - `source_file` (2,754): the accepted rows name the retired
+    `/data/opengwasdb/finngen-r13/` tree; the frozen inventory names the
+    read-only mirror under `/data/opengwasdb/raw/finngen-r13/`.
+  - `inclusion_reason` (2,754): the accepted bundle's collection-wide phrase
+    ("all endpoints in the frozen FinnGen R13 public summary-statistics
+    manifest") against the pipeline's per-row reason,
+    `selected_ready_source`.
+  - `source_label` and `analysis_label` (1 row, `ALCODELIRIUM`): the adapter
+    trims the manifest's trailing non-breaking space, as the GWAS Catalog
+    adapter trims padding; the R-era bundle kept it.
+
+  It adds `analysis_index`, `downloaded_file`, `info_score_threshold`,
+  `maf_threshold` and the three `imputation_score_*` columns, and has no
+  `source_category`, whose content is `analysis_group_id` now.
+- **`build.yaml`:** identical document for document except two things —
+  `build.options.source-reader-capability`, and the bound
+  `column_map: {name: finngen-r13, sha256: 997ff966…}` with no `file`, because
+  the map is a built-in the pinned package ships. `layout`,
+  `completion_state`, `build.command`, `n-workers`, `post` and the hm3
+  Indexed Variant Subset are unchanged.
+- **`release.yaml`:** a `candidate` rather than `accepted`; new `created_at`
+  and no `accepted_at`; the release config's own description and notes; the
+  shared pipeline's `generator` commands and version in place of the R
+  generator's; and a `source_snapshot` that names the frozen inventory (with
+  its sha256), the preflight report and the resolver receipt (with its sha256)
+  instead of the provider manifest's URL, etag, size and last-modified. The
+  provider manifest's checksum (`c9caafa9…`) is still pinned — in the release
+  config and through the frozen connectors' provenance — but a bundle no longer
+  repeats it. The accepted bundle's `migration` block (the owner-authorized
+  2026-10-13 renumbering from OGS-00016) is absent: that is a fact about the
+  accepted bundle's history, and a regeneration does not re-invent it.
+- **`validation.yaml`:** `passed` on both sides, by different checks. The
+  accepted bundle has `reader_smoke_test`, `ancestry`, `effect_scale` and
+  `sd_estimation` `not_run`; the regeneration has `schema`, `files`,
+  `ancestry`, `effect_scale`, `sd_estimation` and `reference_overlap`
+  **passed**, because the pipeline measures ancestry, effect scale and SD
+  rather than leaving them `not_run`, and adds a reference-overlap check. Its
+  validator is `manifest_generation.generate_candidate`, and it adds the
+  release policy's own blocks: `quality_checks` (`assigned_ancestry`,
+  `eaf_orientation`, `build_eligible_rows` and `effect_placeholder_rows` passed
+  on all 2,754, `phenotype_sd` `not_applicable` on all 2,754), `store_composition` (2,754
+  unfiltered rows included, 0 routed — the release declares no MAF floor and no
+  Store Composition Rule, as accepted) and `trait_ontology_mapping` (0 mapped).
+  Its `reports` name the pipeline's sidecars; the accepted `selection` and
+  `metadata_resolution` reports are replaced by `source_readiness` and
+  `quality_checks`.
+- **Ancestry assigned:** measured where the accepted bundle is `unassigned`.
+  All 2,754 rows are EUR with `gate_reason ok` and `eaf_orientation passed`
+  (r ≈ 0.967): the dominant super-population share is 0.9810–0.9823 (median
+  0.9814), the NNLS residual at most 0.0409 against the declared 0.06, and
+  every row has the full 50,000-site overlap. The Finnish fine group carries
+  about 0.84 of the mixture on every row.
+- **SD:** every row `skipped` with no estimate — 2,751
+  `non_quantitative_effect_scale` and 3 `scale_already_declared` (the IRN
+  endpoints' tier declares the scale) — which matches the accepted bundle's
+  blank `original_sd` with its `binary_trait`/`declared_standardised` methods.
+- **Trait mappings:** 0 mapped and 2,754 `unmapped` on both sides, so the
+  columns are byte-identical; the Canonical Trait Mapping Table the run used
+  (v3, 550 rows, sha256 `8be02ae0…`) is recorded in `validation.yaml`.
+
+Nothing was excluded or unresolvable, so the 1 % stop condition never came
+close.
 
 ## A later round in a new format
 
@@ -231,11 +304,10 @@ generate.R` with `lib/source-formats/finngen-r13-dense/generate.R`,
 `lib/finngen_r13_pilot.R` and `lib/metadata_resolvers/finngen_manifest.R` — and
 its R suites are **deleted**. It was the collection's only working path until
 the Column Map resolved it, so its deletion is the last of the R-era code:
-those receipts now name history rather than a runnable generator. The
-collection's move onto the pipeline is not finished until the full comparison
-run against OGS-00017 is made and every difference explained, and that run is
-still pending. What remains
-of that era is one behaviour the pipeline still needs: `acquire.py`'s
+those receipts now name history rather than a runnable generator. The full
+comparison run against OGS-00017 has since been made, with every difference
+explained, so the collection reads through the pipeline end to end. What
+remains of that era is one behaviour the pipeline still needs: `acquire.py`'s
 `--release-dir` compatibility mode, which fills a working bundle's checksums
 and download evidence, and `tests/finngen-r13-pilot/test_acquire.py` still
 holds it to the recorded digests.
