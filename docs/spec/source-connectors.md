@@ -533,7 +533,11 @@ selected Analysis gets a row claiming the one file set (see
 original `.besd`'s sha256, and the tool: the subset writer's module and the sha256
 of its source. Beside the manifest, `<manifest-stem>.meta.yaml` (the pass
 lineage) records the Selection, the probes in order, every original member's size
-and sha256, the subset's members and the tool.
+and sha256, the subset's members and the tool, and the probe, SNP and association
+counts of the original and of the subset. The writer keeps only the SNPs a kept
+probe references, so a subset of every probe has the original's probes and
+associations and can have fewer SNPs (the full eQTLGen set drops 20 unreferenced
+SNPs); the counts record that.
 
 A re-run resumes only the run it is: with the manifest present, the subset's
 members must still be the bytes it records, and are kept, and the original (its

@@ -135,6 +135,13 @@ class AcquireTest(unittest.TestCase):
         self.assertEqual(record["selection"], {"analyses": ["PROBE_A::blood", "PROBE_C::blood"]})
         self.assertEqual(record["original"]["members"][".esi"]["sha256"], sha(f"{self.source}.esi"))
 
+    def test_the_lineage_counts_the_original_and_the_subset(self) -> None:
+        """Probes, SNPs and associations, so a reader sees what the subset dropped."""
+        self.run_acquire()
+        record = yaml.safe_load(pass_lineage_path(self.out).read_text())
+        self.assertEqual(record["original"]["counts"], {"probes": 3, "snps": 4, "associations": 5})
+        self.assertEqual(record["subset"]["counts"], {"probes": 2, "snps": 3, "associations": 3})
+
     # -- resume ---------------------------------------------------------------
 
     def test_a_resume_keeps_the_subset_and_the_record_byte_for_byte(self) -> None:

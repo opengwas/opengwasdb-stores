@@ -50,6 +50,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import struct
 import sys
 import tempfile
 from pathlib import Path
@@ -75,6 +76,8 @@ from manifest_generation.source_metadata_table import load_source_metadata_table
 #: The writer a subset's lineage names: the module that changes the file set.
 TOOL_MODULE = "manifest_generation.providers.eqtlgen.subset_besd"
 READY_STATUS = "ok"
+#: The magic, 15 reserved uint32s and the uint64 ``val_num`` that open a SPARSE_FILE_TYPE_3 ``.besd``.
+BESD_HEADER_BYTES = 4 + 15 * 4 + 8
 COLUMNS_WRITTEN: tuple[str, ...] = tuple(
     column for column in COLUMNS
     if column in {
@@ -98,6 +101,26 @@ def member_identity(prefix: Path) -> dict[str, dict[str, Any]]:
             raise AcquisitionError(f"BESD member file not found: {member}")
         identity[suffix] = {"bytes": member.stat().st_size, "sha256": sha256_file(member)}
     return identity
+
+
+def file_set_counts(prefix: Path) -> dict[str, int]:
+    """A file set's probes, SNPs and associations, from its ``.epi`` and ``.esi`` lines and ``.besd`` header.
+
+    ``val_num`` (the uint64 after the magic and 15 reserved words) counts each
+    association twice, a beta and an SE.
+    """
+    with open(f"{prefix}.besd", "rb") as fh:
+        val_num = struct.unpack("<Q", fh.read(BESD_HEADER_BYTES)[BESD_HEADER_BYTES - 8:])[0]
+    return {
+        "probes": _line_count(Path(f"{prefix}.epi")),
+        "snps": _line_count(Path(f"{prefix}.esi")),
+        "associations": val_num // 2,
+    }
+
+
+def _line_count(path: Path) -> int:
+    with open(path, "rb") as fh:
+        return sum(1 for line in fh if line.strip())
 
 
 def tool_identity() -> str:
@@ -305,8 +328,16 @@ def _write_pass_lineage(
         "release_config": str(config),
         "selection": dict(selection),
         "probes": list(probes),
-        "original": {"prefix": str(source_prefix), "members": {k: dict(v) for k, v in original.items()}},
-        "subset": {"prefix": str(prefix), "members": {k: dict(v) for k, v in members.items()}},
+        "original": {
+            "prefix": str(source_prefix),
+            "members": {k: dict(v) for k, v in original.items()},
+            "counts": file_set_counts(source_prefix),
+        },
+        "subset": {
+            "prefix": str(prefix),
+            "members": {k: dict(v) for k, v in members.items()},
+            "counts": file_set_counts(prefix),
+        },
         "reformat_tool": tool,
     }
     atomic_write(
