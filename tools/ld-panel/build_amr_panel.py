@@ -28,7 +28,7 @@ Run it under ``taskset`` with at most --cpus CPUs, and PYTHONNOUSERSITE=1.
 """
 from __future__ import annotations
 
-import argparse, csv, json, os, shutil, subprocess, sys
+import argparse, csv, json, os, shutil, sys
 from collections.abc import Callable, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from typing import TypeVar
@@ -37,10 +37,10 @@ from pathlib import Path
 
 import numpy as np
 
-from acquire_hgdp1kgp import META, verify_index, verify_vcf
+from acquire_hgdp1kgp import META
 from materialize_reference import VCF, conversion_command
 from run_amr_pilot import (AMR, HERE, PILOT, Steps, calibration_summary, directory_bytes, environment,
-                           read_ids, reconcile_membership, revision, sha256, source_identity, utc)
+                           preflight_sources, read_ids, reconcile_membership, revision, sha256, utc)
 
 T = TypeVar("T")
 
@@ -267,16 +267,7 @@ def main() -> int:
         amr = read_ids(members / "AMR.keep")
         receipt["membership"] = {**reconcile_membership(amr, args.samples, source / "cohort_populations.tsv",
                                                         source / META), "amr_keep_sha256": keep_sha}
-        sources = {}
-        for chrom in chromosomes:
-            vcf = source / VCF.format(chrom)
-            verify_vcf(vcf); verify_index(vcf)
-            header = set(subprocess.run(["bcftools", "query", "-l", str(vcf)], capture_output=True,
-                                        text=True, check=True).stdout.split())
-            if set(amr) - header: raise SystemExit(f"members absent from {vcf.name}: {sorted(set(amr) - header)}")
-            sources[chrom] = {**source_identity(vcf), "grch38_header": True, "index_query": True,
-                              "all_members_in_header": True}
-        receipt["sources"] = sources
+        receipt["sources"] = preflight_sources(source, chromosomes, amr)
 
         # 2. Conversion, at most --readers chromosome VCFs at once.
         def convert(chrom: str) -> None:

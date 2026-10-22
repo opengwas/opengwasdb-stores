@@ -88,6 +88,28 @@ def source_identity(vcf: Path) -> dict[str, object]:
             "tbi_sha256": sha256(tbi), "tbi_size": tbi.stat().st_size}
 
 
+def preflight_sources(source: Path, chromosomes: list[str], members: list[str]) -> dict[str, dict[str, object]]:
+    """Check every source VCF and record the identity a reader can verify.
+
+    GRCh38 header and an indexed query through acquire_hgdp1kgp's own checks,
+    then every member present in that VCF's header: a member missing from one
+    chromosome would silently narrow that chromosome's panel. The identity is
+    size, mtime, cache marker and index SHA-256 -- short of hashing a 100+ GB
+    file. Both panel runners call this, so both refuse the same sources (#354).
+    """
+    sources: dict[str, dict[str, object]] = {}
+    for chrom in chromosomes:
+        vcf = source / VCF.format(chrom)
+        verify_vcf(vcf); verify_index(vcf)
+        header = set(subprocess.run(["bcftools", "query", "-l", str(vcf)], capture_output=True,
+                                    text=True, check=True).stdout.split())
+        absent = sorted(set(members) - header)
+        if absent: raise SystemExit(f"members absent from {vcf.name}: {absent}")
+        sources[chrom] = {**source_identity(vcf), "grch38_header": True, "index_query": True,
+                          "all_members_in_header": True}
+    return sources
+
+
 def reconcile_membership(members: list[str], allowlist: Path, cohort: Path, meta: Path) -> dict[str, object]:
     with allowlist.open(newline="") as fh: phase3 = {r["sample"]: r["pop"] for r in csv.DictReader(fh, delimiter="\t")}
     with cohort.open(newline="") as fh: labels = {r["sample"]: r for r in csv.DictReader(fh, delimiter="\t")}
@@ -237,17 +259,7 @@ def main() -> int:
         receipt["membership"] = {**reconcile_membership(amr, args.samples, source / "cohort_populations.tsv", source / META),
                                  "amr_keep_sha256": sha256(members / "AMR.keep"),
                                  "eur_control_members": len(eur), "eur_keep_sha256": sha256(members / "EUR.keep")}
-        sources = {}
-        for chrom in sorted({b["chr"] for b in blocks}, key=int):
-            vcf = source / VCF.format(chrom)
-            verify_vcf(vcf); verify_index(vcf)
-            header = set(subprocess.run(["bcftools", "query", "-l", str(vcf)], capture_output=True,
-                                        text=True, check=True).stdout.split())
-            absent = sorted(set(amr + eur) - header)
-            if absent: raise SystemExit(f"members absent from {vcf.name}: {absent}")
-            sources[chrom] = {**source_identity(vcf), "grch38_header": True, "index_query": True,
-                              "all_members_in_header": True}
-        receipt["sources"] = sources
+        receipt["sources"] = preflight_sources(source, sorted({b["chr"] for b in blocks}, key=int), amr + eur)
         # Informational: why the cached per-ancestry PGENs cannot serve the pilot.
         cached = args.reference_root / "pgen"
         receipt["cached_pgen_not_used"] = {
