@@ -51,8 +51,8 @@ exactly what the same bundle plans as `observed_only`, then the completion
 phase, `complete` from the id's published Store into its staged Store
 followed by the declared post steps under `completion-` record names, and
 last the Observed-View Check, which gates the replacement of the published
-Store. Dense and Hybrid releases are planned this way, not Ragged ones. A two-id
-child (`derived_from`) plans as before.
+Store. A Ragged release's check also takes the LD panel and ancestry its
+`complete` block declares. A two-id child (`derived_from`) plans as before.
 
 This is the only place in the repository that knows how to invoke
 `opengwasdb`, which is why the Snakefile's rules and the master list's
@@ -133,6 +133,9 @@ class CommandSpec:
 
     `name` is the label used in post-step policy errors. `positionals` and
     `inputs` are drawn from a fixed token vocabulary resolved by `_resolve`.
+    `check_options` names the completion options the Observed-View Check
+    must be given too, as the same flags, when the release completes its own
+    Store; a `complete` block that leaves one out is refused.
     """
 
     phase: str
@@ -144,6 +147,7 @@ class CommandSpec:
     top_hits_cmd: str | None = None
     rho_cmd: str | None = None
     overview_cmd: str | None = None
+    check_options: tuple[str, ...] = ()
 
 
 COMMANDS: dict[str, CommandSpec] = {
@@ -197,12 +201,15 @@ COMMANDS: dict[str, CommandSpec] = {
         identity=False,
         overview_cmd="regenerate-overview",
     ),
+    # The Ragged Observed-View Check rebuilds the regions completion retained
+    # from the same LD panel and ancestry, and is refused without the panel.
     "complete-ragged": CommandSpec(
         phase="complete",
         name="ragged-completed",
         positionals=("parent_store", "store"),
         inputs=("parent_store",),
         identity=False,
+        check_options=("ld-panel", "ancestry"),
     ),
 }
 
@@ -273,8 +280,8 @@ REGISTER_STEPS: dict[str, str] = {
 # following the Hybrid Dense Component's `<store-id>-dense`.
 COMPLETED_RELEASE_SUFFIX: str = "-completed"
 # Only the layouts the Observed-View Check can compare complete their own
-# Store; the others keep needing a two-id child (ADR 0037).
-SINGLE_ID_COMPLETION_LAYOUTS: frozenset[str] = frozenset({"dense", "hybrid"})
+# Store; any other would keep needing a two-id child (ADR 0037).
+SINGLE_ID_COMPLETION_LAYOUTS: frozenset[str] = frozenset({"dense", "hybrid", "ragged"})
 # The Observed-View Check compares the published Store with the staged
 # completed one before the completion phase publishes (ADR 0037, Decision 2).
 # Its seed is one fixed default for every release, the ADR's benchmark seed,
@@ -799,7 +806,9 @@ def _completion_phase(bundle: Bundle, root: Path) -> list[Step]:
     rewrites only the destination. The declared post steps then run on the
     staged Store under completion-phase names. Every completion command
     builds the Top-Hit Index inline, so a declared `top_hits` is met by
-    `complete` itself and plans no step of its own.
+    `complete` itself and plans no step of its own. The Observed-View Check
+    comes last, given the `complete` options its command's `check_options`
+    names.
     """
     command, spec = _select_spec(bundle, (bundle.layout, bundle.completion_state))
     block = bundle.build.get("complete") or {}
@@ -826,6 +835,7 @@ def _completion_phase(bundle: Bundle, root: Path) -> list[Step]:
         published_store_arg=published_store_arg,
     )
 
+    check_options = _observed_view_check_options(bundle, command, spec, options)
     post = {
         key: value
         for key, value in (bundle.build.get("post") or {}).items()
@@ -846,6 +856,7 @@ def _completion_phase(bundle: Bundle, root: Path) -> list[Step]:
             str(OBSERVED_VIEW_CHECK_SEED),
             "--n-random",
             str(OBSERVED_VIEW_CHECK_N_RANDOM),
+            *check_options,
             "--output",
             str(paths.work_dir(bundle.store_id, root=root) / OBSERVED_VIEW_VERDICT_FILENAME),
         ],
@@ -862,6 +873,26 @@ def _completion_phase(bundle: Bundle, root: Path) -> list[Step]:
         ),
         check,
     ]
+
+
+def _observed_view_check_options(
+    bundle: Bundle, command: str, spec: CommandSpec, options: Mapping[Any, Any]
+) -> list[str]:
+    """The `check_options` of `command`, taken from its `complete` options as argv for the check.
+
+    Each must be declared with a value: a check that cannot verify what
+    completion did must not be planned to gate the swap.
+    """
+    declared = {normalize_option_key(key): value for key, value in options.items()}
+    missing = [name for name in spec.check_options if declared.get(name) in (None, "")]
+    if missing:
+        raise ValueError(
+            f"Bundle {bundle.store_id}: {command} completes its own Store, and the Observed-View "
+            f"Check that gates the replacement needs the completion's "
+            f"{', '.join(repr(name) for name in spec.check_options)}; the 'complete' block "
+            f"declares no {', '.join(repr(name) for name in missing)} option (ADR 0037)"
+        )
+    return [token for name in spec.check_options for token in (f"--{name}", str(declared[name]))]
 
 
 __all__ = [

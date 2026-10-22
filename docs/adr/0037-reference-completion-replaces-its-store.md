@@ -62,10 +62,10 @@ sets the old one aside, swaps them, and archives the old records.
      - no inserted panel row carries an observed cell.
    - **Record:** the verdict carries the seed, the sample and the counts, and
      is kept as the step's record.
-   - **Scope:** the check covers Dense Stores and Hybrid Stores, whose
+   - **Scope:** the check covers Dense Stores, Hybrid Stores, whose
      Dense Component it checks as above and whose Overflow it checks too
-     (Clarified by #333 below). Ragged completion needs its own check before
-     it can use this path.
+     (Clarified by #333 below), and Ragged Stores, which it checks Analysis
+     by Analysis (Clarified by #336 below).
 
 3. **The replaced Observed-Only Store is deleted, not archived.** Unlike a
    forced re-run, the swap deletes the replaced Store's arrays once the new
@@ -205,7 +205,8 @@ The amendment rule of Decision 1 is enforced before any job runs, as follows.
 ## Clarified by #333
 
 A Hybrid release completes its own Store too. The planner admits it as it
-does a Dense one, with `complete-hybrid`; a Ragged release is still refused.
+does a Dense one, with `complete-hybrid`. (A Ragged release was still refused
+until #336, below.)
 
 - **What the check covers in a Hybrid Store.** Completion changes both
   components. An Overflow association at a variant the LD panel adds to the
@@ -228,3 +229,35 @@ does a Dense one, with `complete-hybrid`; a Ragged release is still refused.
 - **No resume.** `complete-dense` keeps a checkpoint and resumes after an
   interruption; `complete-hybrid` does not, so an interrupted Hybrid
   completion starts again from the published Observed-Only Store.
+
+## Clarified by #336
+
+A Ragged release completes its own Store too, with `complete-ragged`. With
+it, every layout can.
+
+- **What the check covers in a Ragged Store.** There is no grid of
+  chunk-rows, and completion rebuilds the variant axis, so opengwasdb#296
+  matches by ALID:
+  - every source variant in the completed axis, and the same Analyses in
+    both, exhaustively;
+  - a seeded sample of whole Analyses (`--n-random` of them, from the same
+    seed). In each, every observed association keeps its decoded Z, SE and
+    EAF and is not marked imputed, no association the source lacks is
+    observed, and every imputed association lies in a region completion
+    retained.
+- **The check needs the panel.** Retained regions are not stored as
+  coordinates; the check rebuilds them from the LD panel and ancestry
+  completion used, and refuses a Ragged pair without the panel. So for a
+  Ragged release the planner passes the `complete` block's `ld-panel` and
+  `ancestry` to the check step, and refuses a `complete` block that leaves
+  either out. Dense and Hybrid steps are unchanged.
+- **SE is compared exactly.** `complete-ragged` refits and re-quantises SE
+  stored as `int8_residual`, which on real data moves observed SE slightly
+  (opengwas/opengwasdb#301). Until that is resolved, a Ragged Store whose SE
+  is stored that way, as OGS-00006's is, fails the check.
+- **No resume and no extra steps.** `complete-ragged` keeps no checkpoint, so
+  an interrupted completion starts again from the published Observed-Only
+  Store. It builds its Top-Hit Index inline and writes the format-0.2.0
+  `by_variant` index, which validation audits; a Ragged Store has no overview
+  and no Indexed Variant Subsets. Its completion phase is `complete`,
+  validation and the check.
