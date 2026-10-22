@@ -1345,7 +1345,7 @@ class TestWorkflowEndToEndRelocation(unittest.TestCase):
 
                 refused = relocate_store(self.store_id, old_root, new_root)
 
-                self.assertEqual(refused.returncode, 1, refused.stdout + refused.stderr)
+                self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
                 self.assertIn(str(named), refused.stderr)
                 self.assertIn("Nothing was moved", refused.stderr)
                 self.assertEqual(tree_state(self.td), before)

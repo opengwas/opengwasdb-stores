@@ -6,11 +6,12 @@
 
 A step record names the artifact root its step ran under, and `register`
 holds a step's executed argv to the plan under the root it runs at
-(`register.check_argv_drift`). A release directory renamed into another root
-therefore still looks up to date to the release workflow, which decides by
-file times, and is refused only at its next register, as drift naming the old
-root. This tool renames `<old-root>/<id>` to `<new-root>/<id>` and moves the
-paths its records name with it:
+(`register.check_argv_drift`). A Store Release's directory under the
+Artifact Root, renamed into another root, therefore still looks up to date to
+the release workflow, which decides by file times, and is refused only at its
+next register, as drift naming the old root. This tool renames
+`<old-root>/<id>` to `<new-root>/<id>` and moves the paths its records name
+with it:
 
 - In `records/*.json` it rewrites only the fields that name where a step ran
   (`RECORD_PATH_FIELDS`): a string that is `<old-root>/<id>` or a path under it
@@ -23,11 +24,14 @@ paths its records name with it:
 - `<id>/relocations/<UTC>.json` is the receipt: both roots, each record's
   sha256 before and after, and how many strings each field moves. It is
   written, `status: started`, before anything moves, and marked `complete`
-  once every record is rewritten. A failure in between leaves records that
-  may name both roots; the tool then names the receipt, refuses to start
-  another move of the release, and `--resume` finishes this one. It skips a
-  record already as planned, rewrites one still as it was, and refuses one
-  that is neither.
+  once every record is rewritten. Any interruption in between, Ctrl-C
+  included, leaves records that may name both roots; the tool then names the
+  receipt, refuses to start another move of the release, and `--resume`
+  finishes this one. Before it moves or writes anything, `--resume` checks
+  that exactly one unfinished receipt names this move, that only one of the
+  two directories exists, that no publication is pending and no Store staged,
+  and that `records/` holds exactly the receipt's records, each as it was or as
+  planned. It then rewrites only those still as they were.
 
 It refuses, moving and writing nothing, while a relocation of the release is
 unfinished, a publication is pending (`publication.json`) or a Store is staged
@@ -41,6 +45,9 @@ and the receipt say so. The checks are made again, the Store id included,
 under the release's lock at both roots, which the tool holds until the
 receipt is complete. `--dry-run` makes them without the lock and prints what
 would change.
+
+It exits 2 when it refuses, having changed nothing, and 1 when a move it
+started did not finish.
 """
 
 from __future__ import annotations
@@ -70,14 +77,25 @@ RECORD_OUTPUT_FIELDS: tuple[str, ...] = ("stdout", "stderr")
 
 RECEIPTS_DIRNAME: str = "relocations"
 STARTED, COMPLETE = "started", "complete"
+REFUSED_EXIT, UNFINISHED_EXIT = 2, 1
 
-# Test-only: the record replacement (1-based) before which a move raises, as a
-# failed write would, so the suite can show `--resume` finishing it.
+# Test-only, after `run.fault_boundary`'s variables: the record replacement
+# (1-based) before which a move raises, as a failed write would, or `receipt`
+# for a failure while the receipt is first written.
 FAIL_AT_ENV: str = "OGSTORES_TEST_RELOCATION_FAIL_AT"
+RECEIPT_FAULT: str = "receipt"
 
 
 class Refusal(Exception):
-    """The relocation cannot go ahead; nothing was moved or written."""
+    """The relocation cannot go ahead, and this run changed nothing.
+
+    `state` replaces the usual account of what is on disk, when this run had
+    to undo something it began.
+    """
+
+    def __init__(self, reason: str, state: str | None = None) -> None:
+        super().__init__(reason)
+        self.state = state
 
 
 class Unfinished(Exception):
@@ -94,7 +112,7 @@ class Unfinished(Exception):
 
 
 def _release_entries() -> frozenset[str]:
-    """The names Store Release Build gives inside a release directory, `<root>/<id>/`.
+    """The names Store Release Build gives inside a Store Release's directory under its Artifact Root, `<root>/<id>/`.
 
     A path `<root>/<some-id>/<one of these>...` is an artifact path a step
     derived from its root; `<registry>/<id>/validation.yaml` is not.
@@ -286,6 +304,27 @@ def unfinished_receipts(store_id: str, roots: tuple[Path, ...]) -> list[Path]:
     return found
 
 
+def _pending(store_id: str, store_dir: Path) -> list[str]:
+    """A pending publication or a staged Store in a Store Release's directory under its Artifact Root."""
+    problems = []
+    marker = store_dir / paths.PUBLICATION_MARKER
+    if os.path.lexists(marker):
+        problems.append(f"{marker} exists: a publication is pending, and `pixi run release {store_id}` finishes it")
+    for staged in sorted(store_dir.glob("store.opengwasdb.partial*")) + sorted(store_dir.glob(".store.opengwasdb.partial*")):
+        problems.append(f"{staged} exists: a Store is staged")
+    return problems
+
+
+def fault_at() -> int | str | None:
+    """The test fault `OGSTORES_TEST_RELOCATION_FAIL_AT` asks for, read before anything moves."""
+    value = os.environ.get(FAIL_AT_ENV, "")
+    if not value:
+        return None
+    if value == RECEIPT_FAULT or (value.isdigit() and int(value) > 0):
+        return value if value == RECEIPT_FAULT else int(value)
+    raise Refusal(f"{FAIL_AT_ENV}={value!r} names neither a record replacement (1, 2, ...) nor `{RECEIPT_FAULT}`")
+
+
 def preflight(store_id: str, old_root: Path, new_root: Path, *, locked: bool = False) -> Relocation:
     """Every check, reading only; a Refusal listing each reason the relocation cannot go ahead.
 
@@ -304,7 +343,7 @@ def preflight(store_id: str, old_root: Path, new_root: Path, *, locked: bool = F
     if old_root == new_root:
         problems.append(f"the old and new roots are the same, {old_root}")
     if old_dir.is_symlink() or not old_dir.is_dir():
-        raise Refusal(f"no release directory at {old_dir}")
+        raise Refusal(f"{old_root} holds no directory for {store_id} ({old_dir})")
     store_p = paths.store_path(store_id, root=old_root)
     if not store_p.is_dir():
         problems.append(f"no published Store at {store_p}")
@@ -317,11 +356,7 @@ def preflight(store_id: str, old_root: Path, new_root: Path, *, locked: bool = F
     receipts = old_dir / RECEIPTS_DIRNAME
     if os.path.lexists(receipts) and (receipts.is_symlink() or not receipts.is_dir()):
         problems.append(f"{receipts} is not a directory, so the receipt cannot be written there")
-    marker = paths.publication_marker(store_id, root=old_root)
-    if os.path.lexists(marker):
-        problems.append(f"{marker} exists: a publication is pending, and `pixi run release {store_id}` finishes it")
-    for staged in sorted(old_dir.glob("store.opengwasdb.partial*")) + sorted(old_dir.glob(".store.opengwasdb.partial*")):
-        problems.append(f"{staged} exists: a Store is staged")
+    problems += _pending(store_id, old_dir)
     for root in () if locked else (old_root, new_root):
         holder = release.lock_holder(store_id, root) if root.is_dir() else None
         if holder is not None:
@@ -367,14 +402,48 @@ def _replace(path: Path, text: str, like: os.stat_result) -> None:
     os.replace(temp, path)
 
 
-def _write_receipt(receipt_p: Path, document: dict[str, Any]) -> None:
+def _receipt_temp(receipt_p: Path) -> Path:
+    return receipt_p.with_name(f".{receipt_p.name}.{os.getpid()}")
+
+
+def _write_receipt(receipt_p: Path, document: dict[str, Any], *, fault: bool = False) -> None:
     """Write a receipt atomically, so a reader sees the whole of one state or of the next."""
-    temp = receipt_p.with_name(f".{receipt_p.name}.{os.getpid()}")
+    temp = _receipt_temp(receipt_p)
     temp.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
     with open(temp, "rb") as handle:
         os.fsync(handle.fileno())
+    if fault:
+        raise OSError(f"test fault while writing the receipt ({FAIL_AT_ENV})")
     os.replace(temp, receipt_p)
     _fsync_dir(receipt_p.parent)
+
+
+def start(receipt_p: Path, document: dict[str, Any], fault: int | str | None) -> None:
+    """Write the receipt of a move about to start; if that fails, undo it and refuse.
+
+    Nothing has moved yet, so what this run wrote of the receipt, and the
+    `relocations/` directory if this run made it, are removed, and the
+    refusal says what, if anything, could not be.
+    """
+    receipts = receipt_p.parent
+    made = not os.path.lexists(receipts)
+    try:
+        receipts.mkdir(exist_ok=True)
+        _write_receipt(receipt_p, document, fault=fault == RECEIPT_FAULT)
+    except BaseException as exc:
+        written = [_receipt_temp(receipt_p), receipt_p] + ([receipts] if made else [])
+        for path in written:
+            with contextlib.suppress(OSError):
+                if path == receipts:
+                    path.rmdir()
+                else:
+                    path.unlink()
+        remaining = [str(path) for path in written if os.path.lexists(path)]
+        state = (
+            f"Nothing was moved, but this run could not remove {', '.join(remaining)}."
+            if remaining else "Nothing was moved or written."
+        )
+        raise Refusal(f"the receipt {receipt_p} could not be written: {exc}", state=state) from exc
 
 
 def _tool_commit() -> str | None:
@@ -453,36 +522,46 @@ def _locked(store_id: str, roots: tuple[Path, ...]) -> Iterator[None]:
             lock.release_all()
 
 
-def finish(document: dict[str, Any], receipt_p: Path, new_dir: Path) -> None:
-    """Rewrite each record the receipt plans that is still as it was, then mark the receipt complete.
+def carry_out(
+    store_id: str,
+    old_root: Path,
+    new_root: Path,
+    receipt_p: Path,
+    document: dict[str, Any],
+    writes: list[tuple[str, str]],
+    fault: int | str | None,
+) -> Path:
+    """Finish a move its receipt has started: rename, write each record, and mark the receipt complete.
 
-    A record already as planned is left alone, so finishing twice is finishing
-    once. A record that is neither as it was nor as planned is refused.
+    The Store Release's directory is renamed only if the receipt is still at
+    the old root. `writes` are each record's path under that directory and
+    its new text, all checked before this is called. Any interruption, Ctrl-C
+    included, is `Unfinished`, naming the receipt. Returns where it is.
     """
-    store_id, old_root, new_root = document["store_id"], Path(document["old_root"]), Path(document["new_root"])
-    fail_at = int(os.environ.get(FAIL_AT_ENV) or 0)
-    replacements = 0
-    for entry in document["records"]:
-        record_p = new_dir / entry["path"]
-        current = _sha256(record_p.read_bytes())
-        if current == entry["sha256_after"]:
-            continue
-        if current != entry["sha256_before"]:
-            raise Refusal(f"{record_p} is neither the record {receipt_p} started from nor the one it planned")
-        move = plan_record(record_p, store_id, old_root, new_root)
-        if _sha256(move.after.encode("utf-8")) != entry["sha256_after"]:
-            raise Refusal(f"{record_p} would not become the record {receipt_p} planned")
-        replacements += 1
-        if replacements == fail_at:
-            raise OSError(f"test fault before replacement {fail_at} ({FAIL_AT_ENV})")
-        _replace(record_p, move.after, record_p.stat())
-    _fsync_dir(paths.records_dir(store_id, root=new_root))
-    document["status"] = COMPLETE
-    document["completed_at"] = _now()
-    _write_receipt(receipt_p, document)
+    old_dir, new_dir = paths.store_dir(store_id, root=old_root), paths.store_dir(store_id, root=new_root)
+    moved_receipt = new_dir / receipt_p.relative_to(old_dir) if receipt_p.is_relative_to(old_dir) else receipt_p
+    try:
+        if moved_receipt != receipt_p:
+            old_dir.rename(new_dir)
+            _fsync_dir(old_root)
+            _fsync_dir(new_root)
+        for n, (name, text) in enumerate(writes, start=1):
+            if n == fault:
+                raise OSError(f"test fault before replacement {n} ({FAIL_AT_ENV})")
+            record_p = new_dir / name
+            _replace(record_p, text, record_p.stat())
+        _fsync_dir(paths.records_dir(store_id, root=new_root))
+        document["status"] = COMPLETE
+        document["completed_at"] = _now()
+        _write_receipt(moved_receipt, document)
+    except BaseException as exc:
+        where = moved_receipt if os.path.lexists(moved_receipt) else receipt_p
+        raise Unfinished(store_id, old_root, new_root, where, exc) from exc
+    return moved_receipt
 
 
 def relocate(store_id: str, old_root: Path, new_root: Path, *, dry_run: bool) -> int:
+    fault = fault_at()
     relocation = preflight(store_id, old_root, new_root)
     stamp = run.utc_stamp()
     started_at = datetime.datetime.strptime(stamp, "%Y%m%dT%H%M%SZ").strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -495,64 +574,96 @@ def relocate(store_id: str, old_root: Path, new_root: Path, *, dry_run: bool) ->
         relocation = preflight(store_id, old_root, new_root, locked=True)
         document = receipt(relocation, started_at)
         receipt_p = relocation.old_dir / RECEIPTS_DIRNAME / f"{stamp}.json"
-        try:
-            receipt_p.parent.mkdir(exist_ok=True)
-            _write_receipt(receipt_p, document)
-        except OSError as exc:
-            raise Refusal(f"the receipt {receipt_p} could not be written: {exc}") from exc
-        moved_receipt = relocation.new_dir / receipt_p.relative_to(relocation.old_dir)
-        try:
-            relocation.old_dir.rename(relocation.new_dir)
-            _fsync_dir(old_root)
-            _fsync_dir(new_root)
-            finish(document, moved_receipt, relocation.new_dir)
-        except Exception as exc:
-            where = moved_receipt if moved_receipt.exists() else receipt_p
-            raise Unfinished(store_id, old_root, new_root, where, exc) from exc
-    print(f"moved; receipt {moved_receipt}")
-    return 0
-
-
-def resume(store_id: str, old_root: Path, new_root: Path) -> int:
-    """Finish the one unfinished relocation of `store_id` from `old_root` to `new_root`."""
-    old_dir = paths.store_dir(store_id, root=old_root)
-    new_dir = paths.store_dir(store_id, root=new_root)
-    with _locked(store_id, (old_root, new_root)):
-        unfinished = unfinished_receipts(store_id, (old_root, new_root))
-        if len(unfinished) != 1:
-            raise Refusal(
-                f"there is no single unfinished move of {store_id} between these roots to resume: "
-                f"{', '.join(map(str, unfinished)) or 'no receipt is unfinished'}"
-            )
-        receipt_p = unfinished[0]
-        try:
-            document = json.loads(receipt_p.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as exc:
-            raise Refusal(f"the receipt {receipt_p} cannot be read: {exc}") from exc
-        recorded = (document.get("store_id"), document.get("old_root"), document.get("new_root"))
-        if recorded != (store_id, str(old_root), str(new_root)):
-            raise Refusal(f"{receipt_p} moves {recorded[0]} from {recorded[1]} to {recorded[2]}, not this move")
-        try:
-            if receipt_p.is_relative_to(old_dir):
-                if os.path.lexists(new_dir):
-                    raise Refusal(f"{new_dir} already exists")
-                old_dir.rename(new_dir)
-                _fsync_dir(old_root)
-                _fsync_dir(new_root)
-                receipt_p = new_dir / receipt_p.relative_to(old_dir)
-            elif os.path.lexists(old_dir):
-                raise Refusal(f"both {old_dir} and {new_dir} exist")
-            document["resumed_at"].append(_now())
-            finish(document, receipt_p, new_dir)
-        except Exception as exc:
-            raise Unfinished(store_id, old_root, new_root, receipt_p, exc) from exc
+        start(receipt_p, document, fault)
+        writes = [(move.name, move.after) for move in relocation.records if move.changed]
+        receipt_p = carry_out(store_id, old_root, new_root, receipt_p, document, writes, fault)
     print(f"moved; receipt {receipt_p}")
     return 0
 
 
+def resume_plan(store_id: str, old_root: Path, new_root: Path) -> tuple[Path, dict[str, Any], list[tuple[str, str]]]:
+    """Check that the one unfinished move can be finished as its receipt planned; what is left to write.
+
+    Reads only, and refuses with every reason it finds: the receipt is the
+    only unfinished one and names this move, only one of the two directories
+    exists, no publication is pending and no Store staged, and `records/` holds
+    exactly the receipt's records, each as it was or as planned.
+    """
+    unfinished = unfinished_receipts(store_id, (old_root, new_root))
+    if not unfinished:
+        raise Refusal(f"there is no unfinished move of {store_id} between {old_root} and {new_root}")
+    if len(unfinished) > 1:
+        raise Refusal(
+            f"{len(unfinished)} unfinished moves of {store_id} are recorded, so which to finish is not clear: "
+            + ", ".join(map(str, unfinished))
+        )
+    receipt_p = unfinished[0]
+    try:
+        document = json.loads(receipt_p.read_text(encoding="utf-8"))
+        recorded = (document.get("store_id"), document.get("old_root"), document.get("new_root"))
+        entries = {entry["path"]: entry for entry in document["records"]}
+    except (OSError, ValueError, AttributeError, KeyError, TypeError) as exc:
+        raise Refusal(f"the receipt {receipt_p} cannot be read: {exc!r}") from exc
+    if recorded != (store_id, str(old_root), str(new_root)):
+        raise Refusal(
+            f"{receipt_p} moves {recorded[0]} from {recorded[1]} to {recorded[2]}, not from {old_root} to {new_root}"
+        )
+    old_dir, new_dir = paths.store_dir(store_id, root=old_root), paths.store_dir(store_id, root=new_root)
+    if os.path.lexists(old_dir) and os.path.lexists(new_dir):
+        raise Refusal(f"both {old_dir} and {new_dir} exist, so the move cannot be finished by a rename")
+    here = old_dir if receipt_p.is_relative_to(old_dir) else new_dir
+
+    problems = _pending(store_id, here)
+    present = {f"{p.parent.name}/{p.name}" for p in (here / "records").glob("*.json")}
+    problems += [f"{here / name} is not in the receipt {receipt_p}" for name in sorted(present - entries.keys())]
+    problems += [f"{here / name}, in the receipt {receipt_p}, is missing" for name in sorted(entries.keys() - present)]
+    writes = []
+    for name, entry in entries.items():
+        record_p = here / name
+        if name not in present:
+            continue
+        current = _sha256(record_p.read_bytes())
+        if current == entry.get("sha256_after"):
+            continue
+        if current != entry.get("sha256_before"):
+            problems.append(f"{record_p} is neither the record {receipt_p} started from nor the one it planned")
+            continue
+        try:
+            move = plan_record(record_p, store_id, old_root, new_root)
+        except Refusal as exc:
+            problems.append(str(exc))
+            continue
+        if _sha256(move.after.encode("utf-8")) != entry.get("sha256_after"):
+            problems.append(f"{record_p} would not become the record {receipt_p} planned")
+            continue
+        writes.append((name, move.after))
+    if problems:
+        raise Refusal("\n".join(problems))
+    return receipt_p, document, writes
+
+
+def resume(store_id: str, old_root: Path, new_root: Path) -> int:
+    """Finish the one unfinished relocation of `store_id` from `old_root` to `new_root`."""
+    fault = fault_at()
+    with _locked(store_id, (old_root, new_root)):
+        receipt_p, document, writes = resume_plan(store_id, old_root, new_root)
+        document["resumed_at"].append(_now())
+        receipt_p = carry_out(store_id, old_root, new_root, receipt_p, document, writes, fault)
+    print(f"moved; receipt {receipt_p}")
+    return 0
+
+
+def refusal_state(store_id: str, old_root: Path, new_root: Path) -> str:
+    """What is on disk after a refusal: an unfinished move is never reported as nothing moved."""
+    unfinished = unfinished_receipts(store_id, (old_root, new_root))
+    if unfinished:
+        return f"This run changed nothing; {', '.join(map(str, unfinished))} records a move that has not finished."
+    return "Nothing was moved or written."
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("store_id", help="the release to move, e.g. OGS-00015")
+    parser.add_argument("store_id", help="the Store Release to move, e.g. OGS-00015")
     parser.add_argument("--from", dest="old_root", required=True, type=Path, help="the Artifact Root it is in now")
     parser.add_argument("--to", dest="new_root", required=True, type=Path, help="the Artifact Root to move it into")
     mode = parser.add_mutually_exclusive_group()
@@ -568,11 +679,12 @@ def main(argv: list[str] | None = None) -> int:
             return resume(store_id, old_root, new_root)
         return relocate(store_id, old_root, new_root, dry_run=args.dry_run)
     except Refusal as exc:
-        print(f"relocate_store: refusing to move {store_id}:\n{exc}\nNothing was moved or written.", file=sys.stderr)
-        return 1
+        state = exc.state or refusal_state(store_id, old_root, new_root)
+        print(f"relocate_store: refusing to move {store_id}:\n{exc}\n{state}", file=sys.stderr)
+        return REFUSED_EXIT
     except Unfinished as exc:
         print(f"relocate_store: {exc}", file=sys.stderr)
-        return 1
+        return UNFINISHED_EXIT
 
 
 if __name__ == "__main__":
