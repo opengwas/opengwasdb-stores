@@ -25,8 +25,8 @@ Covered by `tests/emit-registry/run_tests.R`:
 - `opengwas-gwas-vcf-dense` emits through `--mode=emit-registry`, records its
   own command, and takes its layout from its config (the R `gwas-ssf-ragged`
   and `gwas-ssf-hybrid` generators retired with #300, and FinnGen's R path with
-  #288); the BESD generator's is covered in
-  `tests/eqtlgen-besd-ragged/test_emit_registry.py`.
+  #288). The BESD generator retired with #291: eQTLGen emits through the
+  shared pipeline (`tests/eqtlgen-pipeline`).
 
 ```sh
 pixi run test --suite "emit-registry (R)"

@@ -1,0 +1,11 @@
+analysis_id	publication_pmid	trait	study_design	sample_size	readiness_status	data_url	yaml_url	data_file	yaml_file	data_bytes	yaml_bytes	sha256	error
+ENSG00000073605::whole_blood		ENSG00000073605	quantitative	31684	ok			/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000087237::whole_blood		ENSG00000087237	quantitative	31684	ok			/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000130203::whole_blood		ENSG00000130203	quantitative	31684	ok			/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000134243::whole_blood		ENSG00000134243	quantitative	31684	ok			/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000136244::whole_blood		ENSG00000136244	quantitative	31684	ok			/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000136997::whole_blood		ENSG00000136997	quantitative	31684	ok			/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000141510::whole_blood		ENSG00000141510	quantitative	31684	ok			/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000164308::whole_blood		ENSG00000164308	quantitative	31684	ok			/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000175445::whole_blood		ENSG00000175445	quantitative	31684	ok			/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000232810::whole_blood		ENSG00000232810	quantitative	31684	ok			/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	

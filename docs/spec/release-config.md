@@ -85,7 +85,8 @@ are not checked here. `post` is the registry's own vocabulary -- `top_hits`,
 `options`). The recipe carries no artifact root
 (#126). Manifest Generation reads two options itself:
 `source-reader-capability` (the reader the resolver uses; default
-`opengwasdb.gwas-ssf`) and `variant-reference` (the Variant Reference the
+`opengwasdb.gwas-ssf`, and `opengwasdb.besd` for `build-ragged-besd`, which
+reads one format and takes no such flag) and `variant-reference` (the Variant Reference the
 resolver measures overlap against).
 
 ### `completion`
