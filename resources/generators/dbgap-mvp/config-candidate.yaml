@@ -114,11 +114,15 @@ stores:
     planned_manifest: dense-pmid-39024449-African-download-manifest.tsv
     resolution: pending
     completion_reference:
+      # Qualified and active (#228, owner decision 2026-10-21): the HGDP+1kGP
+      # panel is present at the declared location with one `<ancestry>/<chr>/`
+      # directory tree per super-population, so no alias is needed and
+      # complete-dense reads `<ld-panel>/<ancestry>/<chr>/` directly.
       resource_id: hgdp1kgp-hg38-ld
       ancestry: AFR
       declared_status: available
-      qualification: pending
-      activation: pending
+      qualification: qualified
+      activation: active
       suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
   AMR:
     observed_store_id: OGS-00014
