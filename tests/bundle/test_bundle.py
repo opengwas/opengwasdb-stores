@@ -248,6 +248,38 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertFalse((REPO_ROOT / "stores" / "OGS-00021").exists())
 
+    def test_ogs_00027_is_accepted_for_building_on_the_bundle_as_emitted(self) -> None:
+        """The owner accepted the full eQTLGen candidate (#314 comment 6345246939).
+
+        `accepted` is the fixed-input gate for building; `human_acceptance` stays
+        pending because scientific acceptance follows the built Store.
+        """
+        loaded = bundle.load("OGS-00027", registry_root=REPO_ROOT / "stores")
+        record_check()
+        self.assertEqual(list(bundle.check(loaded, registry_root=REPO_ROOT / "stores")), [])
+        record_check()
+        self.assertEqual(loaded.status, "accepted")
+        record_check()
+        self.assertEqual(loaded.release["accepted_at"], "2026-10-22T16:00:43Z")
+        acceptance = loaded.validation["acceptance"]
+        record_check()
+        self.assertEqual(acceptance["status"], "accepted")
+        record_check()
+        self.assertIs(acceptance["membership_accepted"], True)
+        record_check()
+        self.assertIs(acceptance["membership_frozen"], True)
+        record_check()
+        self.assertEqual(acceptance["frozen_at"], "2026-10-22T16:00:43Z")
+        record_check()
+        self.assertEqual(acceptance["human_acceptance"], "pending")
+        record_check()
+        self.assertIn("issuecomment-6345246939", acceptance["owner_authorization"])
+        record_check()
+        self.assertEqual(acceptance["owner_authorization_date"], "2026-10-22")
+        summary = bundle.summarise(loaded)
+        record_check()
+        self.assertEqual((summary["n_analyses"], summary["n_admitted"], summary["n_excluded"]), (19250, 19250, 0))
+
     MVP_OBSERVED = {
         "OGS-00012": ("eur", 1669),
         "OGS-00013": ("afr", 1368),

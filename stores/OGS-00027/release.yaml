@@ -1,9 +1,10 @@
 store_id: OGS-00027
 label: eqtlgen-full
 access_posture: public
-status: candidate
+status: accepted
 derived_from: null
 created_at: '2026-10-22T15:25:25Z'
+accepted_at: '2026-10-22T16:00:43Z'
 source_snapshot_id: eqtlgen-cis-full-2026-10-22d
 source_snapshot:
   inventory_snapshot_id: eqtlgen-cis-full-2026-10-22d

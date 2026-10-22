@@ -27,7 +27,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00024` | 2023-chen-full-african | false | ragged | observed_only | built | - | 1,034 | 0 | - | - | passed_with_warnings |
 | `OGS-00025` | 2023-chen-full-east-asian | false | ragged | observed_only | built | - | 1,038 | 0 | - | - | passed |
 | `OGS-00026` | 2023-chen-full-south-asian | false | ragged | observed_only | built | - | 971 | 0 | - | - | passed_with_warnings |
-| `OGS-00027` | eqtlgen-full | false | ragged | observed_only | candidate | - | 19,250 | 0 | - | - | passed |
+| `OGS-00027` | eqtlgen-full | false | ragged | observed_only | accepted | - | 19,250 | 0 | - | - | passed |
 
 ## Derived membership summaries
 
