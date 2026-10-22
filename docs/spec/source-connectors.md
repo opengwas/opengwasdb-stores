@@ -9,7 +9,8 @@ pipeline calls. This specification covers the two connector files that meet at
 the **Acquisition Manifest** (what acquisition produced) -- the **Selection** a
 release config declares, and the frozen Source Inventory freeze writes (#283).
 The release config is specified in [release-config.md](release-config.md)
-(#287); the Column Map is specified with the ticket that builds it (#292).
+(#287). How a collection's files are read -- the Source Reader Capability and
+the Column Map -- is [Reading the source files](#reading-the-source-files) (#292).
 
 | Contract | Owner |
 |---|---|
@@ -19,6 +20,20 @@ The release config is specified in [release-config.md](release-config.md)
 | Selection | `src/manifest_generation/selection.py` |
 | Freeze and the frozen Source Inventory | `src/manifest_generation/freeze.py` |
 | Inventory columns and readiness vocabulary | `src/manifest_generation/source_inventory.py`, documented in [`resources/inventories/README.md`](../../resources/inventories/README.md) |
+
+## Reading the source files
+
+Each Analysis's `source_file` is read by an OpenGWASDB Source Reader Capability
+(`source_reader_capability`). A tabular collection with no dedicated reader is
+read through `opengwasdb.column-map` and a **Column Map**, a TOML file naming
+which provider column supplies each field (opengwasdb ADR 0063). The release
+config names the map ([`column_map`](release-config.md#column_map)), and the
+resolver and each build command take it as `--column-map PATH|NAME`: a file
+path, or the name of a built-in map. A source on another genome build is
+passed `--chain-file`, the declared liftover chain
+([`ancestry_assignment`](release-config.md#reference-resources)). The binding,
+the commands that take the flag and the checksum contract are in the
+[release metadata schema](../release-metadata-schema.md#column-map-binding).
 
 ## Connector files
 
@@ -73,6 +88,7 @@ value -- never zero and never a default.
 | `target_resolution_method` | No | text | How the target was resolved (`somascan_db_seqid`, `somascan_db_gene_name`, `ensembl_hgnc_symbol`). |
 | `target_rows` | No | positive integer | How many target-table rows the target was resolved from. |
 | `tissue`, `context` | No | text | The measured tissue and assay context (`plasma`, `SomaScan`), as in `analyses.tsv`. |
+| `source_probe_id` | No | text | The `.epi` probe an Analysis reads in a BESD file set (eQTLGen: the Ensembl gene). Required by the resolver for a BESD source and refused for any other. Resolution is keyed by `source_analysis_id`, never inferred from it. |
 
 The target columns are annotation, never a Trait Ontology Mapping: a gene is
 not the Trait (issue #141). They render into `analyses.tsv` (`trait_chr` and
@@ -189,10 +205,8 @@ several (a complex such as AMP kinase) or none; `target_mhc`;
 `src/manifest_generation/providers/finngen/source_metadata_adapter.py` converts
 FinnGen's published `finngen_R13_manifest.tsv` -- one row per endpoint, with
 `phenocode`, `phenotype`, `category`, `num_cases`, `num_controls` -- into the
-canonical table (#288). Its classification is the R metadata resolver's
-(`resources/generators/lib/metadata_resolvers/finngen_manifest.R`), which stays
-while the R generator is the only path that resolves FinnGen, and it keeps it
-exactly:
+canonical table (#288). Its classification is the retired R metadata
+resolver's, and it keeps it exactly:
 
 | Provider column | Canonical column |
 |---|---|
@@ -235,6 +249,67 @@ BMI_IRN             Body mass index, inverse-rank norm…   BMI_IRN             
 AB1_ACTINOMYCOSIS   Actinomycosis                         AB1_ACTINOMYCOSIS   Finnish                EUR                     case-control    433889       132      433757
 ```
 
+### The ukb-b adapter
+
+`src/manifest_generation/providers/ukb_b/source_metadata_adapter.py` converts
+ukb-b into the canonical table (#289) from two inputs, because ukb-b publishes
+neither a manifest this host can read nor a live API: the registry's **declared
+selection**
+(`resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv`,
+2,514 Analyses, whose `inclusion_reason` cites the OpenGWAS IGD
+`data/ukb-b/manifest.tsv`) and the **provider JSON sidecar** beside each VCF
+(`<id>.json`), which holds the study-level fields OpenGWAS's
+`POST /api/gwasinfo` served before the stored token expired on 2026-08-21.
+
+The declared selection is the intent: every declared Analysis must have a
+provider JSON, and no other Analysis is written. The JSON resolution is
+`providers.ukb_b.provider_metadata`'s -- the exact-ID check (`json.id` must be
+the declared id, case-insensitively), the batch check (`ukb-b`), and its
+contract (`unit` -> the effect scale, a usable `ncase`/`ncontrol` pair ->
+`case_control`, otherwise `sample_size` -> `total`) -- so the table agrees with
+the resolution record #219 froze.
+
+| Provider JSON field | Canonical column |
+|---|---|
+| `id` (`UKB-b-<n>`) | `source_analysis_id`, `source_trait_id` (the registry's `ukb-b-<n>`) |
+| `trait` | `source_trait_label` |
+| `population` | `source_ancestry_label`, and its tracked-map translation as `source_superpopulation` |
+| `ncase`, `ncontrol`, `sample_size` | `study_design`, `sample_size`, `n_cases`, `n_controls` |
+
+Its translations, and only these:
+
+- **Study design.** A usable `ncase`/`ncontrol` pair is a `case-control` row,
+  carrying both counts; otherwise the provider's `sample_size` is a
+  `quantitative` row's total, and no counts are carried -- a zero where counts
+  do not apply is the absence-vs-zero confusion the bundle contract refuses
+  (#133). A JSON with neither a pair nor a sample size is refused by name, as
+  is one whose `id` or `batch` does not match, whose declared Source Trait
+  Label disagrees with the provider's, or whose `population` the tracked map
+  cannot translate.
+- **No declared effect scale.** Every ukb-b Analysis is on the SD scale (the
+  provider's `units` is `SD` for all 2,514, the 1,846 binary traits included),
+  and the release config's method tiers say so (`sd` /
+  `declared_standardised`); the adapter writes no `declared_effect_scale` that
+  could drift from them.
+- **Collection-wide facts are not written.** The GRCh37 build, the UK Biobank
+  terms of access, `MRC-IEU` and the `ukb-b` analysis group are the same for
+  every Analysis, so the release config's `defaults` supply them (#287). The
+  First Author is not one of those: the schema has no release-wide default for
+  it, and the provider JSON carries `author` per Analysis, so the adapter writes
+  each row's `first_author` from it -- and refuses a provider JSON that records
+  none, rather than emitting a blank author.
+- **Ancestry is a source label, never an assignment.** `source_superpopulation`
+  is the provider's `European` translated through the tracked map; nothing here
+  claims `af_assigned`.
+
+Example:
+
+```text
+source_analysis_id  source_trait_label                     source_trait_id     source_ancestry_label  source_superpopulation  study_design    sample_size  n_cases  n_controls
+ukb-b-10001         Operative procedures - secondary …     ukb-b-10001         European               EUR                     case-control    463010       6661     456349
+ukb-b-10787         Standing height                        ukb-b-10787         European               EUR                     quantitative    461950
+```
+
 ## Acquisition Manifest
 
 What acquisition produced for a Source Collection: one row per Analysis it
@@ -245,7 +320,7 @@ file for that Analysis -- an explained absence (see Freeze).
 | Column | Required | Description |
 |---|---:|---|
 | `source_analysis_id` | Yes, every row | The Analysis the file was acquired for: its claim. Unique. |
-| `status` | Yes, every row | The readiness vocabulary of `source_inventory.py`: `ok` and `already_present` are ready; `missing_remote_harmonised_yaml`, `header_rejected`, `metadata_rejected`, `data_absent_upstream`, `data_failed`, `yaml_failed`, `dry_run` and `error` record why there is no usable file. An unknown status is refused. |
+| `status` | Yes, every row | The readiness vocabulary of `source_inventory.py`: `ok` and `already_present` are ready; `missing_remote_harmonised_yaml`, `header_rejected`, `metadata_rejected`, `data_absent_upstream`, `data_failed`, `yaml_failed`, `dry_run` and `error` record why there is no usable file. A Source Collection whose acquisition only *records* identities re-verifies them instead, and reports `missing_file`, `missing_index`, `size_mismatch`, `checksum_mismatch`, `index_mismatch`, `bad_index` or `integrity_failed` (`SOURCE_VERIFICATION_STATUSES`, #289). An unknown status is refused. |
 | `location` | Column yes; value on every ready row | The exact local path acquisition wrote. Becomes the inventory's `data_file`. |
 | `bytes` | Column yes; value on every ready row | The file's size in bytes, with no leading zero. Becomes `data_bytes`. On a refused row it is the size the run holds the Analysis to (see the FinnGen writer below). |
 | `sha256` | Column yes; value on every ready row | The file's lower-case sha256. On a refused row it is the digest the run holds the Analysis to, so the refusal does not erase its own pin. |
@@ -255,14 +330,17 @@ file for that Analysis -- an explained absence (see Freeze).
 | `original_location`, `original_sha256`, `reformat_tool` | No; all three or none | Lineage of a file acquisition changed: the original's path and sha256 and the tool, with its version, that changed it. Only on a ready row. Acquisition changes a file in two cases: a structural change no reader or Column Map can cope with, such as splitting one file into one per Analysis, and filtering it to a release's region policy (#300, below). |
 | `original_bytes` | No; only with lineage | The original's size. It stands in for `original_sha256` only for an original filtered before acquisition checksummed it, and since deleted: Chen 2023's files, filtered by the retired R generator, whose `filter_summary.tsv` recorded each original's size and no checksum. |
 | `region_policy` | No; only with lineage | The region policy a region-filtered file was filtered to: one JSON object with sorted keys and no spaces, naming `region_policy_id` and `association_coverage` (`signals_only` or `cis_plus_signals`), `trans_flank_bp` and `suggestive_lead_min_distance_bp` (whole bases), `significant_p` and `suggestive_p` (in (0, 1]), the QC panel's `resource_id` and `sha256` (every policy keeps one, ADR 0036), and for a cis policy `cis_flank_bp` and the `target` span used (`chromosome`, `start`, `end`). A policy missing any of them, or a cis flank or target on a signals-only one, is refused. |
+| `source_probe_id`, `members` | No; both or neither, only on a ready row | A BESD file set several Analyses share (#291): `location` is the file set's prefix, `source_probe_id` the `.epi` probe this Analysis reads, and `members` one JSON object with sorted keys and no spaces naming exactly `.besd`, `.epi` and `.esi`, each with its `bytes` and lower-case `sha256`. The `bytes` and `sha256` columns are the `.besd` member's and are refused if they are not. Identity and verification are defined once, in the [release metadata schema](../release-metadata-schema.md#besd-file-sets). |
 
 A duplicate `source_analysis_id` is refused, and so is a file -- a `location`
 or `sidecar_location` -- claimed by two rows.
 
-**One row per Analysis is one file per Analysis.** A file several Analyses
-share, such as eQTLGen's BESD file set, cannot be recorded today: it is refused
-as a duplicate file. #291 extends the manifest when eQTLGen moves onto the
-pipeline.
+**A file set is the one shared claim.** Rows with `members` may share one
+`location`, because a BESD file holds an Analysis per probe. They are accepted
+only when every claimant records identical `members` and each `source_probe_id`
+is claimed once in the file set; a member whose size or sha256 differs between
+claimants, or a probe claimed twice, is refused by name. A plain file is still
+one Analysis's, and a file set's prefix may not also be a plain row's `location`.
 
 ### Region-filtered acquisition
 
@@ -407,9 +485,9 @@ endpoint upstream no longer serves is `data_absent_upstream`; a failed transfer
 is `data_failed`; the manifest is written either way and the run exits non-zero,
 so an unattended retry reuses every completed file.
 
-The second is a **compatibility mode**, kept only until the R generator retires
-with FinnGen's acceptance criterion 1 (#288), because that generator emits a
-working bundle before acquisition runs:
+The second is a **compatibility mode** the R era used, because its generator
+emitted a working bundle before acquisition ran; it stays because the recorded
+receipts of OGS-00003 and OGS-00017 cite it (#288):
 
 ```sh
 python3 -m manifest_generation.providers.finngen.acquire --release-dir=<dir>
@@ -464,6 +542,193 @@ that commit and a file it only re-canonicalised carries
 `sha256:unrecorded` with the evidence searched, because no conversion-time
 record names that code. A rewritten file whose extracted original is gone is
 refused by name rather than given an invented identity.
+
+### The ukb-b acquisition writer
+
+ukb-b's files were copied into the mirror, not downloaded by an acquisition
+run, so there is no transfer to report. What the restored inventory recorded
+once is the mirror's identity, and
+`src/manifest_generation/providers/ukb_b/write_acquisition_manifest.py` turns
+that record -- never a fresh read of 425 GB -- into the canonical manifest
+(#289):
+
+```sh
+python3 -m manifest_generation.providers.ukb_b.write_acquisition_manifest \
+  --declared-selection resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv \
+  --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
+  --checksums <the recorded checksum receipt> \
+  --integrity <the recorded integrity receipt> \
+  --verification <the recorded deep-verification report> \
+  --out <acquisition manifest>
+```
+
+One row per declared Analysis, with its VCF (`location`, `bytes`, `sha256`) and
+its provider JSON as the sidecar (`sidecar_location`, `sidecar_bytes`). The
+readiness `status` is derived from the recorded evidence *and* the cheap checks
+a writer can make without reading a byte, in this order, so the most
+fundamental failure is the one reported: the file is still there
+(`missing_file`), its size is still the recorded one (`size_mismatch`), the
+deep verification still holds the recorded sha256 (`checksum_mismatch`), its
+`.tbi` is still there (`missing_index`), the index is still the recorded one
+(`index_mismatch`), and the compressed stream and index still open
+(`integrity_failed`, `bad_index`). A non-ready row keeps the recorded location,
+size and sha256 -- the identity the run holds the Analysis to -- and its
+`error` says which check failed and what it saw.
+
+The deep verification report is **required**, and it is evidence or it is
+refused. It must be a JSON object carrying `ok` and `deep` (both booleans),
+`rows` (the number of files it verified) and the four per-Analysis lists
+`missing`, `size_mismatch`, `checksum_mismatch` and `index_mismatch`; a report
+that verified nothing is not evidence, so `{}`, a shallow report (`deep:
+false` -- it compares sizes and mtimes, never a checksum), `rows: 0`, a report
+whose `rows` is not this Selection's size, one that names an Analysis the
+Selection does not contain, one whose `ok` is `true` while it lists failures,
+and one whose `ok` is `false` while it names none are each refused by name.
+Every failure it lists becomes that row's non-ready status, `missing`
+included, so a file the verification found absent is a `missing_file` row with
+the reason rather than a ready one.
+
+The writer refuses a declared Analysis the recorded evidence does not cover,
+a recorded file outside `--source-dir` or not named `<id>.vcf.gz`, and a
+missing provider JSON sidecar: silently marking one ready, or inventing an
+identity for it, would be guessing about a frozen input. It records each
+receipt's path, sha256 and row count beside the manifest
+(`<out-stem>.meta.yaml`), plus how many Analyses the verification refused,
+which freeze checksums into the inventory's provenance as the pass lineage.
+
+### eQTLGen (BESD)
+
+eQTLGen's cis-eQTL summary statistics (the 2019 whole-blood meta-analysis, 31,684
+samples) are one genome-wide BESD file set,
+`/data/opengwasdb/raw/eqtlgen/eqtlgen-sparse`: an Analysis per probe, an Ensembl
+gene. Its connectors are two modules in
+`src/manifest_generation/providers/eqtlgen/`, and nothing source-specific is in
+the pipeline.
+
+**The metadata adapter** (`source_metadata_adapter`) writes the Source Metadata
+Table from a BESD file set, one row per probe:
+
+```sh
+python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
+  --prefix <file set> --tissue whole_blood --study-total 31684 \
+  --first-author Võsa --publication-pmid 34475573 --gene-symbols <gene-symbols.tsv> \
+  --out <source metadata table>
+```
+
+`source_analysis_id` is the bare probe id, the id `build-ragged-besd` gives the
+Analysis when the Build Recipe passes it no `tissue`, so no Store-identity column
+is declared. It is never `<probe>::<tissue>`, as OGS-00001 and OGS-00002 named
+theirs: an `analysis_id` never contains `:` (issue #319), and `bundle.check()`
+refuses one that does. `source_probe_id` is the probe,
+`source_trait_label` the `.epi`'s gene column (the probe's own id: the file names
+no symbol), `study_design` is `quantitative`, `tissue` is the operator's statement
+(never a default) and `sample_size` is derived from the file, per probe, as below.
+The tissue is recorded in its own column, never in the id, and a blank or padded
+`--tissue` is refused before anything is written.
+The probe is the target: `target_ensembl_gene_id` is the probe,
+`target_chromosome` its chromosome, and `target_start` and `target_end` both its
+base pair, a one-base span (the file gives a position, not the gene's extent). It
+declares no ancestry label (Assigned Ancestry is measured), no build (the release
+config's `defaults.source_genome_build`, `GRCh37`) and no trait ontology term. A
+chromosome outside the vocabulary, a repeated probe or a short row fails the whole
+adapter, by line and probe.
+
+**Publication and labels.** `first_author` and `publication_pmid` (Võsa et al.,
+*Nature Genetics* 2021, PMID 34475573, DOI 10.1038/s41588-021-00913-z) are adapter
+arguments written on every row and recorded, with the label counts, in
+`<table>.provenance.yaml`. The Analysis Label (`source_trait_label`) is eQTLGen's
+published `GeneSymbol`, which the `.epi` does not carry. `gene_symbols`
+(`python3 -m manifest_generation.providers.eqtlgen.gene_symbols --url <published
+cis-eQTL file> --epi <file set>.epi --out gene-symbols.tsv`) streams the published
+file once and writes the small `gene`/`gene_symbol` connector input, with its URL,
+the compressed file's sha256 and byte count and the download date in
+`gene-symbols.tsv.meta.yaml`. A gene given two symbols is refused by name; a probe
+with none keeps its Ensembl id as the label and is counted. The map feeds the
+label only: `analysis_id` and `source_probe_id` stay the bare Ensembl ids. The
+`source_url` (`https://eqtlgen.org/cis-eqtls.html`) is an `acquire --source-url`
+argument, written on every Acquisition Manifest row and recorded in the pass
+lineage; a resume with another URL is refused like any other changed lineage.
+The full release's map has 19,250 of 19,250 probes with a symbol, from the
+2019-12-11 file (3,880,187,026 bytes).
+
+**Sample size** is the probe's maximum pair N. eQTLGen's beta and SE are
+z-standardised with each SNP-gene pair's own N: b = z / sqrt(2p(1-p)(N + z^2)) and
+se = 1 / sqrt(2p(1-p)(N + z^2)). A pair's N is therefore recoverable,
+`N = 1 / (2p(1-p) se^2) - z^2` with z = b / se and p the `.esi` frequency, and the
+adapter writes the maximum over the probe's pairs, rounded to the nearest integer
+(halves up) and capped at `--study-total`.
+
+- **Bound.** Only pairs with finite N and `|z| >= 1` count. The formula is
+  ill-conditioned for small z because the stored values are coarse. Against the
+  published per-pair `NrSamples` (the 2019-12-11 cis-eQTL file, 12 genes, 85,079
+  pairs) the relative error of derived N is: up to 300% (median 31%) for `|z|`
+  below 0.001, 3% median and 31% maximum for 0.001-0.01, 0.4% maximum for 0.1-0.5,
+  0.08% for 0.5-1, 0.04% for 1-2, and 0.004% for `|z|` 10 and above. Without the
+  bound 61% of the 19,250 probes took an N above the study's 31,684 (up to
+  126,741), and TNF 30,851 against a published maximum of 14,263.
+- **Cap.** The bounded maximum can still exceed the study total by the rounding
+  noise of the stored values: 5,443 of 19,250 probes exceed 31,684, by at most 13
+  (0.04%). The cap at `--study-total` absorbs that, so no probe claims more samples
+  than the study had. In the full release 5,456 of 19,250 probes (28%) take it: they
+  have at least one pair measured in the study's full cohort set, and the rest are
+  covered by fewer cohorts (median 28,927, minimum 232).
+- A probe with no qualifying pair fails the adapter by name. The adapter refuses a
+damaged offset table before slicing it (first offset not 0, final offset not the
+file's value count, offsets that do not increase, or a probe's beta and SE blocks
+of unequal length), and reads the values through opengwasdb's BESD reader.
+- The Analysis's SD is **declared**, not estimated (the release config below), and
+  the sample size kind is `variant_level`. Per-association N is not stored yet
+  (opengwasdb#302); the formula is how to recover it.
+
+**The acquisition writer** (`acquire`) subsets the genome-wide file set to a
+release's Selection, because `build-ragged-besd` demands that its file set hold
+exactly the probes it builds, and writes the Acquisition Manifest:
+
+```sh
+python3 -m manifest_generation.providers.eqtlgen.acquire \
+  --config <release config> --source-prefix <genome-wide file set> \
+  --out-dir <subset dir> --name <subset name> --out <acquisition manifest>
+```
+
+The Selection is the release config's, resolved over the Source Metadata Table it
+names, so acquisition and freeze cannot disagree. The subset is written with
+`subset_besd.write_besd_subset` -- a standalone `.besd`/`.epi`/`.esi` set, in
+Selection order -- under `--out-dir`; the source directory is only read. Every
+selected Analysis gets a row claiming the one file set (see
+[Acquisition Manifest](#acquisition-manifest)): `location` the subset's prefix,
+`source_probe_id` its probe, `members` each member's size and sha256, and
+`bytes`/`sha256` the `.besd` member's. Its lineage is the original's prefix, the
+original `.besd`'s sha256, and the tool: the subset writer's module and the sha256
+of its source. Beside the manifest, `<manifest-stem>.meta.yaml` (the pass
+lineage) records the Selection, the probes in order, every original member's size
+and sha256, the subset's members and the tool, and the probe, SNP and association
+counts of the original and of the subset. The writer keeps only the SNPs a kept
+probe references, so a subset of every probe has the original's probes and
+associations and can have fewer SNPs (the full eQTLGen set drops 20 unreferenced
+SNPs); the counts record that.
+
+A re-run resumes only the run it is: with the manifest present, the subset's
+members must still be the bytes it records, and are kept, and the original (its
+prefix and every member's sha256), the tool and the Selection must be the ones the
+manifest and its pass lineage record. A different Selection, a changed member, or
+a changed original or tool is refused by name, and nothing is rewritten: retained
+output is never relabelled with a new original.
+
+**The release config** (`resources/generators/eqtlgen-cis-pilot/release-pilot-10.yaml`)
+is OGS-00001's Selection, by bare probe id: `layout: ragged`, `command:
+build-ragged-besd`, the option `source-build: hg19` (passed to the command
+verbatim) and no `tissue` option, which would name each Analysis
+`<probe>::<tissue>`, `defaults.source_genome_build: GRCh37`, and one method tier,
+`quantitative`: `stored_effect_scale: sd`, `original_sd_method:
+declared_standardised` (the effects are z-standardised, so the SD is 1 by
+construction; the resolver reports `scale_already_declared` and `original_sd`
+stays blank, #300), `sample_size_kind: variant_level`. The release names no reader:
+`build-ragged-besd` reads BESD, so the resolver's reader is `opengwasdb.besd`
+(`candidate_workflow.COMMAND_READER_CAPABILITY`). The source is hg19 and the
+reference GRCh38, so the resolver needs a liftover chain, which the release
+config names as a Reference Resource (#292).
+
+**Verification** is of the member files, not the prefix: see the [release metadata schema](../release-metadata-schema.md#besd-file-sets) for the one definition of a BESD file set's identity and how preflight and the record check hold it.
 
 ## Selection
 

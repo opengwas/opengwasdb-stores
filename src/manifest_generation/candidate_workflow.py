@@ -63,8 +63,14 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import yaml
 
-from ogstores.bundle import SUPERPOPULATIONS
+from ogstores.bundle import SUPERPOPULATIONS, ColumnMapBinding, is_valid_column_map_file
 from manifest_generation import quality_checks
+from manifest_generation.completion import (
+    CompletionRecipe,
+    acceptance as completion_acceptance,
+    blocked_reason,
+    completion_block,
+)
 from manifest_generation.quality_checks import (
     NON_QUANTITATIVE_EFFECT_SCALES,
     CheckSummary,
@@ -80,6 +86,7 @@ from manifest_generation.resolution_area import (
     ResolutionArea,
     ResolutionAreaError,
 )
+from manifest_generation.acquisition_manifest import BESD_MEMBERS
 from manifest_generation.safe_write import atomic_write_bytes
 from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
@@ -130,6 +137,7 @@ RESOLVER_MANIFEST_COLUMNS: tuple[str, ...] = (
     "imputation_score_kind",
     "imputation_score_provenance",
     "maf_threshold",
+    "source_probe_id",
 )
 
 #: The canonical Release Bundle ``analyses.tsv`` columns this generator emits.
@@ -358,6 +366,9 @@ RECEIPT_KEYS: frozenset[str] = frozenset(
 #: provenance; reading one again is refused by name rather than as corrupt.
 HISTORICAL_RECEIPT_SCHEMA_VERSIONS: tuple[int, ...] = (1,)
 
+#: ``_verify_fingerprints``' ``column_map`` when the caller has no binding to compare.
+_NOT_CHECKED: object = object()
+
 #: Filename of the registry-side resolution receipt in the run's Work Root.
 RECEIPT_FILENAME: str = "resolution_receipt.json"
 
@@ -392,6 +403,7 @@ class CandidateConfiguration:
     base: ReleaseConfig
     label: str
     access_posture: str
+    trial: bool
     description: str
     notes: str
     #: The collection-wide Analytical Metadata defaults (``defaults``): an
@@ -460,6 +472,12 @@ class CandidateConfiguration:
     #: ``resources/reference-resources/<id>/resource.yaml``: its ``genome_build``
     #: is the resolver's ``--reference-build`` (opengwasdb#277).
     ancestry_reference_declaration: Path | None = None
+    #: The liftover chain's declaration, ``resources/reference-resources/<id>/resource.yaml``,
+    #: when ``ancestry_assignment.liftover_chain_resource_id`` names one (#292).
+    liftover_chain_declaration: Path | None = None
+    #: The completion recipe the release config declares (#340, ADR 0037), or
+    #: ``None`` for a release that completes nothing.
+    completion: CompletionRecipe | None = None
 
 
 #: The Ancestry Assignment Method of an Analysis whose source has no allele
@@ -468,6 +486,12 @@ SOURCE_TRUSTED_NO_AF: str = "source_trusted_no_af"
 
 #: The reader a release uses when its Build Recipe names none.
 DEFAULT_SOURCE_READER_CAPABILITY: str = "opengwasdb.gwas-ssf"
+
+#: The reader a build command implies, for a command that reads one format and
+#: takes no ``source-reader-capability`` flag: ``build-ragged-besd`` reads BESD
+#: file sets, whose resolver reader is ``opengwasdb.besd`` (#291). Options are
+#: passed to the command verbatim, so the release config cannot name it there.
+COMMAND_READER_CAPABILITY: Mapping[str, str] = {"build-ragged-besd": "opengwasdb.besd"}
 
 
 def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfiguration:
@@ -483,6 +507,7 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         base=base,
         label=base.label,
         access_posture=base.access_posture,
+        trial=base.trial,
         description=base.description,
         notes=base.notes,
         defaults=dict(base.defaults),
@@ -498,7 +523,9 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         },
         effect_scale_block=dict(base.effect_scale),
         reader_capability=str(
-            base.build.options.get("source-reader-capability") or DEFAULT_SOURCE_READER_CAPABILITY
+            base.build.options.get("source-reader-capability")
+            or COMMAND_READER_CAPABILITY.get(base.build.command)
+            or DEFAULT_SOURCE_READER_CAPABILITY
         ),
         target_ancestry=base.selection_superpopulation,
         info_score_threshold=base.info_score_threshold,
@@ -523,6 +550,13 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
             Path(repo_root) / "resources" / "reference-resources"
             / base.ancestry_reference_resource_id / "resource.yaml"
         ),
+        liftover_chain_declaration=(
+            Path(repo_root) / "resources" / "reference-resources"
+            / base.liftover_chain_resource_id / "resource.yaml"
+            if base.liftover_chain_resource_id
+            else None
+        ),
+        completion=base.completion,
     )
 
 
@@ -777,6 +811,8 @@ class AnalysisMetadata:
     target_rows: str = ""
     tissue: str = ""
     context: str = ""
+    #: The probe the Analysis reads in a BESD file set (``source_probe_id``, #291).
+    source_probe_id: str = ""
     #: The Store's Analysis id, when the table declares one (``analysis_id``,
     #: #288). Blank means the pipeline's default, ``analysis_id`` above: a Source
     #: Collection whose ids are namespaced, or otherwise not its source's, says
@@ -847,6 +883,7 @@ def read_analysis_metadata(
             source_genome_build=row.get("source_genome_build", ""),
             tissue=row.get("tissue", ""),
             context=row.get("context", ""),
+            source_probe_id=row.get("source_probe_id", ""),
             **{column: row.get(column, "") for column in ANALYSIS_TARGETS_COLUMNS[1:]},
         )
     return found
@@ -1057,6 +1094,9 @@ class ResolverRow:
     #: The per-Analysis MAF floor: the configured default, or literal ``NaN``
     #: for a no-MAF-filter release or a MAF-exempt genotyping technology.
     maf_threshold: str = "NaN"
+    #: The ``.epi`` probe a BESD Analysis reads in the file set ``source_file`` is the
+    #: prefix of; blank for every other source (#291).
+    source_probe_id: str = ""
 
     def as_dict(self) -> dict[str, str]:
         return {name: getattr(self, name) for name in RESOLVER_MANIFEST_COLUMNS}
@@ -1117,6 +1157,7 @@ def derive_resolver_manifest(
                 imputation_score_kind=kind,
                 imputation_score_provenance=provenance,
                 maf_threshold=analysis_maf_threshold(row, config),
+                source_probe_id=resolved.source_probe_id if resolved else "",
             )
         )
     if not manifest:
@@ -1171,6 +1212,117 @@ def ancestry_reference_build(config: CandidateConfiguration) -> str:
     return build
 
 
+def column_map_binding(config: CandidateConfiguration) -> ColumnMapBinding | None:
+    """The Column Map the release reads through, as ``build.yaml`` binds it, or ``None``.
+
+    ``name`` and ``sha256`` are what OpenGWASDB records as
+    ``resolution_config.column_map``, so they come from its own loader: a
+    built-in's checksum is the file the pinned package ships, not a name. A
+    carried map is bound by its file name, and must fit the bundle's grammar.
+    """
+    from opengwasdb.readers.column_map import ColumnMapError, load_column_map
+
+    base = config.base
+    if base.column_map_builtin is None and base.column_map_path is None:
+        return None
+    spec = base.column_map_builtin or str(base.column_map_path)
+    try:
+        loaded = load_column_map(spec)
+    except ColumnMapError as exc:
+        raise CandidateError(f"column_map: {exc}") from exc
+    if base.column_map_path is None:
+        return ColumnMapBinding(name=loaded.name, sha256=loaded.sha256)
+    file = base.column_map_path.name
+    if not is_valid_column_map_file(file):
+        raise CandidateError(
+            f"column_map.path {base.column_map_path}: the bundle carries it as "
+            f"column_maps/{file}, which is not a valid Column Map file name"
+        )
+    return ColumnMapBinding(name=loaded.name, sha256=loaded.sha256, file=file)
+
+
+def liftover_chain(config: CandidateConfiguration) -> tuple[str, str] | None:
+    """The declared liftover chain's ``(location, sha256)``, or ``None`` when none is named.
+
+    The chain is a declared Reference Resource (#292): its ``resource.yaml``
+    states the file's ``sha256`` and the builds it lifts ``from`` and ``to``.
+    This reads that declaration and nothing else -- a release's settings must
+    compose on a host that holds no ``/data``, such as a CI runner -- so the
+    ``sha256`` returned is the *declared* one and the file's own bytes are
+    checked before resolution by :func:`verify_liftover_chain`. A chain that
+    lifts to a build other than the Ancestry Reference Panel's is refused here:
+    that is a declaration, not a file.
+    """
+    if config.base.liftover_chain_resource_id is None:
+        return None
+    resource_id = config.base.liftover_chain_resource_id
+    path = config.liftover_chain_declaration
+    if path is None or not path.is_file():
+        raise CandidateError(
+            f"Reference Resource {resource_id!r} has no declaration at {path}; the resolver "
+            "needs its declared builds and sha256"
+        )
+    try:
+        document = yaml.safe_load(path.read_text(encoding="utf-8"))
+    except yaml.YAMLError as exc:
+        raise CandidateError(f"{path} is not valid YAML: {exc}") from exc
+    if not isinstance(document, Mapping):
+        raise CandidateError(f"{path} is not a YAML mapping")
+    missing = [
+        key for key in ("from_genome_build", "to_genome_build", "sha256")
+        if not isinstance(document.get(key), str) or not document[key].strip()
+    ]
+    if missing:
+        raise CandidateError(f"{path} declares no {', '.join(missing)}")
+    from opengwasdb.readers.column_map import normalise_build
+
+    reference_build = ancestry_reference_build(config)
+    if normalise_build(document["to_genome_build"]) != normalise_build(reference_build):
+        raise CandidateError(
+            f"Reference Resource {resource_id!r} lifts to {document['to_genome_build']}, but "
+            f"the Ancestry Reference Panel is {reference_build}; the chain must lift to the "
+            "reference build"
+        )
+    return config.base.reference_resources[resource_id].location, document["sha256"]
+
+
+def verify_liftover_chain(config: CandidateConfiguration) -> None:
+    """Refuse a declared liftover chain whose file is absent or is not the declared bytes.
+
+    The resolver opens the chain, so the bytes must be the Reference Resource's
+    declared ``sha256`` before a resolve starts. This is the only place the chain
+    file is read (#292): composing the resolver's settings deliberately reads no
+    host file, so a stale or absent chain -- on a CI runner that has no
+    ``/data``, or a host whose chain was replaced -- stops the run here, by name.
+    """
+    chain = liftover_chain(config)
+    if chain is None:
+        return
+    location, declared = chain
+    resource_id = config.base.liftover_chain_resource_id
+    if not Path(location).is_file():
+        raise CandidateError(
+            f"liftover chain {location} (Reference Resource {resource_id!r}) is not a file"
+        )
+    actual = sha256_file(Path(location))
+    if actual != declared:
+        raise CandidateError(
+            f"liftover chain {location} has sha256 {actual}; Reference Resource {resource_id!r} "
+            f"declares {declared}"
+        )
+
+
+def declared_setting_checksums(config: CandidateConfiguration) -> dict[str, str]:
+    """The checksums a release's declarations state for files its resolver settings name.
+
+    Only the liftover chain is declared this way (#292): its Reference Resource
+    states the file's ``sha256``, so :func:`resolver_settings_digest` needs the
+    declaration, and not the file, to compose a run's routing key.
+    """
+    chain = liftover_chain(config)
+    return {chain[0]: chain[1]} if chain is not None else {}
+
+
 def resolver_settings(config: CandidateConfiguration) -> list[str]:
     """The ``opengwasdb resolve-analyses`` flags that apply to every Analysis.
 
@@ -1205,6 +1357,13 @@ def resolver_settings(config: CandidateConfiguration) -> list[str]:
         "--reference-build",
         ancestry_reference_build(config),
     ]
+    chain = liftover_chain(config)
+    if chain is not None:
+        settings.extend(["--chain-file", chain[0]])
+    if config.base.column_map_builtin or config.base.column_map_path:
+        settings.extend(
+            ["--column-map", config.base.column_map_builtin or str(config.base.column_map_path)]
+        )
     extraction_panel = config.ancestry_block.get("extraction_panel")
     if extraction_panel:
         settings.extend(["--extraction-panel", str(extraction_panel)])
@@ -1264,18 +1423,35 @@ _RESOLVER_FILE_FLAGS: tuple[str, ...] = (
     "--ancestry-groups",
     "--extraction-panel",
     "--variant-reference",
+    "--chain-file",
 )
 
 
-def resolver_settings_digest(settings: Sequence[str]) -> str:
+def _column_map_sha256(spec: str) -> str:
+    from opengwasdb.readers.column_map import ColumnMapError, load_column_map
+
+    try:
+        return load_column_map(spec).sha256
+    except ColumnMapError as exc:
+        raise CandidateError(f"resolver setting --column-map {spec}: {exc}") from exc
+
+
+def resolver_settings_digest(
+    settings: Sequence[str], *, declared_checksums: Mapping[str, str] | None = None
+) -> str:
     """The digest that routes a run to its checkpoint in the Resolution Area (#284).
 
     It covers the resolver settings that enter every record's fingerprint:
     :func:`resolver_settings` as passed, the content checksum of every file
-    they name, and the installed resolver's identity. It is only a routing key
-    -- the resolver checks each Analysis's full fingerprint on ``--resume`` --
-    so a setting it misses causes a re-resolve, never a wrong reuse.
+    they name, and the installed resolver's identity. ``declared_checksums``
+    replace the content checksum of the files it names with the checksum a
+    release *declares* for them (:func:`declared_setting_checksums`), so
+    composing the key reads no host file that is declared (#292). It is only a
+    routing key -- the resolver checks each Analysis's full fingerprint on
+    ``--resume`` -- so a setting it misses causes a re-resolve, never a wrong
+    reuse.
     """
+    declared = dict(declared_checksums or {})
     files: dict[str, str] = {}
     for position, token in enumerate(settings[:-1]):
         value = settings[position + 1]
@@ -1283,7 +1459,15 @@ def resolver_settings_digest(settings: Sequence[str]) -> str:
             path = value
         elif token == "--af-reference":
             path = value.partition("=")[2]
+        elif token == "--column-map":
+            # A built-in's name is not a file: its checksum is the one the pinned
+            # package ships, which OpenGWASDB's loader reports for both forms.
+            files[f"column-map:{value}"] = _column_map_sha256(value)
+            continue
         else:
+            continue
+        if path in declared:
+            files[path] = declared[path]
             continue
         if not Path(path).is_file():
             raise CandidateError(
@@ -1466,7 +1650,14 @@ def verify_records(
         return [], failures + [str(exc)]
     kept, parse_failures = parse_receipt_records(manifest_rows, receipt["records"])
     failures.extend(parse_failures)
-    records, record_failures = account_kept_records(manifest_rows, area, kept)
+    try:
+        binding = column_map_binding(config)
+    except CandidateError as exc:
+        failures.append(str(exc))
+        binding = _NOT_CHECKED
+    records, record_failures = account_kept_records(
+        manifest_rows, area, kept, column_map=binding
+    )
     failures.extend(record_failures)
     failures.extend(
         _verify_receipt(
@@ -1517,8 +1708,14 @@ def account_kept_records(
     manifest_rows: Sequence[ResolverRow],
     area: ResolutionArea,
     kept: Mapping[str, KeptRecord],
+    *,
+    column_map: ColumnMapBinding | None | object = _NOT_CHECKED,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Read and account the kept Resolution Records a receipt names, in manifest order."""
+    """Read and account the kept Resolution Records a receipt names, in manifest order.
+
+    ``column_map`` is the binding the bundle will carry (``None``: it binds
+    none); left out, the records' Column Map is not compared.
+    """
     failures: list[str] = []
     records: list[dict[str, Any]] = []
     for row in manifest_rows:
@@ -1530,7 +1727,9 @@ def account_kept_records(
         except ResolutionAreaError as exc:
             failures.append(str(exc))
             continue
-        record, row_failures = _account_record(row, area.record_path(record_ref), data)
+        record, row_failures = _account_record(
+            row, area.record_path(record_ref), data, column_map=column_map
+        )
         failures.extend(row_failures)
         if record is not None:
             records.append(record)
@@ -1594,7 +1793,11 @@ def _account_index(
 
 
 def _account_record(
-    row: ResolverRow, record_path: Path, data: bytes | None = None
+    row: ResolverRow,
+    record_path: Path,
+    data: bytes | None = None,
+    *,
+    column_map: ColumnMapBinding | None | object = _NOT_CHECKED,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     """Read one resolver record and check it against its manifest row.
 
@@ -1626,7 +1829,7 @@ def _account_record(
     status = record.get("status")
     if status not in _RESOLVER_RECORD_STATUSES:
         return None, [f"{row.analysis_id}: resolver record has unexpected status {status!r}"]
-    return dict(record), _verify_fingerprints(row, record)
+    return dict(record), _verify_fingerprints(row, record, column_map=column_map)
 
 
 def _first_mismatch(actual: Sequence[str], expected: Sequence[str]) -> str:
@@ -1636,7 +1839,12 @@ def _first_mismatch(actual: Sequence[str], expected: Sequence[str]) -> str:
     return f"length {len(actual)} != {len(expected)}"
 
 
-def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[str]:
+def _verify_fingerprints(
+    row: ResolverRow,
+    record: Mapping[str, Any],
+    *,
+    column_map: ColumnMapBinding | None | object = _NOT_CHECKED,
+) -> list[str]:
     """Check a record's current source identity and tier against the manifest row.
 
     A record whose recorded source checksum, size, file, tier or reader
@@ -1646,6 +1854,11 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
     fail finalisation rather than be frozen into a candidate. The resolver's
     fingerprint also records the source file's current size and mtime, so a
     source replaced after the resolve is caught here too.
+
+    ``column_map`` is the binding the bundle will carry (#292): a mapped
+    record's ``resolution_config.column_map`` must equal its fingerprint, and
+    a release that binds none must see none, so a record made under a map is
+    never frozen into a bundle that does not carry it.
     """
     failures: list[str] = []
     fingerprints = record.get("fingerprints")
@@ -1675,6 +1888,13 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
                     f"{row.analysis_id}: resolver resolution_config.{key} is "
                     f"{resolution_config.get(key)!r}, expected {expected[key]!r}"
                 )
+        if column_map is not _NOT_CHECKED:
+            wanted_map = column_map.fingerprint() if column_map is not None else None  # type: ignore[union-attr]
+            if resolution_config.get("column_map") != wanted_map:
+                failures.append(
+                    f"{row.analysis_id}: resolver resolution_config.column_map is "
+                    f"{resolution_config.get('column_map')!r}, expected {wanted_map!r}"
+                )
     # A declared score must be included in the resolver's own fingerprint.
     # Legacy/no-declaration records predate these keys and remain compatible.
     if row.imputation_score_column:
@@ -1699,7 +1919,42 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
                 f"{row.analysis_id}: resolver resolution_config.maf_threshold is "
                 f"{resolution_config.get('maf_threshold')!r}, expected {wanted_maf!r}"
             )
+    # A BESD record binds its probe: the file set is shared, so which of its
+    # Analyses a record is for is part of its identity (#291).
+    if row.source_probe_id and isinstance(resolution_config, Mapping):
+        if resolution_config.get("source_probe_id") != row.source_probe_id:
+            failures.append(
+                f"{row.analysis_id}: resolver resolution_config.source_probe_id is "
+                f"{resolution_config.get('source_probe_id')!r}, expected {row.source_probe_id!r}"
+            )
     failures.extend(_verify_source_file_unchanged(row, fingerprints))
+    return failures
+
+
+def _stat_problems(
+    analysis_id: str, what: str, path: Path, recorded_bytes: Any, recorded_mtime_ns: Any
+) -> list[str]:
+    """Why ``path`` is no longer the size and mtime a resolver record was produced against.
+
+    ``what`` names it in the diagnostics ("source file", "source member x.esi").
+    """
+    try:
+        stat = path.stat()
+    except OSError:
+        return [
+            f"{analysis_id}: {what} for the resolver record cannot be inspected: {path}"
+        ]
+    failures: list[str] = []
+    if recorded_bytes != stat.st_size:
+        failures.append(
+            f"{analysis_id}: {what} size is {stat.st_size} but the resolver "
+            f"record was produced against {recorded_bytes!r}; re-run resolution"
+        )
+    if recorded_mtime_ns != stat.st_mtime_ns:
+        failures.append(
+            f"{analysis_id}: {what} mtime is {stat.st_mtime_ns} but the "
+            f"resolver record was produced against {recorded_mtime_ns!r}; re-run resolution"
+        )
     return failures
 
 
@@ -1707,26 +1962,37 @@ def _verify_source_file_unchanged(
     row: ResolverRow, fingerprints: Mapping[str, Any]
 ) -> list[str]:
     """Require the source file to still match the size/mtime the resolver recorded."""
-    try:
-        stat = Path(row.source_file).stat()
-    except OSError:
-        return [
-            f"{row.analysis_id}: source file for the resolver record cannot be "
-            f"inspected: {row.source_file}"
-        ]
+    if row.source_probe_id:
+        return _verify_member_files_unchanged(row, fingerprints)
+    return _stat_problems(
+        row.analysis_id, "source file", Path(row.source_file),
+        fingerprints.get("source_file_bytes"), fingerprints.get("source_file_mtime_ns"),
+    )
+
+
+def _verify_member_files_unchanged(
+    row: ResolverRow, fingerprints: Mapping[str, Any]
+) -> list[str]:
+    """Require each member of a BESD file set to match the size/mtime the resolver recorded.
+
+    A BESD ``source_file`` is the prefix of three files, not a file, so the
+    record binds ``source_member_files`` -- each member's size and mtime -- and
+    that is what is held against the files as they are now (#291).
+    """
+    recorded = fingerprints.get("source_member_files")
+    if not isinstance(recorded, Mapping):
+        return [f"{row.analysis_id}: resolver record has no source_member_files for {row.source_file}"]
     failures: list[str] = []
-    recorded_bytes = fingerprints.get("source_file_bytes")
-    if recorded_bytes != stat.st_size:
-        failures.append(
-            f"{row.analysis_id}: source file size is {stat.st_size} but the resolver "
-            f"record was produced against {recorded_bytes!r}; re-run resolution"
-        )
-    recorded_mtime = fingerprints.get("source_file_mtime_ns")
-    if recorded_mtime != stat.st_mtime_ns:
-        failures.append(
-            f"{row.analysis_id}: source file mtime is {stat.st_mtime_ns} but the "
-            f"resolver record was produced against {recorded_mtime!r}; re-run resolution"
-        )
+    for suffix in BESD_MEMBERS:
+        member = Path(f"{row.source_file}{suffix}")
+        was = recorded.get(suffix)
+        if not isinstance(was, Mapping):
+            failures.append(f"{row.analysis_id}: resolver record has no {suffix} in source_member_files")
+            continue
+        failures.extend(_stat_problems(
+            row.analysis_id, f"source member {member.name}", member,
+            was.get("bytes"), was.get("mtime_ns"),
+        ))
     return failures
 
 
@@ -1887,6 +2153,21 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
         "opengwasdb_version": opengwasdb_version,
         "opengwasdb_resolver_sha256": opengwasdb_resolver_sha256,
     }
+    # A Column Map and a liftover chain are part of the contract by checksum, so
+    # a record resolved under another one is stale (#292). A release with
+    # neither adds no keys, so every existing receipt's contract is unchanged.
+    column_map = column_map_binding(config)
+    if column_map is not None:
+        contract["column_map"] = column_map.fingerprint()
+    chain = liftover_chain(config)
+    if chain is not None:
+        # The declared checksum: the resolve stage refused the run unless the
+        # file's own bytes were these (#292).
+        contract["liftover_chain"] = {
+            "resource_id": config.base.liftover_chain_resource_id,
+            "location": chain[0],
+            "sha256": chain[1],
+        }
     # Keep the legacy no-mapping contract byte-for-byte compatible. A newly
     # configured mapping changes both the manifest and this receipt contract.
     if config.imputation_score_declarations is not None:
@@ -2294,7 +2575,16 @@ def _decide(
     failed exclusion check at that stage decides; a new stage needs a slot here.
     """
     stored_effect_scale = tier.stored_effect_scale
-    case_control = stored_effect_scale in NON_QUANTITATIVE_EFFECT_SCALES
+    # Case-control semantics are the method tier's ``sample_size_kind``, not its
+    # effect scale. ukb-b's binary traits are on the SD scale -- BOLT-LMM
+    # standardises every trait, so the provider reports ``units: SD`` for all
+    # 2,514 Analyses -- while their sample size is a case/control split, and
+    # OGS-00009 carries both (#289). Reading the scale instead dropped the
+    # counts of its 1,846 case-control Analyses.
+    case_control = tier.sample_size_kind == "case_control"
+    # The phenotype-SD handling is the scale's: a non-quantitative scale has no SD
+    # to estimate, and is emitted as ``binary_trait``.
+    non_quantitative_scale = stored_effect_scale in NON_QUANTITATIVE_EFFECT_SCALES
     sample_size = resolved.sample_size
     n_cases = resolved.n_cases if case_control else ""
     n_controls = resolved.n_controls if case_control else ""
@@ -2438,7 +2728,7 @@ def _decide(
 
     # Nothing excluded it, so every exclusion check must have tested it.
     quality_checks.require_measured(findings, row.analysis_id)
-    if case_control:
+    if non_quantitative_scale:
         return make(
             included=True,
             assigned=assigned,
@@ -3228,20 +3518,33 @@ def _derive_checks(
 
 
 def render_build_yaml(store_id: str, config: CandidateConfiguration) -> dict[str, Any]:
-    """Render the observed-only Hybrid Build Recipe as the emitter's ``build.yaml`` document.
+    """Render the Build Recipe as the emitter's ``build.yaml`` document.
+
+    A qualified, active completion reference puts both phases in the Store's own
+    bundle (ADR 0037): the `build` block exactly as an Observed-Only release
+    declares it, so completing a published Store schedules no rebuild, then the
+    `complete` block, with `completion_state: reference_completed` and no
+    `derived_from`. A reference short of that changes nothing: the same recipe,
+    Observed-Only, with the reason recorded in `release.yaml` and
+    `validation.yaml`.
 
     The recipe is a registry fact plus ``opengwasdb`` flags; it carries no
     artifact root (issue #126) and names a subcommand, never an import path
     (ADR 0023).
     """
+    complete = completion_block(config.completion)
     document = {
         "store_id": store_id,
         "layout": config.layout,
-        "completion_state": config.completion_state,
+        "completion_state": "reference_completed" if complete else "observed_only",
         "build": {
             "command": config.build_command,
             "options": dict(config.build_options),
         },
+        # The completion phase follows the build in the same bundle (ADR 0037).
+        # `post` serves both; `complete-dense` builds the Top-Hit Index inline,
+        # so the planner gives the completion phase no `top_hits` step.
+        **({"complete": complete} if complete else {}),
         "post": dict(config.post) or {"top_hits": False, "overview": True},
     }
     # Dense and Hybrid releases declare the maintained hm3 Indexed Variant
@@ -3249,7 +3552,52 @@ def render_build_yaml(store_id: str, config: CandidateConfiguration) -> dict[str
     # no key at all; ``[]`` is a Dense/Hybrid release's reviewed opt-out.
     if config.indexed_subsets is not None:
         document["indexed_subsets"] = [dict(entry) for entry in config.indexed_subsets]
+    # The Column Map the release reads through, by name and checksum (#292); a
+    # carried map also names its file, which the emitter writes under column_maps/.
+    binding = column_map_binding(config)
+    if binding is not None:
+        document["column_map"] = {
+            key: value
+            for key, value in (("name", binding.name), ("sha256", binding.sha256), ("file", binding.file))
+            if value is not None
+        }
     return document
+
+
+def besd_source_snapshot(
+    config: CandidateConfiguration, manifest_rows: Sequence[ResolverRow]
+) -> dict[str, str]:
+    """The ``source_snapshot`` keys ``build-ragged-besd`` reads: the file set's prefix and its build.
+
+    ``ogstores.plan`` takes the BESD prefix from ``source_snapshot.besd_prefix``
+    (the file set is a bundle fact, not derived from the artifact root), and
+    ``bundle.check`` requires it. Every Analysis of a release reads the one file
+    set, and the build is the recipe's own ``source-build`` (#291). Empty for any
+    other build command.
+    """
+    if config.build_command != "build-ragged-besd":
+        return {}
+    prefixes = sorted({row.source_file for row in manifest_rows})
+    if len(prefixes) != 1:
+        raise CandidateError(
+            f"build-ragged-besd reads one BESD file set; the selected Analyses name "
+            f"{len(prefixes)}: {', '.join(prefixes[:5]) or '(none)'}"
+        )
+    build = str(config.build_options.get("source-build") or "")
+    if not build:
+        raise CandidateError("build-ragged-besd needs the build option 'source-build' (the source's build)")
+    return {"besd_prefix": prefixes[0], "source_genome_build": build}
+
+
+def render_column_maps(config: CandidateConfiguration) -> dict[str, bytes]:
+    """The Column Map a bundle carries under ``column_maps/``: empty for a built-in or none."""
+    binding = column_map_binding(config)
+    if binding is None or binding.file is None:
+        return {}
+    data = Path(str(config.base.column_map_path)).read_bytes()
+    if hashlib.sha256(data).hexdigest() != binding.sha256:
+        raise CandidateError(f"Column Map {config.base.column_map_path} changed while it was rendered")
+    return {binding.file: data}
 
 
 def render_release_yaml(
@@ -3264,6 +3612,7 @@ def render_release_yaml(
     generator_version: str,
     resolver_receipt_path: Path | None = None,
     resolver_receipt_sha256: str | None = None,
+    manifest_rows: Sequence[ResolverRow] = (),
 ) -> dict[str, Any]:
     """Render the candidate ``release.yaml`` identity record as the emitter's document.
 
@@ -3299,6 +3648,21 @@ def render_release_yaml(
         "non-target/unassigned ancestry, orientation failures, unusable source AF and "
         "ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv)."
     )
+    if config.completion is not None:
+        reason = blocked_reason(config.completion.reference)
+        if reason is None:
+            notes_lines.append(
+                f"Reference completion (ADR 0037): {config.completion.resource_id} is "
+                f"qualification {config.completion.reference['qualification']}, activation "
+                f"{config.completion.reference['activation']}; this bundle declares both phases "
+                "under this id, with no derived_from: the build phase publishes the Observed-Only "
+                "Store and the completion phase replaces it once the Observed-View Check passes."
+            )
+        else:
+            notes_lines.append(
+                f"Reference completion (ADR 0037): blocked: {reason}; this bundle is "
+                "Observed-Only and declares no complete block."
+            )
     if config.require_maf_filtered:
         notes_lines.append(
             "Store composition (#203): this shared Store admits only Analyses whose "
@@ -3324,6 +3688,9 @@ def render_release_yaml(
         "label": config.label,
         "access_posture": config.access_posture,
         "status": CANDIDATE_STATUS,
+        # Written only for a Trial Store Release: absent means false (#321), so
+        # every other release renders exactly as before the key existed.
+        **({"trial": True} if config.trial else {}),
         "derived_from": None,
         "created_at": created_at,
         "source_snapshot_id": config.base.inventory_snapshot_id,
@@ -3336,6 +3703,7 @@ def render_release_yaml(
             ),
             "resolver_receipt_sha256": resolver_receipt_sha256,
             "resolver_opengwasdb_version": index_summary.get("opengwasdb_version"),
+            **besd_source_snapshot(config, manifest_rows),
         },
         "generator": {"version": generator_version},
         "description": config.description,
@@ -3351,6 +3719,7 @@ def render_validation_yaml(
     validated_at: str,
     validator_name: str,
     trait_ontology_mapping: Mapping[str, Any],
+    completion: CompletionRecipe | None = None,
 ) -> dict[str, Any]:
     """Render the candidate Validation Record as the emitter's ``validation.yaml`` document.
 
@@ -3359,10 +3728,14 @@ def render_validation_yaml(
     evidence that does exist. ``trait_ontology_mapping`` is the Trait Ontology
     Mapping run's provenance (#286): the Canonical Trait Mapping Table's
     identity, the method counts and any rejected source terms.
+
+    A declared completion reference is recorded under ``acceptance``, with
+    whether it blocks completion (#308, #312): an Observed-Only bundle then says
+    which reference blocked it and why.
     """
     status = ("failed" if tables.reference_overlap_errors else
               "passed_with_warnings" if tables.warnings else "passed")
-    document = {
+    document: dict[str, Any] = {
         "status": status,
         "validated_at": validated_at,
         "validator": {"name": validator_name, "version": None},
@@ -3406,6 +3779,8 @@ def render_validation_yaml(
         "warnings": list(tables.warnings),
         "errors": list(tables.reference_overlap_errors),
     }
+    if completion is not None:
+        document["acceptance"] = completion_acceptance(completion)
     return document
 
 
@@ -3495,6 +3870,7 @@ def _int_or_empty(value: Any) -> str:
 __all__ = [
     "ACQUISITION_EVIDENCE_SIDECARS",
     "ANALYSIS_TARGETS_COLUMNS",
+    "besd_source_snapshot",
     "acquisition_evidence",
     "ANCESTRY_SIDECAR_COLUMNS",
     "ANALYSES_COLUMNS",
@@ -3535,6 +3911,7 @@ __all__ = [
     "collection_analysis_ids",
     "compute_resolution_contract",
     "controlled_exclusion_categories",
+    "declared_setting_checksums",
     "derive_resolver_manifest",
     "info_score_emission",
     "load_candidate_configuration",
@@ -3549,6 +3926,7 @@ __all__ = [
     "read_resolution_receipt",
     "recompute_fingerprint_digest",
     "render_build_yaml",
+    "render_column_maps",
     "render_release_yaml",
     "render_resolver_manifest",
     "render_validation_yaml",
@@ -3559,6 +3937,7 @@ __all__ = [
     "sha256_file",
     "sha256_text",
     "validate_candidate_analyses",
+    "verify_liftover_chain",
     "verify_records",
     "write_resolution_receipt",
 ]

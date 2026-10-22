@@ -45,6 +45,7 @@ from pathlib import Path
 from typing import Iterable, Mapping, Sequence
 
 from manifest_generation.candidate_workflow import (
+    declared_setting_checksums,
     load_candidate_configuration,
     recompute_fingerprint_digest,
     resolver_settings,
@@ -462,7 +463,11 @@ def main(argv: Sequence[str] | None = None) -> int:
             resolution_root(args.resolution_root, repo_root=repo_root),
             config.base.source_collection_id,
         )
-        digest = resolver_settings_digest(resolver_settings(config))
+        # The chain a release declares need not be on every host: its
+        # declaration, not its bytes, composes this routing key (#292).
+        digest = resolver_settings_digest(
+            resolver_settings(config), declared_checksums=declared_setting_checksums(config)
+        )
         total_imported = total_skipped = 0
         for source in args.source:
             result = import_records(

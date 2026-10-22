@@ -11,8 +11,7 @@ Covers the shared resolver every Dense and Hybrid ``build.yaml`` writer calls:
 * an empty list without a reason, a null value, a malformed entry, or a Ragged
   declaration is a generator error rather than a silent omission.
 
-The R mirror is exercised by the R writer suites; this suite pins the Python
-half and the one-source-of-truth values both must agree on.
+It is the only half: the R mirror retired with the last R generator (#282).
 """
 
 from __future__ import annotations

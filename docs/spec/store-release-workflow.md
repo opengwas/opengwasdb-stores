@@ -36,8 +36,6 @@ Artifacts live outside git, at a path that is a pure function of the store ID:
 
 ```text
 <artifact-root>/OGS-00042/
-  generate/                  Manifest Generation's work root: a legacy
-                             generator's working bundle (#248)
   source/                    acquired or filtered source files
   work/                      checkpoints, scratch, logs
   work/analyses.tsv          derived build manifest: the bundle's analyses.tsv
@@ -188,6 +186,8 @@ complete:
 ```
 
 A two-id Reference-Completed child, the form from before ADR 0037, has a `complete` block instead of `build`, and its parent is `release.yaml`'s `derived_from`, whose artifact path is a pure function of that ID. Existing two-id bundles (OGS-00002, OGS-00022, OGS-00023) stay valid; nothing new should take that form.
+
+A Build Recipe that reads its sources through `opengwasdb.column-map` also carries a top-level `column_map: {name, sha256, file}` binding (`file` absent for a built-in), and its bundle a `column_maps/<file>` ([the binding](../release-metadata-schema.md#column-map-binding)). `options` may not pass `column-map`: `plan()` composes the flag from the binding.
 
 ### Artifact root comes from configuration
 
@@ -387,6 +387,8 @@ It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path co
 
 A Build Recipe may also declare an optional `variant_reference` pre-build stage for the Dense-VCF and Hybrid builders (issue #145). `plan()` then prepends an `extract-variant-reference` Step and appends the artifact to the build step's inputs. The declared destination must equal the build step's `--variant-reference` option -- the one bounded, syntactic exception to ADR 0023's never-interpret rule -- but whether the artifact already exists is a runtime fact the executor decides when the step runs, never the planner (ADR 0031, issue #147).
 
+A Build Recipe that binds a Column Map has `plan()` append `--column-map PATH|NAME` to the build commands that take it and to the `variant-reference` pre-stage, naming a carried map's copy staged under the artifact root, like the derived build manifest below (#292). `plan()` reads only the binding's recorded fields. The commands, the staging and the checksum contract are in [the release metadata schema](../release-metadata-schema.md#column-map-binding).
+
 A Build Recipe may declare optional named `indexed_subsets` (stores #209). `plan()` then emits one `build-indexed-subset` Step per declaration, in declaration order, after the Store and its inline index steps exist and before `overview` and `validate`. Each Step is an ordinary `Step`, so `run.py` gives it the usual durable `records/indexed-subset-<name>.json`. `plan()` resolves nothing: the declaration records the maintained `resource_id`, the concrete `variant_list` path and the `reference_assembly`, and the release entry point verifies the maintained resource and the runtime capability before a build. A Ragged release rejects any declaration rather than silently dropping it. See "Indexed Variant Subsets" below and [ADR 0034](../adr/0034-indexed-variant-subsets-in-release-planning.md).
 
 A `reference_completed` release with no `derived_from` completes its own Store under its id (ADR 0037), and `plan()` returns two phases, build then completion:
@@ -396,7 +398,7 @@ A `reference_completed` release with no `derived_from` completes its own Store u
 
 `completion-observed-view-check` is the Observed-View Check (opengwasdb `check-observed-view`, [ADR 0037](../adr/0037-reference-completion-replaces-its-store.md) Decision 2): `opengwasdb check-observed-view <published Store> <staged Store> --seed 20261021 --n-random 1000 --output <work dir>/observed-view-check.json`. Its first Store argument is the published one (`published_store_arg` 2), which staging leaves alone, and the second the staged one, rewritten to `.partial`. The seed is one fixed default for every release, the ADR's benchmark seed; there is no `build.yaml` option for it. The verdict is the command's stdout, so it is the step's record; the same JSON is written to `work/observed-view-check.json`, not to `records/`. A non-zero exit fails the step, so `completion-register` never runs and the Observed-Only Store is not touched: exit 1 (a mismatch) is reported with the failing counters and their counts and the path of the verdict, exit 2 (a refusal, which prints no verdict) as a refusal with the command's stderr. Every such message names the verdict's path, `<artifact root>/<id>/work/observed-view-check.json`; the counts include the axis ones (`parent_rows_unmapped`, `order_preserved`, `analyses_identical`), and a stdout that holds no decodable verdict is reported as "verdict unreadable" with the reason and the start of stdout. Snakemake removes a failed job's record by contract, so a failed check leaves no record: its verdict is that file, and the fixed seed makes it exactly reproducible from the same staged Store. The evidence of a swap is the passing check's record: `completion-register` refuses to publish without it, and archives a copy of it with the swap (below). A runtime without the command refuses a release that completes its own Store before anything is written (`resources.verify_observed_view_check_for_releases`, called from the entry point's dry run and run and from the Snakefile's `onstart`, as the Indexed Variant Subset guard is), naming the command and the runtime pin.
 
-Every completion-phase record name differs from every build-phase one, so both phases' records stay in `records/` once the completed Store replaces the Observed-Only Store. The first step keeps the name `complete`, so `register` still accepts a `complete-dense-resume` substitution for it. Only a Dense release is planned this way: `plan()` refuses another layout, naming it and ADR 0037, because the Observed-View Check that gates the replacement compares only Dense Stores so far. A two-id child (`derived_from`) plans exactly as before. The golden is `tests/plan/golden/OGS-00003-single-id-completed.json`: OGS-00003's recipe with a `complete` block, whose build phase is OGS-00003's own golden.
+Every completion-phase record name differs from every build-phase one, so both phases' records stay in `records/` once the completed Store replaces the Observed-Only Store. The first step keeps the name `complete`, so `register` still accepts a `complete-dense-resume` substitution for it. Only a Dense release is planned this way: `plan()` refuses another layout, naming it and ADR 0037, because Dense completion is the only completion path ported so far. The Observed-View Check ADR 0037 defines also covers the Dense Component of Hybrid Stores, so Hybrid completion is unported work rather than a limit of the check. A two-id child (`derived_from`) plans exactly as before. The golden is `tests/plan/golden/OGS-00003-single-id-completed.json`: OGS-00003's recipe with a `complete` block, whose build phase is OGS-00003's own golden.
 
 This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/model.py`, `release_plan.py`, `release_manifest.py`, `metadata_resolution.py` and `catalogue_coverage.py` (~4,100 lines on PR #105).
 
@@ -470,7 +472,8 @@ changed. See Safety, *The one amendment an accepted bundle allows*.
 
 The run-time counterparts to the pure planner. `resources.py` verifies a
 declared Indexed Variant Subset's maintained variant list against its
-`resource_id` declaration. `runtime.py` (stores#218) is the pre-write runtime
+`resource_id` declaration, and re-hashes a bundle's carried Column Map against
+the Build Recipe's binding (#292; [the checksum contract](../release-metadata-schema.md#column-map-binding)). `runtime.py` (stores#218) is the pre-write runtime
 guard: it proves the resolved `opengwasdb` is the tracked pin (from the
 executable's own install metadata, failing closed on an unprovable identity),
 provides every subcommand the *scheduled steps* name, and can complete each
@@ -577,7 +580,7 @@ Dependency wiring only, per ADR 0023. It contains no source column name, no mani
 build_manifest ──> build ──> top_hits ──> rho ──> indexed-subset-<name> ──> overview ──> validate ──> register
 ```
 
-`build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
+`build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A release with a carried Column Map also has a `column_map` rule, which stages the map where the build's `--column-map` names it (#292); it writes no record, like `build_manifest`. A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
 A release that completes its own Store (ADR 0037) runs both phases in one run. Its build phase is the chain above. Its completion phase then starts from the build phase's `register` record, because it completes the Store that phase published:
 
@@ -935,7 +938,7 @@ Two consequences are contract, not incidental:
 
 ## Phase B — what produces a bundle
 
-Manifest Generation is the `manifest_generation` package under `src/manifest_generation/` (#249): the shared candidate workflow and emitter at its root, per-Source-Provider connector code under `providers/`, and each generator's configs and reviewed inputs under `resources/generators/<generator>/` (the legacy R generators also remain there until they retire). Each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`src/manifest_generation/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The five rules below fix that boundary; everything inside it is open.
+Manifest Generation is the `manifest_generation` package under `src/manifest_generation/` (#249): the shared candidate workflow and emitter at its root, per-Source-Provider connector code under `providers/`, and each generator's configs and reviewed inputs under `resources/generators/<generator>/`. Each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`src/manifest_generation/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The five rules below fix that boundary; everything inside it is open.
 
 ### Phase A and Phase B are separate workflows
 
@@ -960,11 +963,11 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **Phase B owns every `analyses.tsv` column, including Ancestry Assignment and effect-scale resolution** — see "Phase A never writes `analyses.tsv`", and "Who implements the statistics" below.
 
-**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters exist only because nothing else could reach a builder; under ADR 0023 nothing but the workflow may.
+**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters that reached a builder directly are gone; under ADR 0023 nothing but the workflow may.
 
 **Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
 
-**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. A legacy R or BESD generator keeps a family-shaped working bundle in its work root, `<artifact-root>/<output.store_id>/generate` (`paths.generation_dir`, reported by `python3 -m manifest_generation.emit work-root <id>`), and its `--mode=emit-registry` projects the current contract from that working bundle and the config's `build:` block (`manifest_generation.emit project`, called from R through `resources/generators/lib/emit_registry.R`). A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a path outside `stores/` for the *emitted* bundle; a Work Root may be external, such as the artifact root's `<store-id>/generate`, the resolution root, or a `/data/opengwasdb/work/...` directory a release config declares. The emitter:
+**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. The shared pipeline builds a `CandidateBundle` and calls `emit()`. A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a path outside `stores/` for the *emitted* bundle; a Work Root may be external, such as a release config's `/data/opengwasdb/work/...` `output.work_root`. The emitter:
 
 - writes every YAML document in one style, with `status: candidate` and `generator.commands`, and refuses a rendered status or command log that disagrees;
 - stages the bundle under `stores/.staging/<id>/`, checks it against the Release Bundle contract with lineage resolved in the real registry, and writes `summary.yaml`;
@@ -979,19 +982,16 @@ resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
                                the code is
                                src/manifest_generation/source_inventory.py.
 
-resources/generators/<family-id>/
+resources/generators/<generator>/
     README.md                  the exact commands
-    config-<label>.yaml
-    inventory.py               freeze a Source Inventory, then preflight it
-    generate.R|py              inventory + config -> stores/OGS-xxxxx/
-
-resources/generators/lib/                  shared helpers
-resources/generators/lib/source-formats/   Source-Format-scoped generation code
+    release-<label>.yaml       the release config: identity, Selection, Build Recipe shape
+    connectors/                the Source Metadata Table and Acquisition Manifest it freezes
+    generation-*.yaml          what a run recorded
 ```
 
-The entry-point directory is scoped to the generator's historical family slug (ADR 0028), while the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
+A generator's directory is scoped to its historical family slug (ADR 0028); the code that reads it is the shared pipeline, and a source plugs in through the connector files, not through code the pipeline calls (ADR 0036). This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
 
-A generator has the same shape as the build workflow: discover upstream, select rows, shell out to `opengwasdb` for the statistics, write the bundle.
+Manifest Generation has the same shape as the build workflow: freeze, resolve through `opengwasdb`, decide the release policy, render, emit.
 
 ### The Source Inventory seam
 
@@ -1020,7 +1020,7 @@ There is no catch-22 requiring a Store to exist first. `opengwasdb.readers.inter
 
 Deferring instead -- building first and correcting the Store afterwards -- is not available. `stored_se = original_se / original_sd` is applied at write time, so a Store built without the SD holds wrong standard errors, and there is no rescale operation: Stores are immutable (ADR 0004, ADR 0007) and Reference Completion writes a new one. It would also mean building every candidate to discover which are unusable, when `GCST002047`'s odds-ratio beta column and `GCST003566`'s inverted EAF are both detectable from the source.
 
-That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Manifest Generation must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `src/manifest_generation/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
+That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Manifest Generation must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `src/manifest_generation/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns. That shim has since been deleted (#282): nothing imported it, no task or workflow step ran it, and the upstream CLI is the one route.
 
 ### The shared pipeline (issues #153, #287)
 
@@ -1046,13 +1046,53 @@ run alone repeats the in-memory steps it needs, never `freeze`, `preflight` or
 | `freeze` | the release config's connector files and Selection | the frozen inventory, its frozen connectors and provenance, when absent; `<work-root>/<id>/freeze/<snapshot>.json` | overwrite a frozen snapshot, or accept one frozen for another Selection |
 | `preflight` | frozen inventory, provenance, config, filesystem metadata | `<work-root>/<id>/preflight/<snapshot>.json` | open an association body; checksum the corpus |
 | `prepare` | frozen inventory, frozen Source Metadata Table | `<work-root>/<id>/resolver/analyses.tsv` | reconstruct a source path or re-select membership |
-| `resolve` | the resolver manifest | records in the Source Collection's Resolution Area; `<work-root>/<id>/resolver/{index.json,resolve.log,resolution_receipt.json}` | load a reference, fork a worker, or compute ancestry/SD here |
+| `resolve` | the resolver manifest, and the declared liftover chain's bytes (checksummed against its declaration) | records in the Source Collection's Resolution Area; `<work-root>/<id>/resolver/{index.json,resolve.log,resolution_receipt.json}` | load a reference, fork a worker, or compute ancestry/SD here |
 | `verify` | the records the receipt names | nothing | accept a missing, stale, edited or duplicate record, or one outside the Selection |
-| `render` | records, frozen Source Metadata Table, the Canonical Trait Mapping Table, config | Trait Ontology Mapping, then the release policy, then `<work-root>/<id>/bundle/` | compute a statistic; write into `stores/`; carry files filtered to another region policy |
+| `render` | records, frozen Source Metadata Table, the Canonical Trait Mapping Table, config | Trait Ontology Mapping, then the release policy, then `<work-root>/<id>/bundle/` | compute a statistic; write into `stores/`; carry files filtered to another region policy; declare a completion phase the config has not qualified and activated |
 | `emit` | the rendered bundle | a staged bundle, then `stores/<id>/` | build, validate or accept a Store; write a non-`candidate` status |
+
+**Reference completion (#340, ADR 0037).** A release whose `build` block says
+`completion_state: reference_completed` declares a `completion` recipe in its
+release config ([release config](release-config.md#completion)): the
+`complete-dense` flags and the LD panel it completes against, with the owner's
+`qualification` and `activation` of that panel kept apart from the `status` its
+Reference Resource declares. Only a Dense release declares one here: ADR 0037's
+Observed-View Check also covers the Dense Component of Hybrid Stores, so Hybrid
+completion is unported work rather than something the contract forbids.
+
+`render` decides the recipe's place in the bundle, and it is the only place the
+decision is made:
+
+- a reference that is `qualified` and `active` emits `build.yaml` with
+  `completion_state: reference_completed`, the `build` block byte-identical to
+  the one an Observed-Only release gets, and a `complete` block whose `ld-panel`
+  is the declared Reference Resource's location and whose `ancestry` is its
+  declared ancestry. `release.yaml` claims no `derived_from`: one id is
+  published twice, its Observed-Only Store first and its completed Store to the
+  same path (ADR 0037);
+- any other reference emits the Observed-Only bundle, unchanged, and records
+  the reason twice: `release.yaml`'s notes say the recipe is blocked and name
+  the qualification and activation, and `validation.yaml` carries
+  `acceptance.completion_reference` with `blocked: true`, as #312's OGS-00009
+  recorded its qualified one. The stages print the same sentence, so an
+  operator who meant to complete is not left guessing.
+
+The panel is a Reference Resource like any other the release declares, and a
+*qualified, active* reference makes `preflight` require it present before
+anything is rendered. A blocked one is never opened, so its panel is not
+required and the Observed-Only bundle is still emitted where no panel exists. A
+config that declares a non-Dense layout, a `complete-dense` flag naming the
+panel, `reference_completed` with no recipe or `observed_only` with one, or the
+retired `completed_store_id` keys is refused when it loads, not when the bundle
+is emitted -- and so is a *qualified, active* reference whose declaration is
+missing, records no `status`, or completes an ancestry other than
+`release_policy.selection_superpopulation`. A blocked reference is never opened,
+so none of that applies to it.
 
 Re-running a stopped run repeats nothing costly: `freeze` finds the frozen
 snapshot and `resolve` reuses every record whose fingerprint still matches.
+
+The resolver is passed `--column-map PATH|NAME` and, for a declared liftover chain, `--chain-file` (#292); their checksums join the settings digest and the receipt's resolution contract ([the binding](../release-metadata-schema.md#column-map-binding), [release config](release-config.md#column_map)). The chain's is the checksum its Reference Resource *declares*, not one read off the host: composing the settings and their digest reads no liftover chain file, so a release configured with a chain under `/data` composes on a CI runner that has none. The `resolve` stage therefore checks the chain's bytes first, before it composes anything or starts the resolver: an absent file, or one whose `sha256` is not the declared one, refuses the run by name.
 
 The resolver subprocess is `opengwasdb resolve-analyses` (opengwasdb#208). It
 owns the process pool, the single genome-scale reference load, and the atomic,
@@ -1125,7 +1165,9 @@ always find the same area and the same lock.
   one measurement. So the run resolves into `checkpoint/<settings-digest>/`. The
   digest covers the flags `resolver_settings` passes (everything but the
   manifest, records directory and worker count), the content checksum of each
-  file they name, and the installed resolver's identity; it is recorded in the
+  file they name -- the checksum a Reference Resource declares where one does
+  (the liftover chain), so composing it reads no host file that is declared --
+  and the installed resolver's identity; it is recorded in the
   receipt as `resolver.settings_digest`. It is only a routing key: the
   resolver still checks every Analysis's full fingerprint, so a setting the
   digest misses causes a re-resolve, never a wrong reuse. Per-Analysis inputs

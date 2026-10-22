@@ -327,6 +327,9 @@ COLUMN_MAP_SUFFIX: str = ".toml"
 _SHA256_RE: re.Pattern[str] = re.compile(r"\A[0-9a-f]{64}\Z")
 #: The flag Store Release Build will compose from the binding; ``options`` may not pass it.
 _COLUMN_MAP_OPTIONS: frozenset[str] = frozenset({"column-map"})
+
+#: The keys a Build Recipe's ``variant_reference`` pre-stage block goes by (``ogstores.plan``).
+_VARIANT_REFERENCE_BLOCKS: tuple[str, ...] = ("variant_reference", "variant-reference")
 _READER_OPTION: str = "source-reader-capability"
 
 SUMMARY_COLUMNS: tuple[str, ...] = (
@@ -1644,21 +1647,55 @@ def _recipe_options(build: Mapping[str, Any]) -> Iterable[tuple[str, Mapping[Any
             yield block_name, options
 
 
+def _variant_reference_options(build: Mapping[str, Any]) -> Iterable[tuple[str, Mapping[Any, Any]]]:
+    """``(location, options)`` for each ``variant_reference`` pre-stage's own ``options``."""
+    for block_name in sorted(STORE_PRODUCING_STEPS):
+        block = build.get(block_name)
+        if not isinstance(block, Mapping):
+            continue
+        for key in _VARIANT_REFERENCE_BLOCKS:
+            declaration = block.get(key)
+            options = declaration.get("options") if isinstance(declaration, Mapping) else None
+            if isinstance(options, Mapping):
+                yield f"{block_name}.{key}", options
+
+
 def _column_map_option_errors(build: Mapping[str, Any]) -> list[str]:
     """``--column-map`` comes from the checksummed binding, never through ``options``."""
     errors: list[str] = []
-    for block_name, options in _recipe_options(build):
+    declared = [(f"{name}.options", options) for name, options in _recipe_options(build)]
+    for where, options in [*declared, *((f"{w}.options", o) for w, o in _variant_reference_options(build))]:
         reserved = reserved_options(options, _COLUMN_MAP_OPTIONS)
         if reserved:
             errors.append(
-                f"build.yaml {block_name}.options must not set {reserved}; the Column Map "
+                f"build.yaml {where} must not set {reserved}; the Column Map "
                 f"is the Build Recipe's checksummed {COLUMN_MAP_KEY!r} binding"
             )
     return errors
 
 
-def _column_map_binding(build: Mapping[str, Any]) -> tuple[ColumnMapBinding | None, list[str]]:
-    """The Build Recipe's binding, or ``None`` when it binds none or binds one malformed."""
+def column_map_binding(build: Mapping[str, Any]) -> ColumnMapBinding | None:
+    """The Build Recipe's Column Map binding, or ``None`` when it binds none.
+
+    Only the recorded fields are read, with no file I/O, so the planner may
+    call it (ADR 0031). Raises ``ValueError`` for a binding malformed in shape;
+    that a built-in's checksum is the pinned package's is ``check()``'s and
+    the run-time verification's to say.
+    """
+    binding, errors = _column_map_binding(build, check_builtin=False)
+    if errors:
+        raise ValueError("; ".join(errors))
+    return binding
+
+
+def _column_map_binding(
+    build: Mapping[str, Any], *, check_builtin: bool = True
+) -> tuple[ColumnMapBinding | None, list[str]]:
+    """The Build Recipe's binding, or ``None`` when it binds none or binds one malformed.
+
+    ``check_builtin`` compares a built-in's name and checksum with the pinned
+    package, which reads the packaged map: only ``check()`` does.
+    """
     if COLUMN_MAP_KEY not in build:
         return None, []
     raw = build[COLUMN_MAP_KEY]
@@ -1685,7 +1722,7 @@ def _column_map_binding(build: Mapping[str, Any]) -> tuple[ColumnMapBinding | No
             f"{where} file {file!r} must be a file name in {COLUMN_MAPS_DIR}/ matching "
             f"{INDEXED_SUBSET_NAME_RE.pattern}, with no '..', ending {COLUMN_MAP_SUFFIX}"
         )
-    if file is None and isinstance(name, str):
+    if file is None and isinstance(name, str) and check_builtin:
         builtins = _builtin_column_maps()
         packaged = builtins.get(name)
         if packaged is None:
@@ -1905,6 +1942,7 @@ __all__ = [
     "Bundle",
     "CheckResult",
     "ColumnMapBinding",
+    "column_map_binding",
     "LEGACY_ANALYSIS_ID_RELEASES",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES",

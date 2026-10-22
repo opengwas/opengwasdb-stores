@@ -50,6 +50,19 @@ string on the release, and this directory holds data files
 | `yaml_failed` | Metadata transfer failed. | no |
 | `dry_run` | Names resolved, nothing downloaded. | no |
 | `error` | Unexpected exception during acquisition. | no |
+| `missing_file` | A recorded source file is gone (`SOURCE_VERIFICATION_STATUSES`, #289). | no |
+| `missing_index` | Its Tabix index is gone. | no |
+| `size_mismatch` | Its size is not the recorded one. | no |
+| `checksum_mismatch` | Its sha256 is not the recorded one. | no |
+| `index_mismatch` | Its index's sha256 or size is not the recorded one. | no |
+| `bad_index` | The index does not open or lists no contig. | no |
+| `integrity_failed` | The compressed stream does not decompress to EOF. | no |
+
+A Source Collection whose acquisition only *records* each file's identity --
+ukb-b's files were copied into its mirror, not downloaded from a server --
+re-verifies the mirror against that record instead of reporting a transfer, and
+carries the last seven statuses. They are
+`source_inventory.SOURCE_VERIFICATION_STATUSES`; none is ready.
 
 Only `ok` and `already_present` are ready. The vocabulary is owned by
 `src/manifest_generation/source_inventory.py` (`READY_STATUSES`,
@@ -139,12 +152,14 @@ stale and should be re-frozen deliberately.
 
 ## Declared-selection inventories
 
-Not every Source Collection is described by acquisition manifests. The `ukb-b`
-batch (#219) has a fixed, declared membership: `src/manifest_generation/providers/ukb_b/inventory.py`
-reads the registry's own declared selection as intent, discovers the local
-`.vcf.gz` files, and reconciles the two against the old built baseline. There a
-glob is never intention: a declared Analysis missing from the mirror is a copy
-failure that blocks the freeze, not a smaller release. Its readiness vocabulary
-is local (`ok`, `missing_file`, `missing_index`) and its freeze records a
-sha256, size and mtime per Analysis, anchored to the upstream batch count from
-the unsecured OpenGWAS `/api/batches` endpoint (saved as evidence).
+Not every Source Collection is described by an external manifest. The `ukb-b`
+batch (#219, #289) has a fixed, **declared** membership: the registry's own
+`ukb-b-restored-2026-10-11.declared-selection.tsv` is the intent, and the
+provider JSON sidecar beside each VCF supplies the study metadata. ukb-b's
+adapter writes those two inputs' Source Metadata Table and its acquisition
+writer derives the Acquisition Manifest from the recorded identity and
+integrity receipts, so the **shared** freeze reconciles them like any other
+Source Collection (`resources/generators/ukb-b/README.md`). There a glob is
+never intention: a declared Analysis the Acquisition Manifest does not account
+for fails the freeze by name, and one whose file is gone is a non-ready row
+with the reason.

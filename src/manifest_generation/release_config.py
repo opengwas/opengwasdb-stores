@@ -5,8 +5,8 @@ are the Source Collection's -- acquisition's Acquisition Manifest, the metadata
 adapter's Source Metadata Table and the Column Map -- and the fourth is this
 one, written for each Store Release. It says, and nothing else says:
 
-- the release's **identity** (``label``, ``access_posture``, ``description``,
-  ``notes``), which ``release.yaml`` carries;
+- the release's **identity** (``label``, ``access_posture``, ``trial``,
+  ``description``, ``notes``), which ``release.yaml`` carries;
 - the **Source Collection** (``source_collection``): its id, the paths of its
   two connector files, and the frozen Source Inventory the release reads;
 - the **Selection** (``selection``), in #283's grammar
@@ -22,6 +22,10 @@ one, written for each Store Release. It says, and nothing else says:
 - the **Reference Resources** (``reference_resources``) and what uses them:
   ancestry assignment, effect-scale validation and Trait Ontology Mapping's
   Canonical Trait Mapping Table;
+- for a reference-completed release, the **completion recipe** (``completion``,
+  #340): the LD panel it is completed against, the owner decision that
+  qualified and activated that panel, and the `complete-dense` flags beside it
+  (ADR 0037);
 - for a region-filtered release, the **region policy** acquisition filters its
   files to (``region_policy``, #300), with the QC panel it always keeps;
 - the run's **runtime** and **Work Root** (``runtime``, ``output``).
@@ -33,15 +37,18 @@ never ignored or defaulted. ``docs/spec/release-config.md`` is the schema.
 
 from __future__ import annotations
 
+import functools
 import math
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 import yaml
 
-from manifest_generation import quality_checks
+from manifest_generation import completion, quality_checks
+from manifest_generation.config_schema import block as _key_gate, text as _text_gate
+from manifest_generation.completion import CompletionError, CompletionRecipe
 from manifest_generation.freeze import frozen_paths
 from manifest_generation.region_filter import ASSOCIATION_COVERAGES, RegionPolicy
 from manifest_generation.indexed_subsets import (
@@ -95,6 +102,10 @@ TRAIT_ONTOLOGY_MAPPING_KIND: str = "trait_ontology_mapping"
 ANCESTRY_MIXTURE_KIND: str = "ancestry_mixture"
 #: The kind of Reference Resource every region policy keeps (#300).
 QC_PANEL_KIND: str = "qc_panel"
+#: The kind of Reference Resource that lifts a source build to the reference build (#292).
+LIFTOVER_CHAIN_KIND: str = "liftover_chain"
+#: The reader capability a release names to read its sources through a Column Map.
+COLUMN_MAP_CAPABILITY: str = "opengwasdb.column-map"
 
 #: Ancestry-assignment gate defaults: the resolver flags' values when a config
 #: names none (``candidate_workflow.resolver_settings``).
@@ -133,6 +144,8 @@ class ReleaseConfig:
     path: Path
     label: str
     access_posture: str
+    #: Whether the release is a Trial Store Release (#321); ``False`` when absent.
+    trial: bool
     description: str
     notes: str
     source_collection_id: str
@@ -188,6 +201,16 @@ class ReleaseConfig:
     region_policy: RegionPolicy | None = None
     #: The ``qc_panel`` Reference Resource the region policy always keeps.
     qc_panel_resource_id: str | None = None
+    #: ``column_map.builtin``: the name of a built-in Column Map the release reads through.
+    column_map_builtin: str | None = None
+    #: ``column_map.path``: the carried Column Map file the release reads through.
+    column_map_path: Path | None = None
+    #: ``ancestry_assignment.liftover_chain_resource_id``: the declared chain the
+    #: resolver lifts a differing source build with.
+    liftover_chain_resource_id: str | None = None
+    #: The completion recipe a reference-completed release declares (#340,
+    #: ADR 0037), or ``None`` for a release that declares no completion block.
+    completion: CompletionRecipe | None = None
 
     # -- what preflight reads ---------------------------------------------------
 
@@ -220,9 +243,18 @@ TOP_LEVEL_REQUIRED = (
     "trait_ontology_mapping", "output",
 )
 TOP_LEVEL_OPTIONAL = (
-    "access_posture", "notes", INDEXED_SUBSETS_KEY, INDEXED_SUBSETS_OPT_OUT_KEY,
-    "quality_checks", "effect_scale_validation", "runtime", "region_policy",
+    "access_posture", "trial", "notes", INDEXED_SUBSETS_KEY, INDEXED_SUBSETS_OPT_OUT_KEY,
+    "quality_checks", "effect_scale_validation", "runtime", "region_policy", "column_map",
+    "completion",
 )
+#: The Build Recipe shapes the release config reads: observed-only, or one that
+#: completes its own Store under its id (ADR 0037).
+COMPLETION_STATES: tuple[str, ...] = ("observed_only", "reference_completed")
+#: The layout this pipeline emits a single-id completion for (#340). Not a
+#: prohibition: ADR 0037's Observed-View Check also covers the Dense Component of
+#: Hybrid Stores, and completing a Hybrid one is unported work rather than a
+#: refusal the contract makes.
+COMPLETION_LAYOUTS: tuple[str, ...] = ("dense",)
 DEFAULTS_OPTIONAL = (
     "source_genome_build", "license", "publication_doi", "consortium",
     "sample_size_scope", "analysis_group_id", "info_score_threshold", "maf_threshold",
@@ -255,31 +287,10 @@ def _where(path: Path, *keys: str) -> str:
     return f"{path}:" + ".".join(keys) if keys else str(path)
 
 
-def _block(
-    value: Any, where: str, required: Sequence[str] = (), optional: Sequence[str] = ()
-) -> Mapping[str, Any]:
-    """``value`` as a mapping with every required key and no unknown one."""
-    if not isinstance(value, Mapping):
-        raise ReleaseConfigError(f"{where} must be a mapping")
-    unknown = sorted(str(key) for key in value if key not in required and key not in optional)
-    if unknown:
-        raise ReleaseConfigError(
-            f"{where} has unknown key(s) {', '.join(unknown)}; it reads only "
-            + ", ".join(list(required) + list(optional))
-        )
-    missing = [key for key in required if value.get(key) is None or value.get(key) == ""]
-    if missing:
-        raise ReleaseConfigError(f"{where} is missing required key(s) {', '.join(missing)}")
-    return value
-
-
-def _text(value: Any, where: str) -> str:
-    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
-        raise ReleaseConfigError(f"{where} must be text, not {value!r}")
-    text = str(value)
-    if not text.strip():
-        raise ReleaseConfigError(f"{where} must not be blank")
-    return text
+#: The key gate this schema and the completion recipe share (``config_schema``),
+#: each naming the error its own callers catch.
+_block = functools.partial(_key_gate, error=ReleaseConfigError)
+_text = functools.partial(_text_gate, error=ReleaseConfigError)
 
 
 def _path(value: Any, where: str, repo_root: Path) -> Path:
@@ -363,6 +374,15 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
             "ogstores.yaml), so every release over a Source Collection finds the same "
             "Resolution Area (#284)"
         )
+    # Before the key gate below, so the retired keys are refused by name with
+    # the decision that retired them, not as an unknown key (#308, #340).
+    retired = [key for key in completion.RETIRED_KEYS if key in document]
+    if retired:
+        raise ReleaseConfigError(
+            f"{path} declares {', '.join(retired)}: a reference-completed Store is published "
+            "under its own id, and its one bundle declares both phases (ADR 0037, #340). A "
+            "reserved completed id is never reused; remove the key."
+        )
     _block(document, str(path), TOP_LEVEL_REQUIRED, TOP_LEVEL_OPTIONAL)
 
     # -- identity --------------------------------------------------------------
@@ -374,6 +394,13 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         raise ReleaseConfigError(
             f"{_where(path, 'access_posture')} {access_posture!r} is not one of "
             + ", ".join(ACCESS_POSTURES)
+        )
+    # Only a YAML boolean, as release.yaml takes it (#321): a quoted "yes", a
+    # number or null would serve a Trial Store Release, or hide one.
+    trial = document.get("trial", False)
+    if not isinstance(trial, bool):
+        raise ReleaseConfigError(
+            f"{_where(path, 'trial')} must be a YAML boolean true or false, got {trial!r}"
         )
     description = _text(document["description"], _where(path, "description"))
     notes = str(document.get("notes") or "")
@@ -417,9 +444,15 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
     for key, value in post_block.items():
         if not isinstance(value, bool):
             raise ReleaseConfigError(f"{where}.post.{key} must be true or false, not {value!r}")
+    completion_state = _text(build_block["completion_state"], f"{where}.completion_state")
+    if completion_state not in COMPLETION_STATES:
+        raise ReleaseConfigError(
+            f"{where}.completion_state {completion_state!r} is not one of "
+            + ", ".join(COMPLETION_STATES)
+        )
     build = BuildRecipeShape(
         layout=_text(build_block["layout"], f"{where}.layout"),
-        completion_state=_text(build_block["completion_state"], f"{where}.completion_state"),
+        completion_state=completion_state,
         command=_text(build_block["command"], f"{where}.command"),
         options=dict(build_block.get("options") or {}),
         post=dict(build_block["post"]),
@@ -597,9 +630,15 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
 
     where = _where(path, "ancestry_assignment")
     ancestry = _block(document["ancestry_assignment"], where, ("reference_resource_id",),
-                      ("maf_floor", "extraction_panel", "gates"))
+                      ("maf_floor", "extraction_panel", "gates", "liftover_chain_resource_id"))
     ancestry_reference_resource_id = declared(
         ancestry["reference_resource_id"], f"{where}.reference_resource_id", ANCESTRY_MIXTURE_KIND
+    )
+    liftover_chain_resource_id = (
+        declared(ancestry["liftover_chain_resource_id"],
+                 f"{where}.liftover_chain_resource_id", LIFTOVER_CHAIN_KIND)
+        if ancestry.get("liftover_chain_resource_id") is not None
+        else None
     )
     gates = dict(DEFAULT_GATES)
     if ancestry.get("gates") is not None:
@@ -634,6 +673,70 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
             document["region_policy"], _where(path, "region_policy"), declared
         )
 
+    # -- Column Map (#292) -----------------------------------------------------------
+    column_map_builtin = column_map_path = None
+    if document.get("column_map") is not None:
+        where = _where(path, "column_map")
+        block = _block(document["column_map"], where, (), ("builtin", "path"))
+        if (block.get("builtin") is None) == (block.get("path") is None):
+            raise ReleaseConfigError(
+                f"{where} names exactly one of builtin (a built-in map's name) or path "
+                "(a carried map file)"
+            )
+        if block.get("builtin") is not None:
+            column_map_builtin = _text(block["builtin"], f"{where}.builtin")
+        else:
+            column_map_path = _path(block["path"], f"{where}.path", repo_root)
+    reader = build.options.get("source-reader-capability")
+    if (column_map_builtin or column_map_path) and reader != COLUMN_MAP_CAPABILITY:
+        raise ReleaseConfigError(
+            f"{_where(path, 'column_map')} is read only through {COLUMN_MAP_CAPABILITY}, but "
+            f"build.options.source-reader-capability is {reader!r}"
+        )
+    if reader == COLUMN_MAP_CAPABILITY and not (column_map_builtin or column_map_path):
+        raise ReleaseConfigError(
+            f"build.options.source-reader-capability {COLUMN_MAP_CAPABILITY} needs a "
+            f"{_where(path, 'column_map')} naming the map"
+        )
+
+    # -- reference completion (ADR 0037, #340) ---------------------------------
+    recipe = None
+    if "completion" in document:
+        where = _where(path, "completion")
+        if build.layout not in COMPLETION_LAYOUTS:
+            raise ReleaseConfigError(
+                f"{where} is declared for a {build.layout!r} layout: Dense completion is the only "
+                "completion path Manifest Generation ports so far (ADR 0037's Observed-View Check "
+                "also covers the Dense Component of Hybrid Stores), so a release config may "
+                "declare it on the " + ", ".join(COMPLETION_LAYOUTS) + " layout only"
+            )
+        try:
+            recipe = completion.parse_completion(
+                document["completion"],
+                where=where,
+                superpopulation=selection_superpopulation,
+                resources=resources,
+                repo_root=repo_root,
+            )
+        except CompletionError as exc:
+            raise ReleaseConfigError(str(exc)) from exc
+    # The state and the recipe are one statement: a config either completes its
+    # Store and says against what, or is Observed-Only by policy and declares no
+    # recipe. Reading a contradiction as "never completes" would emit an
+    # Observed-Only bundle for a Store its author meant to complete (#340).
+    if build.completion_state == "reference_completed" and recipe is None:
+        raise ReleaseConfigError(
+            f"{_where(path, 'build', 'completion_state')} is 'reference_completed', but the "
+            "config declares no completion block: a reference-completed Store says which "
+            "reference it completes against (ADR 0037, docs/spec/release-config.md)"
+        )
+    if build.completion_state == "observed_only" and recipe is not None:
+        raise ReleaseConfigError(
+            f"{_where(path, 'build', 'completion_state')} is 'observed_only' and the config "
+            "also declares a completion block: those contradict each other. Declare "
+            "'reference_completed' to complete, or no completion block at all (ADR 0037)"
+        )
+
     # -- runtime and Work Root -----------------------------------------------------
     runtime = _block(document.get("runtime") or {}, _where(path, "runtime"), (),
                      ("cores", "min_free_gb"))
@@ -649,6 +752,7 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         path=path,
         label=label,
         access_posture=access_posture,
+        trial=trial,
         description=description,
         notes=notes,
         source_collection_id=source_collection_id,
@@ -700,10 +804,19 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
                 + [resource_id for _ancestry, resource_id in effect_scale_references]
                 + [trait_mapping_resource_id]
                 + ([qc_panel_resource_id] if qc_panel_resource_id else [])
+                + ([liftover_chain_resource_id] if liftover_chain_resource_id else [])
+                # The panel a release completes against, and only when its
+                # reference is qualified and active: a blocked reference is never
+                # opened, so its panel is not required here (#340).
+                + ([recipe.panel.resource_id] if recipe and recipe.panel else [])
             )
         ),
         region_policy=region_policy,
         qc_panel_resource_id=qc_panel_resource_id,
+        column_map_builtin=column_map_builtin,
+        column_map_path=column_map_path,
+        liftover_chain_resource_id=liftover_chain_resource_id,
+        completion=recipe,
     )
 
 

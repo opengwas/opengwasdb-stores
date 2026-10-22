@@ -3,8 +3,8 @@
 Tests for `src/manifest_generation/emit.py`, the one emitter every Manifest
 Generator uses to write a candidate Release Bundle into the Store Registry
 (#248, ADR 0035's *Emit*). They run at its two interfaces: `emit()`, which the
-Python generators call, and its command line (`--from <dir> --command ...`),
-which the R generators call.
+shared pipeline calls, and its command line (`--from <dir> --command ...`),
+which emits a directory another renderer wrote.
 
 Covered by `tests/emit/test_emit.py`:
 - A new candidate lands in `stores/<id>/` with `status: candidate`, the
@@ -18,9 +18,11 @@ Covered by `tests/emit/test_emit.py`:
   byte-for-byte as it was.
 - A candidate failing the contract is refused, and the prior candidate is kept.
 - These are refused before any path is built: an invalid Store Release id, a
-  sidecar name that is not a plain file name, missing generator commands, and
-  a rendered `release.yaml` whose status or command log disagrees with the
-  emit.
+  sidecar name that is not a plain file name, a Column Map file name that is
+  not a plain `<name>.toml` under `column_maps/` (an absolute path or a `..`
+  segment would escape staging, or land in another bundle), missing generator
+  commands, and a rendered `release.yaml` whose status or command log disagrees
+  with the emit.
 - A second emit of an id is refused while the first holds its lock.
 - A candidate stashed by a swap killed between its two moves is put back
   before anything else happens.
@@ -32,22 +34,8 @@ Covered by `tests/emit/test_emit.py`:
   name.
 - No staged or stashed bundle is left after any success or refusal. Only the
   per-id lock files stay, and git ignores them.
-- A legacy generator's working bundle projects to the current contract:
-  - the release and build documents come from its config: the default hm3
-    subset on a Dense release, none on Ragged, and an empty list plus the
-    written reason for a reviewed opt-out;
-  - `analyses.tsv`, flat sidecars and `validation.yaml` come from the working
-    bundle;
-  - the working bundle's own command log comes first, followed by the
-    commands given; its family-shaped documents are not carried over.
-
-  Nothing is guessed: a config missing its `build:` block, layout, `post`,
-  label or access posture is refused. At a pinned `created_at`, a re-emit is
-  byte-identical.
-- `python3 -m manifest_generation.emit work-root <id>` prints `<artifact-root>/<id>/generate`, honouring
-  `--artifact-root` over `OPENGWASDB_ARTIFACT_ROOT`; an invalid id has none.
-- No generator config names a `release_dir`, and every legacy config names the
-  Store Release id it emits.
+- No generator config names a `release_dir`, and every config of an older
+  generator names the Store Release id it emitted.
 
 ```sh
 pixi run test --suite emit

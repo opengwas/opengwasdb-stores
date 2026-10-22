@@ -112,7 +112,7 @@ SNAPSHOT_RESOLUTIONS: frozenset[str] = frozenset({"restore", "delete"})
 
 _TARGET = re.compile(r"\AOGS-\d{5}\Z|\Aall\Z")
 _WILDCARDS = re.compile(r"^\s*wildcards:\s*(?P<body>.*)$")
-_RELEASE_JOB = re.compile(r"^\s*(?:local)?rule (?P<rule>step|register|completion_register|build_manifest):\s*$")
+_RELEASE_JOB = re.compile(r"^\s*(?:local)?rule (?P<rule>step|register|completion_register|build_manifest|column_map):\s*$")
 
 
 class UsageError(ValueError):
@@ -227,11 +227,12 @@ def snakemake_argv(
 def _scheduled(dry_run_output: str) -> list[tuple[str, str, str, str | None]]:
     """The (rule, artifact root, store_id, step) of every release job a Snakemake dry run scheduled.
 
-    Every step, register, completion_register and build_manifest job prints
-    its wildcards after its rule line, so a job block without them means the
-    output is not what this parser expects, and that fails loudly rather than
-    under-reporting what the run will touch. `step` is `None` for a job with
-    no `step` wildcard (`build_manifest`, `register`, `completion_register`).
+    Every step, register, completion_register, build_manifest and column_map
+    job prints its wildcards after its rule line, so a job block without them
+    means the output is not what this parser expects, and that fails loudly
+    rather than under-reporting what the run will touch. `step` is `None` for a
+    job with no `step` wildcard (`build_manifest`, `column_map`, `register`,
+    `completion_register`).
     """
     found: list[tuple[str, str, str, str | None]] = []
     jobs = 0
@@ -270,7 +271,7 @@ def scheduled_records(dry_run_output: str) -> list[tuple[str, str, str | None]]:
     """The (artifact root, store_id, record) of every job a Snakemake dry run scheduled.
 
     `record` is the record the job writes (`run.job_record`), None for
-    `build_manifest`, so the preflight can tell a completion-phase job from a
+    `build_manifest` and `column_map`, so the preflight can tell a completion-phase job from a
     build-phase one (#305).
     """
     records = {
@@ -493,9 +494,11 @@ def release_outputs(store_id: str, root: Path | str) -> list[Path]:
     """The outputs Snakemake may mark incomplete for a release: its records and derived manifest."""
     records = paths.records_dir(store_id, root=root)
     outputs = sorted(records.glob("*.json")) if records.is_dir() else []
+    staged_maps = paths.column_map_path(store_id, "*", root=root)
     return outputs + [
         paths.build_manifest_path(store_id, root=root),
         paths.build_manifest_sidecar_path(store_id, root=root),
+        *sorted(staged_maps.parent.glob(staged_maps.name)),
     ]
 
 
@@ -765,6 +768,10 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     except (resources.IndexedSubsetRuntimeError, resources.ReferenceResourceError) as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
     try:
+        resources.verify_column_maps_for_releases(idle, registry_root=registry_root)
+    except resources.ReferenceResourceError as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
+    try:
         resources.verify_observed_view_check_for_releases(idle, registry_root=registry_root)
     except resources.ObservedViewCheckRuntimeError as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
@@ -853,6 +860,9 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     resources.verify_indexed_subsets_for_releases(
         scheduled, registry_root=registry_root, repo_root=paths.REPO_ROOT
     )
+    # A carried Column Map is re-hashed against its binding before any build
+    # reads it (#292).
+    resources.verify_column_maps_for_releases(scheduled, registry_root=registry_root)
     # A release that completes its own Store gates its swap on the Observed-View
     # Check, which the resolved runtime must provide (#306).
     resources.verify_observed_view_check_for_releases(scheduled, registry_root=registry_root)

@@ -222,8 +222,7 @@ resources/         inputs only
   reference-resources/ auxiliary build-time inputs
   annotations/         curated metadata that outlives a release
   inventories/         frozen Source Inventories
-  generators/          release configs, reviewed tables and receipts; legacy R
-                       generators until they retire
+  generators/          release configs, reviewed tables and receipts
 tools/             repository tooling that is neither a package nor an input
 tests/             the suites, and the runner behind `pixi run test`
 docs/              adr/ decisions, spec/ specifications, reports/ report sources,
@@ -238,7 +237,7 @@ else. Code that is neither a workflow's nor a test goes in `tools/`.
 `tests/packaging/test_layout.py` enforces the layout:
 - no Python outside `src/`, `tests/`, `tools/` and `workflow/`;
 - no package outside `src/` and `tests/`;
-- no code under `resources/` but the listed legacy R generators.
+- no code under `resources/` but the listed R metadata resolvers.
 
 To place a new file:
 1. Something the repository produces goes in `stores/`, or in `docs/` if it
@@ -397,13 +396,14 @@ configs, reviewed tables, `generation-*.yaml` receipts and README; recorded
 config paths and receipts resolve here, so they do not move. The code that
 reads them is in `src/manifest_generation/`.
 
-The legacy R generators also live here until stage 2 of epic #282 retires them
-(FinnGen #288, ukb-b #289): `<family-id>/generate.R`, the shared R helpers in
-`lib/`, the metadata resolvers in `lib/metadata_resolvers/`, and
-`lib/source-formats/` for code scoped to a Source Format. Where they call
-Python, they run a `manifest_generation` module with `python3 -m`. They are
-the only code under `resources/`, and `tests/packaging/test_layout.py` lists
-each with the ticket that retires it.
+Every source's connectors and release config are on the shared pipeline
+(ADR 0036), so the only code left here is the two R metadata resolvers under
+`lib/metadata_resolvers/` that curation's R-resolver round-trip still sources.
+`tests/packaging/test_layout.py` lists each with the ticket that retires it.
+That is the code's migration, not a collection's: a collection's move onto the
+pipeline is not finished until its full comparison run against the accepted
+bundle is made and every difference explained, and two are still pending --
+FinnGen's (`OGS-00017`) and ukb-b's (`OGS-00009`).
 
 A generator's only output is a bundle directory. It never builds a Store, and
 it invokes statistics rather than implementing them: if two Store Families

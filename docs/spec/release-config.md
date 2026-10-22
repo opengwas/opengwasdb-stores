@@ -37,11 +37,13 @@ key.
 | `release_config_version` | Yes | `1`. |
 | `label` | Yes | Source-natural release name, written to `release.yaml`. Never an identifier. |
 | `access_posture` | No | `public`, `controlled` or `embargoed`; `public` only when the key is absent, so an explicit `false` or blank is refused. |
+| `trial` | No | `true` for a Trial Store Release: a deliberately small release that exercises a Source Collection, Source Format or Store Layout (#321). It must be a YAML boolean, so a quoted `"yes"`, a number or `null` is refused. `true` writes `trial: true` to `release.yaml` ([the schema](../release-metadata-schema.md#releaseyaml)). Absent or `false` writes no key, which means `false`, so such a release renders exactly as before the key existed. Every shipped pilot and probe config sets it. |
 | `description` | Yes | Prose for `release.yaml`. |
 | `notes` | No | Prose; the candidate's own evidence notes follow it in `release.yaml`. |
 | `source_collection` | Yes | The Source Collection and its files (below). |
 | `selection` | Yes | The Selection, in #283's grammar: exactly one of `all: true`, `analyses: [...]` or `where: {...}`, with an optional `expect_rows` membership bound. |
 | `build` | Yes | The Build Recipe shape `build.yaml` carries (below). |
+| `completion` | No | For a reference-completed release, the recipe and the LD panel it completes against (below, #340, ADR 0037). |
 | `indexed_subsets`, `indexed_subsets_opt_out` | No | Dense and Hybrid releases declare the maintained `hm3` Indexed Variant Subset by default; `[]` with a reason opts out; a Ragged release declares none (stores #210). |
 | `defaults` | Yes | Collection-wide Analytical Metadata defaults and the method tiers (below). |
 | `release_policy` | Yes | Membership policy inputs (below). |
@@ -50,6 +52,7 @@ key.
 | `ancestry_assignment` | Yes | What Analysis Resolution measures ancestry against (below). |
 | `effect_scale_validation` | No | Phenotype-SD evidence settings (below). |
 | `trait_ontology_mapping` | Yes | The Canonical Trait Mapping Table (below). |
+| `column_map` | No; required exactly when `build.options.source-reader-capability` is `opengwasdb.column-map` | The Column Map the release reads its sources through: `builtin: <name>` or `path: <file>`, one of the two (below, #292). |
 | `region_policy` | No | For a region-filtered release, the regions acquisition filters its files to (below, #300). |
 | `runtime` | No | `cores` (default 1, capped at 64 by preflight) and `min_free_gb` (default 0). |
 | `output` | Yes | `work_root`: the root of the Store Release's Work Root, absolute or repository-relative like every path here. The resolution root is deployment configuration and `output.resolution_root` is refused (#284). |
@@ -71,7 +74,9 @@ a re-freeze is a new snapshot id.
 ### `build`
 
 `layout`, `completion_state`, `command` and `post` are required, `options` is
-not. `command` names an `opengwasdb` subcommand and `options` are its flags,
+not. `completion_state` is `observed_only` or `reference_completed`; a
+`reference_completed` config declares the `completion` block that says what it
+completes against, and an `observed_only` one declares none (below). `command` names an `opengwasdb` subcommand and `options` are its flags,
 passed through verbatim (ADR 0023): `options` is opaque by design, and its keys
 are not checked here. `post` is the registry's own vocabulary -- `top_hits`,
 `overview`, `rho` and `validate`, each `true` or `false`, the steps
@@ -81,8 +86,103 @@ are not checked here. `post` is the registry's own vocabulary -- `top_hits`,
 `options`). The recipe carries no artifact root
 (#126). Manifest Generation reads two options itself:
 `source-reader-capability` (the reader the resolver uses; default
-`opengwasdb.gwas-ssf`) and `variant-reference` (the Variant Reference the
+`opengwasdb.gwas-ssf`, and `opengwasdb.besd` for `build-ragged-besd`, which
+reads one format and takes no such flag) and `variant-reference` (the Variant Reference the
 resolver measures overlap against).
+
+### `completion`
+
+A release that is completed against an LD reference panel declares the recipe
+and the reference (#340, [ADR 0037](../adr/0037-reference-completion-replaces-its-store.md)).
+One Store id is published twice: the `build` block publishes the Observed-Only
+Store, and the completion phase reads that published Store and replaces it, so
+no second id is minted and no `derived_from` is claimed. `src/manifest_generation/completion.py`
+owns this vocabulary.
+
+| Key | Required | Description |
+|---|---:|---|
+| `reference.resource_id` | Yes | A declared `ld_panel` Reference Resource (below). |
+| `reference.qualification` | Yes | The owner's: `qualified`, `pending`, `hold` or `not_applicable`. |
+| `reference.activation` | Yes | The panel's usability on this host: `active`, `pending` or `blocked`. |
+| `command` | Yes | `complete-dense`. ADR 0037's Observed-View Check also covers the Dense Component of Hybrid Stores; this pipeline emits Dense completion only so far, which is why no other command is accepted here. |
+| `options` | No | The `complete-dense` flags beside the panel, passed through verbatim (ADR 0023). `ld-panel` and `ancestry` are refused here: they are the Reference Resource's. |
+
+The reference's *declared status* is not a key here. It is the Reference
+Resource declaration's own `status` (`available`), read from its `resource.yaml`
+and recorded, and it is kept apart from `qualification` and `activation`: a
+declared status is neither, and a config that restates one is refused as an
+unknown key.
+
+The bundle completes its Store only when the reference is `qualified` **and**
+`active`. Then `build.yaml` declares `completion_state: reference_completed`,
+`build` and `complete`, and `release.yaml` carries no `derived_from`; the `build`
+block is exactly the Observed-Only one, so completing a published Store
+schedules no rebuild (ADR 0037 clarified by #305). Anything short of that --
+`pending`, `hold`, `blocked` -- emits the Observed-Only bundle a config with no
+`completion` block emits, and records why: the release notes say the recipe is
+blocked, and `validation.yaml`'s `acceptance.completion_reference` carries the
+declared reference with `blocked: true`. A blocked recipe is not an error: the
+release is still emitted, as the Observed-Only Store it is ready to be.
+
+What the recipe cannot contradict, each refused by name:
+
+- a layout other than `dense` (see above);
+- a `complete-dense` option naming the panel;
+- the reference's `ancestry`, from its declaration, differing from
+  `release_policy.selection_superpopulation`: completion imputes against a panel
+  for the Store's Assigned Ancestry;
+- a declaration whose `ancestry_dir` is not its `ancestry`, because
+  `complete-dense` names both the panel directory and the Analyses it completes
+  with one `--ancestry` (#219);
+- a qualified, active reference whose declaration records no `status`: the
+  status is recorded as it is, and never defaulted;
+- `build.completion_state: reference_completed` with no `completion` block, and
+  `observed_only` with one;
+- the retired `completed_store_id` / `planned_completed_store_id` (ADR 0007's
+  second id, which ADR 0037 removes).
+
+The panel is resolved only when the reference is `qualified` and `active`. Then
+its location is the `reference_resources` entry's, which preflight requires
+present, and its `status`, `ancestry` and `ancestry_dir` are the declaration's,
+so the recipe cannot name a panel other than the one the resource declares. A
+blocked reference is never opened: its declaration need not exist, its panel
+need not be present, and no panel need be declared at all -- so a blocked recipe
+still emits the Observed-Only bundle on a host that has no panel.
+
+```yaml
+build:
+  layout: dense
+  completion_state: reference_completed
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.gwas-vcf
+    source-assembly: hg19
+    n-workers: 32
+  post:
+    top_hits: true
+    overview: true
+
+reference_resources:
+  - resource_id: ukb-hg38-eur-ld
+    kind: ld_panel
+    location: /data/opengwasdb/reference/ld
+    location_kind: external_directory
+  # ... the ancestry mixture and the Canonical Trait Mapping Table
+
+completion:
+  reference:
+    resource_id: ukb-hg38-eur-ld
+    qualification: qualified
+    activation: active
+  command: complete-dense
+  options:
+    n-workers: 32
+```
+
+`ukb-hg38-eur-ld`'s declaration (`resources/reference-resources/ukb-hg38-eur-ld/resource.yaml`)
+supplies its `ancestry: EUR` and `ancestry_dir: EUR`, so the emitted `complete`
+block is `{"command": complete-dense, "options": {ld-panel: /data/opengwasdb/reference/ld,
+ancestry: EUR, n-workers: 32}}`.
 
 ### `defaults`
 
@@ -96,6 +196,16 @@ resolver measures overlap against).
 | `info_score_threshold` | No | The INFO floor in [0,1] a declared Analysis requests; default 0.6 (#175). |
 | `maf_threshold` | No | The MAF floor in [0,0.5] each Analysis requests; absent is no MAF filter (#176). |
 | `tissue`, `context` | No | The measured tissue and assay context (`plasma`, `SomaScan`), as `analyses.tsv` carries them (#300). |
+
+A tier's `sample_size_kind` decides whether the Analysis carries case/control
+counts: `case_control` keeps its `n_cases`/`n_controls` and requires both, and
+any other kind leaves them blank (`analyses.tsv`'s absence rule, #133). The
+tier's `stored_effect_scale` decides the SD handling instead -- a
+non-quantitative scale asks for no phenotype SD and emits `binary_trait`. The
+two are separate because a Source can pair them either way: ukb-b's binary
+traits are on the SD scale (`units: SD`) with a case/control sample size, so its
+case-control tier declares `stored_effect_scale: sd` beside
+`sample_size_kind: case_control` (#289).
 
 `source_genome_build`, `license`, `publication_doi`, `consortium`, `tissue` and
 `context` are release-wide facts: an Analysis whose Source Metadata Table row
@@ -142,13 +252,36 @@ another QC panel sha256 or another target span, a policy declared over
 unfiltered files, and region-filtered files under a config that declares no
 `region_policy` ([source connectors](source-connectors.md#region-filtered-acquisition)).
 
+### `column_map`
+
+A release that reads its sources through the `opengwasdb.column-map` Source
+Reader Capability names its Column Map, and no other release may:
+`build.options.source-reader-capability: opengwasdb.column-map` and a
+`column_map` block go together, and either without the other is refused.
+
+- `builtin` is the name of a map OpenGWASDB ships (`gwas-ssf`, `finngen-r13`).
+- `path` is a map file this release carries, absolute or repository-relative.
+  Its file name must be a valid `column_maps/` file name (a `.toml` name of the
+  Indexed Variant Subset grammar).
+
+The resolver is passed it as `--column-map`, a built-in's name or the file's
+path. `build.yaml` binds it as `column_map: {name, sha256, file}`, with no
+`file` for a built-in, and a carried map is copied into the bundle's
+`column_maps/`. `name` and `sha256` are what OpenGWASDB records as each
+Resolution Record's `resolution_config.column_map`, so a built-in's checksum is
+the file the pinned package ships. The checksum is part of the resolution
+contract: a changed map makes every Resolution Record stale and the resolver
+re-resolves them. The Column Map's contract and how Store Release Build uses it
+are in [Source connectors](source-connectors.md) and the
+[release metadata schema](../release-metadata-schema.md#column-map-binding).
+
 ### Reference Resources
 
 `reference_resources` lists each resource the run uses: `resource_id`, `kind`
 and `location` are required; `location_kind`, `version`, `status`,
 `fine_group_map`, `ancestry`, `super_populations`, `genome_build` and
 `variant_id_convention` are optional. A `resource_id` declared twice is
-refused. Three blocks use them, by id:
+refused. Four blocks use them, by id:
 
 - `ancestry_assignment.reference_resource_id` (required) names the ancestry
   mixture the resolver measures against: an `ancestry_mixture` resource, with a
@@ -156,6 +289,19 @@ refused. Three blocks use them, by id:
   that resource's declaration, `resources/reference-resources/<id>/resource.yaml`,
   not of this entry; a missing declaration or `genome_build` is refused, because
   the resolver never guesses a build (opengwasdb#277).
+  `liftover_chain_resource_id` (optional) names the chain the resolver lifts a
+  source build that differs from that reference build with: a `liftover_chain`
+  resource, whose declaration states its `from_genome_build`,
+  `to_genome_build` and `sha256`. The resolver is passed `--chain-file` for its
+  `location`; a chain whose `to_genome_build` is not the reference build is
+  refused when the settings are composed, because that is a declaration. The
+  file's own bytes are checked before the `resolve` stage starts the resolver:
+  a chain that is absent, or whose `sha256` is not the declared one, refuses the
+  run by name. Without a chain the resolver refuses a source on another build.
+  The declared checksum is part of the resolution contract, and it is the
+  declared one that the settings digest covers -- composing a run's settings
+  reads no liftover chain file, so a config whose chain lives under `/data`
+  still composes on a CI runner that has no `/data`.
   `maf_floor` (default 0.01), `extraction_panel` (default none) and `gates`
   (`tau` 0.50, `delta` 0.20, `n_min` 5000, `residual_max` 0.06) are passed to
   the resolver as written.
@@ -166,6 +312,10 @@ refused. Three blocks use them, by id:
 - `trait_ontology_mapping.reference_resource_id` (required) names the
   Canonical Trait Mapping Table, a `trait_ontology_mapping` resource whose
   `location` is its resource directory (#286).
+- `completion.reference.resource_id` names the LD panel a reference-completed
+  release completes against: an `ld_panel` resource whose `location` is the
+  panel root and whose declaration names its `status`, `ancestry` and
+  `ancestry_dir` (#340).
 
 Preflight requires every named resource to be present.
 

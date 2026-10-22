@@ -1,149 +1,202 @@
-# ukb-b Manifest Generator
+# ukb-b Release Configs and Connectors
 
-This Store Family's Manifest Generator resolves analyses from the
-`opengwas-gwas-vcf` Source Collection and keeps a working bundle in its work root,
-`<artifact-root>/<output.store_id>/generate`; `--mode=emit-registry` emits the
-candidate into `stores/<output.store_id>/` through the one emitter (#248).
-`config-pilot-10.yaml` is registered as `OGS-00008`.
+ukb-b is one **Source Collection** (`opengwas-gwas-vcf`) of 2,514 UK Biobank
+GWAS-VCF Analyses: the restored membership #219 froze as
+`ukb-b-restored-2026-10-11`. Since #289 it is on the shared pipeline (ADR 0036),
+so this directory holds **inputs only**: two connector files, two release
+configs, and the history the accepted bundles cite.
 
-It is a **thin family-specific wrapper** over the shared engine at
-`resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/`. The engine is generic
-across dense-observed OpenGWAS-GWAS-VCF batches; only this family's inputs
-differ, held here as:
-
-- `config-pilot-10.yaml` - the candidate manifest to resolve
-  (`resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv`, the
-  existing hand-reverse-engineered declaration for this batch), the 10-Analysis
-  selection, and release identity (`OGS-00008`).
-- `generate.R` - a one-call driver that runs the shared engine with
-  `config-pilot-10.yaml`.
-
-## What this generator does (and does not do)
-
-Per Analysis, it calls the OpenGWAS API's `gwasinfo` endpoint (via
-`resources/generators/lib/metadata_resolvers/opengwas_api.R`, issue #49) and resolves
-`stored_effect_scale`, `original_effect_scale`, `original_sd_method`,
-`sample_size_kind`, `sample_size`, and `n_cases`/`n_controls` — replacing
-the candidate manifest's blank/family-default values for these fields
-(previously reverse-engineered by hand from `explodecomputer/opengwasdb`'s
-`data/ukb-b/manifest.tsv`, which does not distinguish continuous from
-binary UKB-b traits). An Analysis the API returns no usable metadata for
-gets `exclude_from_build: true` and an explanatory `inclusion_reason`,
-never a silently defaulted `0`.
-
-**Scope boundary — read before treating this as "the ieu-a-7 fix":** this
-generator makes the *release manifest* correct. It does not make
-`opengwasdb` build a store using these values. As of the currently pinned
-`opengwasdb` commit, `opengwasdb.layouts.dense.build_vcf`
-(`stored_effect_scale = read_vcf_study_type(row.file_path)`) and
-`opengwasdb.layouts.hybrid.build` call `read_vcf_study_type()` on the raw
-VCF `##SAMPLE` header **unconditionally** — there is no code path where a
-manifest-supplied value is even considered. The builder-side half is
-tracked at `explodecomputer/opengwasdb#14`; until that lands, a store built
-from this release's manifest would still silently ignore the resolved
-values and fall back to the (often wrong) VCF header. `ieu-a-7` itself is
-not a ukb-b analysis (it belongs to the unrelated `ieu-a` batch) and is not
-part of this batch.
-
-It also does not download or filter the source GWAS-VCFs (the 2,514 files
-live on a separate host this registry has no direct access to) — only
-`derive`-stage metadata resolution.
-
-## Usage
-
-Requires an OpenGWAS API JWT (see <https://api.opengwas.io/>) in the
-`OPENGWAS_JWT` environment variable — for example via a local, gitignored
-`.Renviron` (`OPENGWAS_JWT=...`). Never commit this token.
-
-```sh
-pixi run Rscript resources/generators/ukb-b/generate.R --mode=emit
-pixi run Rscript resources/generators/ukb-b/generate.R --mode=validate
-pixi run Rscript resources/generators/ukb-b/generate.R --mode=emit-registry
+```text
+connectors/source-metadata-table.tsv    the ukb-b adapter's output (2,514 rows)
+connectors/acquisition-manifest.tsv     the ukb-b writer's output (2,514 rows)
+receipts/                               the recorded identity evidence it reuses
+release-full.yaml                       OGS-00009's content: all 2,514 Analyses
+release-probe-10.yaml                   the ten-Analysis probe before the full resolve
 ```
 
-The legacy driver runs `config-pilot-10.yaml` (`ukb-b-pilot-10`, `OGS-00008`)
-and keeps its working bundle in `<artifact-root>/OGS-00008/generate`;
-`emit-registry` emits it into `stores/OGS-00008/` through the one emitter
-(#248). The full ukb-b release comes from `generate_candidate.py` below; the
-legacy full-batch `config.yaml` was removed in #248.
+## The connectors
 
-For smoke tests, pass `--max-analyses=N` or
-`--only-analysis-id=ukb-b-...,ukb-b-...`; both request only a subset of the
-already-loaded candidate manifest, so no partial-write handling is needed
-(unlike `gwas-ssf-ragged`'s `--mode=filter`, there is no separate
-long-running download step here).
-
-Each run calls the live OpenGWAS API (batched at up to 100 ids per
-request, per the API's own flat-cost pricing tier) and writes a fresh
-`sidecars/derivations.tsv` recording the resolved scale/sample-size
-evidence (or the unresolved reason) per Analysis.
-
-After the source VCFs are locally available, run the shared one-pass annotation
-stage. It uses OpenGWASDB's GWAS-VCF reader to extract AF and SE together, then
-feeds that extraction to OpenGWASDB's ancestry and phenotype-SD modules:
+Both are written from what this host has, never from a network call: the
+OpenGWAS API token expired on 2026-08-21, so `POST /api/gwasinfo` is unavailable
+and the metadata comes from the provider JSON sidecar beside each VCF.
 
 ```sh
-pixi run Rscript src/manifest_generation/providers/opengwas/download-opengwas-vcfs.R \
-  --ids=ukb-b-10787,ukb-b-11842,ukb-b-19953 \
-  --out-dir=/data/opengwasdb/wip/ukb-b-vcf
-
-pixi run python3 -m manifest_generation.providers.opengwas.annotate \
-  --release-dir="$(pixi run python3 -m manifest_generation.emit work-root OGS-00008)"
-```
-
-## Restored full membership (#219, current bundle shape)
-
-The legacy R driver above writes a family-shaped bundle. The restored full
-release is instead frozen and emitted through the current Release Bundle shape
-by two pure-Python tools:
-
-- `inventory.py` reconciles the **declared** intended selection
-  (`resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv`,
-  whose `inclusion_reason` cites the OpenGWAS IGD `data/ukb-b/manifest.tsv`)
-  against the local VCF mirror and the old built baseline, then freezes a
-  checksummed `resources/inventories/<snapshot>.{tsv,meta.yaml}`. It never
-  treats a glob as intent, refuses to freeze a partial copy, and hashes with at
-  most two reader threads using a resumable receipt.
-- `generate_candidate.py` renders `release.yaml`, `build.yaml`, `analyses.tsv`
-  and `validation.yaml` from that frozen inventory plus the recorded
-  resolution, and emits them into `<registry-root>/<store-id>/` (default
-  `stores/`) through the shared emitter (#248), which checks the bundle against
-  the Release Bundle contract and writes `summary.yaml`. A re-run replaces an
-  earlier candidate; a bundle that has been accepted is refused. Store Release
-  Build does not build a candidate until it is accepted (#247).
-
-`config-candidate.yaml` is `OGS-00009` (#312). It is one single-id
-Reference-Completed release (ADR 0037): its `completion_reference`
-(`ukb-hg38-eur-ld`) is qualified and active, so the bundle declares the
-observed `build` block and a `complete-dense` block against the panel that
-Reference Resource declares, with no `derived_from`. The config's
-`complete_options` adds flags to that block (`n-workers: 32`), as
-`build_options` does for the build; it may not set `ld-panel` or `ancestry`. A reference short of
-qualified and active emits the bundle observed-only instead, says so on
-stderr, and records the reference and `blocked: true` under `validation.yaml`'s
-`acceptance` block. The generator refuses a malformed reference (not a mapping,
-an unknown or missing key, an unknown `qualification` or `activation`), any
-unknown config key, and a config that still reserves a completed id
-(`completed_store_id`, `planned_completed_store_id`): OGS-00010, OGS-00030 and
-OGS-00031 are retired unused (`ogstores.paths.RETIRED_STORE_IDS`).
-
-```sh
-# The baseline #219 reconciled against was the 2,024-Analysis OGS-00009
-# bundle, replaced by #312: `git show 9b899b7:stores/OGS-00009/analyses.tsv`.
-python3 -m manifest_generation.providers.ukb_b.inventory reconcile \
+# The Source Metadata Table: the declared selection's intent + provider JSONs.
+python3 -m manifest_generation.providers.ukb_b.source_metadata_adapter \
+  --declared-selection resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv \
   --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
-  --built-baseline <the 2,024-Analysis baseline analyses.tsv>
+  --out resources/generators/ukb-b/connectors/source-metadata-table.tsv
 
-python3 -m manifest_generation.providers.ukb_b.inventory freeze \
+# The Acquisition Manifest: the recorded identity/integrity receipts, reused
+# rather than a fresh 425 GB read.
+python3 -m manifest_generation.providers.ukb_b.write_acquisition_manifest \
+  --declared-selection resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv \
   --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
-  --snapshot-id ukb-b-restored-2026-10-11 \
-  --upstream-batch-evidence resources/inventories/ukb-b-restored-2026-10-11.upstream-batches.json
-
-python3 -m manifest_generation.providers.ukb_b.generate_candidate OGS-00009
+  --checksums resources/generators/ukb-b/receipts/ukb-b-restored-2026-10-11.checksums.json \
+  --integrity resources/generators/ukb-b/receipts/ukb-b-restored-2026-10-11.integrity.json \
+  --verification resources/generators/ukb-b/receipts/verify-deep.json \
+  --out resources/generators/ukb-b/connectors/acquisition-manifest.tsv
 ```
 
-The intended membership is anchored to the upstream batch count from the
-unsecured `GET https://api.opengwas.io/api/batches`, saved as evidence beside
-the inventory. Live `POST /api/gwasinfo` resolution needs a valid `OPENGWAS_JWT`;
-when it is unavailable the emitter consumes the recorded resolution output
-(snapshot `opengwas-api-r2026-08-10`) and says so in `validation.yaml`.
+All three receipts are required: the writer refuses an absent, shallow, empty or
+partial verification report rather than treating it as "nothing failed"
+(`docs/spec/source-connectors.md`).
+
+`receipts/` holds **copies** of the three receipts #219 wrote under
+`/data/opengwasdb/work/epic232/219/` (the checksums receipt is 605 KB and names
+each VCF's path, size, mtime and sha256; the integrity receipt is the
+`bgzip -t`/`tabix -l` result per file; the verification report is the deep
+re-verification's, with nothing to report). They are committed because a
+committed manifest's lineage must name files that outlive the run: the checksum
+receipt's sha256 `0bf039ff…` is the one
+`resources/inventories/ukb-b-restored-2026-10-11.receipt.json` already records,
+and `connectors/acquisition-manifest.meta.yaml` records all three.
+
+`docs/spec/source-connectors.md` specifies both files and both writers ("The
+ukb-b adapter", "The ukb-b acquisition writer"). In short:
+
+- the table's intent is the **declared selection**, and every declared Analysis
+  must have a provider JSON whose `id` and `batch` match it; the table carries
+  the provider's trait label, its `European` label (translated to `EUR`), the
+  study design, and the total sample size with the case/control counts for the
+  1,846 binary traits;
+- the manifest's availability is the **recorded identity**: 2,514 VCFs with
+  their sizes, sha256s and Tabix indexes, each with its provider JSON as the
+  sidecar. A file that is gone, truncated, re-checksummed, missing its index or
+  corrupt is a non-ready row with the reason, never a silent member;
+- the manifest's `<out-stem>.meta.yaml` pass lineage names the three receipts
+  (and their sha256) the manifest was written from.
+
+The mirror itself is never copied into the repository and never re-read to write
+a connector: `connectors/acquisition-manifest.meta.yaml` records the receipts'
+identity, and `resources/inventories/ukb-b-restored-2026-10-22d.meta.yaml`
+records the frozen snapshot's.
+
+## The release configs
+
+`release-full.yaml` is **OGS-00009's content**: all 2,514 Analyses of the frozen
+snapshot, the `opengwasdb.gwas-vcf` reader on the `hg19` source assembly against
+the GRCh38 ancestry reference, and the maintained `hm3` Indexed Variant Subset.
+Its method tiers declare `sd` / `declared_standardised` for **both** study
+designs, as the accepted bundle does -- every ukb-b trait is on the SD scale,
+the 1,846 binary traits included -- and `sample_size_kind` is the one field that
+differs between them (`case_control` / `total`).
+
+`release-probe-10.yaml` is the bounded probe: ten Analyses (five case-control,
+five quantitative) from #219's own probe set, resolved first because the
+GWAS-VCF reader has never read a real ukb-b file at the pinned opengwasdb and
+the GRCh37 source needs a liftover chain against the GRCh38 reference.
+
+```sh
+# Freeze the Selection from the two connectors (or prove the frozen one is ours).
+pixi run inventory-freeze --config resources/generators/ukb-b/release-full.yaml
+# Prove the frozen snapshot before any association row is read.
+pixi run preflight --config resources/generators/ukb-b/release-full.yaml
+# The whole pipeline, into a temporary registry: never over stores/OGS-00009.
+pixi run generate-candidate OGS-00009 \
+  --config resources/generators/ukb-b/release-full.yaml \
+  --registry-root <scratch>/stores --work-root <scratch>/work \
+  --resolution-root <scratch>/resolution --cores 16
+```
+
+The frozen snapshots are `resources/inventories/ukb-b-restored-2026-10-22d.*`
+(the full Selection) and `ukb-b-probe-10-2026-10-22d.*` (the probe's ten). The
+earlier unshipped pairs are superseded: `-2026-10-22` was the first freeze,
+`-2026-10-22c` added the adapter's First Author column, and `-2026-10-22d`
+re-froze because the manifest's pass lineage now records how many Analyses the
+deep verification verified and refused. A
+changed connector, a changed Selection or a new freeze is a **new snapshot id**;
+a frozen snapshot is never overwritten. `ukb-b-restored-2026-10-11.*` stays
+untouched: it is OGS-00009's accepted record, in the retired local format.
+
+## Ancestry, SD and the accepted bundle
+
+- **Ancestry** is measured by the shared resolver, not taken from the label.
+  The provider labels all 2,514 Analyses `European`, and OGS-00009 records that
+  as a `source_fallback`. A candidate records what the resolver actually
+  measured, so a measured non-EUR or unassigned Analysis is a finding about the
+  reference, not a regression.
+- **Effect scale.** Every Analysis declares the SD scale (`units: SD`), so the
+  release declares `original_sd_method: declared_standardised` and estimates no
+  phenotype SD; no reference-AF resource is declared and none is needed.
+- **Traits.** The provider supplies no ontology term, so Trait Ontology Mapping
+  runs the shared step (#286) against the Canonical Trait Mapping Table;
+  OGS-00009's accepted bundle records every row `unmapped`.
+
+## Criterion 1: the full comparison against OGS-00009 (#289)
+
+The 2,514-Analysis resolve was run once, against the final code, **into a
+temporary registry** -- never over `stores/OGS-00009`:
+
+```sh
+generate-candidate OGS-00009 --config resources/generators/ukb-b/release-full.yaml \
+  --cores 24 \
+  --registry-root /data/opengwasdb/work/289/stores \
+  --work-root /data/opengwasdb/work/289/work \
+  --resolution-root /data/opengwasdb/work/289/res
+```
+
+It took about **14 minutes** at 24 workers (4.8 CPU-hours summed; every
+Analysis read a median 66,947 rows, bounded by the resolver's 50,000-site
+ancestry bound, and peaked at 71 MB), with `opengwasdb 0.3.0` at `d405de0` and
+the declared `hg19 → hg38` chain on every record. Evidence:
+`/data/opengwasdb/work/289/` (`run.log`, the bundle under `stores/OGS-00009/`,
+`work/OGS-00009/resolver/resolution_receipt.json`, and the records under
+`res/opengwas-gwas-vcf/checkpoint/`).
+
+**Result: 2,514 Analyses resolved (0 failures, 0 controlled failures), 2,514
+admitted, 0 excluded, `bundle.check()` clean**, and `build.yaml` equal to
+`stores/OGS-00009/build.yaml` document for document -- the observed `build`
+block, the `complete-dense` block against `ukb-hg38-eur-ld`, `post` and the
+`hm3` subset.
+
+| Comparison | Result |
+|---|---|
+| Membership | 2,514 = 2,514; no Analysis missing, extra or excluded on either side, so there are no exclusions to explain by reason. |
+| `analyses.tsv`, 28 of the 34 accepted columns | Identical on every row: `analysis_id`, source ids and labels, `source_file`, `checksum`, `size_bytes`, `source_genome_build`, licence, consortium, First Author, `source_ancestry_label`, `assigned_ancestry`, `original_effect_scale`, `original_sd`, `original_sd_method`, `stored_effect_scale`, `sample_size_kind`, `sample_size_scope`, `sample_size`, `n_cases`, `n_controls`, `analysis_group_id`, `exclude_from_build`, `analysis_index`, ... |
+| `analyses.tsv`, the other columns | The five that differ, and the eight added, are the by-design differences listed below. |
+| `build.yaml` | **Equal** to the accepted one. |
+| `validation.yaml` | The pipeline ran what #219 could not: `schema`, `files`, `ancestry`, `effect_scale`, `sd_estimation` and `reference_overlap` are all `passed`, where the accepted bundle records `ancestry`, `effect_scale` and `sd_estimation` `not_run` and a `reader_smoke_test` `not_run`. The completion reference is `qualified`/`active` and not blocked. |
+| `release.yaml` | `status: candidate` (the accepted bundle is `accepted`), `derived_from: null` in both, the same label and description family; the snapshot id, notes and `generator` block name the shared pipeline instead of the retired bespoke generator. |
+| Ancestry assigned | **Identical**: all 2,514 `EUR`, and measured rather than copied -- `gate_reason ok` on every row, dominant proportion 0.940-1.000 (median 0.998), NNLS residual at most 0.0062 (limit 0.06), EAF orientation `passed` (r 0.740-0.999, median 0.966). |
+| Phenotype SD | Every row `skipped / scale_already_declared`: the tier declares the SD scale, so nothing is estimated. Matches the accepted `declared_standardised` with a blank `original_sd`. |
+| Case/control counts | 1,846 rows `case_control` with their counts, 668 `total` without, exactly the accepted declaration. |
+| Trait mappings | 553 rows mapped by the Canonical Trait Mapping Table (353 distinct terms) and 1,961 `unmapped`; the accepted bundle is `unmapped` on all 2,514. |
+
+The by-design differences, each as the probe found it:
+
+- `ancestry_assignment_method`: `source_fallback` in the accepted bundle,
+  `af_assigned` here -- the pipeline measures what the bundle recorded, and the
+  measurements agreed on every row.
+- `inclusion_reason`: the accepted wording cites the declared selection; the
+  pipeline's member vocabulary is `selected_ready_source`.
+- `trait_ontology_id`, `trait_ontology_label`, `trait_ontology_mapping_method`
+  (553 rows): mapped where the accepted bundle has no mapping; a gain, not a
+  regression, and the remaining 1,961 stay `unmapped` exactly as accepted.
+- The eight added columns the pipeline writes and the accepted bundle predates:
+  `source_reader_capability` (`opengwasdb.gwas-vcf`), `source_url` (blank, as
+  accepted), `downloaded_file` (the basename), `info_score_threshold` and
+  `maf_threshold` (literal `NaN`, no declaration), and the
+  `imputation_score_column`/`_kind`/`_provenance` triple (blank, undeclared).
+
+## Retired paths
+
+ukb-b's bespoke path is gone (#289):
+
+- `providers/ukb_b/inventory.py` and its suite, replaced by the shared freeze
+  (`tests/freeze/test_ukb_b_reconciliation.py` ports the failures it caught);
+- `providers/ukb_b/generate_candidate.py` and its suite, replaced by the shared
+  pipeline (#340 ported its completion-reference logic first);
+- the R path -- `generate.R`, `lib/opengwas_gwas_vcf_dense.R`,
+  `lib/source-formats/opengwas-gwas-vcf-dense/generate.R` and
+  `lib/metadata_resolvers/opengwas_api.R` -- with their suites
+  (`tests/opengwas-gwas-vcf-dense`, `tests/metadata-resolvers/opengwas-api`).
+
+`lib/metadata_resolvers/canonical_trait_table.R` and `ontology_contract.R`
+stay: they lost their generator with the R path, but the curation suites
+(`tests/curation/test_promotion.py`, `test_e2e_pipeline.py`) still source them
+to prove a promoted mapping row round-trips through the R resolver.
+
+`config-candidate.yaml` and `config-pilot-10.yaml` stay unchanged as the
+history OGS-00009's and OGS-00008's `generator.commands` cite, and
+`successor-identity.yaml` as the retired-id record.

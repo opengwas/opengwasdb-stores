@@ -23,9 +23,8 @@ pixi run python tests/indexed-subsets/test_indexed_subsets.py
 `test_generator_defaults.py` covers the generator-side half (stores #210): the
 shared resolver every Dense and Hybrid `build.yaml` writer calls reads the one
 maintained `hapmap3-hg38` resource, a Ragged layout resolves to nothing, and a
-reviewed opt-out is an explicit empty list plus a written reason. The R mirror
-is exercised by the R writer suites (`tests/finngen-r13-pilot`,
-`tests/opengwas-gwas-vcf-dense`).
+reviewed opt-out is an explicit empty list plus a written reason. It is the only
+half left: the R mirror retired with the last R generator's own suite (#282).
 
 ```sh
 pixi run python tests/indexed-subsets/test_generator_defaults.py
