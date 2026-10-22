@@ -607,7 +607,11 @@ direct `snakemake` run) still:
 the required capability when it is absent;
 2. resolves each declaration's `resource_id` under
 `resources/reference-resources/<id>/resource.yaml` and hashes the declared
-`variant_list` against the maintained sha256, byte size and row count.
+`variant_list` against the maintained sha256, byte size and row count. The
+resources are those of the repository that holds the registry, beside the
+registry root (`stores/`), not of the checkout whose code runs (stores #333):
+for a supported run the two are the same, and a fixture registry carries its
+own resource beside it.
 
 Both refusals happen before the snapshot or any build work. `plan()` never reads
 a resource. Separately, `ogstores.runtime.verify_runtime_for_releases` refuses a

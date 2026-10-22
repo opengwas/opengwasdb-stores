@@ -536,16 +536,11 @@ def release_argv(
     registry_root: Path,
     artifact_root: Path,
     config: dict[str, str] | None = None,
-    checkout: Path = REPO_ROOT,
 ) -> list[str]:
-    """The supported entry point's command line, as `pixi run release` runs it (#195).
-
-    `checkout` is the copy of the code it runs from (`checkout_with_variant_list_resource`),
-    whose `entry_point_env` its process needs.
-    """
+    """The supported entry point's command line, as `pixi run release` runs it (#195)."""
     return [
         sys.executable,
-        str(RELEASE_ENTRY_POINT if checkout == REPO_ROOT else checkout / "workflow" / "release.py"),
+        str(RELEASE_ENTRY_POINT),
         *words,
         "--cores",
         "1",
@@ -564,49 +559,29 @@ def run_release(
     config: dict[str, str] | None = None,
     env: dict[str, str] | None = None,
     new_session: bool = False,
-    checkout: Path = REPO_ROOT,
 ) -> subprocess.CompletedProcess[str]:
-    """Run the supported entry point, `pixi run release`'s workflow/release.py (#195), from `checkout`."""
-    argv = release_argv(
-        words, registry_root=registry_root, artifact_root=artifact_root, config=config, checkout=checkout
-    )
-    run_env = {**os.environ, **entry_point_env(checkout)}
+    """Run the supported entry point, `pixi run release`'s workflow/release.py (#195)."""
+    argv = release_argv(words, registry_root=registry_root, artifact_root=artifact_root, config=config)
+    run_env = dict(os.environ)
     run_env.update(env or {})
     return subprocess.run(
-        argv, cwd=checkout, capture_output=True, text=True, env=run_env, start_new_session=new_session
+        argv, cwd=REPO_ROOT, capture_output=True, text=True, env=run_env, start_new_session=new_session
     )
 
 
-def entry_point_env(checkout: Path) -> dict[str, str]:
-    """What an entry point run from `checkout` needs in its environment: that copy's code first (#333).
-
-    Nothing for this checkout, whose code the environment installs.
-    """
-    if checkout == REPO_ROOT:
-        return {}
-    return {"PYTHONPATH": os.pathsep.join(filter(None, [str(checkout / "src"), os.environ.get("PYTHONPATH")]))}
-
-
-def checkout_with_variant_list_resource(root: Path, resource_id: str, variant_list: Path) -> Path:
-    """A copy of this checkout's code under `root` that maintains one more Reference Resource: `variant_list` (#333).
+def declare_variant_list_resource(stores_dir: Path, resource_id: str, variant_list: Path) -> Path:
+    """Maintain `variant_list` as a Reference Resource of the repository that holds `stores_dir` (#333).
 
     The entry point builds an Indexed Variant Subset only from a variant list
-    that a maintained resource of its own checkout declares
-    (`resources/reference-resources/<resource_id>/resource.yaml`), and a
-    fixture list is no maintained resource. So a release that declares one
-    runs from this copy, as `pre_304_completion_template` runs an older
-    revision: `src/`, `workflow/` and `ogstores.yaml` copied, the declaration
-    added, and the copy's code put ahead of the editable install
-    (`entry_point_env`), which is checked here.
+    that a maintained resource of the registry's repository declares:
+    `resources/reference-resources/<resource_id>/resource.yaml` beside the
+    registry. A fixture registry's repository is its parent directory, so the
+    declaration goes there. Returns its path.
     """
     import hashlib
 
     import yaml
 
-    checkout = root / "checkout"
-    for tree in ("src", "workflow"):
-        shutil.copytree(REPO_ROOT / tree, checkout / tree, ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"))
-    shutil.copy2(REPO_ROOT / "ogstores.yaml", checkout / "ogstores.yaml")
     content = variant_list.read_bytes()
     declaration = {
         "resource_id": resource_id,
@@ -616,16 +591,10 @@ def checkout_with_variant_list_resource(root: Path, resource_id: str, variant_li
         "row_count": sum(1 for line in content.decode("utf-8").splitlines() if line.strip()),
         "checksums": {"alid_sha256": hashlib.sha256(content).hexdigest(), "alid_bytes": len(content)},
     }
-    declaration_p = checkout / "resources" / "reference-resources" / resource_id / "resource.yaml"
+    declaration_p = stores_dir.parent / "resources" / "reference-resources" / resource_id / "resource.yaml"
     declaration_p.parent.mkdir(parents=True)
     declaration_p.write_text(yaml.safe_dump(declaration), encoding="utf-8")
-    imported = subprocess.run(
-        [sys.executable, "-c", "import ogstores; print(ogstores.__file__)"],
-        cwd=checkout, env={**os.environ, **entry_point_env(checkout)}, capture_output=True, text=True, check=True,
-    ).stdout.strip()
-    if not imported.startswith(str(checkout / "src")):
-        raise RuntimeError(f"an entry point run from {checkout} would import {imported}, not the copy's code")
-    return checkout
+    return declaration_p
 
 
 class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
@@ -1940,31 +1909,6 @@ HYBRID_PANEL_INDEXES: tuple[int, ...] = tuple(range(11))
 HYBRID_SUBSET_INDEXES: tuple[int, ...] = (0, 2, 4, 6, 8)
 HYBRID_SUBSET_ALIDS: tuple[str, ...] = (*(SIGNAL_ALID[i] for i in HYBRID_SUBSET_INDEXES), "1:5000000:A:G")
 
-_HYBRID_SUBSET_CHECKOUT: dict[str, Any] | None = None
-
-
-def hybrid_subset_checkout() -> dict[str, Any]:
-    """The copy of this checkout that maintains `HYBRID_SUBSET_ALIDS`, made on first use (#333).
-
-    Returns its `checkout`, the `variant_list`, the `resource_id` that
-    declares it, and the `TemporaryDirectory` that holds them.
-    """
-    global _HYBRID_SUBSET_CHECKOUT
-    if _HYBRID_SUBSET_CHECKOUT is None:
-        temp_dir = tempfile.TemporaryDirectory()
-        root = Path(temp_dir.name)
-        variant_list = root / "hm3.alid.txt"
-        variant_list.write_text("".join(f"{alid}\n" for alid in HYBRID_SUBSET_ALIDS), encoding="utf-8")
-        resource_id = "fixture-hm3"
-        _HYBRID_SUBSET_CHECKOUT = {
-            "temp_dir": temp_dir,
-            "checkout": checkout_with_variant_list_resource(root, resource_id, variant_list),
-            "variant_list": variant_list,
-            "resource_id": resource_id,
-        }
-    return _HYBRID_SUBSET_CHECKOUT
-
-
 def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[Path, Path]:
     """`prepare_single_id_signal_release`'s release as a Hybrid one (#333).
 
@@ -2009,21 +1953,24 @@ def prepare_hybrid_subset_signal_release(root: Path, store_id: str) -> tuple[Pat
     """`prepare_hybrid_single_id_signal_release`'s release with OGS-00011's post steps (#333).
 
     It regenerates its overview and builds an `hm3` Indexed Variant Subset in
-    both phases, from `hybrid_subset_checkout`'s list, so it runs from that
-    checkout.
+    both phases, from `HYBRID_SUBSET_ALIDS`, which the fixture maintains as a
+    Reference Resource of its registry's repository
+    (`declare_variant_list_resource`).
     """
     import yaml
 
     stores, artifacts = prepare_hybrid_single_id_signal_release(root, store_id)
-    subset = hybrid_subset_checkout()
+    variant_list = root / "hm3.alid.txt"
+    variant_list.write_text("".join(f"{alid}\n" for alid in HYBRID_SUBSET_ALIDS), encoding="utf-8")
+    declare_variant_list_resource(stores, "fixture-hm3", variant_list)
     build_yaml_p = stores / store_id / "build.yaml"
     build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
     build_yaml["post"]["overview"] = True
     build_yaml["indexed_subsets"] = [
         {
             "name": "hm3",
-            "resource_id": subset["resource_id"],
-            "variant_list": str(subset["variant_list"]),
+            "resource_id": "fixture-hm3",
+            "variant_list": str(variant_list),
             "reference_assembly": "GRCh38",
         }
     ]
@@ -2148,17 +2095,14 @@ def run_single_id_completion(
     prepare: Callable[[Path, str], tuple[Path, Path]],
     *,
     copy_complete_started: bool = False,
-    checkout: Path = REPO_ROOT,
 ) -> dict[str, Any]:
     """One fresh entry-point run of a release that completes its own Store, paused twice (#304, #333).
 
     `prepare(root, store_id)` writes the release under a new
     `TemporaryDirectory` and returns its `stores` and `artifacts`, so the
-    bundle it writes decides the layout and its completion command. The run
-    starts from `checkout` (`release_argv`). Returns `store_id`,
-    `analysis_id`, the built `stores` and `artifacts`, the `checkout`, the
-    run's result (`release_result`) and the `TemporaryDirectory` that holds
-    them.
+    bundle it writes decides the layout and its completion command. Returns
+    `store_id`, `analysis_id`, the built `stores` and `artifacts`, the run's
+    result (`release_result`) and the `TemporaryDirectory` that holds them.
 
     The run is paused twice. As `complete` starts, once the build phase has
     published the Observed-Only Store, its observed view is read
@@ -2178,19 +2122,14 @@ def run_single_id_completion(
     root = Path(temp_dir.name)
     stores, artifacts = prepare(root, store_id)
 
-    argv = release_argv([store_id], registry_root=stores, artifact_root=artifacts, checkout=checkout)
+    argv = release_argv([store_id], registry_root=stores, artifact_root=artifacts)
     pause = root / "paused"
     pause_points = ("complete-started", "completion-observed-view-check-started")
-    env = {
-        **os.environ,
-        **entry_point_env(checkout),
-        run.PAUSE_AT_ENV: ",".join(pause_points),
-        run.PAUSE_FILE_ENV: str(pause),
-    }
+    env = {**os.environ, run.PAUSE_AT_ENV: ",".join(pause_points), run.PAUSE_FILE_ENV: str(pause)}
     observed_before = None
     snapshots: dict[str, dict[str, Path]] = {}
     with (root / "release.out").open("w+") as out, (root / "release.err").open("w+") as err:
-        proc = subprocess.Popen(argv, cwd=checkout, stdout=out, stderr=err, env=env, start_new_session=True)
+        proc = subprocess.Popen(argv, cwd=REPO_ROOT, stdout=out, stderr=err, env=env, start_new_session=True)
         try:
             deadline = time.monotonic() + 600
             for point in pause_points:
@@ -2222,7 +2161,6 @@ def run_single_id_completion(
         "temp_dir": temp_dir,
         "stores": stores,
         "artifacts": artifacts,
-        "checkout": checkout,
         "release_result": release_result,
         "observed_before": observed_before,
         "complete_started": snapshots.get("complete-started"),
@@ -3357,17 +3295,11 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
             stores, artifacts = copy_snapshot(self.template["check_started"], built=self.template, into=root)
             pause = root / "paused"
             log = root / "run.log"
-            checkout = self.template["checkout"]
-            env = {
-                **os.environ,
-                **entry_point_env(checkout),
-                run.PAUSE_AT_ENV: f"{self.CHECK_STEP}-started",
-                run.PAUSE_FILE_ENV: str(pause),
-            }
+            env = {**os.environ, run.PAUSE_AT_ENV: f"{self.CHECK_STEP}-started", run.PAUSE_FILE_ENV: str(pause)}
             with log.open("w") as handle:
                 proc = subprocess.Popen(
-                    release_argv([self.STORE_ID], registry_root=stores, artifact_root=artifacts, checkout=checkout),
-                    cwd=checkout, stdout=handle, stderr=subprocess.STDOUT, env=env, start_new_session=True,
+                    release_argv([self.STORE_ID], registry_root=stores, artifact_root=artifacts),
+                    cwd=REPO_ROOT, stdout=handle, stderr=subprocess.STDOUT, env=env, start_new_session=True,
                 )
                 self.addCleanup(lambda: proc.poll() is None and os.killpg(proc.pid, 9))
                 deadline = time.monotonic() + 600
@@ -3562,16 +3494,13 @@ class TestWorkflowCompletedHybridStoreGetsItsSubsetAndOverview(unittest.TestCase
     """The completion phase builds an Indexed Variant Subset and the overview on a completed Hybrid Store (#333).
 
     As OGS-00011's will. The release is `prepare_hybrid_subset_signal_release`'s,
-    built by this class alone from `hybrid_subset_checkout`: the shared Hybrid
-    template leaves both post steps out, since every process that builds it
-    would pay for them.
+    built by this class alone: the shared Hybrid template leaves both post
+    steps out, since every process that builds it would pay for them.
     """
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.built = run_single_id_completion(
-            "OGS-00131", prepare_hybrid_subset_signal_release, checkout=hybrid_subset_checkout()["checkout"]
-        )
+        cls.built = run_single_id_completion("OGS-00131", prepare_hybrid_subset_signal_release)
         cls.addClassCleanup(cls.built["temp_dir"].cleanup)
 
     def test_the_completion_phase_builds_the_subset_and_the_overview_on_the_completed_store(self) -> None:
@@ -3643,8 +3572,7 @@ class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
         observed_only = {key: value for key, value in declared.items() if key != "complete"}
         build_yaml_p.write_text(yaml.safe_dump({**observed_only, "completion_state": "observed_only"}), encoding="utf-8")
 
-        checkout = template["checkout"]
-        published = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts, checkout=checkout)
+        published = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
         self.assertEqual(published.returncode, 0, published.stdout + published.stderr)
         self.assertEqual([t for t in scheduled_targets(published.stdout) if t != store_id], [])
 
@@ -3656,8 +3584,8 @@ class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
             p: (p.stat().st_mtime_ns, p.read_bytes())
             for directory in ("records", "work") for p in sorted((store_dir / directory).iterdir())
         }
-        dry = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts, checkout=checkout)
-        res = run_release([store_id], registry_root=stores, artifact_root=artifacts, checkout=checkout)
+        dry = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+        res = run_release([store_id], registry_root=stores, artifact_root=artifacts)
 
         self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
         self.assertEqual([t for t in scheduled_targets(dry.stdout) if t != store_id], self.COMPLETION_RECORDS)
