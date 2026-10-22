@@ -1,7 +1,7 @@
 store_id: OGS-00006
 label: 2023-chen-full-european
 access_posture: public
-status: built
+status: validated
 derived_from: null
 created_at: '2026-08-04T11:00:49Z'
 description: 'Full European-ancestry slice of the Chen et al. 2023 plasma metabolome atlas (PMID 36635386):
