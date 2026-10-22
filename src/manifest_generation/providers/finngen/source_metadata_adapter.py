@@ -11,7 +11,7 @@ the release policy and the rendering are the pipeline's.
 
 The endpoint classification is the one the retired R path's metadata resolver
 applied (``resources/generators/lib/metadata_resolvers/finngen_manifest.R``,
-deleted with #288's acceptance criterion 1), and it is deliberately strict: an
+deleted with that path), and it is deliberately strict: an
 endpoint the manifest cannot describe honestly fails the whole adapter instead
 of shrinking the release silently.
 

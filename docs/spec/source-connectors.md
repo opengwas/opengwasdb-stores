@@ -420,9 +420,9 @@ endpoint upstream no longer serves is `data_absent_upstream`; a failed transfer
 is `data_failed`; the manifest is written either way and the run exits non-zero,
 so an unattended retry reuses every completed file.
 
-The second is a **compatibility mode**, kept only until the R generator retires
-with FinnGen's acceptance criterion 1 (#288), because that generator emits a
-working bundle before acquisition runs:
+The second is a **compatibility mode** the R era used, because its generator
+emitted a working bundle before acquisition ran; it stays because the recorded
+receipts of OGS-00003 and OGS-00017 cite it (#288):
 
 ```sh
 python3 -m manifest_generation.providers.finngen.acquire --release-dir=<dir>

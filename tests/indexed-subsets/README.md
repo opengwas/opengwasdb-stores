@@ -25,8 +25,7 @@ shared resolver every Dense and Hybrid `build.yaml` writer calls reads the one
 maintained `hapmap3-hg38` resource, a Ragged layout resolves to nothing, and a
 reviewed opt-out is an explicit empty list plus a written reason. The R mirror
 is exercised by the one R writer suite that remains
-(`tests/opengwas-gwas-vcf-dense`); FinnGen's retired with #288's acceptance
-criterion 1.
+(`tests/opengwas-gwas-vcf-dense`); FinnGen's retired with its R path (#288).
 
 ```sh
 pixi run python tests/indexed-subsets/test_generator_defaults.py

@@ -2,8 +2,8 @@
 """Public-CLI integration test for resumable FinnGen artifact acquisition.
 
 Drives the R-era acquisition interface (``--release-dir``), which outlives the
-R generator that #288's acceptance criterion 1 deleted: the recorded receipts
-of OGS-00003 and OGS-00017 cite it, and it still fills a working bundle's
+R generator deleted with the rest of that path: the recorded receipts of
+OGS-00003 and OGS-00017 cite it, and it still fills a working bundle's
 checksums from what was fetched, writes its download evidence and
 ``validation.yaml``, and records the same acquisition in the shared Acquisition
 Manifest beside them.

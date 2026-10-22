@@ -75,13 +75,23 @@ pixi run -e dev python3 -m manifest_generation.providers.finngen.acquire \
   --out /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13-full.acquisition-manifest.tsv \
   --workers 8
 
+# Scratch for a comparison run: a candidate is never registered, so its
+# registry, its Work Root and its Resolution Area all stay outside the Store
+# Registry.
+SCRATCH=$(mktemp -d /dev/shm/finngen-r13.XXXXXX)
+
 # 3. The 10-Analysis probe: the same recipe on a bounded Selection.
 pixi run -e dev generate-candidate OGS-99288 \
-  --config resources/generators/finngen-r13/release-r13-probe-10.yaml --cores 10
+  --config resources/generators/finngen-r13/release-r13-probe-10.yaml --cores 10 \
+  --registry-root "$SCRATCH/stores" --work-root "$SCRATCH/work" \
+  --resolution-root "$SCRATCH/resolution"
 
-# 4. Freeze, preflight, resolve, render, emit -- one command, any release config.
+# 4. The full comparison run: freeze, preflight, resolve, render, emit -- one
+#    command, any release config.
 pixi run -e dev generate-candidate OGS-00017 \
-  --config resources/generators/finngen-r13/release-r13-full.yaml --cores 32
+  --config resources/generators/finngen-r13/release-r13-full.yaml --cores 32 \
+  --registry-root "$SCRATCH/stores" --work-root "$SCRATCH/work" \
+  --resolution-root "$SCRATCH/resolution"
 
 # 5. Check the candidate's bundle contract.
 pixi run bundle-check
@@ -91,9 +101,15 @@ pixi run index
 `OGS-00017` is accepted, and the emitter refuses to replace an accepted bundle.
 A regeneration is a **comparison** run: emit into a temporary registry
 (`--registry-root`) and diff against `stores/OGS-00017`, exactly as #287 did
-for OGS-00011. Do not emit over `stores/OGS-00017`. The full run resolves
-2,754 endpoints — 2.16 TB of source files — so it is scheduled around the
-host's backup window.
+for OGS-00011. The commands above keep the registry, the Work Root and the
+Resolution Area in scratch, so neither can emit over `stores/OGS-00017`. The
+full run resolves 2,754 endpoints — 2.16 TB of source files — so it is
+scheduled around the host's backup window.
+
+**That full comparison has not been run yet.** The 10-Analysis probe below is
+the only FinnGen resolution this pipeline has made at the current pin, so
+OGS-00017's regeneration, and with it the collection's move onto the pipeline,
+is still open.
 
 ## The 10-Analysis probe (#288)
 
@@ -149,19 +165,18 @@ ten rows. The seven that differ, every one explained:
   the manifest's trailing non-breaking space, as the GWAS Catalog adapter
   trims padding; the R-era bundle kept it.
 
-The probe adds `analysis_index`, `downloaded_file`, the four
-`imputation_score_*` columns, `info_score_threshold` and `maf_threshold`, and
-has no `source_category` (its content is `analysis_group_id` now). The
-committed bundle also carries completion columns (`completed_against`,
-`completion_*`) and `n_hits_*`, which a candidate does not: they are build
-evidence.
+The probe adds `analysis_index`, `downloaded_file`, the three
+`imputation_score_*` columns, `info_score_threshold` and `maf_threshold`; the
+one column of the accepted bundle it drops is `source_category` (its content
+is `analysis_group_id` now).
 
-## What the full comparison run establishes
+## What the earlier comparison runs establish
 
 The comparison runs in `/data/opengwasdb/work/288-MVXoxt` (before the identity
 work) and `/data/opengwasdb/work/288-r3-*` (the frozen `2026-10-22` snapshot)
-reconcile the collection's files completely; with the Column Map above, the
-Analyses resolve too, as the probe shows for ten of them.
+reconciled the collection's files completely, before the Column Map existed;
+with the Column Map above the Analyses resolve too, as the probe shows for ten
+of them. The full re-run is still to be made.
 
 - **Files.** 2,754 Analyses and 2,754 files in the release's `source/`
   directory: 0 unmatched by name, 0 size mismatches and 0 checksum mismatches.
@@ -215,8 +230,11 @@ The R generator those configs drove — `resources/generators/finngen-r13/
 generate.R` with `lib/source-formats/finngen-r13-dense/generate.R`,
 `lib/finngen_r13_pilot.R` and `lib/metadata_resolvers/finngen_manifest.R` — and
 its R suites are **deleted**. It was the collection's only working path until
-the Column Map resolved it; #288's acceptance criterion 1 is that deletion, so
-those receipts now name history rather than a runnable generator. What remains
+the Column Map resolved it, so its deletion is the last of the R-era code:
+those receipts now name history rather than a runnable generator. The
+collection's move onto the pipeline is not finished until the full comparison
+run against OGS-00017 is made and every difference explained, and that run is
+still pending. What remains
 of that era is one behaviour the pipeline still needs: `acquire.py`'s
 `--release-dir` compatibility mode, which fills a working bundle's checksums
 and download evidence, and `tests/finngen-r13-pilot/test_acquire.py` still
