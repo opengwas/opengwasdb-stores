@@ -160,9 +160,20 @@ reference_resources:
     kind: ld_panel
     location: /data/opengwasdb/reference/ld
     location_kind: external_directory
+  # The lift a GRCh37 source needs against the GRCh38 ancestry reference (#292):
+  # `resolve-analyses` refuses a cross-build source without a chain file. Its
+  # declaration holds the from/to builds and the sha256 the resolver's
+  # settings digest and every record's fingerprint bind.
+  - resource_id: liftover-hg19-to-hg38
+    kind: liftover_chain
+    location: /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz
+    location_kind: external_file
 
 ancestry_assignment:
   reference_resource_id: ukb-ancestry-mixture-hg38
+  # The ukb-b VCFs are GRCh37 and the ancestry mixture is GRCh38, so every
+  # Analysis is lifted through the declared chain before the fit (#289, #292).
+  liftover_chain_resource_id: liftover-hg19-to-hg38
   maf_floor: 0.01
   # The full reference scan, as the R path used: a 10k extraction panel failed
   # the preregistered concordance gate (#152).

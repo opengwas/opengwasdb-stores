@@ -29,6 +29,8 @@ from manifest_generation import REPO_ROOT
 from manifest_generation.candidate_workflow import (
     load_candidate_configuration,
     render_build_yaml,
+    resolver_settings,
+    resolver_settings_digest,
 )
 from manifest_generation.freeze import load_frozen_connectors
 from manifest_generation.release_config import load_release_config
@@ -52,6 +54,10 @@ PROBE_IDS = [
     "ukb-b-11842",
     "ukb-b-19953",
 ]
+
+
+def option(argv: list[str], flag: str) -> str | None:
+    return argv[argv.index(flag) + 1] if flag in argv else None
 
 
 def read_tsv(path: Path) -> list[dict[str, str]]:
@@ -141,6 +147,27 @@ class FullReleaseConfigTest(unittest.TestCase):
             yaml.safe_load(ACCEPTED_BUILD.read_text(encoding="utf-8")),
         )
 
+    def test_the_cross_build_lift_chain_is_declared_and_passed(self) -> None:
+        # The VCFs are GRCh37 and the ancestry mixture is GRCh38, so the resolver
+        # is passed the declared chain (#292); without it a cross-build source is
+        # refused. Its checksum joins the settings digest.
+        self.assertEqual(self.config.liftover_chain_resource_id, "liftover-hg19-to-hg38")
+        chain = self.config.reference_resources["liftover-hg19-to-hg38"]
+        self.assertEqual(chain.kind, "liftover_chain")
+        self.assertEqual(
+            str(chain.location), "/data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz"
+        )
+        self.assertIn("liftover-hg19-to-hg38", self.config.required_resource_ids)
+        candidate = load_candidate_configuration(FULL_CONFIG, REPO_ROOT)
+        settings = resolver_settings(candidate)
+        self.assertEqual(option(settings, "--chain-file"), str(chain.location))
+        self.assertEqual(option(settings, "--reference-build"), "GRCh38")
+        without = [token for token in settings]
+        del without[without.index("--chain-file") : without.index("--chain-file") + 2]
+        self.assertNotEqual(
+            resolver_settings_digest(settings), resolver_settings_digest(without)
+        )
+
     def test_the_completion_reference_is_ogs_00009_s(self) -> None:
         completion = self.config.completion
         self.assertIsNotNone(completion)
@@ -183,6 +210,12 @@ class ProbeConfigTest(unittest.TestCase):
         self.assertEqual(len(read_inventory(config.inventory_path)), 10)
         self.assertEqual(config.selection.expect_rows, 10)
         self.assertEqual(config.label, "ukb-b-probe-10")
+
+    def test_the_probe_declares_the_lift_chain(self) -> None:
+        # The probe's subject is ancestry measured on a GRCh37 source against the
+        # GRCh38 reference, which needs the chain as much as the full release.
+        config = load_release_config(PROBE_CONFIG, REPO_ROOT)
+        self.assertEqual(config.liftover_chain_resource_id, "liftover-hg19-to-hg38")
 
     def test_the_probe_resolves_into_its_own_work_root(self) -> None:
         config = load_release_config(PROBE_CONFIG, REPO_ROOT)
