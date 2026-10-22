@@ -98,13 +98,18 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   discoverable here; `selection` is where it is accounted for.
   Facts come from `release.yaml` (`label`, `description`, `status`,
   `superseded_by`, `access_posture`, `source_snapshot_id`, `accepted_at`,
-  `notes`), `build.yaml` (`layout`, `completion_state`) and `validation.yaml`
-  (`validated_at`, `build_environment.opengwasdb_version`, and from `observed`:
-  `n_analyses`, `n_variants`, `n_associations`, `store_bytes`, `format_version`,
-  `reference_assembly`, `association_coverage`). `reference_assembly` and
-  `association_coverage` are opengwasdb's values stored as reported, and `NULL`
-  while a record lacks them (opengwasdb#294). A count that is not an integer
-  refuses the Store.
+  `notes`, and `association_coverage`), `build.yaml` (`layout`,
+  `completion_state`) and `validation.yaml` (`validated_at`,
+  `build_environment.opengwasdb_version`, and from `observed`: `n_analyses`,
+  `n_variants`, `n_associations`, `store_bytes`, `format_version`,
+  `reference_assembly`). `reference_assembly` is opengwasdb's value stored as
+  reported, and `NULL` while a record lacks it (opengwasdb#294).
+  `association_coverage` is the release's own declaration, in the one vocabulary
+  of ADR 0040 (`gwas`, `cis`, `cis_and_signals`, `signals_only`), never the
+  Validation Record's `observed` value: opengwasdb#298 makes coverage a build
+  input, so the bundle states it. It is never `NULL` for a registered bundle,
+  because `bundle.check()` requires it. A count that is not an integer refuses
+  the Store.
 - **`analyses`**: one row per admitted Release Manifest row of a listed or
   placeholder Store (ADR 0025: rows not excluded from build), keyed by `id`
   `<store_id>:<analysis_id>`. `status` is the Store Release's Release Status,
@@ -171,8 +176,8 @@ once at build (`analysis_catalog.policy.outcome_type`, `trait_class` and
 **Counts** are the table `counts (dimension, value, n_analyses)`, computed at
 build over listed Analyses only. The dimensions are `store`, `ancestry`
 (`ancestry_category`), `tissue`, `effect_scale` (`stored_effect_scale`),
-`outcome_type`, `trait_class` and `coverage` (the Store's
-`association_coverage` as reported, never relabelled). A `NULL` `value` is a
+`outcome_type`, `trait_class` and `coverage` (the Store Release's declared
+`association_coverage`, never relabelled). A `NULL` `value` is a
 category of its own, and so is `META`; any other value is counted as it
 stands. Each dimension sums to the number of listed Analyses.
 

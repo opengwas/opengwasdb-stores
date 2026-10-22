@@ -388,6 +388,34 @@ class ServingPolicyTest(unittest.TestCase):
             position = found + len(item)
 
 
+class DeclaredAssociationCoverageTest(TempDirCase):
+    """The catalog reads the coverage the Release Bundle declares (#341, ADR 0040).
+
+    Not the Validation Record's `observed.association_coverage`: that is what
+    opengwasdb's builder reported, which #298 makes the release's to declare.
+    A Store whose record says something else, or nothing, is catalogued by its
+    `release.yaml`.
+    """
+
+    def test_the_store_row_and_the_coverage_count_read_release_yaml(self) -> None:
+        write_bundle(
+            self.registry, "OGS-00001",
+            release={"association_coverage": "signals_only"},
+            observed_extra={"association_coverage": "cis_and_signals"},
+        )
+        write_bundle(self.registry, "OGS-00002", release={"association_coverage": "cis"})
+        self.build()
+        self.assertEqual(
+            query(self.root, "SELECT store_id, association_coverage FROM stores ORDER BY store_id"),
+            [("OGS-00001", "signals_only"), ("OGS-00002", "cis")],
+        )
+        self.assertEqual(
+            query(self.root, "SELECT value, n_analyses FROM counts WHERE dimension = 'coverage' "
+                             "ORDER BY value"),
+            [("cis", 2), ("signals_only", 2)],
+        )
+
+
 class AnalysesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

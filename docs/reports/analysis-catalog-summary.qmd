@@ -82,7 +82,7 @@ Totals count listed Stores. An association total is `unknown` as soon as one lis
 
 ## Served Stores
 
-Listed Stores, as each reports itself. Association Coverage is a property of the Store Release (`full`, `cis_and_signals`), as reported.
+Listed Stores, as each reports itself. Association Coverage is what the Store Release's own `release.yaml` declares (`gwas`, `cis`, `cis_and_signals` or `signals_only`), never a layout's default.
 
 ```{r stores}
 if (nrow(listed_stores) == 0) {
@@ -149,7 +149,7 @@ show_counts("trait_class", "undetermined")
 
 ## Association Coverage
 
-The Association Coverage each listed Store reports, with the Analyses it covers.
+The Association Coverage each listed Store declares, with the Analyses it covers.
 
 ```{r coverage}
 show_counts("coverage", "not reported")

@@ -181,7 +181,11 @@ def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tu
         "completion_state": bundle.completion_state,
         # opengwasdb's values, stored as reported; null until opengwasdb#294.
         "reference_assembly": observed.get("reference_assembly"),
-        "association_coverage": observed.get("association_coverage"),
+        # The release's own declaration, never the builder's report (#341):
+        # opengwasdb#298 makes coverage a build input, so the bundle states it
+        # and the Validation Record's `observed` value is evidence about the
+        # build, not the fact the catalog serves.
+        "association_coverage": bundle.association_coverage,
         "n_analyses": observed.get("n_analyses"),
         "n_variants": observed.get("n_variants"),
         "n_associations": observed.get("n_associations"),
