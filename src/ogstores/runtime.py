@@ -227,7 +227,7 @@ def normalize_scheduled(scheduled: Iterable[tuple]) -> list[ScheduledJob]:
     """Normalize `(root, store_id)` or `(root, store_id, step)` dry-run jobs.
 
     An item without a step is a job that has no CLI step (`build_manifest`,
-    `register`) or a caller that did not supply one; see
+    `column_map`, `register`) or a caller that did not supply one; see
     `resolve_scheduled_steps` for how an unknown step set is handled.
     """
     jobs: list[ScheduledJob] = []

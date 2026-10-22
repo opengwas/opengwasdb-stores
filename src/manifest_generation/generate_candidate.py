@@ -90,6 +90,7 @@ from manifest_generation.candidate_workflow import (
     read_analysis_metadata,
     read_resolution_receipt,
     render_build_yaml,
+    render_column_maps,
     render_release_yaml,
     render_resolver_manifest,
     render_validation_yaml,
@@ -508,6 +509,7 @@ def stage_render(
             manifest_rows=manifest,
         ),
         build=render_build_yaml(pipeline.store_id, pipeline.config),
+        column_maps=render_column_maps(pipeline.config),
         analyses_tsv=tables.analyses_tsv,
         commands=commands,
         validation=render_validation_yaml(
@@ -554,6 +556,10 @@ def write_rendered(candidate: CandidateBundle, directory: Path) -> None:
         (staging / "validation.yaml").write_text(render_yaml(candidate.validation), encoding="utf-8")
     for name, text in candidate.sidecars.items():
         (staging / "sidecars" / name).write_text(text, encoding="utf-8")
+    if candidate.column_maps:
+        (staging / "column_maps").mkdir()
+        for name, data in candidate.column_maps.items():
+            (staging / "column_maps" / name).write_bytes(data)
     shutil.rmtree(directory, ignore_errors=True)
     staging.rename(directory)
 
