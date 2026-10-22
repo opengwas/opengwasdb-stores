@@ -915,7 +915,7 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **Phase B owns every `analyses.tsv` column, including Ancestry Assignment and effect-scale resolution** — see "Phase A never writes `analyses.tsv`", and "Who implements the statistics" below.
 
-**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters exist only because nothing else could reach a builder; under ADR 0023 nothing but the workflow may.
+**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters that reached a builder directly are gone; under ADR 0023 nothing but the workflow may.
 
 **Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
 
