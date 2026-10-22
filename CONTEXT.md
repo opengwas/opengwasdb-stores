@@ -186,8 +186,19 @@ The registry lifecycle state for a Release Bundle: candidate, accepted, built, v
 _Avoid_: job state, scheduler state
 
 **Association Coverage**:
-Release-level metadata describing what associations are expected to be present, such as full GWAS, cis, trans, cis-plus-signals, top hits, or unknown.
-_Avoid_: per-analysis coverage
+What associations a Store Release is expected to hold, declared in its Release
+Bundle and passed to the builder (ADR 0040). One of four values:
+
+- `gwas`: every association the source reports, genome-wide.
+- `cis`: a cis window around each Analysis's target, and nothing else.
+- `cis_and_signals`: a cis window plus significant signals elsewhere.
+- `signals_only`: significant signals and their flanks, with no cis window.
+
+A region-filtered release declares `cis_and_signals` or `signals_only` as its
+region policy. The vocabulary is OpenGWASDB's too (opengwas/opengwasdb#298),
+which renamed its `full` to `gwas`; the registry's retired `full_gwas` and
+`cis_plus_signals` read as `gwas` and `cis_and_signals`.
+_Avoid_: per-analysis coverage, coverage type, full GWAS, full, cis-plus-signals
 
 **Validation Record**:
 A release-level summary of validation status, checks, tool versions, timestamps, and pointers to detailed logs or benchmark reports.

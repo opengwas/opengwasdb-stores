@@ -233,7 +233,7 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
         self.assertEqual(config.qc_panel_resource_id, "qc-panel-hg38")
         self.assertIn("qc-panel-hg38", config.required_resource_ids)
         cis = self.load(lambda d: self.region_policy(
-            d, association_coverage="cis_plus_signals", cis_flank_bp=1000000,
+            d, association_coverage="cis_and_signals", cis_flank_bp=1000000,
             region_policy_id="cis-1mb_sig-trans-1mb_suggestive-leads",
         ))
         self.assertEqual(cis.region_policy.cis_flank_bp, 1_000_000)
@@ -242,7 +242,7 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
     def test_a_region_policy_is_refused_unless_it_is_complete_and_consistent(self) -> None:
         self.assertRefused(lambda d: self.region_policy(d, association_coverage="cis"),
                            "region_policy.association_coverage", "'cis'")
-        self.assertRefused(lambda d: self.region_policy(d, association_coverage="cis_plus_signals"),
+        self.assertRefused(lambda d: self.region_policy(d, association_coverage="cis_and_signals"),
                            "region_policy.cis_flank_bp")
         self.assertRefused(lambda d: self.region_policy(d, cis_flank_bp=1000000),
                            "region_policy.cis_flank_bp", "signals_only")

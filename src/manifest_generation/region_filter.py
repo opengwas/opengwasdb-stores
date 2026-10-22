@@ -8,7 +8,7 @@ deletes the original (``manifest_generation.region_filtered_acquisition``,
 ADR 0036 clarified by #300). The policy is the R ``gwas-ssf-ragged``
 generator's, reproduced row for row:
 
-- **cis** (``cis_plus_signals`` only): every row within ``cis_flank_bp`` of the
+- **cis** (``cis_and_signals`` only): every row within ``cis_flank_bp`` of the
   Analysis's target span, from the Source Metadata Table;
 - **significant trans**: every row within ``trans_flank_bp`` of a row outside
   the cis window with ``p_value <= significant_p``;
@@ -41,9 +41,33 @@ from pathlib import Path
 from typing import Iterator
 
 from manifest_generation.source_inventory import sha256_file
+from ogstores.bundle import ASSOCIATION_COVERAGES
 
-#: The region policies a release may declare (Association Coverage).
-ASSOCIATION_COVERAGES: tuple[str, ...] = ("signals_only", "cis_plus_signals")
+#: The Association Coverage values a region policy may declare (#341): a
+#: filtered file is either significant signals and their flanks, or a cis
+#: window plus significant signals. ``gwas`` and ``cis`` are never policies,
+#: because a policy selects regions and those two coverage values describe a
+#: Store built from every source row or from cis windows alone.
+REGION_POLICY_COVERAGES: tuple[str, ...] = ("cis_and_signals", "signals_only")
+
+#: The retired Association Coverage spellings, as a frozen Acquisition Manifest
+#: or release config recorded them before #341, and the value each reads as. A
+#: frozen manifest is checksummed evidence and is never rewritten, so every
+#: reader of a frozen policy maps it through :func:`canonical_association_coverage`.
+RETIRED_ASSOCIATION_COVERAGES: dict[str, str] = {
+    "full_gwas": "gwas",
+    "cis_plus_signals": "cis_and_signals",
+}
+
+
+def canonical_association_coverage(value: object) -> object:
+    """``value`` in the one Association Coverage vocabulary (#341).
+
+    The single place a retired spelling is read. A current value, and anything
+    that is not a string, is returned unchanged so a malformed value is reported
+    as written rather than silently accepted.
+    """
+    return RETIRED_ASSOCIATION_COVERAGES.get(value, value) if isinstance(value, str) else value
 
 #: The source columns the filter refuses a file without, as the R filter did.
 REQUIRED_SOURCE_COLUMNS: tuple[str, ...] = (
@@ -69,7 +93,7 @@ class RegionPolicy:
     significant_p: float
     suggestive_p: float
     suggestive_lead_min_distance_bp: int
-    #: Only for ``cis_plus_signals``.
+    #: Only for ``cis_and_signals``.
     cis_flank_bp: int | None = None
 
 
@@ -339,7 +363,7 @@ Intervals = dict[str, list[tuple[int, int]]]
 
 
 def _cis_intervals(policy: RegionPolicy, target: TargetSpan | None) -> Intervals:
-    if policy.association_coverage != "cis_plus_signals" or target is None:
+    if policy.association_coverage != "cis_and_signals" or target is None:
         return {}
     flank = int(policy.cis_flank_bp or 0)
     return {target.chromosome: [(max(1, target.start - flank), target.end + flank)]}

@@ -239,8 +239,8 @@ The policy is per release config.
 | Key | Required | Description |
 |---|---:|---|
 | `region_policy_id` | Yes | The policy's name, recorded in lineage (`sig-trans-1mb_suggestive-leads`). |
-| `association_coverage` | Yes | `signals_only`, or `cis_plus_signals` to keep a cis flank around each Analysis's target. |
-| `cis_flank_bp` | For `cis_plus_signals` only | Bases kept either side of the Source Metadata Table's target span (`target_chromosome`, `target_start`, `target_end`); refused for `signals_only`. |
+| `association_coverage` | Yes | `signals_only`, or `cis_and_signals` to keep a cis flank around each Analysis's target. |
+| `cis_flank_bp` | For `cis_and_signals` only | Bases kept either side of the Source Metadata Table's target span (`target_chromosome`, `target_start`, `target_end`); refused for `signals_only`. |
 | `trans_flank_bp` | Yes | Bases kept either side of every significant row outside the cis window. |
 | `significant_p`, `suggestive_p` | Yes | p-values in (0, 1]; `significant_p` may not exceed `suggestive_p`. |
 | `suggestive_lead_min_distance_bp` | Yes | How far apart, strictly more than, the suggestive leads kept on one chromosome are. |

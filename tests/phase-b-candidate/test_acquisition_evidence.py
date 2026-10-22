@@ -83,7 +83,7 @@ POLICY = {
 CIS_POLICY = {
     **POLICY,
     "region_policy_id": "cis-1mb_sig-trans-1mb_suggestive-leads",
-    "association_coverage": "cis_plus_signals",
+    "association_coverage": "cis_and_signals",
     "cis_flank_bp": 1_000_000,
 }
 TARGET_SPAN = {"target_chromosome": "2", "target_start": "171555373", "target_end": "173628598"}
@@ -120,7 +120,7 @@ def acquire_region_filtered(fixture, policy=POLICY, *, evidence=True) -> None:
     beside the manifest, bound by its run record.
     """
     declare_region_policy(fixture, policy)
-    if policy["association_coverage"] == "cis_plus_signals":
+    if policy["association_coverage"] == "cis_and_signals":
         rows = _read_tsv(fixture.source_metadata_table_path)
         columns = list(rows[0]) + list(TARGET_SPAN)
         _write_tsv(fixture.source_metadata_table_path, columns, [{**row, **TARGET_SPAN} for row in rows])

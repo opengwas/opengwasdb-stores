@@ -182,6 +182,19 @@ LEGACY_ANALYSIS_ID_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002
 # OpenGWASDB ever adopts the rule (issue #319).
 _ANALYSIS_ID_RE: re.Pattern[str] = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*\Z")
 
+# The Association Coverage values a Store Release declares (#341): what
+# associations its Store is expected to hold. One vocabulary for the registry
+# and for opengwasdb (opengwas/opengwasdb#298), which renamed its own ``full``
+# to ``gwas``; this replaced ``full_gwas`` and ``cis_plus_signals``. A region
+# policy filters to ``cis_and_signals`` or ``signals_only`` only
+# (``manifest_generation.region_filter.REGION_POLICY_COVERAGES``).
+ASSOCIATION_COVERAGES: tuple[str, ...] = (
+    "gwas",
+    "cis",
+    "cis_and_signals",
+    "signals_only",
+)
+
 # The controlled vocabulary for ``assigned_ancestry``: the seven super-population
 # codes the ancestry-mixture Reference Resource assigns (see
 # resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml and
@@ -1932,6 +1945,7 @@ def check(
 
 
 __all__ = [
+    "ASSOCIATION_COVERAGES",
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
     "COLUMN_MAPS_DIR",

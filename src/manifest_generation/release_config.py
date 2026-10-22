@@ -50,7 +50,7 @@ from manifest_generation import completion, quality_checks
 from manifest_generation.config_schema import block as _key_gate, text as _text_gate
 from manifest_generation.completion import CompletionError, CompletionRecipe
 from manifest_generation.freeze import frozen_paths
-from manifest_generation.region_filter import ASSOCIATION_COVERAGES, RegionPolicy
+from manifest_generation.region_filter import RegionPolicy, REGION_POLICY_COVERAGES
 from manifest_generation.indexed_subsets import (
     INDEXED_SUBSETS_KEY,
     INDEXED_SUBSETS_OPT_OUT_KEY,
@@ -267,7 +267,7 @@ REGION_POLICY_REQUIRED = (
     "region_policy_id", "association_coverage", "trans_flank_bp", "significant_p", "suggestive_p",
     "suggestive_lead_min_distance_bp", "qc_panel_resource_id",
 )
-#: Only for ``cis_plus_signals``, and required there.
+#: Only for ``cis_and_signals``, and required there.
 REGION_POLICY_OPTIONAL = ("cis_flank_bp",)
 METHOD_TIER_KEYS = ("stored_effect_scale", "original_effect_scale", "original_sd_method",
                     "sample_size_kind")
@@ -824,14 +824,14 @@ def _region_policy(value: Any, where: str, declared) -> tuple[RegionPolicy, str]
     """``region_policy`` (#300): what acquisition filters this release's files to.
 
     The policy is the R ``gwas-ssf-ragged`` generator's (``manifest_generation.region_filter``).
-    A cis flank belongs to ``cis_plus_signals`` and only to it, and every
+    A cis flank belongs to ``cis_and_signals`` and only to it, and every
     policy keeps a declared ``qc_panel`` resource.
     """
     block = _block(value, where, REGION_POLICY_REQUIRED, REGION_POLICY_OPTIONAL)
     coverage = _text(block["association_coverage"], f"{where}.association_coverage")
-    if coverage not in ASSOCIATION_COVERAGES:
+    if coverage not in REGION_POLICY_COVERAGES:
         raise ReleaseConfigError(
-            f"{where}.association_coverage {coverage!r} is not one of {', '.join(ASSOCIATION_COVERAGES)}"
+            f"{where}.association_coverage {coverage!r} is not one of {', '.join(REGION_POLICY_COVERAGES)}"
         )
 
     def bases(key: str) -> int:
@@ -857,13 +857,13 @@ def _region_policy(value: Any, where: str, declared) -> tuple[RegionPolicy, str]
             "significant hit must also be suggestive"
         )
     cis_flank_bp = None
-    if coverage == "cis_plus_signals":
+    if coverage == "cis_and_signals":
         if block.get("cis_flank_bp") is None:
-            raise ReleaseConfigError(f"{where}.cis_flank_bp is required for cis_plus_signals")
+            raise ReleaseConfigError(f"{where}.cis_flank_bp is required for cis_and_signals")
         cis_flank_bp = bases("cis_flank_bp")
     elif block.get("cis_flank_bp") is not None:
         raise ReleaseConfigError(
-            f"{where}.cis_flank_bp is only for cis_plus_signals; this policy is {coverage}"
+            f"{where}.cis_flank_bp is only for cis_and_signals; this policy is {coverage}"
         )
     policy = RegionPolicy(
         region_policy_id=_text(block["region_policy_id"], f"{where}.region_policy_id"),

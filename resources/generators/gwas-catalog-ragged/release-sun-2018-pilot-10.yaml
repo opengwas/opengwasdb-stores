@@ -107,7 +107,7 @@ release_policy:
 # every region policy keeps.
 region_policy:
   region_policy_id: cis-1mb_sig-trans-1mb_suggestive-leads
-  association_coverage: cis_plus_signals
+  association_coverage: cis_and_signals
   cis_flank_bp: 1000000
   trans_flank_bp: 1000000
   significant_p: 5.0e-8
