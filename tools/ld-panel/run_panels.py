@@ -18,10 +18,14 @@ def valid(base: Path) -> bool:
     except (OSError, ValueError, KeyError): return False
 
 
-def built_floor(base: Path) -> tuple[int | None, float | None, float | None]:
-    """(MAC, MAF, missingness) floor a block was built with; blocks predating #241 carry only a MAC floor."""
+def built_floor(base: Path) -> tuple[object, ...]:
+    """The variant-inclusion rules a block was built under: (MAC, MAF, missingness)
+    floor, ALID-collision rule, and whether its table names source records.
+    Blocks predating #241 carry only a MAC floor."""
     p = json.loads(base.with_suffix(".provenance.json").read_text())
-    return p.get("mac_threshold"), p.get("maf_threshold"), p.get("max_missing_rate")
+    with base.with_suffix(".tsv").open() as fh: header = fh.readline().rstrip("\n").split("\t")
+    return (p.get("mac_threshold"), p.get("maf_threshold"), p.get("max_missing_rate"),
+            p.get("alid_collision_rule"), "REF" in header and "ALT" in header)
 
 
 def build(job: tuple[str, ...]) -> tuple[str, int, str]:
@@ -47,7 +51,8 @@ def main() -> int:
     args = ap.parse_args()
     if args.jobs < 1: ap.error("--jobs must be >= 1")
     script = Path(__file__).with_name("construct_block.py")
-    floor = ((None, args.maf) if args.maf is not None else (args.mac, None)) + (args.max_missing,)
+    floor = (((None, args.maf) if args.maf is not None else (args.mac, None))
+             + (args.max_missing, "keep_highest_maf", True))  # what construct_block.py now builds
     jobs, stale = [], []
     with args.regions.open() as fh:
         for row in csv.DictReader(fh, delimiter="\t"):

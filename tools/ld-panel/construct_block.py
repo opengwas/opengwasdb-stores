@@ -134,22 +134,36 @@ def construct_block(
     high_missing = polymorphic & above & (missing_rate > max_missing_rate if max_missing_rate is not None
                                           else np.zeros(g.shape[1], dtype=bool))
     eligible = polymorphic & above & ~high_missing
+    # Polymorphic yet constant once mean-imputed (every called individual
+    # heterozygous): nothing to correlate. Decided before collisions, as its
+    # MAF of 0.5 would otherwise win one.
+    constant = np.zeros(g.shape[1], dtype=bool)
+    if eligible.any():
+        candidates = g[:, eligible]
+        constant[eligible] = np.nanmax(candidates, axis=0) == np.nanmin(candidates, axis=0)
+    zero_variance = eligible & constant
+    eligible &= ~constant
+    # A record no ALID can name, or one repeated verbatim, cannot be read back
+    # by any consumer, so it is excluded and counted rather than kept.
+    alids = variant_alids(variants)
+    unnameable = eligible & np.array([a is None for a in alids], dtype=bool)
+    keys = [(int(v["pos"]), str(v["allele1"]).upper(), str(v["allele2"]).upper()) for v in variants]
+    repeats = Counter(keys)
+    duplicate_record = eligible & ~unnameable & np.array([repeats[k] > 1 for k in keys], dtype=bool)
+    eligible &= ~unnameable & ~duplicate_record
     # An ALID naming two source records is ambiguous to every consumer: gnomAD
     # splits multi-allelic sites, so the deletion GA>G and the insertion G>GA
     # at one position both become pos:G:GA (#241, #348). Of the eligible
     # records sharing an ALID, keep the one with the higher MAF (then call
     # rate, then input order): the record a GWAS reporting that ALID most
     # likely means.
-    alids = variant_alids(variants)
     best: dict[str, int] = {}
     for i in np.flatnonzero(eligible):
         alid = alids[i]
-        if alid is None: continue
         j = best.get(alid)
         if j is None or (maf[i], -missing_rate[i]) > (maf[j], -missing_rate[j]): best[alid] = int(i)
     winners = set(best.values())
-    collided = np.array([bool(eligible[i]) and a is not None and i not in winners for i, a in enumerate(alids)],
-                        dtype=bool)
+    collided = np.array([bool(eligible[i]) and i not in winners for i in range(len(alids))], dtype=bool)
     kept = np.flatnonzero(eligible & ~collided)
     if not len(kept):
         raise ValueError("no variants remain after variant-floor/invariant filtering")
@@ -157,10 +171,8 @@ def construct_block(
     x = filled[:, kept]
     x -= x.mean(axis=0)
     scale = np.sqrt(np.sum(x * x, axis=0))
-    # Polymorphic yet constant once mean-imputed, e.g. every called individual
-    # heterozygous: nothing to correlate, so it is dropped and counted.
-    nonzero = scale > 0
-    zero_variance = int((~nonzero).sum())
+    nonzero = scale > 0  # constant columns were excluded above; this is the numerical backstop
+    zero_variance = int(zero_variance.sum()) + int((~nonzero).sum())
     kept = kept[nonzero]
     x = x[:, nonzero] / scale[nonzero]
     # PLINK --export A emits ALT dosage, while panel rows declare the
@@ -209,8 +221,9 @@ def construct_block(
         "alid_collision_rule": "keep_highest_maf",
         "n_variants_all_missing": int(all_missing.sum()), "n_variants_invariant": int(invariant.sum()),
         "n_variants_below_floor": int(below.sum()), "n_variants_high_missing": int(high_missing.sum()),
+        "n_variants_zero_variance": zero_variance, "n_variants_unnameable": int(unnameable.sum()),
+        "n_variants_duplicate_record": int(duplicate_record.sum()),
         "n_variants_alid_collision": int(collided.sum()),
-        "n_variants_zero_variance": zero_variance,
         "below_floor_mac_counts": {str(int(m)): int(c) for m, c in zip(*np.unique(mac[below], return_counts=True))},
         "missing_call_rate": float(missing_rate.mean()),
         "max_missing_call_rate_retained": float(missing_rate[kept].max()),

@@ -94,8 +94,9 @@ def test_maf_floor() -> None:
     check(p["maf_threshold"] == .01 and p["mac_threshold"] is None,
           "a MAF floor must replace, not add to, the MAC floor")
     classes = ("n_variants_all_missing", "n_variants_invariant", "n_variants_below_floor",
-               "n_variants_high_missing", "n_variants_alid_collision", "n_variants_zero_variance")
-    check(tuple(p[c] for c in classes) == (1, 1, 1, 0, 0, 1), "dropped-variant classes are miscounted")
+               "n_variants_high_missing", "n_variants_zero_variance", "n_variants_unnameable",
+               "n_variants_duplicate_record", "n_variants_alid_collision")
+    check(tuple(p[c] for c in classes) == (1, 1, 1, 0, 1, 0, 0, 0), "dropped-variant classes are miscounted")
     check(sum(p[c] for c in classes) + p["n_variants_retained"] == p["n_variants_input"],
           "dropped-variant classes do not account for every input variant")
     check(p["below_floor_mac_counts"] == {"6": 1}, "below-floor MAC strata are wrong")
@@ -160,11 +161,26 @@ def test_alid_collisions() -> None:
     check(again.variant_table[0]["MAC"] == 20 and again.provenance["n_variants_alid_collision"] == 0 and
           again.provenance["n_variants_high_missing"] == 1,
           "a collision is resolved among the records that pass every filter")
-    # A record no ALID can name is tolerated wherever construction drops it.
+    # A record with no variance cannot win a collision: every called individual
+    # heterozygous gives MAF 0.5, the highest possible.
+    flat = g.copy(); flat[:, 1] = 1.0
+    p = module.construct_block(flat, variants, mac_threshold=1, component_floor=1).provenance
+    check((p["n_variants_retained"], p["n_variants_zero_variance"], p["n_variants_alid_collision"]) == (3, 1, 0),
+          "a zero-variance record took its ALID's only usable record with it")
+    # A record no ALID can name is excluded and counted, whether or not it is polymorphic.
     malformed = [*variants, {"chrom": "1", "pos": 102, "allele1": "C", "allele2": "C"}]
-    built = module.construct_block(np.column_stack([g, np.zeros(n)]), malformed, mac_threshold=1, component_floor=1)
-    x, _ = module.standardised_ea_dosages(np.column_stack([g, np.zeros(n)]), malformed, built.variant_table)
-    check(x.shape == (n, 3), "an unnameable dropped record broke dosage standardisation")
+    for column in (np.zeros(n), rng.binomial(2, .3, n).astype(float)):
+        built = module.construct_block(np.column_stack([g, column]), malformed, mac_threshold=1, component_floor=1)
+        x, _ = module.standardised_ea_dosages(np.column_stack([g, column]), malformed, built.variant_table)
+        check(x.shape == (n, 3) and built.provenance["n_variants_unnameable"] == int(column.any()),
+              "an unnameable record broke construction or dosage standardisation")
+    # Two identical records cannot be told apart by any reader, so neither is kept.
+    twice = [*variants, {"chrom": "1", "pos": 101, "allele1": "C", "allele2": "T"}]
+    built = module.construct_block(np.column_stack([g, rng.binomial(2, .2, n)]), twice, mac_threshold=1, component_floor=1)
+    module.standardised_ea_dosages(np.column_stack([g, rng.binomial(2, .2, n)]), twice, built.variant_table)
+    check([r["SNP"] for r in built.variant_table] == ["1:100:G:GA", "1:100:A:G"] and
+          built.provenance["n_variants_duplicate_record"] == 2,
+          "identical records must both be excluded")
 
 
 def test_call_rate() -> None:
@@ -207,6 +223,12 @@ def test_run_panels_floor_resume() -> None:
         ceiling = run("--mac", "50", "--max-missing", ".2")
         check(ceiling.returncode != 0 and "floor" in ceiling.stderr,
               "a block built without a missingness ceiling must not be resumed under one")
+        # A block from before the ALID-collision rule and source alleles is not current either.
+        provenance = tmp / "panel/AMR/22/100-200.provenance.json"
+        old = json.loads(provenance.read_text()); old.pop("alid_collision_rule"); provenance.write_text(json.dumps(old))
+        legacy = run("--mac", "50")
+        check(legacy.returncode != 0 and "floor" in legacy.stderr,
+              "a block built before the ALID-collision rule was resumed as current")
 
 
 def ld_fixture(n: int = 120, seed: int = 241) -> tuple[np.ndarray, list[dict[str, object]]]:
@@ -250,11 +272,16 @@ def test_verify_block() -> None:
         def negative(base, arrays, provenance): arrays["values"][-1] = -1.0
         def under_resolved(base, arrays, provenance):
             arrays["vectors"] = arrays["vectors"][:, :1]; provenance["components_retained"] = 1
+        def same_alleles(base, arrays, provenance):
+            lines = base.with_suffix(".tsv").read_text().splitlines(keepends=True)
+            fields = lines[1].rstrip("\n").split("\t"); fields[-1] = fields[-2]  # ALT = REF
+            lines[1] = "\t".join(fields) + "\n"; base.with_suffix(".tsv").write_text("".join(lines))
         check("binding" in failures(swap_rows), "permuted rows passed the binding check")
         check("binding" in failures(flip_row), "a flipped allele passed the binding check")
         check("finite" in failures(nan), "a non-finite eigenvector passed")
         check("non_negative" in failures(negative), "a negative eigenvalue passed")
         check(failures(under_resolved) == ["resolved_at_thresh"], "an under-resolved block passed")
+        check("alids" in failures(same_alleles), "a row whose source alleles name no variant passed")
 
 
 def test_heldout_calibration() -> None:

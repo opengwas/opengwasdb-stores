@@ -36,14 +36,16 @@ def verify_block(base: Path, genotypes: np.ndarray, variants: list[dict[str, obj
     def require(ok: bool, name: str) -> None:
         if not ok and name not in failures: failures.append(name)
 
+    def names(row: dict[str, str], first: str, second: str) -> bool:
+        try: return canonical_alid(row["CHR"], row["BP"], row[first], row[second]) == row["SNP"]
+        except (ValueError, TypeError, AttributeError): return False
     alids = [r["SNP"] for r in rows]
     require(len(rows) == vectors.shape[0] == provenance["n_variants_retained"], "row_count")
     require(len(set(alids)) == len(alids) and all(
-        r["EA"] < r["OA"] and canonical_alid(r["CHR"], r["BP"], r["EA"], r["OA"]) == r["SNP"]
-        == canonical_panel_alid(r["SNP"]) for r in rows), "alids")
+        (r["EA"] or "") < (r["OA"] or "") and names(r, "EA", "OA") and r["SNP"] == canonical_panel_alid(r["SNP"])
+        for r in rows), "alids")
     # A row's source record, where recorded, must be the variant its ALID names.
-    require(all(canonical_alid(r["CHR"], r["BP"], r["REF"], r["ALT"]) == r["SNP"]
-                for r in rows if "REF" in r and "ALT" in r), "alids")
+    require(all(names(r, "REF", "ALT") for r in rows if "REF" in r and "ALT" in r), "alids")
     finite = bool(np.isfinite(values).all() and np.isfinite(vectors).all())
     require(finite, "finite")
     require(bool((values >= 0).all()), "non_negative")
@@ -55,7 +57,7 @@ def verify_block(base: Path, genotypes: np.ndarray, variants: list[dict[str, obj
     binding_error = None
     try:
         x, eaf = standardised_ea_dosages(genotypes, variants, rows)
-    except (KeyError, ValueError):  # a row names no source record, or more than one
+    except (KeyError, ValueError, TypeError, AttributeError):  # a row names no source record, or more than one
         require(False, "binding")
     if finite and "binding" not in failures and "row_count" not in failures:
         require(np.allclose(eaf, [float(r["EAF"]) for r in rows], rtol=0, atol=1e-9), "eaf")
