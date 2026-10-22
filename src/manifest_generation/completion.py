@@ -8,12 +8,11 @@ replacement transaction swaps them. One Release Bundle declares both, so no
 second id is minted and no accepted Observed-Only bundle has to change.
 
 A release config says what that bundle's `complete` block is, and this module is
-the one home for the vocabulary: `completion.state`, the reference's declared
-status, qualification and activation, the `complete-dense` recipe, and the
-Reference Resource whose declaration names the panel and the ancestry it
-completes. `manifest_generation.release_config` refuses a config this module
-does not accept, and `manifest_generation.candidate_workflow` renders the
-bundle from the recipe it accepted, so the two cannot disagree.
+the one home for the vocabulary: the reference's resource, qualification and
+activation, the `complete-dense` recipe, and the Reference Resource whose
+declaration names the panel's status, ancestry and directory. `release_config`
+refuses a config this module does not accept, and `candidate_workflow` renders
+the bundle from the recipe it accepted, so the two cannot disagree.
 
 What decides whether the bundle completes its own Store:
 
@@ -22,22 +21,26 @@ What decides whether the bundle completes its own Store:
 - anything short of that -- pending, on hold, blocked -- leaves the
   Observed-Only bundle exactly as a config with no completion recipe emits it,
   and records why: the release notes and the Validation Record's acceptance
-  block say the recipe is blocked.
+  block say the recipe is blocked. Such a reference is never opened, so its
+  declaration need not exist and its panel need not be on the host.
 
-The reference's `declared_status` is the status the Reference Resource's own
-`resource.yaml` records (`status: available`), and is kept apart from
-`qualification` and `activation`: a declaration is not an owner decision, and
-neither this module nor an emitter ever promotes one to the other.
+The reference's declared status is the status the Reference Resource's own
+`resource.yaml` records (`status: available`). It is read from there and
+recorded, never restated in the config, and kept apart from `qualification` and
+`activation`: a declaration is not an owner decision, and neither this module nor
+an emitter ever promotes one to the other.
 """
 
 from __future__ import annotations
 
+import functools
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
 import yaml
 
+from manifest_generation.config_schema import block as _block, text as _text
 from manifest_generation.source_inventory import ReferenceResource
 
 __all__ = [
@@ -47,6 +50,7 @@ __all__ = [
     "CompletionError",
     "CompletionRecipe",
     "LD_PANEL_KIND",
+    "LDReferencePanel",
     "QUALIFICATIONS",
     "RETIRED_KEYS",
     "acceptance",
@@ -58,21 +62,16 @@ __all__ = [
     "reference_is_qualified_and_active",
 ]
 
-#: The completion subcommand a Dense Store is completed with. Store Release
-#: Build plans `complete-hybrid` and `complete-ragged` too, but not for a single
-#: id: the Observed-View Check that gates the replacement compares no other
-#: layout yet (ADR 0037), so a release config may declare only this one.
+#: The completion subcommand this pipeline emits. Store Release Build plans
+#: `complete-hybrid` and `complete-ragged` too, and ADR 0037's Observed-View
+#: Check covers the Dense Component of Hybrid Stores; porting those two is work
+#: this ticket does not do, so a release config may declare only this one.
 COMPLETE_COMMAND: str = "complete-dense"
 
-#: The declared reference's keys, exactly. ``declared_status`` is the status the
-#: Reference Resource's declaration records; ``qualification`` and ``activation``
-#: are the owner's, and are never inferred from it.
-COMPLETION_REFERENCE_KEYS: tuple[str, ...] = (
-    "resource_id",
-    "declared_status",
-    "qualification",
-    "activation",
-)
+#: The declared reference's keys, exactly. Its declared status is the Reference
+#: Resource declaration's own ``status``: it is read from there and recorded, and
+#: a config that restates it here is refused as an unknown key.
+COMPLETION_REFERENCE_KEYS: tuple[str, ...] = ("resource_id", "qualification", "activation")
 
 #: Every value a reference's ``qualification`` may take, and its ``activation``.
 QUALIFICATIONS: tuple[str, ...] = ("qualified", "pending", "hold", "not_applicable")
@@ -99,22 +98,41 @@ class CompletionError(ValueError):
     """A completion recipe, its reference or the panel it names is not usable."""
 
 
+_block = functools.partial(_block, error=CompletionError)
+_text = functools.partial(_text, error=CompletionError)
+
+
+@dataclass(frozen=True)
+class LDReferencePanel:
+    """The LD panel a qualified, active reference completes against, from its declaration."""
+
+    resource_id: str
+    #: The declaration's own ``status``, recorded as it is: a declared status is
+    #: neither a qualification nor an activation, and is never defaulted.
+    status: str
+    ancestry: str
+    #: The panel root, as the release config's Reference Resource entry declares
+    #: it; preflight checks the panel is present there.
+    location: str
+    #: ``resources/reference-resources/<resource_id>/resource.yaml``.
+    declaration: Path
+
+
 @dataclass(frozen=True)
 class CompletionRecipe:
-    """A release config's completion recipe, checked against its Reference Resource."""
+    """A release config's completion recipe.
 
-    #: ``resource_id``, ``declared_status``, ``qualification``, ``activation``.
+    ``panel`` is resolved only when the reference is qualified and active:
+    a reference short of that is never opened, so its declaration need not exist
+    and its panel need not be present (ADR 0037's fallback).
+    """
+
+    #: ``resource_id``, ``qualification``, ``activation``.
     reference: Mapping[str, Any]
     command: str
     #: `complete-dense` flags the config sets beside the panel and ancestry.
     options: Mapping[str, Any]
-    #: The panel root, as the release config's Reference Resource entry declares
-    #: it; preflight checks the panel is present there.
-    panel_location: str
-    #: The panel's ancestry, from its declaration's ``ancestry``.
-    ancestry: str
-    #: ``resources/reference-resources/<resource_id>/resource.yaml``.
-    declaration: Path
+    panel: LDReferencePanel | None = None
 
     @property
     def resource_id(self) -> str:
@@ -124,30 +142,6 @@ class CompletionRecipe:
 # ---------------------------------------------------------------------------
 # Schema
 # ---------------------------------------------------------------------------
-
-
-def _block(value: Any, where: str, required: tuple[str, ...], optional: tuple[str, ...] = ()) -> Mapping:
-    """``value`` as a mapping with every required key and no unknown one."""
-    if not isinstance(value, Mapping):
-        raise CompletionError(
-            f"{where} must be a mapping with {', '.join(required)}, not {value!r}"
-        )
-    unknown = sorted(str(key) for key in value if key not in required and key not in optional)
-    if unknown:
-        raise CompletionError(
-            f"{where} has unknown key(s) {', '.join(unknown)}; it reads only "
-            + ", ".join(list(required) + list(optional))
-        )
-    missing = [key for key in required if value.get(key) is None or value.get(key) == ""]
-    if missing:
-        raise CompletionError(f"{where} is missing required key(s) {', '.join(missing)}")
-    return value
-
-
-def _text(value: Any, where: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise CompletionError(f"{where} must be text, not {value!r}")
-    return value.strip()
 
 
 def completion_reference(value: Any, where: str) -> dict:
@@ -165,8 +159,7 @@ def completion_reference(value: Any, where: str) -> dict:
                 f"{where}.{key} {reference[key]!r} is not one of {', '.join(allowed)}"
             )
     return {
-        "resource_id": _text(reference["resource_id"], f"{where}.resource_id"),
-        "declared_status": _text(reference["declared_status"], f"{where}.declared_status"),
+        "resource_id": _text(reference["resource_id"], f"{where}.resource_id").strip(),
         "qualification": reference["qualification"],
         "activation": reference["activation"],
     }
@@ -221,43 +214,72 @@ def parse_completion(
     resources: Mapping[str, ReferenceResource],
     repo_root: Path,
 ) -> CompletionRecipe:
-    """A release config's ``completion`` block, checked against its Reference Resource.
+    """A release config's ``completion`` block: its wording, and the panel it will use.
 
-    Everything the recipe needs beyond the wording is a registry fact: the
-    panel's location is the Reference Resource entry the release config declares
-    (preflight proves it present), and the panel's ancestry and the directory
-    `complete-dense` reads come from that resource's own declaration, so the
-    bundle names the panel the repository declares rather than a second copy of
-    its facts.
+    The recipe's own keys are checked always. The panel is resolved only when the
+    reference is qualified and active -- the one case that will complete
+    anything -- because a reference short of that is never opened: its
+    declaration need not exist and its panel need not be present on this host,
+    which is what lets a blocked recipe emit the Observed-Only bundle (ADR 0037).
     """
     block = _block(value, where, ("reference", "command"), ("options",))
     reference = completion_reference(block["reference"], f"{where}.reference")
     command = _text(block["command"], f"{where}.command")
     if command != COMPLETE_COMMAND:
         raise CompletionError(
-            f"{where}.command {command!r} is not {COMPLETE_COMMAND!r}: a Store that completes its "
-            "own id is completed only where the Observed-View Check compares it, which is the "
-            "Dense layout (ADR 0037)"
+            f"{where}.command {command!r} is not {COMPLETE_COMMAND!r}: this ticket ports Dense "
+            "completion only. ADR 0037's Observed-View Check also covers the Dense Component of "
+            "Hybrid Stores, so a Hybrid layout is a piece of work rather than a prohibition"
         )
     options = complete_options(block.get("options"), f"{where}.options")
 
-    resource_id = reference["resource_id"]
+    panel = None
+    if reference_is_qualified_and_active(reference):
+        panel = _panel(
+            reference["resource_id"],
+            where=f"{where}.reference",
+            superpopulation=superpopulation,
+            resources=resources,
+            repo_root=Path(repo_root),
+        )
+    return CompletionRecipe(reference=reference, command=command, options=options, panel=panel)
+
+
+def _panel(
+    resource_id: str,
+    *,
+    where: str,
+    superpopulation: str,
+    resources: Mapping[str, ReferenceResource],
+    repo_root: Path,
+) -> LDReferencePanel:
+    """The declared panel a qualified, active reference completes against.
+
+    The location is the Reference Resource entry the release config declares
+    (preflight proves it present); the status, ancestry and the directory
+    `complete-dense` reads come from that resource's own declaration, so the
+    recipe cannot name a panel other than the one the repository declares.
+    """
     resource = resources.get(resource_id)
     if resource is None:
         raise CompletionError(
-            f"{where}.reference.resource_id {resource_id!r} is not a declared Reference Resource "
+            f"{where}.resource_id {resource_id!r} is not a declared Reference Resource "
             f"(reference_resources: {', '.join(resources)})"
         )
     if resource.kind != LD_PANEL_KIND:
         raise CompletionError(
-            f"{where}.reference.resource_id {resource_id!r} is a {resource.kind!r} resource, "
+            f"{where}.resource_id {resource_id!r} is a {resource.kind!r} resource, "
             f"not a {LD_PANEL_KIND!r} one"
         )
+    if not resource.location:
+        raise CompletionError(
+            f"{where}.resource_id {resource_id!r} declares no location; the recipe's "
+            "--ld-panel is the panel root the release config declares"
+        )
 
-    declaration_path = (
-        Path(repo_root) / "resources" / "reference-resources" / resource_id / "resource.yaml"
-    )
-    declaration = _declaration(declaration_path, where, resource_id)
+    declaration_path = Path(repo_root) / "resources" / "reference-resources" / resource_id / "resource.yaml"
+    declaration = _declaration(declaration_path, resource_id)
+    status = _text(declaration.get("status"), f"{declaration_path}: status")
     ancestry = _text(declaration.get("ancestry"), f"{declaration_path}: ancestry")
     ancestry_dir = declaration.get("ancestry_dir", ancestry)
     # complete-dense joins one --ancestry into both the panel path
@@ -271,37 +293,24 @@ def parse_completion(
         )
     if ancestry != superpopulation:
         raise CompletionError(
-            f"{where}.reference.resource_id {resource_id!r} completes {ancestry!r} Analyses, but "
+            f"{where}.resource_id {resource_id!r} completes {ancestry!r} Analyses, but "
             f"release_policy.selection_superpopulation is {superpopulation!r}: completion imputes "
-            "against a panel of the ancestors the Store holds"
+            "against a panel for the Store's Assigned Ancestry"
         )
-    declared = declaration.get("status")
-    if declared is not None and str(declared) != reference["declared_status"]:
-        raise CompletionError(
-            f"{where}.reference.declared_status is {reference['declared_status']!r}, but "
-            f"{declaration_path} declares status {declared!r}: the declared status is the "
-            "resource's own, and is recorded rather than assumed"
-        )
-    if not resource.location:
-        raise CompletionError(
-            f"{where}.reference.resource_id {resource_id!r} declares no location; the recipe's "
-            f"--ld-panel is the panel root the release config declares"
-        )
-    return CompletionRecipe(
-        reference=reference,
-        command=command,
-        options=options,
-        panel_location=str(resource.location),
+    return LDReferencePanel(
+        resource_id=resource_id,
+        status=status,
         ancestry=ancestry,
+        location=str(resource.location),
         declaration=declaration_path,
     )
 
 
-def _declaration(path: Path, where: str, resource_id: str) -> Mapping:
+def _declaration(path: Path, resource_id: str) -> Mapping:
     if not path.is_file():
         raise CompletionError(
-            f"{where}.reference.resource_id {resource_id!r} names no Reference Resource "
-            f"declaration: {path} does not exist"
+            f"completion reference {resource_id!r} names no Reference Resource declaration: "
+            f"{path} does not exist"
         )
     try:
         document = yaml.safe_load(path.read_text(encoding="utf-8"))
@@ -324,13 +333,13 @@ def completion_block(recipe: CompletionRecipe | None) -> dict | None:
     are the config's, so the block cannot name a panel other than the one the
     release declared and preflight proved present.
     """
-    if recipe is None or not reference_is_qualified_and_active(recipe.reference):
+    if recipe is None or recipe.panel is None:
         return None
     return {
         "command": recipe.command,
         "options": {
-            "ld-panel": recipe.panel_location,
-            "ancestry": recipe.ancestry,
+            "ld-panel": recipe.panel.location,
+            "ancestry": recipe.panel.ancestry,
             **dict(recipe.options),
         },
     }
@@ -341,11 +350,14 @@ def acceptance(recipe: CompletionRecipe) -> dict:
 
     Recorded for every declared reference, so an Observed-Only bundle built from
     a blocked recipe says which reference blocked it and why, as #308 recorded
-    the dbGaP MVP references and #312 recorded OGS-00009's.
+    the dbGaP MVP references and #312 recorded OGS-00009's. The declared status
+    appears only when the panel was read: a blocked reference is never opened,
+    and its absence is recorded as absence rather than guessed.
     """
-    return {
-        "completion_reference": {
-            **dict(recipe.reference),
-            "blocked": not reference_is_qualified_and_active(recipe.reference),
-        }
-    }
+    record: dict[str, Any] = {"resource_id": recipe.reference["resource_id"]}
+    if recipe.panel is not None:
+        record["declared_status"] = recipe.panel.status
+    record["qualification"] = recipe.reference["qualification"]
+    record["activation"] = recipe.reference["activation"]
+    record["blocked"] = recipe.panel is None
+    return {"completion_reference": record}

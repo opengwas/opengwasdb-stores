@@ -3255,7 +3255,6 @@ class ReferenceCompletionTests(unittest.TestCase):
         return {
             "reference": {
                 "resource_id": COMPLETION_PANEL_RESOURCE_ID,
-                "declared_status": "available",
                 "qualification": "qualified",
                 "activation": "active",
                 **changes,
@@ -3311,8 +3310,9 @@ class ReferenceCompletionTests(unittest.TestCase):
         self.assertEqual(list(bundle_module.check(loaded, registry_root=fixture.registry_root)), [])
         self.assertTrue(loaded.completes_own_store)
         self.assertIsNone(loaded.derived_from)
-        steps = plan(loaded, artifact_root=self.root / "artifacts")
-        self.assert_matches_the_single_id_golden(steps)
+        artifact_root = self.root / "artifacts"
+        steps = plan(loaded, artifact_root=artifact_root)
+        self.assert_matches_the_single_id_golden(steps, fixture, artifact_root)
         complete = next(step for step in steps if step.name == "complete")
         self.assertEqual(complete.argv[complete.argv.index("--release-id") + 1], f"{STORE_ID}-completed")
         self.assertEqual(
@@ -3321,12 +3321,67 @@ class ReferenceCompletionTests(unittest.TestCase):
         self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
         self.assertEqual(option(complete.argv, "--n-workers"), "2")
 
-    def assert_matches_the_single_id_golden(self, steps) -> None:
-        """The plan's shape is the committed single-id golden's, where the two agree.
+    #: Where the golden's bundle plans its artifacts, and the bundle's own id.
+    GOLDEN_ARTIFACT_ROOT = "/data/opengwasdb/stores"
+    GOLDEN_STORE_ID = "OGS-00003"
+    #: The golden's LD panel, which this fixture replaces with its own.
+    GOLDEN_LD_PANEL = "/data/opengwasdb/reference/ld/hgdp1kgp-hg38"
+    #: Options this fixture's recipe intentionally omits from a golden step.
+    OMITTED_OPTIONS: Mapping[str, tuple[str, ...]] = {"build": ("--n-workers",)}
 
-        Paths, options and the Store id are the fixture's; what a completion
-        bundle adds is the step sequence and each step's command, flags and
-        phase, which is what the golden pins (#305, ADR 0037).
+    def fixture_option_values(self, fixture: Fixture) -> Mapping[str, Mapping[str, str]]:
+        """The few options this fixture sets differently from the golden's recipe.
+
+        The golden is a FinnGen release; this fixture is a GWAS-SSF one, so its
+        reader capability is the SSF reader's.
+        """
+        return {
+            "build": {"--source-reader-capability": "opengwasdb.gwas-ssf"},
+            "complete": {
+                "--ld-panel": str(fixture.root / "reference" / "ld"),
+                "--n-workers": "2",
+            },
+        }
+
+    def expected_tokens(
+        self, step: str, tokens: Sequence[str], fixture: Fixture, artifact_root: Path,
+        *, options: bool = False,
+    ) -> list[str]:
+        """One golden step's tokens, rewritten for this fixture's documented differences.
+
+        Three substitutions (the Store id, the artifact root, the LD panel) and
+        one omitted option are all this fixture changes. Everything else -- every
+        flag, every value and every positional path -- must be the golden's
+        exactly, so a step missing a required flag such as `validate`'s
+        `--format` fails here.
+        """
+        substitutions = {
+            self.GOLDEN_STORE_ID: STORE_ID,
+            f"{self.GOLDEN_ARTIFACT_ROOT}/": f"{artifact_root}/",
+            self.GOLDEN_LD_PANEL: str(fixture.root / "reference" / "ld"),
+        }
+        expected: list[str] = []
+        for token in tokens:
+            for before, after in substitutions.items():
+                token = token.replace(before, after)
+            expected.append(token)
+        if not options:
+            return expected
+        for flag, value in self.fixture_option_values(fixture).get(step, {}).items():
+            expected[expected.index(flag) + 1] = value
+        for flag in self.OMITTED_OPTIONS.get(step, ()):
+            position = expected.index(flag)
+            del expected[position:position + 2]
+        return expected
+
+    def assert_matches_the_single_id_golden(self, steps, fixture: Fixture, artifact_root: Path) -> None:
+        """The plan is the committed single-id golden's, exactly, where the two agree.
+
+        The golden pins what a completion bundle adds (#305, ADR 0037): the step
+        sequence, each step's phase, its command, its flags and their values,
+        its positionals, and what it reads and writes. This fixture's id, its
+        artifact root, its panel and two options are the only differences, and
+        each is listed above.
         """
         golden = json.loads(
             (REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00003-single-id-completed.json").read_text()
@@ -3335,21 +3390,35 @@ class ReferenceCompletionTests(unittest.TestCase):
         self.assertEqual([step.name for step in steps], [entry["name"] for entry in golden])
         for step, expected in zip(steps, golden):
             with self.subTest(step=step.name):
-                self.assertEqual(step.argv[:2], expected["argv"][:2])
-                # Every flag the fixture plans, the golden plans: the fixture's
-                # recipe sets fewer of its own options.
-                self.assertEqual(set(flags(step.argv)) - set(flags(expected["argv"])), set())
+                self.assertEqual(
+                    step.argv,
+                    self.expected_tokens(
+                        step.name, expected["argv"], fixture, artifact_root, options=True
+                    ),
+                )
+                self.assertEqual(
+                    [str(path) for path in step.inputs],
+                    self.expected_tokens(step.name, expected["inputs"], fixture, artifact_root),
+                )
+                self.assertEqual(
+                    [str(path) for path in step.outputs],
+                    self.expected_tokens(step.name, expected["outputs"], fixture, artifact_root),
+                )
                 if "published_store_arg" in expected:
                     self.assertEqual(step.published_store_arg, expected["published_store_arg"])
 
     def test_a_reference_short_of_qualified_and_active_emits_the_bundle_without_one(self) -> None:
-        for case, changes in {
+        references = {
             "pending qualification": {"qualification": "pending"},
             "pending activation": {"activation": "pending"},
             "on hold and blocked": {"qualification": "hold", "activation": "blocked"},
-        }.items():
+            # A blocked reference is never opened: this one names a panel that
+            # does not exist, and preflight neither requires nor finds it.
+            "pending, panel absent": {"qualification": "pending", "panel": "absent"},
+        }
+        for case, changes in references.items():
             with self.subTest(case):
-                fixture = self.fixture("observed-" + case.replace(" ", "-"))
+                fixture = self.fixture("observed-" + case.replace(" ", "-").replace(",", ""))
                 self.stages(fixture, "prepare", "resolve", "render", "emit")
                 observed = {
                     name: (fixture.registry_root / STORE_ID / name).read_bytes()
@@ -3359,22 +3428,28 @@ class ReferenceCompletionTests(unittest.TestCase):
                 observed_validation = self.bundle(fixture, "validation.yaml")
 
                 # The same fixture, the same Selection: only the recipe is added,
-                # and its reference is short of qualified and active.
+                # and its reference is short of qualified and active. The panel's
+                # location is absent in the last case and present in the others.
+                panel = fixture.root / ("missing-ld" if changes.get("panel") == "absent" else "reference/ld")
+                if changes.get("panel") == "absent":
+                    panel.rmdir() if panel.is_dir() else None
                 document = yaml.safe_load(fixture.config_path.read_text(encoding="utf-8"))
                 document["build"]["completion_state"] = "reference_completed"
-                document["completion"] = self.qualified(**changes)
+                document["completion"] = self.qualified(
+                    **{key: value for key, value in changes.items() if key != "panel"}
+                )
                 document["reference_resources"].append(
                     {
                         "resource_id": COMPLETION_PANEL_RESOURCE_ID,
                         "kind": "ld_panel",
-                        "location": str(fixture.root / "reference" / "ld"),
+                        "location": str(panel),
                         "location_kind": "external_directory",
                     }
                 )
                 fixture.config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
                 # Only the recipe changed, so the resolved records are the ones
-                # this run already kept: render and emit re-read them.
-                results = self.stages(fixture, "render", "emit")
+                # this run already kept: preflight, render and emit re-read them.
+                results = self.stages(fixture, "preflight", "render", "emit")
 
                 # The recipe and the membership are the Observed-Only bundle's, byte for byte.
                 for name in ("build.yaml", "analyses.tsv"):
@@ -3386,17 +3461,15 @@ class ReferenceCompletionTests(unittest.TestCase):
                 self.assertEqual(self.bundle(fixture, "build.yaml")["completion_state"], "observed_only")
                 self.assertNotIn("complete:", (fixture.registry_root / STORE_ID / "build.yaml").read_text())
 
-                # Everything but the note that says why is unchanged.
+                # Everything but the paragraph that says why is unchanged.
                 release = self.bundle(fixture, "release.yaml")
-                reason = (
-                    f"completion reference {COMPLETION_PANEL_RESOURCE_ID} is qualification "
-                    f"{changes.get('qualification', 'qualified')}, activation "
-                    f"{changes.get('activation', 'active')}, not qualified and active"
-                )
                 paragraphs = release["notes"].split("\n\n")
                 self.assertIn(
-                    f"Reference completion (ADR 0037): blocked: {reason}; this bundle is "
-                    "Observed-Only and declares no complete block.",
+                    f"Reference completion (ADR 0037): blocked: completion reference "
+                    f"{COMPLETION_PANEL_RESOURCE_ID} is qualification "
+                    f"{changes.get('qualification', 'qualified')}, activation "
+                    f"{changes.get('activation', 'active')}, not qualified and active; this "
+                    "bundle is Observed-Only and declares no complete block.",
                     paragraphs,
                 )
                 self.assertEqual(
@@ -3407,11 +3480,12 @@ class ReferenceCompletionTests(unittest.TestCase):
                     {key: value for key, value in release.items() if key != "notes"},
                     {key: value for key, value in observed_release.items() if key != "notes"},
                 )
+                # The Validation Record says so, and records no status: the
+                # declaration was never read.
                 self.assertEqual(
                     self.bundle(fixture, "validation.yaml")["acceptance"]["completion_reference"],
                     {
                         "resource_id": COMPLETION_PANEL_RESOURCE_ID,
-                        "declared_status": "available",
                         "qualification": changes.get("qualification", "qualified"),
                         "activation": changes.get("activation", "active"),
                         "blocked": True,
@@ -3423,18 +3497,13 @@ class ReferenceCompletionTests(unittest.TestCase):
                     {key: value for key, value in observed_validation.items() if key != "acceptance"},
                 )
                 # The operator is told at render time, as the ukb-b generator said it on stderr.
-                self.assertIn("not qualified and active", results[0].stdout)
-                self.assertIn("observed-only, with no complete block", results[0].stdout)
+                self.assertIn("not qualified and active", results[1].stdout)
+                self.assertIn("observed-only, with no complete block", results[1].stdout)
                 self.assertNotIn("acceptance", observed_validation)
 
                 loaded = bundle_module.load(STORE_ID, registry_root=fixture.registry_root)
                 self.assertEqual(list(bundle_module.check(loaded, registry_root=fixture.registry_root)), [])
                 self.assertFalse(loaded.completes_own_store)
-
-
-def flags(argv: Sequence[str]) -> list[str]:
-    """A step's flag names, which is what a recipe's shape decides (paths are a deployment fact)."""
-    return [token for token in argv if token.startswith("--")]
 
 
 def option(argv: Sequence[str], flag: str) -> str:

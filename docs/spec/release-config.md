@@ -99,11 +99,16 @@ owns this vocabulary.
 | Key | Required | Description |
 |---|---:|---|
 | `reference.resource_id` | Yes | A declared `ld_panel` Reference Resource (below). |
-| `reference.declared_status` | Yes | The `status` that resource's declaration records (`available`), and which this must match. It is recorded as it is: a declared status is neither a qualification nor a science pass. |
 | `reference.qualification` | Yes | The owner's: `qualified`, `pending`, `hold` or `not_applicable`. |
 | `reference.activation` | Yes | The panel's usability on this host: `active`, `pending` or `blocked`. |
-| `command` | Yes | `complete-dense`, the only one a single-id release declares: the Observed-View Check that gates the replacement compares no other layout yet. |
+| `command` | Yes | `complete-dense`. ADR 0037's Observed-View Check also covers the Dense Component of Hybrid Stores; this pipeline emits Dense completion only so far, which is why no other command is accepted here. |
 | `options` | No | The `complete-dense` flags beside the panel, passed through verbatim (ADR 0023). `ld-panel` and `ancestry` are refused here: they are the Reference Resource's. |
+
+The reference's *declared status* is not a key here. It is the Reference
+Resource declaration's own `status` (`available`), read from its `resource.yaml`
+and recorded, and it is kept apart from `qualification` and `activation`: a
+declared status is neither, and a config that restates one is refused as an
+unknown key.
 
 The bundle completes its Store only when the reference is `qualified` **and**
 `active`. Then `build.yaml` declares `completion_state: reference_completed`,
@@ -122,19 +127,24 @@ What the recipe cannot contradict, each refused by name:
 - a `complete-dense` option naming the panel;
 - the reference's `ancestry`, from its declaration, differing from
   `release_policy.selection_superpopulation`: completion imputes against a panel
-  of the ancestors the Store holds;
+  for the Store's Assigned Ancestry;
 - a declaration whose `ancestry_dir` is not its `ancestry`, because
   `complete-dense` names both the panel directory and the Analyses it completes
   with one `--ancestry` (#219);
-- a `declared_status` the resource does not declare;
+- a qualified, active reference whose declaration records no `status`: the
+  status is recorded as it is, and never defaulted;
 - `build.completion_state: reference_completed` with no `completion` block, and
   `observed_only` with one;
 - the retired `completed_store_id` / `planned_completed_store_id` (ADR 0007's
   second id, which ADR 0037 removes).
 
-The panel's location is the `reference_resources` entry's, which preflight
-requires present; its `ancestry` and `ancestry_dir` are the declaration's, so
-the recipe cannot name a panel other than the one the resource declares.
+The panel is resolved only when the reference is `qualified` and `active`. Then
+its location is the `reference_resources` entry's, which preflight requires
+present, and its `status`, `ancestry` and `ancestry_dir` are the declaration's,
+so the recipe cannot name a panel other than the one the resource declares. A
+blocked reference is never opened: its declaration need not exist, its panel
+need not be present, and no panel need be declared at all -- so a blocked recipe
+still emits the Observed-Only bundle on a host that has no panel.
 
 ```yaml
 build:
@@ -159,7 +169,6 @@ reference_resources:
 completion:
   reference:
     resource_id: ukb-hg38-eur-ld
-    declared_status: available
     qualification: qualified
     activation: active
   command: complete-dense
@@ -256,11 +265,10 @@ refused. Four blocks use them, by id:
   `location` is its resource directory (#286).
 - `completion.reference.resource_id` names the LD panel a reference-completed
   release completes against: an `ld_panel` resource whose `location` is the
-  panel root and whose declaration names its `ancestry` and `ancestry_dir`
-  (#340). Preflight requires it present, as it does the others.
+  panel root and whose declaration names its `status`, `ancestry` and
+  `ancestry_dir` (#340).
 
-Preflight requires every named resource to be present, the completion panel
-included.
+Preflight requires every named resource to be present.
 
 ## Example
 

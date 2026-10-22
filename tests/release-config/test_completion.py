@@ -158,16 +158,20 @@ def minimal_config(root: Path) -> dict[str, Any]:
     }
 
 
-def qualified_completion(**changes: Any) -> dict[str, Any]:
-    """A completion recipe whose reference is qualified and active."""
-    reference = {
+def completion_recipe(reference: dict[str, Any] | None = None, **changes: Any) -> dict[str, Any]:
+    """A completion recipe whose reference is qualified and active.
+
+    The reference declares only the resource, the owner's qualification and the
+    panel's activation: its declared status is the Reference Resource's own, and
+    a config may not restate it.
+    """
+    declared = {
         "resource_id": LD_RESOURCE,
-        "declared_status": "available",
         "qualification": "qualified",
         "activation": "active",
-        **changes.pop("reference", {}),
+        **(reference or {}),
     }
-    return {"reference": reference, "command": "complete-dense", "options": {"n-workers": 32}, **changes}
+    return {"reference": declared, "command": "complete-dense", "options": {"n-workers": 32}, **changes}
 
 
 def candidate_tables() -> CandidateTables:
@@ -263,16 +267,18 @@ class FixtureCase(unittest.TestCase):
         for fragment in fragments:
             self.assertIn(fragment, str(caught.exception))
 
-
-class CompletionRecipeTests(FixtureCase):
-    """The config gate: what a qualified, active completion recipe is, and what is refused."""
-
     def with_completion(self, block: Any) -> Callable[[dict[str, Any]], None]:
+        """The config declaring ``block`` as a recipe that completes its own Store."""
+
         def edit(document: dict[str, Any]) -> None:
             document["build"]["completion_state"] = "reference_completed"
             document["completion"] = block
 
         return edit
+
+
+class CompletionRecipeTests(FixtureCase):
+    """The config gate: what a qualified, active completion recipe is, and what is refused."""
 
     def declaring_observed_only(self, block: Any) -> Callable[[dict[str, Any]], None]:
         def edit(document: dict[str, Any]) -> None:
@@ -288,7 +294,7 @@ class CompletionRecipeTests(FixtureCase):
         document["build"]["completion_state"] = "reference_completed"
 
     def test_a_qualified_active_reference_loads_as_a_recipe(self) -> None:
-        block = qualified_completion()
+        block = completion_recipe()
         config = self.load(self.with_completion(block))
 
         recipe = config.completion
@@ -296,23 +302,31 @@ class CompletionRecipeTests(FixtureCase):
         self.assertEqual(recipe.reference, block["reference"])
         self.assertEqual(recipe.command, "complete-dense")
         self.assertEqual(recipe.options, {"n-workers": 32})
-        # The panel is the location the release config declares; the ancestry and
-        # the directory complete-dense reads are its Reference Resource's.
-        self.assertEqual(recipe.panel_location, str(self.root / "reference" / "ld"))
-        self.assertEqual(recipe.ancestry, "EUR")
+        # The panel is the location the release config declares; the status, the
+        # ancestry and the directory complete-dense reads are its Reference
+        # Resource's declaration.
+        panel = recipe.panel
+        self.assertIsNotNone(panel)
+        self.assertEqual(panel.location, str(self.root / "reference" / "ld"))
+        self.assertEqual(panel.status, "available")
+        self.assertEqual(panel.ancestry, "EUR")
         self.assertEqual(
-            recipe.declaration,
+            panel.declaration,
             self.root / "resources" / "reference-resources" / LD_RESOURCE / "resource.yaml",
         )
 
-    def test_the_panel_is_a_resource_preflight_checks(self) -> None:
+    def test_the_panel_is_a_resource_preflight_checks_only_when_it_is_used(self) -> None:
         without = self.load()
-        with_completion = self.load(self.with_completion(qualified_completion()))
+        qualified = self.load(self.with_completion(completion_recipe()))
+        blocked = self.load(
+            self.with_completion(completion_recipe(reference={"qualification": "pending"}))
+        )
         self.assertNotIn(LD_RESOURCE, without.required_resource_ids)
-        self.assertIn(LD_RESOURCE, with_completion.required_resource_ids)
+        self.assertIn(LD_RESOURCE, qualified.required_resource_ids)
+        self.assertNotIn(LD_RESOURCE, blocked.required_resource_ids)
 
     def test_the_complete_block_is_the_declared_panel_and_the_configs_flags(self) -> None:
-        recipe = self.load(self.with_completion(qualified_completion())).completion
+        recipe = self.load(self.with_completion(completion_recipe())).completion
         self.assertEqual(
             completion.completion_block(recipe),
             {
@@ -325,50 +339,72 @@ class CompletionRecipeTests(FixtureCase):
             },
         )
 
-    def test_the_declared_status_is_the_resources_and_stays_apart_from_qualification(self) -> None:
-        # `status: available` is not a qualification: a reference whose
-        # declaration is available is still blocked while qualification is pending.
-        recipe = self.load(
-            self.with_completion(
-                qualified_completion(
-                    reference={"declared_status": "available", "qualification": "pending"}
-                )
-            )
+    def test_the_declarations_status_is_recorded_and_never_promotes_a_reference(self) -> None:
+        # `status: available` is not a qualification. A pending reference is
+        # blocked whatever its panel declares, and its declaration is not read.
+        declared = self.load(
+            self.with_completion(completion_recipe(reference={"qualification": "pending"}))
         ).completion
-        self.assertEqual(recipe.reference["declared_status"], "available")
-        self.assertEqual(recipe.reference["qualification"], "pending")
-        self.assertIsNone(completion.completion_block(recipe))
-        self.assertIn("qualification pending", completion.blocked_reason(recipe.reference))
+        self.assertIsNone(declared.panel)
+        self.assertIsNone(completion.completion_block(declared))
+        self.assertNotIn(
+            "declared_status", completion.acceptance(declared)["completion_reference"]
+        )
+
+        used = self.load(self.with_completion(completion_recipe())).completion
+        self.assertEqual(used.panel.status, "available")
+        self.assertEqual(
+            completion.acceptance(used)["completion_reference"]["declared_status"], "available"
+        )
+
+    def test_a_blocked_reference_is_never_opened(self) -> None:
+        # ADR 0037's fallback is broad: a reference short of qualified and active
+        # says nothing about the panel, so the declaration is not read, the
+        # panel need not be present, and no panel need be declared at all.
+        (self.root / "resources" / "reference-resources" / LD_RESOURCE / "resource.yaml").unlink()
+        (self.root / "reference" / "ld").rmdir()
+
+        def without_the_panel(document: dict[str, Any]) -> None:
+            document["build"]["completion_state"] = "reference_completed"
+            document["completion"] = completion_recipe(reference={"qualification": "pending"})
+            document["reference_resources"] = [
+                resource for resource in document["reference_resources"]
+                if resource["resource_id"] != LD_RESOURCE
+            ]
+
+        config = self.load(without_the_panel)
+        self.assertIsNone(config.completion.panel)
+        self.assertNotIn(LD_RESOURCE, config.required_resource_ids)
 
     # -- malformed references --------------------------------------------------
 
     def test_a_malformed_completion_reference_is_refused(self) -> None:
-        well_formed = qualified_completion()["reference"]
+        well_formed = completion_recipe()["reference"]
         cases = {
             "the block is not a mapping": (["reference"], "completion"),
-            "the reference is not a mapping": ({**qualified_completion(), "reference": LD_RESOURCE}, "completion.reference"),
+            "the reference is not a mapping": ({**completion_recipe(), "reference": LD_RESOURCE}, "completion.reference"),
             "a misspelt reference key": (
-                {**qualified_completion(), "reference": {**well_formed, "qualifcation": "qualified"}},
+                {**completion_recipe(), "reference": {**well_formed, "qualifcation": "qualified"}},
                 "qualifcation",
             ),
             "no resource_id": (
-                {**qualified_completion(), "reference": {k: v for k, v in well_formed.items() if k != "resource_id"}},
+                {**completion_recipe(), "reference": {k: v for k, v in well_formed.items() if k != "resource_id"}},
                 "resource_id",
             ),
-            "no declared status": (
-                {**qualified_completion(), "reference": {k: v for k, v in well_formed.items() if k != "declared_status"}},
+            "a restated declared status": (
+                {**completion_recipe(), "reference": {**well_formed, "declared_status": "available"}},
                 "declared_status",
             ),
             "no activation": (
-                {**qualified_completion(), "reference": {k: v for k, v in well_formed.items() if k != "activation"}},
+                {**completion_recipe(), "reference": {k: v for k, v in well_formed.items() if k != "activation"}},
                 "activation",
             ),
             "an unknown qualification": (
-                {**qualified_completion(), "reference": {**well_formed, "qualification": "Qualified"}},
+                {**completion_recipe(), "reference": {**well_formed, "qualification": "Qualified"}},
                 "'Qualified'",
             ),
             "an unknown activation": (
-                {**qualified_completion(), "reference": {**well_formed, "activation": "activ"}},
+                {**completion_recipe(), "reference": {**well_formed, "activation": "activ"}},
                 "'activ'",
             ),
         }
@@ -378,20 +414,20 @@ class CompletionRecipeTests(FixtureCase):
 
     def test_a_misspelt_completion_key_is_refused(self) -> None:
         def edit(document: dict[str, Any]) -> None:
-            document["completion"] = qualified_completion()
+            document["completion"] = completion_recipe()
             document["completion"]["referance"] = document["completion"].pop("reference")
 
         self.assertRefused(edit, "referance")
 
     def test_a_reference_to_an_undeclared_or_wrong_kind_resource_is_refused(self) -> None:
         self.assertRefused(
-            self.with_completion(qualified_completion(reference={"resource_id": "nonesuch"})),
+            self.with_completion(completion_recipe(reference={"resource_id": "nonesuch"})),
             "nonesuch",
             "not a declared Reference Resource",
         )
         self.assertRefused(
             self.with_completion(
-                qualified_completion(reference={"resource_id": "canonical-trait-mapping-efo"})
+                completion_recipe(reference={"resource_id": "canonical-trait-mapping-efo"})
             ),
             "trait_ontology_mapping",
             "not a 'ld_panel'",
@@ -399,31 +435,38 @@ class CompletionRecipeTests(FixtureCase):
 
     def test_a_missing_or_wrong_kind_declaration_is_refused(self) -> None:
         (self.root / "resources" / "reference-resources" / LD_RESOURCE / "resource.yaml").unlink()
-        self.assertRefused(self.with_completion(qualified_completion()), "resource.yaml")
+        self.assertRefused(self.with_completion(completion_recipe()), "resource.yaml")
 
         write_ld_resource(self.root, kind="ancestry_mixture")
-        self.assertRefused(self.with_completion(qualified_completion()), LD_RESOURCE, "ld_panel")
+        self.assertRefused(self.with_completion(completion_recipe()), LD_RESOURCE, "ld_panel")
 
     def test_a_panel_whose_directory_is_not_its_ancestry_is_refused(self) -> None:
         # complete-dense joins one --ancestry into the panel path and the
         # Analyses' ancestry filter, which is what kept the `ukb` directory
         # unusable (#219).
         write_ld_resource(self.root, ancestry_dir="ukb")
-        self.assertRefused(self.with_completion(qualified_completion()), "ancestry_dir")
+        self.assertRefused(self.with_completion(completion_recipe()), "ancestry_dir")
 
     def test_a_reference_ancestry_that_is_not_the_selections_is_refused(self) -> None:
         def edit(document: dict[str, Any]) -> None:
             document["build"]["completion_state"] = "reference_completed"
-            document["completion"] = qualified_completion()
+            document["completion"] = completion_recipe()
 
         write_ld_resource(self.root, ancestry="AFR", ancestry_dir="AFR")
         self.assertRefused(edit, "AFR", "selection_superpopulation", "'EUR'")
 
-    def test_a_declared_status_the_resource_does_not_declare_is_refused(self) -> None:
-        write_ld_resource(self.root, status="absent")
+    def test_a_declaration_with_no_status_is_refused_when_the_recipe_is_used(self) -> None:
+        # The declared status is recorded as it is, never defaulted: a panel
+        # that declares none says so only by refusing to complete against it.
+        write_ld_resource(self.root, status=None)
         self.assertRefused(
-            self.with_completion(qualified_completion()), "declared_status", "'available'"
+            self.with_completion(completion_recipe()), "resource.yaml", "status"
         )
+        # A blocked reference is not opened, so the same declaration loads.
+        blocked = self.load(
+            self.with_completion(completion_recipe(reference={"activation": "blocked"}))
+        )
+        self.assertIsNone(blocked.completion.panel)
 
     # -- contradictory recipes ------------------------------------------------
 
@@ -431,13 +474,13 @@ class CompletionRecipeTests(FixtureCase):
         for key in ("ld-panel", "ancestry"):
             with self.subTest(key):
                 self.assertRefused(
-                    self.with_completion(qualified_completion(options={"n-workers": 32, key: "/elsewhere"})),
+                    self.with_completion(completion_recipe(options={"n-workers": 32, key: "/elsewhere"})),
                     key,
                 )
 
     def test_the_completion_command_is_the_dense_one(self) -> None:
         self.assertRefused(
-            self.with_completion(qualified_completion(command="complete-hybrid")),
+            self.with_completion(completion_recipe(command="complete-hybrid")),
             "complete-hybrid",
             "complete-dense",
         )
@@ -446,7 +489,7 @@ class CompletionRecipeTests(FixtureCase):
         def edit(document: dict[str, Any]) -> None:
             document["build"].update(layout="hybrid", command="build-hybrid")
             document["build"].pop("indexed_subsets", None)
-            document["completion"] = qualified_completion()
+            document["completion"] = completion_recipe()
 
         self.assertRefused(edit, "hybrid", "dense layout")
 
@@ -468,7 +511,7 @@ class CompletionRecipeTests(FixtureCase):
             "completion",
         )
         self.assertRefused(
-            self.declaring_observed_only(qualified_completion()),
+            self.declaring_observed_only(completion_recipe()),
             "observed_only",
             "contradict",
         )
@@ -485,18 +528,11 @@ class CompletionRecipeTests(FixtureCase):
 class CompletionBundleTests(FixtureCase):
     """The bundle a config renders: both phases when qualified and active, else observed-only."""
 
-    def with_completion(self, block: Any) -> Callable[[dict[str, Any]], None]:
-        def edit(document: dict[str, Any]) -> None:
-            document["build"]["completion_state"] = "reference_completed"
-            document["completion"] = block
-
-        return edit
-
     def build_document(self, config: CandidateConfiguration) -> dict[str, Any]:
         return render_build_yaml(STORE_ID, config)
 
     def test_a_qualified_active_reference_emits_both_phases(self) -> None:
-        config = self.candidate(self.with_completion(qualified_completion()))
+        config = self.candidate(self.with_completion(completion_recipe()))
         build = self.build_document(config)
 
         self.assertEqual(build["completion_state"], "reference_completed")
@@ -526,7 +562,7 @@ class CompletionBundleTests(FixtureCase):
         self.assertIsNone(render_release(config)["derived_from"])
 
     def test_the_qualified_reference_is_recorded_and_named_in_the_notes(self) -> None:
-        config = self.candidate(self.with_completion(qualified_completion()))
+        config = self.candidate(self.with_completion(completion_recipe()))
         release = render_release(config)
         self.assertIn(LD_RESOURCE, release["notes"])
         self.assertIn("both phases", release["notes"])
@@ -556,21 +592,24 @@ class CompletionBundleTests(FixtureCase):
         for case, changes in references.items():
             with self.subTest(case):
                 config = self.candidate(
-                    self.with_completion(qualified_completion(reference=changes))
+                    self.with_completion(completion_recipe(reference=changes))
                 )
                 build = self.build_document(config)
                 self.assertEqual(build, {**observed_build, "completion_state": "observed_only"})
                 self.assertNotIn("complete", build)
 
                 # Everything but the paragraph that says why is the bundle a
-                # config with no completion block emits.
+                # config with no completion block emits. The wording is a
+                # literal: the renderer's own sentence would agree with itself.
                 release = render_release(config)
-                reason = completion.blocked_reason(config.completion.reference)
                 paragraphs = release["notes"].split("\n\n")
                 self.assertIn(
-                    f"Reference completion (ADR 0037): blocked: {reason}; this bundle is "
-                    "Observed-Only and declares no complete block.",
-                    paragraphs,
+                    "Reference completion (ADR 0037): blocked: "
+                    f"completion reference {LD_RESOURCE} is qualification "
+                    f"{changes.get('qualification', 'qualified')}, activation "
+                    f"{changes.get('activation', 'active')}, not qualified and active; this "
+                    "bundle is Observed-Only and declares no complete block.",
+                    release["notes"].split("\n\n"),
                 )
                 self.assertEqual(
                     [p for p in paragraphs if not p.startswith("Reference completion")],
@@ -583,10 +622,15 @@ class CompletionBundleTests(FixtureCase):
 
                 # …and the Validation Record says so, where the ukb-b generator did.
                 acceptance = completion.acceptance(config.completion)
-                self.assertIs(acceptance["completion_reference"]["blocked"], True)
-                for named in (LD_RESOURCE, changes.get("qualification", "qualified"),
-                              changes.get("activation", "active")):
-                    self.assertIn(named, reason)
+                self.assertEqual(
+                    acceptance["completion_reference"],
+                    {
+                        "resource_id": LD_RESOURCE,
+                        "qualification": changes.get("qualification", "qualified"),
+                        "activation": changes.get("activation", "active"),
+                        "blocked": True,
+                    },
+                )
 
     def test_a_config_with_no_completion_block_is_unchanged(self) -> None:
         config = self.candidate()
@@ -598,7 +642,7 @@ class CompletionBundleTests(FixtureCase):
 
     def test_render_validation_yaml_records_a_declared_reference_only(self) -> None:
         self.assertNotIn("acceptance", render_validation())
-        config = self.candidate(self.with_completion(qualified_completion()))
+        config = self.candidate(self.with_completion(completion_recipe()))
         record = render_validation(completion=config.completion)
         self.assertEqual(
             record["acceptance"]["completion_reference"]["resource_id"], LD_RESOURCE

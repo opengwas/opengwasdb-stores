@@ -1008,8 +1008,9 @@ run alone repeats the in-memory steps it needs, never `freeze`, `preflight` or
 release config ([release config](release-config.md#completion)): the
 `complete-dense` flags and the LD panel it completes against, with the owner's
 `qualification` and `activation` of that panel kept apart from the `status` its
-Reference Resource declares. Only a Dense release declares one, because the
-Observed-View Check that gates the replacement compares no other layout yet.
+Reference Resource declares. Only a Dense release declares one here: ADR 0037's
+Observed-View Check also covers the Dense Component of Hybrid Stores, so Hybrid
+completion is unported work rather than something the contract forbids.
 
 `render` decides the recipe's place in the bundle, and it is the only place the
 decision is made:
@@ -1028,13 +1029,17 @@ decision is made:
   recorded its qualified one. The stages print the same sentence, so an
   operator who meant to complete is not left guessing.
 
-The reference is a Reference Resource like any other the release declares, so
-`preflight` requires the panel to be present before anything is rendered. A
+The panel is a Reference Resource like any other the release declares, and a
+*qualified, active* reference makes `preflight` require it present before
+anything is rendered. A blocked one is never opened, so its panel is not
+required and the Observed-Only bundle is still emitted where no panel exists. A
 config that declares a non-Dense layout, a `complete-dense` flag naming the
-panel, a panel ancestry other than `release_policy.selection_superpopulation`, a
-`declared_status` its resource does not declare, `reference_completed` with no
-recipe or `observed_only` with one, and the retired `completed_store_id` keys
-is refused when it loads, not when the bundle is emitted.
+panel, `reference_completed` with no recipe or `observed_only` with one, or the
+retired `completed_store_id` keys is refused when it loads, not when the bundle
+is emitted -- and so is a *qualified, active* reference whose declaration is
+missing, records no `status`, or completes an ancestry other than
+`release_policy.selection_superpopulation`. A blocked reference is never opened,
+so none of that applies to it.
 
 Re-running a stopped run repeats nothing costly: `freeze` finds the frozen
 snapshot and `resolve` reuses every record whose fingerprint still matches.

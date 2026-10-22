@@ -37,15 +37,17 @@ never ignored or defaulted. ``docs/spec/release-config.md`` is the schema.
 
 from __future__ import annotations
 
+import functools
 import math
 from dataclasses import dataclass, field
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 
 import yaml
 
 from manifest_generation import completion, quality_checks
+from manifest_generation.config_schema import block as _key_gate, text as _text_gate
 from manifest_generation.completion import CompletionError, CompletionRecipe
 from manifest_generation.freeze import frozen_paths
 from manifest_generation.region_filter import ASSOCIATION_COVERAGES, RegionPolicy
@@ -234,8 +236,10 @@ TOP_LEVEL_OPTIONAL = (
 #: The Build Recipe shapes the release config reads: observed-only, or one that
 #: completes its own Store under its id (ADR 0037).
 COMPLETION_STATES: tuple[str, ...] = ("observed_only", "reference_completed")
-#: The one layout a Store completes its own id on: the Observed-View Check that
-#: gates the replacement compares no other layout yet (ADR 0037).
+#: The layout this pipeline emits a single-id completion for (#340). Not a
+#: prohibition: ADR 0037's Observed-View Check also covers the Dense Component of
+#: Hybrid Stores, and completing a Hybrid one is unported work rather than a
+#: refusal the contract makes.
 COMPLETION_LAYOUTS: tuple[str, ...] = ("dense",)
 DEFAULTS_OPTIONAL = (
     "source_genome_build", "license", "publication_doi", "consortium",
@@ -269,31 +273,10 @@ def _where(path: Path, *keys: str) -> str:
     return f"{path}:" + ".".join(keys) if keys else str(path)
 
 
-def _block(
-    value: Any, where: str, required: Sequence[str] = (), optional: Sequence[str] = ()
-) -> Mapping[str, Any]:
-    """``value`` as a mapping with every required key and no unknown one."""
-    if not isinstance(value, Mapping):
-        raise ReleaseConfigError(f"{where} must be a mapping")
-    unknown = sorted(str(key) for key in value if key not in required and key not in optional)
-    if unknown:
-        raise ReleaseConfigError(
-            f"{where} has unknown key(s) {', '.join(unknown)}; it reads only "
-            + ", ".join(list(required) + list(optional))
-        )
-    missing = [key for key in required if value.get(key) is None or value.get(key) == ""]
-    if missing:
-        raise ReleaseConfigError(f"{where} is missing required key(s) {', '.join(missing)}")
-    return value
-
-
-def _text(value: Any, where: str) -> str:
-    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
-        raise ReleaseConfigError(f"{where} must be text, not {value!r}")
-    text = str(value)
-    if not text.strip():
-        raise ReleaseConfigError(f"{where} must not be blank")
-    return text
+#: The key gate this schema and the completion recipe share (``config_schema``),
+#: each naming the error its own callers catch.
+_block = functools.partial(_key_gate, error=ReleaseConfigError)
+_text = functools.partial(_text_gate, error=ReleaseConfigError)
 
 
 def _path(value: Any, where: str, repo_root: Path) -> Path:
@@ -766,9 +749,10 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
                 + [resource_id for _ancestry, resource_id in effect_scale_references]
                 + [trait_mapping_resource_id]
                 + ([qc_panel_resource_id] if qc_panel_resource_id else [])
-                # The panel a release completes against, so preflight proves it
-                # is on this host before anything is rendered (#340).
-                + ([recipe.resource_id] if recipe else [])
+                # The panel a release completes against, and only when its
+                # reference is qualified and active: a blocked reference is never
+                # opened, so its panel is not required here (#340).
+                + ([recipe.panel.resource_id] if recipe and recipe.panel else [])
             )
         ),
         region_policy=region_policy,
