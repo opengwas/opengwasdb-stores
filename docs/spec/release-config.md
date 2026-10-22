@@ -37,6 +37,7 @@ key.
 | `release_config_version` | Yes | `1`. |
 | `label` | Yes | Source-natural release name, written to `release.yaml`. Never an identifier. |
 | `access_posture` | No | `public`, `controlled` or `embargoed`; `public` only when the key is absent, so an explicit `false` or blank is refused. |
+| `trial` | No | `true` for a Trial Store Release: a deliberately small release that exercises a Source Collection, Source Format or Store Layout (#321). It must be a YAML boolean, so a quoted `"yes"`, a number or `null` is refused. `true` writes `trial: true` to `release.yaml` ([the schema](../release-metadata-schema.md#releaseyaml)). Absent or `false` writes no key, which means `false`, so such a release renders exactly as before the key existed. Every shipped pilot and probe config sets it. |
 | `description` | Yes | Prose for `release.yaml`. |
 | `notes` | No | Prose; the candidate's own evidence notes follow it in `release.yaml`. |
 | `source_collection` | Yes | The Source Collection and its files (below). |

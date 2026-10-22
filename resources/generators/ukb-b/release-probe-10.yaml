@@ -21,6 +21,8 @@ release_config_version: 1
 
 label: ukb-b-probe-10
 access_posture: public
+# A Trial Store Release (#321): release.yaml records `trial: true`.
+trial: true
 description: >
   Ten ukb-b GWAS-VCF Analyses -- five case-control, five quantitative -- resolved
   through the shared pipeline against the GRCh38 ancestry reference with a

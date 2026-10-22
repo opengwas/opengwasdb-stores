@@ -18,6 +18,8 @@ release_config_version: 1
 
 label: eur-hybrid-quant-pilot-10
 access_posture: public
+# A Trial Store Release (#321): release.yaml records `trial: true`.
+trial: true
 description: >
   The 10 quantitative Analyses of the EBI GWAS Catalog hybrid__European pool
   that the OGS-00005 Trial Store Release took, generated through the shared

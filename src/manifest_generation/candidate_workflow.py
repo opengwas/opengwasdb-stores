@@ -403,6 +403,7 @@ class CandidateConfiguration:
     base: ReleaseConfig
     label: str
     access_posture: str
+    trial: bool
     description: str
     notes: str
     #: The collection-wide Analytical Metadata defaults (``defaults``): an
@@ -506,6 +507,7 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         base=base,
         label=base.label,
         access_posture=base.access_posture,
+        trial=base.trial,
         description=base.description,
         notes=base.notes,
         defaults=dict(base.defaults),
@@ -3642,6 +3644,9 @@ def render_release_yaml(
         "label": config.label,
         "access_posture": config.access_posture,
         "status": CANDIDATE_STATUS,
+        # Written only for a Trial Store Release: absent means false (#321), so
+        # every other release renders exactly as before the key existed.
+        **({"trial": True} if config.trial else {}),
         "derived_from": None,
         "created_at": created_at,
         "source_snapshot_id": config.base.inventory_snapshot_id,

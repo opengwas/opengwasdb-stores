@@ -40,6 +40,8 @@ release_config_version: 1
 
 label: pilot-10
 access_posture: public
+# A Trial Store Release (#321): release.yaml records `trial: true`.
+trial: true
 description: >
   The 10-probe eQTLGen cis-eQTL pilot on the shared Manifest Generation pipeline:
   the Selection the Trial Store Release OGS-00001 was built from, resolved from the

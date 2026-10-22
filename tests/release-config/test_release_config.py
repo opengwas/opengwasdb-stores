@@ -274,6 +274,17 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
             self.load(lambda d: d.update(access_posture="embargoed")).access_posture, "embargoed"
         )
 
+    def test_trial_is_false_unless_the_config_declares_it(self) -> None:
+        """A Trial Store Release says so in its config, as release.yaml records it (#321)."""
+        self.assertFalse(self.load().trial)
+        self.assertTrue(self.load(lambda d: d.update(trial=True)).trial)
+        self.assertFalse(self.load(lambda d: d.update(trial=False)).trial)
+        # Only a YAML boolean, as release.yaml takes it: a quoted "yes", a
+        # number or null is never read as true or false.
+        for value in ("yes", 1, None):
+            with self.subTest(trial=value):
+                self.assertRefused(lambda d, v=value: d.update(trial=v), "trial", "YAML boolean")
+
     def test_a_ragged_release_declares_no_indexed_subset(self) -> None:
         def edit(document):
             document["build"].update(layout="ragged", command="build-ragged-ssf")
@@ -686,6 +697,25 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                 self.assertEqual([row.analysis_id for row in manifest], ready)
                 # The shared table's declarations for these Analyses, and only those.
                 self.assertEqual(any(row.imputation_score_column for row in manifest), declares)
+
+    def test_exactly_the_pilot_and_probe_configs_are_trial_store_releases(self) -> None:
+        """A deliberately small release is a Trial Store Release, and its config says so (#321)."""
+        declared = {
+            f"{path.parent.name}/{path.name}"
+            for path in shipped_release_configs()
+            if load_release_config(path, REPO_ROOT).trial
+        }
+        self.assertEqual(
+            declared,
+            {
+                "eqtlgen-cis-pilot/release-pilot-10.yaml",
+                "finngen-r13/release-r13-probe-10.yaml",
+                "gwas-catalog-eur-hybrid/release-eur-hybrid-pilot-10.yaml",
+                "gwas-catalog-eur-hybrid/release-eur-hybrid-quant-pilot-10.yaml",
+                "gwas-catalog-ragged/release-sun-2018-pilot-10.yaml",
+                "ukb-b/release-probe-10.yaml",
+            },
+        )
 
     def test_the_pilot_configs_select_exactly_their_trial_store_releases(self) -> None:
         for name, store_id in (
