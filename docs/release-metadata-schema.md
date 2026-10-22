@@ -301,7 +301,7 @@ to the CURIE form.
 | `sample_size_kind` | Yes | `total`, `case_control`, `effective`, or `variant_level`. Accepted build rows must not use `unknown`. |
 | `sample_size_scope` | Yes | `analysis_level` or `variant_level`. Use `variant_level` when N differs per SNP in the source file. |
 | `sample_size` | Yes | Scalar study N for this Analysis. When source N differs per SNP, use the study's maximum N. |
-| `n_cases` | No | Case count for binary traits, or event count for time-to-event traits. Required when `stored_effect_scale = log_or` or `log_hazard`; blank (not `0`) when the Analysis is not case-control. |
+| `n_cases` | No | Case count for binary traits, or event count for time-to-event traits. Required when the Analysis's method tier declares `sample_size_kind = case_control`; blank (not `0`) when `sample_size_kind` is not `case_control`. The effect scale does not decide this: ukb-b's binary traits are on the SD scale and still carry their counts (#289). |
 | `n_controls` | No | Control count for binary traits, or non-event/comparison count for time-to-event traits when reported by the source. Same absence rule as `n_cases`. |
 | `analysis_group_id` | No | Grouping key for analyses sharing a publication, analyte panel, phenotype batch, or source bundle. |
 | `inclusion_reason` | No | Short reason this Analysis was selected. |
@@ -387,11 +387,16 @@ sample size may appear in Source Inventories, candidate diagnostics, or review
 sidecars, but should not be included as buildable rows in an accepted
 `analyses.tsv`.
 
-Case/control-style counts are required when `stored_effect_scale = log_or` or
-`stored_effect_scale = log_hazard`. For time-to-event traits, `n_cases` is the
-event count and `n_controls` is the non-event or comparison count reported by
-the source. When the Analysis is not case-control (`sample_size_kind` is not
-`case_control`), both counts must be blank rather than `0`: zero is a real
+Case/control-style counts follow `sample_size_kind`, not the effect scale: an
+Analysis whose tier declares `sample_size_kind = case_control` carries
+`n_cases` and `n_controls`, and one whose tier declares any other kind leaves
+both blank. ukb-b is why the two are separate -- its provider reports
+`units: SD` for binary traits too, so its case-control tier declares
+`stored_effect_scale: sd` beside `sample_size_kind: case_control` (#289). Most
+Sources pair them (`log_or` with `case_control`), which is why the scale looks
+like the deciding field. For time-to-event traits, `n_cases` is the event count
+and `n_controls` is the non-event or comparison count reported by the source.
+When the counts do not apply both must be blank rather than `0`: zero is a real
 count, and writing it where the counts do not apply is exactly the
 absence-vs-zero confusion CONTRIBUTING.md rules out. `bundle.check()` rejects a
 non-empty count on a non-case-control Analysis (issue #133).

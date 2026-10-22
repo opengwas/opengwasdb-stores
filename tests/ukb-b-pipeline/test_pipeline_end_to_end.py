@@ -145,15 +145,21 @@ class UkbPipelineEndToEndTest(unittest.TestCase):
         )
 
         # The 1,846 case-control Analyses of OGS-00009 carry sample_size_kind
-        # `case_control` and their counts; this is what the pipeline emits for a
-        # case-control Analysis whose tier declares the SD scale. #289's report
-        # records the difference, so a change here is a decision, not a drift.
+        # `case_control` **and** their counts, on the SD scale. Case-control
+        # semantics are the method tier's `sample_size_kind`; the SD handling is
+        # the tier's `stored_effect_scale` (#289).
         self.assertEqual(by_id["ukb-b-10001"]["sample_size_kind"], "case_control")
-        self.assertEqual(by_id["ukb-b-10001"]["n_cases"], "")
-        self.assertEqual(by_id["ukb-b-10001"]["n_controls"], "")
+        self.assertEqual(by_id["ukb-b-10001"]["n_cases"], "6661")
+        self.assertEqual(by_id["ukb-b-10001"]["n_controls"], "456349")
         self.assertEqual(by_id["ukb-b-10001"]["sample_size"], "463010")
+        self.assertEqual(by_id["ukb-b-10001"]["original_sd_method"], "declared_standardised")
+        self.assertEqual(by_id["ukb-b-10054"]["sample_size_kind"], "case_control")
+        self.assertEqual(by_id["ukb-b-10054"]["n_cases"], "29408")
+        self.assertEqual(by_id["ukb-b-10054"]["n_controls"], "35541")
         self.assertEqual(by_id["ukb-b-10787"]["sample_size_kind"], "total")
         self.assertEqual(by_id["ukb-b-10787"]["sample_size"], "461950")
+        self.assertEqual(by_id["ukb-b-10787"]["n_cases"], "")
+        self.assertEqual(by_id["ukb-b-10787"]["n_controls"], "")
 
         self.assertEqual(
             bundle_module.check(

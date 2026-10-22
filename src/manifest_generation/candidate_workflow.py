@@ -2304,7 +2304,16 @@ def _decide(
     failed exclusion check at that stage decides; a new stage needs a slot here.
     """
     stored_effect_scale = tier.stored_effect_scale
-    case_control = stored_effect_scale in NON_QUANTITATIVE_EFFECT_SCALES
+    # Case-control semantics are the method tier's ``sample_size_kind``, not its
+    # effect scale. ukb-b's binary traits are on the SD scale -- BOLT-LMM
+    # standardises every trait, so the provider reports ``units: SD`` for all
+    # 2,514 Analyses -- while their sample size is a case/control split, and
+    # OGS-00009 carries both (#289). Reading the scale instead dropped the
+    # counts of its 1,846 case-control Analyses.
+    case_control = tier.sample_size_kind == "case_control"
+    # The phenotype-SD handling is the scale's: a non-quantitative scale has no SD
+    # to estimate, and is emitted as ``binary_trait``.
+    non_quantitative_scale = stored_effect_scale in NON_QUANTITATIVE_EFFECT_SCALES
     sample_size = resolved.sample_size
     n_cases = resolved.n_cases if case_control else ""
     n_controls = resolved.n_controls if case_control else ""
@@ -2448,7 +2457,7 @@ def _decide(
 
     # Nothing excluded it, so every exclusion check must have tested it.
     quality_checks.require_measured(findings, row.analysis_id)
-    if case_control:
+    if non_quantitative_scale:
         return make(
             included=True,
             assigned=assigned,
