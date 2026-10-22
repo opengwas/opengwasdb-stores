@@ -175,6 +175,7 @@ class FinnGenEndToEndTest(unittest.TestCase):
         config = {
             "release_config_version": 1,
             "label": "r13-fixture",
+            "association_coverage": "gwas",
             "access_posture": "public",
             "description": "three FinnGen-shaped fixture endpoints",
             "source_collection": {

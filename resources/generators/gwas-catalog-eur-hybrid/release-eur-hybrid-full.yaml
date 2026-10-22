@@ -24,6 +24,7 @@
 release_config_version: 1
 
 label: eur-hybrid-full
+association_coverage: gwas
 access_posture: public
 description: >
   Every ready Analysis in the hybrid__European candidate pool of the EBI GWAS

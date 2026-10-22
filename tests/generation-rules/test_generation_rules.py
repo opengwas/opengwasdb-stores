@@ -156,7 +156,8 @@ class BundleCheckTest(unittest.TestCase):
         root = self.registry / store_id
         root.mkdir(parents=True)
         (root / "release.yaml").write_text(yaml.safe_dump({
-            "store_id": store_id, "label": store_id, "status": "accepted", "derived_from": None,
+            "store_id": store_id, "label": store_id, "association_coverage": "gwas",
+            "status": "accepted", "derived_from": None,
             "source_snapshot_id": "fixture", "created_at": "2026-10-14T00:00:00Z",
             "description": "fixture", "generator": {"commands": ["fixture"]}, **release,
         }))

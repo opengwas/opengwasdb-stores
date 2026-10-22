@@ -67,12 +67,15 @@ BUILDABLE_STATUSES: frozenset[str] = frozenset({"accepted", "built", "validated"
 # Release-level identity and provenance required by the current bundle contract.
 # The identity file trims to identity, lineage, status, creation time, source
 # snapshot identity, prose, and the generation command log (issue #136).
-# Coverage, cadence, Source Collection, source defaults, the sidecar pointer
-# map, and the standalone build_environment block were removed because they are
-# derived elsewhere or read by no code.
+# Cadence, Source Collection, source defaults, the sidecar pointer map, and the
+# standalone build_environment block were removed because they are derived
+# elsewhere or read by no code. `association_coverage` was removed by ADR 0029
+# for the same reason and is restored by ADR 0040 (#341): the Analysis Catalog
+# reads it, and opengwasdb#298 makes it a build input.
 RELEASE_REQUIRED_KEYS: tuple[str, ...] = (
     "store_id",
     "label",
+    "association_coverage",
     "status",
     "source_snapshot_id",
     "created_at",
@@ -181,6 +184,19 @@ LEGACY_ANALYSIS_ID_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002
 # column (ADR 0017); retire it in favour of the upstream validator if
 # OpenGWASDB ever adopts the rule (issue #319).
 _ANALYSIS_ID_RE: re.Pattern[str] = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*\Z")
+
+# The Association Coverage values a Store Release declares (#341): what
+# associations its Store is expected to hold. One vocabulary for the registry
+# and for opengwasdb (opengwas/opengwasdb#298), which renamed its own ``full``
+# to ``gwas``; this replaced ``full_gwas`` and ``cis_plus_signals``. A region
+# policy filters to ``cis_and_signals`` or ``signals_only`` only
+# (``manifest_generation.region_filter.REGION_POLICY_COVERAGES``).
+ASSOCIATION_COVERAGES: tuple[str, ...] = (
+    "gwas",
+    "cis",
+    "cis_and_signals",
+    "signals_only",
+)
 
 # The controlled vocabulary for ``assigned_ancestry``: the seven super-population
 # codes the ancestry-mixture Reference Resource assigns (see
@@ -441,6 +457,26 @@ class Bundle:
             f"{self.store_id}: release.yaml trial must be a YAML boolean, "
             f"got {value!r}"
         )
+
+    @property
+    def association_coverage(self) -> str:
+        """What associations this Store Release holds: one of the four values (#341).
+
+        The Analysis Catalog shows it and counts Analyses by it, and refuses a
+        bundle `check()` rejects before reading any fact. A reader that has not
+        gated must still not read an absent, unknown or non-string value as a
+        default -- that would show a layout's coverage as the Store's -- so
+        anything outside the vocabulary raises rather than answering one
+        (ADR 0040).
+        """
+        release = self.release if isinstance(self.release, Mapping) else {}
+        value = release.get("association_coverage")
+        if not isinstance(value, str) or value not in ASSOCIATION_COVERAGES:
+            raise ValueError(
+                f"{self.store_id}: release.yaml association_coverage must be one of "
+                f"{', '.join(ASSOCIATION_COVERAGES)}, got {value!r}"
+            )
+        return value
 
     @property
     def superseded_by(self) -> str | None:
@@ -845,6 +881,18 @@ def _check_release(bundle: Bundle) -> list[str]:
     for key in RELEASE_REQUIRED_KEYS:
         if _is_missing(release, key):
             errors.append(f"release.yaml is missing required key: {key!r}")
+
+    # `association_coverage` is a checked vocabulary rather than free text: the
+    # catalog shows it and counts by it, so an unknown or non-string value is
+    # refused as written instead of being stored (ADR 0040, #341).
+    coverage = release.get("association_coverage")
+    if "association_coverage" in release and not (
+        isinstance(coverage, str) and coverage in ASSOCIATION_COVERAGES
+    ):
+        errors.append(
+            f"release.yaml association_coverage {coverage!r} is not one of "
+            f"{', '.join(ASSOCIATION_COVERAGES)}"
+        )
 
     status = release.get("status")
     if status is not None and status not in VALID_STATUSES:
@@ -1932,6 +1980,7 @@ def check(
 
 
 __all__ = [
+    "ASSOCIATION_COVERAGES",
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
     "COLUMN_MAPS_DIR",

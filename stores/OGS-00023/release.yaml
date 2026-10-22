@@ -1,5 +1,6 @@
 store_id: OGS-00023
 label: eur-hybrid-quant-pilot-10-completed
+association_coverage: gwas
 access_posture: public
 status: validated
 trial: true

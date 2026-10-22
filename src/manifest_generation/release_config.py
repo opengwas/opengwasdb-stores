@@ -50,13 +50,13 @@ from manifest_generation import completion, quality_checks
 from manifest_generation.config_schema import block as _key_gate, text as _text_gate
 from manifest_generation.completion import CompletionError, CompletionRecipe
 from manifest_generation.freeze import frozen_paths
-from manifest_generation.region_filter import ASSOCIATION_COVERAGES, RegionPolicy
 from manifest_generation.indexed_subsets import (
     INDEXED_SUBSETS_KEY,
     INDEXED_SUBSETS_OPT_OUT_KEY,
     IndexedSubsetConfigError,
     resolve_indexed_subsets,
 )
+from manifest_generation.region_filter import REGION_POLICY_COVERAGES, RegionPolicy
 from manifest_generation.selection import Selection, parse_selection
 from manifest_generation.source_metadata_table import GENOME_BUILDS
 from manifest_generation.source_inventory import (
@@ -65,6 +65,7 @@ from manifest_generation.source_inventory import (
     ReferenceResource,
 )
 from ogstores.bundle import (
+    ASSOCIATION_COVERAGES,
     INDEXED_SUBSET_OPTIONAL_KEYS,
     INDEXED_SUBSET_REQUIRED_KEYS,
     SUPERPOPULATIONS,
@@ -143,6 +144,9 @@ class ReleaseConfig:
 
     path: Path
     label: str
+    #: What associations the Store holds (``association_coverage``), in the one
+    #: vocabulary of ADR 0040; ``release.yaml`` declares the same value (#341).
+    association_coverage: str
     access_posture: str
     #: Whether the release is a Trial Store Release (#321); ``False`` when absent.
     trial: bool
@@ -238,9 +242,9 @@ class ReleaseConfig:
 # ---------------------------------------------------------------------------
 
 TOP_LEVEL_REQUIRED = (
-    "release_config_version", "label", "description", "source_collection", "selection",
-    "build", "defaults", "release_policy", "reference_resources", "ancestry_assignment",
-    "trait_ontology_mapping", "output",
+    "release_config_version", "label", "association_coverage", "description",
+    "source_collection", "selection", "build", "defaults", "release_policy",
+    "reference_resources", "ancestry_assignment", "trait_ontology_mapping", "output",
 )
 TOP_LEVEL_OPTIONAL = (
     "access_posture", "trial", "notes", INDEXED_SUBSETS_KEY, INDEXED_SUBSETS_OPT_OUT_KEY,
@@ -267,7 +271,7 @@ REGION_POLICY_REQUIRED = (
     "region_policy_id", "association_coverage", "trans_flank_bp", "significant_p", "suggestive_p",
     "suggestive_lead_min_distance_bp", "qc_panel_resource_id",
 )
-#: Only for ``cis_plus_signals``, and required there.
+#: Only for ``cis_and_signals``, and required there.
 REGION_POLICY_OPTIONAL = ("cis_flank_bp",)
 METHOD_TIER_KEYS = ("stored_effect_scale", "original_effect_scale", "original_sd_method",
                     "sample_size_kind")
@@ -387,6 +391,17 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
 
     # -- identity --------------------------------------------------------------
     label = _text(document["label"], _where(path, "label"))
+    # What the Store holds, written to `release.yaml` and declared in one
+    # vocabulary with opengwasdb (ADR 0040, #341). It is a release fact, never a
+    # function of the layout or of a region policy alone.
+    association_coverage = _text(
+        document["association_coverage"], _where(path, "association_coverage")
+    )
+    if association_coverage not in ASSOCIATION_COVERAGES:
+        raise ReleaseConfigError(
+            f"{_where(path, 'association_coverage')} {association_coverage!r} is not one of "
+            + ", ".join(ASSOCIATION_COVERAGES)
+        )
     # Defaulted only when the key is absent: an explicit false or blank is a
     # mistake to refuse, not a request for public.
     access_posture = document.get("access_posture", "public")
@@ -672,6 +687,15 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         region_policy, qc_panel_resource_id = _region_policy(
             document["region_policy"], _where(path, "region_policy"), declared
         )
+        # A region policy filters to one coverage, so the two declarations
+        # cannot disagree: preflight compares every frozen file's lineage with
+        # the policy, and the bundle declares the release's coverage (#341).
+        if region_policy.association_coverage != association_coverage:
+            raise ReleaseConfigError(
+                f"{_where(path, 'association_coverage')} {association_coverage!r} is not the "
+                f"region_policy's {region_policy.association_coverage!r}: a region-filtered "
+                "release declares the coverage its policy filters to"
+            )
 
     # -- Column Map (#292) -----------------------------------------------------------
     column_map_builtin = column_map_path = None
@@ -751,6 +775,7 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
     return ReleaseConfig(
         path=path,
         label=label,
+        association_coverage=association_coverage,
         access_posture=access_posture,
         trial=trial,
         description=description,
@@ -824,14 +849,14 @@ def _region_policy(value: Any, where: str, declared) -> tuple[RegionPolicy, str]
     """``region_policy`` (#300): what acquisition filters this release's files to.
 
     The policy is the R ``gwas-ssf-ragged`` generator's (``manifest_generation.region_filter``).
-    A cis flank belongs to ``cis_plus_signals`` and only to it, and every
+    A cis flank belongs to ``cis_and_signals`` and only to it, and every
     policy keeps a declared ``qc_panel`` resource.
     """
     block = _block(value, where, REGION_POLICY_REQUIRED, REGION_POLICY_OPTIONAL)
     coverage = _text(block["association_coverage"], f"{where}.association_coverage")
-    if coverage not in ASSOCIATION_COVERAGES:
+    if coverage not in REGION_POLICY_COVERAGES:
         raise ReleaseConfigError(
-            f"{where}.association_coverage {coverage!r} is not one of {', '.join(ASSOCIATION_COVERAGES)}"
+            f"{where}.association_coverage {coverage!r} is not one of {', '.join(REGION_POLICY_COVERAGES)}"
         )
 
     def bases(key: str) -> int:
@@ -857,13 +882,13 @@ def _region_policy(value: Any, where: str, declared) -> tuple[RegionPolicy, str]
             "significant hit must also be suggestive"
         )
     cis_flank_bp = None
-    if coverage == "cis_plus_signals":
+    if coverage == "cis_and_signals":
         if block.get("cis_flank_bp") is None:
-            raise ReleaseConfigError(f"{where}.cis_flank_bp is required for cis_plus_signals")
+            raise ReleaseConfigError(f"{where}.cis_flank_bp is required for cis_and_signals")
         cis_flank_bp = bases("cis_flank_bp")
     elif block.get("cis_flank_bp") is not None:
         raise ReleaseConfigError(
-            f"{where}.cis_flank_bp is only for cis_plus_signals; this policy is {coverage}"
+            f"{where}.cis_flank_bp is only for cis_and_signals; this policy is {coverage}"
         )
     policy = RegionPolicy(
         region_policy_id=_text(block["region_policy_id"], f"{where}.region_policy_id"),

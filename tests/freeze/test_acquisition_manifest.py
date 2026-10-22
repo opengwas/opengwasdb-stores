@@ -81,7 +81,7 @@ SIGNALS_ONLY_POLICY = {
 CIS_POLICY = dict(
     SIGNALS_ONLY_POLICY,
     region_policy_id="cis-1mb_sig-trans-1mb_suggestive-leads",
-    association_coverage="cis_plus_signals",
+    association_coverage="cis_and_signals",
     cis_flank_bp=1000000,
     target={"chromosome": "2", "start": 172555373, "end": 172628598},
 )
@@ -235,6 +235,20 @@ class AcquisitionManifestTest(unittest.TestCase):
         cis = dict(FILTERED, region_policy=json.dumps(CIS_POLICY))
         self.assertEqual(load_acquisition_manifest(write_manifest(self.tmp, [cis])).entry("A4")
                          .lineage.region_policy["target"]["start"], 172555373)
+
+    def test_the_retired_coverage_spelling_is_read_as_the_current_one(self) -> None:
+        """`cis_plus_signals` is frozen evidence, so it is aliased on read and never rewritten (#341).
+
+        Sun 2018's frozen Acquisition Manifest records it. A reader that gets the
+        policy back, or compares it with a current config, sees one vocabulary.
+        """
+        frozen = dict(FILTERED, region_policy=json.dumps(dict(CIS_POLICY, association_coverage="cis_plus_signals")))
+        lineage = load_acquisition_manifest(write_manifest(self.tmp, [frozen])).entry("A4").lineage
+        self.assertEqual(lineage.region_policy["association_coverage"], "cis_and_signals")
+        current = load_acquisition_manifest(
+            write_manifest(self.tmp, [dict(FILTERED, region_policy=json.dumps(CIS_POLICY))])
+        ).entry("A4").lineage
+        self.assertEqual(lineage.region_policy, current.region_policy)
 
     def test_an_incomplete_region_policy_is_refused(self) -> None:
         """docs/spec/source-connectors.md: the thresholds, the QC panel and a cis policy's target."""

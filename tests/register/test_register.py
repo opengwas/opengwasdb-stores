@@ -85,7 +85,7 @@ def create_test_bundle_and_records(
         "label": f"test-{store_id}",
         "status": "candidate",
         "source_collection_id": "test-collection",
-        "association_coverage": "full_gwas",
+        "association_coverage": "gwas",
         "derived_from": derived_from,
         "created_at": "2026-08-18T08:51:59Z",
         "description": "Test release",

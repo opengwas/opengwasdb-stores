@@ -63,7 +63,12 @@ from typing import Any, Callable, Iterable, Mapping, Sequence
 
 import yaml
 
-from ogstores.bundle import SUPERPOPULATIONS, ColumnMapBinding, is_valid_column_map_file
+from ogstores.bundle import (
+    ASSOCIATION_COVERAGES,
+    SUPERPOPULATIONS,
+    ColumnMapBinding,
+    is_valid_column_map_file,
+)
 from manifest_generation import quality_checks
 from manifest_generation.completion import (
     CompletionRecipe,
@@ -3683,9 +3688,22 @@ def render_release_yaml(
         notes_lines.append(f"Review: {warning}")
     notes = "\n\n".join(notes_lines)
 
+    # The candidate declares what the Store holds, right after the label, from
+    # the release config's own declaration (#341, ADR 0040). It is never derived
+    # here from the layout or the region policy: a layout's default is exactly
+    # the wrong answer opengwasdb#298 removes.
+    coverage = getattr(config.base, "association_coverage", None)
+    if coverage not in ASSOCIATION_COVERAGES:
+        raise CandidateError(
+            f"release config {config.base.path} declares no valid association_coverage "
+            f"({coverage!r}); the candidate release.yaml must declare one of "
+            + ", ".join(ASSOCIATION_COVERAGES)
+        )
+
     document = {
         "store_id": store_id,
         "label": config.label,
+        "association_coverage": coverage,
         "access_posture": config.access_posture,
         "status": CANDIDATE_STATUS,
         # Written only for a Trial Store Release: absent means false (#321), so

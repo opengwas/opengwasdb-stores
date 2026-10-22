@@ -63,4 +63,6 @@ tier remains retired; nothing here restores it.
 Amends ADR 0014: `release.yaml`'s "identity and status" is now explicitly the
 narrow field set above.
 
+**Amended by [0040](0040-association-coverage-is-declared-in-the-release-bundle.md).** `association_coverage` is restored to `release.yaml` (issue #341): the Analysis Catalog reads it, and opengwas/opengwasdb#298 makes it a build input, so the reason it is listed as removed above no longer holds. The other nine removed keys stay removed.
+
 **Amended by [0030](0030-artifact-path-is-the-identifier-migration-retired.md).** The one-time `migration` provenance block that this ADR kept is itself removed (issue #137): the published artifact path is a pure function of the identifier, so the migration note is a superseded-layout record the indexer must no longer prefer, and the physical relocation of existing artifacts is a separate follow-up issue.

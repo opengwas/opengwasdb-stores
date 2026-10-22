@@ -36,6 +36,7 @@ key.
 |---|---:|---|
 | `release_config_version` | Yes | `1`. |
 | `label` | Yes | Source-natural release name, written to `release.yaml`. Never an identifier. |
+| `association_coverage` | Yes | What associations the Store holds, written to `release.yaml` right after `label:`, in one vocabulary with opengwasdb (issue #341, [ADR 0040](../adr/0040-association-coverage-is-declared-in-the-release-bundle.md)): `gwas`, `cis`, `cis_and_signals` or `signals_only`. It is declared, never inferred from the Store Layout. A region-filtered config must declare the coverage its `region_policy.association_coverage` names, so the two cannot disagree. |
 | `access_posture` | No | `public`, `controlled` or `embargoed`; `public` only when the key is absent, so an explicit `false` or blank is refused. |
 | `trial` | No | `true` for a Trial Store Release: a deliberately small release that exercises a Source Collection, Source Format or Store Layout (#321). It must be a YAML boolean, so a quoted `"yes"`, a number or `null` is refused. `true` writes `trial: true` to `release.yaml` ([the schema](../release-metadata-schema.md#releaseyaml)). Absent or `false` writes no key, which means `false`, so such a release renders exactly as before the key existed. Every shipped pilot and probe config sets it. |
 | `description` | Yes | Prose for `release.yaml`. |
@@ -239,12 +240,16 @@ The policy is per release config.
 | Key | Required | Description |
 |---|---:|---|
 | `region_policy_id` | Yes | The policy's name, recorded in lineage (`sig-trans-1mb_suggestive-leads`). |
-| `association_coverage` | Yes | `signals_only`, or `cis_plus_signals` to keep a cis flank around each Analysis's target. |
-| `cis_flank_bp` | For `cis_plus_signals` only | Bases kept either side of the Source Metadata Table's target span (`target_chromosome`, `target_start`, `target_end`); refused for `signals_only`. |
+| `association_coverage` | Yes | `signals_only`, or `cis_and_signals` to keep a cis flank around each Analysis's target. |
+| `cis_flank_bp` | For `cis_and_signals` only | Bases kept either side of the Source Metadata Table's target span (`target_chromosome`, `target_start`, `target_end`); refused for `signals_only`. |
 | `trans_flank_bp` | Yes | Bases kept either side of every significant row outside the cis window. |
 | `significant_p`, `suggestive_p` | Yes | p-values in (0, 1]; `significant_p` may not exceed `suggestive_p`. |
 | `suggestive_lead_min_distance_bp` | Yes | How far apart, strictly more than, the suggestive leads kept on one chromosome are. |
 | `qc_panel_resource_id` | Yes | A declared `qc_panel` Reference Resource, whose positions every filtered file keeps so Analysis Resolution can measure ancestry and SD. Preflight requires it present. |
+
+`association_coverage` is one of the policy's, not a free choice: the release's
+top-level `association_coverage` must name the same value, because a policy is
+what filters the acquisition and the bundle declares what the Store holds.
 
 The frozen acquisition must have been filtered to exactly this policy:
 preflight and rendering refuse a file whose lineage records another policy,
@@ -430,7 +435,8 @@ output:
 | `defaults.ancestry_assignment_method` | Gone: the method is the release policy's outcome, never a default. |
 | `ancestry_assignment.enabled`, `effect_scale_validation.enabled` | Gone: every Analysis is resolved (ADR 0036). |
 | `effect_scale_validation.{min_overlap_variants,sd_tolerance,warning_multiplier}` | Gone: read by no Python code; the resolver owns the estimate. |
-| `release_kind`, `association_coverage` | Gone: read by no code (ADR 0029). |
+| `release_kind` | Gone: read by no code (ADR 0029). |
+| `association_coverage` | Kept, and now required: the Analysis Catalog reads it and opengwasdb#298 makes it a build input, and the four values are `gwas`, `cis`, `cis_and_signals` and `signals_only` (issue #341, [ADR 0040](../adr/0040-association-coverage-is-declared-in-the-release-bundle.md)). |
 | `--canonical-trait-mapping-table` | `trait_ontology_mapping.reference_resource_id` |
 
 ## Pilot prefixes

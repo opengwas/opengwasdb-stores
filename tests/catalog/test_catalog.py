@@ -89,6 +89,7 @@ def write_bundle(
     release_data: dict[str, Any] = {
         "store_id": store_id,
         "label": f"label-{store_id}",
+        "association_coverage": "gwas",
         "status": status,
         "access_posture": "public",
         "source_snapshot_id": "fixture-snapshot-v1",
@@ -354,11 +355,10 @@ class ServingPolicyTest(unittest.TestCase):
             ],
         )
 
-    def test_association_coverage_and_reference_assembly_are_null_until_reported(self) -> None:
+    def test_reference_assembly_is_null_until_reported(self) -> None:
         self.assertEqual(
-            query(self.root, "SELECT DISTINCT association_coverage, reference_assembly FROM stores "
-                             "WHERE status = 'validated'"),
-            [(None, None)],
+            query(self.root, "SELECT DISTINCT reference_assembly FROM stores WHERE status = 'validated'"),
+            [(None,)],
         )
 
     def test_catalog_meta_records_the_build(self) -> None:
@@ -386,6 +386,34 @@ class ServingPolicyTest(unittest.TestCase):
             found = adr.find(item, position)
             self.assertGreaterEqual(found, 0, item)
             position = found + len(item)
+
+
+class DeclaredAssociationCoverageTest(TempDirCase):
+    """The catalog reads the coverage the Release Bundle declares (#341, ADR 0040).
+
+    Not the Validation Record's `observed.association_coverage`: that is what
+    opengwasdb's builder reported, which #298 makes the release's to declare.
+    A Store whose record says something else, or nothing, is catalogued by its
+    `release.yaml`.
+    """
+
+    def test_the_store_row_and_the_coverage_count_read_release_yaml(self) -> None:
+        write_bundle(
+            self.registry, "OGS-00001",
+            release={"association_coverage": "signals_only"},
+            observed_extra={"association_coverage": "cis_and_signals"},
+        )
+        write_bundle(self.registry, "OGS-00002", release={"association_coverage": "cis"})
+        self.build()
+        self.assertEqual(
+            query(self.root, "SELECT store_id, association_coverage FROM stores ORDER BY store_id"),
+            [("OGS-00001", "signals_only"), ("OGS-00002", "cis")],
+        )
+        self.assertEqual(
+            query(self.root, "SELECT value, n_analyses FROM counts WHERE dimension = 'coverage' "
+                             "ORDER BY value"),
+            [("cis", 2), ("signals_only", 2)],
+        )
 
 
 class AnalysesTest(unittest.TestCase):
@@ -997,7 +1025,7 @@ class FeaturesTest(unittest.TestCase):
         registry, cls.root = cls.tmp / "stores", cls.tmp / "root"
         registry.mkdir()
         cls.root.mkdir()
-        write_bundle(registry, "OGS-00001", observed_extra={"association_coverage": "full"}, rows=[
+        write_bundle(registry, "OGS-00001", release={"association_coverage": "gwas"}, rows=[
             analysis_row("L1", analysis_label="Standing height", trait_ontology_label="body height",
                          consortium="GIANT", first_author="Yengo", sample_size="5000"),
             analysis_row("L2", analysis_label="Asthma", assigned_ancestry="EAS",
@@ -1015,8 +1043,8 @@ class FeaturesTest(unittest.TestCase):
             analysis_row("L11", analysis_label="Assigned wins", assigned_ancestry="EAS",
                          source_ancestry_label="META"),
         ])
-        write_bundle(registry, "OGS-00002", release={"access_posture": "controlled"},
-                     observed_extra={"association_coverage": "cis_and_signals"}, rows=[
+        write_bundle(registry, "OGS-00002", release={"access_posture": "controlled",
+                                                     "association_coverage": "cis_and_signals"}, rows=[
             analysis_row("E1", analysis_label="BRCA2 expression", tissue="liver", trait_chr="13",
                          trait_bp="32000000", assigned_ancestry="AFR"),
             analysis_row("E2", analysis_label="BRCA2 protein", context="SomaScan", trait_chr="13",
