@@ -64,6 +64,33 @@ import yaml
 #: never ready.
 READY_STATUSES: frozenset[str] = frozenset({"ok", "already_present"})
 
+#: Outcomes of *verifying* a source file against the identity recorded for it,
+#: for a Source Collection whose acquisition only records identities (#289).
+#:
+#: ukb-b's files were copied, not downloaded, so its acquisition has no transfer
+#: to report: it records each file's path, size and sha256 once, and later runs
+#: re-verify the mirror against that record. Each of these is that verification
+#: failing, and none of them is ready:
+#:
+#: - ``missing_file``: the source file is gone;
+#: - ``missing_index``: the Tabix index beside it is gone;
+#: - ``size_mismatch``: the file's size is not the recorded one (a truncation);
+#: - ``checksum_mismatch``: its sha256 is not the recorded one;
+#: - ``index_mismatch``: its index's sha256 or size is not the recorded one;
+#: - ``bad_index``: the index does not open or lists no contig;
+#: - ``integrity_failed``: the compressed stream does not decompress to EOF.
+SOURCE_VERIFICATION_STATUSES: frozenset[str] = frozenset(
+    {
+        "missing_file",
+        "missing_index",
+        "size_mismatch",
+        "checksum_mismatch",
+        "index_mismatch",
+        "bad_index",
+        "integrity_failed",
+    }
+)
+
 #: Every status the acquisition script's manifest can carry. A status outside
 #: this set fails loudly rather than being classified as unavailable by default,
 #: because "unknown status" and "known-unusable" are different facts.
@@ -83,7 +110,7 @@ KNOWN_READINESS_STATUSES: frozenset[str] = frozenset(
         "dry_run",
         "error",
     }
-)
+) | SOURCE_VERIFICATION_STATUSES
 
 #: Acquisition manifest columns this module reads. ``seconds`` is deliberately
 #: not among them: it is per-run download timing, not a release fact, and
