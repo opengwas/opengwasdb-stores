@@ -23,8 +23,12 @@ Test suite for the committed Validation Records (issue #135), governed by
    `pixi run release OGS-00005 --config force=1`. Its record is `register`'s own
    output, pinned the same way, and it names the `replaced/<UTC>/` archive of the
    release it replaced.
+   **OGS-00006 is re-registered.** Issue #332 rebuilt it the same way at format
+   0.2.0, because the format-0.1.0 Store published in September carries no
+   variant-centric index for `validate` to check (issue #344 covers the other
+   Stores in that position). Its record is pinned the same way.
 4. **Absence is recorded, not invented.** The migrated records (OGS-00004,
-   OGS-00006, OGS-00007) record every measurement they do not have as `null`. The only value carried is the release-level
+   OGS-00007) record every measurement they do not have as `null`. The only value carried is the release-level
    verdict, as `observed.validate_status`, because it is already recorded as the
    record's own `status`. Measurements that exist in `sidecars/build_report.tsv`
    are deliberately not promoted: `register` never reads that report, and it
