@@ -1,0 +1,73 @@
+{
+  "blocks": "resources/reference-resources/hgdp1kgp-hg38-ld/amr-pilot/blocks.tsv",
+  "blocks_table": {
+    "chr11:30827313-33937829": {
+      "collision_groups": 315,
+      "collision_records": 630,
+      "groups_above_two_records": 0,
+      "pilot_retained_before_qc": 11929,
+      "records_maf": 14227,
+      "records_maf_pass_call_rate": 11559,
+      "retained_drop_all": 10929,
+      "retained_keep_one": 11244
+    },
+    "chr16:60049115-62536937": {
+      "collision_groups": 294,
+      "collision_records": 588,
+      "groups_above_two_records": 0,
+      "pilot_retained_before_qc": 11113,
+      "records_maf": 12989,
+      "records_maf_pass_call_rate": 10839,
+      "retained_drop_all": 10251,
+      "retained_keep_one": 10545
+    },
+    "chr1:222798680-224041489": {
+      "collision_groups": 95,
+      "collision_records": 190,
+      "groups_above_two_records": 0,
+      "pilot_retained_before_qc": 6779,
+      "records_maf": 7562,
+      "records_maf_pass_call_rate": 5583,
+      "retained_drop_all": 5393,
+      "retained_keep_one": 5488
+    },
+    "chr22:32439511-33959775": {
+      "collision_groups": 189,
+      "collision_records": 378,
+      "groups_above_two_records": 0,
+      "pilot_retained_before_qc": 8163,
+      "records_maf": 9472,
+      "records_maf_pass_call_rate": 7971,
+      "retained_drop_all": 7593,
+      "retained_keep_one": 7782
+    },
+    "chr6:30106780-30425675": {
+      "collision_groups": 45,
+      "collision_records": 90,
+      "groups_above_two_records": 0,
+      "pilot_retained_before_qc": 2925,
+      "records_maf": 3216,
+      "records_maf_pass_call_rate": 2939,
+      "retained_drop_all": 2849,
+      "retained_keep_one": 2894
+    }
+  },
+  "maf_floor": 0.01,
+  "max_missing": 0.2,
+  "pilot": "/data/opengwasdb/work/epic232/229/amr-pilot-20261021T234743Z",
+  "plink2": {
+    "command": "plink2",
+    "version": "PLINK v2.0.0-a.6.9LM 64-bit Intel (29 Jan 2025)"
+  },
+  "ticket": "opengwas/opengwasdb-stores#355",
+  "totals": {
+    "collision_groups": 938,
+    "collision_partner_maf_gap_median": 0.10699035000000001,
+    "collision_records": 1876,
+    "groups_above_two_records": 0,
+    "records_maf": 47466,
+    "records_maf_pass_call_rate": 38891,
+    "retained_drop_all": 37015,
+    "retained_keep_one": 37953
+  }
+}

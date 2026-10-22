@@ -55,9 +55,14 @@ notes: >
 
   Built 2026-10-22: all 1,357 blocks built and verified, with 12,669,255 rows.
   The 0.99 target needed 250-330 components per block, and the consumer's 0.9
-  truncation needs 23-239, all stored. No block holds a duplicated ALID. One
-  related pair (NA19657-NA19786, kinship 0.069) is retained; no relatedness
-  pruning was approved.
+  truncation needs 23-239, all stored. No block holds a duplicated ALID within
+  it; 1,198 ALIDs do appear in two adjacent blocks, because adjacent EUR-layout
+  blocks share their boundary position and plink2's `--from-bp/--to-bp` include
+  both ends, so a variant kept at a boundary is written into both blocks. They
+  fall on 1,186 of the panel's 1,335 adjacent block pairs, and none repeats
+  inside one block. UKB EUR on chr22, where this layout comes from, carries 12
+  the same way across 12 of its 19 edges. One related pair (NA19657-NA19786,
+  kinship 0.069) is retained; no relatedness pruning was approved.
 
   Variants on the EUR boundaries carry more weak cross-boundary LD in AMR than in
   EUR at 7 of 10 tested edges; imputation across an edge is untested.
