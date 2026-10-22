@@ -265,9 +265,12 @@ def build_manifest_input(wildcards):
     """The bundle's analyses.tsv, its mtime ignored when it would change nothing.
 
     A fresh checkout gives every registry file a newer mtime than the Store
-    published from it. Only content decides a rerun (#339): when materialising
-    the bundle would give the `work/` files already on disk, the input is
-    `ancient`.
+    published from it. A newer file with unchanged content is no reason to
+    rerun (#339): when materialising the bundle would give the `work/` files
+    already on disk, the input is `ancient`. The reverse is not decided here:
+    a changed manifest is left to Snakemake's mtime, so a direct `snakemake`
+    run misses one that is older than its outputs. The entry point
+    (`release.stale_manifest_outputs`) forces those reruns itself.
     """
     source = get_bundle(wildcards.store_id).analyses_path
     if manifest.build_manifest_is_current(

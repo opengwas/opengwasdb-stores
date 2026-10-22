@@ -975,16 +975,17 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertIn("analyses.exclusions", scheduled, dry.stdout)
         self.assertIn("build", scheduled, dry.stdout)
         self.assertIn("would refuse", dry.stdout)
+        self.assertIn("already published", dry.stdout)
         res = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
         self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("already published", res.stderr)
         self.assertIn("Nothing was written", res.stderr)
 
     def test_changed_content_with_an_older_mtime_still_schedules_the_build_and_is_refused(self) -> None:
         """A content mismatch invalidates the job whatever the mtimes say (#339)."""
         self.use_completed_build()
-        analyses_p = self.stores_dir / self.STORE_ID / "analyses.tsv"
-        analyses_p.write_text(analyses_p.read_text(encoding="utf-8").replace("Test Trait", "Other Trait"), encoding="utf-8")
-        os.utime(analyses_p, ns=(10**9, 10**9))
+        revise_registry_analyses(self.stores_dir, self.STORE_ID)
+        os.utime(self.stores_dir / self.STORE_ID / "analyses.tsv", ns=(10**9, 10**9))
         self.assert_scheduled_and_refused(self.STORE_ID)
 
     def test_a_corrupt_sidecar_with_older_mtimes_schedules_the_build_and_is_refused(self) -> None:
@@ -1005,20 +1006,20 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
             self.assertEqual(scheduled_targets(dry.stdout), [], dry.stdout)
 
     def test_a_registry_file_with_changed_content_schedules_the_build_and_is_refused(self) -> None:
-        store_id = self.STORE_ID
         self.use_completed_build()
-        self.rewrite_registry_analyses(store_id, extra_row=True)
+        self.rewrite_registry_analyses(self.STORE_ID, extra_row=True)
+        self.assert_scheduled_and_refused(self.STORE_ID)
 
-        dry = run_release([store_id, "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
-        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
-        scheduled = scheduled_targets(dry.stdout)
-        self.assertIn("analyses.exclusions", scheduled)
-        self.assertIn("build", scheduled)
-        self.assertIn("would refuse", dry.stdout)
-
-        res = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
-        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
-        self.assertIn("Nothing was written", res.stderr)
+    def test_a_forced_unregistered_id_is_left_to_the_snakefiles_unknown_id_guidance(self) -> None:
+        self.use_completed_build()
+        dry = run_release(
+            ["OGS-99999", "--dry-run"],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            config={"force": "1"},
+        )
+        self.assertNotIn("Traceback", dry.stderr)
+        self.assertIn("Unknown Store Release ID 'OGS-99999'", dry.stdout + dry.stderr)
 
     def assert_forced_run_rebuilds(self, store_id: str) -> None:
         """Dry run and real run of `force=1` both rebuild the published release and archive its Store (#339)."""
@@ -2490,6 +2491,23 @@ class TestWorkflowTheOneAmendmentOfAnAcceptedBundle(PublishedReleaseCopies):
         except amendment.AmendmentError as exc:
             return str(exc)
         return ""
+
+    def test_a_stale_parent_manifest_is_rerun_when_only_the_child_is_named(self) -> None:
+        """The `derived_from` walk: the child's dry run schedules the parent's build_manifest, and the unforced run is refused (#339)."""
+        template = two_id_completion_template()
+        stores, artifacts = self.published_copy(template["stores"], template["artifacts"])
+        parent_analyses = stores / template["parent_id"] / "analyses.tsv"
+        revise_registry_analyses(stores, template["parent_id"])
+        os.utime(parent_analyses, ns=(10**9, 10**9))
+
+        dry = run_release([template["child_id"], "--dry-run"], registry_root=stores, artifact_root=artifacts)
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertIn("analyses.exclusions", scheduled_targets(dry.stdout), dry.stdout)
+        self.assertIn("already published", dry.stdout)
+        res = run_release([template["child_id"]], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("already published", res.stderr)
 
     def test_observed_only_and_two_id_releases_are_not_checked_even_after_planner_drift(self) -> None:
         template = two_id_completion_template()

@@ -206,6 +206,20 @@ def snakemake_directory() -> Path:
     return Path(os.environ.get(SNAKEMAKE_DIRECTORY_ENV) or paths.REPO_ROOT)
 
 
+def _build_manifest_read_by_first_step(
+    store_id: str, registry_root: Path, root: Path
+) -> tuple[bundle.Bundle, Path | None, Path]:
+    """The bundle, the build manifest its first planned step reads (None if it reads none), and that step's record."""
+    b = bundle.load(store_id, registry_root=registry_root)
+    first = plan_steps(b, artifact_root=root)[0]
+    manifest_p = paths.build_manifest_path(store_id, root=root)
+    return (
+        b,
+        manifest_p if manifest_p in first.inputs else None,
+        paths.record_path(store_id, first.name, root=root),
+    )
+
+
 def forced_run_outputs(forced: Iterable[str], registry_root: Path, root: Path) -> list[str]:
     """The files whose jobs a forced release reruns, so it rebuilds whatever its mtimes and content say (#339).
 
@@ -214,16 +228,17 @@ def forced_run_outputs(forced: Iterable[str], registry_root: Path, root: Path) -
     manifest, when its first step reads one, and its first planned step's
     record: the whole build phase, and through its `register` record the
     completion phase of a release that completes its own Store. Only the
-    forced releases are named, so no other release in the run is touched.
+    forced releases are named, so no other release in the run is touched. An
+    id that is not registered is left to the Snakefile, which names the
+    registered ones.
     """
+    registered = set(registered_ids(registry_root))
     outputs: list[str] = []
-    for store_id in sorted(set(forced)):
-        b = bundle.load(store_id, registry_root=registry_root)
-        first = plan_steps(b, artifact_root=root)[0]
-        manifest_p = paths.build_manifest_path(store_id, root=root)
-        if manifest_p in first.inputs:
+    for store_id in sorted(set(forced) & registered):
+        _, manifest_p, first_record = _build_manifest_read_by_first_step(store_id, registry_root, root)
+        if manifest_p is not None:
             outputs.append(str(manifest_p))
-        outputs.append(str(paths.record_path(store_id, first.name, root=root)))
+        outputs.append(str(first_record))
     return outputs
 
 
@@ -231,10 +246,10 @@ def stale_manifest_outputs(store_ids: Iterable[str], registry_root: Path, root: 
     """The build manifests whose `work/` copies the bundle would no longer produce (#339).
 
     Snakemake decides by mtime, so a changed `analyses.tsv` with an older mtime,
-    or a sidecar it cannot read, would schedule nothing. Each named release
-    (and the parents it derives from) whose manifest and sidecar exist but
-    are not `manifest.build_manifest_is_current` has its manifest named here,
-    to be rerun with everything downstream. Nothing is written.
+    or a sidecar it cannot read, would schedule nothing. Each named release,
+    and every registered parent it derives from, whose manifest and sidecar
+    exist but are not `manifest.build_manifest_is_current` has its manifest
+    named here, to be rerun with everything downstream. Nothing is written.
     """
     registered = set(registered_ids(registry_root))
     outputs: list[str] = []
@@ -245,28 +260,26 @@ def stale_manifest_outputs(store_ids: Iterable[str], registry_root: Path, root: 
         if store_id in seen:
             continue
         seen.add(store_id)
-        b = bundle.load(store_id, registry_root=registry_root)
-        if b.derived_from and b.derived_from in registered:
+        b, manifest_p, _ = _build_manifest_read_by_first_step(store_id, registry_root, root)
+        if b.derived_from in registered:
             pending.append(b.derived_from)
-        manifest_p = paths.build_manifest_path(store_id, root=root)
         sidecar_p = paths.build_manifest_sidecar_path(store_id, root=root)
-        if not (manifest_p.is_file() and sidecar_p.is_file()):
-            continue
-        if manifest_p in plan_steps(b, artifact_root=root)[0].inputs and not manifest.build_manifest_is_current(
-            b.analyses_path, manifest_p, sidecar_p
+        if (
+            manifest_p is not None
+            and manifest_p.is_file()
+            and sidecar_p.is_file()
+            and not manifest.build_manifest_is_current(b.analyses_path, manifest_p, sidecar_p)
         ):
             outputs.append(str(manifest_p))
     return sorted(outputs)
 
 
-def force_run_files(inv: Invocation, force: bool, registry_root: Path, root: Path) -> list[str]:
+def force_run_files(
+    inv: Invocation, force: bool, requested: Iterable[str], registry_root: Path, root: Path
+) -> list[str]:
     """Everything the entry point reruns whatever Snakemake's mtimes say: forced releases and stale manifests."""
-    try:
-        named, _ = resolve_targets(inv, registry_root)
-    except bundle.NotBuildableError:
-        named = []  # refused, with its reason, by the caller's own check
     files = forced_run_outputs(run.forced_releases(force, inv.targets), registry_root, root)
-    files += stale_manifest_outputs(named, registry_root, root)
+    files += stale_manifest_outputs(requested, registry_root, root)
     return list(dict.fromkeys(files))
 
 
@@ -757,11 +770,16 @@ def _run_snakemake(
 
 def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> int:
     """Show the plan and what the guard would do, writing nothing."""
+    try:
+        requested, left_out = resolve_targets(inv, registry_root)
+    except bundle.NotBuildableError as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
+        return 0
     result = subprocess.run(
         snakemake_argv(
             inv,
             dry_run=True,
-            force_run=force_run_files(inv, force, registry_root, root),
+            force_run=force_run_files(inv, force, requested, registry_root, root),
         ),
         cwd=snakemake_directory(), env=snakemake_env(root, create=False),
         capture_output=True, text=True
@@ -773,7 +791,6 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     scheduled = scheduled_releases(result.stdout + result.stderr)
     jobs = scheduled_jobs(result.stdout + result.stderr)
     try:
-        requested, left_out = resolve_targets(inv, registry_root)
         bundle.refuse_unbuildable(_bundles(registry_root, (store_id for _, store_id in scheduled)))
     except bundle.NotBuildableError as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
@@ -903,7 +920,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     # refusal and its resolutions, not the IncompleteFilesException it causes.
     run.refuse_pending_force_snapshots([(root, store_id) for store_id in requested])
 
-    force_run = force_run_files(inv, force, registry_root, root)
+    force_run = force_run_files(inv, force, requested, registry_root, root)
     plan = subprocess.run(
         snakemake_argv(inv, dry_run=True, force_run=force_run),
         cwd=snakemake_directory(), env=snakemake_env(root, create=False),
