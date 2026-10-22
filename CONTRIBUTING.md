@@ -80,7 +80,73 @@ feat/<name>          a feature branch, in the primary checkout
 ticket/<n>-<slug>    one ticket's work, in its own worktree
 ```
 
+### Where they live
+
+Worktrees live under `/data/opengwasdb/work/worktrees/<name>`, not `/home` or
+`/tmp`: everything this project writes goes under `/data/opengwasdb`. Set
+`TMPDIR` and `PIXI_CACHE_DIR` on `/data` too:
+
+```sh
+export TMPDIR=/data/opengwasdb/work/tmp PIXI_CACHE_DIR=/data/opengwasdb/work/pixi-cache
+git worktree add /data/opengwasdb/work/worktrees/<name> -b ticket/<n>-<slug> origin/dev
+```
+
+With the cache on the same filesystem as the worktrees, pixi reflinks or
+hardlinks each environment from it, so a worktree's environment costs little
+and `pixi install` is quick.
+
 ### Cleaning up
+
+After a branch merges, remove its worktree. In bulk, let the command do it:
+
+```sh
+pixi run -e dev worktree-prune             # dry run: one line per worktree, and why
+pixi run -e dev worktree-prune --sizes     # ... with each .pixi size
+pixi run -e dev worktree-prune --apply     # remove the removable ones
+```
+
+It fetches `origin` first (`--no-fetch` skips that) and removes a worktree only
+if it is not the primary checkout or the one you run it from, is not locked,
+still has its directory, holds no other worktree inside it (that one would go
+too), has HEAD merged into `origin/dev` or `origin/main`,
+has no tracked changes and no untracked files, and has no running process using
+it: a cwd, an **executable**, an open file, or a path under it in any word of a
+command line (`bash -c '... > /x/wt/log'` counts; a relative path does not, and
+a symlinked spelling inside a longer word, `--opt=/lnk/wt/x`, is not resolved).
+Everything else is kept, with the reason and the matched path. Each worktree is
+checked again just before it is removed, with plain `git worktree remove`; if
+git refuses, it is kept and the error reported. It never deletes a branch, never
+runs `git worktree prune` (a worktree whose directory is missing is kept, so its
+commits are never orphaned), and exits non-zero only on errors, not because
+something was kept.
+
+What "merged" means. A worktree on a branch counts as merged if its HEAD is an
+ancestor of `origin/dev` or `origin/main`, or `git cherry` finds every commit's
+patch already there, which recognises a single-commit squash merge. A
+multi-commit squash shows as not merged, which errs toward keeping it. An
+empty commit is never evidence of a merge: `git cherry` calls it merged
+whenever the target has some other empty commit, so it counts as unmerged. A
+detached HEAD must be an ancestor, because `git cherry` ignores whitespace and
+merge commits and removing the worktree would drop the only ref to its commits.
+
+Limits to know:
+
+- The process scan reads `/proc`. A process whose cwd and executable it cannot
+  read (`root`, `sudo`, other users', or a privilege-separated one such as an
+  `sshd` session) is checked by its command line only, so a worktree that only
+  such a process has as its cwd, executable or open file is not noticed. A process of
+  yours whose command line it cannot read keeps every worktree.
+- An **ignored** file that cannot be regenerated (a scratch note in a
+  `.gitignore`d directory, a local `.env`) is not detected: it goes with the
+  worktree. Move such files out first.
+- A worktree that is queued but idle, or a build checkout whose path a release
+  receipt or record names, looks "merged, clean, unused". Lock it, with `git
+  worktree add --lock` or `git worktree lock <path>`, and the command keeps it.
+- `--sizes` counts each file's blocks, so on a reflinking filesystem it
+  overstates what removal frees: shared blocks stay while another environment
+  or the cache holds them.
+
+The commands it runs are these, by hand:
 
 ```sh
 git worktree list                 # every view, and what it has checked out
