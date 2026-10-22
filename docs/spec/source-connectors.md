@@ -469,6 +469,83 @@ that commit and a file it only re-canonicalised carries
 record names that code. A rewritten file whose extracted original is gone is
 refused by name rather than given an invented identity.
 
+### eQTLGen (BESD)
+
+eQTLGen's cis-eQTL summary statistics (the 2019 whole-blood meta-analysis, 31,684
+samples) are one genome-wide BESD file set,
+`/data/opengwasdb/raw/eqtlgen/eqtlgen-sparse`: an Analysis per probe, an Ensembl
+gene. Its connectors are two modules in
+`src/manifest_generation/providers/eqtlgen/`, and nothing source-specific is in
+the pipeline.
+
+**The metadata adapter** (`source_metadata_adapter`) writes the Source Metadata
+Table from a file set's `.epi`, one row per probe:
+
+```sh
+python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
+  --epi <file set>.epi --tissue whole_blood --sample-size 31684 --out <source metadata table>
+```
+
+`source_analysis_id` is `<probe>::<tissue>`, the id `build-ragged-besd` gives the
+Analysis, so no Store-identity column is declared. `source_probe_id` is the probe,
+`source_trait_label` the `.epi`'s gene column (the probe's own id: the file names
+no symbol), `study_design` is `quantitative`, and `tissue` and `sample_size` are
+the study-wide facts the operator states, the same on every row: never defaults.
+The probe is the target: `target_ensembl_gene_id` is the probe,
+`target_chromosome` its chromosome, and `target_start` and `target_end` both its
+base pair, a one-base span (the file gives a position, not the gene's extent). It
+declares no ancestry label (Assigned Ancestry is measured), no build (the release
+config's `defaults.source_genome_build`, `GRCh37`) and no trait ontology term. A
+chromosome outside the vocabulary, a repeated probe or a short row fails the whole
+adapter, by line and probe.
+
+**The acquisition writer** (`acquire`) subsets the genome-wide file set to a
+release's Selection, because `build-ragged-besd` demands that its file set hold
+exactly the probes it builds, and writes the Acquisition Manifest:
+
+```sh
+python3 -m manifest_generation.providers.eqtlgen.acquire \
+  --config <release config> --source-prefix <genome-wide file set> \
+  --out-dir <subset dir> --name <subset name> --out <acquisition manifest>
+```
+
+The Selection is the release config's, resolved over the Source Metadata Table it
+names, so acquisition and freeze cannot disagree. The subset is written with
+`subset_besd.write_besd_subset` -- a standalone `.besd`/`.epi`/`.esi` set, in
+Selection order -- under `--out-dir`; the source directory is only read. Every
+selected Analysis gets a row claiming the one file set (see
+[Acquisition Manifest](#acquisition-manifest)): `location` the subset's prefix,
+`source_probe_id` its probe, `members` each member's size and sha256, and
+`bytes`/`sha256` the `.besd` member's. Its lineage is the original's prefix, the
+original `.besd`'s sha256, and the tool: the subset writer's module and the sha256
+of its source. Beside the manifest, `<manifest-stem>.meta.yaml` (the pass
+lineage) records the Selection, the probes in order, every original member's size
+and sha256, the subset's members and the tool.
+
+A re-run resumes only the run it is: with the manifest present, the subset's
+members must still be the bytes it records, and are kept; a different Selection
+or a changed member is refused by name and nothing is rewritten.
+
+**The release config** (`resources/generators/eqtlgen-cis-pilot/release-pilot-10.yaml`)
+is OGS-00001's Selection: `layout: ragged`, `command: build-ragged-besd`, the
+options `source-build: hg19` and `tissue: whole_blood` (passed to the command
+verbatim), `defaults.source_genome_build: GRCh37`, and one method tier,
+`quantitative`: `stored_effect_scale: sd`, `original_sd_method:
+estimated_from_source_maf` (the resolver measures the SD from the `.esi`
+frequencies, ADR 0019), `sample_size_kind: total`. The release names no reader:
+`build-ragged-besd` reads BESD, so the resolver's reader is `opengwasdb.besd`
+(`candidate_workflow.COMMAND_READER_CAPABILITY`). The source is hg19 and the
+reference GRCh38, so the resolver needs a liftover chain, which the release
+config names as a Reference Resource (#292).
+
+**Verification is of the member files.** A BESD `source_file` is a prefix, not a
+file. Preflight holds each member the Acquisition Manifest records to its recorded
+size, and names a missing or resized member; a Resolution Record binds each
+member's size and mtime (`fingerprints.source_member_files`) and the Analysis's
+probe (`resolution_config.source_probe_id`), and the record check holds both
+against the files as they are, so a changed member makes the record stale and an
+unchanged set resumes.
+
 ## Selection
 
 A release config declares exactly one form in its `selection` block:

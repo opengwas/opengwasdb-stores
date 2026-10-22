@@ -170,7 +170,8 @@ class PerSourceStatisticsTests(unittest.TestCase):
             "dbgap/mvp/source_metadata_adapter.py",
             "dbgap/mvp/acquire_dbgap_phs002453.py",
             "finngen/acquire.py",
-            "eqtlgen/generate.py",
+            "eqtlgen/acquire.py",
+            "eqtlgen/source_metadata_adapter.py",
         ):
             self.assertIn(expected, names)
 

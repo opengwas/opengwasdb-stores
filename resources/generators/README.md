@@ -36,7 +36,7 @@ src/manifest_generation/providers/    per-Source-Provider connectors:
   ukb_b/          Source Inventory, provider metadata, candidate generator
   dbgap/mvp/      phs002453 (MVP): acquisition, candidate generator and pilot
   finngen/        R13 acquisition and assessment
-  eqtlgen/        BESD generator and subsetter
+  eqtlgen/        BESD acquisition (per-Selection subset), the .epi metadata adapter, subsetter
   opengwas/       GWAS-VCF download (download-opengwas-vcfs.R) and annotation
 ```
 

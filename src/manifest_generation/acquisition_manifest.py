@@ -292,6 +292,11 @@ def _row_problems(row: Mapping[str, str]) -> list[str]:
     return problems
 
 
+def members_text(members: Mapping[str, Mapping[str, Any]]) -> str:
+    """A file set's ``members`` as the manifest records it: one JSON object, sorted keys, no spaces."""
+    return json.dumps(members, sort_keys=True, separators=(",", ":"))
+
+
 def _file_set_problems(entries: list[AcquisitionEntry]) -> list[str]:
     """Why the entries sharing a BESD file set do not agree on it (#291)."""
     problems: list[str] = []
