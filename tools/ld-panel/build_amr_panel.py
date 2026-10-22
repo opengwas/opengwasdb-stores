@@ -193,7 +193,7 @@ def conversion_counts(log: Path) -> list[str]:
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--reference-root", type=Path, default=Path("/data/opengwasdb/reference/hgdp1kgp-hg38"),
-                    help="Cache root holding source/ and members/EUR.keep")
+                    help="Cache root holding source/ (the AMR members are derived, not read from it)")
     ap.add_argument("--out", type=Path, default=Path("/data/opengwasdb/reference/hgdp1kgp-hg38-amr"),
                     help="Panel root; reused across invocations so the build resumes")
     ap.add_argument("--regions", type=Path, default=AMR / "ld_regions_hg38.amr.tsv")
@@ -228,9 +228,11 @@ def main() -> int:
         "revision": revision(), "environment": environment(),
         "qc": {"pass_only": True, "maf_threshold": args.maf, "max_missing_rate": args.max_missing,
                "alid_collision_rule": "keep_highest_maf", "conversion_mac": 1},
+        # The AMR build reads no EUR.keep: its members are derived from the
+        # cohort and the population policy, so an EUR control member list is
+        # not an input of this panel (#354).
         "inputs": {str(p): sha256(p) for p in (args.regions, args.mapping, args.samples, args.calibration_blocks,
-                                               source / "cohort_populations.tsv", source / META,
-                                               args.reference_root / "members/EUR.keep")}}
+                                               source / "cohort_populations.tsv", source / META)}}
     run = out / "runs" / datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     for directory in ("tmp", "members", "pgen/AMR", "panel", "verify", "calibration"):
         (out / directory).mkdir(parents=True, exist_ok=True)
