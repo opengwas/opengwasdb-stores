@@ -17,14 +17,15 @@ This suite asserts the container migration:
   3. The records rebuilt and registered through the workflow keep their
      observed measurements exactly: OGS-00001..3, and OGS-00005 since issue
      #195 rebuilt and re-registered it with `pixi run release --config
-     force=1`. The one correction to OGS-00001..3 since is their
+     force=1`, and OGS-00006 since issue #332 rebuilt it at format 0.2.0 the
+     same way. The one correction to OGS-00001..3 since is their
      `format_version`, a Release Erratum (issue #195): `register` recorded its
      own fabricated default "1.0", and the true value is the "0.1.0" each
      Store's manifest declares.
-  4. The three remaining migrated records (OGS-00004, OGS-00006, OGS-00007)
-     record every measurement they do not have as `null` rather than inventing
-     one. OGS-00005 was the fourth until its re-registration replaced its
-     migrated record with `register`'s own output. Only the release-level
+  4. The two remaining migrated records (OGS-00004, OGS-00007) record every
+     measurement they do not have as `null` rather than inventing one.
+     OGS-00005 and OGS-00006 were the others until a forced rebuild replaced
+     their migrated record with `register`'s own output. Only the release-level
      verdict is carried, as `observed.validate_status`, because it is already
      recorded as the record's own `status`. Measurements live in the bundle's
      `sidecars/build_report.tsv`, but that describes a build the Validation
@@ -76,10 +77,10 @@ from ogstores.register import (
 
 STORES: tuple[str, ...] = tuple(f"OGS-{i:05d}" for i in range(1, 8))
 ALREADY_REGISTERED: tuple[str, ...] = ("OGS-00001", "OGS-00002", "OGS-00003")
-# Rebuilt and re-registered through the release workflow's force path (#195);
-# their record is `register`'s own output and names the archived release.
-REREGISTERED: tuple[str, ...] = ("OGS-00005",)
-MIGRATED: tuple[str, ...] = ("OGS-00004", "OGS-00006", "OGS-00007")
+# Rebuilt and re-registered through the release workflow's force path (#195,
+# #332); their record is `register`'s own output and names the archived release.
+REREGISTERED: tuple[str, ...] = ("OGS-00005", "OGS-00006")
+MIGRATED: tuple[str, ...] = ("OGS-00004", "OGS-00007")
 
 # The observed keys `register` writes only when they apply, with the values each
 # may take: `variant_reference` (issue #148, docs/release-metadata-schema.md)
@@ -160,6 +161,20 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "build_elapsed_s": 1819.797,
         "validate_status": "passed_with_warnings",
         "variant_reference": "provided",
+    },
+    # Rebuilt from the unchanged bundle at opengwasdb d405de0 and re-registered
+    # on 22 Oct 2026 (#332): the format-0.1.0 Store published in September
+    # failed `validate` for the missing variant-centric index, which only a
+    # format-0.2.0 build writes (#344). Null is again what no step reported.
+    "OGS-00006": {
+        "format_version": None,
+        "n_analyses": 1400,
+        "n_variants": 12086463,
+        "n_associations": 58054212,
+        "store_bytes": None,
+        "build_elapsed_s": 1439.111,
+        "validate_status": "passed_with_warnings",
+        "completion_state": "observed_only",
     },
 }
 

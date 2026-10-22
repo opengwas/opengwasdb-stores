@@ -11,7 +11,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00003` | r13-pilot-20 | dense | observed_only | built | 0.1.0 | 10 | 0 | 21,230,615 | 212,306,150 | passed |
 | `OGS-00004` | eur-hybrid-pilot-10 | hybrid | observed_only | built | - | 9 | 1 | - | - | passed_with_warnings |
 | `OGS-00005` | eur-hybrid-quant-pilot-10 | hybrid | observed_only | validated | - | 10 | 0 | 14,763,864 | - | passed_with_warnings |
-| `OGS-00006` | 2023-chen-full-european | ragged | observed_only | built | - | 1,400 | 0 | - | - | passed_with_warnings |
+| `OGS-00006` | 2023-chen-full-european | ragged | observed_only | validated | - | 1,400 | 0 | 12,086,463 | 58,054,212 | passed_with_warnings |
 | `OGS-00007` | 2018-sun-pilot-10 | ragged | observed_only | built | - | 10 | 0 | - | - | passed |
 | `OGS-00008` | ukb-b-pilot-10 | dense | observed_only | candidate | - | 10 | 0 | - | - | - |
 | `OGS-00009` | ukb-b-full | dense | reference_completed | accepted | - | 2,514 | 0 | - | - | passed_with_warnings |
@@ -21,7 +21,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00014` | mvp-phs002453-amr | dense | observed_only | accepted | - | 1,053 | 0 | - | - | not_run |
 | `OGS-00015` | mvp-phs002453-eas | dense | observed_only | accepted | - | 241 | 0 | - | - | not_run |
 | `OGS-00016` | mvp-phs002453-meta-observed-only | dense | observed_only | accepted | - | 1,691 | 0 | - | - | not_run |
-| `OGS-00017` | r13-full | dense | observed_only | accepted | - | 2,754 | 0 | - | - | passed |
+| `OGS-00017` | r13-full | dense | reference_completed | accepted | - | 2,754 | 0 | - | - | passed |
 | `OGS-00022` | eur-hybrid-pilot-10-completed | hybrid | reference_completed | validated | - | 9 | 1 | - | - | passed |
 | `OGS-00023` | eur-hybrid-quant-pilot-10-completed | hybrid | reference_completed | validated | - | 10 | 0 | - | - | passed |
 | `OGS-00024` | 2023-chen-full-african | ragged | observed_only | built | - | 1,034 | 0 | - | - | passed_with_warnings |

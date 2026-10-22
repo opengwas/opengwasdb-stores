@@ -1,7 +1,7 @@
 store_id: OGS-00006
 label: 2023-chen-full-european
 access_posture: public
-status: built
+status: validated
 derived_from: null
 created_at: '2026-08-04T11:00:49Z'
 description: 'Full European-ancestry slice of the Chen et al. 2023 plasma metabolome atlas (PMID 36635386):
@@ -34,5 +34,32 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   "European" while the membership table already recorded the super-population code "EUR"; normalised here. The quantitative Analyses also stored n_cases/n_controls as 0 where the counts
   are not applicable; those cells are now empty (absence is distinct from zero). source_ancestry_label
   remains "European" as source provenance. No Store artifact was rebuilt or rewritten.
+
+  Release Erratum (issue #332, 2026-10-22): the Validation Record dated 2026-08-31 described
+  the build of that day (opengwasdb 6ef919e, 58,053,989 associations). The Store this bundle
+  published on 2026-09-18 (opengwasdb 987aec1, format 0.1.0, 58,054,212 associations) then failed
+  `opengwasdb validate` at the current runtime pin d405de0 with one error: "data.zarr/ragged:
+  carries no by_variant group; a Ragged component must carry the variant-centric index (ADR
+  0060)". The index is written by format-0.2.0 builders, so no format-0.1.0 Ragged Store can pass
+  that check; issue #344 carries the wider gap. On the owner decision of 2026-10-22 the Store was
+  rebuilt from this unchanged bundle -- same Release Manifest, same Build Recipe, still
+  observed_only -- by a forced run at opengwasdb d405de0 (format 0.2.0), which archived the Store
+  it replaced under `replaced/20261021T235935Z/` beside it. Unlike the earlier Release Erratum, this one
+  did rebuild the Store artifact.
+
+  The build input `source/` was re-staged before the run as symlinks to the files the Release
+  Manifest names, every one of the 1,400 verified by sha256: 1,202 against the checksum the
+  manifest records, the other 198 against the reviewed re-materialisation list
+  `resources/generators/gwas-catalog-ragged/ogs-00006-rematerialised-2026-09-15.tsv`, whose
+  originals were deleted after region filtering. The rebuild therefore read the inputs the
+  2026-09-18 build read, and it reproduces the counts of that Store: 1,400 Analyses, 12,086,463
+  variants, 58,054,212 associations.
+
+  validate passes with warnings, so the record reads `passed_with_warnings` and the release is
+  `validated`. All 1,397 warnings are one class: 1,397 of the 1,400 Analyses store EAF whose
+  orientation is unverified, because only 19 to 301 of their variants overlap the reference panel
+  that check uses, below the 500 it requires, and the other 3 Analyses clear it. The record
+  carries no observed.format_version because no step at this pin reports it; the Store manifest
+  declares 0.2.0, as `opengwasdb info` shows.
 
   '
