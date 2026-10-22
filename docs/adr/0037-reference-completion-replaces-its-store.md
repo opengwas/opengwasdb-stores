@@ -62,9 +62,10 @@ sets the old one aside, swaps them, and archives the old records.
      - no inserted panel row carries an observed cell.
    - **Record:** the verdict carries the seed, the sample and the counts, and
      is kept as the step's record.
-   - **Scope:** the check covers Dense Stores and the Dense Component of
-     Hybrid Stores. Ragged completion needs its own check before it can use
-     this path.
+   - **Scope:** the check covers Dense Stores and Hybrid Stores, whose
+     Dense Component it checks as above and whose Overflow it checks too
+     (Clarified by #333 below). Ragged completion needs its own check before
+     it can use this path.
 
 3. **The replaced Observed-Only Store is deleted, not archived.** Unlike a
    forced re-run, the swap deletes the replaced Store's arrays once the new
@@ -200,3 +201,30 @@ The amendment rule of Decision 1 is enforced before any job runs, as follows.
   for the published Store" means the argv that wrote it.
 - **Left to review.** `release.yaml`'s prose and provenance. No code
   enforces accepted-bundle immutability for those fields, for any bundle.
+
+## Clarified by #333
+
+A Hybrid release completes its own Store too. The planner admits it as it
+does a Dense one, with `complete-hybrid`; a Ragged release is still refused.
+
+- **What the check covers in a Hybrid Store.** Completion changes both
+  components. An Overflow association at a variant the LD panel adds to the
+  Dense axis moves into the Dense Component as an observed cell (a crossover),
+  and the Overflow is rebuilt without it. So an inserted panel row may carry
+  an observed cell after all, but only a crossover. opengwasdb#295 checks:
+  - the Dense and shared axes, exhaustively;
+  - every crossover against its source value;
+  - the Dense Component by the sample of Decision 2, with crossovers set aside;
+  - a seeded sample of whole Overflow Analyses, association by association;
+  - every Analysis's Overflow count, less its crossovers.
+- **One step for both layouts.** The check's step and argv are the same as a
+  Dense release's. `--n-random` draws 1,000 chunk-rows of the Dense Component
+  and 1,000 Overflow Analyses from the same seed. The command reads the layout
+  from the two Stores.
+- **The gate on the runtime is the pin.** A core whose check compares only
+  Dense pairs offers the same command, so probing for it cannot refuse it. The
+  release entry point refuses any core but the pinned revision, which has
+  #295.
+- **No resume.** `complete-dense` keeps a checkpoint and resumes after an
+  interruption; `complete-hybrid` does not, so an interrupted Hybrid
+  completion starts again from the published Observed-Only Store.

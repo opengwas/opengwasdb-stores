@@ -46,6 +46,14 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    with only its records' path fields moved and their mtimes kept, and its next
    register passes; the same release moved by a plain rename is refused at
    that register, as drift naming the old root.
+16. A Hybrid release completes its own Store too (#333): one entry-point run
+   builds and publishes the Observed-Only Hybrid Store, completes it, moving an
+   Overflow association into the Dense Component, passes the Observed-View
+   Check across both components and publishes the completed Store at its path,
+   its HM3 Indexed Variant Subset and overview built again on it;
+   a perturbed crossover fails the check, naming it, and the Observed-Only Store
+   stays published; and a published Observed-Only Hybrid release whose bundle
+   gains a `complete-hybrid` block runs only its completion phase.
 """
 
 from __future__ import annotations
@@ -70,6 +78,7 @@ import threading
 import time
 import tomllib
 import unittest
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from unittest import mock
 from typing import Any
@@ -221,7 +230,7 @@ def create_signal_fixture_vcf(path: Path) -> Path:
     return path
 
 
-def create_signal_ld_panel(panel_root: Path) -> Path:
+def create_signal_ld_panel(panel_root: Path, *, indexes: Sequence[int] | None = None) -> Path:
     """Write the fixture LD reference panel over `SIGNAL_POSITIONS` (#303).
 
     One block in the flat layout opengwasdb's completion reads
@@ -233,23 +242,31 @@ def create_signal_ld_panel(panel_root: Path) -> Path:
     written -- an eigendecomposition-only panel is the production shape
     (opengwasdb ADR 0031).
 
+    `indexes` narrows the block to those positions of `SIGNAL_POSITIONS`
+    (#333); by default it covers all twelve.
+
     Copy of the recipe in opengwasdb's `tests/test_dense_completion.py`
     (`write_signal_panel`); those tests are not packaged, so it is copied rather
     than imported.
     """
     import numpy as np
 
+    covered = [
+        (position, alid)
+        for i, (position, alid) in enumerate(zip(SIGNAL_POSITIONS, SIGNAL_ALID, strict=True))
+        if indexes is None or i in indexes
+    ]
     block_dir = panel_root / "EUR" / "1"
     block_dir.mkdir(parents=True, exist_ok=True)
-    block = "100000-1200000"
+    block = f"{covered[0][0]}-{covered[-1][0]}"
 
     tsv_lines = ["CHR\tSNP\tOA\tEA\tEAF\tBP"]
-    for position, alid in zip(SIGNAL_POSITIONS, SIGNAL_ALID, strict=True):
+    for position, alid in covered:
         chrom, _pos, a1, a2 = alid.split(":")
         tsv_lines.append(f"{chrom}\t{alid}\t{a2}\t{a1}\t0.3\t{position}")
     (block_dir / f"{block}.tsv").write_text("\n".join(tsv_lines) + "\n", encoding="utf-8")
 
-    index = np.arange(len(SIGNAL_POSITIONS))
+    index = np.arange(len(covered))
     ld = 0.9 ** np.abs(index[:, None] - index[None, :])
     values, vectors = np.linalg.eigh(ld)
     np.savez_compressed(
@@ -353,7 +370,9 @@ def revise_registry_analyses(stores_dir: Path, store_id: str) -> None:
     analyses_p.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def amend_to_complete_own_store(stores_dir: Path, store_id: str, *, ld_panel: Path) -> Path:
+def amend_to_complete_own_store(
+    stores_dir: Path, store_id: str, *, ld_panel: Path, command: str = "complete-dense"
+) -> Path:
     """Give an Observed-Only fixture bundle a `complete` block: one id, published twice (ADR 0037).
 
     The bundle keeps its `build` block and `post` and gains what a single-id
@@ -361,7 +380,8 @@ def amend_to_complete_own_store(stores_dir: Path, store_id: str, *, ld_panel: Pa
     and a `complete` block, with no `derived_from`. That is also the one
     amendment ADR 0037 allows an accepted bundle, so the same helper serves
     the later completion of a Store built earlier (#305). The `complete`
-    options are `create_completed_child_bundle`'s.
+    options are `create_completed_child_bundle`'s; `command` is the bundle's
+    layout's completion command (#333).
     """
     import yaml
 
@@ -369,7 +389,7 @@ def amend_to_complete_own_store(stores_dir: Path, store_id: str, *, ld_panel: Pa
     build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
     build_yaml["completion_state"] = "reference_completed"
     build_yaml["complete"] = {
-        "command": "complete-dense",
+        "command": command,
         "options": {"ld-panel": str(ld_panel), "ancestry": "EUR", "min-cor": 0.0},
     }
     build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
@@ -508,11 +528,16 @@ def release_argv(
     registry_root: Path,
     artifact_root: Path,
     config: dict[str, str] | None = None,
+    checkout: Path = REPO_ROOT,
 ) -> list[str]:
-    """The supported entry point's command line, as `pixi run release` runs it (#195)."""
+    """The supported entry point's command line, as `pixi run release` runs it (#195).
+
+    `checkout` is the copy of the code it runs from (`checkout_with_variant_list_resource`),
+    whose `entry_point_env` its process needs.
+    """
     return [
         sys.executable,
-        str(RELEASE_ENTRY_POINT),
+        str(RELEASE_ENTRY_POINT if checkout == REPO_ROOT else checkout / "workflow" / "release.py"),
         *words,
         "--cores",
         "1",
@@ -531,14 +556,68 @@ def run_release(
     config: dict[str, str] | None = None,
     env: dict[str, str] | None = None,
     new_session: bool = False,
+    checkout: Path = REPO_ROOT,
 ) -> subprocess.CompletedProcess[str]:
-    """Run the supported entry point, `pixi run release`'s workflow/release.py (#195)."""
-    argv = release_argv(words, registry_root=registry_root, artifact_root=artifact_root, config=config)
-    run_env = dict(os.environ)
+    """Run the supported entry point, `pixi run release`'s workflow/release.py (#195), from `checkout`."""
+    argv = release_argv(
+        words, registry_root=registry_root, artifact_root=artifact_root, config=config, checkout=checkout
+    )
+    run_env = {**os.environ, **entry_point_env(checkout)}
     run_env.update(env or {})
     return subprocess.run(
-        argv, cwd=REPO_ROOT, capture_output=True, text=True, env=run_env, start_new_session=new_session
+        argv, cwd=checkout, capture_output=True, text=True, env=run_env, start_new_session=new_session
     )
+
+
+def entry_point_env(checkout: Path) -> dict[str, str]:
+    """What an entry point run from `checkout` needs in its environment: that copy's code first (#333).
+
+    Nothing for this checkout, whose code the environment installs.
+    """
+    if checkout == REPO_ROOT:
+        return {}
+    return {"PYTHONPATH": os.pathsep.join(filter(None, [str(checkout / "src"), os.environ.get("PYTHONPATH")]))}
+
+
+def checkout_with_variant_list_resource(root: Path, resource_id: str, variant_list: Path) -> Path:
+    """A copy of this checkout's code under `root` that maintains one more Reference Resource: `variant_list` (#333).
+
+    The entry point builds an Indexed Variant Subset only from a variant list
+    that a maintained resource of its own checkout declares
+    (`resources/reference-resources/<resource_id>/resource.yaml`), and a
+    fixture list is no maintained resource. So a release that declares one
+    runs from this copy, as `pre_304_completion_template` runs an older
+    revision: `src/`, `workflow/` and `ogstores.yaml` copied, the declaration
+    added, and the copy's code put ahead of the editable install
+    (`entry_point_env`), which is checked here.
+    """
+    import hashlib
+
+    import yaml
+
+    checkout = root / "checkout"
+    for tree in ("src", "workflow"):
+        shutil.copytree(REPO_ROOT / tree, checkout / tree, ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"))
+    shutil.copy2(REPO_ROOT / "ogstores.yaml", checkout / "ogstores.yaml")
+    content = variant_list.read_bytes()
+    declaration = {
+        "resource_id": resource_id,
+        "kind": "variant_list",
+        "genome_build": "GRCh38",
+        "location": str(variant_list),
+        "row_count": sum(1 for line in content.decode("utf-8").splitlines() if line.strip()),
+        "checksums": {"alid_sha256": hashlib.sha256(content).hexdigest(), "alid_bytes": len(content)},
+    }
+    declaration_p = checkout / "resources" / "reference-resources" / resource_id / "resource.yaml"
+    declaration_p.parent.mkdir(parents=True)
+    declaration_p.write_text(yaml.safe_dump(declaration), encoding="utf-8")
+    imported = subprocess.run(
+        [sys.executable, "-c", "import ogstores; print(ogstores.__file__)"],
+        cwd=checkout, env={**os.environ, **entry_point_env(checkout)}, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    if not imported.startswith(str(checkout / "src")):
+        raise RuntimeError(f"an entry point run from {checkout} would import {imported}, not the copy's code")
+    return checkout
 
 
 class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
@@ -1838,6 +1917,112 @@ def prepare_single_id_signal_release(root: Path, store_id: str) -> tuple[Path, P
     return stores, artifacts
 
 
+# The Hybrid signal fixture (#333). Its variant reference leaves out the last
+# two signal positions, so the Observed-Only Store holds their associations in
+# its Overflow, and the LD panel covers every position but the last. Completion
+# then adds the eleventh position to the Dense axis and moves its Overflow
+# association there, as an observed cell: one crossover. The twelfth stays in
+# the Overflow.
+HYBRID_OFF_REFERENCE_INDEXES: tuple[int, ...] = (10, 11)
+HYBRID_PANEL_INDEXES: tuple[int, ...] = tuple(range(11))
+# Its HM3-style variant list: five positions of the Observed-Only Dense
+# Component, the held-out one among them, and one ALID no Store holds, which
+# `build-indexed-subset` counts as absent. None is on the Overflow axis, which
+# that command refuses for a Hybrid Store.
+HYBRID_SUBSET_INDEXES: tuple[int, ...] = (0, 2, 4, 6, 8)
+HYBRID_SUBSET_ALIDS: tuple[str, ...] = (*(SIGNAL_ALID[i] for i in HYBRID_SUBSET_INDEXES), "1:5000000:A:G")
+
+_HYBRID_SUBSET_CHECKOUT: dict[str, Any] | None = None
+
+
+def hybrid_subset_checkout() -> dict[str, Any]:
+    """The copy of this checkout that maintains `HYBRID_SUBSET_ALIDS`, made on first use (#333).
+
+    Returns its `checkout`, the `variant_list`, the `resource_id` that
+    declares it, and the `TemporaryDirectory` that holds them.
+    """
+    global _HYBRID_SUBSET_CHECKOUT
+    if _HYBRID_SUBSET_CHECKOUT is None:
+        temp_dir = tempfile.TemporaryDirectory()
+        root = Path(temp_dir.name)
+        variant_list = root / "hm3.alid.txt"
+        variant_list.write_text("".join(f"{alid}\n" for alid in HYBRID_SUBSET_ALIDS), encoding="utf-8")
+        resource_id = "fixture-hm3"
+        _HYBRID_SUBSET_CHECKOUT = {
+            "temp_dir": temp_dir,
+            "checkout": checkout_with_variant_list_resource(root, resource_id, variant_list),
+            "variant_list": variant_list,
+            "resource_id": resource_id,
+        }
+    return _HYBRID_SUBSET_CHECKOUT
+
+
+def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[Path, Path]:
+    """`prepare_single_id_signal_release`'s release as a Hybrid one (#333).
+
+    The same VCF and bundle, built by `build-hybrid` against a plain ALID
+    variant reference without `HYBRID_OFF_REFERENCE_INDEXES`, and completed by
+    `complete-hybrid` against an LD panel over `HYBRID_PANEL_INDEXES`.
+    """
+    import yaml
+
+    stores, artifacts = root / "stores", root / "artifacts"
+    stores.mkdir()
+    artifacts.mkdir()
+    create_dense_fixture_store(
+        stores,
+        store_id=store_id,
+        artifact_root=artifacts,
+        vcf_path=create_signal_fixture_vcf(root / "signal.vcf.gz"),
+        post_top_hits=False,
+        post_overview=False,
+    )
+    reference = root / "variant-reference.txt"
+    reference.write_text(
+        "".join(f"{alid}\n" for i, alid in enumerate(SIGNAL_ALID) if i not in HYBRID_OFF_REFERENCE_INDEXES),
+        encoding="utf-8",
+    )
+    build_yaml_p = stores / store_id / "build.yaml"
+    build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
+    build_yaml["layout"] = "hybrid"
+    build_yaml["build"]["command"] = "build-hybrid"
+    build_yaml["build"]["options"]["variant-reference"] = str(reference)
+    build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
+    amend_to_complete_own_store(
+        stores,
+        store_id,
+        ld_panel=create_signal_ld_panel(root / "ld-panel", indexes=HYBRID_PANEL_INDEXES),
+        command="complete-hybrid",
+    )
+    return stores, artifacts
+
+
+def prepare_hybrid_subset_signal_release(root: Path, store_id: str) -> tuple[Path, Path]:
+    """`prepare_hybrid_single_id_signal_release`'s release with OGS-00011's post steps (#333).
+
+    It regenerates its overview and builds an `hm3` Indexed Variant Subset in
+    both phases, from `hybrid_subset_checkout`'s list, so it runs from that
+    checkout.
+    """
+    import yaml
+
+    stores, artifacts = prepare_hybrid_single_id_signal_release(root, store_id)
+    subset = hybrid_subset_checkout()
+    build_yaml_p = stores / store_id / "build.yaml"
+    build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
+    build_yaml["post"]["overview"] = True
+    build_yaml["indexed_subsets"] = [
+        {
+            "name": "hm3",
+            "resource_id": subset["resource_id"],
+            "variant_list": str(subset["variant_list"]),
+            "reference_assembly": "GRCh38",
+        }
+    ]
+    build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
+    return stores, artifacts
+
+
 def observed_view(store_p: Path, analysis_id: str) -> dict[str, tuple[float, float, float, str]]:
     """`observed_only=True` associations of one Analysis by ALID: decoded z, se, eaf and status."""
     q = query_store(store_p)
@@ -1874,52 +2059,54 @@ def kill_release_run(proc: subprocess.Popen, pause: Path) -> None:
     proc.wait()
 
 
-def single_id_completion_template() -> dict[str, Any]:
-    """The one single-id completed release this process builds, built on first use (#304).
+def run_single_id_completion(
+    store_id: str,
+    prepare: Callable[[Path, str], tuple[Path, Path]],
+    *,
+    copy_complete_started: bool = False,
+    checkout: Path = REPO_ROOT,
+) -> dict[str, Any]:
+    """One fresh entry-point run of a release that completes its own Store, paused twice (#304, #333).
 
-    One fresh entry-point run builds, publishes and completes it, and a
-    second run in place follows at once. Returns `store_id`, `analysis_id`,
-    the built `stores` and `artifacts`, both runs' results, the record
-    mtimes the second run found (`records_before_rerun`), and the
-    `TemporaryDirectory` that holds them. A test that may write copies
-    `stores` and `artifacts`; the template is never written again.
+    `prepare(root, store_id)` writes the release under a new
+    `TemporaryDirectory` and returns its `stores` and `artifacts`, so the
+    bundle it writes decides the layout and its completion command. The run
+    starts from `checkout` (`release_argv`). Returns `store_id`,
+    `analysis_id`, the built `stores` and `artifacts`, the `checkout`, the
+    run's result (`release_result`) and the `TemporaryDirectory` that holds
+    them.
 
-    The first run is paused twice. As `complete` starts, once the build
-    phase has published the Observed-Only Store, its observed view is read
+    The run is paused twice. As `complete` starts, once the build phase has
+    published the Observed-Only Store, its observed view is read
     (`observed_before`, from `observed_view`), because the swap deletes that
-    Store (#309). As the Observed-View Check starts, with the completed Store
-    staged and validated, both trees are copied, mtimes kept, to
-    `check_started` (`stores`, `artifacts`), for a test that tampers with the
-    staged Store before its own run checks it. Each is None when the run
-    never got there. The snapshot is never written either: a test copies it.
-    Should anything raise meanwhile, the run is killed and reaped
-    (`kill_release_run`), its pause file removed, and the error raised.
-
-    The rerun is part of the template, not of a test, because only a rerun in
-    place reads the Snakemake metadata the build recorded, and a test that
-    ran it against the shared template could write to it. The same shape as
-    `two_id_completion_template`: `top_hits` and `overview` are off, and
-    `validate` and publication stay on in both phases. Later completion
-    tickets (#305-#309) need this shape too, and copy it.
+    Store (#309); with `copy_complete_started`, both trees are also copied,
+    mtimes kept, to `complete_started` (`stores`, `artifacts`), for a test
+    that completes a published Store. As the Observed-View Check starts, with
+    the completed Store staged and validated, both trees are copied to
+    `check_started`, for a test that tampers with the staged Store before its
+    own run checks it. Each is None when the run never got there or was not
+    asked to copy. No snapshot is written again:
+    a test copies it. Should anything raise meanwhile, the run is killed and
+    reaped (`kill_release_run`), its pause file removed, and the error raised.
     """
-    global _SINGLE_ID_COMPLETION
-    if _SINGLE_ID_COMPLETION is not None:
-        return _SINGLE_ID_COMPLETION
-
-    store_id = "OGS-00110"
     analysis_id = f"test_analysis_{store_id}"
     temp_dir = tempfile.TemporaryDirectory()
     root = Path(temp_dir.name)
-    stores, artifacts = prepare_single_id_signal_release(root, store_id)
+    stores, artifacts = prepare(root, store_id)
 
-    argv = release_argv([store_id], registry_root=stores, artifact_root=artifacts)
+    argv = release_argv([store_id], registry_root=stores, artifact_root=artifacts, checkout=checkout)
     pause = root / "paused"
     pause_points = ("complete-started", "completion-observed-view-check-started")
-    env = {**os.environ, run.PAUSE_AT_ENV: ",".join(pause_points), run.PAUSE_FILE_ENV: str(pause)}
+    env = {
+        **os.environ,
+        **entry_point_env(checkout),
+        run.PAUSE_AT_ENV: ",".join(pause_points),
+        run.PAUSE_FILE_ENV: str(pause),
+    }
     observed_before = None
-    check_started = None
+    snapshots: dict[str, dict[str, Path]] = {}
     with (root / "release.out").open("w+") as out, (root / "release.err").open("w+") as err:
-        proc = subprocess.Popen(argv, cwd=REPO_ROOT, stdout=out, stderr=err, env=env, start_new_session=True)
+        proc = subprocess.Popen(argv, cwd=checkout, stdout=out, stderr=err, env=env, start_new_session=True)
         try:
             deadline = time.monotonic() + 600
             for point in pause_points:
@@ -1929,10 +2116,10 @@ def single_id_completion_template() -> dict[str, Any]:
                     break
                 if point == "complete-started":
                     observed_before = observed_view(paths.store_path(store_id, root=artifacts), analysis_id)
-                else:
-                    check_started = {tree: root / "check-started" / tree for tree in ("stores", "artifacts")}
-                    shutil.copytree(stores, check_started["stores"])
-                    shutil.copytree(artifacts, check_started["artifacts"])
+                if point != "complete-started" or copy_complete_started:
+                    snapshots[point] = {tree: root / point / tree for tree in ("stores", "artifacts")}
+                    shutil.copytree(stores, snapshots[point]["stores"])
+                    shutil.copytree(artifacts, snapshots[point]["artifacts"])
                 pause.unlink()
             if proc.poll() is None and time.monotonic() >= deadline:
                 kill_release_run(proc, pause)
@@ -1947,24 +2134,71 @@ def single_id_completion_template() -> dict[str, Any]:
         out.seek(0)
         err.seek(0)
         release_result = subprocess.CompletedProcess(argv, returncode, out.read(), err.read())
+    return {
+        "temp_dir": temp_dir,
+        "stores": stores,
+        "artifacts": artifacts,
+        "checkout": checkout,
+        "release_result": release_result,
+        "observed_before": observed_before,
+        "complete_started": snapshots.get("complete-started"),
+        "check_started": snapshots.get("completion-observed-view-check-started"),
+        "store_id": store_id,
+        "analysis_id": analysis_id,
+    }
+
+
+def single_id_completion_template() -> dict[str, Any]:
+    """The one single-id completed Dense release this process builds, built on first use (#304).
+
+    `run_single_id_completion` builds, publishes and completes it from
+    `prepare_single_id_signal_release`, and a second run in place follows at
+    once. Adds that run's result (`rerun_result`) and the record mtimes it
+    found (`records_before_rerun`). A test that may write copies `stores` and
+    `artifacts`; the template is never written again.
+
+    The rerun is part of the template, not of a test, because only a rerun in
+    place reads the Snakemake metadata the build recorded, and a test that
+    ran it against the shared template could write to it. The same shape as
+    `two_id_completion_template`: `top_hits` and `overview` are off, and
+    `validate` and publication stay on in both phases. Later completion
+    tickets (#305-#309) need this shape too, and copy it.
+    """
+    global _SINGLE_ID_COMPLETION
+    if _SINGLE_ID_COMPLETION is not None:
+        return _SINGLE_ID_COMPLETION
+
+    built = run_single_id_completion("OGS-00110", prepare_single_id_signal_release)
+    store_id, stores, artifacts = built["store_id"], built["stores"], built["artifacts"]
     records_before_rerun = {
         p: p.stat().st_mtime_ns for p in paths.records_dir(store_id, root=artifacts).glob("*.json")
     }
     rerun_result = run_release([store_id], registry_root=stores, artifact_root=artifacts)
 
-    _SINGLE_ID_COMPLETION = {
-        "temp_dir": temp_dir,
-        "stores": stores,
-        "artifacts": artifacts,
-        "release_result": release_result,
-        "rerun_result": rerun_result,
-        "records_before_rerun": records_before_rerun,
-        "observed_before": observed_before,
-        "check_started": check_started,
-        "store_id": store_id,
-        "analysis_id": analysis_id,
-    }
+    _SINGLE_ID_COMPLETION = {**built, "rerun_result": rerun_result, "records_before_rerun": records_before_rerun}
     return _SINGLE_ID_COMPLETION
+
+
+_HYBRID_SINGLE_ID_COMPLETION: dict[str, Any] | None = None
+
+
+def hybrid_single_id_completion_template() -> dict[str, Any]:
+    """The one single-id completed Hybrid release this process builds, built on first use (#333).
+
+    `run_single_id_completion` from `prepare_hybrid_single_id_signal_release`,
+    copying both trees as `complete` starts, with no rerun: what a rerun shows
+    does not depend on the layout, and `single_id_completion_template` shows
+    it. A test that may write copies a tree; the template is never written
+    again. Its post steps are validation only; the overview and an Indexed
+    Variant Subset cost every test that builds it some 20 s, so one class
+    builds a release of its own with them (`prepare_hybrid_subset_signal_release`).
+    """
+    global _HYBRID_SINGLE_ID_COMPLETION
+    if _HYBRID_SINGLE_ID_COMPLETION is None:
+        _HYBRID_SINGLE_ID_COMPLETION = run_single_id_completion(
+            "OGS-00130", prepare_hybrid_single_id_signal_release, copy_complete_started=True
+        )
+    return _HYBRID_SINGLE_ID_COMPLETION
 
 
 def copy_snapshot(snapshot: dict[str, Path], *, built: dict[str, Any], into: Path) -> tuple[Path, Path]:
@@ -2960,14 +3194,37 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
     opengwasdb's plane `patch` API. The check then fails, `completion-register`
     never runs, and the Observed-Only Store the build phase published is
     exactly as it was.
+
+    A subclass runs the same test on another layout's release: its template,
+    the cell it perturbs (`tamper`), the failure that names, and the
+    Observed-Only Store's variant count (#333).
     """
 
     CHECK_STEP = "completion-observed-view-check"
+    FAILURE = "z_mismatch"
+    # The VCF's positions; the held-out one is in no Dense Store before completion.
+    OBSERVED_ONLY_N_VARIANTS = len(SIGNAL_POSITIONS) - 1
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.template = single_id_completion_template()
+        cls.template = cls.build_template()
         cls.STORE_ID: str = cls.template["store_id"]
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return single_id_completion_template()
+
+    def tamper(self, staged_p: Path) -> None:
+        """Perturb one observed Z of the staged completed Store."""
+        import numpy as np
+        from opengwasdb.encoding import DenseZPlane
+        from opengwasdb.store.open import open_store
+
+        found = query_store(staged_p).lookup([SIGNAL_ALID[0]], [f"test_analysis_{self.STORE_ID}"])
+        rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
+        opened = open_store(staged_p)
+        plane = DenseZPlane.open(opened.arrays(mode="r+"), opened.manifest.encoding)
+        plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
 
     @staticmethod
     def hash_tree(root: Path) -> dict[str, str]:
@@ -2980,10 +3237,7 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
         }
 
     def test_a_tampered_completed_store_is_refused_and_the_observed_only_store_survives(self) -> None:
-        import numpy as np
         import yaml
-        from opengwasdb.encoding import DenseZPlane
-        from opengwasdb.store.open import open_store
 
         self.assertIsNotNone(self.template["check_started"], "the template's run never reached its check")
         with tempfile.TemporaryDirectory() as temp:
@@ -2991,11 +3245,17 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
             stores, artifacts = copy_snapshot(self.template["check_started"], built=self.template, into=root)
             pause = root / "paused"
             log = root / "run.log"
-            env = {**os.environ, run.PAUSE_AT_ENV: f"{self.CHECK_STEP}-started", run.PAUSE_FILE_ENV: str(pause)}
+            checkout = self.template["checkout"]
+            env = {
+                **os.environ,
+                **entry_point_env(checkout),
+                run.PAUSE_AT_ENV: f"{self.CHECK_STEP}-started",
+                run.PAUSE_FILE_ENV: str(pause),
+            }
             with log.open("w") as handle:
                 proc = subprocess.Popen(
-                    release_argv([self.STORE_ID], registry_root=stores, artifact_root=artifacts),
-                    cwd=REPO_ROOT, stdout=handle, stderr=subprocess.STDOUT, env=env, start_new_session=True,
+                    release_argv([self.STORE_ID], registry_root=stores, artifact_root=artifacts, checkout=checkout),
+                    cwd=checkout, stdout=handle, stderr=subprocess.STDOUT, env=env, start_new_session=True,
                 )
                 self.addCleanup(lambda: proc.poll() is None and os.killpg(proc.pid, 9))
                 deadline = time.monotonic() + 600
@@ -3015,12 +3275,7 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
                 register_before = (paths.records_dir(self.STORE_ID, root=artifacts) / "register.json").read_bytes()
                 validation_before = (stores / self.STORE_ID / "validation.yaml").read_bytes()
 
-                # Perturb one observed Z of the staged completed Store.
-                found = query_store(staged_p).lookup([SIGNAL_ALID[0]], [f"test_analysis_{self.STORE_ID}"])
-                rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
-                opened = open_store(staged_p)
-                plane = DenseZPlane.open(opened.arrays(mode="r+"), opened.manifest.encoding)
-                plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
+                self.tamper(staged_p)
                 pause.unlink()
                 returncode = proc.wait(timeout=600)
 
@@ -3031,8 +3286,8 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
             verdict_p = paths.work_dir(self.STORE_ID, root=artifacts) / "observed-view-check.json"
             verdict = json.loads(verdict_p.read_text(encoding="utf-8"))
             self.assertIs(verdict["passed"], False)
-            self.assertIn("z_mismatch", verdict["failures"])
-            self.assertIn("z_mismatch", output)
+            self.assertIn(self.FAILURE, verdict["failures"])
+            self.assertIn(f"{self.FAILURE}=1", output)
             self.assertIn(str(verdict_p), output)
 
             # The check failed, so nothing registered and nothing was published.
@@ -3047,8 +3302,257 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
             self.assertFalse(paths.publication_marker(self.STORE_ID, root=artifacts).exists())
             self.assertEqual(
                 yaml.safe_load((stores / self.STORE_ID / "validation.yaml").read_text())["observed"]["n_variants"],
-                len(SIGNAL_POSITIONS) - 1,
+                self.OBSERVED_ONLY_N_VARIANTS,
             )
+
+
+class TestWorkflowSingleIdHybridFailingObservedViewCheck(TestWorkflowSingleIdFailingObservedViewCheck):
+    """A Hybrid completed Store that fails the Observed-View Check is not published either (#333, ADR 0037).
+
+    The release is `hybrid_single_id_completion_template`'s, and the cell
+    perturbed is its crossover: the Overflow association completion moved into
+    the Dense Component, which the Hybrid check compares with its source value.
+    """
+
+    FAILURE = "crossovers.z_mismatch"
+    # The shared axis: the variant reference's ten positions, the held-out one
+    # among them, and the two the Overflow holds.
+    OBSERVED_ONLY_N_VARIANTS = len(SIGNAL_POSITIONS)
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return hybrid_single_id_completion_template()
+
+    def tamper(self, staged_p: Path) -> None:
+        """Perturb the crossover's Z in the staged Store's Dense Component."""
+        import numpy as np
+        from opengwasdb.encoding import DenseZPlane
+        from opengwasdb.store.open import open_store
+
+        # The held-out position is on the variant reference, which the
+        # Observed-Only variant count counts on, and the crossover is observed.
+        self.assertNotIn(SIGNAL_HELD_OUT_INDEX, HYBRID_OFF_REFERENCE_INDEXES)
+        component = open_store(staged_p).dense_component()
+        (crossover,) = set(HYBRID_OFF_REFERENCE_INDEXES) & set(HYBRID_PANEL_INDEXES)
+        found = query_store(component.path).lookup([SIGNAL_ALID[crossover]], [f"test_analysis_{self.STORE_ID}"])
+        self.assertEqual(list(found["association_status"]), ["observed"])
+        rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
+        plane = DenseZPlane.open(component.arrays(mode="r+"), component.manifest.encoding)
+        plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
+
+
+class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
+    """A Hybrid release completes its own Store under its id, end to end through the entry point (#333, ADR 0037).
+
+    The release is `hybrid_single_id_completion_template`'s. Its Observed-Only
+    Store holds two associations in its Overflow, and completion moves one of
+    them into the Dense Component: a crossover. One run builds and publishes
+    the Observed-Only Store, completes it, passes the Observed-View Check
+    across both components, and publishes the completed Store at the same
+    path. `TestWorkflowSingleIdReferenceCompletion` shows the rest of the
+    single-id contract on a Dense release; this class asserts what a Hybrid
+    one adds. Every test only reads the template.
+    """
+
+    BUILD_PHASE_RECORDS = ["build", "validate", "register"]
+    COMPLETION_RECORDS = ["complete", "completion-validate", "completion-observed-view-check", "completion-register"]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = hybrid_single_id_completion_template()
+        cls.STORE_ID: str = cls.template["store_id"]
+        cls.artifacts: Path = cls.template["artifacts"]
+        cls.store_p: Path = paths.store_path(cls.STORE_ID, root=cls.artifacts)
+        cls.rec_dir: Path = paths.records_dir(cls.STORE_ID, root=cls.artifacts)
+
+    def archive(self) -> Path:
+        archives = sorted((paths.store_dir(self.STORE_ID, root=self.artifacts) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+        return archives[0]
+
+    def record(self, step: str) -> dict[str, Any]:
+        return json.loads((self.rec_dir / f"{step}.json").read_text(encoding="utf-8"))
+
+    def test_one_run_publishes_the_observed_only_store_then_the_completed_store_at_its_path(self) -> None:
+        res = self.template["release_result"]
+        self.assertEqual(res.returncode, 0, f"The entry point failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
+        for step in self.BUILD_PHASE_RECORDS + self.COMPLETION_RECORDS:
+            self.assertTrue(self.record(step).get("success"), step)
+        self.assertEqual(self.record("complete")["argv"][1], "complete-hybrid")
+        self.assertEqual(self.record("register")["published_store"], str(self.store_p))
+        self.assertIsNone(self.record("register")["replaced_archive"], "the build phase publishes first")
+        self.assertEqual(self.record("completion-register")["replaced_archive"], str(self.archive()))
+        for leftover in (
+            paths.partial_store_path(self.STORE_ID, root=self.artifacts),
+            paths.backup_store_path(self.STORE_ID, root=self.artifacts),
+            paths.publication_marker(self.STORE_ID, root=self.artifacts),
+        ):
+            self.assertFalse(leftover.exists(), leftover)
+
+    def test_the_completed_store_keeps_the_id_and_takes_its_own_release_id(self) -> None:
+        manifest_doc = json.loads((self.store_p / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            {key: manifest_doc[key] for key in ("primary_layout", "completion_state", "store_id", "release_id")},
+            {
+                "primary_layout": "hybrid",
+                "completion_state": "reference_completed",
+                "store_id": self.STORE_ID,
+                "release_id": f"{self.STORE_ID}-completed",
+            },
+        )
+
+    def test_the_check_compared_both_components_and_the_crossover_and_passed(self) -> None:
+        """Two Overflow associations, one of them on the panel: one crossover, one left in the Overflow."""
+        self.assertNotIn(SIGNAL_HELD_OUT_INDEX, HYBRID_OFF_REFERENCE_INDEXES, "both are observed in the VCF")
+        verdict = json.loads(self.record("completion-observed-view-check")["stdout"])
+        self.assertEqual(verdict["layout"], "hybrid")
+        self.assertIs(verdict["passed"], True)
+        self.assertEqual(verdict["failures"], [])
+        self.assertEqual(verdict["crossovers"]["n"], 1)
+        overflow = verdict["components"]["overflow"]
+        self.assertEqual((overflow["n_parent_associations"], overflow["n_child_associations"]), (2, 1))
+
+    def test_observed_only_returns_the_observed_only_stores_associations_unchanged(self) -> None:
+        """By ALID, across both components, z, se and eaf are those read before completion began.
+
+        The crossover's association moved from the Overflow to the Dense
+        Component and must come back unchanged and observed.
+        """
+        import numpy as np
+
+        before = self.template["observed_before"]
+        self.assertIsNotNone(before, "the template never read the Observed-Only Store")
+        after = observed_view(self.store_p, self.template["analysis_id"])
+        expected_alids = sorted(SIGNAL_ALID[i] for i in range(len(SIGNAL_POSITIONS)) if i != SIGNAL_HELD_OUT_INDEX)
+        self.assertEqual(sorted(before), expected_alids)
+        self.assertEqual(sorted(after), expected_alids)
+        for alid in expected_alids:
+            (z, se, eaf, status), (before_z, before_se, before_eaf, before_status) = after[alid], before[alid]
+            self.assertEqual((z, se), (before_z, before_se), alid)
+            self.assertTrue(eaf == before_eaf or (np.isnan(eaf) and np.isnan(before_eaf)), alid)
+            self.assertNotEqual(status, "imputed", alid)
+            self.assertNotEqual(before_status, "imputed", alid)
+
+    def test_the_replaced_store_is_deleted_and_its_records_are_archived(self) -> None:
+        import yaml
+
+        archive = self.archive()
+        self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "validation.yaml"])
+        self.assertEqual(
+            sorted(p.name for p in (archive / "records").iterdir()),
+            ["completion-observed-view-check.json", "register.json"],
+        )
+        archived_record = yaml.safe_load((archive / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(archived_record["observed"]["completion_state"], "observed_only")
+
+
+class TestWorkflowCompletedHybridStoreGetsItsSubsetAndOverview(unittest.TestCase):
+    """The completion phase builds an Indexed Variant Subset and the overview on a completed Hybrid Store (#333).
+
+    As OGS-00011's will. The release is `prepare_hybrid_subset_signal_release`'s,
+    built by this class alone from `hybrid_subset_checkout`: the shared Hybrid
+    template leaves both post steps out, since every process that builds it
+    would pay for them.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.built = run_single_id_completion(
+            "OGS-00131", prepare_hybrid_subset_signal_release, checkout=hybrid_subset_checkout()["checkout"]
+        )
+        cls.addClassCleanup(cls.built["temp_dir"].cleanup)
+
+    def test_the_completion_phase_builds_the_subset_and_the_overview_on_the_completed_store(self) -> None:
+        """`hm3` holds the listed positions the Store holds, the held-out one now imputed."""
+        res = self.built["release_result"]
+        self.assertEqual(res.returncode, 0, f"The entry point failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
+        store_id, artifacts = self.built["store_id"], self.built["artifacts"]
+        rec_dir = paths.records_dir(store_id, root=artifacts)
+        staged = str(paths.partial_store_path(store_id, root=artifacts))
+        for step in ("indexed-subset-hm3", "overview", "completion-indexed-subset-hm3", "completion-overview"):
+            record = json.loads((rec_dir / f"{step}.json").read_text(encoding="utf-8"))
+            self.assertTrue(record["success"], step)
+            self.assertEqual(record["argv"][2], staged, step)
+        store_p = paths.store_path(store_id, root=artifacts)
+        self.assertEqual(json.loads((store_p / "manifest.json").read_text())["completion_state"], "reference_completed")
+        q = query_store(store_p)
+        try:
+            rows = q.analysis(self.built["analysis_id"], indexed_subset="hm3")
+            table = q.variants_table()
+        finally:
+            q.close()
+        self.assertEqual(
+            {
+                table[int(index)]["alid"]: str(status)
+                for index, status in zip(rows["variant_index"], rows["association_status"], strict=True)
+            },
+            {
+                SIGNAL_ALID[i]: "imputed" if i == SIGNAL_HELD_OUT_INDEX else "observed"
+                for i in HYBRID_SUBSET_INDEXES
+            },
+        )
+        self.assertTrue((store_p / "overview.html").is_file())
+
+
+class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
+    """A published Observed-Only Hybrid Store is completed later under its id, with no rebuild (#333, #305).
+
+    The release is a copy of `hybrid_single_id_completion_template` as its
+    run stood when `complete` started (`complete_started`, through
+    `copy_snapshot`): the build phase had published the Observed-Only Store
+    and nothing of the completion phase had run. That build phase is what the
+    bundle plans without its `complete` block (`tests/plan`), so with the
+    block taken out the copy is an accepted, published Observed-Only release
+    with nothing left to do. The bundle then gains a `complete-hybrid` block,
+    the one amendment ADR 0037 allows, and an unforced run completes the
+    Store. `TestWorkflowCompletingAStoreBuiltBefore304` shows the same for a
+    Dense Store the workflow built before #304.
+    """
+
+    def test_the_amended_bundle_runs_only_the_completion_phase(self) -> None:
+        import yaml
+
+        template = hybrid_single_id_completion_template()
+        store_id = template["store_id"]
+        self.assertIsNotNone(template["complete_started"], "the template's run never reached `complete`")
+        stores, artifacts = copy_snapshot(template["complete_started"], built=template, into=self.td)
+        build_yaml_p = stores / store_id / "build.yaml"
+        declared = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
+        observed_only = {key: value for key, value in declared.items() if key != "complete"}
+        build_yaml_p.write_text(yaml.safe_dump({**observed_only, "completion_state": "observed_only"}), encoding="utf-8")
+
+        checkout = template["checkout"]
+        published = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts, checkout=checkout)
+        self.assertEqual(published.returncode, 0, published.stdout + published.stderr)
+        self.assertEqual([t for t in scheduled_targets(published.stdout) if t != store_id], [])
+
+        amend_to_complete_own_store(
+            stores, store_id, ld_panel=Path(declared["complete"]["options"]["ld-panel"]), command="complete-hybrid"
+        )
+        store_dir = paths.store_dir(store_id, root=artifacts)
+        build_phase_before = {
+            p: (p.stat().st_mtime_ns, p.read_bytes())
+            for directory in ("records", "work") for p in sorted((store_dir / directory).iterdir())
+        }
+        dry = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts, checkout=checkout)
+        res = run_release([store_id], registry_root=stores, artifact_root=artifacts, checkout=checkout)
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertEqual(
+            [t for t in scheduled_targets(dry.stdout) if t != store_id],
+            TestWorkflowSingleIdHybridReferenceCompletion.COMPLETION_RECORDS,
+        )
+        self.assertNotIn("would refuse", dry.stdout)
+        self.assertEqual(res.returncode, 0, f"the completion failed:\n{res.stdout}\n{res.stderr}")
+        for p, (mtime, content) in build_phase_before.items():
+            self.assertEqual((p.stat().st_mtime_ns, p.read_bytes()), (mtime, content), f"{p} was rewritten")
+        rec_dir = paths.records_dir(store_id, root=artifacts)
+        for step in TestWorkflowSingleIdHybridReferenceCompletion.COMPLETION_RECORDS:
+            self.assertTrue(json.loads((rec_dir / f"{step}.json").read_text(encoding="utf-8"))["success"], step)
+        manifest_doc = json.loads((paths.store_path(store_id, root=artifacts) / "manifest.json").read_text())
+        self.assertEqual(
+            (manifest_doc["primary_layout"], manifest_doc["completion_state"]), ("hybrid", "reference_completed")
+        )
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):

@@ -62,7 +62,13 @@ from ogstores.plan import plan
 #: #291 whose first parent is PR #288's merge: stores #312's OGS-00009 rebuild
 #: needs #288's strand-aware hg19 lift. The range `023774a..d405de0` is #288's
 #: commits and merge plus the #291 merge; #288 is its only functional change.
-PINNED_OPENGWASDB_REVISION: str = "d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c"
+#: Then to `eb4c749b`, core #295's merge into the core integration branch for
+#: stores epic #232 (core PR #303), not yet on core `dev`: its
+#: `check-observed-view` compares a Hybrid pair, which stores #333 needs for a
+#: Hybrid release to complete its own Store. The range `d405de0..eb4c749` is
+#: #295's commits and merge, the branch's empty first commit and core `dev`'s
+#: docs-only PR #293; #295 is its only functional change.
+PINNED_OPENGWASDB_REVISION: str = "eb4c749bd30379a5499d6c2a34fb0db37aa9fb42"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference
