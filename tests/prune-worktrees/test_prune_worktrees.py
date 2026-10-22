@@ -192,7 +192,9 @@ class PruneWorktreesTestCase(unittest.TestCase):
         """A fixture process that is still running when this returns: a process that
         exited early would be found "unused" and pass for the wrong reason."""
         kwargs.setdefault("stdout", subprocess.DEVNULL)
-        kwargs.setdefault("stderr", subprocess.DEVNULL)
+        errors = tempfile.TemporaryFile()  # so a fixture that dies can say why
+        self.addCleanup(errors.close)
+        kwargs.setdefault("stderr", errors)
         proc = subprocess.Popen(argv, cwd=cwd, **kwargs)
         self.procs.append(proc)
         want = kwargs.get("executable") or shutil.which(argv[0]) or argv[0]
@@ -205,7 +207,13 @@ class PruneWorktreesTestCase(unittest.TestCase):
                 pass
             time.sleep(0.02)
         time.sleep(0.2)  # a process that cannot run (an unknown multi-call name) dies at once
-        self.assertIsNone(proc.poll(), f"fixture process {argv} exited with {proc.returncode}")
+        if proc.poll() is not None:
+            errors.seek(0)
+            real = shutil.which(argv[0])
+            self.fail(
+                f"fixture process {argv} (executable={kwargs.get('executable')}) exited with {proc.returncode}; "
+                f"which({argv[0]!r})={real}, realpath={os.path.realpath(real) if real else None}; "
+                f"stderr: {errors.read().decode(errors='replace').strip()!r}")
         return proc
 
     def assert_fixture_processes_running(self) -> None:
@@ -269,11 +277,13 @@ class PruneWorktreesTestCase(unittest.TestCase):
         self.assertIn(f"pid {self.argv_proc.pid}", reason)
 
     def test_a_process_using_the_executable_in_the_worktree_is_named(self) -> None:
-        exe = self.trees / "merged" / "bin" / "sleeper"
+        # Named "sleep", like the original: a multi-call binary may dispatch on its own file
+        # name as well as on argv[0].
+        exe = self.trees / "merged" / "bin" / "sleep"
         exe.parent.mkdir()
         shutil.copy2(shutil.which("sleep"), exe)
         self.ignore(self.trees / "merged", "bin/")  # the worktree stays clean: only the process pins it
-        # argv[0] is the real name, so a multi-call `sleep` (uutils, busybox) still dispatches,
+        # argv[0] is the real name too, so either dispatch style works (uutils, busybox),
         # and no argument holds the worktree's path: only the executable pins it.
         proc = self.start(["sleep", "3600"], cwd=self.root, executable=str(exe))
         reason = self.verdicts(self.run_tool())["merged"]
