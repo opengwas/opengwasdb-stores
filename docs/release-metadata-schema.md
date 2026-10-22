@@ -664,7 +664,13 @@ everywhere the map is used, and each use is checked against it:
 - Before any build the release entry point, and the Snakefile's `onstart` and
   `column_map` rule, re-hash `column_maps/<file>` against the binding and
   refuse a mismatch, naming the map. The staging rule re-hashes again as it
-  copies.
+  copies. Snakemake treats an existing staged copy as up to date, so each step
+  that lists it as an input checks the staged bytes against the binding
+  immediately before it runs (`resources.verify_staged_column_map`), and a
+  retried build whose staged copy changed is refused naming the map.
+- `plan()` is a pure function (ADR 0031): it reads only the binding's recorded
+  fields. That a built-in's `sha256` is the pinned package's is `check()`'s to
+  say.
 
 `assign-ancestry` and `estimate-phenotype-sd` take no map yet (opengwasdb ADR
 0063, opengwas/opengwasdb#285).

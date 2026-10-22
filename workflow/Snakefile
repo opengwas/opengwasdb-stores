@@ -142,6 +142,14 @@ def stage_column_map(store_id: str, destination: Path) -> None:
         raise WorkflowError(str(exc))
 
 
+def check_staged_column_map(store_id: str, root: str, inputs) -> None:
+    """Refuse a step whose staged Column Map is not the bound one, naming it (#292)."""
+    try:
+        resources.verify_staged_column_map(get_bundle(store_id), root, inputs)
+    except resources.ReferenceResourceError as exc:
+        raise WorkflowError(str(exc))
+
+
 def last_step_record(wildcards, phase: str) -> str:
     """The record a phase's register consumes: the phase's last planned step's."""
     names = [s.name for s in get_steps(wildcards.store_id, wildcards.root) if s.phase == phase]
@@ -318,6 +326,9 @@ rule step:
             s for s in get_steps(wildcards.store_id, wildcards.root)
             if s.name == wildcards.step
         )
+        # A staged Column Map is up to date as far as Snakemake can tell, even
+        # if it changed since: its bytes are checked here, before the step reads them.
+        check_staged_column_map(wildcards.store_id, wildcards.root, step.inputs)
         run.run_step(
             step,
             store_id=wildcards.store_id,

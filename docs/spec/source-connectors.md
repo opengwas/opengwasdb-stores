@@ -23,37 +23,17 @@ the Column Map -- is [Reading the source files](#reading-the-source-files) (#292
 
 ## Reading the source files
 
-Each Analysis's `source_file` is read by an OpenGWASDB **Source Reader
-Capability** (`source_reader_capability`: `opengwasdb.gwas-ssf`,
-`opengwasdb.finngen-r13`, ...). A tabular collection with no dedicated reader
-is read through **`opengwasdb.column-map`**, the generic tabular reader, which
-needs a **Column Map**: a TOML file declaring which provider column supplies
-each field and the collection's conventions (opengwasdb ADR 0063). A release
-config names its map, and its checksum travels everywhere the files are read:
-
-- **In the release config** ([`column_map`](release-config.md#column_map)): a
-  built-in map by name (`builtin: gwas-ssf`) or a map file this release carries
-  (`path: <file>`), together with `build.options.source-reader-capability:
-  opengwasdb.column-map`.
-- **Resolution** passes `--column-map PATH|NAME` to `opengwasdb
-  resolve-analyses`: a file path, or the name of a built-in map. Its checksum
-  is in the settings digest, the receipt's resolution contract and each
-  mapped record's `resolution_config.column_map`, so a changed map makes the
-  Resolution Records stale. A source on another genome build than the
-  Ancestry Reference Panel is passed `--chain-file`, the declared liftover
-  chain (`ancestry_assignment.liftover_chain_resource_id`, a `liftover_chain`
-  Reference Resource).
-- **The bundle** binds the map in `build.yaml` as `column_map: {name, sha256,
-  file}` and carries a non-built-in map under `column_maps/`
-  ([binding](../release-metadata-schema.md#column-map-binding)).
-- **Store Release Build** passes the same `--column-map PATH|NAME` to each
-  build command that reads sources (`build-dense-vcf`, `build-hybrid`, and the
-  `variant-reference` pre-stage), re-hashing a carried map against the binding
-  first ([workflow](store-release-workflow.md#planpy)).
-
-A built-in map is bound by name and its shipped checksum; the pinned package
-holds its bytes. `assign-ancestry` and `estimate-phenotype-sd` take no map yet
-(opengwasdb#285).
+Each Analysis's `source_file` is read by an OpenGWASDB Source Reader Capability
+(`source_reader_capability`). A tabular collection with no dedicated reader is
+read through `opengwasdb.column-map` and a **Column Map**, a TOML file naming
+which provider column supplies each field (opengwasdb ADR 0063). The release
+config names the map ([`column_map`](release-config.md#column_map)), and the
+resolver and each build command take it as `--column-map PATH|NAME`: a file
+path, or the name of a built-in map. A source on another genome build is
+passed `--chain-file`, the declared liftover chain
+([`ancestry_assignment`](release-config.md#reference-resources)). The binding,
+the commands that take the flag and the checksum contract are in the
+[release metadata schema](../release-metadata-schema.md#column-map-binding).
 
 ## Connector files
 

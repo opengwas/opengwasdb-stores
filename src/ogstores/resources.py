@@ -309,6 +309,31 @@ def verify_column_map(loaded: bundle_module.Bundle) -> Path | None:
     return path
 
 
+def verify_staged_column_map(
+    loaded: bundle_module.Bundle, artifact_root: Path | str, inputs: Iterable[Path | str]
+) -> None:
+    """Refuse a build step whose staged Column Map no longer has the bound checksum.
+
+    Snakemake treats an existing staged copy as up to date, so a resumed or
+    retried build could read a copy changed since it was staged. A step that
+    lists the staged map among its inputs is checked here, immediately before
+    it runs: the bytes it will read must be the binding's (#292).
+    """
+    binding = bundle_module.column_map_binding(loaded.build)
+    if binding is None or binding.file is None:
+        return
+    staged = paths.column_map_path(loaded.store_id, binding.file, root=artifact_root)
+    if staged not in {Path(item) for item in inputs}:
+        return
+    actual = _sha256_file(staged) if staged.is_file() and not staged.is_symlink() else None
+    if actual != binding.sha256:
+        raise ColumnMapChecksumError(
+            f"Release {loaded.store_id}: the staged Column Map {binding.name!r} ({staged}) "
+            f"{'has sha256 ' + actual if actual else 'is not a regular file'}, but build.yaml binds "
+            f"{binding.sha256}; delete it to stage the bundle's copy again"
+        )
+
+
 def verify_column_maps_for_releases(
     scheduled: Iterable[tuple[str, str]], *, registry_root: Path | str
 ) -> None:
@@ -387,6 +412,7 @@ __all__ = [
     "stage_column_map",
     "verify_column_map",
     "verify_column_maps_for_releases",
+    "verify_staged_column_map",
     "verify_indexed_subsets_for_releases",
     "verify_observed_view_check_for_releases",
     "verify_variant_list_resource",

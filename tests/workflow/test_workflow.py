@@ -3169,13 +3169,12 @@ class TestWorkflowOperatorInterface(unittest.TestCase):
 
 
 class TestWorkflowCarriedColumnMap(unittest.TestCase):
-    """A carried Column Map is staged for the build, re-hashed against its binding (#292).
+    """A carried Column Map is staged for the build and checked before it is read (#292).
 
-    `plan()` names the staged copy under the artifact root as `--column-map`;
-    the `column_map` rule copies it from the bundle once the bytes match the
-    Build Recipe's `column_map.sha256`, and a run that finds other bytes is
-    refused naming the map. Only the staging is run here: building through a
-    map is OpenGWASDB's, and its own tests cover it.
+    Two integrations of the DAG: the staging and the entry point's refusal, and
+    a retried build whose staged copy changed. The resource-level cases are
+    `test_column_map_resources.py`. Only the staging and the refusals run here:
+    building through a map is OpenGWASDB's.
     """
 
     STORE_ID = "OGS-00096"
@@ -3200,70 +3199,43 @@ class TestWorkflowCarriedColumnMap(unittest.TestCase):
         self.carried = directory / "column_maps" / self.FILE
         self.carried.write_bytes(self.MAP)
         self.staged = paths.column_map_path(self.STORE_ID, self.FILE, root=self.artifacts)
-        self.loaded = bundle.load(self.STORE_ID, registry_root=self.stores)
+        self.build_record = paths.record_path(self.STORE_ID, "build", root=self.artifacts)
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
 
-    def stage(self) -> subprocess.CompletedProcess[str]:
-        return run_snakemake([str(self.staged)], registry_root=self.stores, artifact_root=self.artifacts)
-
-    def test_the_plan_names_the_staged_copy_and_the_dry_run_schedules_its_staging(self) -> None:
-        build = plan(self.loaded, artifact_root=self.artifacts)[0]
+    def test_the_dry_run_schedules_staging_the_map_is_staged_and_the_entry_point_refuses_a_changed_one(self) -> None:
+        loaded = bundle.load(self.STORE_ID, registry_root=self.stores)
+        build = plan(loaded, artifact_root=self.artifacts)[0]
         self.assertEqual(build.argv[build.argv.index("--column-map") + 1], str(self.staged))
-        res = run_snakemake(
-            [str(paths.record_path(self.STORE_ID, "build", root=self.artifacts))],
-            registry_root=self.stores, artifact_root=self.artifacts, dry_run=True,
+        dry = run_snakemake(
+            [str(self.build_record)], registry_root=self.stores, artifact_root=self.artifacts, dry_run=True
         )
-        self.assertEqual(res.returncode, 0, res.stderr)
-        self.assertIn("rule column_map:", res.stdout)
-        self.assertIn(str(self.staged), res.stdout)
+        self.assertEqual(dry.returncode, 0, dry.stderr)
+        self.assertIn("rule column_map:", dry.stdout)
 
-    def test_the_map_is_staged_byte_for_byte(self) -> None:
-        res = self.stage()
-        self.assertEqual(res.returncode, 0, res.stderr)
+        staged = run_snakemake([str(self.staged)], registry_root=self.stores, artifact_root=self.artifacts)
+        self.assertEqual(staged.returncode, 0, staged.stderr)
         self.assertEqual(self.staged.read_bytes(), self.MAP)
 
-    def test_a_map_whose_bytes_changed_is_refused_by_name_and_not_staged(self) -> None:
-        self.carried.write_bytes(self.MAP + b"# edited\n")
-        res = self.stage()
-        self.assertNotEqual(res.returncode, 0)
-        self.assertIn("Column Map 'mvp-map' (column_maps/mvp-map.toml) has sha256", res.stderr)
-        self.assertIn(hashlib.sha256(self.MAP).hexdigest(), res.stderr)
-        self.assertFalse(self.staged.exists())
-
-    def test_a_map_edited_after_the_check_is_refused_at_the_copy(self) -> None:
-        with mock.patch.object(resources, "verify_column_map", return_value=self.carried):
-            self.carried.write_bytes(self.MAP + b"# edited\n")
-            with self.assertRaisesRegex(resources.ColumnMapChecksumError, "changed while it was staged"):
-                resources.stage_column_map(self.loaded, self.staged)
-        self.assertFalse(self.staged.exists())
-
-    def test_the_release_check_refuses_a_changed_map_naming_it(self) -> None:
-        resources.verify_column_maps_for_releases(
-            [(str(self.artifacts), self.STORE_ID)], registry_root=self.stores
-        )
-        self.carried.write_bytes(self.MAP + b"# edited\n")
-        with self.assertRaisesRegex(resources.ColumnMapChecksumError, f"Release {self.STORE_ID}: Column Map 'mvp-map'"):
-            resources.verify_column_maps_for_releases(
-                [(str(self.artifacts), self.STORE_ID)], registry_root=self.stores
-            )
-
-    def test_the_entry_point_refuses_before_any_write(self) -> None:
         self.carried.write_bytes(self.MAP + b"# edited\n")
         res = run_release([self.STORE_ID], registry_root=self.stores, artifact_root=self.artifacts)
         self.assertNotEqual(res.returncode, 0)
         self.assertIn("Column Map 'mvp-map'", res.stdout + res.stderr)
         self.assertFalse(paths.records_dir(self.STORE_ID, root=self.artifacts).exists())
-        self.assertFalse(self.staged.exists())
 
-    def test_a_built_in_map_carries_no_file_and_stages_nothing(self) -> None:
-        recipe = yaml.safe_load((self.loaded.root / "build.yaml").read_text())
-        shipped = importlib.resources.files("opengwasdb.readers").joinpath("column_maps/gwas-ssf.toml")
-        recipe["column_map"] = {"name": "gwas-ssf", "sha256": hashlib.sha256(shipped.read_bytes()).hexdigest()}
-        (self.loaded.root / "build.yaml").write_text(yaml.safe_dump(recipe), encoding="utf-8")
-        loaded = bundle.load(self.STORE_ID, registry_root=self.stores)
-        self.assertIsNone(resources.verify_column_map(loaded))
+    def test_a_retried_build_whose_staged_copy_changed_is_refused_by_name_before_it_runs(self) -> None:
+        staged = run_snakemake([str(self.staged)], registry_root=self.stores, artifact_root=self.artifacts)
+        self.assertEqual(staged.returncode, 0, staged.stderr)
+        # Snakemake sees the staged copy as up to date: only the step's own check can catch this.
+        self.staged.write_bytes(self.MAP + b"# edited after staging\n")
+
+        res = run_snakemake([str(self.build_record)], registry_root=self.stores, artifact_root=self.artifacts)
+
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("the staged Column Map 'mvp-map'", res.stderr)
+        self.assertFalse(self.build_record.exists())
+        self.assertFalse(paths.store_path(self.STORE_ID, root=self.artifacts).exists())
 
 
 if __name__ == "__main__":

@@ -358,6 +358,9 @@ RECEIPT_KEYS: frozenset[str] = frozenset(
 #: provenance; reading one again is refused by name rather than as corrupt.
 HISTORICAL_RECEIPT_SCHEMA_VERSIONS: tuple[int, ...] = (1,)
 
+#: ``_verify_fingerprints``' ``column_map`` when the caller has no binding to compare.
+_NOT_CHECKED: object = object()
+
 #: Filename of the registry-side resolution receipt in the run's Work Root.
 RECEIPT_FILENAME: str = "resolution_receipt.json"
 
@@ -1576,14 +1579,15 @@ def verify_records(
         return [], failures + [str(exc)]
     kept, parse_failures = parse_receipt_records(manifest_rows, receipt["records"])
     failures.extend(parse_failures)
-    records, record_failures = account_kept_records(manifest_rows, area, kept)
-    failures.extend(record_failures)
     try:
         binding = column_map_binding(config)
     except CandidateError as exc:
         failures.append(str(exc))
-    else:
-        failures.extend(_verify_column_map(records, binding))
+        binding = _NOT_CHECKED
+    records, record_failures = account_kept_records(
+        manifest_rows, area, kept, column_map=binding
+    )
+    failures.extend(record_failures)
     failures.extend(
         _verify_receipt(
             manifest_rows=manifest_rows,
@@ -1633,8 +1637,14 @@ def account_kept_records(
     manifest_rows: Sequence[ResolverRow],
     area: ResolutionArea,
     kept: Mapping[str, KeptRecord],
+    *,
+    column_map: ColumnMapBinding | None | object = _NOT_CHECKED,
 ) -> tuple[list[dict[str, Any]], list[str]]:
-    """Read and account the kept Resolution Records a receipt names, in manifest order."""
+    """Read and account the kept Resolution Records a receipt names, in manifest order.
+
+    ``column_map`` is the binding the bundle will carry (``None``: it binds
+    none); left out, the records' Column Map is not compared.
+    """
     failures: list[str] = []
     records: list[dict[str, Any]] = []
     for row in manifest_rows:
@@ -1646,7 +1656,9 @@ def account_kept_records(
         except ResolutionAreaError as exc:
             failures.append(str(exc))
             continue
-        record, row_failures = _account_record(row, area.record_path(record_ref), data)
+        record, row_failures = _account_record(
+            row, area.record_path(record_ref), data, column_map=column_map
+        )
         failures.extend(row_failures)
         if record is not None:
             records.append(record)
@@ -1710,7 +1722,11 @@ def _account_index(
 
 
 def _account_record(
-    row: ResolverRow, record_path: Path, data: bytes | None = None
+    row: ResolverRow,
+    record_path: Path,
+    data: bytes | None = None,
+    *,
+    column_map: ColumnMapBinding | None | object = _NOT_CHECKED,
 ) -> tuple[dict[str, Any] | None, list[str]]:
     """Read one resolver record and check it against its manifest row.
 
@@ -1742,7 +1758,7 @@ def _account_record(
     status = record.get("status")
     if status not in _RESOLVER_RECORD_STATUSES:
         return None, [f"{row.analysis_id}: resolver record has unexpected status {status!r}"]
-    return dict(record), _verify_fingerprints(row, record)
+    return dict(record), _verify_fingerprints(row, record, column_map=column_map)
 
 
 def _first_mismatch(actual: Sequence[str], expected: Sequence[str]) -> str:
@@ -1752,7 +1768,12 @@ def _first_mismatch(actual: Sequence[str], expected: Sequence[str]) -> str:
     return f"length {len(actual)} != {len(expected)}"
 
 
-def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[str]:
+def _verify_fingerprints(
+    row: ResolverRow,
+    record: Mapping[str, Any],
+    *,
+    column_map: ColumnMapBinding | None | object = _NOT_CHECKED,
+) -> list[str]:
     """Check a record's current source identity and tier against the manifest row.
 
     A record whose recorded source checksum, size, file, tier or reader
@@ -1762,6 +1783,11 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
     fail finalisation rather than be frozen into a candidate. The resolver's
     fingerprint also records the source file's current size and mtime, so a
     source replaced after the resolve is caught here too.
+
+    ``column_map`` is the binding the bundle will carry (#292): a mapped
+    record's ``resolution_config.column_map`` must equal its fingerprint, and
+    a release that binds none must see none, so a record made under a map is
+    never frozen into a bundle that does not carry it.
     """
     failures: list[str] = []
     fingerprints = record.get("fingerprints")
@@ -1791,6 +1817,13 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
                     f"{row.analysis_id}: resolver resolution_config.{key} is "
                     f"{resolution_config.get(key)!r}, expected {expected[key]!r}"
                 )
+        if column_map is not _NOT_CHECKED:
+            wanted_map = column_map.fingerprint() if column_map is not None else None  # type: ignore[union-attr]
+            if resolution_config.get("column_map") != wanted_map:
+                failures.append(
+                    f"{row.analysis_id}: resolver resolution_config.column_map is "
+                    f"{resolution_config.get('column_map')!r}, expected {wanted_map!r}"
+                )
     # A declared score must be included in the resolver's own fingerprint.
     # Legacy/no-declaration records predate these keys and remain compatible.
     if row.imputation_score_column:
@@ -1816,31 +1849,6 @@ def _verify_fingerprints(row: ResolverRow, record: Mapping[str, Any]) -> list[st
                 f"{resolution_config.get('maf_threshold')!r}, expected {wanted_maf!r}"
             )
     failures.extend(_verify_source_file_unchanged(row, fingerprints))
-    return failures
-
-
-def _verify_column_map(
-    records: Sequence[Mapping[str, Any]], binding: ColumnMapBinding | None
-) -> list[str]:
-    """Require each record to say it was read through the map the bundle will bind (#292).
-
-    A mapped Resolution Record carries ``resolution_config.column_map``, the
-    map's ``{name, sha256}``; it must equal the release's binding. A release
-    that binds no map must see none, so a record made under a map is never
-    frozen into a bundle that does not carry it.
-    """
-    wanted = binding.fingerprint() if binding is not None else None
-    failures: list[str] = []
-    for record in records:
-        fingerprints = record.get("fingerprints")
-        config = fingerprints.get("resolution_config") if isinstance(fingerprints, Mapping) else None
-        if not isinstance(config, Mapping):
-            continue  # _verify_fingerprints reports a record with no resolution_config.
-        if config.get("column_map") != wanted:
-            failures.append(
-                f"{record.get('analysis_id')}: resolver resolution_config.column_map is "
-                f"{config.get('column_map')!r}, expected {wanted!r}"
-            )
     return failures
 
 

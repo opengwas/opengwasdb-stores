@@ -33,13 +33,18 @@ import yaml
 
 from manifest_generation import candidate_workflow
 from manifest_generation.candidate_workflow import (
+    RECEIPT_FILENAME,
     CandidateError,
+    derive_resolver_manifest,
+    read_analysis_metadata,
+    verify_records,
     load_candidate_configuration,
     resolver_argv,
     resolver_settings,
     resolver_settings_digest,
 )
 from manifest_generation.release_config import ReleaseConfigError
+from manifest_generation.source_inventory import read_inventory
 from ogstores import bundle
 
 from test_phase_b_candidate import (  # sibling suite's fixture helpers
@@ -231,91 +236,112 @@ class ColumnMapTests(unittest.TestCase):
 
     # -- records and the candidate -------------------------------------------------------
 
-    def _resolved_ids(self) -> list[str]:
-        return sorted(_receipt_of(self.fixture)["records"])
+class MappedCandidateTests(unittest.TestCase):
+    """One candidate generated through a carried map, shared by every read-only assertion on it."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory(prefix="column-map-candidate-")
+        cls.fixture = FixtureBuilder(Path(cls._tmp.name)).build()
+        cls.map_path = cls.fixture.root / "maps" / "fixture-map.toml"
+        cls.map_path.parent.mkdir()
+        cls.map_path.write_bytes(_carried_map_bytes())
+        document = yaml.safe_load(cls.fixture.config_path.read_text(encoding="utf-8"))
+        document["build"]["options"]["source-reader-capability"] = MAP_CAPABILITY
+        document["column_map"] = {"path": str(cls.map_path)}
+        cls.fixture.config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        result = _run_cli(cls.fixture)
+        assert result.returncode == 0, result.stderr
+        cls.directory = cls.fixture.registry_root / STORE_ID
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
 
     def test_records_carry_the_maps_fingerprint(self) -> None:
-        self._read_through_map(path=str(self.map_path))
-        self.assertEqual(_run_cli(self.fixture).returncode, 0)
         wanted = {"name": "fixture-map", "sha256": _sha256(self.map_path.read_bytes())}
-        for analysis_id in self._resolved_ids():
+        ids = sorted(_receipt_of(self.fixture)["records"])
+        self.assertTrue(ids)
+        for analysis_id in ids:
             record = json.loads(_kept_record(self.fixture, analysis_id).read_text())
             self.assertEqual(record["fingerprints"]["resolution_config"]["column_map"], wanted)
 
-    def test_a_record_made_under_another_map_than_the_binding_is_refused(self) -> None:
-        self._read_through_map(path=str(self.map_path))
-        self.assertEqual(_run_cli(self.fixture).returncode, 0)
-        analysis_id = self._resolved_ids()[0]
-
-        def other_map(record: dict) -> None:
-            fingerprints = record["fingerprints"]
-            fingerprints["resolution_config"]["column_map"]["sha256"] = "f" * 64
-            fingerprints["fingerprint_digest"] = candidate_workflow.recompute_fingerprint_digest(fingerprints)
-
-        from test_phase_b_candidate import _forge_kept_record
-
-        _forge_kept_record(self.fixture, analysis_id, other_map)
-        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
-        binding = candidate_workflow.column_map_binding(config)
-        record = json.loads(_kept_record(self.fixture, analysis_id).read_text())
-        failures = candidate_workflow._verify_column_map([record], binding)
-        self.assertEqual(len(failures), 1)
-        self.assertIn(f"{analysis_id}: resolver resolution_config.column_map is", failures[0])
-
-    def test_a_changed_map_makes_the_resolution_records_stale(self) -> None:
-        self._read_through_map(path=str(self.map_path))
-        self.assertEqual(_run_cli(self.fixture).returncode, 0)
-        before = self.fixture.registry_root / STORE_ID
-        self.map_path.write_bytes(_carried_map_bytes(note="# a changed rule\n"))
-
-        result = _run_cli(self.fixture, "--stage", "emit")
-
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("resolution contract changed", result.stderr)
-        self.assertTrue(before.is_dir())  # the earlier candidate is kept
-
-    def test_a_changed_map_is_re_resolved_not_resumed(self) -> None:
-        self._read_through_map(path=str(self.map_path))
-        first_log, second_log = self.fixture.root / "first.log", self.fixture.root / "second.log"
-        self.assertEqual(_run_cli(self.fixture, resolved_log=first_log).returncode, 0)
-        resolved = sorted(first_log.read_text().split())
-        self.assertEqual(resolved, sorted(set(resolved)))
-        self.map_path.write_bytes(_carried_map_bytes(note="# a changed rule\n"))
-
-        second = _run_cli(self.fixture, resolved_log=second_log)
-
-        self.assertEqual(second.returncode, 0, second.stderr)
-        self.assertEqual(sorted(second_log.read_text().split()), resolved)
-
-    def test_an_unchanged_map_is_resumed(self) -> None:
-        self._read_through_map(path=str(self.map_path))
-        log = self.fixture.root / "resolved.log"
-        self.assertEqual(_run_cli(self.fixture, resolved_log=log).returncode, 0)
-        first = set(log.read_text().split())
-        log.unlink()
-        self.assertEqual(_run_cli(self.fixture, resolved_log=log).returncode, 0)
-        # Only a controlled-failure record is re-run under --resume.
-        again = set(log.read_text().split()) if log.exists() else set()
-        self.assertLess(again, first)
-
-    def test_the_candidate_binds_a_carried_map_and_carries_it(self) -> None:
-        self._read_through_map(path=str(self.map_path))
-        self.assertEqual(_run_cli(self.fixture).returncode, 0)
-        directory = self.fixture.registry_root / STORE_ID
-        build = yaml.safe_load((directory / "build.yaml").read_text())
+    def test_the_candidate_binds_the_map_carries_it_and_passes_the_contract_and_the_render_carries_it_too(self) -> None:
         data = self.map_path.read_bytes()
+        build = yaml.safe_load((self.directory / "build.yaml").read_text())
         self.assertEqual(
             build["column_map"], {"name": "fixture-map", "sha256": _sha256(data), "file": "fixture-map.toml"}
         )
-        self.assertEqual((directory / "column_maps" / "fixture-map.toml").read_bytes(), data)
+        self.assertEqual((self.directory / "column_maps" / "fixture-map.toml").read_bytes(), data)
         loaded = bundle.load(STORE_ID, registry_root=self.fixture.registry_root)
         self.assertEqual(list(bundle.check(loaded)), [])
-
-    def test_the_rendered_bundle_in_the_work_root_carries_the_map_too(self) -> None:
-        self._read_through_map(path=str(self.map_path))
-        self.assertEqual(_run_cli(self.fixture).returncode, 0)
         rendered = self.fixture.work_root / STORE_ID / "bundle"
-        self.assertEqual((rendered / "column_maps" / "fixture-map.toml").read_bytes(), self.map_path.read_bytes())
+        self.assertEqual((rendered / "column_maps" / "fixture-map.toml").read_bytes(), data)
+
+    def test_verification_refuses_a_record_made_under_another_map_than_the_binding(self) -> None:
+        other = self.fixture.root / "maps" / "other-map.toml"
+        other.write_bytes(_carried_map_bytes("other-map"))
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        config = replace(config, base=replace(config.base, column_map_path=other))
+        rows = read_inventory(self.fixture.inventory_path)
+        manifest = derive_resolver_manifest(
+            rows, config, read_analysis_metadata(self.fixture.provenance_path, [r.analysis_id for r in rows if r.ready])
+        )
+        run_root = self.fixture.work_root / STORE_ID / "resolver"
+
+        _, failures = verify_records(
+            manifest,
+            config=config,
+            manifest_path=run_root / "analyses.tsv",
+            receipt_path=run_root / RECEIPT_FILENAME,
+            index_path=run_root / "index.json",
+        )
+
+        mismatches = [f for f in failures if "resolution_config.column_map is" in f]
+        self.assertEqual(len(mismatches), len(_receipt_of(self.fixture)["records"]))
+        self.assertIn("'sha256': '" + _sha256(self.map_path.read_bytes()) + "'", mismatches[0])
+        self.assertIn("'name': 'other-map'", mismatches[0])
+
+
+class ChangedMapTests(unittest.TestCase):
+    """A changed map makes the Resolution Records stale; an unchanged one resumes them."""
+
+    def test_a_changed_map_is_refused_at_emit_and_re_resolved_while_an_unchanged_one_is_resumed(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="column-map-changed-") as tmp:
+            fixture = FixtureBuilder(Path(tmp)).build()
+            map_path = fixture.root / "maps" / "fixture-map.toml"
+            map_path.parent.mkdir()
+            map_path.write_bytes(_carried_map_bytes())
+            document = yaml.safe_load(fixture.config_path.read_text(encoding="utf-8"))
+            document["build"]["options"]["source-reader-capability"] = MAP_CAPABILITY
+            document["column_map"] = {"path": str(map_path)}
+            fixture.config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+            logs = [fixture.root / f"resolved-{n}.log" for n in range(3)]
+
+            self.assertEqual(_run_cli(fixture, resolved_log=logs[0]).returncode, 0)
+            first = set(logs[0].read_text().split())
+            self.assertEqual(_run_cli(fixture, resolved_log=logs[1]).returncode, 0)
+            # Unchanged: only a controlled-failure record is re-run under --resume.
+            again = set(logs[1].read_text().split()) if logs[1].exists() else set()
+            self.assertLess(again, first)
+
+            map_path.write_bytes(_carried_map_bytes(note="# a changed rule\n"))
+            stale = _run_cli(fixture, "--stage", "emit")
+            self.assertNotEqual(stale.returncode, 0)
+            self.assertIn("resolution contract changed", stale.stderr)
+            self.assertTrue((fixture.registry_root / STORE_ID).is_dir())  # the earlier candidate is kept
+
+            self.assertEqual(_run_cli(fixture, resolved_log=logs[2]).returncode, 0)
+            self.assertEqual(set(logs[2].read_text().split()), first)
+
+
+class BindingTests(unittest.TestCase):
+    """A built-in map, or none, in a generated candidate."""
+
+    setUp = ColumnMapTests.setUp
+    tearDown = ColumnMapTests.tearDown
+    _edit_config = ColumnMapTests._edit_config
+    _read_through_map = ColumnMapTests._read_through_map
 
     def test_a_built_in_map_is_bound_by_name_and_shipped_checksum_and_carries_no_file(self) -> None:
         self._read_through_map(builtin="gwas-ssf")
