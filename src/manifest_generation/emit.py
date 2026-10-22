@@ -175,6 +175,13 @@ def _release_document(candidate: CandidateBundle) -> dict[str, Any]:
     for name in candidate.sidecars:
         if not name or name != Path(name).name or name in (".", ".."):
             raise EmitError(f"sidecar name {name!r} must be a plain file name under sidecars/")
+    for name in candidate.column_maps:
+        if not bundle.is_valid_column_map_file(name):
+            raise EmitError(
+                f"Column Map file name {name!r} must be a plain file name under column_maps/ "
+                f"matching {bundle.INDEXED_SUBSET_NAME_RE.pattern}, with no '..', ending "
+                f"{bundle.COLUMN_MAP_SUFFIX}"
+            )
     commands = list(candidate.commands)
     if not commands or not all(isinstance(c, str) and c.strip() for c in commands):
         raise EmitError(f"{store_id}: the generator commands that produced it are required")

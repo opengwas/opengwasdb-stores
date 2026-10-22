@@ -278,6 +278,39 @@ class TestEmitRefusals(EmitTestCase):
                     emitter.emit(bad, self.registry)
                 self.assertEqual(tree(self.registry), {})
 
+    def test_an_absolute_column_map_name_that_escapes_staging_is_refused(self) -> None:
+        # A Column Map's file name is checked like a sidecar's, before anything
+        # is written: an absolute path would otherwise be written in place (#282).
+        outside = Path(self._tmp.name) / "outside.toml"
+        outside.write_bytes(b"keep")
+
+        with self.assertRaises(emitter.EmitError) as raised:
+            emitter.emit(candidate(column_maps={str(outside): b"overwritten"}), self.registry)
+
+        self.assertIn(str(outside), str(raised.exception))
+        self.assertEqual(outside.read_bytes(), b"keep")
+        self.assertEqual(tree(self.registry), {})
+
+    def test_a_column_map_name_that_climbs_into_an_accepted_sibling_is_refused(self) -> None:
+        # `../<sibling>/release.yaml` would land in another Store Release's
+        # accepted bundle: refused by name, and that bundle keeps its bytes.
+        sibling = "OGS-00091"
+        emitter.emit(candidate(sibling), self.registry)
+        release_p = self.registry / sibling / "release.yaml"
+        release_p.write_text(
+            release_p.read_text(encoding="utf-8").replace("status: candidate", "status: accepted"),
+            encoding="utf-8",
+        )
+        before = tree(self.registry)
+        name = f"../{sibling}/release.yaml"
+
+        with self.assertRaises(emitter.EmitError) as raised:
+            emitter.emit(candidate(column_maps={name: b"overwritten"}), self.registry)
+
+        self.assertIn(repr(name), str(raised.exception))
+        self.assertEqual(tree(self.registry), before)
+        self.assert_nothing_staged()
+
     def test_a_concurrent_emit_of_the_same_id_is_refused(self) -> None:
         emitter.emit(candidate(), self.registry)
         before = tree(self.registry)

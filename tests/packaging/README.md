@@ -46,9 +46,11 @@ Covered:
   it, and string routes around the import check (a `python3 -m` module path,
   `importlib.import_module`, or the `assign-ancestry`,
   `estimate-phenotype-sd` and `resolve-analyses` subcommands); docstrings are
-  not scanned. Positive and negative controls pin each route. Every source is
-  on the pipeline now (epic #282 stage 2), so no provider module is exempt:
-  the scan covers all of them.
+  not scanned. Positive and negative controls pin each route. Every source's
+  connectors and release config are on the pipeline (epic #282 stage 2), so no
+  provider module is exempt: the scan covers all of them. The code's migration
+  is not a collection's: FinnGen's (`OGS-00017`) and ukb-b's (`OGS-00009`) full
+  comparison runs are still pending.
 - `test_layout.py` (#317, ADR 0038): one home per kind of thing. No `.py`
   file lives outside `src/`, `tests/`, `tools/` and `workflow/`, which
   catches a root module or a namespace package such as `rogue/module.py`, and
