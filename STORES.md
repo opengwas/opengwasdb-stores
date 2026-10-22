@@ -19,7 +19,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00012` | mvp-phs002453-eur | dense | observed_only (completion pending) | validated | - | 1,669 | 0 | 20,137,907 | 33,610,166,783 | passed |
 | `OGS-00013` | mvp-phs002453-afr | dense | observed_only (completion pending) | validated | - | 1,368 | 0 | 36,964,976 | 50,568,087,168 | passed |
 | `OGS-00014` | mvp-phs002453-amr | dense | observed_only | validated | - | 1,053 | 0 | 27,860,266 | 29,336,860,098 | passed |
-| `OGS-00015` | mvp-phs002453-eas | dense | observed_only | validated | - | 241 | 0 | 9,335,909 | 2,249,954,069 | passed |
+| `OGS-00015` | mvp-phs002453-eas | dense | observed_only (completion pending) | validated | - | 241 | 0 | 9,335,909 | 2,249,954,069 | passed |
 | `OGS-00016` | mvp-phs002453-meta-observed-only | dense | observed_only | validated | - | 1,691 | 0 | 27,929,380 | 47,228,581,580 | passed |
 | `OGS-00017` | r13-full | dense | reference_completed | accepted | - | 2,754 | 0 | - | - | passed |
 | `OGS-00022` | eur-hybrid-pilot-10-completed | hybrid | reference_completed | validated | - | 9 | 1 | - | - | passed |

@@ -71,6 +71,23 @@ notes: |
   build or validation has run." That line is carried over from the accepted
   bundle's earlier record and predates the build. Human scientific acceptance
   remains pending.
+
+  Completion under its own id (2026-10-22). The bundle now declares
+  completion_state: reference_completed and, after its build phase, a `complete`
+  block: complete-dense against the HGDP+1kGP EAS LD panel, hgdp1kgp-hg38-ld at
+  /data/opengwasdb/reference/hgdp1kgp-hg38/panel, for ancestry EAS at 16
+  workers. The owner decided this on 2026-10-21. It is the one amendment ADR
+  0037 allows an accepted bundle (its "Clarified by #305" section): the build
+  phase still plans exactly the argv that wrote the published Store, with
+  unchanged membership, so completing this Store schedules no rebuild. Every
+  Analysis in this release has Assigned Ancestry EAS, so completion imputes all
+  241. The completion phase writes to store.opengwasdb.partial, runs the
+  observed-view check, and publishes under the release id OGS-00015-completed,
+  replacing the observed-only Store at
+  /data/opengwasdb/stores/OGS-00015/store.opengwasdb once it registers. Until
+  that run finishes, the sentence above that reference completion is not part of
+  this release still describes the published Store. Release Status stays
+  validated.
 accepted_at: '2026-10-14T01:27:47Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z

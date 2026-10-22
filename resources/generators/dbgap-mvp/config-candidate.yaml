@@ -25,13 +25,13 @@
 #
 # A Store's completion is declared in its one bundle, with both a `build` and a
 # `complete` block, once its `completion_reference` is `qualified` and `active`.
-# A reference is qualified and active only where its entry below says so (owner
-# decision 2026-10-21); AMR is on hold and META is not applicable, so those two
-# Stores stay observed-only. Issue #221 emitted all five observed-only; a
-# published Observed-Only Store is completed later by ADR 0037's one bundle
-# amendment (#305), and the retired generator recorded the intended completion
-# recipe beside the bundle as `<observed id>.completion-plan.yaml`, which the
-# pipeline does not. See README.md.
+# EUR, AFR and EAS are qualified and active (owner decision 2026-10-21); AMR is
+# on hold and META is not applicable, so those two Stores stay observed-only.
+# Issue #221 emitted all five observed-only; a published Observed-Only Store is
+# completed later by ADR 0037's one bundle amendment (#305), and the retired
+# generator recorded the intended completion recipe beside the bundle as
+# `<observed id>.completion-plan.yaml`, which the pipeline does not. See
+# README.md.
 #
 # The owner decision "reorder the IDs" (2026-10-13) placed META ahead of
 # FinnGen. FinnGen's bundle was migrated OGS-00016 -> OGS-00017 under ADR
@@ -153,11 +153,13 @@ stores:
     planned_manifest: dense-pmid-39024449-East-Asian-download-manifest.tsv
     resolution: pending
     completion_reference:
+      # Qualified and active (#230, owner decision 2026-10-21), like AFR: the
+      # EAS tree of the same HGDP+1kGP panel is read in place.
       resource_id: hgdp1kgp-hg38-ld
       ancestry: EAS
       declared_status: available
-      qualification: pending
-      activation: pending
+      qualification: qualified
+      activation: active
       suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
   META:
     observed_store_id: OGS-00016

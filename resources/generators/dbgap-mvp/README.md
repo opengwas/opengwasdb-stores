@@ -84,15 +84,14 @@ here, and in `config-candidate.yaml`'s comment, only as that record.
 All five configs are `completion_state: observed_only`, and the pipeline does
 not emit a reference-completed bundle: a `completion_reference` is a
 declaration, and a `complete` block arrives only through the amendment below.
-EUR and AFR are `qualified`/`active` (owner decision 2026-10-21), so their
+EUR, AFR and EAS are `qualified`/`active` (owner decision 2026-10-21), so their
 published Observed-Only Stores are completed on the Store Release Build side:
 the accepted bundle gains a `complete` block, the one amendment ADR 0037 allows
 (#305), and the run completes that Store under its own id — OGS-00012 against
-the UKB EUR panel, OGS-00013 against the HGDP+1kGP panel for AFR. EAS is still
-pending, AMR is on hold and META is not applicable, so OGS-00014 and OGS-00016
-stay observed-only.
-The retired generator's `<observed id>.completion-plan.yaml` receipt has
-no pipeline equivalent.
+the UKB EUR panel, OGS-00013 and OGS-00015 against the HGDP+1kGP panel for AFR
+and EAS. AMR is on hold and META is not applicable, so OGS-00014 and OGS-00016
+stay observed-only. The retired generator's `<observed id>.completion-plan.yaml`
+receipt has no pipeline equivalent.
 
 ## Regeneration against the committed bundles
 

@@ -60,3 +60,11 @@ notes: >
   and EAS has 1,120 populated blocks. The remaining declared EAS interval,
   chr14:16038675-16100330, lies before the first MAC-filtered chr14 variant
   (18,223,583) and is explicitly empty rather than a failed decomposition.
+
+  Shipped for reference completion (owner decision 2026-10-21, #228 and #230):
+  the AFR and EAS panels complete OGS-00013 and OGS-00015, each against the
+  panel for its own Assigned Ancestry. The calibration above therefore passes
+  rather than gates the release, as
+  docs/reports/eur-panel-imputation-comparison.qmd recommends (ship AFR, EAS
+  and SAS). This records a decision about these panels and claims no parity
+  with the UKB EUR panel; the SAS panel has no MVP Store yet.
