@@ -182,8 +182,9 @@ PR #291.
 
 `--help` shows the same `check-observed-view` command on revisions that compare
 only Dense pairs, so the capability probe above cannot tell them apart. The
-exact-pin check is what refuses an older runtime for a Hybrid single-id release:
-any revision other than the pin is refused before anything is written.
+exact-pin check is what refuses an older runtime for a Hybrid or Ragged
+single-id release: any revision other than the pin is refused before anything
+is written.
 
 ## Coordination with core #296
 
@@ -192,12 +193,18 @@ Ragged Store has no chunk-rows, so the check samples whole Analyses
 (`--n-random` of them, from the same seed) and, for each, rebuilds the regions
 completion retained from the LD panel: every observed association must come
 back identical and not imputed, and every imputed association must lie inside
-a retained region. That rebuild needs the panel and ancestry completion used,
-so the check refuses a Ragged pair without `--ld-panel` (exit 2), and the
-planner passes both from the bundle's `complete` options. Stores #336 moved the
-pin to `32f47b3b`, #296's merge into the same integration branch, so that a
-Ragged release can complete its own Store (ADR 0037). Like `eb4c749b`, it is
-not yet on core `dev`.
+a retained region. That rebuild needs the panel completion used, so the
+check refuses a Ragged pair without `--ld-panel` (exit 2); `--ancestry`
+defaults to the one the completed Store records and, when given, must match
+it. The planner passes both from the bundle's `complete` options. Stores #336
+moved the pin to `32f47b3b`, #296's merge into the same integration branch, so
+that a Ragged release can complete its own Store (ADR 0037). Like `eb4c749b`,
+it is not yet on core `dev`.
+
+The capability probe cannot tell `32f47b3b` from `eb4c749b` either: it asks
+only whether `check-observed-view --help` succeeds, and on both it does. Here
+too the exact-pin check, not the probe, is what refuses an older runtime for a
+Ragged single-id release.
 
 The check compares observed SE exactly. `complete-ragged` refits and
 re-quantises SE stored as `int8_residual`, which on real data moves every
