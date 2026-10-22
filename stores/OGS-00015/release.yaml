@@ -1,7 +1,7 @@
 store_id: OGS-00015
 label: mvp-phs002453-eas
 access_posture: public
-status: accepted
+status: validated
 derived_from: null
 created_at: '2026-10-14T01:27:47Z'
 source_snapshot_id: dbgap-phs002453-mvp-eas-metadata-2026-10-13
@@ -45,6 +45,32 @@ notes: |
   receipt sha, records index sha, merge receipt sha, emission config sha). No
   scientific release validation, publication approval or mirror promotion is
   claimed.
+
+  Store built and published (issue #331, 2026-10-22). The #221 batch built this
+  release's Store from stores c6b308a with opengwasdb 0.3.0 at 4e92256, format
+  0.2.0, GRCh38. The build ran from 2026-10-14 02:04 to 2026-10-14 14:15 UTC
+  (12.2 h). Top hits, the HM3 Indexed Variant Subset and the overview followed,
+  then validate, from 2026-10-14 14:20 to 2026-10-14 14:33 UTC (0.2 h). register
+  published the Store on 2026-10-14 14:33 UTC and wrote the Validation Record,
+  copied into this bundle unchanged. It replaces the bundle's earlier Validation
+  Record, which recorded the owner authorization and the pending human
+  acceptance the paragraphs above cite; that record is in git at its
+  acceptance.commit, fa2ea2c. The new record reads status passed, with no
+  warnings or errors, and reports 241 Analyses, 9,335,909 variants and
+  2,249,954,069 associations. The Store is observed-only; reference completion
+  is not part of this release. The Store was built in a dev Artifact Root,
+  /data/opengwasdb/work/epic232/221/dev-builds. On 2026-10-22,
+  tools/relocate_store.py moved it to /data/opengwasdb/stores, renaming its
+  directory and rewriting the 33 artifact paths in its six step records; stdout
+  and stderr were left as written. The receipt beside the Store,
+  relocations/20261022T151410.004523Z.json, holds each record's sha256 before
+  and after. The Store is published at
+  /data/opengwasdb/stores/OGS-00015/store.opengwasdb. This supersedes the
+  statements above, and in the description, that no Store has been built or
+  validated. The Validation Record's acceptance.warnings still say "No Store
+  build or validation has run." That line is carried over from the accepted
+  bundle's earlier record and predates the build. Human scientific acceptance
+  remains pending.
 accepted_at: '2026-10-14T01:27:47Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z

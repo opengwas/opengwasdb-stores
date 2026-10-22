@@ -1,26 +1,35 @@
-status: not_run
+status: passed
+validated_at: '2026-10-21T23:14:26.537566Z'
 validator:
-  name: resources/generators/dbgap-mvp/generate_candidate.py
-acceptance:
-  status: accepted
-  human_acceptance: pending
-  membership_accepted: true
-  membership_frozen: true
-  frozen_at: '2026-10-14T08:39:12Z'
-  owner_authorization: 'Owner approved the MVP bundle integration and the dev builds (opengwas/opengwasdb-stores#221
-    comment 6156153525; #232 comment 6156153173). The parent''s exact 1368-Analysis record binding and
-    staged-artifact review qualify this input manifest for authorized dev construction.'
-  owner_authorization_date: '2026-10-13'
-  source_evidence_scope: capped_pilot_diagnostic
-  note: 'The exact 1,368-Analysis AFR membership is accepted and frozen as the input manifest for owner-authorized
-    dev construction. Every row carries the authority mapping source_ancestry_label AFR. This is not full-source
-    SCI qualification or publication acceptance: human scientific acceptance remains pending and no Store
-    has been built or validated.'
-  partition_total: 1368
-warnings:
-- Input accepted and frozen for owner-authorized dev construction; human scientific acceptance remains
-  pending.
-- No Store build or validation has run.
-- 'Evidence: the Analytical Metadata is a capped diagnostic (capped_pilot_diagnostic), not whole-source
-  SCI qualification.'
+  name: opengwasdb validate
+  version: opengwasdb@4e922566d7fa4c13a11be3637069da63e48be28c
+build_environment:
+  opengwasdb_version: 0.3.0
+  opengwasdb_commit: 4e922566d7fa4c13a11be3637069da63e48be28c
+  python_version: 3.12.15
+  platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: null
+  n_analyses: 1368
+  n_variants: 36964976
+  n_associations: 50568087168
+  store_bytes: null
+  build_elapsed_s: 268366.433
+  validate_status: passed
+checks:
+  store: passed
+warnings: []
 errors: []
+acceptance:
+  recorded_at: null
+  commit: 9c9b92bc4ffd112de30ab661924079140ecd45aa
+  checks: null
+  warnings:
+  - Input accepted and frozen for owner-authorized dev construction; human scientific
+    acceptance remains pending.
+  - No Store build or validation has run.
+  - 'Evidence: the Analytical Metadata is a capped diagnostic (capped_pilot_diagnostic),
+    not whole-source SCI qualification.'
+  reports: null
+  reference_overlap: null
+  store_composition: null
