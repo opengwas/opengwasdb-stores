@@ -21,17 +21,20 @@ with it:
 - Each rewritten record is written as `run` writes one (`run.record_text`),
   and keeps its mtime: the workflow decides what to rerun from the order of
   those mtimes.
-- `<id>/relocations/<UTC>.json` is the receipt: both roots, each record's
-  sha256 before and after, and how many strings each field moves. It is
-  written, `status: started`, before anything moves, and marked `complete`
-  once every record is rewritten. Any interruption in between, Ctrl-C
-  included, leaves records that may name both roots; the tool then names the
-  receipt, refuses to start another move of the release, and `--resume`
-  finishes this one. Before it moves or writes anything, `--resume` checks
-  that exactly one unfinished receipt names this move, that only one of the
-  two directories exists, that no publication is pending and no Store staged,
-  and that `records/` holds exactly the receipt's records, each as it was or as
-  planned. It then rewrites only those still as they were.
+- `<id>/relocations/<UTC>.json`, named to the microsecond, is the receipt:
+  both roots, each record's sha256 before and after, and how many strings
+  each field moves. It is written, `status: started`, before anything moves,
+  and marked `complete` once every record is rewritten. Any interruption in
+  between, Ctrl-C included, leaves records that may name both roots; the tool
+  then names the receipt and the exact `--resume` that finishes the move. A
+  later run that finds the receipt refuses, and prints either that `--resume`
+  or the reasons it would refuse. Before it locks, moves or writes anything,
+  and again under the locks, `--resume` checks that both roots are
+  directories, that exactly one unfinished receipt names this move, that only
+  one of the two directories exists, that no publication is pending and no
+  Store staged, and that `records/` holds exactly the receipt's records, each
+  as it was or as planned. It then removes what a failed replacement left
+  beside a record and rewrites only the records still as they were.
 
 It refuses, moving and writing nothing, while a relocation of the release is
 unfinished, a publication is pending (`publication.json`) or a Store is staged
@@ -47,7 +50,9 @@ receipt is complete. `--dry-run` makes them without the lock and prints what
 would change.
 
 It exits 2 when it refuses, having changed nothing, and 1 when a move it
-started did not finish.
+started did not finish. A receipt that cannot be written is a refusal: what
+this run wrote of it, and the `relocations/` directory if this run made it,
+are removed, and nothing else ever is.
 """
 
 from __future__ import annotations
@@ -80,10 +85,11 @@ STARTED, COMPLETE = "started", "complete"
 REFUSED_EXIT, UNFINISHED_EXIT = 2, 1
 
 # Test-only, after `run.fault_boundary`'s variables: the record replacement
-# (1-based) before which a move raises, as a failed write would, or `receipt`
-# for a failure while the receipt is first written.
+# (1-based) before which a move raises, as a failed write would, or a named
+# point: while the receipt is first written (`receipt`), before the rename
+# (`rename`), or before the receipt is marked complete (`complete`).
 FAIL_AT_ENV: str = "OGSTORES_TEST_RELOCATION_FAIL_AT"
-RECEIPT_FAULT: str = "receipt"
+RECEIPT_FAULT, RENAME_FAULT, COMPLETE_FAULT = "receipt", "rename", "complete"
 
 
 class Refusal(Exception):
@@ -106,9 +112,13 @@ class Unfinished(Exception):
             f"the move of {store_id} did not finish: {cause}\n"
             f"Its records may name both {old_root} and {new_root}. {receipt_p} records what each record was "
             "and is to become. Finish the move with\n"
-            f"  python3 tools/relocate_store.py {store_id} --from {old_root} --to {new_root} --resume\n"
+            f"  {resume_command(store_id, old_root, new_root)}\n"
             f"Until then this tool refuses to start another move of {store_id}."
         )
+
+
+def resume_command(store_id: str, old_root: Path, new_root: Path) -> str:
+    return f"python3 tools/relocate_store.py {store_id} --from {old_root} --to {new_root} --resume"
 
 
 def _release_entries() -> frozenset[str]:
@@ -233,7 +243,10 @@ def plan_record(record_p: Path, store_id: str, old_root: Path, new_root: Path) -
     old_dir = str(paths.store_dir(store_id, root=old_root))
     new_dir = str(paths.store_dir(store_id, root=new_root))
     name = f"{record_p.parent.name}/{record_p.name}"
-    before = record_p.read_bytes()
+    try:
+        before = record_p.read_bytes()
+    except OSError as exc:
+        raise Refusal(f"{name} cannot be read: {exc}") from exc
     try:
         text = before.decode("utf-8")
         record = json.loads(text)
@@ -320,9 +333,29 @@ def fault_at() -> int | str | None:
     value = os.environ.get(FAIL_AT_ENV, "")
     if not value:
         return None
-    if value == RECEIPT_FAULT or (value.isdigit() and int(value) > 0):
-        return value if value == RECEIPT_FAULT else int(value)
-    raise Refusal(f"{FAIL_AT_ENV}={value!r} names neither a record replacement (1, 2, ...) nor `{RECEIPT_FAULT}`")
+    if value in (RECEIPT_FAULT, RENAME_FAULT, COMPLETE_FAULT):
+        return value
+    if value.isdecimal() and int(value) > 0:
+        return int(value)
+    raise Refusal(
+        f"{FAIL_AT_ENV}={value!r} names neither a record replacement (1, 2, ...) "
+        f"nor one of {RECEIPT_FAULT}, {RENAME_FAULT}, {COMPLETE_FAULT}"
+    )
+
+
+def unfinished_account(receipt_p: Path, store_id: str) -> str:
+    """What a run that finds an unfinished receipt says: the `--resume` that would finish it, or why none would."""
+    try:
+        document = json.loads(receipt_p.read_text(encoding="utf-8"))
+        old_root, new_root = Path(document["old_root"]), Path(document["new_root"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return f"{receipt_p} records a move of {store_id} that did not finish, and it cannot be read: {exc!r}"
+    unfinished = f"{receipt_p} records a move of {store_id} from {old_root} to {new_root} that did not finish"
+    try:
+        resume_plan(store_id, old_root, new_root)
+    except Refusal as exc:
+        return f"{unfinished}, and it cannot be finished as it stands:\n{exc}"
+    return f"{unfinished}. Finish it with\n  {resume_command(store_id, old_root, new_root)}"
 
 
 def preflight(store_id: str, old_root: Path, new_root: Path, *, locked: bool = False) -> Relocation:
@@ -333,10 +366,7 @@ def preflight(store_id: str, old_root: Path, new_root: Path, *, locked: bool = F
     """
     unfinished = unfinished_receipts(store_id, (old_root, new_root))
     if unfinished:
-        raise Refusal("\n".join(
-            f"{receipt_p} records a move of {store_id} that did not finish; finish it with --resume"
-            for receipt_p in unfinished
-        ))
+        raise Refusal("\n".join(unfinished_account(receipt_p, store_id) for receipt_p in unfinished))
     old_dir = paths.store_dir(store_id, root=old_root)
     new_dir = paths.store_dir(store_id, root=new_root)
     problems: list[str] = []
@@ -423,10 +453,16 @@ def start(receipt_p: Path, document: dict[str, Any], fault: int | str | None) ->
 
     Nothing has moved yet, so what this run wrote of the receipt, and the
     `relocations/` directory if this run made it, are removed, and the
-    refusal says what, if anything, could not be.
+    refusal says what, if anything, could not be. A receipt name already
+    taken is refused before anything is written, so nothing this run did not
+    write is ever removed.
     """
     receipts = receipt_p.parent
     made = not os.path.lexists(receipts)
+    for path in (receipt_p, _receipt_temp(receipt_p)):
+        if os.path.lexists(path):
+            # So that whatever is at these paths after a failure is this run's to remove.
+            raise Refusal(f"{path} already exists, so this move's receipt cannot be written there")
     try:
         receipts.mkdir(exist_ok=True)
         _write_receipt(receipt_p, document, fault=fault == RECEIPT_FAULT)
@@ -542,15 +578,24 @@ def carry_out(
     moved_receipt = new_dir / receipt_p.relative_to(old_dir) if receipt_p.is_relative_to(old_dir) else receipt_p
     try:
         if moved_receipt != receipt_p:
+            if fault == RENAME_FAULT:
+                raise OSError(f"test fault before the rename ({FAIL_AT_ENV})")
             old_dir.rename(new_dir)
             _fsync_dir(old_root)
             _fsync_dir(new_root)
+        records = paths.records_dir(store_id, root=new_root)
+        for entry in document["records"]:
+            # What a replacement that failed part-way left beside its record.
+            for leftover in records.glob(f".{Path(entry['path']).name}.relocating.*"):
+                leftover.unlink()
         for n, (name, text) in enumerate(writes, start=1):
             if n == fault:
                 raise OSError(f"test fault before replacement {n} ({FAIL_AT_ENV})")
             record_p = new_dir / name
             _replace(record_p, text, record_p.stat())
-        _fsync_dir(paths.records_dir(store_id, root=new_root))
+        _fsync_dir(records)
+        if fault == COMPLETE_FAULT:
+            raise OSError(f"test fault before the receipt is complete ({FAIL_AT_ENV})")
         document["status"] = COMPLETE
         document["completed_at"] = _now()
         _write_receipt(moved_receipt, document)
@@ -563,8 +608,9 @@ def carry_out(
 def relocate(store_id: str, old_root: Path, new_root: Path, *, dry_run: bool) -> int:
     fault = fault_at()
     relocation = preflight(store_id, old_root, new_root)
-    stamp = run.utc_stamp()
-    started_at = datetime.datetime.strptime(stamp, "%Y%m%dT%H%M%SZ").strftime("%Y-%m-%dT%H:%M:%SZ")
+    now = datetime.datetime.now(datetime.timezone.utc)
+    # To the microsecond, so a move straight back has a receipt of its own.
+    stamp, started_at = now.strftime("%Y%m%dT%H%M%S.%fZ"), now.strftime("%Y-%m-%dT%H:%M:%SZ")
     print(describe(relocation, receipt(relocation, started_at)))
     if dry_run:
         print("Dry run: nothing was moved or written.")
@@ -574,8 +620,8 @@ def relocate(store_id: str, old_root: Path, new_root: Path, *, dry_run: bool) ->
         relocation = preflight(store_id, old_root, new_root, locked=True)
         document = receipt(relocation, started_at)
         receipt_p = relocation.old_dir / RECEIPTS_DIRNAME / f"{stamp}.json"
-        start(receipt_p, document, fault)
         writes = [(move.name, move.after) for move in relocation.records if move.changed]
+        start(receipt_p, document, fault)
         receipt_p = carry_out(store_id, old_root, new_root, receipt_p, document, writes, fault)
     print(f"moved; receipt {receipt_p}")
     return 0
@@ -584,11 +630,16 @@ def relocate(store_id: str, old_root: Path, new_root: Path, *, dry_run: bool) ->
 def resume_plan(store_id: str, old_root: Path, new_root: Path) -> tuple[Path, dict[str, Any], list[tuple[str, str]]]:
     """Check that the one unfinished move can be finished as its receipt planned; what is left to write.
 
-    Reads only, and refuses with every reason it finds: the receipt is the
-    only unfinished one and names this move, only one of the two directories
-    exists, no publication is pending and no Store staged, and `records/` holds
-    exactly the receipt's records, each as it was or as planned.
+    Reads only, and refuses with every reason it finds: both roots are
+    directories, the receipt is the only unfinished one and names this move,
+    only one of the two directories exists, no publication is pending and no
+    Store staged, and `records/` holds exactly the receipt's records, each as
+    it was or as planned. A file a failed replacement left beside a record is
+    not a record; the move removes it.
     """
+    for root in (old_root, new_root):
+        if not root.is_dir():
+            raise Refusal(f"{root} is not a directory")
     unfinished = unfinished_receipts(store_id, (old_root, new_root))
     if not unfinished:
         raise Refusal(f"there is no unfinished move of {store_id} between {old_root} and {new_root}")
@@ -604,6 +655,8 @@ def resume_plan(store_id: str, old_root: Path, new_root: Path) -> tuple[Path, di
         entries = {entry["path"]: entry for entry in document["records"]}
     except (OSError, ValueError, AttributeError, KeyError, TypeError) as exc:
         raise Refusal(f"the receipt {receipt_p} cannot be read: {exc!r}") from exc
+    if not isinstance(document.get("resumed_at"), list):
+        raise Refusal(f"the receipt {receipt_p} has no list of the times it was resumed (`resumed_at`)")
     if recorded != (store_id, str(old_root), str(new_root)):
         raise Refusal(
             f"{receipt_p} moves {recorded[0]} from {recorded[1]} to {recorded[2]}, not from {old_root} to {new_root}"
@@ -611,10 +664,11 @@ def resume_plan(store_id: str, old_root: Path, new_root: Path) -> tuple[Path, di
     old_dir, new_dir = paths.store_dir(store_id, root=old_root), paths.store_dir(store_id, root=new_root)
     if os.path.lexists(old_dir) and os.path.lexists(new_dir):
         raise Refusal(f"both {old_dir} and {new_dir} exist, so the move cannot be finished by a rename")
-    here = old_dir if receipt_p.is_relative_to(old_dir) else new_dir
+    here_root = old_root if receipt_p.is_relative_to(old_dir) else new_root
+    here = paths.store_dir(store_id, root=here_root)
 
     problems = _pending(store_id, here)
-    present = {f"{p.parent.name}/{p.name}" for p in (here / "records").glob("*.json")}
+    present = {f"{p.parent.name}/{p.name}" for p in paths.records_dir(store_id, root=here_root).glob("*.json")}
     problems += [f"{here / name} is not in the receipt {receipt_p}" for name in sorted(present - entries.keys())]
     problems += [f"{here / name}, in the receipt {receipt_p}, is missing" for name in sorted(entries.keys() - present)]
     writes = []
@@ -622,7 +676,11 @@ def resume_plan(store_id: str, old_root: Path, new_root: Path) -> tuple[Path, di
         record_p = here / name
         if name not in present:
             continue
-        current = _sha256(record_p.read_bytes())
+        try:
+            current = _sha256(record_p.read_bytes())
+        except OSError as exc:
+            problems.append(f"{record_p} cannot be read: {exc}")
+            continue
         if current == entry.get("sha256_after"):
             continue
         if current != entry.get("sha256_before"):
@@ -645,6 +703,8 @@ def resume_plan(store_id: str, old_root: Path, new_root: Path) -> tuple[Path, di
 def resume(store_id: str, old_root: Path, new_root: Path) -> int:
     """Finish the one unfinished relocation of `store_id` from `old_root` to `new_root`."""
     fault = fault_at()
+    # Checked before the locks, so a mistyped root gets no lock file, then again under them.
+    resume_plan(store_id, old_root, new_root)
     with _locked(store_id, (old_root, new_root)):
         receipt_p, document, writes = resume_plan(store_id, old_root, new_root)
         document["resumed_at"].append(_now())
@@ -653,12 +713,16 @@ def resume(store_id: str, old_root: Path, new_root: Path) -> int:
     return 0
 
 
-def refusal_state(store_id: str, old_root: Path, new_root: Path) -> str:
-    """What is on disk after a refusal: an unfinished move is never reported as nothing moved."""
+def refusal_state(store_id: str, old_root: Path, new_root: Path, *, resuming: bool) -> str:
+    """What is on disk after a refusal: an unfinished move is never reported as nothing moved.
+
+    A refused `--resume` only says it changed nothing: the move it was asked
+    to finish may have left its receipt under a root it was not given.
+    """
     unfinished = unfinished_receipts(store_id, (old_root, new_root))
     if unfinished:
         return f"This run changed nothing; {', '.join(map(str, unfinished))} records a move that has not finished."
-    return "Nothing was moved or written."
+    return "This run changed nothing." if resuming else "Nothing was moved or written."
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -679,7 +743,7 @@ def main(argv: list[str] | None = None) -> int:
             return resume(store_id, old_root, new_root)
         return relocate(store_id, old_root, new_root, dry_run=args.dry_run)
     except Refusal as exc:
-        state = exc.state or refusal_state(store_id, old_root, new_root)
+        state = exc.state or refusal_state(store_id, old_root, new_root, resuming=args.resume)
         print(f"relocate_store: refusing to move {store_id}:\n{exc}\n{state}", file=sys.stderr)
         return REFUSED_EXIT
     except Unfinished as exc:

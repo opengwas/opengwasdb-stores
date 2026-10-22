@@ -37,7 +37,8 @@ STEPS: tuple[str, ...] = ("build", "indexed-subset-hm3", "overview", "register",
 PRIVATE_RECORDS: frozenset[str] = frozenset({"build", "top-hits"})
 
 # The tool's test-only fault: it raises before the replacement this numbers,
-# or while it writes the receipt (`receipt`).
+# while it first writes the receipt (`receipt`), before it renames (`rename`)
+# or before it marks the receipt complete (`complete`).
 FAIL_AT_ENV = "OGSTORES_TEST_RELOCATION_FAIL_AT"
 REFUSED, UNFINISHED = 2, 1
 
@@ -206,55 +207,82 @@ class RefusalTest(RelocateStoreTestCase):
         self.assertIn("Nothing was moved or written", stderr)
         self.assertNotIn("--resume", stderr)
 
+    def test_a_receipt_that_cannot_be_written_leaves_an_earlier_receipt_alone(self) -> None:
+        """A move straight back, within the second, whose receipt fails: the first move's receipt stays."""
+        self.assertEqual(self.relocate().returncode, 0)
+        (earlier,) = (self.new_dir / "relocations").glob("*.json")
+        self.assert_refused("could not be written", roots=(self.new_root, self.old_root), env={FAIL_AT_ENV: "receipt"})
+        self.assertEqual(sorted((self.new_dir / "relocations").glob("*.json")), [earlier])
+
 
 class InterruptedRelocationTest(RelocateStoreTestCase):
     """A failure after the move leaves a started receipt, and `--resume` finishes what an uninterrupted run does."""
 
-    def test_a_failed_replacement_is_finished_by_resume_as_an_uninterrupted_run(self) -> None:
+    # Where each test fault stops a move: how many of its six records are
+    # rewritten, and whether the Store Release's directory has been renamed.
+    FAULTS: dict[str, tuple[int, bool]] = {"rename": (0, False), "4": (3, True), "complete": (6, True)}
+
+    def test_an_interrupted_move_is_finished_by_resume_as_an_uninterrupted_run(self) -> None:
         pristine = self.td / "pristine"
         shutil.copytree(self.old_dir, pristine)  # keeps modes and mtimes
-        failed = self.relocate(env={FAIL_AT_ENV: "4"})
-
-        self.assertEqual(failed.returncode, UNFINISHED, failed.stdout + failed.stderr)
-        receipt_p = next((self.new_dir / "relocations").glob("*.json"))
-        self.assertIn(str(receipt_p), failed.stderr)
-        self.assertIn("--resume", failed.stderr)
-        self.assertNotIn("Nothing was moved", failed.stderr)
-        self.assertFalse(self.old_dir.exists())
-        started = json.loads(receipt_p.read_text(encoding="utf-8"))
-        self.assertEqual(started["status"], "started")
-        records = {entry["path"]: entry for entry in started["records"]}
-        halfway = {
-            name: hashlib.sha256(data).hexdigest() for name, (_, _, data) in records_of(self.new_dir).items()
-        }
-        self.assertEqual(
-            [name for name in halfway if halfway[name] == records[f"records/{name}"]["sha256_after"]],
-            ["build.json", "indexed-subset-hm3.json", "overview.json"],
-        )
-        self.assertEqual(
-            [name for name in halfway if halfway[name] == records[f"records/{name}"]["sha256_before"]],
-            ["register.json", "top-hits.json", "validate.json"],
-        )
-        rerun = self.assert_refused(str(receipt_p), "--resume")
-        self.assertNotIn("Nothing was moved", rerun)
-
-        resumed = self.relocate("--resume")
-
-        self.assertEqual(resumed.returncode, 0, resumed.stdout + resumed.stderr)
-        interrupted_records, interrupted_receipt = records_of(self.new_dir), receipt_of(self.new_dir)
-        self.assertEqual(interrupted_receipt["status"], "complete")
-        self.assertEqual(len(interrupted_receipt["resumed_at"]), 1)
-        for step in PRIVATE_RECORDS:
-            self.assertEqual(interrupted_records[f"{step}.json"][1], 0o600, step)
-
-        # The same release moved without interruption, from the same root to the same root.
-        shutil.rmtree(self.new_dir)
-        shutil.copytree(pristine, self.old_dir)
         uninterrupted = self.relocate()
         self.assertEqual(uninterrupted.returncode, 0, uninterrupted.stdout + uninterrupted.stderr)
+        expected_records, expected_receipt = records_of(self.new_dir), receipt_of(self.new_dir)
+        for step in PRIVATE_RECORDS:
+            self.assertEqual(expected_records[f"{step}.json"][1], 0o600, step)
+        resume_command = f"--from {self.old_root} --to {self.new_root} --resume"
 
-        self.assertEqual(interrupted_records, records_of(self.new_dir))
-        self.assertEqual(untimed(interrupted_receipt), untimed(receipt_of(self.new_dir)))
+        for fault, (rewritten, renamed) in self.FAULTS.items():
+            with self.subTest(fault=fault):
+                shutil.rmtree(self.new_dir)
+                shutil.copytree(pristine, self.old_dir)
+                failed = self.relocate(env={FAIL_AT_ENV: fault})
+
+                self.assertEqual(failed.returncode, UNFINISHED, failed.stdout + failed.stderr)
+                here = self.new_dir if renamed else self.old_dir
+                self.assertEqual(self.old_dir.exists(), not renamed)
+                (receipt_p,) = (here / "relocations").glob("*.json")
+                self.assertIn(str(receipt_p), failed.stderr)
+                self.assertIn(resume_command, failed.stderr)
+                self.assertNotIn("Nothing was moved", failed.stderr)
+                started = json.loads(receipt_p.read_text(encoding="utf-8"))
+                self.assertEqual(started["status"], "started")
+                planned = {entry["path"]: entry["sha256_after"] for entry in started["records"]}
+                now = {f"records/{name}": hashlib.sha256(data).hexdigest() for name, (_, _, data) in records_of(here).items()}
+                self.assertEqual(sum(now[name] == planned[name] for name in planned), rewritten)
+                # What a replacement that failed part-way leaves beside the records.
+                leftover = here / "records" / ".register.json.relocating.4242"
+                leftover.write_text("{", encoding="utf-8")
+                rerun = self.assert_refused(str(receipt_p), resume_command)
+                self.assertNotIn("Nothing was moved", rerun)
+
+                resumed = self.relocate("--resume")
+
+                self.assertEqual(resumed.returncode, 0, resumed.stdout + resumed.stderr)
+                self.assertFalse(self.old_dir.exists())
+                self.assertFalse((self.new_dir / "records" / leftover.name).exists())
+                self.assertEqual(records_of(self.new_dir), expected_records)
+                receipt = receipt_of(self.new_dir)
+                self.assertEqual(receipt["status"], "complete")
+                self.assertEqual(len(receipt["resumed_at"]), 1)
+                self.assertEqual(untimed(receipt), untimed(expected_receipt))
+
+    def test_a_plain_run_names_the_resume_that_would_finish_a_move_or_why_none_would(self) -> None:
+        receipt_p = self.interrupt()
+        elsewhere = self.td / "elsewhere"
+        elsewhere.mkdir()
+        # Run from where the release now is: the command names the receipt's roots.
+        self.assert_refused(
+            str(receipt_p), f"--from {self.old_root} --to {self.new_root} --resume", roots=(self.new_root, elsewhere)
+        )
+        record_p = paths.record_path(STORE_ID, "validate", root=self.new_root)
+        record = json.loads(record_p.read_text(encoding="utf-8"))
+        record["stderr"] = "rerun after the move\n"
+        record_p.write_text(run.record_text(record), encoding="utf-8")
+
+        stderr = self.assert_refused(str(receipt_p), "records/validate.json is neither the record")
+
+        self.assertNotIn("--resume", stderr)
 
     def test_resume_refuses_with_nothing_changed(self) -> None:
         """Every check is made before `--resume` moves or writes anything, and a refusal never asks for `--resume`."""
@@ -297,9 +325,25 @@ class InterruptedRelocationTest(RelocateStoreTestCase):
             paths.partial_store_path(STORE_ID, root=new_root).mkdir()
             return old_root, new_root, str(paths.partial_store_path(STORE_ID, root=new_root))
 
+        def unreadable_record(old_root: Path, new_root: Path, receipt_p: Path) -> tuple[Path, Path, str]:
+            record_p = paths.record_path(STORE_ID, "validate", root=new_root)
+            record_p.unlink()
+            record_p.mkdir()
+            return old_root, new_root, "records/validate.json cannot be read"
+
+        def receipt_without_resumes(old_root: Path, new_root: Path, receipt_p: Path) -> tuple[Path, Path, str]:
+            document = json.loads(receipt_p.read_text(encoding="utf-8"))
+            document["resumed_at"] = None
+            receipt_p.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+            return old_root, new_root, "resumed_at"
+
+        def mistyped_root(old_root: Path, new_root: Path, receipt_p: Path) -> tuple[Path, Path, str]:
+            typo = new_root.with_name("publishd")
+            return old_root, typo, f"{typo} is not a directory"
+
         cases: tuple[Callable[[Path, Path, Path], tuple[Path, Path, str]], ...] = (
-            neither_hash, another_move, both_directories, two_receipts,
-            record_added, record_deleted, pending_publication, staged_store,
+            neither_hash, another_move, both_directories, two_receipts, record_added, record_deleted,
+            pending_publication, staged_store, unreadable_record, receipt_without_resumes, mistyped_root,
         )
         for case, arrange in enumerate(cases):
             with self.subTest(arrange.__name__):
@@ -311,6 +355,9 @@ class InterruptedRelocationTest(RelocateStoreTestCase):
 
                 self.assertNotIn("--resume", stderr)
                 self.assertNotIn("Nothing was moved", stderr)
+                for root in {old_root, new_root} - set(roots):
+                    # Checked before any lock: no lock file under a root the move does not name.
+                    self.assertFalse((root / paths.RELEASE_LOCKS_DIRNAME).exists(), root)
 
         with self.subTest("no unfinished move"):
             stderr = self.assert_refused("no unfinished move", words=("--resume",))
