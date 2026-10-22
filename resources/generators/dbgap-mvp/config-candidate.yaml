@@ -124,15 +124,14 @@ stores:
     planned_manifest: dense-pmid-39024449-Hispanic-or-Latin-American-download-manifest.tsv
     resolution: pending
     completion_reference:
-      # No declared AMR LD Reference Resource exists. An AMR pilot (#241) is
-      # approved but not qualified, so this Store's completion stays a pending,
-      # blocked definition and must not be executed.
-      resource_id: null
+      # Declared 2026-10-22 after the owner-approved genome-wide build (#241).
+      # Qualifying and activating it for OGS-00014 is #229's.
+      resource_id: hgdp1kgp-hg38-amr-ld
       ancestry: AMR
-      declared_status: absent
-      qualification: hold
-      activation: blocked
-      suggested_ld_panel: null
+      declared_status: available
+      qualification: pending
+      activation: pending
+      suggested_ld_panel: /data/opengwasdb/reference/hgdp1kgp-hg38-amr/panel
   EAS:
     observed_store_id: OGS-00015
     candidate_store_key: dense__pmid-39024449__East-Asian

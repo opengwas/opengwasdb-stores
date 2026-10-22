@@ -1,9 +1,12 @@
-# HGDP+1kGP hg38 AMR LD reference panel: inputs (#241)
+# HGDP+1kGP hg38 AMR LD reference panel (#241)
 
 These are the inputs of `tools/ld-panel/build_amr_panel.py`, which builds the
 genome-wide AMR panel that the owner approved on 2026-10-22 after the
-calibration pilot (`docs/amr-ld-pilot-evidence.md`). The panel's
-`resource.yaml` is added once the build has been verified.
+calibration pilot (`docs/amr-ld-pilot-evidence.md`). `resource.yaml`
+declares the built panel. The build is in `docs/amr-ld-pilot-evidence.md`
+("Genome-wide build"), with its numbers in
+`docs/data/amr-ld-panel-build-summary.json` and
+`docs/data/amr-ld-panel-build-blocks.tsv`.
 
 - `phase3-amr-samples.tsv`: the 347 AMR rows of the IGSR Phase 3 sample panel
   [`integrated_call_samples_v3.20130502.ALL.panel`](https://ftp.1000genomes.ebi.ac.uk/vol1/ftp/release/20130502/integrated_call_samples_v3.20130502.ALL.panel).

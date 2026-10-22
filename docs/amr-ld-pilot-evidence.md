@@ -293,3 +293,65 @@ say which.
 
 `run_amr_pilot.py` now applies all three rules by default. The calibration and
 boundary numbers above predate them.
+
+## Genome-wide build (2026-10-22)
+
+The owner approved the build. It is declared as
+[`hgdp1kgp-hg38-amr-ld`](../resources/reference-resources/hgdp1kgp-hg38-amr-ld/resource.yaml)
+and ADR 0020 is amended.
+
+**Run:**
+- Root: `/data/opengwasdb/reference/hgdp1kgp-hg38-amr/`; the panel is in
+  `panel/AMR/<chr>/<start>-<end>.*`.
+- Built by `tools/ld-panel/build_amr_panel.py` at revision `2b84680`.
+- Ran from 2026-10-22T18:32:14Z to 22:16:58Z. All 1,387 steps exited 0.
+- Full receipt: `runs/20261022T183214Z/receipt.json`. Compact copies:
+  [`data/amr-ld-panel-build-summary.json`](data/amr-ld-panel-build-summary.json)
+  and the per-block
+  [`data/amr-ld-panel-build-blocks.tsv`](data/amr-ld-panel-build-blocks.tsv).
+- A chr22-only smoke build first found that, with one record kept per ALID,
+  looking up a row's genotypes by ALID could take the other record. Block
+  tables now carry the source REF/ALT, and lookups use them (commit `2b84680`).
+
+| | Count |
+|---|---:|
+| VCF records read (22 chromosomes) | 180,560,796 |
+| …PASS and biallelic | 153,461,354 |
+| …polymorphic in the 345 members (into the blocks) | 38,799,226 |
+| Dropped in blocks: below MAF 0.01 | 24,506,688 |
+| Dropped in blocks: under 80% called | 1,356,409 |
+| Dropped in blocks: other record of a shared ALID kept | 265,083 (2.0% of eligible) |
+| **Panel rows** | **12,669,255** |
+
+| Check | Result |
+|---|---|
+| Blocks built | 1,357 / 1,357; none empty or failed |
+| `verify_block` (binding, spectrum, EAF, core load) | 1,357 pass; binding error ≤ 5.4e-15 |
+| `find_underresolved_blocks --thresh 0.9` | 0 |
+| Within-block duplicated ALIDs (separate scan of every TSV) | 0 |
+| Floor as approved in every block's provenance | yes: MAF 0.01, `max_missing_rate` 0.2, `keep_highest_maf`, n = 345 |
+| Rank | 306–344, median 344 |
+| Components for 0.99 | 250–330, median 284; 151 blocks at the 250 floor |
+| Components at the 0.9 truncation | 23–239, median 132, all stored |
+| Retained rows more than 5% missing | 6.0%; the maximum is the 20% ceiling |
+
+Held-out calibration under the final QC, on the pilot's five blocks (20
+replicates per panel, all accepted):
+
+| Block | Held-out median r (min) | Held-out median slope | In-sample median r | Pilot held-out median r |
+|---|---:|---:|---:|---:|
+| chr1:222798680-224041489 | 0.922 (0.844) | 0.84 | 0.985 | 0.865 |
+| chr6:30106780-30425675 | 0.983 (0.957) | 0.96 | 0.993 | 0.976 |
+| chr11:30827313-33937829 | 0.877 (0.805) | 0.77 | 0.986 | 0.875 |
+| chr16:60049115-62536937 | 0.871 (0.786) | 0.76 | 0.981 | 0.852 |
+| chr22:32439511-33959775 | 0.853 (0.741) | 0.73 | 0.981 | 0.804 |
+
+PASS-only and the call-rate ceiling raised held-out recovery in every block.
+
+**Cost:**
+- Conversion took 20.4 CPU-hours over 6.5 h of summed step wall time, two
+  chromosomes at a time; peak RSS was 10.1 GB per plink2 process.
+- Construction took 1.3 CPU-hours and verification 1.8, with a peak of
+  1.7 GB per block.
+- The panel is 21 GB and the PGENs 1.3 GB.
+- The concurrent OGS-00017 orchestrated build was also running on the host.
