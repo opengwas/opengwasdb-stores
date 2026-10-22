@@ -1,0 +1,148 @@
+status: passed
+validated_at: '2026-10-22T15:25:25Z'
+validator:
+  name: manifest_generation.generate_candidate
+  version: null
+build_environment:
+  opengwasdb_version: 0.3.0
+  opengwasdb_commit: d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c
+observed:
+  format_version: null
+  n_analyses: null
+  n_variants: null
+  n_associations: null
+  store_bytes: null
+  build_elapsed_s: null
+  validate_status: null
+checks:
+  schema: passed
+  files: passed
+  ancestry: passed
+  effect_scale: passed
+  sd_estimation: passed
+  reference_overlap: passed
+reference_overlap:
+  low_overlap_threshold: 0.05
+  max_off_reference_share: 0.25
+  included_measured: 19250
+  ancestry_median_rate: 0.48669379173399263
+  ancestry_p05_rate: 0.48669379173399263
+  ancestry_low_overlap_analyses: &id001 []
+  median_rate: 0.48669379173399263
+  p05_rate: 0.48669379173399263
+  p10_rate: null
+  low_overlap_count: 0
+  low_overlap_analyses: *id001
+  projected_off_reference_share: null
+  projected_off_reference_basis: null
+  worst_contributors: []
+store_composition:
+  require_maf_filtered: false
+  maf_floor: null
+  unfiltered_included: 19250
+  unfiltered_included_off_reference_rows: null
+  unfiltered_routed: 0
+  unfiltered_routed_off_reference_rows: null
+quality_checks:
+  build_eligible_rows:
+    kind: exclusion
+    stage: resolved
+    measures: 'diagnostics.build_eligible_rows: rows with a finite effect and a positive standard error,
+      after any INFO and MAF floor'
+    threshold: 1
+    default_threshold: 1
+    overridden: false
+    results:
+      passed: 19250
+      failed: 0
+      not_applicable: 0
+      unmeasured: 0
+      invalid: 0
+      warning: 0
+    excluded: 0
+  effect_placeholder_rows:
+    kind: exclusion
+    stage: resolved
+    measures: rows whose effect is the +/-2.2e-308 placeholder, from the reviewed release_policy.effect_placeholder_exclusions
+      listing until core counts them
+    threshold: null
+    default_threshold: null
+    overridden: false
+    results:
+      passed: 19250
+      failed: 0
+      not_applicable: 0
+      unmeasured: 0
+      invalid: 0
+      warning: 0
+    excluded: 0
+  eaf_orientation:
+    kind: exclusion
+    stage: ancestry_read
+    measures: ancestry.eaf_orientation and ancestry.gate_reason
+    threshold: null
+    default_threshold: null
+    overridden: false
+    results:
+      passed: 19250
+      failed: 0
+      not_applicable: 0
+      unmeasured: 0
+      invalid: 0
+      warning: 0
+    excluded: 0
+  assigned_ancestry:
+    kind: exclusion
+    stage: selection
+    measures: ancestry.assigned_ancestry against the Selection's super-population; for a source with no
+      allele frequency, its source_superpopulation when the release trusts it
+    threshold: null
+    default_threshold: null
+    overridden: false
+    results:
+      passed: 19250
+      failed: 0
+      not_applicable: 0
+      unmeasured: 0
+      invalid: 0
+      warning: 0
+    excluded: 0
+    warned: 0
+  phenotype_sd:
+    kind: exclusion
+    stage: target_ancestry
+    measures: phenotype_sd.status, phenotype_sd.reason and phenotype_sd.estimate.sd
+    threshold: null
+    default_threshold: null
+    overridden: false
+    results:
+      passed: 0
+      failed: 0
+      not_applicable: 19250
+      unmeasured: 0
+      invalid: 0
+      warning: 0
+    excluded: 0
+trait_ontology_mapping:
+  canonical_trait_mapping_table:
+    resource_id: canonical-trait-mapping-efo
+    version: 3
+    location: resources/reference-resources/canonical-trait-mapping-efo/mapping.tsv
+    sha256: 8be02ae087644179a984a013700d2a5d3a0b85e5b7e5d6efe42c6ef19162e60b
+    rows: 550
+  method_counts:
+    source_provided: 0
+    canonical_table_lookup: 0
+    unmapped: 19250
+  source_id_without_label: 0
+  rejected_source_terms: []
+reports:
+  source_readiness: sidecars/source_readiness.tsv
+  ancestry: sidecars/ancestry.tsv
+  sd_estimation: sidecars/sd_estimation.tsv
+  exclusions: sidecars/exclusions.tsv
+  reference_overlap: sidecars/reference_overlap.tsv
+  quality_checks: sidecars/quality_checks.tsv
+  analysis_targets: sidecars/analysis_targets.tsv
+warnings: []
+errors: []

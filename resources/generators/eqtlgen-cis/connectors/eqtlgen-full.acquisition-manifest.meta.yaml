@@ -1,5 +1,5 @@
 acquisition_manifest: resources/generators/eqtlgen-cis/connectors/eqtlgen-full.acquisition-manifest.tsv
-sha256: 5edbd9cce6d3b7a523fc9ce1b32086849e7e4c55749557620402a2dd8ae27659
+sha256: d70ea69d6cea59fb2dae86c25e8040d137a3ab64055391c59d4595c6767d4840
 rows: 19250
 readiness_counts:
   ok: 19250
@@ -19292,3 +19292,4 @@ subset:
     snps: 8932823
     associations: 127339354
 reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+source_url: https://eqtlgen.org/cis-eqtls.html

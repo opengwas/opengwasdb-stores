@@ -56,7 +56,7 @@ Every value below is derived from the Release Bundle's `analyses.tsv`; `NA` mean
 | `OGS-00024` | Chen Y | 36635386 | plasma | metabolomics | AFR | 30-60 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00025` | Chen Y | 36635386 | plasma | metabolomics | EAS | 51-104 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00026` | Chen Y | 36635386 | plasma | metabolomics | SAS | 56-108 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
-| `OGS-00027` | NA | NA | whole_blood | NA | EUR | 232-31684 | NA |
+| `OGS-00027` | Võsa | 34475573 | whole_blood | NA | EUR | 232-31684 | https://eqtlgen.org/cis-eqtls.html |
 
 ## Tolerated gaps
 

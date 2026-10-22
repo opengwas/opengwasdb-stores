@@ -31,7 +31,7 @@ from manifest_generation.source_metadata_table import load_source_metadata_table
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG = REPO_ROOT / "resources" / "generators" / "eqtlgen-cis" / "release-full.yaml"
-SNAPSHOT = REPO_ROOT / "resources" / "inventories" / "eqtlgen-cis-full-2026-10-22c"
+SNAPSHOT = REPO_ROOT / "resources" / "inventories" / "eqtlgen-cis-full-2026-10-22d"
 PROBES = 19250
 
 
@@ -57,6 +57,13 @@ class FullReleaseTest(unittest.TestCase):
         self.assertEqual(sum(1 for n in sizes.values() if n == 31684), 5456)
         self.assertTrue(all(0 < n <= 31684 for n in sizes.values()))
         self.assertEqual({row["tissue"] for row in rows}, {"whole_blood"})
+        # Publication metadata on every row, and eQTLGen's published gene symbol as the label.
+        self.assertEqual({row["first_author"] for row in rows}, {"Võsa"})
+        self.assertEqual({row["publication_pmid"] for row in rows}, {"34475573"})
+        labels = {row["source_probe_id"]: row["source_trait_label"] for row in rows}
+        self.assertEqual(labels["ENSG00000232810"], "TNF")
+        self.assertEqual(labels["ENSG00000253755"], "IGHGP")
+        self.assertEqual(sum(1 for probe, label in labels.items() if label == probe), 0)
         self.assertTrue(all(":" not in row["source_analysis_id"] for row in rows))
 
     def test_the_shipped_acquisition_manifest_claims_the_file_set_the_frozen_inventory_records(self) -> None:
@@ -80,6 +87,7 @@ class FullReleaseTest(unittest.TestCase):
         self.assertEqual(len(entries), PROBES)
         self.assertEqual({entry.source_analysis_id for entry in entries}, set(inventory))
         for entry in entries:
+            self.assertEqual(entry.source_url, "https://eqtlgen.org/cis-eqtls.html")
             row = inventory[entry.source_analysis_id]
             self.assertEqual(entry.location, row.data_file)
             self.assertEqual((str(entry.bytes), entry.sha256), (row.data_bytes, row.sha256))
@@ -93,6 +101,27 @@ class FullReleaseTest(unittest.TestCase):
             lineage["subset"]["counts"],
             {"probes": PROBES, "snps": 8932823, "associations": 127339354},
         )
+
+    def test_the_gene_symbol_map_records_the_published_file_it_came_from(self) -> None:
+        shipped = REPO_ROOT / "resources" / "generators" / "eqtlgen-cis" / "connectors"
+        meta = yaml.safe_load((shipped / "gene-symbols.tsv.meta.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(meta["bytes"], 3880187026)  # the file's Content-Length
+        self.assertEqual(
+            meta["sha256"], "1133a89fe33b795dde7e480e39841fbd0787bfdb5d18ef19058fa749a936f814"
+        )
+        self.assertEqual((meta["probes"], meta["with_symbol"], meta["without_symbol"]), (PROBES, PROBES, 0))
+        table = (shipped / "gene-symbols.tsv").read_text(encoding="utf-8").splitlines()
+        self.assertEqual(len(table) - 1, PROBES)
+        self.assertIn("ENSG00000232810\tTNF", table)
+        # The adapter's record of the map it used is this file's.
+        provenance = yaml.safe_load(
+            (shipped / "eqtlgen-full.source-metadata.tsv.provenance.yaml").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            provenance["gene_symbols"]["sha256"],
+            hashlib.sha256((shipped / "gene-symbols.tsv").read_bytes()).hexdigest(),
+        )
+        self.assertEqual(provenance["labelled_with_ensembl_id"], 0)
 
 
 if __name__ == "__main__":

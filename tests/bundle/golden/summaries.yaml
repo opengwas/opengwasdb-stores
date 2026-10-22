@@ -255,10 +255,10 @@ OGS-00027:
   n_admitted: 19250
   n_excluded: 0
   n_analyses: 19250
-  first_author: NA
-  publication_pmid: NA
+  first_author: Võsa
+  publication_pmid: '34475573'
   tissue: whole_blood
   context: NA
   assigned_ancestry: EUR
   sample_size: 232-31684
-  source_url: NA
+  source_url: https://eqtlgen.org/cis-eqtls.html

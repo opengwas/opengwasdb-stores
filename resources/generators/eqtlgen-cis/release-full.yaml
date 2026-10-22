@@ -12,11 +12,17 @@
 # (--adopt-prefix names the durable location of the writer's output):
 #   python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
 #     --prefix /data/opengwasdb/raw/eqtlgen/full-19250 --tissue whole_blood \
-#     --study-total 31684 --out resources/generators/eqtlgen-cis/connectors/eqtlgen-full.source-metadata.tsv
+#     --study-total 31684 --first-author Võsa --publication-pmid 34475573 \
+#     --gene-symbols resources/generators/eqtlgen-cis/connectors/gene-symbols.tsv \
+#     --out resources/generators/eqtlgen-cis/connectors/eqtlgen-full.source-metadata.tsv
+#   (gene-symbols.tsv, with its lineage in gene-symbols.tsv.meta.yaml, is written by
+#   python3 -m manifest_generation.providers.eqtlgen.gene_symbols --url <the published
+#   cis-eQTL file> --epi /data/opengwasdb/raw/eqtlgen/full-19250.epi --out ...)
 #   python3 -m manifest_generation.providers.eqtlgen.acquire \
 #     --config resources/generators/eqtlgen-cis/release-full.yaml \
 #     --source-prefix /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse \
 #     --adopt-prefix /data/opengwasdb/raw/eqtlgen/full-19250 \
+#     --source-url https://eqtlgen.org/cis-eqtls.html \
 #     --out resources/generators/eqtlgen-cis/connectors/eqtlgen-full.acquisition-manifest.tsv
 # A new acquisition, a changed Selection or a changed connector is a re-freeze
 # under a new snapshot id, never a rewrite of a frozen pass.
@@ -54,7 +60,11 @@ notes: >
   19,250 probes (28%) take the cap: at least one of their pairs was measured in the
   study's full cohort set (N 31,684); the rest were covered by fewer cohorts
   (median 28,927, 1st percentile 3,833, minimum 232). sample_size_kind
-  is variant_level. Per-association N is not stored yet (opengwasdb#302).
+  is variant_level. Per-association N is not stored yet (opengwasdb#302). The study
+  is Võsa et al., Nature Genetics 2021 (PMID 34475573, DOI 10.1038/s41588-021-00913-z),
+  published at https://eqtlgen.org/cis-eqtls.html; each Analysis is labelled with
+  eQTLGen's published gene symbol (connectors/gene-symbols.tsv, from the published
+  cis-eQTL file: all 19,250 probes have one), while its id stays the bare Ensembl id.
 
 source_collection:
   source_collection_id: eqtlgen-cis
@@ -62,7 +72,7 @@ source_collection:
     source_metadata_table: resources/generators/eqtlgen-cis/connectors/eqtlgen-full.source-metadata.tsv
     acquisition_manifest: resources/generators/eqtlgen-cis/connectors/eqtlgen-full.acquisition-manifest.tsv
   inventory:
-    snapshot_id: eqtlgen-cis-full-2026-10-22c
+    snapshot_id: eqtlgen-cis-full-2026-10-22d
     directory: resources/inventories
 
 # Every row of the Source Metadata Table: the 19,250 probes of the .epi.

@@ -1,5 +1,5 @@
 acquisition_manifest: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.tsv
-sha256: 032144ba452e6505f7b7ac2bb4b03569d5f7d8ec571849e99a854c500e22c6f9
+sha256: 9c617f9039b0fcad20d32993fdbc3dcd58e7422193eee88ba4683092ad055a6a
 rows: 10
 readiness_counts:
   ok: 10
@@ -41,6 +41,10 @@ original:
     .esi:
       bytes: 338182684
       sha256: 4841e8965821dc1d7bd4ea4a05ba789e24fc729b5ed7a6d2b0bdea31b1cf696a
+  counts:
+    probes: 19250
+    snps: 8932843
+    associations: 127339354
 subset:
   prefix: /data/opengwasdb/raw/eqtlgen/pilot-10
   members:
@@ -53,4 +57,9 @@ subset:
     .esi:
       bytes: 3270860
       sha256: d7e38838fbfd1afaa7844b8f98be248647b325dc2513f6a6f6815912ceda9294
+  counts:
+    probes: 10
+    snps: 86496
+    associations: 86496
 reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+source_url: https://eqtlgen.org/cis-eqtls.html

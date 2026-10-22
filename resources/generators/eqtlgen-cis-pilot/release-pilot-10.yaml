@@ -18,7 +18,8 @@
 #     set /data/opengwasdb/raw/eqtlgen/pilot-10:
 #       python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
 #         --prefix /data/opengwasdb/raw/eqtlgen/pilot-10 --tissue whole_blood \
-#         --study-total 31684 --out resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
+#         --study-total 31684 --first-author Võsa --publication-pmid 34475573 \
+#         --gene-symbols resources/generators/eqtlgen-cis/connectors/gene-symbols.tsv --out resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
 #   - the Acquisition Manifest records the file set acquisition wrote for this
 #     Selection (build-ragged-besd needs a file set holding exactly the probes it
 #     builds): a subset of the genome-wide set, with the original's prefix and
@@ -33,6 +34,7 @@
 #         --config resources/generators/eqtlgen-cis-pilot/release-pilot-10.yaml \
 #         --source-prefix /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse \
 #         --adopt-prefix /data/opengwasdb/raw/eqtlgen/pilot-10 \
+#         --source-url https://eqtlgen.org/cis-eqtls.html \
 #         --out resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.tsv
 #     A new acquisition, a changed Selection or a changed connector is a re-freeze
 #     under a new snapshot id, never a rewrite of a frozen pass.
@@ -59,7 +61,8 @@ notes: >
   was sqrt(31,684 / pair N), an N of about 7,600, not a phenotype SD. Each
   Analysis's sample_size is the maximum pair N derived from the file, kind
   variant_level (see release-full.yaml); per-association N is not stored yet
-  (opengwasdb#302).
+  (opengwasdb#302). The study is Võsa et al., Nature Genetics 2021 (PMID 34475573),
+  and each Analysis is labelled with eQTLGen's published gene symbol.
 
 source_collection:
   source_collection_id: eqtlgen-cis
@@ -69,7 +72,8 @@ source_collection:
   inventory:
     # ...-22b: re-frozen when the Analyses were renamed to bare probe ids (#319).
     # ...-22c: re-frozen with each probe's derived sample size (#314).
-    snapshot_id: eqtlgen-cis-pilot-10-2026-10-22c
+    # ...-22d: re-frozen with the publication metadata and gene-symbol labels (#314).
+    snapshot_id: eqtlgen-cis-pilot-10-2026-10-22d
     directory: resources/inventories
 
 # OGS-00001's 10, written out so a reviewer reads the membership (and the probes
