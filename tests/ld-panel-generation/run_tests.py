@@ -372,6 +372,30 @@ def test_panel_summary() -> None:
               f"a missing calibration result must be reported as failed: {summary['calibration']}")
 
 
+def test_conversion_markers() -> None:
+    # #354: a converted chromosome records what it was converted from, so a
+    # rerun can refuse to overwrite it. Markers written before this change name
+    # PASS-only and MAC alone; membership was frozen separately, so the legacy
+    # text says nothing about which members, and that is not a mismatch.
+    sha, other = "2b6cc790670b0038b3c111a5b223071540ffbaac32c622f59338d1ca13ad67a0", "f" * 64
+    current = panel.conversion_marker(True, 1, sha)
+    check(current.count("\n") == 1 and current.endswith("\n"), "a marker must be one JSON line")
+    check(json.loads(current) == {"pass_only": True, "mac": 1, "members_sha256": sha},
+          f"the marker does not name what it converted: {json.loads(current)}")
+    check(panel.marker_matches(current, panel.conversion_marker(True, 1, sha)),
+          "a marker must match itself")
+    legacy = "plink2 PASS-only biallelic conversion of the AMR members; MAC >= 1"
+    check(panel.marker_matches(legacy, panel.conversion_marker(True, 1, sha)) and
+          panel.marker_matches(legacy, panel.conversion_marker(True, 1, other)),
+          "the legacy marker must match a PASS-only, MAC >= 1 conversion whatever the members hash")
+    check(not panel.marker_matches(legacy, panel.conversion_marker(True, 50, sha)),
+          "the legacy text names MAC >= 1 and must not match a MAC >= 50 conversion")
+    check(not panel.marker_matches(panel.conversion_marker(False, 1, sha), panel.conversion_marker(True, 1, sha)),
+          "a conversion that kept every record must not match a PASS-only one")
+    check(not panel.marker_matches(panel.conversion_marker(True, 1, other), current),
+          "a marker naming other members must not match")
+
+
 def test_canonical_effect_allele_ld_orientation() -> None:
     dosage = np.tile([0.0, 1.0, 2.0, 1.0], 10)
     # PLINK exports ALT dosage. Variant 1's canonical effect allele is ALT,
@@ -527,6 +551,7 @@ def test_plink_raw_input() -> None:
 def main() -> None:
     test_block(); test_maf_floor(); test_alid_collisions(); test_call_rate(); test_run_panels_floor_resume()
     test_verify_block(); test_heldout_calibration(); test_pair_records(); test_panel_summary()
+    test_conversion_markers()
     test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_amr_regions(); test_amr_pilot_mapping(); test_amr_pilot_membership()
     test_index_validation(); test_compressed_pvar_input()

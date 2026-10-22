@@ -44,6 +44,34 @@ from run_amr_pilot import (AMR, HERE, PILOT, Steps, calibration_summary, directo
 def block_label(row: dict[str, str]) -> str: return f"{row['chr']}_{row['start']}-{row['end']}"
 
 
+# What a converted chromosome's .complete marker said before #354: PASS-only and
+# MAC, nothing about which members. Markers are read, never rewritten, so it is
+# still what the built panel carries.
+LEGACY_MARKER = "plink2 PASS-only biallelic conversion of the AMR members; MAC >= 1"
+
+
+def conversion_marker(pass_only: bool, mac: int | None, members_sha: str | None) -> str:
+    """One JSON line naming exactly what a chromosome's conversion was given."""
+    return json.dumps({"pass_only": pass_only, "mac": mac, "members_sha256": members_sha}, sort_keys=True) + "\n"
+
+
+def marker_matches(text: str, expected: str) -> bool:
+    """Whether a .complete marker's text records the conversion ``expected`` describes.
+
+    The legacy marker names PASS-only and MAC and nothing else, so it matches a
+    PASS-only MAC >= 1 conversion whatever members hash that one carries:
+    membership is frozen separately, against the panel's own members/AMR.keep,
+    so the omission is not a mismatch and must not force a 59 GB reconversion.
+    Any other text must match exactly, which is what makes the marker the
+    receipt a rerun can refuse on (#354).
+    """
+    text, expected = text.strip(), expected.strip()
+    if text == expected: return True
+    try: described = json.loads(expected)
+    except json.JSONDecodeError: return False
+    return (text == LEGACY_MARKER and described.get("pass_only") is True and described.get("mac") == 1)
+
+
 def panel_summary(out: Path, regions_file: Path, calibration: list[dict[str, str]], run: Path, *,
                   maf: float, max_missing: float, n_individuals: int) -> dict[str, object]:
     """The panel as it stands, over every invocation so far.
@@ -179,6 +207,7 @@ def main() -> int:
             raise SystemExit("AMR membership differs from the one this panel was started with")
         frozen.write_text(keep_sha + "\n")
         amr = read_ids(members / "AMR.keep")
+        expected_marker = conversion_marker(pass_only=True, mac=1, members_sha=keep_sha)
         receipt["membership"] = {**reconcile_membership(amr, args.samples, source / "cohort_populations.tsv",
                                                         source / META), "amr_keep_sha256": keep_sha}
         sources = {}
@@ -200,8 +229,14 @@ def main() -> int:
                 threads=args.plink_threads, memory_mb=args.plink_memory_mb, pass_only=True))
             for suffix in (".pgen", ".pvar.zst", ".psam"):
                 if not Path(f"{prefix}{suffix}").exists(): raise SystemExit(f"conversion wrote no {prefix}{suffix}")
-            Path(f"{prefix}.complete").write_text("plink2 PASS-only biallelic conversion of the AMR members; MAC >= 1\n")
-        pending = [c for c in chromosomes if not (out / "pgen/AMR" / f"chr{c}.complete").exists()]
+            Path(f"{prefix}.complete").write_text(expected_marker)
+        pending: list[str] = []
+        for chrom in chromosomes:
+            marker = out / "pgen/AMR" / f"chr{chrom}.complete"
+            if not marker.exists(): pending.append(chrom); continue
+            if not marker_matches(marker.read_text(), expected_marker):
+                raise SystemExit(f"pgen/AMR/chr{chrom}.complete records a different conversion "
+                                 f"({marker.read_text().strip()}); refusing to reconvert chr{chrom}")
         with ThreadPoolExecutor(max_workers=args.readers) as pool:
             for future in [pool.submit(convert, c) for c in pending]: future.result()
         receipt["conversion"] = {c: conversion_counts(out / "pgen/AMR" / f"chr{c}.log") for c in chromosomes}
