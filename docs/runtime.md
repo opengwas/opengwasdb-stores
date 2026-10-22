@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `32f47b3b9c9bbab684a2f424a6f6ff617be0a8b1`, the merge of core #296 (Ragged `check-observed-view`) into the core integration branch `orch/232-observed-view` (core PR #303), which starts from core `dev` at `829b501`; not yet on core `dev` |
-| Core merge | opengwas/opengwasdb #296 (Ragged `check-observed-view`) and #295 (Hybrid `check-observed-view`) on top of `dev`, which carries PR #291 (`check-observed-view`, core #289), #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: #295's merge `eb4c749b` (stores #333), the core `dev` merge of PR #291 `d405de0a` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Revision | `1e2fb4203cdda842bd40270a870814e0167607b1`, the merge of core #306 (`build-hybrid --on-rsid-conflict`) into the core integration branch `orch/232-observed-view` (core PR #303), which starts from core `dev` at `829b501`; not yet on core `dev` |
+| Core merge | opengwas/opengwasdb #306 (an rsid-conflict policy for the Hybrid build's name harvest, and compound-id normalisation in the readers), #296 (Ragged `check-observed-view`) and #295 (Hybrid `check-observed-view`) on top of `dev`, which carries PR #291 (`check-observed-view`, core #289), #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: #296's merge `32f47b3b` (stores #336), #295's merge `eb4c749b` (stores #333), the core `dev` merge of PR #291 `d405de0a` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -47,6 +47,11 @@ re-run `pixi lock` in the same commit.
   BESD builders share it, so signed statistics and EAF follow the projected
   allele pair on a reverse-strand variant. A single-pass Hybrid build whose
   off-reference rows lift onto the reverse strand is refused.
+- **A policy for the Hybrid build's rsid harvest** (opengwas/opengwasdb#306,
+  moved here for stores #225's OGS-00011 rebuild). `build-hybrid
+  --on-rsid-conflict {refuse,drop}` decides what a routing key its sources name
+  differently stores, and the build always reports what it compared as
+  `rsid_conflicts`. See "Coordination with core #306".
 
 ## The pre-write gate
 
@@ -211,3 +216,31 @@ re-quantises SE stored as `int8_residual`, which on real data moves every
 observed SE slightly (opengwas/opengwasdb#301), so a Ragged Store whose builder
 chose that encoding, as OGS-00006's did, fails the check until #301 is
 resolved.
+
+## Coordination with core #306
+
+A single-pass Hybrid build whose variant reference names no rsids harvests a
+name for each source site, and two sites that case-fold to one routing key can
+disagree: the EBI GWAS-SSF Sources spell some alleles in lower case and carry a
+compound `variant_id` as their name. Refusing that was what stopped the
+OGS-00011 rebuild of 2026-10-22, at `1:905:C:T`, and no option resolved it.
+
+Core opengwas/opengwasdb#306 adds `build-hybrid --on-rsid-conflict {refuse,drop}`,
+default `refuse`, which is the behaviour it had. Under `drop` the disputed
+routing key gives no rsid to the variants it reaches: the table cell is `.` and
+the key is absent from the rsid index, which is how a Store already records a
+variant it can name no other way. The build always reports what its harvest
+compared as `rsid_conflicts: {policy, n_keys, n_variants, sample}` in its stdout
+JSON, with both counts `0` when nothing was disputed and `null` when no names
+were compared across sources (`--reference-panel`, or a reference that names its
+own rsids); a `--reference-panel` build refuses `drop` rather than ignore it.
+The same change normalises a compound `rsN:pos:a:b` id and the first item of a
+`;` list in the readers, so a name that is really one rsid is compared as that
+rsid.
+
+The policy is per Build Recipe, so it is the recipe that declares it; stores
+#225 adds `on-rsid-conflict: drop` to OGS-00011's, as a Release Erratum, and
+`register` copies the counts into the Validation Record's
+`observed.rsid_conflicts`. A checkpoint records the policy, so a build
+checkpointed before the option existed reads as `refuse`: resuming it under
+`drop` is refused, as resuming under any other changed parameter is.

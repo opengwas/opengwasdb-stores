@@ -73,7 +73,13 @@ from ogstores.plan import plan
 #: which stores #336 needs for a Ragged release to complete its own Store. The
 #: range `eb4c749..32f47b3` is #296's commits and merge; #296 is its only
 #: functional change.
-PINNED_OPENGWASDB_REVISION: str = "32f47b3b9c9bbab684a2f424a6f6ff617be0a8b1"
+#: Then to `1e2fb42`, core #306's merge into the same integration branch, again
+#: not yet on core `dev`: `build-hybrid` gained `--on-rsid-conflict
+#: {refuse,drop}` and always reports what its rsid harvest compared, which
+#: stores #225 needs to build OGS-00011 from sources that name one variant two
+#: ways. The range `32f47b3..1e2fb42` is #306's commits and merge; #306 is its
+#: only functional change.
+PINNED_OPENGWASDB_REVISION: str = "1e2fb4203cdda842bd40270a870814e0167607b1"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference
