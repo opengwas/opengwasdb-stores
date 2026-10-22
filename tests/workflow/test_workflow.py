@@ -41,6 +41,11 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    observed-only or two-id releases are not checked; an unforced rebuild of an
    amended release's build phase is still refused; and a forced run of a
    completed single-id release rebuilds both phases.
+15. Moving a published release to another Artifact Root (#331):
+   `tools/relocate_store.py` leaves the release up to date at the new root,
+   with only its records' path fields moved and their mtimes kept, and its next
+   register passes; the same release moved by a plain rename is refused at
+   that register, as drift naming the old root.
 """
 
 from __future__ import annotations
@@ -48,6 +53,7 @@ from __future__ import annotations
 import base64
 import contextlib
 import gzip
+import hashlib
 import io
 import json
 import math
@@ -70,7 +76,7 @@ from typing import Any
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from ogstores import bundle, manifest, paths, release, run
+from ogstores import bundle, manifest, paths, register, release, run
 from ogstores.plan import plan
 
 # The completed child is asserted on through opengwasdb's published query
@@ -667,14 +673,59 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
                 )
 
 
+_DENSE_RELEASE: dict[str, Any] | None = None
+
+
+def dense_release_template() -> dict[str, Any]:
+    """The one fixture-scale Dense release this process builds, with a single snakemake target.
+
+    Returns `store_id`, the built `stores` and `artifacts` directories, the
+    snakemake `build_result`, and the `TemporaryDirectory` that holds them
+    (kept here so the template outlives every test that copies it). A test
+    that changes the release copies it first; the template is never written
+    again. The end-to-end tests and the relocation tests (#331) share it, so a
+    process that runs both builds it once.
+    """
+    global _DENSE_RELEASE
+    if _DENSE_RELEASE is not None:
+        return _DENSE_RELEASE
+
+    store_id = "OGS-00099"
+    temp_dir = tempfile.TemporaryDirectory()
+    root = Path(temp_dir.name)
+    stores = root / "stores"
+    stores.mkdir()
+    artifacts = root / "artifacts"
+    artifacts.mkdir()
+
+    create_dense_fixture_store(
+        stores,
+        store_id=store_id,
+        artifact_root=artifacts,
+        post_top_hits=True,
+        post_overview=True,
+        post_validate=True,
+    )
+    build_result = run_snakemake([store_id], registry_root=stores, artifact_root=artifacts)
+
+    _DENSE_RELEASE = {
+        "temp_dir": temp_dir,
+        "stores": stores,
+        "artifacts": artifacts,
+        "build_result": build_result,
+        "store_id": store_id,
+    }
+    return _DENSE_RELEASE
+
+
 class TestWorkflowEndToEndAndResumption(unittest.TestCase):
     """End-to-end execution, idempotency, and resumption over one fixture-scale Dense build.
 
     The workflow specification budgets *one* fixture-scale end-to-end run
     ("Fixture-scale end-to-end runs stay, as one smoke test"). That run happens
-    once here, in `setUpClass`, and the tests that need a completed Store copy
-    its result rather than rebuilding. Rebuilding per test cost 68s to assert
-    three different things about the same built Store.
+    once per process (`dense_release_template`), and the tests that need a
+    completed Store copy its result rather than rebuilding. Rebuilding per test
+    cost 68s to assert three different things about the same built Store.
 
     `test_interrupted_step_resumes_without_restarting` deliberately keeps its
     own partial build: it needs a Store interrupted mid-way, and deriving that
@@ -685,31 +736,11 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        """Build the one fixture-scale Store this class shares, with a single snakemake target."""
-        cls._class_tmp = tempfile.TemporaryDirectory()
-        root = Path(cls._class_tmp.name)
-        cls.template_stores = root / "stores"
-        cls.template_stores.mkdir()
-        cls.template_artifacts = root / "artifacts"
-        cls.template_artifacts.mkdir()
-
-        create_dense_fixture_store(
-            cls.template_stores,
-            store_id=cls.STORE_ID,
-            artifact_root=cls.template_artifacts,
-            post_top_hits=True,
-            post_overview=True,
-            post_validate=True,
-        )
-        cls.build_result = run_snakemake(
-            [cls.STORE_ID],
-            registry_root=cls.template_stores,
-            artifact_root=cls.template_artifacts,
-        )
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        cls._class_tmp.cleanup()
+        """Take the one fixture-scale Store this process builds."""
+        template = dense_release_template()
+        cls.template_stores = template["stores"]
+        cls.template_artifacts = template["artifacts"]
+        cls.build_result = template["build_result"]
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -1136,6 +1167,200 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertEqual(res_dry.returncode, 0)
         scheduled = scheduled_targets(res_dry.stdout)
         self.assertEqual(set(scheduled), {"validate", "register", store_id})
+
+
+RELOCATE_STORE: Path = REPO_ROOT / "tools" / "relocate_store.py"
+
+# The record fields that name where a step ran, which a relocation moves (#331).
+RECORD_PATH_FIELDS: tuple[str, ...] = ("argv", "planned_argv", "inputs", "outputs", "record_path", "published_store")
+
+
+def relocate_store(store_id: str, old_root: Path, new_root: Path, *words: str) -> subprocess.CompletedProcess[str]:
+    """Run `tools/relocate_store.py` as an operator would."""
+    return subprocess.run(
+        [sys.executable, str(RELOCATE_STORE), store_id, "--from", str(old_root), "--to", str(new_root), *words],
+        cwd=REPO_ROOT, capture_output=True, text=True,
+    )
+
+
+def tree_state(root: Path) -> dict[str, tuple[int, bytes] | None]:
+    """Every path under `root`: a file's mtime and bytes, None for a directory."""
+    return {
+        str(p.relative_to(root)): None if p.is_dir() else (p.lstat().st_mtime_ns, p.read_bytes())
+        for p in sorted(root.rglob("*"))
+    }
+
+
+def strings_under(value: Any, directory: Path) -> int:
+    """How many strings in `value` are `directory` or a path under it."""
+    if isinstance(value, str):
+        return int(value == str(directory) or value.startswith(f"{directory}/"))
+    if isinstance(value, list):
+        return sum(strings_under(item, directory) for item in value)
+    return 0
+
+
+class TestWorkflowEndToEndRelocation(unittest.TestCase):
+    """A published release moved to another Artifact Root by `tools/relocate_store.py` (#331).
+
+    Each test takes the end-to-end tests' published release (`dense_release_template`)
+    into a root of its own, its records naming that root as if it had been
+    built there (`copy_snapshot`), and moves it to a second root. The tool's
+    other refusals, and an interrupted move resumed, are `tests/relocate-store`'s,
+    on synthetic releases.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = dense_release_template()
+        cls.store_id = cls.template["store_id"]
+
+    def setUp(self) -> None:
+        built = self.template["build_result"]
+        self.assertEqual(built.returncode, 0, f"the template release failed:\n{built.stdout}\n{built.stderr}")
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def take_release(self) -> None:
+        """The template release as if built in this test's directory, with an empty second root beside it."""
+        self.stores, self.old_root, self.new_root = self.release_built_in(self.td)
+        self.old_dir = paths.store_dir(self.store_id, root=self.old_root)
+        self.new_dir = paths.store_dir(self.store_id, root=self.new_root)
+
+    def release_built_in(self, into: Path) -> tuple[Path, Path, Path]:
+        """The template release as if built under `into`: its registry, its root, and an empty second root."""
+        stores, old_root = copy_snapshot(self.template, built=self.template, into=into / "built")
+        new_root = into / "published"
+        new_root.mkdir()
+        return stores, old_root, new_root
+
+    def next_register(self) -> dict[str, Any]:
+        """The build phase's next register at the new root: what the Snakefile's register job calls."""
+        return register.register_release(self.store_id, registry_root=self.stores, artifact_root=self.new_root)
+
+    def test_a_relocated_release_is_up_to_date_at_its_new_root(self) -> None:
+        """Only the records' path fields change; the release at the new root has nothing to do."""
+        import yaml
+
+        self.take_release()
+        records_before = {p.name: p.read_bytes() for p in sorted((self.old_dir / "records").glob("*.json"))}
+        mtimes_before = {
+            str(p.relative_to(self.old_dir)): p.stat().st_mtime_ns for p in self.old_dir.rglob("*") if p.is_file()
+        }
+
+        moved = relocate_store(self.store_id, self.old_root, self.new_root)
+
+        self.assertEqual(moved.returncode, 0, moved.stdout + moved.stderr)
+        self.assertFalse(self.old_dir.exists())
+        receipts = sorted((self.new_dir / "relocations").glob("*.json"))
+        self.assertEqual(len(receipts), 1, receipts)
+        receipt = json.loads(receipts[0].read_text(encoding="utf-8"))
+        self.assertEqual(receipt["status"], "complete")
+        self.assertEqual((receipt["old_root"], receipt["new_root"]), (str(self.old_root), str(self.new_root)))
+        self.assertEqual(
+            {
+                str(p.relative_to(self.new_dir)): p.stat().st_mtime_ns
+                for p in self.new_dir.rglob("*")
+                if p.is_file() and p.parent.name != "relocations"
+            },
+            mtimes_before,
+            "a moved file's mtime changed",
+        )
+        receipt_records = {entry["path"]: entry for entry in receipt["records"]}
+        self.assertEqual(sorted(receipt_records), [f"records/{name}" for name in records_before])
+        for name, before in records_before.items():
+            after = (self.new_dir / "records" / name).read_bytes()
+            record = json.loads(before)
+            # As `run` writes a record, with only the path fields moved: stdout,
+            # stderr and every other field are what the step wrote.
+            moved_record = {
+                field: moved_paths(value, {str(self.old_dir): str(self.new_dir)}) if field in RECORD_PATH_FIELDS else value
+                for field, value in record.items()
+            }
+            self.assertEqual(after.decode("utf-8"), run.record_text(moved_record), name)
+            for field in RECORD_PATH_FIELDS:
+                self.assertEqual(strings_under(moved_record[field], self.old_root), 0, f"{name}: {field}")
+            entry = receipt_records[f"records/{name}"]
+            self.assertEqual(entry["sha256_before"], hashlib.sha256(before).hexdigest(), name)
+            self.assertEqual(entry["sha256_after"], hashlib.sha256(after).hexdigest(), name)
+            self.assertEqual(
+                entry["replaced"], {field: strings_under(record[field], self.old_dir) for field in RECORD_PATH_FIELDS}, name
+            )
+        self.assertTrue(any(sum(entry["replaced"].values()) for entry in receipt["records"]))
+
+        rerun = run_release([self.store_id], registry_root=self.stores, artifact_root=self.new_root)
+        self.assertEqual(rerun.returncode, 0, rerun.stdout + rerun.stderr)
+        self.assertIn("nothing to be done", rerun.stdout)
+        self.assertEqual(
+            {str(p.relative_to(self.new_dir)): p.stat().st_mtime_ns for p in (self.new_dir / "records").glob("*.json")},
+            {f"records/{name}": mtimes_before[f"records/{name}"] for name in records_before},
+        )
+        registered = yaml.safe_load((self.stores / self.store_id / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(self.next_register()["status"], registered["status"])
+
+    def test_a_release_moved_by_plain_rename_drifts_at_its_next_register(self) -> None:
+        """Without the tool the release still looks up to date, and its next register refuses it, naming the old root."""
+        self.take_release()
+        os.rename(self.old_dir, self.new_dir)  # what `mv` does on one filesystem
+        rerun = run_release([self.store_id], registry_root=self.stores, artifact_root=self.new_root)
+        self.assertEqual(rerun.returncode, 0, rerun.stdout + rerun.stderr)
+        self.assertIn("nothing to be done", rerun.stdout)
+        before = tree_state(self.td)
+
+        with self.assertRaises(register.ArgvDriftError) as drift:
+            self.next_register()
+
+        self.assertIn(str(self.old_dir), str(drift.exception))
+        self.assertEqual(tree_state(self.td), before, "a refused register wrote something")
+
+    def test_each_refusal_moves_and_writes_nothing(self) -> None:
+        """A pending publication, a staged Store, an existing target, or records naming another root."""
+
+        def pending_publication(old_dir: Path, new_dir: Path) -> Path:
+            (old_dir / paths.PUBLICATION_MARKER).write_text("{}\n", encoding="utf-8")
+            return old_dir / paths.PUBLICATION_MARKER
+
+        def staged_store(old_dir: Path, new_dir: Path) -> Path:
+            (old_dir / "store.opengwasdb.partial").mkdir()
+            return old_dir / "store.opengwasdb.partial"
+
+        def existing_target(old_dir: Path, new_dir: Path) -> Path:
+            new_dir.mkdir()
+            return new_dir
+
+        def records_naming_another_root(old_dir: Path, new_dir: Path) -> Path:
+            # A copy whose records were never moved still names the root it was built in.
+            shutil.rmtree(old_dir)
+            shutil.copytree(paths.store_dir(self.store_id, root=self.template["artifacts"]), old_dir)
+            return self.template["artifacts"]
+
+        for case, arrange in enumerate((pending_publication, staged_store, existing_target, records_naming_another_root)):
+            with self.subTest(arrange.__name__):
+                _, old_root, new_root = self.release_built_in(self.td / f"case-{case}")
+                named = arrange(paths.store_dir(self.store_id, root=old_root), paths.store_dir(self.store_id, root=new_root))
+                before = tree_state(self.td)
+
+                refused = relocate_store(self.store_id, old_root, new_root)
+
+                self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+                self.assertIn(str(named), refused.stderr)
+                self.assertIn("Nothing was moved", refused.stderr)
+                self.assertEqual(tree_state(self.td), before)
+
+    def test_a_dry_run_changes_nothing_and_names_what_would_change(self) -> None:
+        self.take_release()
+        before = tree_state(self.td)
+
+        dry = relocate_store(self.store_id, self.old_root, self.new_root, "--dry-run")
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertEqual(tree_state(self.td), before)
+        for record_p in (self.old_dir / "records").glob("*.json"):
+            self.assertIn(f"records/{record_p.name}", dry.stdout)
+        self.assertIn("nothing was moved", dry.stdout)
 
 
 _TWO_ID_COMPLETION: dict[str, Any] | None = None
