@@ -165,6 +165,8 @@ complete:
 
 A two-id Reference-Completed child, the form from before ADR 0037, has a `complete` block instead of `build`, and its parent is `release.yaml`'s `derived_from`, whose artifact path is a pure function of that ID. Existing two-id bundles (OGS-00002, OGS-00022, OGS-00023) stay valid; nothing new should take that form.
 
+A Build Recipe that reads its sources through `opengwasdb.column-map` also carries a top-level `column_map: {name, sha256, file}` binding (`file` absent for a built-in), and its bundle a `column_maps/<file>` ([the binding](../release-metadata-schema.md#column-map-binding)). `options` may not pass `column-map`: `plan()` composes the flag from the binding.
+
 ### Artifact root comes from configuration
 
 The Build Recipe says *what* to build; configuration says *where* it lands. An accepted bundle is immutable, so an absolute artifact path inside one would bind that bundle to the machine that created it and hardcode that machine's filesystem into the master list's `build_command`.
@@ -354,6 +356,8 @@ It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path co
 
 A Build Recipe may also declare an optional `variant_reference` pre-build stage for the Dense-VCF and Hybrid builders (issue #145). `plan()` then prepends an `extract-variant-reference` Step and appends the artifact to the build step's inputs. The declared destination must equal the build step's `--variant-reference` option -- the one bounded, syntactic exception to ADR 0023's never-interpret rule -- but whether the artifact already exists is a runtime fact the executor decides when the step runs, never the planner (ADR 0031, issue #147).
 
+A Build Recipe that binds a Column Map (#292) has `plan()` append `--column-map PATH|NAME` after the rendered options of every build command that takes it (`CommandSpec.column_map`: `build-dense-vcf` and `build-hybrid`) and of the `variant-reference` pre-stage, which reads the same files. A built-in goes by its name. A carried map goes as `<artifact root>/<id>/work/column_maps/<file>` (`paths.column_map_path`), a staged copy that is also an input of the first step, so Snakemake's `column_map` rule stages it, from `column_maps/<file>`, before anything reads it. Like the derived build manifest, the argv names a path under the artifact root and not under the bundle, so planning from another checkout is not argv drift (`amendment`, `register`). The completion phase and a two-id child's `complete` take no map. A command that takes none, given a bundle that binds one, is refused, and so is `column-map` in any `options`, the pre-stage's included. `build-hybrid-from-catalogue` has a `--column-map` flag too, but nothing here composes that command.
+
 A Build Recipe may declare optional named `indexed_subsets` (stores #209). `plan()` then emits one `build-indexed-subset` Step per declaration, in declaration order, after the Store and its inline index steps exist and before `overview` and `validate`. Each Step is an ordinary `Step`, so `run.py` gives it the usual durable `records/indexed-subset-<name>.json`. `plan()` resolves nothing: the declaration records the maintained `resource_id`, the concrete `variant_list` path and the `reference_assembly`, and the release entry point verifies the maintained resource and the runtime capability before a build. A Ragged release rejects any declaration rather than silently dropping it. See "Indexed Variant Subsets" below and [ADR 0034](../adr/0034-indexed-variant-subsets-in-release-planning.md).
 
 A `reference_completed` release with no `derived_from` completes its own Store under its id (ADR 0037), and `plan()` returns two phases, build then completion:
@@ -428,7 +432,10 @@ changed. See Safety, *The one amendment an accepted bundle allows*.
 
 The run-time counterparts to the pure planner. `resources.py` verifies a
 declared Indexed Variant Subset's maintained variant list against its
-`resource_id` declaration. `runtime.py` (stores#218) is the pre-write runtime
+`resource_id` declaration, and re-hashes a bundle's carried Column Map against
+the Build Recipe's binding (`verify_column_maps_for_releases`, #292): the
+entry point's dry run and run and the Snakefile's `onstart` refuse a mismatch
+before any build, naming the map, and `stage_column_map` re-hashes as it copies. `runtime.py` (stores#218) is the pre-write runtime
 guard: it proves the resolved `opengwasdb` is the tracked pin (from the
 executable's own install metadata, failing closed on an unprovable identity),
 provides every subcommand the *scheduled steps* name, and can complete each
@@ -535,7 +542,7 @@ Dependency wiring only, per ADR 0023. It contains no source column name, no mani
 build_manifest ──> build ──> top_hits ──> rho ──> indexed-subset-<name> ──> overview ──> validate ──> register
 ```
 
-`build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
+`build_manifest` is the derived build manifest's rule (ADR 0025). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A release with a carried Column Map also has a `column_map` rule, which stages the map where the build's `--column-map` names it (#292); it writes no record, like `build_manifest`. A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
 
 A release that completes its own Store (ADR 0037) runs both phases in one run. Its build phase is the chain above. Its completion phase then starts from the build phase's `register` record, because it completes the Store that phase published:
 
@@ -1005,6 +1012,16 @@ run alone repeats the in-memory steps it needs, never `freeze`, `preflight` or
 
 Re-running a stopped run repeats nothing costly: `freeze` finds the frozen
 snapshot and `resolve` reuses every record whose fingerprint still matches.
+
+The resolver is passed `--column-map PATH|NAME` when the release reads through
+`opengwasdb.column-map`, and `--chain-file` when the config names a liftover
+chain (#292). Both are declared facts: the map from the release config's
+`column_map`, the chain from a `liftover_chain` Reference Resource whose
+declaration states its sha256 and builds, refused when it lifts to a build
+other than the reference build or the file's checksum differs from the
+declared one. Their checksums join the settings digest and the receipt's
+resolution contract, and `verify` requires each record's
+`resolution_config.column_map` to equal the binding the bundle will carry.
 
 The resolver subprocess is `opengwasdb resolve-analyses` (opengwasdb#208). It
 owns the process pool, the single genome-scale reference load, and the atomic,

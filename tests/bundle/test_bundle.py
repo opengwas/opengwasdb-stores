@@ -1913,6 +1913,17 @@ class TestColumnMapContract(unittest.TestCase):
                 "complete": {"command": "complete-dense", "options": {"column-map": "x"}},
             },
         )
+        for key in ("variant_reference", "variant-reference"):
+            self.assert_refused(
+                f"build.{key}.options must not set ['column-map']",
+                recipe={
+                    "build": {
+                        "command": "build-dense-vcf",
+                        "options": {"variant-reference": "/ref/panel.txt"},
+                        key: {"output": "/ref/panel.txt", "options": {"column-map": "x"}},
+                    }
+                },
+            )
 
 
 class TestBundleSummary(unittest.TestCase):

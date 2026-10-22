@@ -48,6 +48,8 @@ from __future__ import annotations
 import base64
 import contextlib
 import gzip
+import hashlib
+import importlib.resources
 import io
 import json
 import math
@@ -68,9 +70,11 @@ from pathlib import Path
 from unittest import mock
 from typing import Any
 
+import yaml
+
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from ogstores import bundle, manifest, paths, release, run
+from ogstores import bundle, manifest, paths, release, resources, run
 from ogstores.plan import plan
 
 # The completed child is asserted on through opengwasdb's published query
@@ -621,6 +625,8 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
             '"{root}/{store_id}/work/analyses.tsv",',
             'manifest="{root}/{store_id}/work/analyses.tsv",',
             'sidecar="{root}/{store_id}/work/analyses.exclusions.json",',
+            # A carried Column Map, staged for the build (#292): a file too.
+            '"{root}/{store_id}/work/column_maps/{file}"',
         )
         in_output_block = False
         for line in self.code_lines:
@@ -3160,6 +3166,104 @@ class TestWorkflowOperatorInterface(unittest.TestCase):
         for build_rule in ["build", "complete", "top_hits", "rho", "overview", "validate", "register"]:
             self.assertNotIn(f"rule {build_rule}:", res.stdout)
             self.assertNotIn(f"\n{build_rule} ", res.stdout)
+
+
+class TestWorkflowCarriedColumnMap(unittest.TestCase):
+    """A carried Column Map is staged for the build, re-hashed against its binding (#292).
+
+    `plan()` names the staged copy under the artifact root as `--column-map`;
+    the `column_map` rule copies it from the bundle once the bytes match the
+    Build Recipe's `column_map.sha256`, and a run that finds other bytes is
+    refused naming the map. Only the staging is run here: building through a
+    map is OpenGWASDB's, and its own tests cover it.
+    """
+
+    STORE_ID = "OGS-00096"
+    MAP = b'column_map_version = 1\nname = "mvp-map"\n'
+    FILE = "mvp-map.toml"
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        td = Path(self.temp_dir.name)
+        self.stores = td / "stores"
+        self.stores.mkdir()
+        self.artifacts = td / "artifacts"
+        self.artifacts.mkdir()
+        directory = create_dense_fixture_store(self.stores, self.STORE_ID, artifact_root=self.artifacts)
+        recipe = yaml.safe_load((directory / "build.yaml").read_text())
+        recipe["build"]["options"]["source-reader-capability"] = "opengwasdb.column-map"
+        recipe["column_map"] = {
+            "name": "mvp-map", "sha256": hashlib.sha256(self.MAP).hexdigest(), "file": self.FILE,
+        }
+        (directory / "build.yaml").write_text(yaml.safe_dump(recipe), encoding="utf-8")
+        (directory / "column_maps").mkdir()
+        self.carried = directory / "column_maps" / self.FILE
+        self.carried.write_bytes(self.MAP)
+        self.staged = paths.column_map_path(self.STORE_ID, self.FILE, root=self.artifacts)
+        self.loaded = bundle.load(self.STORE_ID, registry_root=self.stores)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def stage(self) -> subprocess.CompletedProcess[str]:
+        return run_snakemake([str(self.staged)], registry_root=self.stores, artifact_root=self.artifacts)
+
+    def test_the_plan_names_the_staged_copy_and_the_dry_run_schedules_its_staging(self) -> None:
+        build = plan(self.loaded, artifact_root=self.artifacts)[0]
+        self.assertEqual(build.argv[build.argv.index("--column-map") + 1], str(self.staged))
+        res = run_snakemake(
+            [str(paths.record_path(self.STORE_ID, "build", root=self.artifacts))],
+            registry_root=self.stores, artifact_root=self.artifacts, dry_run=True,
+        )
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertIn("rule column_map:", res.stdout)
+        self.assertIn(str(self.staged), res.stdout)
+
+    def test_the_map_is_staged_byte_for_byte(self) -> None:
+        res = self.stage()
+        self.assertEqual(res.returncode, 0, res.stderr)
+        self.assertEqual(self.staged.read_bytes(), self.MAP)
+
+    def test_a_map_whose_bytes_changed_is_refused_by_name_and_not_staged(self) -> None:
+        self.carried.write_bytes(self.MAP + b"# edited\n")
+        res = self.stage()
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("Column Map 'mvp-map' (column_maps/mvp-map.toml) has sha256", res.stderr)
+        self.assertIn(hashlib.sha256(self.MAP).hexdigest(), res.stderr)
+        self.assertFalse(self.staged.exists())
+
+    def test_a_map_edited_after_the_check_is_refused_at_the_copy(self) -> None:
+        with mock.patch.object(resources, "verify_column_map", return_value=self.carried):
+            self.carried.write_bytes(self.MAP + b"# edited\n")
+            with self.assertRaisesRegex(resources.ColumnMapChecksumError, "changed while it was staged"):
+                resources.stage_column_map(self.loaded, self.staged)
+        self.assertFalse(self.staged.exists())
+
+    def test_the_release_check_refuses_a_changed_map_naming_it(self) -> None:
+        resources.verify_column_maps_for_releases(
+            [(str(self.artifacts), self.STORE_ID)], registry_root=self.stores
+        )
+        self.carried.write_bytes(self.MAP + b"# edited\n")
+        with self.assertRaisesRegex(resources.ColumnMapChecksumError, f"Release {self.STORE_ID}: Column Map 'mvp-map'"):
+            resources.verify_column_maps_for_releases(
+                [(str(self.artifacts), self.STORE_ID)], registry_root=self.stores
+            )
+
+    def test_the_entry_point_refuses_before_any_write(self) -> None:
+        self.carried.write_bytes(self.MAP + b"# edited\n")
+        res = run_release([self.STORE_ID], registry_root=self.stores, artifact_root=self.artifacts)
+        self.assertNotEqual(res.returncode, 0)
+        self.assertIn("Column Map 'mvp-map'", res.stdout + res.stderr)
+        self.assertFalse(paths.records_dir(self.STORE_ID, root=self.artifacts).exists())
+        self.assertFalse(self.staged.exists())
+
+    def test_a_built_in_map_carries_no_file_and_stages_nothing(self) -> None:
+        recipe = yaml.safe_load((self.loaded.root / "build.yaml").read_text())
+        shipped = importlib.resources.files("opengwasdb.readers").joinpath("column_maps/gwas-ssf.toml")
+        recipe["column_map"] = {"name": "gwas-ssf", "sha256": hashlib.sha256(shipped.read_bytes()).hexdigest()}
+        (self.loaded.root / "build.yaml").write_text(yaml.safe_dump(recipe), encoding="utf-8")
+        loaded = bundle.load(self.STORE_ID, registry_root=self.stores)
+        self.assertIsNone(resources.verify_column_map(loaded))
 
 
 if __name__ == "__main__":

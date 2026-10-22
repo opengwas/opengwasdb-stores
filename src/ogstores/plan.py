@@ -77,6 +77,8 @@ from ogstores.bundle import (
     INDEXED_SUBSET_REQUIRED_KEYS,
     INDEXED_SUBSET_RESERVED_OPTION_KEYS,
     Bundle,
+    ColumnMapBinding,
+    column_map_binding,
     indexed_subset_step_name,
     is_valid_indexed_subset_name,
     normalize_option_key,
@@ -141,6 +143,9 @@ class CommandSpec:
     inputs: tuple[str, ...]
     identity: bool = True
     analyses_flag: bool = False
+    #: Takes `--column-map PATH|NAME` (opengwasdb ADR 0063): the build commands
+    #: that read source files through a Column Map. A completion reads no source.
+    column_map: bool = False
     top_hits_cmd: str | None = None
     rho_cmd: str | None = None
     overview_cmd: str | None = None
@@ -152,6 +157,7 @@ COMMANDS: dict[str, CommandSpec] = {
         name="dense",
         positionals=("analyses", "store"),
         inputs=("analyses",),
+        column_map=True,
         top_hits_cmd="build-dense-top-hits",
         rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
@@ -162,6 +168,7 @@ COMMANDS: dict[str, CommandSpec] = {
         name="hybrid",
         positionals=("analyses", "store"),
         inputs=("analyses",),
+        column_map=True,
         overview_cmd="regenerate-overview",
     ),
     "build-ragged-ssf": CommandSpec(
@@ -503,6 +510,12 @@ def _variant_reference_declaration(
                     f"Bundle {store_id}: variant_reference 'options' must be a mapping"
                 )
             extract_options = dict(raw_options)
+            reserved = reserved_options(extract_options, ("column-map",))
+            if reserved:
+                raise ValueError(
+                    f"Bundle {store_id}: variant_reference.options must not set {reserved}; "
+                    "the extraction reads through the Build Recipe's checksummed column_map binding"
+                )
     else:
         raise ValueError(
             f"Bundle {store_id}: variant_reference must be a path string or a mapping, "
@@ -665,6 +678,42 @@ def _select_spec(bundle: Bundle, key: tuple[str, str]) -> tuple[str, CommandSpec
     return command, spec
 
 
+def _column_map_arguments(
+    bundle: Bundle, spec: CommandSpec, command: str, root: Path
+) -> tuple[list[str], list[Path]]:
+    """`--column-map` for a build command, from the Build Recipe's checksummed binding.
+
+    The value is a built-in map's name, or the carried map staged under the
+    release's work directory (`paths.column_map_path`): a path under the
+    artifact root, the same from any checkout. The staged copy is an input of
+    the first step, so the workflow stages it, re-hashed against the binding,
+    before anything reads it (`ogstores.resources.stage_column_map`). A command
+    that takes no map, given a bundle that reads through one, is refused: it
+    would read the sources some other way.
+    """
+    try:
+        binding = column_map_binding(bundle.build)
+    except ValueError as exc:
+        raise ValueError(f"Bundle {bundle.store_id}: {exc}") from exc
+    if binding is None or spec.phase != "build":
+        return [], []
+    if not spec.column_map:
+        raise ValueError(
+            f"Bundle {bundle.store_id} binds Column Map {binding.name!r}, but {command!r} "
+            "reads no source through a Column Map; drop the binding or choose a command that does"
+        )
+    return _column_map_flag(binding, bundle.store_id, root)
+
+
+def _column_map_flag(
+    binding: ColumnMapBinding, store_id: str, root: Path
+) -> tuple[list[str], list[Path]]:
+    if binding.file is None:
+        return ["--column-map", binding.name], []
+    staged = paths.column_map_path(store_id, binding.file, root=root)
+    return ["--column-map", str(staged)], [staged]
+
+
 def plan(
     bundle: Bundle,
     artifact_root: Path | str | None = None,
@@ -716,10 +765,13 @@ def plan(
     if spec.analyses_flag:
         argv.extend(["--analyses", str(paths.build_manifest_path(bundle.store_id, root=root))])
     argv.extend(render_options(options))
+    column_map_args, column_map_inputs = _column_map_arguments(bundle, spec, command, root)
+    argv.extend(column_map_args)
 
     inputs: list[Path] = []
     for token in spec.inputs:
         inputs.extend(_resolve(token, bundle, root))
+    inputs.extend(column_map_inputs)
 
     steps: list[Step] = []
     declaration = _variant_reference_declaration(
@@ -736,11 +788,14 @@ def plan(
             str(ref_output),
         ]
         ref_argv.extend(render_options(ref_options))
+        # The pre-stage reads the same source files, so it reads them through
+        # the same map (opengwasdb ADR 0063).
+        ref_argv.extend(column_map_args)
         steps.append(
             Step(
                 name="variant-reference",
                 argv=ref_argv,
-                inputs=[manifest_p],
+                inputs=[manifest_p, *column_map_inputs],
                 outputs=[ref_output],
             )
         )

@@ -309,6 +309,9 @@ COLUMN_MAP_SUFFIX: str = ".toml"
 _SHA256_RE: re.Pattern[str] = re.compile(r"\A[0-9a-f]{64}\Z")
 #: The flag Store Release Build will compose from the binding; ``options`` may not pass it.
 _COLUMN_MAP_OPTIONS: frozenset[str] = frozenset({"column-map"})
+
+#: The keys a Build Recipe's ``variant_reference`` pre-stage block goes by (``ogstores.plan``).
+_VARIANT_REFERENCE_BLOCKS: tuple[str, ...] = ("variant_reference", "variant-reference")
 _READER_OPTION: str = "source-reader-capability"
 
 SUMMARY_COLUMNS: tuple[str, ...] = (
@@ -1497,17 +1500,43 @@ def _recipe_options(build: Mapping[str, Any]) -> Iterable[tuple[str, Mapping[Any
             yield block_name, options
 
 
+def _variant_reference_options(build: Mapping[str, Any]) -> Iterable[tuple[str, Mapping[Any, Any]]]:
+    """``(location, options)`` for each ``variant_reference`` pre-stage's own ``options``."""
+    for block_name in sorted(STORE_PRODUCING_STEPS):
+        block = build.get(block_name)
+        if not isinstance(block, Mapping):
+            continue
+        for key in _VARIANT_REFERENCE_BLOCKS:
+            declaration = block.get(key)
+            options = declaration.get("options") if isinstance(declaration, Mapping) else None
+            if isinstance(options, Mapping):
+                yield f"{block_name}.{key}", options
+
+
 def _column_map_option_errors(build: Mapping[str, Any]) -> list[str]:
     """``--column-map`` comes from the checksummed binding, never through ``options``."""
     errors: list[str] = []
-    for block_name, options in _recipe_options(build):
+    declared = [(f"{name}.options", options) for name, options in _recipe_options(build)]
+    for where, options in [*declared, *((f"{w}.options", o) for w, o in _variant_reference_options(build))]:
         reserved = reserved_options(options, _COLUMN_MAP_OPTIONS)
         if reserved:
             errors.append(
-                f"build.yaml {block_name}.options must not set {reserved}; the Column Map "
+                f"build.yaml {where} must not set {reserved}; the Column Map "
                 f"is the Build Recipe's checksummed {COLUMN_MAP_KEY!r} binding"
             )
     return errors
+
+
+def column_map_binding(build: Mapping[str, Any]) -> ColumnMapBinding | None:
+    """The Build Recipe's Column Map binding, or ``None`` when it binds none.
+
+    Raises ``ValueError`` for a binding ``check()`` would refuse: the planner
+    never composes a flag from a malformed one.
+    """
+    binding, errors = _column_map_binding(build)
+    if errors:
+        raise ValueError("; ".join(errors))
+    return binding
 
 
 def _column_map_binding(build: Mapping[str, Any]) -> tuple[ColumnMapBinding | None, list[str]]:
@@ -1758,6 +1787,7 @@ __all__ = [
     "Bundle",
     "CheckResult",
     "ColumnMapBinding",
+    "column_map_binding",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",

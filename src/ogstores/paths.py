@@ -181,6 +181,17 @@ def build_manifest_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT)
     return work_dir(store_id, root=root) / "analyses.tsv"
 
 
+def column_map_path(store_id: str, file: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """A carried Column Map, staged for the release: `<root>/<store_id>/work/column_maps/<file>`.
+
+    Copied from the bundle's `column_maps/<file>` once its bytes match the
+    Build Recipe's binding, so a build names a path under the artifact root
+    (like the derived build manifest) and the planned argv is the same from any
+    checkout.
+    """
+    return work_dir(store_id, root=root) / "column_maps" / file
+
+
 def build_manifest_sidecar_path(
     store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT
 ) -> Path:
