@@ -331,6 +331,22 @@ def create_completed_child_bundle(
     return child_dir
 
 
+def revise_registry_analyses(stores_dir: Path, store_id: str) -> None:
+    """Change a trait's name in the bundle's analyses.tsv: the content a rebuild is scheduled for (#339).
+
+    A bundle file that is merely newer than the release's records no longer
+    schedules a rebuild, so a test of a forced or refused rebuild changes
+    what the bundle says, as a revised release does.
+    """
+    analyses_p = stores_dir / store_id / "analyses.tsv"
+    lines = analyses_p.read_text(encoding="utf-8").splitlines()
+    column = lines[0].split("\t").index("trait_name")
+    row = lines[1].split("\t")
+    row[column] += " (revised)"
+    lines[1] = "\t".join(row)
+    analyses_p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def amend_to_complete_own_store(stores_dir: Path, store_id: str, *, ld_panel: Path) -> Path:
     """Give an Observed-Only fixture bundle a `complete` block: one id, published twice (ADR 0037).
 
@@ -853,8 +869,8 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
     def test_rebuilding_a_published_release_is_refused_before_any_job_writes(self) -> None:
         """A run that would rebuild a published release refuses before any job runs (#195).
 
-        A fresh checkout gives every bundle file a newer mtime than the records
-        beside its published Store, so Snakemake schedules the whole chain
+        A bundle revised after its Store was published (or one whose records
+        are older than its inputs) makes Snakemake schedule the whole chain
         again. Before #195 that run rebuilt into `.partial`, rewrote the
         release's `work/` and `records/`, and only then failed at publication
         with `StoreExistsError`: the Store survived, its evidence did not.
@@ -869,7 +885,9 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
             return {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in files}
 
         # Age the published release by a day, keeping its files' relative
-        # order, so the bundle is newer than its records as after a checkout.
+        # order, so the bundle is newer than its records, and revise the bundle
+        # as a changed release would: a newer file alone schedules nothing (#339).
+        revise_registry_analyses(self.stores_dir, store_id)
         day_ns = 86_400 * 10**9
         for p in store_dir.rglob("*"):
             if p.is_file():
@@ -896,7 +914,11 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertFalse(paths.partial_store_path(store_id, root=self.artifact_root).exists())
 
     def age_published_release(self, store_id: str) -> None:
-        """Make the bundle newer than the published release's files, as a fresh checkout does."""
+        """Make the bundle newer than the published release's files and revise its analyses.tsv.
+
+        A newer bundle alone is a fresh checkout, which schedules nothing (#339).
+        """
+        revise_registry_analyses(self.stores_dir, store_id)
         day_ns = 86_400 * 10**9
         for p in paths.store_dir(store_id, root=self.artifact_root).rglob("*"):
             if p.is_file():
@@ -2318,11 +2340,14 @@ class TestWorkflowCompletingAStoreBuiltBefore304(PublishedReleaseCopies):
         self.assertNotIn("would refuse", dry.stdout)
 
     def test_an_unforced_run_rebuilding_its_build_phase_is_still_refused_unchanged(self) -> None:
-        """Only completion-phase jobs are let through: a fresh checkout reschedules the build phase too (#195)."""
+        """Only completion-phase jobs are let through: a rescheduled build phase is still refused (#195)."""
         stores, artifacts, store_id = self.observed_only_copy()
         amend_to_complete_own_store(stores, store_id, ld_panel=self.td / "ld-panel")
+        # The records are older than the manifest the build reads, as after an
+        # interrupted build phase: unchanged membership, so only the published
+        # guard stands between this run and a rebuild.
         day_ns = 86_400 * 10**9
-        for p in paths.store_dir(store_id, root=artifacts).rglob("*"):
+        for p in paths.records_dir(store_id, root=artifacts).rglob("*"):
             if p.is_file():
                 st = p.stat()
                 os.utime(p, ns=(st.st_atime_ns - day_ns, st.st_mtime_ns - day_ns))
@@ -2562,7 +2587,8 @@ class TestWorkflowForcedRunOfACompletedSingleIdRelease(unittest.TestCase):
 
     def test_a_forced_run_rebuilds_both_phases_and_replaces_the_store(self) -> None:
         store_dir = paths.store_dir(self.store_id, root=self.artifacts)
-        # A fresh checkout: every bundle file newer than the release's files.
+        # A revised bundle, every file newer than the release's files.
+        revise_registry_analyses(self.stores, self.store_id)
         day_ns = 86_400 * 10**9
         for p in store_dir.rglob("*"):
             if p.is_file():
