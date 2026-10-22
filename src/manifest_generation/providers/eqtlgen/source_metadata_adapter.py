@@ -54,6 +54,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import hashlib
 import math
 import struct
 import sys
@@ -61,9 +62,11 @@ from pathlib import Path
 from typing import Sequence
 
 import numpy as np
+import yaml
+from opengwasdb.layouts.ragged.besd_reader import BESDReader
 
 from manifest_generation.connector_tsv import raise_problems, write_connector
-from manifest_generation.source_inventory import InventoryError
+from manifest_generation.source_inventory import InventoryError, atomic_write
 from manifest_generation.source_metadata_table import (
     SOURCE_METADATA_TABLE,
     TARGET_CHROMOSOMES,
@@ -77,6 +80,8 @@ OUTPUT_COLUMNS: tuple[str, ...] = (
     "source_trait_label",
     "study_design",
     "sample_size",
+    "first_author",
+    "publication_pmid",
     "tissue",
     "target_ensembl_gene_id",
     "target_chromosome",
@@ -101,8 +106,23 @@ class AdapterError(InventoryError):
     """The ``.epi`` cannot be converted into a valid Source Metadata Table."""
 
 
-def convert(prefix: Path, out: Path, *, tissue: str, study_total: int) -> None:
-    """Convert the file set at ``prefix`` into a canonical Source Metadata Table at ``out``, then load it back."""
+def convert(
+    prefix: Path,
+    out: Path,
+    *,
+    tissue: str,
+    study_total: int,
+    first_author: str,
+    publication_pmid: str,
+    gene_symbols: Path,
+) -> None:
+    """Convert the file set at ``prefix`` into a canonical Source Metadata Table at ``out``, then load it back.
+
+    ``first_author`` and ``publication_pmid`` are the study's, written on every row;
+    ``gene_symbols`` is the connector input mapping a probe to eQTLGen's published
+    gene symbol, which becomes the Analysis Label (a probe with none keeps its
+    Ensembl id). ``<out>.provenance.yaml`` records the arguments and the label counts.
+    """
     prefix, out = Path(prefix), Path(out)
     epi = Path(f"{prefix}.epi")
     if not epi.is_file():
@@ -111,6 +131,11 @@ def convert(prefix: Path, out: Path, *, tissue: str, study_total: int) -> None:
         raise AdapterError(f"tissue {tissue!r} is empty or padded")
     if type(study_total) is not int or study_total < 1:
         raise AdapterError(f"study total {study_total!r} is not a positive whole number")
+    if not first_author.strip() or first_author != first_author.strip():
+        raise AdapterError(f"first_author {first_author!r} is empty or padded")
+    if not publication_pmid.isascii() or not publication_pmid.isdigit():
+        raise AdapterError(f"publication_pmid {publication_pmid!r} is not a PubMed id (digits only)")
+    symbols = load_gene_symbols(Path(gene_symbols))
     rows: list[dict[str, str]] = []
     problems: list[str] = []
     seen: dict[str, int] = {}
@@ -140,7 +165,9 @@ def convert(prefix: Path, out: Path, *, tissue: str, study_total: int) -> None:
         rows.append({
             "source_analysis_id": probe,
             "source_probe_id": probe,
-            "source_trait_label": gene or probe,
+            "source_trait_label": symbols.get(probe) or probe,
+            "first_author": first_author,
+            "publication_pmid": publication_pmid,
             "study_design": "quantitative",
             "sample_size": "",
             "tissue": tissue,
@@ -161,6 +188,61 @@ def convert(prefix: Path, out: Path, *, tissue: str, study_total: int) -> None:
     except InventoryError:
         out.unlink()
         raise
+    labelled = sum(1 for row in rows if row["source_trait_label"] != row["source_probe_id"])
+    atomic_write(
+        Path(f"{out}.provenance.yaml"),
+        yaml.safe_dump(
+            {
+                "written_by": __spec__.name if __spec__ else "source_metadata_adapter",
+                "prefix": str(prefix),
+                "tissue": tissue,
+                "study_total": study_total,
+                "first_author": first_author,
+                "publication_pmid": publication_pmid,
+                "probes": len(rows),
+                "labelled_with_symbol": labelled,
+                "labelled_with_ensembl_id": len(rows) - labelled,
+                "gene_symbols": {
+                    "path": str(gene_symbols),
+                    "rows": len(symbols),
+                    "sha256": hashlib.sha256(Path(gene_symbols).read_bytes()).hexdigest(),
+                },
+            },
+            sort_keys=False, allow_unicode=True,
+        ),
+    )
+
+
+def round_half_up(value: float) -> int:
+    """``value`` rounded to the nearest integer, halves up (``round`` would send 2.5 to 2)."""
+    return int(math.floor(value + 0.5))
+
+
+def load_gene_symbols(path: Path) -> dict[str, str]:
+    """The ``gene``/``gene_symbol`` connector input as ``{gene: symbol}``; a gene given two symbols is refused."""
+    if not path.is_file():
+        raise AdapterError(f"gene symbols not found: {path}")
+    lines = path.read_text(encoding="utf-8").splitlines()
+    if not lines or lines[0].split("\t") != ["gene", "gene_symbol"]:
+        raise AdapterError(f"{path}: header must be 'gene<TAB>gene_symbol'")
+    seen: dict[str, str] = {}
+    conflicts: dict[str, set[str]] = {}
+    for line in lines[1:]:
+        if not line.strip():
+            continue
+        fields = line.split("\t")
+        if len(fields) != 2 or not fields[0].strip() or not fields[1].strip():
+            raise AdapterError(f"{path}: malformed row {line!r}")
+        gene, symbol = fields[0].strip(), fields[1].strip()
+        if gene in seen and seen[gene] != symbol:
+            conflicts.setdefault(gene, {seen[gene]}).add(symbol)
+        seen.setdefault(gene, symbol)
+    if conflicts:
+        raise_problems(
+            AdapterError, f"gene symbols {path}",
+            [f"{gene}: conflicting symbols {', '.join(sorted(names))}" for gene, names in sorted(conflicts.items())],
+        )
+    return seen
 
 
 def probe_sample_sizes(prefix: Path, probes: Sequence[str], study_total: int) -> list[int]:
@@ -188,19 +270,19 @@ def probe_sample_sizes(prefix: Path, probes: Sequence[str], study_total: int) ->
         raise AdapterError(
             f"{besd} has {besd.stat().st_size} bytes, not the {expected} its header and {n_probes} probes imply"
         )
-    raw = np.memmap(besd, dtype=np.uint8, mode="r")
-    cols = np.frombuffer(raw[BESD_HEADER_BYTES:BESD_HEADER_BYTES + cols_bytes], dtype="<i8")
-    start = BESD_HEADER_BYTES + cols_bytes
-    rowid = np.frombuffer(raw[start:start + 4 * val_num], dtype="<u4")
-    val = np.frombuffer(raw[start + 4 * val_num:start + 8 * val_num], dtype="<f4")
+    with open(besd, "rb") as fh:
+        fh.seek(BESD_HEADER_BYTES)
+        cols = np.frombuffer(fh.read(cols_bytes), dtype="<i8")
+    _check_offsets(cols, n_probes, val_num, besd)
+    # The core reader validates the magic and reads each probe's slices.
+    reader = BESDReader(besd, n_probes)
     sizes: list[int] = []
     no_pair: list[str] = []
     for index, probe in enumerate(probes):
-        first, middle = int(cols[2 * index]), int(cols[2 * index + 1])
-        count = middle - first
-        beta = val[first:middle].astype(np.float64)
-        se = val[middle:middle + count].astype(np.float64)
-        p = frequency[rowid[first:middle]]
+        rows, beta32, se32 = reader.get_probe_associations(index)
+        beta = beta32.astype(np.float64)
+        se = se32.astype(np.float64)
+        p = frequency[rows]
         with np.errstate(divide="ignore", invalid="ignore"):
             z = beta / se
             n_pair = 1.0 / (2.0 * p * (1.0 - p) * se**2) - z**2
@@ -209,7 +291,7 @@ def probe_sample_sizes(prefix: Path, probes: Sequence[str], study_total: int) ->
             no_pair.append(probe)
             sizes.append(0)
             continue
-        sizes.append(min(int(math.floor(float(n_pair[usable].max()) + 0.5)), study_total))
+        sizes.append(min(round_half_up(float(n_pair[usable].max())), study_total))
     if no_pair:
         raise_problems(
             AdapterError, f"eQTLGen BESD {besd}",
@@ -218,17 +300,55 @@ def probe_sample_sizes(prefix: Path, probes: Sequence[str], study_total: int) ->
     return sizes
 
 
+def _check_offsets(cols: np.ndarray, n_probes: int, val_num: int, besd: Path) -> None:
+    """Refuse a column-offset table that does not describe ``n_probes`` consecutive beta and SE blocks.
+
+    The first offset is 0, the last is ``val_num``, the offsets never decrease, and
+    each probe's beta block and SE block are the same length. Anything else, such
+    as one probe's offsets copied over another's, would otherwise read as plausible
+    but wrong associations.
+    """
+    problems: list[str] = []
+    if int(cols[0]) != 0:
+        problems.append(f"the first offset is {int(cols[0])}, not 0")
+    if int(cols[-1]) != val_num:
+        problems.append(f"the final offset is {int(cols[-1])}, not the file's {val_num} values")
+    steps = np.diff(cols)
+    if (steps < 0).any():
+        first = int(np.argmax(steps < 0))
+        problems.append(
+            f"offsets do not increase: offset {first + 1} ({int(cols[first + 1])}) is below offset {first} ({int(cols[first])})"
+        )
+    elif not (steps[0::2] == steps[1::2]).all():
+        bad = int(np.argmax(steps[0::2] != steps[1::2]))
+        problems.append(
+            f"probe {bad} has a beta block of {int(steps[2 * bad])} values and an SE block of {int(steps[2 * bad + 1])}"
+        )
+    if problems:
+        raise AdapterError(f"{besd}: damaged column offsets: {'; '.join(problems)}")
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
     parser.add_argument("--prefix", required=True, type=Path, help="the BESD file set's prefix (.besd, .epi, .esi)")
     parser.add_argument("--tissue", required=True, help="the measured tissue, e.g. whole_blood")
+    parser.add_argument("--first-author", required=True, help="the study's first author, written on every row")
+    parser.add_argument("--publication-pmid", required=True, help="the study's PubMed id, written on every row")
+    parser.add_argument(
+        "--gene-symbols", required=True, type=Path,
+        help="the gene/gene_symbol connector input for the Analysis Labels (providers.eqtlgen.gene_symbols)",
+    )
     parser.add_argument("--study-total", required=True, type=int, help="the study's total N, the cap on a probe's N")
     parser.add_argument("--out", required=True, type=Path, help="the Source Metadata Table to write")
     args = parser.parse_args(argv)
     try:
-        convert(args.prefix, args.out, tissue=args.tissue, study_total=args.study_total)
+        convert(
+            args.prefix, args.out, tissue=args.tissue, study_total=args.study_total,
+            first_author=args.first_author, publication_pmid=args.publication_pmid,
+            gene_symbols=args.gene_symbols,
+        )
     except InventoryError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

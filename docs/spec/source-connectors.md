@@ -610,7 +610,9 @@ Table from a BESD file set, one row per probe:
 
 ```sh
 python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
-  --prefix <file set> --tissue whole_blood --study-total 31684 --out <source metadata table>
+  --prefix <file set> --tissue whole_blood --study-total 31684 \
+  --first-author Võsa --publication-pmid 34475573 --gene-symbols <gene-symbols.tsv> \
+  --out <source metadata table>
 ```
 
 `source_analysis_id` is the bare probe id, the id `build-ragged-besd` gives the
@@ -630,6 +632,24 @@ declares no ancestry label (Assigned Ancestry is measured), no build (the releas
 config's `defaults.source_genome_build`, `GRCh37`) and no trait ontology term. A
 chromosome outside the vocabulary, a repeated probe or a short row fails the whole
 adapter, by line and probe.
+
+**Publication and labels.** `first_author` and `publication_pmid` (Võsa et al.,
+*Nature Genetics* 2021, PMID 34475573, DOI 10.1038/s41588-021-00913-z) are adapter
+arguments written on every row and recorded, with the label counts, in
+`<table>.provenance.yaml`. The Analysis Label (`source_trait_label`) is eQTLGen's
+published `GeneSymbol`, which the `.epi` does not carry. `gene_symbols`
+(`python3 -m manifest_generation.providers.eqtlgen.gene_symbols --url <published
+cis-eQTL file> --epi <file set>.epi --out gene-symbols.tsv`) streams the published
+file once and writes the small `gene`/`gene_symbol` connector input, with its URL,
+the compressed file's sha256 and byte count and the download date in
+`gene-symbols.tsv.meta.yaml`. A gene given two symbols is refused by name; a probe
+with none keeps its Ensembl id as the label and is counted. The map feeds the
+label only: `analysis_id` and `source_probe_id` stay the bare Ensembl ids. The
+`source_url` (`https://eqtlgen.org/cis-eqtls.html`) is an `acquire --source-url`
+argument, written on every Acquisition Manifest row and recorded in the pass
+lineage; a resume with another URL is refused like any other changed lineage.
+The full release's map has 19,250 of 19,250 probes with a symbol, from the
+2019-12-11 file (3,880,187,026 bytes).
 
 **Sample size** is the probe's maximum pair N. eQTLGen's beta and SE are
 z-standardised with each SNP-gene pair's own N: b = z / sqrt(2p(1-p)(N + z^2)) and
@@ -652,7 +672,10 @@ adapter writes the maximum over the probe's pairs, rounded to the nearest intege
   than the study had. In the full release 5,456 of 19,250 probes (28%) take it: they
   have at least one pair measured in the study's full cohort set, and the rest are
   covered by fewer cohorts (median 28,927, minimum 232).
-- A probe with no qualifying pair fails the adapter by name.
+- A probe with no qualifying pair fails the adapter by name. The adapter refuses a
+damaged offset table before slicing it (first offset not 0, final offset not the
+file's value count, offsets that do not increase, or a probe's beta and SE blocks
+of unequal length), and reads the values through opengwasdb's BESD reader.
 - The Analysis's SD is **declared**, not estimated (the release config below), and
   the sample size kind is `variant_level`. Per-association N is not stored yet
   (opengwasdb#302); the formula is how to recover it.
