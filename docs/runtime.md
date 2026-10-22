@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c`, the core `dev` merge of PR #291; its first parent is PR #288's merge `ba84a0c` |
-| Core merge | opengwas/opengwasdb PR #291 (`check-observed-view`, core #289), on top of `dev` with #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Revision | `eb4c749bd30379a5499d6c2a34fb0db37aa9fb42`, the merge of core #295 (Hybrid `check-observed-view`) into the core integration branch `orch/232-observed-view` (core PR #303), which starts from core `dev` at `829b501`; not yet on core `dev` |
+| Core merge | opengwas/opengwasdb #295 (Hybrid `check-observed-view`) on top of `dev`, which carries PR #291 (`check-observed-view`, core #289), #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: the core `dev` merge of PR #291 `d405de0a` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -167,3 +167,19 @@ written, by
 `resources.verify_observed_view_check_for_releases`, which the entry point calls
 in its dry run and its run, and the Snakefile in `onstart`, beside the Indexed
 Variant Subset guard.
+
+## Coordination with core #295
+
+Core opengwas/opengwasdb#295 extends `check-observed-view` from Dense pairs to
+Hybrid pairs: the Dense Components, every crossover, and a seeded sample of
+whole Overflow Analyses with exhaustive per-Analysis counts. Stores #333 moved
+the pin to `eb4c749b`, #295's merge into the core integration branch
+`orch/232-observed-view` (core PR #303), so that a Hybrid release can complete
+its own Store (ADR 0037). That revision is not yet on core `dev`; when the
+branch merges there, the pin moves to the merge on `dev`, as stores #312 did for
+PR #291.
+
+`--help` shows the same `check-observed-view` command on revisions that compare
+only Dense pairs, so the capability probe above cannot tell them apart. The
+exact-pin check is what refuses an older runtime for a Hybrid single-id release:
+any revision other than the pin is refused before anything is written.
