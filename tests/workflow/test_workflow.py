@@ -667,14 +667,59 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
                 )
 
 
+_DENSE_RELEASE: dict[str, Any] | None = None
+
+
+def dense_release_template() -> dict[str, Any]:
+    """The one fixture-scale Dense release this process builds, with a single snakemake target.
+
+    Returns `store_id`, the built `stores` and `artifacts` directories, the
+    snakemake `build_result`, and the `TemporaryDirectory` that holds them
+    (kept here so the template outlives every test that copies it). A test
+    that changes the release copies it first; the template is never written
+    again. The end-to-end tests and the relocation tests (#331) share it, so a
+    process that runs both builds it once.
+    """
+    global _DENSE_RELEASE
+    if _DENSE_RELEASE is not None:
+        return _DENSE_RELEASE
+
+    store_id = "OGS-00099"
+    temp_dir = tempfile.TemporaryDirectory()
+    root = Path(temp_dir.name)
+    stores = root / "stores"
+    stores.mkdir()
+    artifacts = root / "artifacts"
+    artifacts.mkdir()
+
+    create_dense_fixture_store(
+        stores,
+        store_id=store_id,
+        artifact_root=artifacts,
+        post_top_hits=True,
+        post_overview=True,
+        post_validate=True,
+    )
+    build_result = run_snakemake([store_id], registry_root=stores, artifact_root=artifacts)
+
+    _DENSE_RELEASE = {
+        "temp_dir": temp_dir,
+        "stores": stores,
+        "artifacts": artifacts,
+        "build_result": build_result,
+        "store_id": store_id,
+    }
+    return _DENSE_RELEASE
+
+
 class TestWorkflowEndToEndAndResumption(unittest.TestCase):
     """End-to-end execution, idempotency, and resumption over one fixture-scale Dense build.
 
     The workflow specification budgets *one* fixture-scale end-to-end run
     ("Fixture-scale end-to-end runs stay, as one smoke test"). That run happens
-    once here, in `setUpClass`, and the tests that need a completed Store copy
-    its result rather than rebuilding. Rebuilding per test cost 68s to assert
-    three different things about the same built Store.
+    once per process (`dense_release_template`), and the tests that need a
+    completed Store copy its result rather than rebuilding. Rebuilding per test
+    cost 68s to assert three different things about the same built Store.
 
     `test_interrupted_step_resumes_without_restarting` deliberately keeps its
     own partial build: it needs a Store interrupted mid-way, and deriving that
@@ -685,31 +730,11 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        """Build the one fixture-scale Store this class shares, with a single snakemake target."""
-        cls._class_tmp = tempfile.TemporaryDirectory()
-        root = Path(cls._class_tmp.name)
-        cls.template_stores = root / "stores"
-        cls.template_stores.mkdir()
-        cls.template_artifacts = root / "artifacts"
-        cls.template_artifacts.mkdir()
-
-        create_dense_fixture_store(
-            cls.template_stores,
-            store_id=cls.STORE_ID,
-            artifact_root=cls.template_artifacts,
-            post_top_hits=True,
-            post_overview=True,
-            post_validate=True,
-        )
-        cls.build_result = run_snakemake(
-            [cls.STORE_ID],
-            registry_root=cls.template_stores,
-            artifact_root=cls.template_artifacts,
-        )
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        cls._class_tmp.cleanup()
+        """Take the one fixture-scale Store this process builds."""
+        template = dense_release_template()
+        cls.template_stores = template["stores"]
+        cls.template_artifacts = template["artifacts"]
+        cls.build_result = template["build_result"]
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
