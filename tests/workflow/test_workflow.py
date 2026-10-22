@@ -3859,7 +3859,8 @@ class TestWorkflowSingleIdRaggedFailingObservedViewCheck(TestWorkflowSingleIdFai
         self.assertEqual(list(found["association_status"]), ["observed"])
         scale = json.loads((staged_p / "manifest.json").read_text(encoding="utf-8"))["encoding"]["z"]["scale"]
         ragged = store_arrays.open_group(staged_p / "data.zarr" / "ragged", mode="r+")
-        start, end = (int(offset) for offset in ragged["offsets"][0:2])
+        analysis = int(found["analysis_index"][0])
+        start, end = (int(offset) for offset in ragged["offsets"][analysis : analysis + 2])
         (position,) = np.flatnonzero(ragged["variant_index"][start:end] == int(found["variant_index"][0])) + start
         ragged["z"][position] = ragged["z"][position] + scale
 

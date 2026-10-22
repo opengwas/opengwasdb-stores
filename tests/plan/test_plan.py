@@ -2573,20 +2573,8 @@ class TestCurrentFormatRuntimeCompatibility(unittest.TestCase):
 
 
 def main() -> None:
-    suite = unittest.TestSuite()
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanDense))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanHybrid))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanRagged))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanReferenceCompleted))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanSingleIdReferenceCompleted))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanSingleIdHybridReferenceCompleted))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanSingleIdRaggedReferenceCompleted))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestBuildManifestSeam))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestArtifactRootConfiguration))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPostDefaults))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestVariantReferencePreStage))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestIndexedSubsets))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCurrentFormatRuntimeCompatibility))
+    # Every TestCase in this module, so a new class cannot be left out of the run.
+    suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():
