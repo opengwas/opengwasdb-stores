@@ -2,11 +2,12 @@
 """The eQTLGen metadata adapter: the BESD ``.epi`` -> Source Metadata Table (#291).
 
 eQTLGen's file set holds one Analysis per probe and carries no study metadata,
-so the adapter writes one row per ``.epi`` probe: the Analysis id
-(``<probe>::<tissue>``, the id ``build-ragged-besd`` gives it), the probe it
-reads, the probe's position as its target, and the study-level facts the
-operator states (tissue and sample size) on every row. The expected rows are
-literals, not the adapter's own output.
+so the adapter writes one row per ``.epi`` probe: the Analysis id (the bare
+probe id, never ``<probe>::<tissue>``: an ``analysis_id`` never contains ``:``,
+issue #319), the probe it reads, the probe's position as its target, and the
+study-level facts the operator states (tissue and sample size) on every row. A
+blank tissue is refused before anything is written (#319). The expected rows
+are literals, not the adapter's own output.
 
 Run from the repository root:
     python3 tests/eqtlgen-pipeline/test_source_metadata_adapter.py
@@ -14,6 +15,8 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import contextlib
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -21,6 +24,7 @@ from pathlib import Path
 from manifest_generation.providers.eqtlgen.source_metadata_adapter import (
     AdapterError,
     convert_epi,
+    main,
 )
 from manifest_generation.source_metadata_table import load_source_metadata_table
 
@@ -34,7 +38,7 @@ EXPECTED_HEADER = (
 
 EXPECTED = [
     {
-        "source_analysis_id": "ENSG00000175445::whole_blood",
+        "source_analysis_id": "ENSG00000175445",
         "source_probe_id": "ENSG00000175445",
         "source_trait_label": "ENSG00000175445",
         "study_design": "quantitative",
@@ -46,7 +50,7 @@ EXPECTED = [
         "target_end": "19791998",
     },
     {
-        "source_analysis_id": "ENSG00000134243::whole_blood",
+        "source_analysis_id": "ENSG00000134243",
         "source_probe_id": "ENSG00000134243",
         "source_trait_label": "ENSG00000134243",
         "study_design": "quantitative",
@@ -58,7 +62,7 @@ EXPECTED = [
         "target_end": "109896382",
     },
     {
-        "source_analysis_id": "ENSG00000232810::whole_blood",
+        "source_analysis_id": "ENSG00000232810",
         "source_probe_id": "ENSG00000232810",
         "source_trait_label": "ENSG00000232810",
         "study_design": "quantitative",
@@ -88,6 +92,38 @@ class EqtlgenSourceMetadataAdapterTest(unittest.TestCase):
         self.assertEqual(
             [dict(table.row(analysis_id)) for analysis_id in table.analysis_ids], EXPECTED
         )
+
+    def test_the_analysis_id_is_the_bare_probe_and_the_tissue_its_own_column(self) -> None:
+        """Issue #319: no id carries ``:``; the tissue is recorded beside it, not in it."""
+        convert_epi(FIXTURE, self.out, tissue="whole_blood", sample_size=31684)
+        table = load_source_metadata_table(self.out)
+        for analysis_id in table.analysis_ids:
+            self.assertNotIn(":", analysis_id)
+            self.assertEqual(analysis_id, table.row(analysis_id)["source_probe_id"])
+            self.assertEqual(table.row(analysis_id)["tissue"], "whole_blood")
+
+    def test_a_blank_tissue_is_refused_before_anything_is_written(self) -> None:
+        """Issue #319: a blank tissue fails loudly, never ships a blank column.
+
+        The adapter is the only writer of eQTLGen's tissue, so a blank or
+        whitespace-only ``--tissue`` is refused here, by the function and by the
+        command line, and no table is left for freeze to read.
+        """
+        for tissue in ("", "   ", " whole_blood"):
+            with self.subTest(tissue=tissue):
+                with self.assertRaises(AdapterError) as caught:
+                    convert_epi(FIXTURE, self.out, tissue=tissue, sample_size=31684)
+                self.assertIn("tissue", str(caught.exception))
+                self.assertFalse(self.out.exists())
+                stderr = io.StringIO()
+                with contextlib.redirect_stderr(stderr):
+                    returncode = main([
+                        "--epi", str(FIXTURE), "--tissue", tissue,
+                        "--sample-size", "31684", "--out", str(self.out),
+                    ])
+                self.assertEqual(returncode, 1)
+                self.assertIn("tissue", stderr.getvalue())
+                self.assertFalse(self.out.exists())
 
     def test_a_probe_on_a_chromosome_the_table_does_not_know_is_refused_by_name(self) -> None:
         epi = self.tmp / "odd.epi"

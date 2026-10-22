@@ -21,9 +21,9 @@ per-Source-Provider connector code -- with the AST, and refuses:
   OpenGWASDB subcommand that computes them (:data:`FORBIDDEN_SUBCOMMANDS`).
   Docstrings are not scanned.
 
-Provider modules that still do it retire with their sources' moves onto the
-pipeline. Each is on :data:`EXEMPTIONS`, citing its ticket; an exemption that
-no longer finds a violation fails, so the list shrinks as the tickets land.
+Every source's connectors and release config are on the pipeline (epic #282
+stage 2), so no provider module is exempt: the scan covers all of them, and a
+module that grows one of these imports again fails here.
 
 Run from the repository root:
     python3 tests/packaging/test_per_source_statistics.py
@@ -61,6 +61,11 @@ FORBIDDEN_NAMES: frozenset[tuple[str, str]] = frozenset(
 )
 
 #: Shared helpers in this repository that compute ancestry or phenotype SD.
+#: Three have retired with their sources' moves onto the pipeline --
+#: `phenotype_sd_estimate` (the deleted shim, #282), `opengwas.annotate` with
+#: #282's cleanup, `gwas_catalog.ancestry_assign` before it -- and stay here so
+#: a module of any of those names cannot come back and start computing them
+#: again.
 FORBIDDEN_HELPERS: tuple[str, ...] = (
     "manifest_generation.phenotype_sd_estimate",
     "manifest_generation.qc_panel_concordance",
@@ -74,18 +79,6 @@ FORBIDDEN_HELPERS: tuple[str, ...] = (
 FORBIDDEN_SUBCOMMANDS: frozenset[str] = frozenset(
     {"assign-ancestry", "estimate-phenotype-sd", "resolve-analyses"}
 )
-
-#: Provider modules that still compute or drive these statistics, each with the
-#: ticket that moves its source onto the shared pipeline and retires it.
-EXEMPTIONS: dict[str, str] = {
-    # FinnGen R13 and ukb-b dense generators call it for AF-based ancestry and
-    # phenotype SD (resources/generators/lib/opengwas_gwas_vcf_dense.R).
-    "opengwas/annotate.py": "#288 (FinnGen), #289 (ukb-b)",
-}
-
-#: Tickets an exemption may cite: the source moves still to come (epic #282).
-RETIRING_TICKETS: frozenset[str] = frozenset({"#288", "#289", "#291"})
-
 
 def _docstring_nodes(tree: ast.AST) -> set[int]:
     """The ids of every docstring constant, which describe rather than invoke."""
@@ -148,8 +141,6 @@ class PerSourceStatisticsTests(unittest.TestCase):
         offending: dict[str, list[str]] = {}
         for path in provider_modules():
             relative = path.relative_to(PROVIDERS).as_posix()
-            if relative in EXEMPTIONS:
-                continue
             found = violations(path.read_text(encoding="utf-8"), filename=str(path))
             if found:
                 offending[relative] = found
@@ -165,7 +156,7 @@ class PerSourceStatisticsTests(unittest.TestCase):
         for expected in (
             "gwas_catalog/source_metadata_adapter.py",
             "gwas_catalog/write_acquisition_manifest.py",
-            "ukb_b/generate_candidate.py",
+            "ukb_b/source_metadata_adapter.py",
             "dbgap/metadata.py",
             "dbgap/mvp/source_metadata_adapter.py",
             "dbgap/mvp/acquire_dbgap_phs002453.py",
@@ -174,29 +165,6 @@ class PerSourceStatisticsTests(unittest.TestCase):
             "eqtlgen/source_metadata_adapter.py",
         ):
             self.assertIn(expected, names)
-
-    def test_every_exemption_is_still_needed(self) -> None:
-        """An exemption that finds nothing to exempt must be removed."""
-        for relative, ticket in EXEMPTIONS.items():
-            with self.subTest(module=relative):
-                path = PROVIDERS / relative
-                self.assertTrue(
-                    path.is_file(),
-                    f"{relative} is gone: remove its exemption ({ticket})",
-                )
-                self.assertNotEqual(
-                    violations(path.read_text(encoding="utf-8"), filename=str(path)),
-                    [],
-                    f"{relative} no longer computes per-source statistics: remove its "
-                    f"exemption ({ticket})",
-                )
-
-    def test_every_exemption_cites_a_ticket_that_retires_it(self) -> None:
-        for relative, ticket in EXEMPTIONS.items():
-            with self.subTest(module=relative):
-                cited = {word.strip("(),") for word in ticket.split() if word.startswith("#")}
-                self.assertTrue(cited, f"{relative}'s exemption cites no ticket")
-                self.assertLessEqual(cited, RETIRING_TICKETS)
 
 
 class ScannerControlTests(unittest.TestCase):
@@ -248,14 +216,6 @@ class ScannerControlTests(unittest.TestCase):
                 return "ancestry is measured by Analysis Resolution"
         '''
         self.assertEqual(violations(textwrap.dedent(allowed)), [])
-
-    def test_every_exempt_module_is_caught_by_the_scan(self) -> None:
-        """Each exemption names a module the scan would otherwise fail on."""
-        for relative in EXEMPTIONS:
-            with self.subTest(module=relative):
-                path = PROVIDERS / relative
-                self.assertTrue(violations(path.read_text(encoding="utf-8")))
-
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,11 @@
+source_analysis_id	source_trait_label	source_trait_id	source_ancestry_label	source_superpopulation	study_design	sample_size	n_cases	n_controls	first_author
+ukb-b-10001	Operative procedures - secondary OPCS: Z84.6 Knee joint	ukb-b-10001	European	EUR	case-control	463010	6661	456349	Ben Elsworth
+ukb-b-10002	Manic/hyper symptoms: All of the above	ukb-b-10002	European	EUR	case-control	31317	3177	28140	Ben Elsworth
+ukb-b-10003	Treatment/medication code: becotide 50 inhaler	ukb-b-10003	European	EUR	case-control	462933	2810	460123	Ben Elsworth
+ukb-b-10008	Treatment/medication code: atorvastatin	ukb-b-10008	European	EUR	case-control	462933	13851	449082	Ben Elsworth
+ukb-b-10011	Townsend deprivation index at recruitment	ukb-b-10011	European	EUR	quantitative	462464			Ben Elsworth
+ukb-b-1004	Added milk to espresso	ukb-b-1004	European	EUR	quantitative	64949			Ben Elsworth
+ukb-b-10054	Cheese consumers	ukb-b-10054	European	EUR	case-control	64949	29408	35541	Ben Elsworth
+ukb-b-10787	Standing height	ukb-b-10787	European	EUR	quantitative	461950			Ben Elsworth
+ukb-b-11842	Weight	ukb-b-11842	European	EUR	quantitative	461632			Ben Elsworth
+ukb-b-19953	Body mass index (BMI)	ukb-b-19953	European	EUR	quantitative	461460			Ben Elsworth

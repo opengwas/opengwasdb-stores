@@ -36,8 +36,6 @@ Artifacts live outside git, at a path that is a pure function of the store ID:
 
 ```text
 <artifact-root>/OGS-00042/
-  generate/                  Manifest Generation's work root: a legacy
-                             generator's working bundle (#248)
   source/                    acquired or filtered source files
   work/                      checkpoints, scratch, logs
   work/analyses.tsv          derived build manifest: the bundle's analyses.tsv
@@ -66,7 +64,9 @@ store_id: OGS-00042
 label: r13-pilot-20                 # source-natural display name; not an identifier
 access_posture: public
 status: built                       # candidate|accepted|built|validated|superseded|withdrawn
+trial: false                        # true on a Trial Store Release: deliberately small, never served (#321)
 derived_from: ~                     # a two-id completed child's parent (ADR 0007); none when a release completes its own Store
+superseded_by: ~                    # on a superseded release, the release that replaced it (#321)
 created_at: '2026-08-18T08:51:59Z'
 source_snapshot_id: finngen-r13-manifest-2026-05-12
 generator:                          # how the bundle was produced (Phase B)
@@ -79,6 +79,28 @@ notes: |
 
 The file trims to identity, lineage, Release Status, creation time, source
 snapshot identity, the generation command log, and prose (issue #136, ADR 0029).
+
+`trial` is the one fact that separates a Trial Store Release from a production
+one: a deliberately small Store Release that exercises a Source Collection,
+Source Format or Store Layout while the generic release pipeline is being
+developed and tested. It is descriptive, so it is not a Release Status and not a
+serving decision; the Analysis Catalog's serving policy excludes every Trial
+Store Release (ADR 0008, #323). Absent means `false`. Only a YAML boolean is
+accepted: the loader follows YAML 1.1, so the unquoted spellings `true`, `yes`
+and `on` (and `false`, `no`, `off`) are booleans, while a quoted `trial: "yes"`
+is a string and `trial: 1` a number. `bundle.check()` refuses those, and a
+reader that does not gate on `check()` -- the master list, the catalog -- raises
+rather than read one as `false`, because either reading would serve a Trial
+Store Release or hide one.
+
+`superseded_by` pairs with the `superseded` Release Status: it is required
+there, and refused on a release in any other status. It names the Store Release
+that replaced this one, which is what lets the Analysis Catalog keep an old
+identifier resolvable by pointing it at its successor (#323). Like `trial` it is
+a descriptive fact about the release rather than a serving decision, so the
+registry records it and the catalog decides what to do with it (ADR 0008). The
+successor must be a registered Release Bundle, which `bundle.check()` resolves
+exactly as it resolves `derived_from` (both are the Release Lineage stage).
 
 ### Status lifecycle and transitions
 
@@ -270,14 +292,23 @@ registered Store Release, a `reference_completed` bundle without one declares
 both its `build` and `complete` blocks, Release Status vocabulary and optional transitions,
 and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It
 delegates the Analysis schema rather than reimplementing it, including rejecting
-every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. Two
-registry-owned vocabularies are checked on top of that delegation: every
+every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. Three
+registry-owned rules are checked on top of that delegation: every
 non-empty `assigned_ancestry` must be one of the ancestry mixture's seven
 super-population codes (a free-text Source Ancestry Label is not an Assigned
-Ancestry), and `n_cases`/`n_controls` must be blank on a non-case-control
-Analysis rather than `0` (issue #133). Both were silent-failure classes found
+Ancestry), `n_cases`/`n_controls` must be blank on a non-case-control
+Analysis rather than `0` (issue #133), and every row's `analysis_id` must match
+`^[A-Za-z0-9][A-Za-z0-9._-]*$` so that the identifier the
+[Analysis Catalog](../adr/0039-analysis-catalog.md) publishes as
+`<store_id>:<analysis_id>` always splits on `:` into two parts and the id is a
+usable filename (issue #319). The
+rule covers every row of the Release Manifest, excluded rows included, because
+`analysis_id` is also the resolver's per-Analysis filename. All three were silent-failure classes found
 in the committed bundles; the checks make a reintroduction fail `bundle-check`
-rather than a summary. For BESD builds,
+rather than a summary. `OGS-00001` and `OGS-00002` keep their `<probe>::<tissue>`
+`analysis_id` values, which an accepted bundle may not be edited to remove
+(ADR 0004); `check` reports them as a tolerated gap cited `#319` instead, the
+same second channel the `#134` blank-value exemption uses. For BESD builds,
 the non-empty `source_snapshot.besd_prefix` introduced by `908797f` is checked
 as frozen provenance metadata, but the referenced BESD files are not inspected.
 An `artifacts` block is rejected: issue #126 made the artifact root deployment
@@ -409,7 +440,16 @@ two renderings cannot drift (ADRs 0022, 0030).
 `opengwasdb validate` verdict, compares each record's executed argv against
 `plan()`'s planned argv, harvests the observed measurements, and publishes the
 staged Store. It is the only writer of `validation.yaml` (issues #119, #135;
-ADR 0023). Publication is one recoverable transaction: `publication.json` is
+ADR 0023). The observed measurements are read from the `build` or `complete`
+step's stdout JSON under the keys opengwasdb prints there: `format_version`,
+`n_variants`, `n_analyses`, `n_associations`, `association_coverage` and
+`reference_assembly`. A key the step does not print is recorded as `null`;
+nothing is read from the Store or its `manifest.json`, and `register` never
+derives `n_associations` from `n_variants × n_analyses`, which counts matrix
+cells rather than associations (#322). A key present with a malformed value is
+refused rather than recorded as `null`: `n_associations` must be a non-negative
+integer that is not a bool, and `association_coverage` and
+`reference_assembly` must be non-empty strings. Publication is one recoverable transaction: `publication.json` is
 written first, and `complete_publication()` finishes it, now or after a crash
 (see Safety, #195).
 
@@ -701,7 +741,7 @@ The only thing deliberately excluded is anything whose answer changes without a 
 `stores.tsv` columns:
 
 ```text
-derived   store_id  label  layout  completion_state  status  derived_from
+derived   store_id  label  layout  completion_state  status  derived_from  trial
           store_uri  created_at  opengwasdb_rev  generator_command  build_command
           n_analyses  n_manifest  n_excluded  first_author  publication_pmid
           tissue  context  assigned_ancestry  sample_size  source_url
@@ -711,6 +751,12 @@ observed  format_version  n_variants  n_associations  store_bytes
 
 `n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
 excluded manifest rows visible (issue #217).
+
+`trial` is `release.yaml`'s marker, rendered `true` or `false` rather than left
+empty when absent: whether a release is a Trial Store Release is the fact the
+Analysis Catalog's serving policy reads, so the list says it outright instead of
+leaving a reader to notice a "pilot" label (#321). `STORES.md` carries it as a
+Trial column.
 
 `completion_state` is the completion state of the Store users can query, not
 the bundle's declaration (issue #307, ADR 0037). `register` records it as
@@ -806,7 +852,7 @@ The field-by-field format is defined once in
 [`docs/release-metadata-schema.md`](../release-metadata-schema.md#validationyaml);
 this section records only how the workflow produces it.
 
-Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict.
+Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `n_associations`, `association_coverage` and `reference_assembly` come from that JSON under exactly those keys, with the same precedence `n_variants` and `n_analyses` use; a key opengwasdb does not print is `null`, never a derived value or one read from the Store (#322). A key present with a malformed value fails registration: `n_associations` must be a non-negative integer and the other two non-empty strings, so "opengwasdb reported something else" is never recorded as "opengwasdb reported nothing". Until opengwasdb prints the two coverage keys they are `null` in every new record; committed records written before #322 do not carry them and are not rewritten (#326 re-registers).
 
 The verdict is read from `opengwasdb validate --format json`, which the planned validate step requests (opengwasdb#175). It prints one object, `{"ok", "errors", "warnings"}`, and the record follows from it exactly:
 - `status` and `checks.store` are `failed` when `ok` is false, `passed_with_warnings` when `warnings` is non-empty, and `passed` otherwise;
@@ -892,7 +938,7 @@ Two consequences are contract, not incidental:
 
 ## Phase B — what produces a bundle
 
-Manifest Generation is the `manifest_generation` package under `src/manifest_generation/` (#249): the shared candidate workflow and emitter at its root, per-Source-Provider connector code under `providers/`, and each generator's configs and reviewed inputs under `resources/generators/<generator>/` (the legacy R generators also remain there until they retire). Each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`src/manifest_generation/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The five rules below fix that boundary; everything inside it is open.
+Manifest Generation is the `manifest_generation` package under `src/manifest_generation/` (#249): the shared candidate workflow and emitter at its root, per-Source-Provider connector code under `providers/`, and each generator's configs and reviewed inputs under `resources/generators/<generator>/`. Each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`src/manifest_generation/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The five rules below fix that boundary; everything inside it is open.
 
 ### Phase A and Phase B are separate workflows
 
@@ -917,11 +963,11 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **Phase B owns every `analyses.tsv` column, including Ancestry Assignment and effect-scale resolution** — see "Phase A never writes `analyses.tsv`", and "Who implements the statistics" below.
 
-**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters exist only because nothing else could reach a builder; under ADR 0023 nothing but the workflow may.
+**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters that reached a builder directly are gone; under ADR 0023 nothing but the workflow may.
 
 **Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
 
-**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. A legacy R or BESD generator keeps a family-shaped working bundle in its work root, `<artifact-root>/<output.store_id>/generate` (`paths.generation_dir`, reported by `python3 -m manifest_generation.emit work-root <id>`), and its `--mode=emit-registry` projects the current contract from that working bundle and the config's `build:` block (`manifest_generation.emit project`, called from R through `resources/generators/lib/emit_registry.R`). A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a path outside `stores/` for the *emitted* bundle; a Work Root may be external, such as the artifact root's `<store-id>/generate`, the resolution root, or a `/data/opengwasdb/work/...` directory a release config declares. The emitter:
+**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. The shared pipeline builds a `CandidateBundle` and calls `emit()`. A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a path outside `stores/` for the *emitted* bundle; a Work Root may be external, such as a release config's `/data/opengwasdb/work/...` `output.work_root`. The emitter:
 
 - writes every YAML document in one style, with `status: candidate` and `generator.commands`, and refuses a rendered status or command log that disagrees;
 - stages the bundle under `stores/.staging/<id>/`, checks it against the Release Bundle contract with lineage resolved in the real registry, and writes `summary.yaml`;
@@ -936,19 +982,16 @@ resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
                                the code is
                                src/manifest_generation/source_inventory.py.
 
-resources/generators/<family-id>/
+resources/generators/<generator>/
     README.md                  the exact commands
-    config-<label>.yaml
-    inventory.py               freeze a Source Inventory, then preflight it
-    generate.R|py              inventory + config -> stores/OGS-xxxxx/
-
-resources/generators/lib/                  shared helpers
-resources/generators/lib/source-formats/   Source-Format-scoped generation code
+    release-<label>.yaml       the release config: identity, Selection, Build Recipe shape
+    connectors/                the Source Metadata Table and Acquisition Manifest it freezes
+    generation-*.yaml          what a run recorded
 ```
 
-The entry-point directory is scoped to the generator's historical family slug (ADR 0028), while the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
+A generator's directory is scoped to its historical family slug (ADR 0028); the code that reads it is the shared pipeline, and a source plugs in through the connector files, not through code the pipeline calls (ADR 0036). This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
 
-A generator has the same shape as the build workflow: discover upstream, select rows, shell out to `opengwasdb` for the statistics, write the bundle.
+Manifest Generation has the same shape as the build workflow: freeze, resolve through `opengwasdb`, decide the release policy, render, emit.
 
 ### The Source Inventory seam
 
@@ -977,7 +1020,7 @@ There is no catch-22 requiring a Store to exist first. `opengwasdb.readers.inter
 
 Deferring instead -- building first and correcting the Store afterwards -- is not available. `stored_se = original_se / original_sd` is applied at write time, so a Store built without the SD holds wrong standard errors, and there is no rescale operation: Stores are immutable (ADR 0004, ADR 0007) and Reference Completion writes a new one. It would also mean building every candidate to discover which are unusable, when `GCST002047`'s odds-ratio beta column and `GCST003566`'s inverted EAF are both detectable from the source.
 
-That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Manifest Generation must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `src/manifest_generation/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns.
+That CLI wiring is provided upstream by `estimate-phenotype-sd` ([opengwasdb#176](https://github.com/opengwas/opengwasdb/issues/176)), now available on `dev` and active via #106; Manifest Generation must invoke the upstream CLI command rather than keeping local estimation shims or per-family connectors. The previous `src/manifest_generation/phenotype_sd_estimate.py` was a 47-line shim taking JSON arrays on the command line, which forced each family to open source files and extract `se`/`af`/`beta` itself; that is how `resources/generators/lib/effect_scale_validation.R` grew to 562 lines, of which roughly 60 are the acceptance policy that genuinely belongs here and the rest re-implements reference-panel access and allele harmonisation `opengwasdb` already owns. That shim has since been deleted (#282): nothing imported it, no task or workflow step ran it, and the upstream CLI is the one route.
 
 ### The shared pipeline (issues #153, #287)
 

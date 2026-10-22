@@ -1,0 +1,11 @@
+{
+ "checksum_mismatch": [],
+ "deep": true,
+ "index_mismatch": [],
+ "inventory": "resources/inventories/ukb-b-restored-2026-10-11.tsv",
+ "missing": [],
+ "mtime_changed": [],
+ "ok": true,
+ "rows": 2514,
+ "size_mismatch": []
+}

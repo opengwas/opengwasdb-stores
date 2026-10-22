@@ -1739,6 +1739,35 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertIn("summary.yaml", emitted)
         self.assertEqual(every_file(), emitted)
 
+    def test_a_trial_config_emits_trial_true_and_changes_nothing_else(self) -> None:
+        """`trial: true` in the release config is `trial: true` in release.yaml (#321).
+
+        A config without the key emits no `trial` at all (absent means false),
+        and the two release.yaml files differ by that one line.
+        """
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        release_path = self.fixture.registry_root / STORE_ID / "release.yaml"
+        pinned = ("--stage", "emit", "--created-at", "2026-10-14T00:00:00Z")
+        plain = _run_cli(self.fixture, *pinned)
+        self.assertEqual(plain.returncode, 0, plain.stderr)
+        without = release_path.read_text(encoding="utf-8")
+        self.assertNotIn("trial", yaml.safe_load(without))
+
+        document = yaml.safe_load(self.fixture.config_path.read_text(encoding="utf-8"))
+        document["trial"] = True
+        self.fixture.config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        trial = _run_cli(self.fixture, *pinned)
+        self.assertEqual(trial.returncode, 0, trial.stderr)
+        with_trial = release_path.read_text(encoding="utf-8")
+
+        self.assertIs(yaml.safe_load(with_trial)["trial"], True)
+        self.assertEqual(with_trial.replace("trial: true\n", "", 1), without)
+        emitted = bundle_module.load(STORE_ID, registry_root=self.fixture.registry_root)
+        self.assertTrue(emitted.trial)
+        self.assertEqual(
+            bundle_module.check(emitted, registry_root=self.fixture.registry_root), []
+        )
+
     def test_interrupted_run_preserves_prior_candidate(self) -> None:
         first = _run_cli(self.fixture)
         self.assertEqual(first.returncode, 0, first.stderr)

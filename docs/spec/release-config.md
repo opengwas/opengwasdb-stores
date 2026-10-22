@@ -37,6 +37,7 @@ key.
 | `release_config_version` | Yes | `1`. |
 | `label` | Yes | Source-natural release name, written to `release.yaml`. Never an identifier. |
 | `access_posture` | No | `public`, `controlled` or `embargoed`; `public` only when the key is absent, so an explicit `false` or blank is refused. |
+| `trial` | No | `true` for a Trial Store Release: a deliberately small release that exercises a Source Collection, Source Format or Store Layout (#321). It must be a YAML boolean, so a quoted `"yes"`, a number or `null` is refused. `true` writes `trial: true` to `release.yaml` ([the schema](../release-metadata-schema.md#releaseyaml)). Absent or `false` writes no key, which means `false`, so such a release renders exactly as before the key existed. Every shipped pilot and probe config sets it. |
 | `description` | Yes | Prose for `release.yaml`. |
 | `notes` | No | Prose; the candidate's own evidence notes follow it in `release.yaml`. |
 | `source_collection` | Yes | The Source Collection and its files (below). |
@@ -195,6 +196,16 @@ ancestry: EUR, n-workers: 32}}`.
 | `info_score_threshold` | No | The INFO floor in [0,1] a declared Analysis requests; default 0.6 (#175). |
 | `maf_threshold` | No | The MAF floor in [0,0.5] each Analysis requests; absent is no MAF filter (#176). |
 | `tissue`, `context` | No | The measured tissue and assay context (`plasma`, `SomaScan`), as `analyses.tsv` carries them (#300). |
+
+A tier's `sample_size_kind` decides whether the Analysis carries case/control
+counts: `case_control` keeps its `n_cases`/`n_controls` and requires both, and
+any other kind leaves them blank (`analyses.tsv`'s absence rule, #133). The
+tier's `stored_effect_scale` decides the SD handling instead -- a
+non-quantitative scale asks for no phenotype SD and emits `binary_trait`. The
+two are separate because a Source can pair them either way: ukb-b's binary
+traits are on the SD scale (`units: SD`) with a case/control sample size, so its
+case-control tier declares `stored_effect_scale: sd` beside
+`sample_size_kind: case_control` (#289).
 
 `source_genome_build`, `license`, `publication_doi`, `consortium`, `tissue` and
 `context` are release-wide facts: an Analysis whose Source Metadata Table row

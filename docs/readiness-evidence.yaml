@@ -220,23 +220,7 @@ releases:
     blockers:
       - 'the current 3,169 admitted composition is not built (#225)'
 
-  OGS-00016:
-    built_analyses: 2754
-    published_format: '0.1.0'
-    host_validation: >-
-      full observed Store built/validated/registered 2026-09-30 (21,230,615
-      variants; build 12.35 h, validate 3.54 h)
-    host_registration: 'host records/register.json from 2026-09-30'
-    host_evidence_ref: 'fix/ogs-00016-build-tmpdir@c871b61'
-    hm3_present: false
-    errata:
-      - >-
-        The full build/validation evidence exists on a local branch
-        (fix/ogs-00016-build-tmpdir@c871b61) that is not reachable from any
-        origin ref and is not merged into dev; the committed Validation Record
-        remains acquisition/metadata evidence. That branch's validation.yaml
-        declares format_version '1.0' whereas the published artifact declares
-        '0.1.0': preserved as a discrepant historical receipt, not a
-        current-identity clean pass.
-    blockers:
-      - 'Reference-Completed descendant required (#223)'
+  # The 2,754-Analysis Store built 2026-09-30 (fix/ogs-00016-build-tmpdir@c871b61)
+  # was the old OGS-00016 numbering. Today's OGS-00016 is MVP META and is not
+  # built, so none of that evidence is attributed to it (#326).
+  OGS-00016: {}

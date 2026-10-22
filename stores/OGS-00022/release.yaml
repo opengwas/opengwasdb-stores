@@ -2,6 +2,7 @@ store_id: OGS-00022
 label: eur-hybrid-pilot-10-completed
 access_posture: public
 status: validated
+trial: true
 derived_from: OGS-00004
 created_at: '2026-08-18T19:16:00Z'
 accepted_at: '2026-08-18T20:00:00Z'

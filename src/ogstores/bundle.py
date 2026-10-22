@@ -164,6 +164,24 @@ def indexed_subset_step_name(name: str) -> str:
 # must provide valid required values or fail check().
 LEGACY_BLANK_ANALYSIS_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002"})
 
+# Legacy Trial Store Releases whose ``analysis_id`` predates the rule below
+# (issue #319). OGS-00001 and OGS-00002 carry eQTLGen's ``<probe>::<tissue>``
+# ids, and an accepted bundle is not edited (ADR 0004), so they keep them and
+# disclose the gap instead. Strictly scoped to those two: a rebuilt or any new
+# ragged-BESD release -- the 19,250-Analysis eQTLGen build among them -- names
+# its Analyses by bare probe id and must satisfy the rule.
+LEGACY_ANALYSIS_ID_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002"})
+
+# The Analysis Catalog names an Analysis ``<store_id>:<analysis_id>`` (ADR
+# 0039), and a client splits that on ``:`` to get its two parts.
+# ``analysis_id`` is also the filename of the resolver's per-Analysis record,
+# and ``:`` is not legal in a Windows filename. The registry owns this guard
+# because the pinned
+# ``opengwasdb.model.analyses.validate_analyses()`` accepts any string in the
+# column (ADR 0017); retire it in favour of the upstream validator if
+# OpenGWASDB ever adopts the rule (issue #319).
+_ANALYSIS_ID_RE: re.Pattern[str] = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*\Z")
+
 # The controlled vocabulary for ``assigned_ancestry``: the seven super-population
 # codes the ancestry-mixture Reference Resource assigns (see
 # resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml and
@@ -401,6 +419,33 @@ class Bundle:
     @property
     def derived_from(self) -> str | None:
         return self.release.get("derived_from")
+
+    @property
+    def trial(self) -> bool:
+        """Whether this is a Trial Store Release; absent means it is not (#321).
+
+        A reader that does not gate on `check()` -- the master list, the
+        Analysis Catalog's serving policy -- must not read `trial: "yes"`, `1`
+        or `null` as "not a trial": that would serve a Trial Store Release. So
+        only an absent key answers `False`, and any other value than a YAML
+        boolean raises rather than being coerced (CONTRIBUTING: fail loudly
+        rather than silently substituting data).
+        """
+        release = self.release if isinstance(self.release, Mapping) else {}
+        if "trial" not in release:
+            return False
+        value = release["trial"]
+        if isinstance(value, bool):
+            return value
+        raise ValueError(
+            f"{self.store_id}: release.yaml trial must be a YAML boolean, "
+            f"got {value!r}"
+        )
+
+    @property
+    def superseded_by(self) -> str | None:
+        """The `store_id` of the Store Release that replaced this one (#321)."""
+        return self.release.get("superseded_by")
 
     @property
     def completes_own_store(self) -> bool:
@@ -808,6 +853,34 @@ def _check_release(bundle: Bundle) -> list[str]:
             f"{sorted(VALID_STATUSES)}"
         )
 
+    # `trial` marks a Trial Store Release, which the Analysis Catalog's serving
+    # policy must be able to exclude exactly (#321). Only a YAML boolean is
+    # accepted: the loader follows YAML 1.1, so unquoted `trial: yes` is already
+    # `True`, while a quoted `trial: "yes"` is a string and `trial: 1` a number.
+    # Both of those are refused rather than read as `true` or `false`: either
+    # reading would serve a Trial Store Release, or hide one.
+    if "trial" in release and not isinstance(release["trial"], bool):
+        errors.append(
+            f"release.yaml trial must be a boolean true or false, got "
+            f"{release['trial']!r}"
+        )
+
+    # `superseded_by` is the successor a reader of an old identifier is sent to
+    # (#323), so it is a fact only a `superseded` release can state, and one it
+    # must state. Whether the successor is registered is a registry question the
+    # Release Lineage stage answers (#321).
+    superseded_by = release.get("superseded_by")
+    if status == "superseded" and superseded_by in (None, ""):
+        errors.append(
+            "release.yaml status is 'superseded' but superseded_by does not name "
+            "the Store Release that replaced it"
+        )
+    elif superseded_by not in (None, "") and status != "superseded":
+        errors.append(
+            f"release.yaml superseded_by {superseded_by!r} is only allowed on a "
+            f"'superseded' Release Status, not {status!r}"
+        )
+
     generator = release.get("generator")
     if generator is not None:
         if not isinstance(generator, Mapping):
@@ -1032,45 +1105,69 @@ def _registry_directory(bundle: Bundle, registry_root: Path | str | None) -> Pat
 def _check_lineage(
     bundle: Bundle, registry_root: Path | str | None
 ) -> list[str]:
-    release = bundle.release if isinstance(bundle.release, Mapping) else {}
-    parent_id = release.get("derived_from")
-    errors: list[str] = []
+    """Check the `release.yaml` keys that must name a registered Release Bundle.
 
-    # A reference_completed release without derived_from completes its own
-    # Store (ADR 0037); `_check_build` requires both of its phases' blocks.
-    if parent_id in (None, ""):
-        return errors
-    if not is_valid_store_id(parent_id):
+    `derived_from` names the parent this release derives from (ADR 0007) and
+    `superseded_by` names the release that replaced it (#321). Both are store
+    ids the registry has to hold, so both are resolved the same way, against the
+    same registry root, instead of by two near-identical checks.
+    """
+    release = bundle.release if isinstance(bundle.release, Mapping) else {}
+    errors: list[str] = []
+    for field in ("derived_from", "superseded_by"):
+        errors.extend(_check_registered_reference(bundle, release, field, registry_root))
+    return errors
+
+
+def _check_registered_reference(
+    bundle: Bundle,
+    release: Mapping[str, Any],
+    field: str,
+    registry_root: Path | str | None,
+) -> list[str]:
+    """Refuse a `release.yaml` value that names no registered Release Bundle."""
+    referenced_id = release.get(field)
+
+    # Absent is valid for both keys: a reference_completed release with no
+    # derived_from completes its own Store (ADR 0037, and `_check_build` then
+    # requires both of its phases' blocks), and most releases are never
+    # superseded.
+    if referenced_id in (None, ""):
+        return []
+    if not is_valid_store_id(referenced_id):
         return [
-            f"derived_from {parent_id!r} is not a valid store_id "
+            f"{field} {referenced_id!r} is not a valid store_id "
             "(must match 'OGS-\\d{5}')"
         ]
-    if parent_id == bundle.store_id:
-        return [f"derived_from cannot reference itself: {parent_id!r}"]
+    if referenced_id == bundle.store_id:
+        return [f"{field} cannot reference itself: {referenced_id!r}"]
 
-    parent_root = _registry_directory(bundle, registry_root) / parent_id
+    referenced_root = _registry_directory(bundle, registry_root) / referenced_id
     try:
         registered = (
-            not parent_root.is_symlink()
-            and parent_root.is_dir()
-            and not (parent_root / "release.yaml").is_symlink()
-            and (parent_root / "release.yaml").is_file()
+            not referenced_root.is_symlink()
+            and referenced_root.is_dir()
+            and not (referenced_root / "release.yaml").is_symlink()
+            and (referenced_root / "release.yaml").is_file()
         )
     except OSError as exc:
-        return [f"derived_from {parent_id!r} could not be resolved: {exc}"]
+        return [f"{field} {referenced_id!r} could not be resolved: {exc}"]
     if not registered:
         return [
-            f"unresolvable derived_from {parent_id!r}: registered parent "
+            f"unresolvable {field} {referenced_id!r}: registered "
             "Release Bundle not found"
         ]
 
-    parent_release = _read_yaml(parent_root / "release.yaml")
-    if not isinstance(parent_release, Mapping) or parent_release.get("store_id") != parent_id:
-        errors.append(
-            f"unresolvable derived_from {parent_id!r}: parent release.yaml "
+    referenced_release = _read_yaml(referenced_root / "release.yaml")
+    if (
+        not isinstance(referenced_release, Mapping)
+        or referenced_release.get("store_id") != referenced_id
+    ):
+        return [
+            f"unresolvable {field} {referenced_id!r}: its release.yaml "
             "does not declare the registered store_id"
-        )
-    return errors
+        ]
+    return []
 
 
 def _check_previous_status(
@@ -1124,6 +1221,52 @@ def _check_validation(bundle: Bundle) -> list[str]:
     return errors
 
 
+def _check_analysis_ids(
+    bundle: Bundle, table: opengwasdb_analyses.AnalysesTable
+) -> tuple[list[str], list[ToleratedGap]]:
+    """Every row's ``analysis_id`` must be one path segment (issue #319).
+
+    Callers split ``<store_id>:<analysis_id>`` on ``:``, so the value may not
+    contain it -- nor anything else that would make the id two segments or no
+    filename: a space, ``/``, or a leading ``.``/``-``. Every row of the Release
+    Manifest is judged, excluded ones included, because ``analysis_id`` is also
+    the resolver's per-Analysis filename. The value is judged exactly as
+    ``read_analyses`` returned it, never stripped or coerced, so an id padded
+    with whitespace cannot pass here and then fail a client's split.
+
+    OGS-00001 and OGS-00002 keep their ``<probe>::<tissue>`` ids, which an
+    accepted bundle may not be edited to remove (ADR 0004), so their
+    non-conforming values are disclosed on ``check()``'s second channel -- one
+    record for the release, counting them -- rather than reported as errors.
+    """
+    if "analysis_id" not in table.fieldnames:
+        # The shared schema already reports the missing required column; a
+        # per-row echo of it here would only be noise.
+        return [], []
+    offending: list[tuple[int, str | None]] = []
+    for number, row in enumerate(table.rows, start=1):
+        value = row.get("analysis_id")
+        if not isinstance(value, str) or _ANALYSIS_ID_RE.fullmatch(value) is None:
+            offending.append((number, value))
+    if not offending:
+        return [], []
+    if bundle.store_id in LEGACY_ANALYSIS_ID_RELEASES:
+        return [], [
+            ToleratedGap(
+                store_id=bundle.store_id,
+                count=len(offending),
+                detail="analysis_id values containing ':'",
+                citation="#319",
+            )
+        ]
+    return [
+        f"analysis_id {value!r} on analyses.tsv row {number} is not one path "
+        "segment; an Analysis is addressed as <store_id>:<analysis_id>, split on "
+        f"':', so analysis_id must match {_ANALYSIS_ID_RE.pattern}"
+        for number, value in offending
+    ], []
+
+
 def _check_analyses(
     bundle: Bundle, analyses: Callable[[], opengwasdb_analyses.AnalysesTable]
 ) -> tuple[list[str], list[ToleratedGap]]:
@@ -1146,6 +1289,10 @@ def _check_analyses(
                 f"Store Release {bundle.store_id} analyses.tsv contains retired "
                 f"Analysis column {column!r}"
             )
+
+    analysis_id_errors, analysis_id_tolerated = _check_analysis_ids(bundle, table)
+    errors.extend(analysis_id_errors)
+    tolerated.extend(analysis_id_tolerated)
 
     # A Trait Ontology Mapping is an ontology term plus its trait label. It is
     # never a gene identifier with an authority name standing in for the label:
@@ -1796,6 +1943,7 @@ __all__ = [
     "CheckResult",
     "ColumnMapBinding",
     "column_map_binding",
+    "LEGACY_ANALYSIS_ID_RELEASES",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",

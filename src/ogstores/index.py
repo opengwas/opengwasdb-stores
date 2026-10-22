@@ -63,6 +63,7 @@ COLUMNS: tuple[str, ...] = (
     "completion_state",
     "status",
     "derived_from",
+    "trial",
     "store_uri",
     "created_at",
     "opengwasdb_rev",
@@ -101,6 +102,11 @@ def render_stores_row(
     declared_completion_state = bundle_obj.completion_state or ""
     status = bundle_obj.status or ""
     derived_from = bundle_obj.derived_from or ""
+    # A Trial Store Release never reaches users, so the master list has to say
+    # which releases are one rather than leave it to a "pilot" label (#321).
+    # `stores.tsv` carries no other boolean, so `true`/`false` is the spelling
+    # chosen: it scans, and it matches the value `release.yaml` writes.
+    trial = "true" if bundle_obj.trial else "false"
     membership_summary = bundle.summarise(bundle_obj)
 
     # store_uri is a pure function of the identifier: <artifact-root>/<store-id>/
@@ -237,6 +243,7 @@ def render_stores_row(
         "completion_state": completion_state,
         "status": status,
         "derived_from": derived_from,
+        "trial": trial,
         "store_uri": store_uri,
         "created_at": created_at,
         "opengwasdb_rev": opengwasdb_rev,
@@ -321,13 +328,14 @@ def render_stores_md(
         "",
         "> Generated from Release Bundles in `stores/`. Do not edit by hand; regenerate with `pixi run index`.",
         "",
-        "| Store ID | Label | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Validated |",
-        "|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|",
+        "| Store ID | Label | Trial | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Validated |",
+        "|:---|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|",
     ]
 
     for row in rows:
         sid = f"`{row['store_id']}`"
         lbl = row["label"] or "-"
+        trial = row["trial"]
         lay = row["layout"] or "-"
         comp = row["completion_state"] or "-"
         # The same predicate readiness uses for the interim state (#307).
@@ -344,7 +352,7 @@ def render_stores_md(
         n_assoc = _format_cell(row["n_associations"])
         val_st = row["validate_status"] or "-"
 
-        lines.append(f"| {sid} | {lbl} | {lay} | {comp} | {st} | {fmt} | {n_ana} | {n_exc} | {n_var} | {n_assoc} | {val_st} |")
+        lines.append(f"| {sid} | {lbl} | {trial} | {lay} | {comp} | {st} | {fmt} | {n_ana} | {n_exc} | {n_var} | {n_assoc} | {val_st} |")
 
     lines.extend([
         "",
@@ -377,10 +385,11 @@ def render_stores_md(
             "## Tolerated gaps",
             "",
             "These bundles pass the Release Bundle gate only because a named "
-            "exemption tolerates known-missing required Analysis values. The "
-            "values are genuinely unavailable and left blank rather than "
-            "fabricated (issue #134); the tolerance is the visible remainder, "
-            "not a clean pass.",
+            "exemption tolerates a known gap. A required Analysis value that is "
+            "unavailable is left blank rather than fabricated (issue #134); an "
+            "Analysis named with eQTLGen's `<probe>::<tissue>` id keeps it, because "
+            "an accepted bundle is not edited (issue #319). The tolerance is the "
+            "visible remainder, not a clean pass.",
             "",
             "| Store ID | Tolerated gap |",
             "|:---|:---|",
