@@ -265,6 +265,7 @@ r-ggplot2 = "*"
 r-knitr = "*"
 r-scales = "*"
 r-tibble = "*"
+r-rsqlite = "*"
 r-tidyr = "*"
 r-jsonlite = "*"
 r-curl = "*"
@@ -346,6 +347,20 @@ curation = { features = ["python", "curation"] }
 #
 generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate" }
 
+# The Analysis Catalog (#323, ADR 0039): rebuild the cross-Store listing of every
+# Analysis of every served Store Release from the registry's Release Bundles,
+# into <artifact-root>/catalog/versions/<version>/, and swap `current`. It reads
+# bundles only and never opens a Store. Run after a merge to dev, from a clean
+# checkout; a rebuild with unchanged inputs writes nothing. Resolves the
+# Artifact Root as ogstores does; `--artifact-root PATH` overrides it.
+#
+#   pixi run catalog [--registry stores] [--artifact-root PATH]
+#
+#
+# It also renders the summary report (#325), which needs Quarto and R beside
+# the builder, so the task runs in `dev` whichever environment is default.
+catalog = { cmd = "python3 -m analysis_catalog", default-environment = "dev" }
+
 [feature.python.tasks]
 # Manifest Generation: freeze the Source Inventory a release config selects,
 # with the shared freeze over the Source Collection's connector files (#283),
@@ -373,6 +388,7 @@ concordance-run = { cmd = "python3 -m manifest_generation.run_concordance_study"
 bundle-check = { cmd = "python3 -m manifest_generation.check_bundles" }
 audit-indexed-subsets = { cmd = "python3 -m ogstores.audit_indexed_subsets" }
 env-check = { cmd = "python3 tools/env_check.py" }
+worktree-prune = { cmd = "python3 tools/prune_worktrees.py" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.r.tasks]
@@ -406,9 +422,13 @@ docs = { cmd = "bash tools/build-site.sh" }
 # in this repository (resources/data/*.tsv, "download separately" per
 # .gitignore) to build ebi-studies.qmd/make-dashboard.r's inputs. docs-smoke
 # renders only beta-scale-estimation.qmd, which is fully self-contained (no
-# external data reads), so it is safe to run from a bare checkout — this is
+# external data reads), so it is safe to run from a bare checkout, in `docs` as well as `dev` — this is
 # what CI uses as its documentation smoke test.
 docs-smoke = { cmd = "quarto render docs/reports/beta-scale-estimation.qmd --to html" }
+# Smoke render of the Analysis Catalog summary (#325) against a fixture catalog.
+# Needs the builder as well as Quarto, so run it in `dev`, not `docs`; CI runs it
+# in the same job as docs-smoke.
+catalog-summary-smoke = { cmd = "python3 tests/catalog/smoke_summary.py" }
 
 [feature.ld-panel.tasks]
 ld-acquire = { cmd = "python3 tools/ld-panel/acquire_hgdp1kgp.py" }

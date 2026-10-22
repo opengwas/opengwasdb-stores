@@ -10,7 +10,10 @@ resolver, ``render`` and ``emit`` -- into a temporary registry, so this suite
 pins that the pipeline needs nothing eQTLGen-specific beyond its connectors and
 its release config. It also pins the two BESD-specific steps inside that
 pipeline: a prefix is verified through its member files, and the rendered
-``release.yaml`` carries the prefix and build ``build-ragged-besd`` reads.
+``release.yaml`` carries the prefix and build ``build-ragged-besd`` reads. Each
+Analysis is named by its bare probe id and states its tissue in its own column,
+and the Build Recipe passes ``build-ragged-besd`` no ``tissue``, which would name
+it ``<probe>::<tissue>``: an ``analysis_id`` never contains ``:`` (issue #319).
 
 The fixture machinery is the phase-b-candidate suite's, loaded by path because
 its directory is not an importable package (see ``tests/packaging/test_imports``).
@@ -53,7 +56,8 @@ PROBES = [
 ]
 #: The frozen inventory is in Analysis-id order, so every stage is.
 PROBES.sort()
-ANALYSIS_IDS = [f"{probe}::{TISSUE}" for probe, _, _ in PROBES]
+#: Bare probe ids: an ``analysis_id`` never contains ``:`` (issue #319).
+ANALYSIS_IDS = [probe for probe, _, _ in PROBES]
 #: The three members of the fixture file set, with literal bytes.
 MEMBER_BODIES = {
     ".besd": b"fixture besd bytes " * 20,
@@ -198,7 +202,7 @@ class EqtlgenEndToEndTest(unittest.TestCase):
                 "layout": "ragged",
                 "completion_state": "observed_only",
                 "command": "build-ragged-besd",
-                "options": {"source-build": "hg19", "tissue": TISSUE},
+                "options": {"source-build": "hg19"},
                 "post": {"top_hits": False, "overview": False},
             },
             "defaults": {
@@ -289,7 +293,9 @@ class EqtlgenEndToEndTest(unittest.TestCase):
         self.assertEqual(release["source_snapshot"]["source_genome_build"], "hg19")
         build = yaml.safe_load((bundle_dir / "build.yaml").read_text())
         self.assertEqual(build["build"]["command"], "build-ragged-besd")
-        self.assertEqual(build["build"]["options"], {"source-build": "hg19", "tissue": TISSUE})
+        # No `tissue` option: with one the builder names each Analysis
+        # `<probe>::<tissue>` (issue #319).
+        self.assertEqual(build["build"]["options"], {"source-build": "hg19"})
 
         analyses = self.stage._read_tsv(bundle_dir / "analyses.tsv")
         self.assertEqual([row["analysis_id"] for row in analyses], ANALYSIS_IDS)

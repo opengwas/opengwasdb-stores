@@ -2,6 +2,7 @@ store_id: OGS-00005
 label: eur-hybrid-quant-pilot-10
 access_posture: public
 status: validated
+trial: true
 derived_from: null
 created_at: '2026-08-18T00:50:57Z'
 description: 'First 10 quantitative-trait Analyses from the hybrid__European candidate pool (resources/data/derived/store-candidates-analyses.tsv)

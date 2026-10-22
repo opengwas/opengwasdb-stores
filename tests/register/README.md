@@ -9,7 +9,7 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
    - Any step failure or preflight error aborts registration and leaves pre-existing `validation.yaml` completely untouched.
 
 2. **Observed measurements**:
-   - Harvests observed facts (`format_version`, `n_variants`, `n_analyses`, `n_associations`, `store_bytes`, `build_elapsed_s`, and `validate_status`) directly from step records.
+   - Harvests observed facts (`format_version`, `n_variants`, `n_analyses`, `n_associations`, `association_coverage`, `reference_assembly`, `store_bytes`, `build_elapsed_s`, `completion_state`, and `validate_status`) directly from step records, recording an unreported key as `null` rather than deriving it.
 
 3. **Planned vs executed argv drift check**:
    - Compares executed argv in `records/<step>.json` against planned argv derived from `ogstores.plan.plan(bundle)`.

@@ -5,8 +5,8 @@ are the Source Collection's -- acquisition's Acquisition Manifest, the metadata
 adapter's Source Metadata Table and the Column Map -- and the fourth is this
 one, written for each Store Release. It says, and nothing else says:
 
-- the release's **identity** (``label``, ``access_posture``, ``description``,
-  ``notes``), which ``release.yaml`` carries;
+- the release's **identity** (``label``, ``access_posture``, ``trial``,
+  ``description``, ``notes``), which ``release.yaml`` carries;
 - the **Source Collection** (``source_collection``): its id, the paths of its
   two connector files, and the frozen Source Inventory the release reads;
 - the **Selection** (``selection``), in #283's grammar
@@ -144,6 +144,8 @@ class ReleaseConfig:
     path: Path
     label: str
     access_posture: str
+    #: Whether the release is a Trial Store Release (#321); ``False`` when absent.
+    trial: bool
     description: str
     notes: str
     source_collection_id: str
@@ -241,7 +243,7 @@ TOP_LEVEL_REQUIRED = (
     "trait_ontology_mapping", "output",
 )
 TOP_LEVEL_OPTIONAL = (
-    "access_posture", "notes", INDEXED_SUBSETS_KEY, INDEXED_SUBSETS_OPT_OUT_KEY,
+    "access_posture", "trial", "notes", INDEXED_SUBSETS_KEY, INDEXED_SUBSETS_OPT_OUT_KEY,
     "quality_checks", "effect_scale_validation", "runtime", "region_policy", "column_map",
     "completion",
 )
@@ -392,6 +394,13 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         raise ReleaseConfigError(
             f"{_where(path, 'access_posture')} {access_posture!r} is not one of "
             + ", ".join(ACCESS_POSTURES)
+        )
+    # Only a YAML boolean, as release.yaml takes it (#321): a quoted "yes", a
+    # number or null would serve a Trial Store Release, or hide one.
+    trial = document.get("trial", False)
+    if not isinstance(trial, bool):
+        raise ReleaseConfigError(
+            f"{_where(path, 'trial')} must be a YAML boolean true or false, got {trial!r}"
         )
     description = _text(document["description"], _where(path, "description"))
     notes = str(document.get("notes") or "")
@@ -743,6 +752,7 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         path=path,
         label=label,
         access_posture=access_posture,
+        trial=trial,
         description=description,
         notes=notes,
         source_collection_id=source_collection_id,

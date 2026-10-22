@@ -60,6 +60,9 @@ jobs:
       - name: Documentation smoke test
         run: pixi run --environment dev docs-smoke
 
+      - name: Analysis Catalog summary smoke test
+        run: pixi run --environment dev catalog-summary-smoke
+
   release-stack:
     name: ${{ matrix.suite }}
     needs: plan

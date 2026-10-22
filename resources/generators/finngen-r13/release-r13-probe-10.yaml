@@ -26,6 +26,8 @@ release_config_version: 1
 
 label: r13-probe-10
 access_posture: public
+# A Trial Store Release (#321): release.yaml records `trial: true`.
+trial: true
 description: >
   Ten FinnGen R13 endpoints -- seven case-control and all three
   inverse-rank-normalised quantitative endpoints -- resolved through
