@@ -115,10 +115,10 @@ def main() -> None:
 
         analyses = tmp_path / "analyses.tsv"
         analyses.write_text(
-            "analysis_id\texclude_from_build\n"
-            "PROBE_A::whole_blood\t\n"
-            "PROBE_B::whole_blood\tfalse\n"
-            "PROBE_C::whole_blood\ttrue\n",
+            "analysis_id\tsource_probe_id\texclude_from_build\n"
+            "PROBE_A\t\t\n"
+            "probe-b-alias\tPROBE_B\tfalse\n"
+            "PROBE_C\t\ttrue\n",
             encoding="utf-8",
         )
 
@@ -135,7 +135,7 @@ def main() -> None:
             )
         check(
             [p.probe_id for p in read_epi(f"{dest}.epi")] == ["PROBE_A", "PROBE_B"],
-            "analysis_id tissue suffixes must be removed and excluded rows skipped",
+            "the probe id is the bare analysis_id or source_probe_id, and excluded rows are skipped",
         )
 
         # --- command-line interface takes analyses.tsv, input, and output ---
@@ -184,6 +184,21 @@ def main() -> None:
             assoc_b["rs2"] == _read_associations(source, "PROBE_B")["rs2"],
             "PROBE_B's rs2 association value must survive remapping",
         )
+
+        # --- an id is never split on ':' (issue #319) ---
+        namespaced = tmp_path / "namespaced.tsv"
+        namespaced.write_text(
+            "analysis_id\nPROBE_A::whole_blood\n",
+            encoding="utf-8",
+        )
+        try:
+            write_besd_subset_from_analyses(namespaced, source, tmp_path / "subset_namespaced")
+            check(False, "a namespaced analysis_id must fail loudly, never be split on ':'")
+        except ValueError as exc:
+            check(
+                "PROBE_A::whole_blood" in str(exc),
+                "the ValueError should quote the analysis_id it could not find in the .epi",
+            )
 
         # --- unknown probe id rejected ---
         try:

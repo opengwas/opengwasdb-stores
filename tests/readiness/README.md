@@ -44,6 +44,13 @@ Release Bundle membership, lifecycle and published evidence.
    the reconciler never constructs `analyses.tsv`, joins a filename, or touches
    a storage array.
 
+8. **Validation Record completeness is its own channel** (issue #326): a
+   committed Store Validation Record that records `null` for any of the
+   Analysis, variant or association count, `association_coverage` or
+   `reference_assembly` is `missing`, and the channel names each null field.
+   A release with no Store validation record (none, or candidate-generation
+   evidence) is `missing` too.
+
 ## Running the suite
 
 ```sh

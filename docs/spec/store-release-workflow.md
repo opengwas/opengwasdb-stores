@@ -64,7 +64,9 @@ store_id: OGS-00042
 label: r13-pilot-20                 # source-natural display name; not an identifier
 access_posture: public
 status: built                       # candidate|accepted|built|validated|superseded|withdrawn
+trial: false                        # true on a Trial Store Release: deliberately small, never served (#321)
 derived_from: ~                     # a two-id completed child's parent (ADR 0007); none when a release completes its own Store
+superseded_by: ~                    # on a superseded release, the release that replaced it (#321)
 created_at: '2026-08-18T08:51:59Z'
 source_snapshot_id: finngen-r13-manifest-2026-05-12
 generator:                          # how the bundle was produced (Phase B)
@@ -77,6 +79,28 @@ notes: |
 
 The file trims to identity, lineage, Release Status, creation time, source
 snapshot identity, the generation command log, and prose (issue #136, ADR 0029).
+
+`trial` is the one fact that separates a Trial Store Release from a production
+one: a deliberately small Store Release that exercises a Source Collection,
+Source Format or Store Layout while the generic release pipeline is being
+developed and tested. It is descriptive, so it is not a Release Status and not a
+serving decision; the Analysis Catalog's serving policy excludes every Trial
+Store Release (ADR 0008, #323). Absent means `false`. Only a YAML boolean is
+accepted: the loader follows YAML 1.1, so the unquoted spellings `true`, `yes`
+and `on` (and `false`, `no`, `off`) are booleans, while a quoted `trial: "yes"`
+is a string and `trial: 1` a number. `bundle.check()` refuses those, and a
+reader that does not gate on `check()` -- the master list, the catalog -- raises
+rather than read one as `false`, because either reading would serve a Trial
+Store Release or hide one.
+
+`superseded_by` pairs with the `superseded` Release Status: it is required
+there, and refused on a release in any other status. It names the Store Release
+that replaced this one, which is what lets the Analysis Catalog keep an old
+identifier resolvable by pointing it at its successor (#323). Like `trial` it is
+a descriptive fact about the release rather than a serving decision, so the
+registry records it and the catalog decides what to do with it (ADR 0008). The
+successor must be a registered Release Bundle, which `bundle.check()` resolves
+exactly as it resolves `derived_from` (both are the Release Lineage stage).
 
 ### Status lifecycle and transitions
 
@@ -268,14 +292,23 @@ registered Store Release, a `reference_completed` bundle without one declares
 both its `build` and `complete` blocks, Release Status vocabulary and optional transitions,
 and `analyses.tsv` parses via `opengwasdb.model.analyses.read_analyses`. It
 delegates the Analysis schema rather than reimplementing it, including rejecting
-every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. Two
-registry-owned vocabularies are checked on top of that delegation: every
+every column named by the pinned upstream `RETIRED_ANALYSIS_COLUMNS` list. Three
+registry-owned rules are checked on top of that delegation: every
 non-empty `assigned_ancestry` must be one of the ancestry mixture's seven
 super-population codes (a free-text Source Ancestry Label is not an Assigned
-Ancestry), and `n_cases`/`n_controls` must be blank on a non-case-control
-Analysis rather than `0` (issue #133). Both were silent-failure classes found
+Ancestry), `n_cases`/`n_controls` must be blank on a non-case-control
+Analysis rather than `0` (issue #133), and every row's `analysis_id` must match
+`^[A-Za-z0-9][A-Za-z0-9._-]*$` so that the identifier the
+[Analysis Catalog](../adr/0039-analysis-catalog.md) publishes as
+`<store_id>:<analysis_id>` always splits on `:` into two parts and the id is a
+usable filename (issue #319). The
+rule covers every row of the Release Manifest, excluded rows included, because
+`analysis_id` is also the resolver's per-Analysis filename. All three were silent-failure classes found
 in the committed bundles; the checks make a reintroduction fail `bundle-check`
-rather than a summary. For BESD builds,
+rather than a summary. `OGS-00001` and `OGS-00002` keep their `<probe>::<tissue>`
+`analysis_id` values, which an accepted bundle may not be edited to remove
+(ADR 0004); `check` reports them as a tolerated gap cited `#319` instead, the
+same second channel the `#134` blank-value exemption uses. For BESD builds,
 the non-empty `source_snapshot.besd_prefix` introduced by `908797f` is checked
 as frozen provenance metadata, but the referenced BESD files are not inspected.
 An `artifacts` block is rejected: issue #126 made the artifact root deployment
@@ -407,7 +440,16 @@ two renderings cannot drift (ADRs 0022, 0030).
 `opengwasdb validate` verdict, compares each record's executed argv against
 `plan()`'s planned argv, harvests the observed measurements, and publishes the
 staged Store. It is the only writer of `validation.yaml` (issues #119, #135;
-ADR 0023). Publication is one recoverable transaction: `publication.json` is
+ADR 0023). The observed measurements are read from the `build` or `complete`
+step's stdout JSON under the keys opengwasdb prints there: `format_version`,
+`n_variants`, `n_analyses`, `n_associations`, `association_coverage` and
+`reference_assembly`. A key the step does not print is recorded as `null`;
+nothing is read from the Store or its `manifest.json`, and `register` never
+derives `n_associations` from `n_variants × n_analyses`, which counts matrix
+cells rather than associations (#322). A key present with a malformed value is
+refused rather than recorded as `null`: `n_associations` must be a non-negative
+integer that is not a bool, and `association_coverage` and
+`reference_assembly` must be non-empty strings. Publication is one recoverable transaction: `publication.json` is
 written first, and `complete_publication()` finishes it, now or after a crash
 (see Safety, #195).
 
@@ -699,7 +741,7 @@ The only thing deliberately excluded is anything whose answer changes without a 
 `stores.tsv` columns:
 
 ```text
-derived   store_id  label  layout  completion_state  status  derived_from
+derived   store_id  label  layout  completion_state  status  derived_from  trial
           store_uri  created_at  opengwasdb_rev  generator_command  build_command
           n_analyses  n_manifest  n_excluded  first_author  publication_pmid
           tissue  context  assigned_ancestry  sample_size  source_url
@@ -709,6 +751,12 @@ observed  format_version  n_variants  n_associations  store_bytes
 
 `n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
 excluded manifest rows visible (issue #217).
+
+`trial` is `release.yaml`'s marker, rendered `true` or `false` rather than left
+empty when absent: whether a release is a Trial Store Release is the fact the
+Analysis Catalog's serving policy reads, so the list says it outright instead of
+leaving a reader to notice a "pilot" label (#321). `STORES.md` carries it as a
+Trial column.
 
 `completion_state` is the completion state of the Store users can query, not
 the bundle's declaration (issue #307, ADR 0037). `register` records it as
@@ -804,7 +852,7 @@ The field-by-field format is defined once in
 [`docs/release-metadata-schema.md`](../release-metadata-schema.md#validationyaml);
 this section records only how the workflow produces it.
 
-Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict.
+Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `n_associations`, `association_coverage` and `reference_assembly` come from that JSON under exactly those keys, with the same precedence `n_variants` and `n_analyses` use; a key opengwasdb does not print is `null`, never a derived value or one read from the Store (#322). A key present with a malformed value fails registration: `n_associations` must be a non-negative integer and the other two non-empty strings, so "opengwasdb reported something else" is never recorded as "opengwasdb reported nothing". Until opengwasdb prints the two coverage keys they are `null` in every new record; committed records written before #322 do not carry them and are not rewritten (#326 re-registers).
 
 The verdict is read from `opengwasdb validate --format json`, which the planned validate step requests (opengwasdb#175). It prints one object, `{"ok", "errors", "warnings"}`, and the record follows from it exactly:
 - `status` and `checks.store` are `failed` when `ok` is false, `passed_with_warnings` when `warnings` is non-empty, and `passed` otherwise;
