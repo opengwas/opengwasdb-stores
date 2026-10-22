@@ -44,7 +44,7 @@ ALLOWED: set[tuple[str, str]] = {
 }
 
 # Where the stricter #249 rule applies: Manifest Generation code (the package,
-# and the legacy generators that remain under resources/generators) and tests.
+# and the R code that remains under resources/generators) and tests.
 GENERATION_AND_TESTS = ("src/manifest_generation/", "resources/generators/", "tests/")
 
 # Tests of scripts that are not generation code and are not importable modules

@@ -36,8 +36,6 @@ Artifacts live outside git, at a path that is a pure function of the store ID:
 
 ```text
 <artifact-root>/OGS-00042/
-  generate/                  Manifest Generation's work root: a legacy
-                             generator's working bundle (#248)
   source/                    acquired or filtered source files
   work/                      checkpoints, scratch, logs
   work/analyses.tsv          derived build manifest: the bundle's analyses.tsv
@@ -892,7 +890,7 @@ Two consequences are contract, not incidental:
 
 ## Phase B — what produces a bundle
 
-Manifest Generation is the `manifest_generation` package under `src/manifest_generation/` (#249): the shared candidate workflow and emitter at its root, per-Source-Provider connector code under `providers/`, and each generator's configs and reviewed inputs under `resources/generators/<generator>/` (the legacy R generators also remain there until they retire). Each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`src/manifest_generation/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The five rules below fix that boundary; everything inside it is open.
+Manifest Generation is the `manifest_generation` package under `src/manifest_generation/` (#249): the shared candidate workflow and emitter at its root, per-Source-Provider connector code under `providers/`, and each generator's configs and reviewed inputs under `resources/generators/<generator>/`. Each Release Bundle records the commands it ran in `release.yaml:generator.commands`. The GWAS Catalog eur-hybrid family now has an implemented, resumable candidate workflow (`src/manifest_generation/generate_candidate.py`, issue #153); `workflow/generate.smk` wires its stages as an optional coarse DAG. The five rules below fix that boundary; everything inside it is open.
 
 ### Phase A and Phase B are separate workflows
 
@@ -917,11 +915,11 @@ Their outputs also live in different places and are reviewed differently. Phase 
 
 **Phase B owns every `analyses.tsv` column, including Ancestry Assignment and effect-scale resolution** — see "Phase A never writes `analyses.tsv`", and "Who implements the statistics" below.
 
-**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters exist only because nothing else could reach a builder; under ADR 0023 nothing but the workflow may.
+**A generator's only output is a bundle directory. It never builds a store.** The four copy-pasted `resources/generators/lib/source-formats/*/build-store.py` adapters that reached a builder directly are gone; under ADR 0023 nothing but the workflow may.
 
 **Acquisition is separate from selection.** Acquisition is per Source Collection and is the expensive resumable part. Selection is per Store Release. The Source Collection is a grouping string recorded on the release, not a directory (ADR 0028).
 
-**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. A Python generator builds a `CandidateBundle` and calls `emit()`. A legacy R or BESD generator keeps a family-shaped working bundle in its work root, `<artifact-root>/<output.store_id>/generate` (`paths.generation_dir`, reported by `python3 -m manifest_generation.emit work-root <id>`), and its `--mode=emit-registry` projects the current contract from that working bundle and the config's `build:` block (`manifest_generation.emit project`, called from R through `resources/generators/lib/emit_registry.R`). A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a path outside `stores/` for the *emitted* bundle; a Work Root may be external, such as the artifact root's `<store-id>/generate`, the resolution root, or a `/data/opengwasdb/work/...` directory a release config declares. The emitter:
+**Every generator emits through one emitter** (#248, ADR 0035). `src/manifest_generation/emit.py` is the only code that writes a candidate into `stores/<id>/`. The shared pipeline builds a `CandidateBundle` and calls `emit()`. A directory rendered elsewhere can be emitted with `python3 -m manifest_generation.emit <id> --from <dir> --command ...`; anything a bundle does not hold is refused. No generator config names a path outside `stores/` for the *emitted* bundle; a Work Root may be external, such as a release config's `/data/opengwasdb/work/...` `output.work_root`. The emitter:
 
 - writes every YAML document in one style, with `status: candidate` and `generator.commands`, and refuses a rendered status or command log that disagrees;
 - stages the bundle under `stores/.staging/<id>/`, checks it against the Release Bundle contract with lineage resolved in the real registry, and writes `summary.yaml`;
@@ -936,19 +934,16 @@ resources/inventories/<id>.tsv discovered upstream analyses, once acquisition
                                the code is
                                src/manifest_generation/source_inventory.py.
 
-resources/generators/<family-id>/
+resources/generators/<generator>/
     README.md                  the exact commands
-    config-<label>.yaml
-    inventory.py               freeze a Source Inventory, then preflight it
-    generate.R|py              inventory + config -> stores/OGS-xxxxx/
-
-resources/generators/lib/                  shared helpers
-resources/generators/lib/source-formats/   Source-Format-scoped generation code
+    release-<label>.yaml       the release config: identity, Selection, Build Recipe shape
+    connectors/                the Source Metadata Table and Acquisition Manifest it freezes
+    generation-*.yaml          what a run recorded
 ```
 
-The entry-point directory is scoped to the generator's historical family slug (ADR 0028), while the library is source-format-scoped, so families sharing a Source Collection share selection code without a configuration system by accident. This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
+A generator's directory is scoped to its historical family slug (ADR 0028); the code that reads it is the shared pipeline, and a source plugs in through the connector files, not through code the pipeline calls (ADR 0036). This resolves the old `resources/generators/<source-format>-<layout>/` naming collision, where one directory served two families and grew a configuration system to tell them apart.
 
-A generator has the same shape as the build workflow: discover upstream, select rows, shell out to `opengwasdb` for the statistics, write the bundle.
+Manifest Generation has the same shape as the build workflow: freeze, resolve through `opengwasdb`, decide the release policy, render, emit.
 
 ### The Source Inventory seam
 

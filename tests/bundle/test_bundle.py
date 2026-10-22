@@ -2107,7 +2107,6 @@ class TestArtifactPaths(unittest.TestCase):
         self.assertEqual(paths.store_dir(store_id, root), root / store_id)
         self.assertEqual(paths.source_dir(store_id, root), root / store_id / "source")
         self.assertEqual(paths.work_dir(store_id, root), root / store_id / "work")
-        self.assertEqual(paths.generation_dir(store_id, root), root / store_id / "generate")
         self.assertEqual(
             paths.store_path(store_id, root), root / store_id / "store.opengwasdb"
         )
