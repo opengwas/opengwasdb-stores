@@ -1,0 +1,66 @@
+store_id: OGS-00027
+label: eqtlgen-full
+access_posture: public
+status: candidate
+derived_from: null
+created_at: '2026-10-22T14:58:33Z'
+source_snapshot_id: eqtlgen-cis-full-2026-10-22c
+source_snapshot:
+  inventory_snapshot_id: eqtlgen-cis-full-2026-10-22c
+  inventory_tsv_sha256: d593c694f6bebcee982b1af778449e51c75534ccffc020aae26a13909eb5ca86
+  preflight_report: /data/opengwasdb/work/314/work/OGS-00027/preflight/eqtlgen-cis-full-2026-10-22c.json
+  resolver_receipt: /data/opengwasdb/work/314/work/OGS-00027/resolver/resolution_receipt.json
+  resolver_receipt_sha256: 11c7428346b8dc8f52e0db36ce2f055a052e30b988b6db187fee9812770dda15
+  resolver_opengwasdb_version: 0.3.0
+  besd_prefix: /data/opengwasdb/raw/eqtlgen/full-19250
+  source_genome_build: hg19
+generator:
+  version: sha256:9ab83ef1ef1c9a80382052e425f357cc943da86e32be7de511ab07ed70fc9ba2
+  commands:
+  - python3 -m manifest_generation.generate_candidate OGS-00027 --config resources/generators/eqtlgen-cis/release-full.yaml
+    --cores 16 --work-root /data/opengwasdb/work/314/work --resolution-root /data/opengwasdb/work/314/res
+    --registry-root /home/gh13047/.cache/orchestrate/opengwasdb-stores-282/worktrees/s2-314/stores
+  - opengwasdb resolve-analyses /data/opengwasdb/work/314/work/OGS-00027/resolver/analyses.tsv /data/opengwasdb/work/314/res/eqtlgen-cis/checkpoint/70a0983b5f3d597e3a9708308f90b31cc3344a929a4dcd9fe1b8750ac457963a
+    --ancestry-reference /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz --ancestry-groups
+    /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv --reference-build GRCh38 --chain-file
+    /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz --default-source-reader-capability opengwasdb.besd
+    --maf-floor 0.01 --tau 0.5 --delta 0.2 --n-min 5000 --residual-max 0.06 --n-workers 16 --resume
+description: 'The full eQTLGen cis-eQTL catalogue on the shared Manifest Generation pipeline: all 19,250
+  probes (genes) of the 2019 whole-blood meta-analysis, with ancestry measured from the BESD source''s
+  own allele frequencies. A Ragged Observed-Only candidate.
+
+  '
+notes: 'Every probe of the genome-wide BESD file set, one Analysis each. The Store is read from the subset
+  writer''s file set for all 19,250 probes, not from the original bytes: it has the original''s 19,250
+  probes and 127,339,354 associations, and 8,932,823 SNPs against the original''s 8,932,843, because the
+  writer keeps only SNPs a probe references (20 are unreferenced) and renumbers the index. The original''s
+  sha256 and counts are the acquisition lineage. The source is on GRCh37 (hg19); the Store is GRCh38,
+  lifted through liftover-hg19-to-hg38. Ancestry is measured by Analysis Resolution. The SD is declared,
+  not estimated: eQTLGen''s beta and SE are z-standardised with each SNP-gene pair''s own N (b = z / sqrt(2p(1-p)(N
+  + z^2)), se = 1 / sqrt(2p(1-p)(N + z^2))), so SD is 1 by construction and the original_sd cell stays
+  blank, as for every declared_standardised tier. An estimated SD would only measure sqrt(31,684 / pair
+  N): 29% of a 200-probe trial exceeded 1.5, and TNF''s 2.04 is an N of about 7,600. Each Analysis''s
+  sample_size is the maximum over its pairs of N = 1 / (2p(1-p) se^2) - z^2 (z = b / se, p the .esi frequency),
+  rounded to the nearest integer, over pairs with finite N and |z| >= 1, then capped at the study total
+  of 31,684. The |z| bound is measured: against the published per-pair NrSamples (12 genes, 85,079 pairs)
+  the derived N''s relative error is up to 300% for |z| < 0.001, 0.4% at most for |z| 0.1-0.5, 0.08% for
+  0.5-1 and 0.04% from 1 up; unbounded, 61% of probes took an N above 31,684. The cap absorbs what rounding
+  noise remains (5,443 probes above 31,684, by at most 13). 5,456 of the 19,250 probes (28%) take the
+  cap: at least one of their pairs was measured in the study''s full cohort set (N 31,684); the rest were
+  covered by fewer cohorts (median 28,927, 1st percentile 3,833, minimum 232). sample_size_kind is variant_level.
+  Per-association N is not stored yet (opengwasdb#302).
+
+
+  Candidate status: human review required before acceptance (issue #153). 19250 included, 0 excluded of
+  19250 frozen inventory rows.
+
+
+  Evidence: frozen Source Inventory eqtlgen-cis-full-2026-10-22c (sha256 d593c694f6bebcee982b1af778449e51c75534ccffc020aae26a13909eb5ca86);
+  preflight report /data/opengwasdb/work/314/work/OGS-00027/preflight/eqtlgen-cis-full-2026-10-22c.json;
+  resolution receipt /data/opengwasdb/work/314/work/OGS-00027/resolver/resolution_receipt.json (sha256
+  11c7428346b8dc8f52e0db36ce2f055a052e30b988b6db187fee9812770dda15).
+
+
+  Policy: full-reference AF ancestry assignment and source-AF-only quantitative phenotype-SD estimation
+  (issue #152); case-control rows use log_or/binary_trait; non-target/unassigned ancestry, orientation
+  failures, unusable source AF and ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv).'

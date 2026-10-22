@@ -649,7 +649,9 @@ adapter writes the maximum over the probe's pairs, rounded to the nearest intege
 - **Cap.** The bounded maximum can still exceed the study total by the rounding
   noise of the stored values: 5,443 of 19,250 probes exceed 31,684, by at most 13
   (0.04%). The cap at `--study-total` absorbs that, so no probe claims more samples
-  than the study had.
+  than the study had. In the full release 5,456 of 19,250 probes (28%) take it: they
+  have at least one pair measured in the study's full cohort set, and the rest are
+  covered by fewer cohorts (median 28,927, minimum 232).
 - A probe with no qualifying pair fails the adapter by name.
 - The Analysis's SD is **declared**, not estimated (the release config below), and
   the sample size kind is `variant_level`. Per-association N is not stored yet

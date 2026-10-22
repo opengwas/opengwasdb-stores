@@ -27,6 +27,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00024` | 2023-chen-full-african | false | ragged | observed_only | built | - | 1,034 | 0 | - | - | passed_with_warnings |
 | `OGS-00025` | 2023-chen-full-east-asian | false | ragged | observed_only | built | - | 1,038 | 0 | - | - | passed |
 | `OGS-00026` | 2023-chen-full-south-asian | false | ragged | observed_only | built | - | 971 | 0 | - | - | passed_with_warnings |
+| `OGS-00027` | eqtlgen-full | false | ragged | observed_only | candidate | - | 19,250 | 0 | - | - | passed |
 
 ## Derived membership summaries
 
@@ -55,6 +56,7 @@ Every value below is derived from the Release Bundle's `analyses.tsv`; `NA` mean
 | `OGS-00024` | Chen Y | 36635386 | plasma | metabolomics | AFR | 30-60 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00025` | Chen Y | 36635386 | plasma | metabolomics | EAS | 51-104 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00026` | Chen Y | 36635386 | plasma | metabolomics | SAS | 56-108 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
+| `OGS-00027` | NA | NA | whole_blood | NA | EUR | 232-31684 | NA |
 
 ## Tolerated gaps
 

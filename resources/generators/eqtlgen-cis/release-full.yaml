@@ -23,7 +23,7 @@
 
 release_config_version: 1
 
-label: full
+label: eqtlgen-full
 access_posture: public
 description: >
   The full eQTLGen cis-eQTL catalogue on the shared Manifest Generation pipeline:
@@ -50,7 +50,10 @@ notes: >
   NrSamples (12 genes, 85,079 pairs) the derived N's relative error is up to 300%
   for |z| < 0.001, 0.4% at most for |z| 0.1-0.5, 0.08% for 0.5-1 and 0.04% from 1
   up; unbounded, 61% of probes took an N above 31,684. The cap absorbs what
-  rounding noise remains (5,443 probes above 31,684, by at most 13). sample_size_kind
+  rounding noise remains (5,443 probes above 31,684, by at most 13). 5,456 of the
+  19,250 probes (28%) take the cap: at least one of their pairs was measured in the
+  study's full cohort set (N 31,684); the rest were covered by fewer cohorts
+  (median 28,927, 1st percentile 3,833, minimum 232). sample_size_kind
   is variant_level. Per-association N is not stored yet (opengwasdb#302).
 
 source_collection:

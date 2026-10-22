@@ -177,12 +177,12 @@ class TestBundleContract(unittest.TestCase):
         )
         # The five bundles migrated in #252 take the next ids after the ones
         # reserved for OGS-00018-00021. Those, and OGS-00010, are retired unused
-        # (#308, #312): ids are never reused.
+        # (#308, #312): ids are never reused. OGS-00027 is the full eQTLGen release (#314).
         allocated = [f"OGS-{number:05d}" for number in [*range(1, 18)]]
         self.assertEqual(
             store_ids,
             [store_id for store_id in allocated if store_id not in paths.RETIRED_STORE_IDS]
-            + [f"OGS-{number:05d}" for number in range(22, 27)],
+            + [f"OGS-{number:05d}" for number in range(22, 28)],
         )
         for store_id in store_ids:
             errors = bundle.check(
