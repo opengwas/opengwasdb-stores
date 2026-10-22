@@ -105,6 +105,8 @@ def declare_region_policy(fixture, policy=POLICY) -> None:
 
     def edit(document) -> None:
         document["region_policy"] = dict(policy)
+        # A region-filtered release declares the coverage its policy filters to.
+        document["association_coverage"] = policy["association_coverage"]
         document["reference_resources"].append(
             {"resource_id": QC_PANEL_ID, "kind": "qc_panel", "location": str(panel), "version": "1"}
         )

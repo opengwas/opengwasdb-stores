@@ -368,6 +368,7 @@ class Workspace:
         return {
             "release_config_version": RELEASE_CONFIG_VERSION,
             "label": "fixture-release",
+            "association_coverage": "gwas",
             "description": "A fixture release.",
             "source_collection": {
                 "source_collection_id": "gwas-catalog-ssf",

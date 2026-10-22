@@ -187,6 +187,7 @@ class EqtlgenEndToEndTest(unittest.TestCase):
         config = {
             "release_config_version": 1,
             "label": "pilot-fixture",
+            "association_coverage": "cis",
             "access_posture": "public",
             "description": "two eQTLGen-shaped fixture probes",
             "source_collection": {

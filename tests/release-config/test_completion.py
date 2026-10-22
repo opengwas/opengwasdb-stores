@@ -103,6 +103,7 @@ def minimal_config(root: Path) -> dict[str, Any]:
     return {
         "release_config_version": RELEASE_CONFIG_VERSION,
         "label": "fixture-release",
+        "association_coverage": "gwas",
         "access_posture": "public",
         "description": "A fixture release.",
         "source_collection": {

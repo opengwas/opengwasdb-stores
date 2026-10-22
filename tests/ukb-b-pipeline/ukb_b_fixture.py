@@ -228,6 +228,7 @@ def build_fixture(
     config = {
         "release_config_version": 1,
         "label": label,
+        "association_coverage": "gwas",
         "access_posture": "public",
         "description": "three ukb-b-shaped fixture Analyses",
         "source_collection": {

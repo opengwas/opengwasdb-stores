@@ -29,6 +29,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -125,6 +126,26 @@ class TestEmitNewCandidate(EmitTestCase):
         self.assertEqual((emitted / "analyses.tsv").read_text(encoding="utf-8"), ANALYSES_TSV)
         loaded = bundle.load(STORE_ID, registry_root=self.registry)
         self.assertEqual(list(bundle.check(loaded, registry_root=self.registry)), [])
+        self.assert_nothing_staged()
+
+
+class TestAssociationCoverage(EmitTestCase):
+    """The declared coverage is written as rendered, after `label:` (#341)."""
+
+    def test_the_emitted_release_yaml_declares_it_after_the_label(self) -> None:
+        emitted = emitter.emit(candidate(), self.registry)
+        text = (emitted / "release.yaml").read_text(encoding="utf-8")
+        self.assertIn("store_id: OGS-00090\nlabel: fixture\nassociation_coverage: gwas\n", text)
+
+    def test_a_candidate_without_one_is_refused_and_leaves_nothing_staged(self) -> None:
+        """The contract requires it, so the emitter cannot write a bundle without it."""
+        built = candidate()
+        release = dict(built.release)
+        release.pop("association_coverage")
+        with self.assertRaises(emitter.EmitError) as raised:
+            emitter.emit(replace(built, release=release), self.registry)
+        self.assertIn("association_coverage", str(raised.exception))
+        self.assertFalse((self.registry / STORE_ID).exists())
         self.assert_nothing_staged()
 
 
