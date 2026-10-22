@@ -144,6 +144,8 @@ def retained_distribution(table: Path) -> dict[str, object]:
 def calibration_summary(result: dict[str, object]) -> dict[str, object]:
     """Per panel: acceptance, and r both over accepted replicates and with rejected ones scored 0."""
     summary: dict[str, object] = {k: result[k] for k in ("n_train", "n_test", "n_shared_variants")}
+    # A result written before #354 counts no ALID-record mismatch: null, not 0.
+    summary["n_alid_record_mismatch"] = result.get("n_alid_record_mismatch")
     if result.get("skipped"): return {**summary, "skipped": result["skipped"]}
     median = lambda values: float(np.median(values)) if values else None
     for panel in ("held_out", "test_in_sample"):
