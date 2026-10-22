@@ -36,14 +36,17 @@ CODE_SUFFIXES = frozenset({".py", ".r", ".rmd", ".qmd", ".sh", ".smk", ".ipynb",
 # The legacy R generators, and the stage-2 ticket of epic #282 that retires
 # each. A shared helper retires with the last generator that sources it.
 UKB_B = "#289 (ukb-b onto the pipeline)"
+# What curation's R-resolver round-trip tests keep alive past ukb-b's retirement.
+EPIC_CLEANUP = "#282 (curation's R-resolver round-trip still sources these)"
 BOTH = "#288 and #289, whichever retires the last R generator"
 LEGACY_R_GENERATORS: dict[str, str] = {
-    "resources/generators/ukb-b/generate.R": UKB_B,
-    "resources/generators/lib/opengwas_gwas_vcf_dense.R": UKB_B,
-    "resources/generators/lib/metadata_resolvers/opengwas_api.R": UKB_B,
-    "resources/generators/lib/metadata_resolvers/canonical_trait_table.R": UKB_B,
-    "resources/generators/lib/metadata_resolvers/ontology_contract.R": UKB_B,
-    "resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/generate.R": UKB_B,
+    # ukb-b's R path retired with #289. These two lost their generator then, but
+    # the curation suites (tests/curation/test_promotion.py, test_e2e_pipeline.py)
+    # still drive the R resolver through them to prove a promoted mapping row
+    # round-trips, so their retirement belongs to epic #282's cleanup, not to
+    # ukb-b: no ticket yet moves curation off the R resolver.
+    "resources/generators/lib/metadata_resolvers/canonical_trait_table.R": EPIC_CLEANUP,
+    "resources/generators/lib/metadata_resolvers/ontology_contract.R": EPIC_CLEANUP,
     "resources/generators/lib/build_environment.R": BOTH,
     "resources/generators/lib/emit_registry.R": BOTH,
     "resources/generators/lib/indexed_subsets.R": BOTH,

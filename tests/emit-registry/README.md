@@ -22,11 +22,12 @@ Covered by `tests/emit-registry/run_tests.R`:
   - `summary.yaml` is written, and `validated_at` is the emit's time.
 - Emitting over a bundle that has been accepted is refused, and the bundle is
   untouched.
-- `opengwas-gwas-vcf-dense` emits through `--mode=emit-registry`, records its
-  own command, and takes its layout from its config (the R `gwas-ssf-ragged`
-  and `gwas-ssf-hybrid` generators retired with #300, and FinnGen's R path with
-  #288). The BESD generator retired with #291: eQTLGen emits through the
-  shared pipeline (`tests/eqtlgen-pipeline`).
+- No legacy generator emits through `--mode=emit-registry` any more, so this
+  suite drives the shared helper directly: the R `gwas-ssf-ragged` and
+  `gwas-ssf-hybrid` generators retired with #300, FinnGen's R path with #288,
+  ukb-b's `opengwas-gwas-vcf-dense` -- this projection's last R driver -- with
+  its R path (#289), and the BESD generator with #291, eQTLGen now emitting
+  through the shared pipeline (`tests/eqtlgen-pipeline`).
 
 ```sh
 pixi run test --suite "emit-registry (R)"

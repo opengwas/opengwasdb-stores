@@ -513,6 +513,33 @@ class TestReadinessVocabulary(SourceInventoryTestCase):
         # Not selected: another store_key.
         self.assertNotIn("GCST90000010", rows)
 
+    def test_a_verified_file_s_failure_is_known_and_never_ready(self) -> None:
+        # ukb-b records identities instead of transfers, so a later verification
+        # can fail in ways a download manifest never reports (#289). Each is a
+        # known status, and none of them is ready: an explained absence.
+        from manifest_generation.source_inventory import (
+            KNOWN_READINESS_STATUSES,
+            READY_STATUSES,
+            SOURCE_VERIFICATION_STATUSES,
+        )
+
+        self.assertEqual(
+            SOURCE_VERIFICATION_STATUSES,
+            frozenset(
+                {
+                    "missing_file",
+                    "missing_index",
+                    "size_mismatch",
+                    "checksum_mismatch",
+                    "index_mismatch",
+                    "bad_index",
+                    "integrity_failed",
+                }
+            ),
+        )
+        self.assertLessEqual(SOURCE_VERIFICATION_STATUSES, KNOWN_READINESS_STATUSES)
+        self.assertEqual(SOURCE_VERIFICATION_STATUSES & READY_STATUSES, frozenset())
+
 
 class TestFreezeRelease(SourceInventoryTestCase):
     """The freeze stage over a release config (#283, #287)."""

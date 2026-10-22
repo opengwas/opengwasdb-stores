@@ -331,7 +331,7 @@ to the CURIE form.
 | `sample_size_kind` | Yes | `total`, `case_control`, `effective`, or `variant_level`. Accepted build rows must not use `unknown`. |
 | `sample_size_scope` | Yes | `analysis_level` or `variant_level`. Use `variant_level` when N differs per SNP in the source file. |
 | `sample_size` | Yes | Scalar study N for this Analysis. When source N differs per SNP, use the study's maximum N. |
-| `n_cases` | No | Case count for binary traits, or event count for time-to-event traits. Required when `stored_effect_scale = log_or` or `log_hazard`; blank (not `0`) when the Analysis is not case-control. |
+| `n_cases` | No | Case count for binary traits, or event count for time-to-event traits. Required when the Analysis's method tier declares `sample_size_kind = case_control`; blank (not `0`) when `sample_size_kind` is not `case_control`. The effect scale does not decide this: ukb-b's binary traits are on the SD scale and still carry their counts (#289). |
 | `n_controls` | No | Control count for binary traits, or non-event/comparison count for time-to-event traits when reported by the source. Same absence rule as `n_cases`. |
 | `analysis_group_id` | No | Grouping key for analyses sharing a publication, analyte panel, phenotype batch, or source bundle. |
 | `inclusion_reason` | No | Short reason this Analysis was selected. |
@@ -417,11 +417,16 @@ sample size may appear in Source Inventories, candidate diagnostics, or review
 sidecars, but should not be included as buildable rows in an accepted
 `analyses.tsv`.
 
-Case/control-style counts are required when `stored_effect_scale = log_or` or
-`stored_effect_scale = log_hazard`. For time-to-event traits, `n_cases` is the
-event count and `n_controls` is the non-event or comparison count reported by
-the source. When the Analysis is not case-control (`sample_size_kind` is not
-`case_control`), both counts must be blank rather than `0`: zero is a real
+Case/control-style counts follow `sample_size_kind`, not the effect scale: an
+Analysis whose tier declares `sample_size_kind = case_control` carries
+`n_cases` and `n_controls`, and one whose tier declares any other kind leaves
+both blank. ukb-b is why the two are separate -- its provider reports
+`units: SD` for binary traits too, so its case-control tier declares
+`stored_effect_scale: sd` beside `sample_size_kind: case_control` (#289). Most
+Sources pair them (`log_or` with `case_control`), which is why the scale looks
+like the deciding field. For time-to-event traits, `n_cases` is the event count
+and `n_controls` is the non-event or comparison count reported by the source.
+When the counts do not apply both must be blank rather than `0`: zero is a real
 count, and writing it where the counts do not apply is exactly the
 absence-vs-zero confusion CONTRIBUTING.md rules out. `bundle.check()` rejects a
 non-empty count on a non-case-control Analysis (issue #133).
@@ -1247,7 +1252,7 @@ adapt this generic record onto its own column names, but the resolver itself
 must not know which downstream shape it feeds — this is what lets `derive` stay
 agnostic to which provider it is talking to.
 
-Three implementations exist:
+These implementations exist:
 
 - `src/manifest_generation/providers/gwas_catalog/gwas_catalog_ssf.R`
   (`resolve_gwas_catalog_ssf_metadata()`) resolves GWAS Catalog's free-text
@@ -1256,19 +1261,23 @@ Three implementations exist:
   `stored_effect_scale = log_or`; otherwise it resolves as `total` with
   `stored_effect_scale = sd`; a field with no parseable numeric component
   resolves as `unresolved`.
-- `resources/generators/lib/metadata_resolvers/opengwas_api.R`
-  (`resolve_opengwas_api_metadata()`, issue #49), for the `opengwas-gwas-vcf`
-  Source Collection. It resolves a study's `ncase`/`ncontrol`/`sample_size`
-  from the OpenGWAS API's own "gwasinfo" record rather than the source GWAS-VCF
-  file's `##SAMPLE` header, which is not authoritative. A usable
-  `ncase`/`ncontrol` pair resolves `sample_size_kind` as `case_control`;
-  otherwise a usable `sample_size` resolves it as `total`; a record with neither
-  resolves as `unresolved`. `stored_effect_scale` primarily follows the API's
-  `unit` field (`SD` -> `sd`, `log odds`/`logOR` -> `log_or`, a hazard-ratio
-  unit -> `log_hazard`), falling back to `log_or`/`sd` from `ncase`/`ncontrol`
-  presence only when `unit` is absent or unrecognised (issue #50: the `ukb-b`
-  batch reports every trait on the SD scale, so inferring scale from
-  case/control-count presence alone is wrong for that batch).
+- `src/manifest_generation/providers/ukb_b/provider_metadata.py`
+  (`resolve_record()`, issue #219), for the `opengwas-gwas-vcf` Source
+  Collection, and the adapter that writes its Source Metadata Table (#289). It
+  resolves a study's `ncase`/`ncontrol`/`sample_size` from the OpenGWAS
+  "gwasinfo" record -- the provider JSON sidecar ukb-b ships beside each VCF,
+  since the stored API token expired -- rather than the source GWAS-VCF file's
+  `##SAMPLE` header, which is not authoritative. A usable `ncase`/`ncontrol`
+  pair resolves `sample_size_kind` as `case_control`; otherwise a usable
+  `sample_size` resolves it as `total`; a record with neither resolves as
+  `unresolved`. `stored_effect_scale` primarily follows the record's `units`
+  field (`SD` -> `sd`, `log odds`/`logOR` -> `log_or`, a hazard-ratio unit ->
+  `log_hazard`), falling back to `log_or`/`sd` from `ncase`/`ncontrol` presence
+  only when `units` is absent or unrecognised (issue #50: the `ukb-b` batch
+  reports every trait on the SD scale, so inferring scale from
+  case/control-count presence alone is wrong for that batch). The R resolver
+  that held this contract (`lib/metadata_resolvers/opengwas_api.R`) retired with
+  ukb-b's R path (#289).
 - `src/manifest_generation/providers/finngen/source_metadata_adapter.py`
   (issue #288, `docs/spec/source-connectors.md`), FinnGen's endpoint manifest,
   for the `finngen-r13` Source Collection. It keeps the classification the

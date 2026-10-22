@@ -37,10 +37,8 @@ R_SUITES: list[Suite] = [
     ("emit-registry (R)", "r", ["tests/emit-registry/run_tests.R"]),
     ("indexed-subsets-generator-defaults (R)", "r", ["tests/indexed-subsets/test_generator_defaults.R"]),
     ("metadata-resolvers/gwas-catalog-ssf", "r", ["tests/metadata-resolvers/gwas-catalog-ssf/run_tests.R"]),
-    ("metadata-resolvers/opengwas-api", "r", ["tests/metadata-resolvers/opengwas-api/run_tests.R"]),
     ("metadata-resolvers/trait-ontology-mapping", "r", ["tests/metadata-resolvers/trait-ontology-mapping/run_tests.R"]),
     ("materialise-gwas-ssf-ragged", "r", ["tests/materialise-gwas-ssf-ragged/run_tests.R"]),
-    ("opengwas-gwas-vcf-dense", "r", ["tests/opengwas-gwas-vcf-dense/run_tests.R"]),
     ("schema-validation", "r", ["tests/schema-validation/run_tests.R"]),
 ]
 
@@ -137,7 +135,6 @@ SUITE_COST: dict[str, float] = {
     "workflow": 30.0,
     "phase-b-candidate": 3.0,
     "schema-validation": 12.0,
-    "opengwas-gwas-vcf-dense": 6.5,
     "emit-registry (R)": 5.5,
     "run": 5.0,
     "materialise-gwas-ssf-ragged": 4.0,
@@ -154,6 +151,8 @@ SUITE_COST: dict[str, float] = {
     # The five dbGaP snapshots' provenance sidecars list each file's reformat
     # lineage; they are parsed once per suite, not once per test (#290).
     "release-config": 9.0,
+    # #289's ukb-b suite: one in-process pipeline run per test, like FinnGen's.
+    "ukb-b-pipeline/pipeline-end-to-end": 2.0,
 }
 
 # Every suite gets single-threaded BLAS. A process that imports numpy, scipy

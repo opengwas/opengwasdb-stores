@@ -1,0 +1,168 @@
+# The 10-Analysis ukb-b probe (#289): the release config the first real resolve runs.
+#
+# The pipeline's GWAS-VCF reader has never read a real ukb-b file at the pinned
+# opengwasdb, and the ukb-b VCFs are GRCh37 against a GRCh38 ancestry reference,
+# so resolution needs a liftover chain (#292). Ten Analyses therefore go through
+# `generate-candidate` before the full 2,514-Analysis resolve is scheduled: the
+# probe reports each Analysis's Resolution Record -- read, or refused and why --
+# and the build, ancestry and SD findings, without reading 425 GB.
+#
+# The ten are #219's own probe set (/data/opengwasdb/work/epic232/219/resolution/
+# manifest.tsv), so the outcome is comparable with that run: seven
+# deterministically chosen buildable ids plus ukb-b-10787, ukb-b-11842 and
+# ukb-b-19953, the ids the retired R generator's README smoke test used. Five are
+# case-control and five quantitative, so both method tiers are exercised.
+#
+# Membership, connectors and defaults are release-full.yaml's: only the
+# Selection, the snapshot id and the work root differ, so the probe measures the
+# release the full run will make.
+
+release_config_version: 1
+
+label: ukb-b-probe-10
+access_posture: public
+description: >
+  Ten ukb-b GWAS-VCF Analyses -- five case-control, five quantitative -- resolved
+  through the shared pipeline against the GRCh38 ancestry reference with a
+  liftover chain, as the bounded probe before the full 2,514-Analysis resolve
+  (#289). A probe, not a Store Release: its candidate is compared against
+  OGS-00009's accepted declarations and is never registered.
+notes: >
+  The probe answers three questions the full run would otherwise answer after
+  reading 425 GB: whether opengwasdb's GWAS-VCF reader reads a real ukb-b file at
+  this pin; what the measured ancestry is for a GRCh37 source against the GRCh38
+  mixture reference (every committed ukb-b row is the provider's source-fallback
+  label, so a measured non-EUR or unassigned result is a finding, not a
+  regression); and whether the SD tier's declared_standardised outcome holds for
+  binary traits.
+
+source_collection:
+  source_collection_id: opengwas-gwas-vcf
+  connectors:
+    source_metadata_table: resources/generators/ukb-b/connectors/source-metadata-table.tsv
+    acquisition_manifest: resources/generators/ukb-b/connectors/acquisition-manifest.tsv
+  inventory:
+    snapshot_id: ukb-b-probe-10-2026-10-22d
+    directory: resources/inventories
+
+selection:
+  analyses:
+    - ukb-b-10001
+    - ukb-b-10002
+    - ukb-b-10003
+    - ukb-b-10008
+    - ukb-b-10011
+    - ukb-b-1004
+    - ukb-b-10054
+    - ukb-b-10787
+    - ukb-b-11842
+    - ukb-b-19953
+  expect_rows: 10
+
+# The release's own recipe shape, so the probe measures the bundle the full run
+# will make: one id carrying an observed `build` block and a `complete` block
+# (ADR 0037, #340). Only the build width is the probe's.
+build:
+  layout: dense
+  completion_state: reference_completed
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.gwas-vcf
+    source-assembly: hg19
+    # Ten Analyses: the probe's own width, not the release's 32.
+    n-workers: 10
+  post:
+    top_hits: true
+    overview: true
+
+defaults:
+  source_genome_build: GRCh37
+  license: UK Biobank terms of access
+  consortium: MRC-IEU
+  sample_size_scope: analysis_level
+  analysis_group_id: ukb-b
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      original_sd_method: declared_standardised
+      sample_size_kind: total
+    case-control:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      original_sd_method: declared_standardised
+      sample_size_kind: case_control
+
+release_policy:
+  selection_superpopulation: EUR
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    ancestry: multi
+    super_populations: [AFR, AMR, EAS, EUR, MID, NAF, SAS]
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    location_kind: external_file
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+  - resource_id: canonical-trait-mapping-efo
+    kind: trait_ontology_mapping
+    location: resources/reference-resources/canonical-trait-mapping-efo
+    location_kind: tracked_directory
+    version: "3"
+  # The panel the release completes against; the probe carries the same recipe
+  # so its bundle has the release's shape.
+  - resource_id: ukb-hg38-eur-ld
+    kind: ld_panel
+    location: /data/opengwasdb/reference/ld
+    location_kind: external_directory
+  # The lift a GRCh37 source needs against the GRCh38 ancestry reference (#292):
+  # `resolve-analyses` refuses a cross-build source without a chain file. Its
+  # declaration holds the from/to builds and the sha256 the resolver's
+  # settings digest and every record's fingerprint bind.
+  - resource_id: liftover-hg19-to-hg38
+    kind: liftover_chain
+    location: /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz
+    location_kind: external_file
+
+ancestry_assignment:
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  # The probe's whole point is measuring ancestry on a GRCh37 source against a
+  # GRCh38 reference, which is impossible without this chain (#289, #292).
+  liftover_chain_resource_id: liftover-hg19-to-hg38
+  maf_floor: 0.01
+  extraction_panel: null
+  gates:
+    tau: 0.50
+    delta: 0.20
+    n_min: 5000
+    residual_max: 0.06
+
+effect_scale_validation:
+  maf_min: 0.01
+  maf_max: 0.5
+  dispersion_max: 0.5
+  reference_resources: []
+
+trait_ontology_mapping:
+  reference_resource_id: canonical-trait-mapping-efo
+
+# OGS-00009's `complete` recipe, at the same width as the full release: the
+# panel and its ancestry are the Reference Resource declaration's (`EUR`,
+# through the `EUR -> ukb` alias), so only the worker count is an option.
+completion:
+  reference:
+    resource_id: ukb-hg38-eur-ld
+    qualification: qualified
+    activation: active
+  command: complete-dense
+  options:
+    n-workers: 32
+
+runtime:
+  cores: 2
+  min_free_gb: 50
+
+output:
+  work_root: /data/opengwasdb/work/ukb-b-probe-10

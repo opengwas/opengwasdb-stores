@@ -196,6 +196,16 @@ ancestry: EUR, n-workers: 32}}`.
 | `maf_threshold` | No | The MAF floor in [0,0.5] each Analysis requests; absent is no MAF filter (#176). |
 | `tissue`, `context` | No | The measured tissue and assay context (`plasma`, `SomaScan`), as `analyses.tsv` carries them (#300). |
 
+A tier's `sample_size_kind` decides whether the Analysis carries case/control
+counts: `case_control` keeps its `n_cases`/`n_controls` and requires both, and
+any other kind leaves them blank (`analyses.tsv`'s absence rule, #133). The
+tier's `stored_effect_scale` decides the SD handling instead -- a
+non-quantitative scale asks for no phenotype SD and emits `binary_trait`. The
+two are separate because a Source can pair them either way: ukb-b's binary
+traits are on the SD scale (`units: SD`) with a case/control sample size, so its
+case-control tier declares `stored_effect_scale: sd` beside
+`sample_size_kind: case_control` (#289).
+
 `source_genome_build`, `license`, `publication_doi`, `consortium`, `tissue` and
 `context` are release-wide facts: an Analysis whose Source Metadata Table row
 carries a value keeps it, and one whose cell is blank takes the default. A metadata

@@ -78,9 +78,10 @@ FORBIDDEN_SUBCOMMANDS: frozenset[str] = frozenset(
 #: Provider modules that still compute or drive these statistics, each with the
 #: ticket that moves its source onto the shared pipeline and retires it.
 EXEMPTIONS: dict[str, str] = {
-    # FinnGen R13 and ukb-b dense generators call it for AF-based ancestry and
-    # phenotype SD (resources/generators/lib/opengwas_gwas_vcf_dense.R).
-    "opengwas/annotate.py": "#288 (FinnGen), #289 (ukb-b)",
+    # FinnGen's retired R generator called it for AF-based ancestry and phenotype
+    # SD. ukb-b's did too, but that R path retired with #289, so the exemption
+    # now outlives only FinnGen's and goes with the orchestrator's cleanup.
+    "opengwas/annotate.py": "#288 (FinnGen)",
 }
 
 #: Tickets an exemption may cite: the source moves still to come (epic #282).
@@ -165,7 +166,7 @@ class PerSourceStatisticsTests(unittest.TestCase):
         for expected in (
             "gwas_catalog/source_metadata_adapter.py",
             "gwas_catalog/write_acquisition_manifest.py",
-            "ukb_b/generate_candidate.py",
+            "ukb_b/source_metadata_adapter.py",
             "dbgap/metadata.py",
             "dbgap/mvp/source_metadata_adapter.py",
             "dbgap/mvp/acquire_dbgap_phs002453.py",
