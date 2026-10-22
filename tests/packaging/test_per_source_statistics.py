@@ -21,9 +21,9 @@ per-Source-Provider connector code -- with the AST, and refuses:
   OpenGWASDB subcommand that computes them (:data:`FORBIDDEN_SUBCOMMANDS`).
   Docstrings are not scanned.
 
-Every source has moved onto the pipeline (epic #282 stage 2), so no provider
-module is exempt: the scan covers all of them, and a module that grows one of
-these imports again fails here.
+Every source's connectors and release config are on the pipeline (epic #282
+stage 2), so no provider module is exempt: the scan covers all of them, and a
+module that grows one of these imports again fails here.
 
 Run from the repository root:
     python3 tests/packaging/test_per_source_statistics.py
@@ -61,10 +61,11 @@ FORBIDDEN_NAMES: frozenset[tuple[str, str]] = frozenset(
 )
 
 #: Shared helpers in this repository that compute ancestry or phenotype SD.
-#: The last two have retired with their sources' moves onto the pipeline --
-#: `opengwas.annotate` with #282's cleanup, `gwas_catalog.ancestry_assign`
-#: before it -- and stay here so a module of either name cannot come back and
-#: start computing them again.
+#: Three have retired with their sources' moves onto the pipeline --
+#: `phenotype_sd_estimate` (the deleted shim, #282), `opengwas.annotate` with
+#: #282's cleanup, `gwas_catalog.ancestry_assign` before it -- and stay here so
+#: a module of any of those names cannot come back and start computing them
+#: again.
 FORBIDDEN_HELPERS: tuple[str, ...] = (
     "manifest_generation.phenotype_sd_estimate",
     "manifest_generation.qc_panel_concordance",
