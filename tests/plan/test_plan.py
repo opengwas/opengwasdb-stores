@@ -8,7 +8,7 @@ Verifies:
 - Single-id completion (ADR 0037): OGS-00003 (Dense), OGS-00011 (Hybrid) and OGS-00006 (Ragged)
   gaining a `complete` block plan both phases against golden fixtures, the build phase being the
   observed-only plan; a Ragged one's Observed-View Check takes the LD panel and ancestry its
-  `complete` block declares, and one declaring neither is refused.
+  `complete` block declares, and a Ragged `complete` block that lacks either is refused.
 - Committed registry (#211): the eight Dense-component bundles declare `hm3`, and
   the declared subset Step sits before overview/validate; the four Ragged-only
   bundles declare none and plan unchanged.
@@ -1795,8 +1795,27 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
         record_check()
         self.assertEqual([s for s in steps if s.phase == "build"], plan(load("OGS-00006")))
 
+    def test_the_check_renders_each_option_as_complete_does(self) -> None:
+        """One renderer for both steps, whatever the key's spelling or the value's type (ADR 0023)."""
+        steps = plan(
+            self.completed({"command": "complete-ragged", "options": {"--ld-panel": self.LD_PANEL, "ancestry": ["EUR"]}})
+        )
+        record_check()
+        complete, check = steps[-3], steps[-1]
+        self.assertEqual(complete.argv[-4:], ["--ld-panel", self.LD_PANEL, "--ancestry", "EUR"])
+        output = check.argv.index("--output")
+        self.assertEqual(check.argv[output - 4 : output], complete.argv[-4:])
+
     def test_a_complete_block_without_the_panel_or_the_ancestry_is_refused(self) -> None:
-        """The check cannot rebuild the regions completion retained without both, so it is not planned."""
+        """Each is refused by name, so the check is never planned without it.
+
+        The check rebuilds the regions completion retained from the panel, and
+        refuses a Ragged pair without it. Neither `complete-ragged` nor the
+        check needs the ancestry: the registry requires it declared, so a
+        silent `EUR` default cannot complete a non-EUR Store against the wrong
+        panel, and the check cross-checks it against the completed Store's
+        record.
+        """
         for missing in ("ld-panel", "ancestry"):
             for options in (
                 {key: value for key, value in self.COMPLETE_BLOCK["options"].items() if key != missing},
@@ -1806,8 +1825,7 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
                     with self.assertRaises(ValueError) as ctx:
                         plan(self.completed({"command": "complete-ragged", "options": options}))
                     record_check()
-                    self.assertIn(f"'{missing}'", str(ctx.exception))
-                    self.assertIn("Observed-View Check", str(ctx.exception))
+                    self.assertIn(f"declares no '{missing}'", str(ctx.exception))
 
 
 class TestBuildManifestSeam(unittest.TestCase):

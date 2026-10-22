@@ -133,9 +133,9 @@ class CommandSpec:
 
     `name` is the label used in post-step policy errors. `positionals` and
     `inputs` are drawn from a fixed token vocabulary resolved by `_resolve`.
-    `check_options` names the completion options the Observed-View Check
-    must be given too, as the same flags, when the release completes its own
-    Store; a `complete` block that leaves one out is refused.
+    `check_options` names the completion options the Observed-View Check is
+    given too, rendered as `complete` renders them, when the release completes
+    its own Store; a `complete` block must declare each.
     """
 
     phase: str
@@ -202,7 +202,11 @@ COMMANDS: dict[str, CommandSpec] = {
         overview_cmd="regenerate-overview",
     ),
     # The Ragged Observed-View Check rebuilds the regions completion retained
-    # from the same LD panel and ancestry, and is refused without the panel.
+    # from the same LD panel, and is refused without it. Neither command needs
+    # the ancestry (`complete-ragged` defaults it to EUR), but a completing
+    # Ragged bundle must declare it, so that a silent default cannot complete
+    # a non-EUR Store against the wrong panel; the check then cross-checks it
+    # against the completed Store's record.
     "complete-ragged": CommandSpec(
         phase="complete",
         name="ragged-completed",
@@ -878,21 +882,21 @@ def _completion_phase(bundle: Bundle, root: Path) -> list[Step]:
 def _observed_view_check_options(
     bundle: Bundle, command: str, spec: CommandSpec, options: Mapping[Any, Any]
 ) -> list[str]:
-    """The `check_options` of `command`, taken from its `complete` options as argv for the check.
+    """The `check_options` of `command`, rendered from its `complete` options as `complete` renders them.
 
-    Each must be declared with a value: a check that cannot verify what
-    completion did must not be planned to gate the swap.
+    Each must be declared with a value (see `COMMANDS`), so the check that
+    gates the swap is never planned without one.
     """
-    declared = {normalize_option_key(key): value for key, value in options.items()}
-    missing = [name for name in spec.check_options if declared.get(name) in (None, "")]
+    declared = {normalize_option_key(key): key for key in options}
+    missing = [name for name in spec.check_options if options.get(declared.get(name)) in (None, "")]
     if missing:
         raise ValueError(
-            f"Bundle {bundle.store_id}: {command} completes its own Store, and the Observed-View "
-            f"Check that gates the replacement needs the completion's "
-            f"{', '.join(repr(name) for name in spec.check_options)}; the 'complete' block "
-            f"declares no {', '.join(repr(name) for name in missing)} option (ADR 0037)"
+            f"Bundle {bundle.store_id}: {command} completes its own Store, so its 'complete' block "
+            f"must declare {', '.join(repr(name) for name in spec.check_options)}, which the "
+            f"Observed-View Check that gates the replacement is given too; it declares no "
+            f"{', '.join(repr(name) for name in missing)} option (ADR 0037)"
         )
-    return [token for name in spec.check_options for token in (f"--{name}", str(declared[name]))]
+    return render_options({declared[name]: options[declared[name]] for name in spec.check_options})
 
 
 __all__ = [

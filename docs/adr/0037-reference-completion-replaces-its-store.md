@@ -246,11 +246,17 @@ it, every layout can.
     observed, and every imputed association lies in a region completion
     retained.
 - **The check needs the panel.** Retained regions are not stored as
-  coordinates; the check rebuilds them from the LD panel and ancestry
-  completion used, and refuses a Ragged pair without the panel. So for a
-  Ragged release the planner passes the `complete` block's `ld-panel` and
-  `ancestry` to the check step, and refuses a `complete` block that leaves
-  either out. Dense and Hybrid steps are unchanged.
+  coordinates; the check rebuilds them from the LD panel completion used,
+  and refuses a Ragged pair without it. So for a Ragged release the planner
+  passes the `complete` block's `ld-panel` to the check step, and refuses a
+  `complete` block without one. Dense and Hybrid steps are unchanged.
+- **The registry requires the ancestry.** Neither command needs it:
+  `complete-ragged` defaults to `EUR`, and the check reads the ancestry from
+  the completed Store's manifest. But a silent `EUR` default could complete a
+  non-EUR Store against the wrong panel. So a completing Ragged bundle must
+  declare `ancestry` too, the planner refuses one that does not, and the
+  check is given it and cross-checks it against the completed Store's
+  record.
 - **SE is compared exactly.** `complete-ragged` refits and re-quantises SE
   stored as `int8_residual`, which on real data moves observed SE slightly
   (opengwas/opengwasdb#301). Until that is resolved, a Ragged Store whose SE
