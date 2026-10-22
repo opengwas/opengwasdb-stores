@@ -18,9 +18,11 @@ Covered by `tests/emit/test_emit.py`:
   byte-for-byte as it was.
 - A candidate failing the contract is refused, and the prior candidate is kept.
 - These are refused before any path is built: an invalid Store Release id, a
-  sidecar name that is not a plain file name, missing generator commands, and
-  a rendered `release.yaml` whose status or command log disagrees with the
-  emit.
+  sidecar name that is not a plain file name, a Column Map file name that is
+  not a plain `<name>.toml` under `column_maps/` (an absolute path or a `..`
+  segment would escape staging, or land in another bundle), missing generator
+  commands, and a rendered `release.yaml` whose status or command log disagrees
+  with the emit.
 - A second emit of an id is refused while the first holds its lock.
 - A candidate stashed by a swap killed between its two moves is put back
   before anything else happens.
