@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `eb4c749bd30379a5499d6c2a34fb0db37aa9fb42`, the merge of core #295 (Hybrid `check-observed-view`) into the core integration branch `orch/232-observed-view` (core PR #303), which starts from core `dev` at `829b501`; not yet on core `dev` |
-| Core merge | opengwas/opengwasdb #295 (Hybrid `check-observed-view`) on top of `dev`, which carries PR #291 (`check-observed-view`, core #289), #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: the core `dev` merge of PR #291 `d405de0a` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Revision | `32f47b3b9c9bbab684a2f424a6f6ff617be0a8b1`, the merge of core #296 (Ragged `check-observed-view`) into the core integration branch `orch/232-observed-view` (core PR #303), which starts from core `dev` at `829b501`; not yet on core `dev` |
+| Core merge | opengwas/opengwasdb #296 (Ragged `check-observed-view`) and #295 (Hybrid `check-observed-view`) on top of `dev`, which carries PR #291 (`check-observed-view`, core #289), #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: #295's merge `eb4c749b` (stores #333), the core `dev` merge of PR #291 `d405de0a` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -184,3 +184,23 @@ PR #291.
 only Dense pairs, so the capability probe above cannot tell them apart. The
 exact-pin check is what refuses an older runtime for a Hybrid single-id release:
 any revision other than the pin is refused before anything is written.
+
+## Coordination with core #296
+
+Core opengwas/opengwasdb#296 extends `check-observed-view` to Ragged pairs. A
+Ragged Store has no chunk-rows, so the check samples whole Analyses
+(`--n-random` of them, from the same seed) and, for each, rebuilds the regions
+completion retained from the LD panel: every observed association must come
+back identical and not imputed, and every imputed association must lie inside
+a retained region. That rebuild needs the panel and ancestry completion used,
+so the check refuses a Ragged pair without `--ld-panel` (exit 2), and the
+planner passes both from the bundle's `complete` options. Stores #336 moved the
+pin to `32f47b3b`, #296's merge into the same integration branch, so that a
+Ragged release can complete its own Store (ADR 0037). Like `eb4c749b`, it is
+not yet on core `dev`.
+
+The check compares observed SE exactly. `complete-ragged` refits and
+re-quantises SE stored as `int8_residual`, which on real data moves every
+observed SE slightly (opengwas/opengwasdb#301), so a Ragged Store whose builder
+chose that encoding, as OGS-00006's did, fails the check until #301 is
+resolved.
