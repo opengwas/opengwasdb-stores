@@ -234,6 +234,13 @@ threadpoolctl = ">=3.0"
 # and merge, the branch's empty first commit and core `dev`'s docs-only PR #293;
 # #295 is its only functional change.
 #
+# Repinned for #336 to `32f47b3b`, the merge of opengwasdb#296 into the same
+# integration branch, not yet on core `dev` either: `check-observed-view` now
+# compares a Ragged pair, region by region against the LD panel completion
+# used, so a Ragged release can complete its own Store. The range
+# `eb4c749..32f47b3` is #296's commits and merge; #296 is its only functional
+# change.
+#
 # Because these capabilities ship in the tracked pin, the ordinary
 # `pixi run release` invocation resolves a capable runtime from this
 # environment with no ad-hoc `PATH` overlay (the HM3 proof's temporary
@@ -249,7 +256,7 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "eb4c749bd30379a5499d6c2a34fb0db37aa9fb42" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "32f47b3b9c9bbab684a2f424a6f6ff617be0a8b1" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

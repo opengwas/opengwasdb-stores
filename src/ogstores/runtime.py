@@ -68,7 +68,12 @@ from ogstores.plan import plan
 #: Hybrid release to complete its own Store. The range `d405de0..eb4c749` is
 #: #295's commits and merge, the branch's empty first commit and core `dev`'s
 #: docs-only PR #293; #295 is its only functional change.
-PINNED_OPENGWASDB_REVISION: str = "eb4c749bd30379a5499d6c2a34fb0db37aa9fb42"
+#: Then to `32f47b3b`, core #296's merge into the same integration branch, not
+#: yet on core `dev` either: its `check-observed-view` compares a Ragged pair,
+#: which stores #336 needs for a Ragged release to complete its own Store. The
+#: range `eb4c749..32f47b3` is #296's commits and merge; #296 is its only
+#: functional change.
+PINNED_OPENGWASDB_REVISION: str = "32f47b3b9c9bbab684a2f424a6f6ff617be0a8b1"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference

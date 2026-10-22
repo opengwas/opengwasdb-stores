@@ -479,9 +479,9 @@ It declares both blocks and has no `derived_from`: the `build` block builds and
 publishes the Observed-Only Store, exactly as the same file would as
 `observed_only`, and the `complete` block then completes that published Store
 and replaces it. The completion's source is the id's own Store path, so the
-recipe names no Store path at all. Dense and Hybrid releases are planned this
-way; a Ragged one is not, because the Observed-View Check compares no Ragged
-Stores yet.
+recipe names no Store path at all. Dense, Hybrid and Ragged releases are all
+planned this way. A Ragged release's `complete` options must name its
+`ld-panel` and `ancestry`, which the Observed-View Check is given too.
 
 ```yaml
 store_id: OGS-00043
