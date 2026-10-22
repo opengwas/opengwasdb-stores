@@ -1,6 +1,6 @@
 store_id: OGS-00011
 layout: hybrid
-completion_state: observed_only
+completion_state: reference_completed
 build:
   command: build-hybrid
   options:
@@ -9,6 +9,12 @@ build:
     checkpoint: true
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
+complete:
+  command: complete-hybrid
+  options:
+    ld-panel: /data/opengwasdb/reference/ld
+    ancestry: EUR
+    n-workers: 24
 post:
   top_hits: false
   overview: true
