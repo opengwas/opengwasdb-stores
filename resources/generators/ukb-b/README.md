@@ -69,7 +69,7 @@ ukb-b adapter", "The ukb-b acquisition writer"). In short:
 
 The mirror itself is never copied into the repository and never re-read to write
 a connector: `connectors/acquisition-manifest.meta.yaml` records the receipts'
-identity, and `resources/inventories/ukb-b-restored-2026-10-22c.meta.yaml`
+identity, and `resources/inventories/ukb-b-restored-2026-10-22d.meta.yaml`
 records the frozen snapshot's.
 
 ## The release configs
@@ -99,10 +99,12 @@ pixi run generate-candidate OGS-00009 \
   --resolution-root <scratch>/resolution --cores 16
 ```
 
-The frozen snapshots are `resources/inventories/ukb-b-restored-2026-10-22c.*`
-(the full Selection) and `ukb-b-probe-10-2026-10-22c.*` (the probe's ten); the
-`c` suffix is the re-freeze that added the adapter's First Author column, which
-replaced the unshipped `-2026-10-22` pair. A
+The frozen snapshots are `resources/inventories/ukb-b-restored-2026-10-22d.*`
+(the full Selection) and `ukb-b-probe-10-2026-10-22d.*` (the probe's ten). The
+earlier unshipped pairs are superseded: `-2026-10-22` was the first freeze,
+`-2026-10-22c` added the adapter's First Author column, and `-2026-10-22d`
+re-froze because the manifest's pass lineage now records how many Analyses the
+deep verification verified and refused. A
 changed connector, a changed Selection or a new freeze is a **new snapshot id**;
 a frozen snapshot is never overwritten. `ukb-b-restored-2026-10-11.*` stays
 untouched: it is OGS-00009's accepted record, in the retired local format.

@@ -1,6 +1,6 @@
-snapshot_id: ukb-b-probe-10-2026-10-22c
+snapshot_id: ukb-b-probe-10-2026-10-22d
 source_collection_id: opengwas-gwas-vcf
-frozen_at: '2026-10-22T08:18:47Z'
+frozen_at: '2026-10-22T08:56:57Z'
 frozen_by: manifest_generation.freeze
 selection:
   analyses:
@@ -30,7 +30,7 @@ duplicate_content_groups: []
 inventory_tsv_sha256: 934816718c437685bc774287bc1faa615a1031fda71d455f124f4812819c5826
 source_metadata_table:
   frozen:
-    path: ukb-b-probe-10-2026-10-22c.source-metadata.tsv
+    path: ukb-b-probe-10-2026-10-22d.source-metadata.tsv
     sha256: 64449a9d2b63c972323aad1da3d689c1a65aed59596f9d9132edc3a5f6307634
     bytes: 1230
     rows: 10
@@ -41,7 +41,7 @@ source_metadata_table:
     rows: 2514
 acquisition_manifest:
   frozen:
-    path: ukb-b-probe-10-2026-10-22c.acquisition-manifest.tsv
+    path: ukb-b-probe-10-2026-10-22d.acquisition-manifest.tsv
     sha256: bba2c720a90e3a58aef711dd4c8f0cda9d479886231280388d2c69435b1a4414
     bytes: 2112
     rows: 10
@@ -54,6 +54,6 @@ acquisition_manifest:
       ok: 2514
     pass_lineage:
       path: resources/generators/ukb-b/connectors/acquisition-manifest.meta.yaml
-      sha256: 8ab3de61298c6a135cd315ddc0eff10f8a8e15b22887b15d76fc7b820134c573
+      sha256: b3acff998d3cc5bd52c6a84645317986c259ca3294dc05900a6c96d59fcd4156
   unselected_entries: 2504
 lineage: []
