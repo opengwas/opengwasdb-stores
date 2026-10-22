@@ -58,36 +58,41 @@ source_collection:
     source_metadata_table: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
     acquisition_manifest: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.tsv
   inventory:
-    snapshot_id: eqtlgen-cis-pilot-10-2026-10-22
+    # ...-22b: re-frozen when the Analyses were renamed to bare probe ids (#319).
+    snapshot_id: eqtlgen-cis-pilot-10-2026-10-22b
     directory: resources/inventories
 
 # OGS-00001's 10, written out so a reviewer reads the membership (and the probes
-# acquisition subsets the file set to) line by line.
+# acquisition subsets the file set to) line by line. Each is the bare probe id:
+# OGS-00001 named them `<probe>::whole_blood`, and an analysis_id never contains
+# ':' (issue #319).
 selection:
   analyses:
-    - ENSG00000175445::whole_blood
-    - ENSG00000134243::whole_blood
-    - ENSG00000130203::whole_blood
-    - ENSG00000073605::whole_blood
-    - ENSG00000164308::whole_blood
-    - ENSG00000232810::whole_blood
-    - ENSG00000141510::whole_blood
-    - ENSG00000136244::whole_blood
-    - ENSG00000087237::whole_blood
-    - ENSG00000136997::whole_blood
+    - ENSG00000175445
+    - ENSG00000134243
+    - ENSG00000130203
+    - ENSG00000073605
+    - ENSG00000164308
+    - ENSG00000232810
+    - ENSG00000141510
+    - ENSG00000136244
+    - ENSG00000087237
+    - ENSG00000136997
   expect_rows: 10
 
-# The observed-only Ragged Build Recipe OGS-00001 carries. `command` names an
-# opengwasdb subcommand and `options` its flags (ADR 0023). The Source Reader
-# Capability is the command's own: build-ragged-besd reads BESD, so the pipeline's
-# resolver reader is opengwasdb.besd and the recipe does not name it.
+# The observed-only Ragged Build Recipe OGS-00001 carries, less its `tissue`
+# option: with one, opengwasdb names each Analysis `<probe>::<tissue>`, and an
+# analysis_id never contains ':' (issue #319). The tissue is the Source Metadata
+# Table's, rendered into the Release Manifest. `command` names an opengwasdb
+# subcommand and `options` its flags (ADR 0023). The Source Reader Capability is
+# the command's own: build-ragged-besd reads BESD, so the pipeline's resolver
+# reader is opengwasdb.besd and the recipe does not name it.
 build:
   layout: ragged
   completion_state: observed_only
   command: build-ragged-besd
   options:
     source-build: hg19
-    tissue: whole_blood
   post:
     top_hits: false
     overview: false
