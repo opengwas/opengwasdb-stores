@@ -304,6 +304,13 @@ class EqtlgenEndToEndTest(unittest.TestCase):
             self.assertEqual(row["assigned_ancestry"], "EUR")
             self.assertEqual(row["exclude_from_build"], "")
 
+        # Analyses sharing one file set are not duplicates of each other: no
+        # duplicate-content review is raised for them.
+        self.assertNotIn("duplicate-content", release["notes"])
+        self.assertEqual(
+            yaml.safe_load(self.fixture.provenance_path.read_text())["duplicate_content_groups"], []
+        )
+
         loaded = bundle_module.load(STORE_ID, registry_root=self.fixture.registry_root)
         self.assertEqual(
             bundle_module.check(loaded, registry_root=self.fixture.registry_root), []

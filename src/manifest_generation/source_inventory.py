@@ -419,7 +419,9 @@ def duplicate_content_groups(rows: Iterable[SourceInventoryRow]) -> tuple[Duplic
 
     Reported, never collapsed. Two accessions can be the same summary-statistics
     file; whether that means one member or two is a release decision for a human,
-    and silently dropping one would make membership unexplainable.
+    and silently dropping one would make membership unexplainable. Analyses that
+    claim one file -- a BESD file set holds an Analysis per probe (#291) -- share
+    it by design and are not a group; it takes two files with one checksum.
     """
     by_checksum: dict[str, list[SourceInventoryRow]] = {}
     for row in rows:
@@ -432,7 +434,7 @@ def duplicate_content_groups(rows: Iterable[SourceInventoryRow]) -> tuple[Duplic
             data_bytes=max((row.recorded_bytes or 0) for row in members) or None,
         )
         for checksum, members in by_checksum.items()
-        if len(members) > 1
+        if len({row.data_file for row in members}) > 1
     ]
     groups.sort(key=lambda group: group.analysis_ids[0])
     return tuple(groups)
