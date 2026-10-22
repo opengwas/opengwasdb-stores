@@ -17,7 +17,8 @@ with the reason:
   A detached HEAD must be an ancestor: removing it drops its only ref;
 * `git status --porcelain` is empty: no tracked changes, no untracked files
   that are not ignored;
-* its directory exists;
+* its directory exists, and holds no other registered worktree (removing it
+  would delete that one too); an empty commit never counts as merged;
 * no running process uses it: a process's cwd, its executable, an open file, or
   a path under the worktree's own in any word of its command line (a relative
   path is not recognised).
@@ -189,7 +190,9 @@ def scan_processes(roots: list[str]) -> dict[str, ProcessScan]:
         for root in roots:
             hit = next((p for p in paths if _under(p, root)), None)
             if hit is None:
-                hit = next((w for w in words if mentions[root].search(w)), None)
+                word = next((w for w in words if mentions[root].search(w)), None)
+                if word is not None:  # from the path on, without the sentence's punctuation
+                    hit = word[mentions[root].search(word).start():].rstrip(".,;:'\")")
             if hit is None:
                 hit = next((r for r in resolved if _under(r, root)), None)
             if hit is not None:
@@ -197,6 +200,10 @@ def scan_processes(roots: list[str]) -> dict[str, ProcessScan]:
     for scan in scans.values():
         scan.foreign_unreadable = unreadable
     return scans
+
+
+def _is_empty(commit: str, cwd: str) -> bool:
+    return not git("diff-tree", "--root", "--no-commit-id", "-r", commit, cwd=cwd).stdout.strip()
 
 
 def unmerged_commits(head: str, cwd: str, *, patches: bool) -> int | None:
@@ -217,6 +224,9 @@ def unmerged_commits(head: str, cwd: str, *, patches: bool) -> int | None:
         if patches:
             cherry = git("cherry", ref, head, cwd=cwd).stdout.splitlines()
             ahead = sum(1 for line in cherry if line.startswith("+"))
+            # Cherry calls an empty commit merged when the target has any empty commit:
+            # that proves nothing, so an empty one counts as unmerged.
+            ahead += sum(1 for line in cherry if line.startswith("-") and _is_empty(line[2:], cwd))
             if ahead == 0:
                 return None
         else:
@@ -260,7 +270,8 @@ def human(size: int | None) -> str:
     raise AssertionError
 
 
-def classify(wt: Worktree, is_first: bool, primary: str | None, here: str, scan: ProcessScan) -> Verdict:
+def classify(wt: Worktree, is_first: bool, primary: str | None, here: str, scan: ProcessScan,
+             registered: list[str]) -> Verdict:
     def kept(reason: str) -> Verdict:
         return Verdict(wt, KEPT, reason)
 
@@ -275,6 +286,9 @@ def classify(wt: Worktree, is_first: bool, primary: str | None, here: str, scan:
         return kept("locked" + (f": {wt.locked}" if wt.locked else ""))
     if not os.path.isdir(wt.path):
         return kept("directory missing (`git worktree prune` would forget it; this command never does)")
+    inside = next((other for other in registered if other != real and _under(other, real)), None)
+    if inside is not None:
+        return kept(f"contains another worktree, {inside}: removing it would delete that one too")
     if not wt.head:
         return kept("HEAD unknown")
     ahead = unmerged_commits(wt.head, here, patches=bool(wt.branch))
@@ -305,7 +319,9 @@ def survey(here: str, only: str | None = None) -> tuple[list[Verdict], int]:
     chosen = [(i, wt) for i, wt in enumerate(worktrees) if only is None or wt.path == only]
     # /proc reports real paths, and a word spelled through a symlink is resolved too.
     scans = scan_processes([os.path.realpath(wt.path) for _, wt in chosen])
-    verdicts = [classify(wt, index == 0, primary, here, scans[os.path.realpath(wt.path)]) for index, wt in chosen]
+    registered = [os.path.realpath(wt.path) for wt in worktrees]
+    verdicts = [classify(wt, index == 0, primary, here, scans[os.path.realpath(wt.path)], registered)
+                for index, wt in chosen]
     foreign = next(iter(scans.values())).foreign_unreadable if scans else 0
     return verdicts, foreign
 
@@ -355,7 +371,12 @@ def main(argv: list[str] | None = None) -> int:
                 continue
             # Check this worktree again, whole, just before removing it: a process may
             # have started, or a file changed, since the survey (removals take a while).
-            now = survey(here, only=v.worktree.path)[0]
+            try:
+                now = survey(here, only=v.worktree.path)[0]
+            except PruneError as exc:
+                errors += 1
+                print(f"error: {exc}; {v.worktree.path} kept", file=sys.stderr)
+                continue
             if not now or now[0].verdict != REMOVABLE:
                 print(f"kept    {v.worktree.path}: changed since the survey: {now[0].reason if now else 'gone'}")
                 continue

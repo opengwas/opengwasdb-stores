@@ -14,6 +14,7 @@ import contextlib
 import importlib.util
 import io
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -35,7 +36,7 @@ GIT_ENV = {
 REMOVABLE_NAMES = ["merged", "squashed", "decoy"]
 KEPT_NAMES = [
     "unmerged", "dirty-tracked", "dirty-untracked", "locked", "in-use-cwd", "in-use-argv", "in-use-fd",
-    "in-use-string", "in-use-link",
+    "in-use-string", "in-use-link", "empty", "outer",
 ]
 # Detached worktrees: their HEAD is the only ref to what they hold.
 DETACHED_NAMES = ["detached-whitespace", "detached-merge", "detached-missing"]
@@ -106,6 +107,7 @@ class PruneWorktreesTestCase(unittest.TestCase):
         self.add_worktree("in-use-link")
         self.add_worktree("here")  # the worktree the command runs from
         self.add_detached_worktrees()
+        self.add_empty_and_nested()
 
         self.cwd_proc = self.start(["sleep", "60"], cwd=self.trees / "in-use-cwd")
         self.argv_proc = self.start(
@@ -128,6 +130,22 @@ class PruneWorktreesTestCase(unittest.TestCase):
 
     def add_worktree(self, name: str) -> None:
         git(self.primary, "worktree", "add", "-q", "-b", f"branch/{name}", str(self.trees / name), "origin/dev")
+
+    def add_empty_and_nested(self) -> None:
+        # An empty commit: cherry calls it merged because dev has some other empty commit.
+        self.add_worktree("empty")
+        git(self.trees / "empty", "commit", "-q", "--allow-empty", "-m", "Start orchestration")
+        git(self.seed, "pull", "-q", "origin", "dev")
+        git(self.seed, "commit", "-q", "--allow-empty", "-m", "Start another orchestration")
+        git(self.seed, "push", "-q", "origin", "dev")
+        # A merged, clean worktree with another worktree (unmerged, dirty) inside an ignored directory.
+        self.add_worktree("outer")
+        self.ignore(self.trees / "outer", ".claude/")
+        self.inner = self.trees / "outer" / ".claude" / "worktrees" / "inner"
+        git(self.primary, "worktree", "add", "-q", "-b", "branch/inner", str(self.inner), "origin/dev")
+        commit_file(self.inner, "inner.txt", "inner\n")
+        (self.inner / "uncommitted.txt").write_text("not saved anywhere else\n")
+        git(self.primary, "fetch", "-q", "origin")
 
     def add_detached_worktrees(self) -> None:
         """Detached HEADs that `git cherry` would call merged, though removing the
@@ -408,6 +426,44 @@ class PruneWorktreesTestCase(unittest.TestCase):
         self.assertFalse(any("--force" in c for c in calls), calls)
         for name in REMOVABLE_NAMES:
             self.assertTrue((self.trees / name).is_dir(), name)
+
+    def test_an_empty_commit_is_not_evidence_of_a_merge(self) -> None:
+        line = self.line(self.run_tool(), "empty")
+        self.assertIn("KEPT", line)
+        self.assertIn("not merged: 1 commit", line)
+
+    def test_a_worktree_containing_another_is_kept_and_both_survive_apply(self) -> None:
+        line = self.line(self.run_tool(), "outer")
+        self.assertIn("KEPT", line)
+        self.assertIn(str(self.inner), line)
+        proc = self.run_tool("--apply")
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        self.assertTrue((self.inner / "uncommitted.txt").exists())
+        listed = git(self.primary, "worktree", "list", "--porcelain")
+        self.assertIn(str(self.inner), listed)
+        self.assertIn(str(self.trees / "outer"), listed)
+
+    def test_the_matched_path_is_printed_not_the_whole_word(self) -> None:
+        # The word is "<path>." (it ends a sentence): print the path.
+        reason = self.verdicts(self.run_tool())["in-use-string"][1]
+        self.assertRegex(reason, r"uses " + re.escape(str(self.trees / "in-use-string")) + r"(?![.\w/])")
+
+    def test_an_error_checking_one_worktree_keeps_it_and_carries_on(self) -> None:
+        tool, _ = self.in_process()
+        real_survey = tool.survey
+        target = str(self.trees / "decoy")
+
+        def survey_failing_for_decoy(here, only=None):
+            if only == target:
+                raise tool.PruneError("could not check")
+            return real_survey(here, only=only)
+
+        with mock.patch.object(tool, "survey", survey_failing_for_decoy):
+            code, out = self.run_in_process(tool, ["--no-fetch", "--apply"])
+        self.assertEqual(code, 1)
+        self.assertTrue((self.trees / "decoy").is_dir())
+        self.assertFalse((self.trees / "merged").exists())
+        self.assertFalse((self.trees / "squashed").exists())
 
     def test_fetch_is_the_default_and_no_fetch_skips_it(self) -> None:
         self.add_worktree("ahead")

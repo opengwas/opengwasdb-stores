@@ -107,10 +107,12 @@ pixi run -e dev worktree-prune --apply     # remove the removable ones
 
 It fetches `origin` first (`--no-fetch` skips that) and removes a worktree only
 if it is not the primary checkout or the one you run it from, is not locked,
-still has its directory, has HEAD merged into `origin/dev` or `origin/main`,
+still has its directory, holds no other worktree inside it (that one would go
+too), has HEAD merged into `origin/dev` or `origin/main`,
 has no tracked changes and no untracked files, and has no running process using
 it: a cwd, an **executable**, an open file, or a path under it in any word of a
-command line (`bash -c '... > /x/wt/log'` counts; a relative path does not).
+command line (`bash -c '... > /x/wt/log'` counts; a relative path does not, and
+a symlinked spelling inside a longer word, `--opt=/lnk/wt/x`, is not resolved).
 Everything else is kept, with the reason and the matched path. Each worktree is
 checked again just before it is removed, with plain `git worktree remove`; if
 git refuses, it is kept and the error reported. It never deletes a branch, never
@@ -121,7 +123,9 @@ something was kept.
 What "merged" means. A worktree on a branch counts as merged if its HEAD is an
 ancestor of `origin/dev` or `origin/main`, or `git cherry` finds every commit's
 patch already there, which recognises a single-commit squash merge. A
-multi-commit squash shows as not merged, which errs toward keeping it. A
+multi-commit squash shows as not merged, which errs toward keeping it. An
+empty commit is never evidence of a merge: `git cherry` calls it merged
+whenever the target has some other empty commit, so it counts as unmerged. A
 detached HEAD must be an ancestor, because `git cherry` ignores whitespace and
 merge commits and removing the worktree would drop the only ref to its commits.
 
@@ -130,7 +134,7 @@ Limits to know:
 - The process scan reads `/proc`. A process whose cwd and executable it cannot
   read (`root`, `sudo`, other users', or a privilege-separated one such as an
   `sshd` session) is checked by its command line only, so a worktree that only
-  such a process has as its cwd or executable is not noticed. A process of
+  such a process has as its cwd, executable or open file is not noticed. A process of
   yours whose command line it cannot read keeps every worktree.
 - An **ignored** file that cannot be regenerated (a scratch note in a
   `.gitignore`d directory, a local `.env`) is not detected: it goes with the
