@@ -28,6 +28,9 @@ assert verify_spec.loader; verify_spec.loader.exec_module(verify)
 calibration_spec = importlib.util.spec_from_file_location("heldout_calibration", SCRIPT.with_name("heldout_calibration.py"))
 calibration = importlib.util.module_from_spec(calibration_spec); sys.modules[calibration_spec.name] = calibration
 assert calibration_spec.loader; calibration_spec.loader.exec_module(calibration)
+pilot_qc_spec = importlib.util.spec_from_file_location("pilot_qc_effect", SCRIPT.with_name("pilot_qc_effect.py"))
+pilot_qc = importlib.util.module_from_spec(pilot_qc_spec); sys.modules[pilot_qc_spec.name] = pilot_qc
+assert pilot_qc_spec.loader; pilot_qc_spec.loader.exec_module(pilot_qc)
 # The runner imports its siblings by bare name, so it loads after them.
 pilot_spec = importlib.util.spec_from_file_location("run_amr_pilot", SCRIPT.with_name("run_amr_pilot.py"))
 pilot = importlib.util.module_from_spec(pilot_spec); sys.modules[pilot_spec.name] = pilot
@@ -330,6 +333,68 @@ def test_pair_records() -> None:
           f"an ALID the halves kept different records of must be counted, not shared: {shared}, {mismatched}")
 
 
+def test_pilot_qc_effect() -> None:
+    # #355: the tool behind docs/data/amr-ld-pilot-qc-effect.json joins plink2's
+    # frequency and missingness reports pairwise, joins VCF FILTER by
+    # (pos, REF, ALT), and counts what each owner rule keeps. Every guard is
+    # exercised on a tiny fixture rather than the real pilot.
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        afreq, vmiss = tmp / "chr22.afreq", tmp / "chr22.vmiss"
+        afreq.write_text("#CHROM\tPOS\tID\tREF\tALT\tALT_FREQS\tOBS_CT\n"
+                         "22\t100\t22:100:A:G\tA\tG\t0.2\t690\n"
+                         "22\t101\t22:101:C:T\tC\tT\t0.3\t690\n")
+        vmiss.write_text("#CHROM\tPOS\tID\tMISSING_CT\tOBS_CT\tF_MISS\n"
+                         "22\t100\t22:100:A:G\t0\t690\t0\n")
+        try:
+            pilot_qc.variant_reports(afreq, vmiss)
+            check(False, "a missingness report shorter than its frequency report must raise")
+        except ValueError:
+            check(True, "")
+        vmiss.write_text("#CHROM\tPOS\tID\tMISSING_CT\tOBS_CT\tF_MISS\n"
+                         "22\t101\t22:101:C:T\t0\t690\t0\n"
+                         "22\t100\t22:100:A:G\t0\t690\t0\n")
+        try:
+            pilot_qc.variant_reports(afreq, vmiss)
+            check(False, "reports listing variants in different orders must raise")
+        except SystemExit:
+            check(True, "")
+        # A record and a pfile variant are joined on (pos, REF, ALT). gnomAD
+        # splits multi-allelic sites, so the same key can only recur as an exact
+        # repeat; two FILTERs under one key would make the join ambiguous.
+        records = tmp / "22_100-200.records.tsv"
+        records.write_text("22\t100\tA\tG\tPASS\n22\t100\tA\tG\tPASS\n22\t101\tC\tT\tLowQual\n")
+        check(pilot_qc.record_filters(records) == {(100, "A", "G"): "PASS", (101, "C", "T"): "LowQual"},
+              "an exact repeat is one record and keeps its FILTER")
+        records.write_text("22\t100\tA\tG\tPASS\n22\t100\tA\tG\tLowQual\n")
+        try:
+            pilot_qc.record_filters(records)
+            check(False, "two records under one (pos, REF, ALT) with different FILTER must raise")
+        except SystemExit as exc:
+            check("100:A:G" in str(exc), f"the conflicting-FILTER refusal does not name the key: {exc}")
+        # Five records with one collision pair, and the counts worked out by hand:
+        #   A  MAF .20  PASS  called        -> floor, QC, its own group
+        #   B1 MAF .15  PASS  called        -> floor, QC, group B
+        #   B2 MAF .05  PASS  called        -> floor, QC, group B (the collision)
+        #   C  MAF .005 FAIL  called        -> below the MAF floor
+        #   D  MAF .30  PASS  55% missing   -> above the MAF floor, fails 80% called
+        rows = [
+            {"alid": "1:100:A:G", "pass": True, "f_miss": 0.0, "maf": .20, "obs": 690},
+            {"alid": "1:200:G:GA", "pass": True, "f_miss": .05, "maf": .15, "obs": 690},
+            {"alid": "1:200:G:GA", "pass": True, "f_miss": .10, "maf": .05, "obs": 690},
+            {"alid": "1:300:C:T", "pass": False, "f_miss": 0.0, "maf": .005, "obs": 690},
+            {"alid": "1:400:T:C", "pass": True, "f_miss": .55, "maf": .30, "obs": 690},
+        ]
+        measured = pilot_qc.qc_effect(rows)
+        check((measured["records_maf"], measured["records_maf_pass_call_rate"]) == (4, 3),
+              f"the MAF, PASS and call-rate counts are wrong: {measured}")
+        check((measured["collision_groups"], measured["collision_records"]) == (1, 2),
+              f"the collision counts are wrong: {measured}")
+        check((measured["retained_drop_all"], measured["retained_keep_one"]) == (1, 2),
+              f"the drop-all/keep-one counts are wrong: {measured}")
+        check(np.allclose(measured["maf_gaps"], [.10]), f"the collision MAF gap is wrong: {measured['maf_gaps']}")
+
+
 def test_panel_summary() -> None:
     # #354: a panel's summary must name every block the panel declares -- not
     # just the chromosomes this invocation touched -- and must not credit a
@@ -359,10 +424,14 @@ def test_panel_summary() -> None:
         marker.write_text(panel.conversion_marker(True, 1, "0" * 64))
         converted = marker.stat().st_mtime
         (out / "calibration").mkdir()
-        for label, offset in (("22_100-200", 60), ("22_300-400", -60)):
+        settings = {"maf_threshold": .01, "max_missing_rate": .2, "replicates": 20}
+        for label, offset, recorded in (("22_100-200", 60, settings),
+                                        ("22_300-400", -60, settings),
+                                        ("22_700-800", 60, {**settings, "maf_threshold": .05})):
             result = out / "calibration" / f"{label}.json"
             result.write_text(json.dumps({"n_train": 1, "n_test": 1, "n_shared_variants": 0,
-                                          "n_alid_record_mismatch": 0, "skipped": "fixture"}))
+                                          "n_alid_record_mismatch": 0, "skipped": "fixture",
+                                          "settings": recorded}))
             os.utime(result, (converted + offset, converted + offset))
         run = out / "runs/20261022T000000Z"
         (run / "logs").mkdir(parents=True)
@@ -370,8 +439,9 @@ def test_panel_summary() -> None:
         summary = panel.panel_summary(
             out, regions, [{"chr": "22", "start": "100", "end": "200"},
                            {"chr": "22", "start": "300", "end": "400"},
-                           {"chr": "22", "start": "500", "end": "600"}], run,
-            maf=.01, max_missing=.2, n_individuals=g.shape[0])
+                           {"chr": "22", "start": "500", "end": "600"},
+                           {"chr": "22", "start": "700", "end": "800"}], run,
+            maf=.01, max_missing=.2, replicates=20, n_individuals=g.shape[0])
         blocks = summary["blocks"]
         check(sorted(blocks) == ["22_100-200", "22_300-400", "22_500-600", "22_700-800"] and
               summary["blocks_declared"] == 4,
@@ -388,12 +458,19 @@ def test_panel_summary() -> None:
         check(calibration["22_100-200"] == {"n_train": 1, "n_test": 1, "n_shared_variants": 0,
                                             "n_alid_record_mismatch": 0, "skipped": "fixture"},
               f"a result newer than its conversion must be reported as a measurement: {calibration['22_100-200']}")
-        # #354 fix round 1: a retry that fails leaves the earlier result on disk,
-        # and publishing it would report a measurement of the previous conversion.
+        # A retry that fails leaves the earlier result on disk, and publishing it
+        # would report a measurement of the previous conversion as this one's
+        # (a result measured from an earlier conversion is not a measurement of
+        # this one, #354).
         check(calibration["22_300-400"] == {"stale": str(out / "calibration/22_300-400.json")},
               f"a result older than its conversion must not be published: {calibration['22_300-400']}")
         check(calibration["22_500-600"] == {"failed": str(run / "logs/calibrate_22_500-600.log")},
               f"a calibration this run attempted is reported as failed: {calibration['22_500-600']}")
+        # #354: changing --maf, --max-missing or --replicates leaves the
+        # conversion untouched, so a result newer than its marker can still have
+        # been measured under other QC. It must be re-run, never credited.
+        check(calibration["22_700-800"] == {"stale": str(out / "calibration/22_700-800.json")},
+              f"a fresh result recorded under other settings was credited: {calibration['22_700-800']}")
 
 
 def test_conversion_markers() -> None:
@@ -625,7 +702,8 @@ def test_plink_raw_input() -> None:
 
 def main() -> None:
     test_block(); test_maf_floor(); test_alid_collisions(); test_call_rate(); test_run_panels_floor_resume()
-    test_verify_block(); test_heldout_calibration(); test_pair_records(); test_panel_summary()
+    test_verify_block(); test_heldout_calibration(); test_pair_records(); test_pilot_qc_effect()
+    test_panel_summary()
     test_conversion_markers(); test_run_all_stops_on_first_failure()
     test_freeze_membership()
     test_canonical_effect_allele_ld_orientation()
