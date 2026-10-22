@@ -49,7 +49,8 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
 16. A Hybrid release completes its own Store too (#333): one entry-point run
    builds and publishes the Observed-Only Hybrid Store, completes it, moving an
    Overflow association into the Dense Component, passes the Observed-View
-   Check across both components and publishes the completed Store at its path;
+   Check across both components and publishes the completed Store at its path,
+   its HM3 Indexed Variant Subset and overview built again on it;
    a perturbed crossover fails the check, naming it, and the Observed-Only Store
    stays published; and a published Observed-Only Hybrid release whose bundle
    gains a `complete-hybrid` block runs only its completion phase.
@@ -527,11 +528,16 @@ def release_argv(
     registry_root: Path,
     artifact_root: Path,
     config: dict[str, str] | None = None,
+    checkout: Path = REPO_ROOT,
 ) -> list[str]:
-    """The supported entry point's command line, as `pixi run release` runs it (#195)."""
+    """The supported entry point's command line, as `pixi run release` runs it (#195).
+
+    `checkout` is the copy of the code it runs from (`checkout_with_variant_list_resource`),
+    whose `entry_point_env` its process needs.
+    """
     return [
         sys.executable,
-        str(RELEASE_ENTRY_POINT),
+        str(RELEASE_ENTRY_POINT if checkout == REPO_ROOT else checkout / "workflow" / "release.py"),
         *words,
         "--cores",
         "1",
@@ -550,14 +556,68 @@ def run_release(
     config: dict[str, str] | None = None,
     env: dict[str, str] | None = None,
     new_session: bool = False,
+    checkout: Path = REPO_ROOT,
 ) -> subprocess.CompletedProcess[str]:
-    """Run the supported entry point, `pixi run release`'s workflow/release.py (#195)."""
-    argv = release_argv(words, registry_root=registry_root, artifact_root=artifact_root, config=config)
-    run_env = dict(os.environ)
+    """Run the supported entry point, `pixi run release`'s workflow/release.py (#195), from `checkout`."""
+    argv = release_argv(
+        words, registry_root=registry_root, artifact_root=artifact_root, config=config, checkout=checkout
+    )
+    run_env = {**os.environ, **entry_point_env(checkout)}
     run_env.update(env or {})
     return subprocess.run(
-        argv, cwd=REPO_ROOT, capture_output=True, text=True, env=run_env, start_new_session=new_session
+        argv, cwd=checkout, capture_output=True, text=True, env=run_env, start_new_session=new_session
     )
+
+
+def entry_point_env(checkout: Path) -> dict[str, str]:
+    """What an entry point run from `checkout` needs in its environment: that copy's code first (#333).
+
+    Nothing for this checkout, whose code the environment installs.
+    """
+    if checkout == REPO_ROOT:
+        return {}
+    return {"PYTHONPATH": os.pathsep.join(filter(None, [str(checkout / "src"), os.environ.get("PYTHONPATH")]))}
+
+
+def checkout_with_variant_list_resource(root: Path, resource_id: str, variant_list: Path) -> Path:
+    """A copy of this checkout's code under `root` that maintains one more Reference Resource: `variant_list` (#333).
+
+    The entry point builds an Indexed Variant Subset only from a variant list
+    that a maintained resource of its own checkout declares
+    (`resources/reference-resources/<resource_id>/resource.yaml`), and a
+    fixture list is no maintained resource. So a release that declares one
+    runs from this copy, as `pre_304_completion_template` runs an older
+    revision: `src/`, `workflow/` and `ogstores.yaml` copied, the declaration
+    added, and the copy's code put ahead of the editable install
+    (`entry_point_env`), which is checked here.
+    """
+    import hashlib
+
+    import yaml
+
+    checkout = root / "checkout"
+    for tree in ("src", "workflow"):
+        shutil.copytree(REPO_ROOT / tree, checkout / tree, ignore=shutil.ignore_patterns("__pycache__", "*.egg-info"))
+    shutil.copy2(REPO_ROOT / "ogstores.yaml", checkout / "ogstores.yaml")
+    content = variant_list.read_bytes()
+    declaration = {
+        "resource_id": resource_id,
+        "kind": "variant_list",
+        "genome_build": "GRCh38",
+        "location": str(variant_list),
+        "row_count": sum(1 for line in content.decode("utf-8").splitlines() if line.strip()),
+        "checksums": {"alid_sha256": hashlib.sha256(content).hexdigest(), "alid_bytes": len(content)},
+    }
+    declaration_p = checkout / "resources" / "reference-resources" / resource_id / "resource.yaml"
+    declaration_p.parent.mkdir(parents=True)
+    declaration_p.write_text(yaml.safe_dump(declaration), encoding="utf-8")
+    imported = subprocess.run(
+        [sys.executable, "-c", "import ogstores; print(ogstores.__file__)"],
+        cwd=checkout, env={**os.environ, **entry_point_env(checkout)}, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+    if not imported.startswith(str(checkout / "src")):
+        raise RuntimeError(f"an entry point run from {checkout} would import {imported}, not the copy's code")
+    return checkout
 
 
 class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
@@ -1865,6 +1925,36 @@ def prepare_single_id_signal_release(root: Path, store_id: str) -> tuple[Path, P
 # the Overflow.
 HYBRID_OFF_REFERENCE_INDEXES: tuple[int, ...] = (10, 11)
 HYBRID_PANEL_INDEXES: tuple[int, ...] = tuple(range(11))
+# Its HM3-style variant list: five positions of the Observed-Only Dense
+# Component, the held-out one among them, and one ALID no Store holds, which
+# `build-indexed-subset` counts as absent. None is on the Overflow axis, which
+# that command refuses for a Hybrid Store.
+HYBRID_SUBSET_INDEXES: tuple[int, ...] = (0, 2, 4, 6, 8)
+HYBRID_SUBSET_ALIDS: tuple[str, ...] = (*(SIGNAL_ALID[i] for i in HYBRID_SUBSET_INDEXES), "1:5000000:A:G")
+
+_HYBRID_SUBSET_CHECKOUT: dict[str, Any] | None = None
+
+
+def hybrid_subset_checkout() -> dict[str, Any]:
+    """The copy of this checkout that maintains `HYBRID_SUBSET_ALIDS`, made on first use (#333).
+
+    Returns its `checkout`, the `variant_list`, the `resource_id` that
+    declares it, and the `TemporaryDirectory` that holds them.
+    """
+    global _HYBRID_SUBSET_CHECKOUT
+    if _HYBRID_SUBSET_CHECKOUT is None:
+        temp_dir = tempfile.TemporaryDirectory()
+        root = Path(temp_dir.name)
+        variant_list = root / "hm3.alid.txt"
+        variant_list.write_text("".join(f"{alid}\n" for alid in HYBRID_SUBSET_ALIDS), encoding="utf-8")
+        resource_id = "fixture-hm3"
+        _HYBRID_SUBSET_CHECKOUT = {
+            "temp_dir": temp_dir,
+            "checkout": checkout_with_variant_list_resource(root, resource_id, variant_list),
+            "variant_list": variant_list,
+            "resource_id": resource_id,
+        }
+    return _HYBRID_SUBSET_CHECKOUT
 
 
 def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[Path, Path]:
@@ -1872,7 +1962,10 @@ def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[
 
     The same VCF and bundle, built by `build-hybrid` against a plain ALID
     variant reference without `HYBRID_OFF_REFERENCE_INDEXES`, and completed by
-    `complete-hybrid` against an LD panel over `HYBRID_PANEL_INDEXES`.
+    `complete-hybrid` against an LD panel over `HYBRID_PANEL_INDEXES`. Like
+    OGS-00011, it regenerates its overview and builds an `hm3` Indexed
+    Variant Subset in both phases, from `hybrid_subset_checkout`'s list; it
+    runs from that checkout.
     """
     import yaml
 
@@ -1885,7 +1978,6 @@ def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[
         artifact_root=artifacts,
         vcf_path=create_signal_fixture_vcf(root / "signal.vcf.gz"),
         post_top_hits=False,
-        post_overview=False,
     )
     reference = root / "variant-reference.txt"
     reference.write_text(
@@ -1897,6 +1989,15 @@ def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[
     build_yaml["layout"] = "hybrid"
     build_yaml["build"]["command"] = "build-hybrid"
     build_yaml["build"]["options"]["variant-reference"] = str(reference)
+    subset = hybrid_subset_checkout()
+    build_yaml["indexed_subsets"] = [
+        {
+            "name": "hm3",
+            "resource_id": subset["resource_id"],
+            "variant_list": str(subset["variant_list"]),
+            "reference_assembly": "GRCh38",
+        }
+    ]
     build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
     amend_to_complete_own_store(
         stores,
@@ -1944,15 +2045,21 @@ def kill_release_run(proc: subprocess.Popen, pause: Path) -> None:
 
 
 def run_single_id_completion(
-    store_id: str, prepare: Callable[[Path, str], tuple[Path, Path]], *, copy_complete_started: bool = False
+    store_id: str,
+    prepare: Callable[[Path, str], tuple[Path, Path]],
+    *,
+    copy_complete_started: bool = False,
+    checkout: Path = REPO_ROOT,
 ) -> dict[str, Any]:
     """One fresh entry-point run of a release that completes its own Store, paused twice (#304, #333).
 
     `prepare(root, store_id)` writes the release under a new
     `TemporaryDirectory` and returns its `stores` and `artifacts`, so the
-    bundle it writes decides the layout and its completion command. Returns
-    `store_id`, `analysis_id`, the built `stores` and `artifacts`, the run's
-    result (`release_result`) and the `TemporaryDirectory` that holds them.
+    bundle it writes decides the layout and its completion command. The run
+    starts from `checkout` (`release_argv`). Returns `store_id`,
+    `analysis_id`, the built `stores` and `artifacts`, the `checkout`, the
+    run's result (`release_result`) and the `TemporaryDirectory` that holds
+    them.
 
     The run is paused twice. As `complete` starts, once the build phase has
     published the Observed-Only Store, its observed view is read
@@ -1972,14 +2079,19 @@ def run_single_id_completion(
     root = Path(temp_dir.name)
     stores, artifacts = prepare(root, store_id)
 
-    argv = release_argv([store_id], registry_root=stores, artifact_root=artifacts)
+    argv = release_argv([store_id], registry_root=stores, artifact_root=artifacts, checkout=checkout)
     pause = root / "paused"
     pause_points = ("complete-started", "completion-observed-view-check-started")
-    env = {**os.environ, run.PAUSE_AT_ENV: ",".join(pause_points), run.PAUSE_FILE_ENV: str(pause)}
+    env = {
+        **os.environ,
+        **entry_point_env(checkout),
+        run.PAUSE_AT_ENV: ",".join(pause_points),
+        run.PAUSE_FILE_ENV: str(pause),
+    }
     observed_before = None
     snapshots: dict[str, dict[str, Path]] = {}
     with (root / "release.out").open("w+") as out, (root / "release.err").open("w+") as err:
-        proc = subprocess.Popen(argv, cwd=REPO_ROOT, stdout=out, stderr=err, env=env, start_new_session=True)
+        proc = subprocess.Popen(argv, cwd=checkout, stdout=out, stderr=err, env=env, start_new_session=True)
         try:
             deadline = time.monotonic() + 600
             for point in pause_points:
@@ -2011,6 +2123,7 @@ def run_single_id_completion(
         "temp_dir": temp_dir,
         "stores": stores,
         "artifacts": artifacts,
+        "checkout": checkout,
         "release_result": release_result,
         "observed_before": observed_before,
         "complete_started": snapshots.get("complete-started"),
@@ -2058,15 +2171,18 @@ def hybrid_single_id_completion_template() -> dict[str, Any]:
     """The one single-id completed Hybrid release this process builds, built on first use (#333).
 
     `run_single_id_completion` from `prepare_hybrid_single_id_signal_release`,
-    copying both trees as `complete` starts, with no rerun: what a rerun shows
-    does not depend on the layout, and `single_id_completion_template` shows
-    it. A test that may write copies a tree; the template is never written
-    again.
+    run from `hybrid_subset_checkout`, copying both trees as `complete` starts,
+    with no rerun: what a rerun shows does not depend on the layout, and
+    `single_id_completion_template` shows it. A test that may write copies a
+    tree; the template is never written again.
     """
     global _HYBRID_SINGLE_ID_COMPLETION
     if _HYBRID_SINGLE_ID_COMPLETION is None:
         _HYBRID_SINGLE_ID_COMPLETION = run_single_id_completion(
-            "OGS-00130", prepare_hybrid_single_id_signal_release, copy_complete_started=True
+            "OGS-00130",
+            prepare_hybrid_single_id_signal_release,
+            copy_complete_started=True,
+            checkout=hybrid_subset_checkout()["checkout"],
         )
     return _HYBRID_SINGLE_ID_COMPLETION
 
@@ -3115,11 +3231,17 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
             stores, artifacts = copy_snapshot(self.template["check_started"], built=self.template, into=root)
             pause = root / "paused"
             log = root / "run.log"
-            env = {**os.environ, run.PAUSE_AT_ENV: f"{self.CHECK_STEP}-started", run.PAUSE_FILE_ENV: str(pause)}
+            checkout = self.template["checkout"]
+            env = {
+                **os.environ,
+                **entry_point_env(checkout),
+                run.PAUSE_AT_ENV: f"{self.CHECK_STEP}-started",
+                run.PAUSE_FILE_ENV: str(pause),
+            }
             with log.open("w") as handle:
                 proc = subprocess.Popen(
-                    release_argv([self.STORE_ID], registry_root=stores, artifact_root=artifacts),
-                    cwd=REPO_ROOT, stdout=handle, stderr=subprocess.STDOUT, env=env, start_new_session=True,
+                    release_argv([self.STORE_ID], registry_root=stores, artifact_root=artifacts, checkout=checkout),
+                    cwd=checkout, stdout=handle, stderr=subprocess.STDOUT, env=env, start_new_session=True,
                 )
                 self.addCleanup(lambda: proc.poll() is None and os.killpg(proc.pid, 9))
                 deadline = time.monotonic() + 600
@@ -3218,6 +3340,12 @@ class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
     one adds. Every test only reads the template.
     """
 
+    BUILD_PHASE_RECORDS = ["build", "indexed-subset-hm3", "overview", "validate", "register"]
+    COMPLETION_RECORDS = [
+        "complete", "completion-indexed-subset-hm3", "completion-overview", "completion-validate",
+        "completion-observed-view-check", "completion-register",
+    ]
+
     @classmethod
     def setUpClass(cls) -> None:
         cls.template = hybrid_single_id_completion_template()
@@ -3237,7 +3365,7 @@ class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
     def test_one_run_publishes_the_observed_only_store_then_the_completed_store_at_its_path(self) -> None:
         res = self.template["release_result"]
         self.assertEqual(res.returncode, 0, f"The entry point failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
-        for step in TestWorkflowSingleIdReferenceCompletion.PHASE_RECORDS:
+        for step in self.BUILD_PHASE_RECORDS + self.COMPLETION_RECORDS:
             self.assertTrue(self.record(step).get("success"), step)
         self.assertEqual(self.record("complete")["argv"][1], "complete-hybrid")
         self.assertEqual(self.record("register")["published_store"], str(self.store_p))
@@ -3249,6 +3377,29 @@ class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
             paths.publication_marker(self.STORE_ID, root=self.artifacts),
         ):
             self.assertFalse(leftover.exists(), leftover)
+
+    def test_the_completion_phase_builds_the_subset_and_the_overview_on_the_completed_store(self) -> None:
+        """As OGS-00011's will: `hm3` holds the listed positions the Store holds, the held-out one now imputed."""
+        staged = str(paths.partial_store_path(self.STORE_ID, root=self.artifacts))
+        for step in ("completion-indexed-subset-hm3", "completion-overview"):
+            self.assertEqual(self.record(step)["argv"][2], staged, step)
+        q = query_store(self.store_p)
+        try:
+            rows = q.analysis(self.template["analysis_id"], indexed_subset="hm3")
+            table = q.variants_table()
+        finally:
+            q.close()
+        self.assertEqual(
+            {
+                table[int(index)]["alid"]: str(status)
+                for index, status in zip(rows["variant_index"], rows["association_status"], strict=True)
+            },
+            {
+                SIGNAL_ALID[i]: "imputed" if i == SIGNAL_HELD_OUT_INDEX else "observed"
+                for i in HYBRID_SUBSET_INDEXES
+            },
+        )
+        self.assertTrue((self.store_p / "overview.html").is_file())
 
     def test_the_completed_store_keeps_the_id_and_takes_its_own_release_id(self) -> None:
         manifest_doc = json.loads((self.store_p / "manifest.json").read_text(encoding="utf-8"))
@@ -3334,7 +3485,8 @@ class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
         observed_only = {key: value for key, value in declared.items() if key != "complete"}
         build_yaml_p.write_text(yaml.safe_dump({**observed_only, "completion_state": "observed_only"}), encoding="utf-8")
 
-        published = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+        checkout = template["checkout"]
+        published = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts, checkout=checkout)
         self.assertEqual(published.returncode, 0, published.stdout + published.stderr)
         self.assertEqual([t for t in scheduled_targets(published.stdout) if t != store_id], [])
 
@@ -3346,20 +3498,20 @@ class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
             p: (p.stat().st_mtime_ns, p.read_bytes())
             for directory in ("records", "work") for p in sorted((store_dir / directory).iterdir())
         }
-        dry = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
-        res = run_release([store_id], registry_root=stores, artifact_root=artifacts)
+        dry = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts, checkout=checkout)
+        res = run_release([store_id], registry_root=stores, artifact_root=artifacts, checkout=checkout)
 
         self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
         self.assertEqual(
             [t for t in scheduled_targets(dry.stdout) if t != store_id],
-            TestWorkflowCompletingAStoreBuiltBefore304.COMPLETION_RECORDS,
+            TestWorkflowSingleIdHybridReferenceCompletion.COMPLETION_RECORDS,
         )
         self.assertNotIn("would refuse", dry.stdout)
         self.assertEqual(res.returncode, 0, f"the completion failed:\n{res.stdout}\n{res.stderr}")
         for p, (mtime, content) in build_phase_before.items():
             self.assertEqual((p.stat().st_mtime_ns, p.read_bytes()), (mtime, content), f"{p} was rewritten")
         rec_dir = paths.records_dir(store_id, root=artifacts)
-        for step in TestWorkflowCompletingAStoreBuiltBefore304.COMPLETION_RECORDS:
+        for step in TestWorkflowSingleIdHybridReferenceCompletion.COMPLETION_RECORDS:
             self.assertTrue(json.loads((rec_dir / f"{step}.json").read_text(encoding="utf-8"))["success"], step)
         manifest_doc = json.loads((paths.store_path(store_id, root=artifacts) / "manifest.json").read_text())
         self.assertEqual(
