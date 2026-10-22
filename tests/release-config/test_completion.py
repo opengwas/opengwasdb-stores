@@ -419,6 +419,20 @@ class CompletionRecipeTests(FixtureCase):
 
         self.assertRefused(edit, "referance")
 
+    def test_a_numeric_resource_id_is_refused(self) -> None:
+        # A Reference Resource is named by its text id, never by a number that
+        # happens to read as one (the completion reader is stricter than the
+        # release config's own text gate, which coerces).
+        self.assertRefused(
+            self.with_completion(completion_recipe(reference={"resource_id": 123})),
+            "reference.resource_id",
+            "must be text",
+        )
+
+    def test_a_padded_command_is_read_as_the_command(self) -> None:
+        config = self.load(self.with_completion(completion_recipe(command=" complete-dense ")))
+        self.assertEqual(config.completion.command, "complete-dense")
+
     def test_a_reference_to_an_undeclared_or_wrong_kind_resource_is_refused(self) -> None:
         self.assertRefused(
             self.with_completion(completion_recipe(reference={"resource_id": "nonesuch"})),

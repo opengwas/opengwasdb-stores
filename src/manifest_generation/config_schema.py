@@ -37,11 +37,26 @@ def block(
     return value
 
 
-def text(value: Any, where: str, *, error: type[ValueError] = ValueError) -> str:
-    """``value`` as non-blank text. A number is read as its text; a bool is not."""
-    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
+def text(
+    value: Any,
+    where: str,
+    *,
+    error: type[ValueError] = ValueError,
+    numbers: bool = True,
+    strip: bool = False,
+) -> str:
+    """``value`` as non-blank text, in the semantics the calling reader had.
+
+    ``numbers`` and ``strip`` are the two places the readers differ, and neither
+    is free to drift: ``release_config`` reads a number as its text and keeps the
+    value as written, while the completion recipe requires a string and strips
+    it. A bool is never text, under either.
+    """
+    if isinstance(value, bool) or (
+        not isinstance(value, str) and not (numbers and isinstance(value, (int, float)))
+    ):
         raise error(f"{where} must be text, not {value!r}")
     parsed = str(value)
     if not parsed.strip():
         raise error(f"{where} must not be blank")
-    return parsed
+    return parsed.strip() if strip else parsed

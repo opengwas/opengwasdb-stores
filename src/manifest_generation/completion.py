@@ -99,7 +99,9 @@ class CompletionError(ValueError):
 
 
 _block = functools.partial(_block, error=CompletionError)
-_text = functools.partial(_text, error=CompletionError)
+#: This reader has always required a string and stripped it (the release
+#: config's own gate coerces numbers and keeps the value as written).
+_text = functools.partial(_text, error=CompletionError, numbers=False, strip=True)
 
 
 @dataclass(frozen=True)
@@ -159,7 +161,7 @@ def completion_reference(value: Any, where: str) -> dict:
                 f"{where}.{key} {reference[key]!r} is not one of {', '.join(allowed)}"
             )
     return {
-        "resource_id": _text(reference["resource_id"], f"{where}.resource_id").strip(),
+        "resource_id": _text(reference["resource_id"], f"{where}.resource_id"),
         "qualification": reference["qualification"],
         "activation": reference["activation"],
     }
@@ -227,9 +229,10 @@ def parse_completion(
     command = _text(block["command"], f"{where}.command")
     if command != COMPLETE_COMMAND:
         raise CompletionError(
-            f"{where}.command {command!r} is not {COMPLETE_COMMAND!r}: this ticket ports Dense "
-            "completion only. ADR 0037's Observed-View Check also covers the Dense Component of "
-            "Hybrid Stores, so a Hybrid layout is a piece of work rather than a prohibition"
+            f"{where}.command {command!r} is not {COMPLETE_COMMAND!r}: Dense completion is the "
+            "only completion path ported so far. ADR 0037's Observed-View Check also covers the "
+            "Dense Component of Hybrid Stores, so Hybrid completion is unported work rather than "
+            "a refusal the contract makes"
         )
     options = complete_options(block.get("options"), f"{where}.options")
 

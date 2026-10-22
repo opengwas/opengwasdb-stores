@@ -652,9 +652,10 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         where = _where(path, "completion")
         if build.layout not in COMPLETION_LAYOUTS:
             raise ReleaseConfigError(
-                f"{where} is declared for a {build.layout!r} layout: a Store completes its own "
-                "id only on the " + ", ".join(COMPLETION_LAYOUTS) + " layout, the one the "
-                "Observed-View Check that gates the replacement compares (ADR 0037)"
+                f"{where} is declared for a {build.layout!r} layout: Dense completion is the only "
+                "completion path Manifest Generation ports so far (ADR 0037's Observed-View Check "
+                "also covers the Dense Component of Hybrid Stores), so a release config may "
+                "declare it on the " + ", ".join(COMPLETION_LAYOUTS) + " layout only"
             )
         try:
             recipe = completion.parse_completion(
