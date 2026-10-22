@@ -83,6 +83,7 @@ from manifest_generation.candidate_workflow import (
     apply_release_policy,
     build_candidate_tables,
     build_resolution_receipt,
+    declared_setting_checksums,
     derive_resolver_manifest,
     load_candidate_configuration,
     map_candidate_trait_ontologies,
@@ -101,6 +102,7 @@ from manifest_generation.candidate_workflow import (
     sha256_file,
     sha256_text,
     validate_candidate_analyses,
+    verify_liftover_chain,
     verify_records,
     write_resolution_receipt,
 )
@@ -289,9 +291,16 @@ def stage_prepare(pipeline: Pipeline) -> tuple[list, dict]:
 
 def stage_resolve(pipeline: Pipeline, manifest: list) -> None:
     area = pipeline.resolution_area
+    # The resolver opens the declared liftover chain, so its bytes are checked
+    # before anything else here (#292): composing the settings below reads no
+    # host file, and a CI runner has no /data to read.
+    verify_liftover_chain(pipeline.config)
     # Each set of resolver settings has its own checkpoint, so a Selection
     # resolved under other settings never evicts this one's records (#284).
-    settings_digest = resolver_settings_digest(resolver_settings(pipeline.config))
+    settings_digest = resolver_settings_digest(
+        resolver_settings(pipeline.config),
+        declared_checksums=declared_setting_checksums(pipeline.config),
+    )
     checkpoint = area.checkpoint_dir(settings_digest)
     argv = resolver_argv(
         resolver_bin=pipeline.args.resolver,

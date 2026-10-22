@@ -1046,7 +1046,7 @@ run alone repeats the in-memory steps it needs, never `freeze`, `preflight` or
 | `freeze` | the release config's connector files and Selection | the frozen inventory, its frozen connectors and provenance, when absent; `<work-root>/<id>/freeze/<snapshot>.json` | overwrite a frozen snapshot, or accept one frozen for another Selection |
 | `preflight` | frozen inventory, provenance, config, filesystem metadata | `<work-root>/<id>/preflight/<snapshot>.json` | open an association body; checksum the corpus |
 | `prepare` | frozen inventory, frozen Source Metadata Table | `<work-root>/<id>/resolver/analyses.tsv` | reconstruct a source path or re-select membership |
-| `resolve` | the resolver manifest | records in the Source Collection's Resolution Area; `<work-root>/<id>/resolver/{index.json,resolve.log,resolution_receipt.json}` | load a reference, fork a worker, or compute ancestry/SD here |
+| `resolve` | the resolver manifest, and the declared liftover chain's bytes (checksummed against its declaration) | records in the Source Collection's Resolution Area; `<work-root>/<id>/resolver/{index.json,resolve.log,resolution_receipt.json}` | load a reference, fork a worker, or compute ancestry/SD here |
 | `verify` | the records the receipt names | nothing | accept a missing, stale, edited or duplicate record, or one outside the Selection |
 | `render` | records, frozen Source Metadata Table, the Canonical Trait Mapping Table, config | Trait Ontology Mapping, then the release policy, then `<work-root>/<id>/bundle/` | compute a statistic; write into `stores/`; carry files filtered to another region policy; declare a completion phase the config has not qualified and activated |
 | `emit` | the rendered bundle | a staged bundle, then `stores/<id>/` | build, validate or accept a Store; write a non-`candidate` status |
@@ -1092,7 +1092,7 @@ so none of that applies to it.
 Re-running a stopped run repeats nothing costly: `freeze` finds the frozen
 snapshot and `resolve` reuses every record whose fingerprint still matches.
 
-The resolver is passed `--column-map PATH|NAME` and, for a declared liftover chain, `--chain-file` (#292); their checksums join the settings digest and the receipt's resolution contract ([the binding](../release-metadata-schema.md#column-map-binding), [release config](release-config.md#column_map)).
+The resolver is passed `--column-map PATH|NAME` and, for a declared liftover chain, `--chain-file` (#292); their checksums join the settings digest and the receipt's resolution contract ([the binding](../release-metadata-schema.md#column-map-binding), [release config](release-config.md#column_map)). The chain's is the checksum its Reference Resource *declares*, not one read off the host: composing the settings and their digest reads no host file, so a release configured with a chain under `/data` composes on a CI runner that has none. The `resolve` stage therefore checks the chain's bytes first, before it composes anything or starts the resolver: an absent file, or one whose `sha256` is not the declared one, refuses the run by name.
 
 The resolver subprocess is `opengwasdb resolve-analyses` (opengwasdb#208). It
 owns the process pool, the single genome-scale reference load, and the atomic,
@@ -1165,7 +1165,9 @@ always find the same area and the same lock.
   one measurement. So the run resolves into `checkpoint/<settings-digest>/`. The
   digest covers the flags `resolver_settings` passes (everything but the
   manifest, records directory and worker count), the content checksum of each
-  file they name, and the installed resolver's identity; it is recorded in the
+  file they name -- the checksum a Reference Resource declares where one does
+  (the liftover chain), so composing it reads no host file that is declared --
+  and the installed resolver's identity; it is recorded in the
   receipt as `resolver.settings_digest`. It is only a routing key: the
   resolver still checks every Analysis's full fingerprint, so a setting the
   digest misses causes a re-resolve, never a wrong reuse. Per-Analysis inputs

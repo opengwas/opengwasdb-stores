@@ -1242,12 +1242,16 @@ def column_map_binding(config: CandidateConfiguration) -> ColumnMapBinding | Non
 
 
 def liftover_chain(config: CandidateConfiguration) -> tuple[str, str] | None:
-    """``(location, sha256)`` of the declared liftover chain, or ``None`` when none is named.
+    """The declared liftover chain's ``(location, sha256)``, or ``None`` when none is named.
 
     The chain is a declared Reference Resource (#292): its ``resource.yaml``
     states the file's ``sha256`` and the builds it lifts ``from`` and ``to``.
-    A chain that lifts to a build other than the Ancestry Reference Panel's,
-    or whose file no longer has the declared checksum, is refused.
+    This reads that declaration and nothing else -- a release's settings must
+    compose on a host that holds no ``/data``, such as a CI runner -- so the
+    ``sha256`` returned is the *declared* one and the file's own bytes are
+    checked before resolution by :func:`verify_liftover_chain`. A chain that
+    lifts to a build other than the Ancestry Reference Panel's is refused here:
+    that is a declaration, not a file.
     """
     if config.base.liftover_chain_resource_id is None:
         return None
@@ -1279,16 +1283,44 @@ def liftover_chain(config: CandidateConfiguration) -> tuple[str, str] | None:
             f"the Ancestry Reference Panel is {reference_build}; the chain must lift to the "
             "reference build"
         )
-    location = config.base.reference_resources[resource_id].location
+    return config.base.reference_resources[resource_id].location, document["sha256"]
+
+
+def verify_liftover_chain(config: CandidateConfiguration) -> None:
+    """Refuse a declared liftover chain whose file is absent or is not the declared bytes.
+
+    The resolver opens the chain, so the bytes must be the Reference Resource's
+    declared ``sha256`` before a resolve starts. This is the only place the chain
+    file is read (#292): composing the resolver's settings deliberately reads no
+    host file, so a stale or absent chain -- on a CI runner that has no
+    ``/data``, or a host whose chain was replaced -- stops the run here, by name.
+    """
+    chain = liftover_chain(config)
+    if chain is None:
+        return
+    location, declared = chain
+    resource_id = config.base.liftover_chain_resource_id
     if not Path(location).is_file():
-        raise CandidateError(f"liftover chain {location} (Reference Resource {resource_id!r}) is not a file")
+        raise CandidateError(
+            f"liftover chain {location} (Reference Resource {resource_id!r}) is not a file"
+        )
     actual = sha256_file(Path(location))
-    if actual != document["sha256"]:
+    if actual != declared:
         raise CandidateError(
             f"liftover chain {location} has sha256 {actual}; Reference Resource {resource_id!r} "
-            f"declares {document['sha256']}"
+            f"declares {declared}"
         )
-    return location, actual
+
+
+def declared_setting_checksums(config: CandidateConfiguration) -> dict[str, str]:
+    """The checksums a release's declarations state for files its resolver settings name.
+
+    Only the liftover chain is declared this way (#292): its Reference Resource
+    states the file's ``sha256``, so :func:`resolver_settings_digest` needs the
+    declaration, and not the file, to compose a run's routing key.
+    """
+    chain = liftover_chain(config)
+    return {chain[0]: chain[1]} if chain is not None else {}
 
 
 def resolver_settings(config: CandidateConfiguration) -> list[str]:
@@ -1404,15 +1436,22 @@ def _column_map_sha256(spec: str) -> str:
         raise CandidateError(f"resolver setting --column-map {spec}: {exc}") from exc
 
 
-def resolver_settings_digest(settings: Sequence[str]) -> str:
+def resolver_settings_digest(
+    settings: Sequence[str], *, declared_checksums: Mapping[str, str] | None = None
+) -> str:
     """The digest that routes a run to its checkpoint in the Resolution Area (#284).
 
     It covers the resolver settings that enter every record's fingerprint:
     :func:`resolver_settings` as passed, the content checksum of every file
-    they name, and the installed resolver's identity. It is only a routing key
-    -- the resolver checks each Analysis's full fingerprint on ``--resume`` --
-    so a setting it misses causes a re-resolve, never a wrong reuse.
+    they name, and the installed resolver's identity. ``declared_checksums``
+    replace the content checksum of the files it names with the checksum a
+    release *declares* for them (:func:`declared_setting_checksums`), so
+    composing the key reads no host file that is declared (#292). It is only a
+    routing key -- the resolver checks each Analysis's full fingerprint on
+    ``--resume`` -- so a setting it misses causes a re-resolve, never a wrong
+    reuse.
     """
+    declared = dict(declared_checksums or {})
     files: dict[str, str] = {}
     for position, token in enumerate(settings[:-1]):
         value = settings[position + 1]
@@ -1426,6 +1465,9 @@ def resolver_settings_digest(settings: Sequence[str]) -> str:
             files[f"column-map:{value}"] = _column_map_sha256(value)
             continue
         else:
+            continue
+        if path in declared:
+            files[path] = declared[path]
             continue
         if not Path(path).is_file():
             raise CandidateError(
@@ -2119,6 +2161,8 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
         contract["column_map"] = column_map.fingerprint()
     chain = liftover_chain(config)
     if chain is not None:
+        # The declared checksum: the resolve stage refused the run unless the
+        # file's own bytes were these (#292).
         contract["liftover_chain"] = {
             "resource_id": config.base.liftover_chain_resource_id,
             "location": chain[0],
@@ -3867,6 +3911,7 @@ __all__ = [
     "collection_analysis_ids",
     "compute_resolution_contract",
     "controlled_exclusion_categories",
+    "declared_setting_checksums",
     "derive_resolver_manifest",
     "info_score_emission",
     "load_candidate_configuration",
@@ -3892,6 +3937,7 @@ __all__ = [
     "sha256_file",
     "sha256_text",
     "validate_candidate_analyses",
+    "verify_liftover_chain",
     "verify_records",
     "write_resolution_receipt",
 ]

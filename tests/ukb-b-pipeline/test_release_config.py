@@ -27,10 +27,10 @@ import yaml
 
 from manifest_generation import REPO_ROOT
 from manifest_generation.candidate_workflow import (
+    declared_setting_checksums,
     load_candidate_configuration,
     render_build_yaml,
     resolver_settings,
-    resolver_settings_digest,
 )
 from manifest_generation.freeze import load_frozen_connectors
 from manifest_generation.release_config import load_release_config
@@ -150,7 +150,8 @@ class FullReleaseConfigTest(unittest.TestCase):
     def test_the_cross_build_lift_chain_is_declared_and_passed(self) -> None:
         # The VCFs are GRCh37 and the ancestry mixture is GRCh38, so the resolver
         # is passed the declared chain (#292); without it a cross-build source is
-        # refused. Its checksum joins the settings digest.
+        # refused. Its declared checksum joins the settings digest. Composing the
+        # settings reads no host file, so this passes on a runner with no /data.
         self.assertEqual(self.config.liftover_chain_resource_id, "liftover-hg19-to-hg38")
         chain = self.config.reference_resources["liftover-hg19-to-hg38"]
         self.assertEqual(chain.kind, "liftover_chain")
@@ -162,10 +163,13 @@ class FullReleaseConfigTest(unittest.TestCase):
         settings = resolver_settings(candidate)
         self.assertEqual(option(settings, "--chain-file"), str(chain.location))
         self.assertEqual(option(settings, "--reference-build"), "GRCh38")
-        without = [token for token in settings]
-        del without[without.index("--chain-file") : without.index("--chain-file") + 2]
-        self.assertNotEqual(
-            resolver_settings_digest(settings), resolver_settings_digest(without)
+        # What the settings digest folds in is the declaration's checksum, which
+        # is the one fact about the chain composing a run's key needs.
+        declaration = yaml.safe_load(
+            (REPO_ROOT / "resources/reference-resources/liftover-hg19-to-hg38/resource.yaml").read_text()
+        )
+        self.assertEqual(
+            declared_setting_checksums(candidate), {str(chain.location): declaration["sha256"]}
         )
 
     def test_the_completion_reference_is_ogs_00009_s(self) -> None:
