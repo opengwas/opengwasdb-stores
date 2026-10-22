@@ -241,6 +241,8 @@ rsid.
 The policy is per Build Recipe, so it is the recipe that declares it; stores
 #225 adds `on-rsid-conflict: drop` to OGS-00011's, as a Release Erratum, and
 `register` copies the counts into the Validation Record's
-`observed.rsid_conflicts`. A checkpoint records the policy, so a build
+`observed.rsid_conflicts`. A release that completes its own Store carries them
+from its build phase, because `complete-hybrid` reports none: the counts
+describe the completed Store too. A checkpoint records the policy, so a build
 checkpointed before the option existed reads as `refuse`: resuming it under
 `drop` is refused, as resuming under any other changed parameter is.

@@ -71,6 +71,8 @@ def create_test_bundle_and_records(
     post: dict[str, Any] | None = None,
     variant_reference: object = None,
     custom_records: dict[str, dict[str, Any]] | None = None,
+    build_command: str = "build-dense-vcf",
+    build_options: dict[str, Any] | None = None,
 ) -> tuple[Bundle, Path, Path]:
     """Helper to create a test bundle with staged artifact directories and valid execution records."""
     stores_root = temp_dir / "stores"
@@ -110,7 +112,10 @@ def create_test_bundle_and_records(
         bld_dict["complete"] = {"command": command, "options": options or {"ancestry": "EUR"}}
         if derived_from is None:
             # One id, published twice: the build phase comes first (ADR 0037).
-            bld_dict["build"] = {"command": "build-dense-vcf", "options": {"source-assembly": "hg38"}}
+            bld_dict["build"] = {
+                "command": build_command,
+                "options": build_options or {"source-assembly": "hg38"},
+            }
     else:
         bld_dict["build"] = {"command": command, "options": options or {"source-assembly": "hg38"}}
     if variant_reference is not None:
@@ -332,7 +337,13 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         )
 
     def test_a_build_that_reported_no_rsid_conflicts_records_none(self) -> None:
-        """A build that compared no names across sources carries the key not at all, not as zero (#225)."""
+        """A record with no `rsid_conflicts` block leaves the key absent, not zero (#225).
+
+        Absence means the builder reported no such block at all -- one older than
+        the option, or a non-Hybrid one. A Hybrid build that compared no names
+        across sources still reports the block, with null counts, and those are
+        written.
+        """
         b, stores_root, artifact_root = create_test_bundle_and_records(
             self.td, "OGS-00054", layout="hybrid", command="build-hybrid", post=HYBRID_POST
         )
@@ -1272,6 +1283,91 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         self.assertEqual(sorted(p.name for p in (archive / "records").iterdir()), ["register.json"])
         self.assertEqual((archive / "records" / "register.json").read_bytes(), build_register)
         self.assertEqual((archive / "validation.yaml").read_bytes(), build_record)
+
+    # A Hybrid release completing its own Store: OGS-00011's shape (#225).
+    HYBRID_STORE_ID = "OGS-00072"
+
+    def built_and_completed_hybrid(self) -> tuple[Bundle, Path, Path]:
+        """A Hybrid release's two phases, its completed Store staged and nothing published (ADR 0037)."""
+        return create_test_bundle_and_records(
+            self.td,
+            self.HYBRID_STORE_ID,
+            layout="hybrid",
+            completion_state="reference_completed",
+            command="complete-hybrid",
+            build_command="build-hybrid",
+            options={"ld-panel": "/data/ld", "ancestry": "EUR"},
+        )
+
+    def register_completion(self, store_id: str, stores_root: Path, artifact_root: Path) -> dict[str, Any]:
+        """Publish the build phase's Observed-Only Store, then register the completion over it."""
+        partial = paths.partial_store_path(store_id, root=artifact_root)
+        (partial / "version.txt").write_text("observed", encoding="utf-8")
+        register_release(bundle.load(store_id, registry_root=stores_root), registry_root=stores_root, artifact_root=artifact_root)
+        partial.mkdir()
+        (partial / "version.txt").write_text("completed", encoding="utf-8")
+        with patch.object(run, "utc_stamp", return_value=self.STAMP):
+            return register_release(
+                bundle.load(store_id, registry_root=stores_root),
+                registry_root=stores_root,
+                artifact_root=artifact_root,
+                phase="completion",
+            )
+
+    def test_the_completion_record_carries_the_builds_rsid_conflict_counts(self) -> None:
+        """The counts a Hybrid build reported survive the completion's own publication (#225).
+
+        `complete-hybrid` reports no `rsid_conflicts`, so the completion carries
+        the counts its build phase's record holds: the completed Store is the
+        one those counts describe, and dropping them at the second publication
+        would leave the shipped Validation Record without the evidence the
+        owner's decision produced.
+        """
+        b, stores_root, artifact_root = self.built_and_completed_hybrid()
+        set_build_stdout(
+            self.HYBRID_STORE_ID,
+            artifact_root,
+            {
+                "n_variants": 1000,
+                "n_analyses": 2,
+                "format_version": "0.2.0",
+                "rsid_conflicts": {
+                    "policy": "drop",
+                    "n_keys": 7,
+                    "n_variants": 9,
+                    "sample": [{"key": "1:905:C:T", "names": ["rs199633771", "rs1"]}],
+                },
+            },
+        )
+
+        written = self.register_completion(self.HYBRID_STORE_ID, stores_root, artifact_root)
+
+        self.assertEqual(
+            written["observed"]["rsid_conflicts"],
+            {"policy": "drop", "n_keys": 7, "n_variants": 9},
+            "the build's counts are the release's, not the phase's",
+        )
+        self.assertEqual(
+            yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))["observed"]["rsid_conflicts"],
+            {"policy": "drop", "n_keys": 7, "n_variants": 9},
+        )
+
+    def test_a_completion_whose_build_reported_no_counts_carries_none(self) -> None:
+        """A build record with no `rsid_conflicts` block leaves the completion's record without it (#225)."""
+        b, stores_root, artifact_root = self.built_and_completed_hybrid()
+        set_build_stdout(
+            self.HYBRID_STORE_ID,
+            artifact_root,
+            {"n_variants": 1000, "n_analyses": 2, "format_version": "0.2.0"},
+        )
+
+        written = self.register_completion(self.HYBRID_STORE_ID, stores_root, artifact_root)
+
+        self.assertNotIn("rsid_conflicts", written["observed"])
+        self.assertNotIn(
+            "rsid_conflicts",
+            yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))["observed"],
+        )
 
     def test_the_completion_phase_of_a_forced_entry_point_run_is_forced(self) -> None:
         """Forced is read from the build phase's register record: that phase used up the run's snapshot (#309).

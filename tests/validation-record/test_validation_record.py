@@ -93,8 +93,9 @@ CONDITIONAL_OBSERVED_VALUES: dict[str, frozenset[object]] = {
 
 # The conditional observed keys whose value is a block rather than a scalar, and
 # the keys that block carries: the counts a Hybrid build's rsid harvest reports
-# (issue #225). The build's `sample` names variants, not a measurement, so
-# `register` leaves it in the step record.
+# (issue #225), which a completion phase carries from its build phase because
+# `complete-hybrid` reports none. The build's `sample` names variants, not a
+# measurement, so `register` leaves it in the step record.
 CONDITIONAL_OBSERVED_MAPPINGS: dict[str, tuple[str, ...]] = {
     "rsid_conflicts": ("policy", "n_keys", "n_variants"),
 }
