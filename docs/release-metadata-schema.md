@@ -188,13 +188,21 @@ required and must be a non-empty string; its referenced files are deliberately
 not inspected, because monolithic BESD source identity is an unverified host
 path prefix (issue #134, a known integrity gap).
 
-**BESD resolution (#291).** A BESD file set holds an Analysis per probe, so the
+<a id="besd-file-sets"></a>
+**BESD file sets (#291): identity, resolution and verification.** This is the one
+normative definition; the connector contract and the eQTLGen section link here.
+A BESD file set is `.besd`, `.epi` and `.esi` under one prefix, and holds an
+Analysis per probe. Its identity is each member's own size and sha256, recorded in
+the Acquisition Manifest's `members` ([columns](spec/source-connectors.md#acquisition-manifest)),
+with the `.besd` member's size and sha256 standing for the set in the single-file
+`bytes` and `sha256` columns; no composite checksum exists. The
 resolver manifest declares each Analysis with `source_reader_capability`
 `opengwasdb.besd`, `source_file` the file set's prefix (no `.besd`, `.epi` or
 `.esi`) and a `source_probe_id` column naming its `.epi` probe. The column is
 required for a BESD row and refused for any other, and is blank everywhere else.
-`checksum` and `size_bytes` are the `.besd` member's: the Acquisition Manifest
-records every member's own size and sha256 and no composite. Because the
+`checksum` and `size_bytes` are the `.besd` member's. Preflight holds every
+member the Acquisition Manifest records to its recorded size and names a missing
+or resized one. Because the
 prefix is not a file, a Resolution Record binds `fingerprints.source_member_files`
 (each member's `bytes` and `mtime_ns`) and `resolution_config.source_probe_id`
 instead of a source file's size and mtime, and Manifest Generation holds them

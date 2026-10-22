@@ -8,7 +8,7 @@ the one file set (its prefix, with the members' own checksums). They go through
 the one entry point -- ``prepare``, ``resolve`` against the stage tests' fake
 resolver, ``render`` and ``emit`` -- into a temporary registry, so this suite
 pins that the pipeline needs nothing eQTLGen-specific beyond its connectors and
-its release config. It also pins the two BESD-specific seams inside that
+its release config. It also pins the two BESD-specific steps inside that
 pipeline: a prefix is verified through its member files, and the rendered
 ``release.yaml`` carries the prefix and build ``build-ragged-besd`` reads.
 
@@ -284,7 +284,7 @@ class EqtlgenEndToEndTest(unittest.TestCase):
         bundle_dir = self.fixture.registry_root / STORE_ID
         release = yaml.safe_load((bundle_dir / "release.yaml").read_text())
         self.assertEqual(release["status"], "candidate")
-        # render: the prefix and the build the BESD builder reads (seam 4).
+        # render: the prefix and the build the BESD builder reads.
         self.assertEqual(release["source_snapshot"]["besd_prefix"], str(self.prefix))
         self.assertEqual(release["source_snapshot"]["source_genome_build"], "hg19")
         build = yaml.safe_load((bundle_dir / "build.yaml").read_text())
@@ -315,10 +315,10 @@ class EqtlgenEndToEndTest(unittest.TestCase):
         self.assertEqual(
             bundle_module.check(loaded, registry_root=self.fixture.registry_root), []
         )
-        # The bundle's plan finds the BESD prefix it reads (seam 4).
+        # The bundle's plan finds the BESD prefix it reads.
         self.assertEqual(plan_module._besd_prefix(loaded), self.prefix)
 
-    # -- a prefix is verified through its member files (seam 3) ------------------
+    # -- a prefix is verified through its member files ------------------
 
     def test_an_unchanged_file_set_resumes_and_resolves_nothing_again(self) -> None:
         first = self.stage._run_cli(self.fixture, "--stage", "all", store_id=STORE_ID)

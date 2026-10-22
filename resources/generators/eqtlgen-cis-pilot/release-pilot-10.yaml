@@ -41,19 +41,16 @@ release_config_version: 1
 label: pilot-10
 access_posture: public
 description: >
-  10 well-known genes' cis-eQTL summary statistics from the eQTLGen Consortium's
-  2019 whole-blood cis-eQTL meta-analysis (31,684 samples), built into a real
-  Ragged Observed-Only Store via opengwasdb's existing build_ragged_from_besd().
-  Proves the BESD -> Ragged pipeline end to end; not the full eQTLGen cis-eQTL
-  catalogue (19,250 genes).
+  The 10-probe eQTLGen cis-eQTL pilot on the shared Manifest Generation pipeline:
+  the Selection the Trial Store Release OGS-00001 was built from, resolved from the
+  BESD source's own allele frequencies. A Ragged Observed-Only candidate; not the
+  full eQTLGen cis-eQTL catalogue (19,250 genes).
 notes: >
-  Probes chosen for well-characterised cis-eQTL signal and biological familiarity
-  (lipid metabolism, immune response, tumour suppression), spanning 8 chromosomes
-  and including one MHC-adjacent locus (TNF). Gene symbols for each Ensembl probe
-  ID: ENSG00000175445=LPL, ENSG00000134243=SORT1, ENSG00000130203=APOE,
-  ENSG00000073605=GSDMB, ENSG00000164308=ERAP2, ENSG00000232810=TNF,
-  ENSG00000141510=TP53, ENSG00000136244=IL6, ENSG00000087237=CETP,
-  ENSG00000136997=MYC. The source is on GRCh37 (hg19); the Store is GRCh38.
+  Probes are the pilot's ten (LPL, SORT1, APOE, GSDMB, ERAP2, TNF, TP53, IL6,
+  CETP, MYC; Ensembl ids in the Selection below), spanning 8 chromosomes and
+  including one MHC-adjacent locus (TNF). The source is on GRCh37 (hg19); the
+  Store is GRCh38. Ancestry and the phenotype SD are measured by Analysis
+  Resolution, where OGS-00001 left them blank.
 
 source_collection:
   source_collection_id: eqtlgen-cis
