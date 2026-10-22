@@ -12,7 +12,8 @@ Responsibilities:
      is accepted and recorded as `resumed: true` in `validation.yaml`.
 3. Harvests observed measurements from step records:
    `format_version`, `n_variants`, `n_analyses`, `n_associations`, `store_bytes`,
-   `build_elapsed_s`, `completion_state`, and `validate_status`.
+   `build_elapsed_s`, `completion_state`, and `validate_status`, plus the
+   `rsid_conflicts` counts a Hybrid build reports (#225) when it reports them.
    The verdict, `checks`, `warnings` and `errors` are this run's alone: they come
    from `opengwasdb validate --format json`, and nothing is carried from the
    Validation Record being replaced (#195). A candidate's Phase B evidence is
@@ -83,6 +84,11 @@ BUILD_ENVIRONMENT_FIELDS: tuple[str, ...] = (
     "python_version",
     "platform",
 )
+# The keys of the `rsid_conflicts` block a Hybrid build reports and `register`
+# copies into the Validation Record (#225): the policy it built under, how many
+# routing keys its sources named differently, and how many variants that left
+# unnamed. The build's `sample` is left in the step record.
+RSID_CONFLICT_FIELDS: tuple[str, ...] = ("policy", "n_keys", "n_variants")
 
 
 class RegisterError(RuntimeError):
@@ -485,6 +491,7 @@ def harvest_observed_measurements(
     n_analyses: int | None = None
     n_associations: int | None = None
     store_bytes: int | None = None
+    rsid_conflicts: dict[str, Any] | None = None
     validate_status, _, _ = validate_verdict(step_records.get(_validate_step(planned_steps)))
 
     # 1. Harvest from build or complete record
@@ -501,6 +508,17 @@ def harvest_observed_measurements(
                 n_associations = stdout_json["n_associations"]
             if "format_version" in stdout_json and isinstance(stdout_json["format_version"], str):
                 format_version = stdout_json["format_version"]
+            # A Hybrid build reports what its rsid harvest compared (#225,
+            # opengwasdb#306), with a count of 0 when nothing was disputed and
+            # null when it compared no names across sources. The counts are a
+            # measurement; the sample names individual variants and stays in the
+            # step record.
+            reported_conflicts = stdout_json.get("rsid_conflicts")
+            if isinstance(reported_conflicts, Mapping):
+                rsid_conflicts = {
+                    key: reported_conflicts.get(key)
+                    for key in RSID_CONFLICT_FIELDS
+                }
         else:
             stdout_text = rec.get("stdout", "")
             m_var = re.search(r"(\d+)\s+variants", stdout_text)
@@ -562,6 +580,11 @@ def harvest_observed_measurements(
 
     if is_resumed:
         observed["resumed"] = True
+
+    # Absent when the build reported none, as every build that harvested no
+    # names across sources does (#225).
+    if rsid_conflicts is not None:
+        observed["rsid_conflicts"] = rsid_conflicts
 
     return observed
 
@@ -1229,6 +1252,7 @@ def register_release(
 __all__ = [
     "BUILD_ENVIRONMENT_FIELDS",
     "OBSERVED_FIELDS",
+    "RSID_CONFLICT_FIELDS",
     "VALIDATOR_NAME",
     "ArgvDriftError",
     "MissingRecordError",

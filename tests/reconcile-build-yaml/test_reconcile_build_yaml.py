@@ -128,6 +128,10 @@ def test_reconcile_stores() -> None:
     check("source-assembly" in active_cli["build-dense-vcf"], "build-dense-vcf has --source-assembly")
     check("source-reader-capability" in active_cli["build-hybrid"], "build-hybrid has --source-reader-capability")
     check("source-assembly" in active_cli["build-hybrid"], "build-hybrid has --source-assembly")
+    # OGS-00011's recipe declares this one, and no Store this suite reconciles
+    # does (#225): a pin without it would silently drop the policy the recipe
+    # sets, so it is checked here beside the flags those Stores use.
+    check("on-rsid-conflict" in active_cli["build-hybrid"], "build-hybrid has --on-rsid-conflict")
     check("analyses" in active_cli["build-ragged-besd"], "build-ragged-besd has --analyses")
 
     stores_dir = REPO_ROOT / "stores"

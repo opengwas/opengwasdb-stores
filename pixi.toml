@@ -241,6 +241,14 @@ threadpoolctl = ">=3.0"
 # `eb4c749..32f47b3` is #296's commits and merge; #296 is its only functional
 # change.
 #
+# Repinned for #225 to `1e2fb42`, the merge of opengwasdb#306 into the same
+# integration branch, again not yet on core `dev`: `build-hybrid` gained
+# `--on-rsid-conflict {refuse,drop}` and always reports what its rsid harvest
+# compared, so a Hybrid build can record where its sources disagree on a
+# variant's name instead of refusing every such key. The range
+# `32f47b3..1e2fb42` is #306's commits and merge; #306 is its only functional
+# change.
+#
 # Because these capabilities ship in the tracked pin, the ordinary
 # `pixi run release` invocation resolves a capable runtime from this
 # environment with no ad-hoc `PATH` overlay (the HM3 proof's temporary
@@ -256,7 +264,7 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "32f47b3b9c9bbab684a2f424a6f6ff617be0a8b1" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "1e2fb4203cdda842bd40270a870814e0167607b1" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

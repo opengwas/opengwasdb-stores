@@ -15,6 +15,8 @@
       "--n-workers",
       "24",
       "--checkpoint",
+      "--on-rsid-conflict",
+      "drop",
       "--source-reader-capability",
       "opengwasdb.gwas-ssf",
       "--source-assembly",

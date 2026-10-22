@@ -5,7 +5,8 @@ Verifies the central contracts of ADR 0022 and ADR 0023:
 1. `validation.yaml` is written atomically only by `register`; failed runs leave any previous
    `validation.yaml` completely intact.
 2. Observed measurements (format_version, n_variants, n_analyses, n_associations, store_bytes,
-   build_elapsed_s, validate_status) are harvested from step records.
+   build_elapsed_s, validate_status, and a Hybrid build's rsid_conflicts) are harvested from step
+   records.
 3. Argv drift check fails and names the exact difference when executed argv differs from plan.
    Staging normalization applies (store.opengwasdb.partial -> store.opengwasdb).
 4. `complete-dense-resume` is accepted as a legitimate divergence for planned `complete-dense`
@@ -301,6 +302,73 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         self.assertEqual(obs["validate_status"], "passed")
         self.assertGreater(obs["build_elapsed_s"], 10.0)
 
+    def test_the_builds_rsid_conflict_counts_are_recorded(self) -> None:
+        """A Hybrid build's rsid harvest is carried in counts, never its sample of variants (#225)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td, "OGS-00053", layout="hybrid", command="build-hybrid", post=HYBRID_POST
+        )
+        set_build_stdout(
+            "OGS-00053",
+            artifact_root,
+            {
+                "n_variants": 1000,
+                "n_analyses": 2,
+                "format_version": "0.2.0",
+                "rsid_conflicts": {
+                    "policy": "drop",
+                    "n_keys": 99577,
+                    "n_variants": 99577,
+                    "sample": [{"key": "1:905:C:T", "names": ["rs199633771", "rs1"]}],
+                },
+            },
+        )
+
+        val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertEqual(
+            val_data["observed"]["rsid_conflicts"],
+            {"policy": "drop", "n_keys": 99577, "n_variants": 99577},
+            "the counts and the policy are the measurement; the sample names variants",
+        )
+
+    def test_a_build_that_reported_no_rsid_conflicts_records_none(self) -> None:
+        """A build that compared no names across sources carries the key not at all, not as zero (#225)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td, "OGS-00054", layout="hybrid", command="build-hybrid", post=HYBRID_POST
+        )
+        set_build_stdout(
+            "OGS-00054",
+            artifact_root,
+            {"n_variants": 1000, "n_analyses": 2, "format_version": "0.2.0"},
+        )
+
+        val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertNotIn("rsid_conflicts", val_data["observed"])
+
+    def test_reported_rsid_conflict_nulls_are_recorded_as_nulls(self) -> None:
+        """A build that compared no names reports null counts, and the record keeps null, not 0 (#225)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td, "OGS-00055", layout="hybrid", command="build-hybrid", post=HYBRID_POST
+        )
+        set_build_stdout(
+            "OGS-00055",
+            artifact_root,
+            {
+                "n_variants": 1000,
+                "n_analyses": 2,
+                "format_version": "0.2.0",
+                "rsid_conflicts": {"policy": "refuse", "n_keys": None, "n_variants": None},
+            },
+        )
+
+        val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertEqual(
+            val_data["observed"]["rsid_conflicts"],
+            {"policy": "refuse", "n_keys": None, "n_variants": None},
+        )
+
     def test_written_record_matches_the_documented_register_shape(self) -> None:
         """The written validation.yaml carries exactly the canonical register keys (issue #135).
 
@@ -315,6 +383,19 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         self.assertEqual(set(written["observed"]), set(register.OBSERVED_FIELDS))
         self.assertEqual(set(written["build_environment"]), set(register.BUILD_ENVIRONMENT_FIELDS))
         self.assertEqual(written["validator"]["name"], register.VALIDATOR_NAME)
+
+
+# A Hybrid release's post choices: `build-hybrid` builds the top-hit index inline, so
+# neither phase schedules a `top-hits` step (plan.POST_DEFAULTS).
+HYBRID_POST: dict[str, Any] = {"top_hits": False, "rho": False, "overview": True, "validate": True}
+
+
+def set_build_stdout(store_id: str, artifact_root: Path, payload: dict[str, Any]) -> None:
+    """Replace what the build step's record says the builder printed as its JSON summary."""
+    rec_p = paths.record_path(store_id, "build", root=artifact_root)
+    rec = json.loads(rec_p.read_text(encoding="utf-8"))
+    rec["stdout"] = json.dumps(payload) + "\n"
+    run._write_record_atomically(rec, rec_p)
 
 
 def set_validate_output(store_id: str, artifact_root: Path, stdout: str, stderr: str = "") -> None:
