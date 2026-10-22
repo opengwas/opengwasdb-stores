@@ -165,7 +165,7 @@ class PerSourceStatisticsTests(unittest.TestCase):
         for expected in (
             "gwas_catalog/source_metadata_adapter.py",
             "gwas_catalog/write_acquisition_manifest.py",
-            "ukb_b/generate_candidate.py",
+            "ukb_b/source_metadata_adapter.py",
             "dbgap/metadata.py",
             "dbgap/mvp/source_metadata_adapter.py",
             "dbgap/mvp/acquire_dbgap_phs002453.py",

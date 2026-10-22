@@ -117,12 +117,22 @@ untouched: it is OGS-00009's accepted record, in the retired local format.
 
 ## Retired paths
 
-`providers/ukb_b/inventory.py` and its suite retired with #289: the shared
-freeze replaces it, and `tests/freeze/test_ukb_b_reconciliation.py` ports the
-missing-file, unclaimed-file and duplicate cases it caught. The R generator
-(`generate.R`, `lib/opengwas_gwas_vcf_dense.R`,
-`lib/source-formats/opengwas-gwas-vcf-dense/generate.R` and the OpenGWAS
-metadata resolvers) and `providers/ukb_b/generate_candidate.py` retire with the
-rest of ukb-b's bespoke path; until then `config-candidate.yaml` and
-`config-pilot-10.yaml` stay unchanged as the history OGS-00009's and
-OGS-00008's `generator.commands` cite.
+ukb-b's bespoke path is gone (#289):
+
+- `providers/ukb_b/inventory.py` and its suite, replaced by the shared freeze
+  (`tests/freeze/test_ukb_b_reconciliation.py` ports the failures it caught);
+- `providers/ukb_b/generate_candidate.py` and its suite, replaced by the shared
+  pipeline (#340 ported its completion-reference logic first);
+- the R path -- `generate.R`, `lib/opengwas_gwas_vcf_dense.R`,
+  `lib/source-formats/opengwas-gwas-vcf-dense/generate.R` and
+  `lib/metadata_resolvers/opengwas_api.R` -- with their suites
+  (`tests/opengwas-gwas-vcf-dense`, `tests/metadata-resolvers/opengwas-api`).
+
+`lib/metadata_resolvers/canonical_trait_table.R` and `ontology_contract.R`
+stay: they lost their generator with the R path, but the curation suites
+(`tests/curation/test_promotion.py`, `test_e2e_pipeline.py`) still source them
+to prove a promoted mapping row round-trips through the R resolver.
+
+`config-candidate.yaml` and `config-pilot-10.yaml` stay unchanged as the
+history OGS-00009's and OGS-00008's `generator.commands` cite, and
+`successor-identity.yaml` as the retired-id record.

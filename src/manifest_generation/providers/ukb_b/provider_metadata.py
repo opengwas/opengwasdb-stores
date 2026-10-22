@@ -10,10 +10,11 @@ traceable resolution record:
 
 - it resolves **exactly** the frozen inventory's Analysis IDs, and refuses a
   JSON whose own `id` or `batch` does not match (an exact-ID check, not a glob);
-- it applies the same resolution contract as the live resolver
-  (`resources/generators/lib/metadata_resolvers/opengwas_api.R`) -- `unit` maps
-  to `stored_effect_scale`, a usable `ncase`/`ncontrol` pair means
-  `case_control`, otherwise `sample_size` means `total`;
+- it applies the same resolution contract as the live resolver did
+  (`resources/generators/lib/metadata_resolvers/opengwas_api.R`, retired with
+  ukb-b's R path in #289) -- `unit` maps to `stored_effect_scale`, a usable
+  `ncase`/`ncontrol` pair means `case_control`, otherwise `sample_size` means
+  `total`;
 - it records each JSON's sha256 so the resolution is bound to frozen bytes;
 - it cross-checks every previously-resolved Analysis against a recorded
   resolution table given with `--recorded` (the `opengwas-api-r2026-08-10`

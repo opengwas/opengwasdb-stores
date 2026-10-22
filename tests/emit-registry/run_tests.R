@@ -61,7 +61,11 @@ write_yaml(list(status = "passed", validated_at = NULL, checks = list(schema = "
 # The working bundle's own command log, as a legacy writer records it.
 write_yaml(list(generator = list(command = "Rscript fixture/generate.R --mode=emit")),
            file.path(work_root, "release.yaml"))
-script <- "resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/generate.R"
+# The projection records the emitting script's sha256, so the fixture needs a
+# script that exists: it names the shared helper itself, because the last R
+# generator that used the projection (ukb-b's) retired with its R path (#289)
+# and this suite's subject is the helper, not any one generator.
+script <- "resources/generators/lib/emit_registry.R"
 cfg$.config_path <- "fixture/config.yaml"
 emit_registry(cfg, root, script, also_ran = "python fixture/acquire.py")
 commands <- c("Rscript fixture/generate.R --mode=emit", "python fixture/acquire.py",
@@ -105,35 +109,9 @@ no_id$output$store_id <- NULL
 missing <- tryCatch({ generation_work_root(no_id); NULL }, error = function(e) conditionMessage(e))
 check(!is.null(missing) && grepl("output.store_id", missing), "a missing output.store_id should be named")
 
-# Each legacy generator's --mode=emit-registry emits its working bundle through
-# the shared helper (#248). Their own suites cover how the bundle is made.
-generators <- list(
-  `opengwas-gwas-vcf-dense` = list(id = "OGS-99014", layout = "dense", command = "build-dense-vcf",
-                                   options = list(`source-reader-capability` = "opengwasdb.gwas-vcf"))
-)
-for (format in names(generators)) {
-  g <- generators[[format]]
-  generator_cfg <- cfg[!startsWith(names(cfg), ".")]
-  generator_cfg$output <- list(store_id = g$id, registry_root = registry_root)
-  generator_cfg$build <- list(layout = g$layout, completion_state = "observed_only", command = g$command,
-                              options = g$options, post = list(top_hits = FALSE, overview = FALSE))
-  generator_work <- generation_work_root(generator_cfg)
-  dir.create(generator_work, recursive = TRUE)
-  file.copy(file.path(work_root, c("analyses.tsv", "validation.yaml")), generator_work)
-  config_path <- file.path(tmp, paste0(format, ".yaml"))
-  write_yaml(generator_cfg, config_path)
-  output <- suppressWarnings(system2("Rscript", c(
-    file.path("resources/generators/lib/source-formats", format, "generate.R"),
-    paste0("--config=", config_path), "--mode=emit-registry"
-  ), stdout = TRUE, stderr = TRUE))
-  status <- attr(output, "status")
-  check(is.null(status) || status == 0L, "%s --mode=emit-registry failed:\n%s", format, paste(output, collapse = "\n"))
-  emitted_release <- read_yaml(file.path(registry_root, g$id, "release.yaml"))
-  check(identical(emitted_release$status, "candidate"), "%s should emit a candidate", format)
-  check(any(grepl(paste0(format, "/generate.R --config=.* --mode=emit-registry"), unlist(emitted_release$generator$commands))),
-        "%s should record its own emit-registry command", format)
-  emitted_build <- read_yaml(file.path(registry_root, g$id, "build.yaml"))
-  check(identical(emitted_build$layout, g$layout), "%s build.yaml layout should come from its config", format)
-}
+# ukb-b's R generator was this loop's only driver and retired with its R path
+# (#289); FinnGen's own suite drives its generator's --mode=emit-registry
+# (tests/finngen-r13-pilot/run_tests.R), and this suite's subject is the shared
+# helper, which the checks above cover.
 
 cat(sprintf("ALL %d CHECKS PASSED\n", n_checks))

@@ -9,6 +9,6 @@ shape as the UK Biobank panel at `/data/opengwasdb/reference/ancestry-mixture/`
 The suite that tested `manifest_generation.providers.gwas_catalog.ancestry_assign`
 against them retired with that module and the R GWAS-SSF generators that called
 it (#300): Analysis Resolution now measures ancestry for every Analysis (ADR
-0036). The fixtures stay because `tests/opengwas-gwas-vcf-dense/test_annotation.py`
-and `tests/finngen-r13-pilot/test_annotation.py` annotate against the same
-reference, each in its own temporary copy.
+0036). The fixtures stay because FinnGen's `tests/finngen-r13-pilot/test_annotation.py`
+annotates against the same reference in its own temporary copy (ukb-b's copy
+retired with its R path, #289).

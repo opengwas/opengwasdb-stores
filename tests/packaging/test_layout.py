@@ -43,12 +43,10 @@ LEGACY_R_GENERATORS: dict[str, str] = {
     "resources/generators/lib/finngen_r13_pilot.R": FINNGEN,
     "resources/generators/lib/metadata_resolvers/finngen_manifest.R": FINNGEN,
     "resources/generators/lib/source-formats/finngen-r13-dense/generate.R": FINNGEN,
-    "resources/generators/ukb-b/generate.R": UKB_B,
-    "resources/generators/lib/opengwas_gwas_vcf_dense.R": UKB_B,
-    "resources/generators/lib/metadata_resolvers/opengwas_api.R": UKB_B,
+    # ukb-b's R path retired with #289; these two stay only because the curation
+    # suites drive the R resolver to prove a promoted row round-trips (#289).
     "resources/generators/lib/metadata_resolvers/canonical_trait_table.R": UKB_B,
     "resources/generators/lib/metadata_resolvers/ontology_contract.R": UKB_B,
-    "resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/generate.R": UKB_B,
     "resources/generators/lib/build_environment.R": BOTH,
     "resources/generators/lib/emit_registry.R": BOTH,
     "resources/generators/lib/indexed_subsets.R": BOTH,

@@ -1203,19 +1203,23 @@ Three implementations exist:
   `stored_effect_scale = log_or`; otherwise it resolves as `total` with
   `stored_effect_scale = sd`; a field with no parseable numeric component
   resolves as `unresolved`.
-- `resources/generators/lib/metadata_resolvers/opengwas_api.R`
-  (`resolve_opengwas_api_metadata()`, issue #49), for the `opengwas-gwas-vcf`
-  Source Collection. It resolves a study's `ncase`/`ncontrol`/`sample_size`
-  from the OpenGWAS API's own "gwasinfo" record rather than the source GWAS-VCF
-  file's `##SAMPLE` header, which is not authoritative. A usable
-  `ncase`/`ncontrol` pair resolves `sample_size_kind` as `case_control`;
-  otherwise a usable `sample_size` resolves it as `total`; a record with neither
-  resolves as `unresolved`. `stored_effect_scale` primarily follows the API's
-  `unit` field (`SD` -> `sd`, `log odds`/`logOR` -> `log_or`, a hazard-ratio
-  unit -> `log_hazard`), falling back to `log_or`/`sd` from `ncase`/`ncontrol`
-  presence only when `unit` is absent or unrecognised (issue #50: the `ukb-b`
-  batch reports every trait on the SD scale, so inferring scale from
-  case/control-count presence alone is wrong for that batch).
+- `src/manifest_generation/providers/ukb_b/provider_metadata.py`
+  (`resolve_record()`, issue #219), for the `opengwas-gwas-vcf` Source
+  Collection, and the adapter that writes its Source Metadata Table (#289). It
+  resolves a study's `ncase`/`ncontrol`/`sample_size` from the OpenGWAS
+  "gwasinfo" record -- the provider JSON sidecar ukb-b ships beside each VCF,
+  since the stored API token expired -- rather than the source GWAS-VCF file's
+  `##SAMPLE` header, which is not authoritative. A usable `ncase`/`ncontrol`
+  pair resolves `sample_size_kind` as `case_control`; otherwise a usable
+  `sample_size` resolves it as `total`; a record with neither resolves as
+  `unresolved`. `stored_effect_scale` primarily follows the record's `units`
+  field (`SD` -> `sd`, `log odds`/`logOR` -> `log_or`, a hazard-ratio unit ->
+  `log_hazard`), falling back to `log_or`/`sd` from `ncase`/`ncontrol` presence
+  only when `units` is absent or unrecognised (issue #50: the `ukb-b` batch
+  reports every trait on the SD scale, so inferring scale from
+  case/control-count presence alone is wrong for that batch). The R resolver
+  that held this contract (`lib/metadata_resolvers/opengwas_api.R`) retired with
+  ukb-b's R path (#289).
 - `resources/generators/lib/metadata_resolvers/finngen_manifest.R`
   (`resolve_finngen_manifest_metadata()`, issue #57), for FinnGen's public
   endpoint manifest. Binary endpoint rows carry `num_cases` and `num_controls`
