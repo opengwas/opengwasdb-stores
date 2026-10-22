@@ -143,8 +143,11 @@ def acquire(
     prefix = Path(adopt_prefix) if adopt_prefix is not None else Path(out_dir) / name
 
     original = member_identity(source_prefix)
+    tool = tool_identity()
     if out.is_file():
-        members = _resume_members(out, prefix, rows)
+        members = _resume_members(
+            out, prefix, rows, source_prefix, original, tool, selection.as_dict()
+        )
     elif adopt_prefix is not None:
         members = _adopt(source_prefix, prefix, probes)
         print(f"Adopted {prefix}: its members are what the subset writer produces for the Selection")
@@ -157,7 +160,6 @@ def acquire(
         )
     data = members[".besd"]
     members_cell = members_text(members)
-    tool = tool_identity()
     manifest_rows = [
         {
             "source_analysis_id": row["source_analysis_id"],
@@ -200,9 +202,20 @@ def _adopt(
 
 
 def _resume_members(
-    out: Path, prefix: Path, rows: Sequence[Mapping[str, str]]
+    out: Path,
+    prefix: Path,
+    rows: Sequence[Mapping[str, str]],
+    source_prefix: Path,
+    original: Mapping[str, Mapping[str, Any]],
+    tool: str,
+    selection: Mapping[str, Any],
 ) -> dict[str, dict[str, Any]]:
-    """The subset a manifest already at ``out`` recorded, if it is still on disk and this Selection's."""
+    """The subset a manifest already at ``out`` recorded, if it is still on disk and this run's.
+
+    This run's means the same Selection, the same original (its prefix and every
+    member's sha256) and the same tool: retained output is never relabelled with a
+    new original or tool, so any difference is refused before anything is written.
+    """
     recorded = load_acquisition_manifest(out)
     wanted = {row["source_analysis_id"]: row["source_probe_id"] for row in rows}
     held = {entry.source_analysis_id: entry.source_probe_id for entry in recorded.entries}
@@ -214,6 +227,7 @@ def _resume_members(
     first = recorded.entries[0]
     if first.location != str(prefix):
         raise AcquisitionError(f"{out} records its file set at {first.location}, not {prefix}")
+    _lineage_problems(out, first, source_prefix, original, tool, selection)
     actual = member_identity(prefix)
     changed = [
         f"{suffix} (recorded sha256 {first.members[suffix]['sha256']}, on disk {actual[suffix]['sha256']})"
@@ -226,6 +240,48 @@ def _resume_members(
             "the recorded checksums stand and nothing was rewritten"
         )
     return actual
+
+
+def _lineage_problems(
+    out: Path,
+    first: Any,
+    source_prefix: Path,
+    original: Mapping[str, Mapping[str, Any]],
+    tool: str,
+    selection: Mapping[str, Any],
+) -> None:
+    """Refuse, by name, a run whose original, tool or Selection is not the one the record names."""
+    lineage = first.lineage
+    problems: list[str] = []
+    if lineage is None:
+        problems.append("it records no lineage")
+    else:
+        if lineage.original_location != str(source_prefix):
+            problems.append(
+                f"original prefix is {source_prefix}, recorded {lineage.original_location}"
+            )
+        if lineage.original_sha256 != original[".besd"]["sha256"]:
+            problems.append(
+                f"original .besd sha256 is {original['.besd']['sha256']}, recorded {lineage.original_sha256}"
+            )
+        if lineage.reformat_tool != tool:
+            problems.append(f"tool is {tool}, recorded {lineage.reformat_tool}")
+    sidecar = pass_lineage_path(out)
+    record = yaml.safe_load(sidecar.read_text(encoding="utf-8")) if sidecar.is_file() else None
+    if not isinstance(record, dict):
+        problems.append(f"its pass lineage {sidecar} is missing")
+    else:
+        held = ((record.get("original") or {}).get("members")) or {}
+        for suffix in BESD_MEMBERS:
+            if held.get(suffix) != dict(original[suffix]):
+                problems.append(f"original {suffix} is {dict(original[suffix])}, recorded {held.get(suffix)}")
+        if record.get("selection") != dict(selection):
+            problems.append(f"Selection is {dict(selection)}, recorded {record.get('selection')}")
+    if problems:
+        raise AcquisitionError(
+            f"{out} was written from another original, tool or Selection: {'; '.join(problems)}; "
+            "the recorded lineage stands and nothing was rewritten"
+        )
 
 
 def _write_pass_lineage(

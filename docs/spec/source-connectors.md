@@ -256,7 +256,7 @@ file for that Analysis -- an explained absence (see Freeze).
 | `original_location`, `original_sha256`, `reformat_tool` | No; all three or none | Lineage of a file acquisition changed: the original's path and sha256 and the tool, with its version, that changed it. Only on a ready row. Acquisition changes a file in two cases: a structural change no reader or Column Map can cope with, such as splitting one file into one per Analysis, and filtering it to a release's region policy (#300, below). |
 | `original_bytes` | No; only with lineage | The original's size. It stands in for `original_sha256` only for an original filtered before acquisition checksummed it, and since deleted: Chen 2023's files, filtered by the retired R generator, whose `filter_summary.tsv` recorded each original's size and no checksum. |
 | `region_policy` | No; only with lineage | The region policy a region-filtered file was filtered to: one JSON object with sorted keys and no spaces, naming `region_policy_id` and `association_coverage` (`signals_only` or `cis_plus_signals`), `trans_flank_bp` and `suggestive_lead_min_distance_bp` (whole bases), `significant_p` and `suggestive_p` (in (0, 1]), the QC panel's `resource_id` and `sha256` (every policy keeps one, ADR 0036), and for a cis policy `cis_flank_bp` and the `target` span used (`chromosome`, `start`, `end`). A policy missing any of them, or a cis flank or target on a signals-only one, is refused. |
-| `source_probe_id`, `members` | No; both or neither, only on a ready row | A BESD file set several Analyses share (#291). `location` is the file set's prefix (the path without `.besd`, `.epi` or `.esi`), `source_probe_id` the `.epi` probe this Analysis reads, and `members` one JSON object with sorted keys and no spaces naming exactly `.besd`, `.epi` and `.esi`, each with its `bytes` (a whole number) and lower-case `sha256`. The file set's `bytes` and `sha256` columns are the `.besd` member's -- the file that holds the associations -- and are refused if they are not. There is no composite checksum: the members' own are what the resolver's `source_member_files` fingerprint (size and mtime of each member) is checked against. |
+| `source_probe_id`, `members` | No; both or neither, only on a ready row | A BESD file set several Analyses share (#291): `location` is the file set's prefix, `source_probe_id` the `.epi` probe this Analysis reads, and `members` one JSON object with sorted keys and no spaces naming exactly `.besd`, `.epi` and `.esi`, each with its `bytes` and lower-case `sha256`. The `bytes` and `sha256` columns are the `.besd` member's and are refused if they are not. Identity and verification are defined once, in the [release metadata schema](../release-metadata-schema.md#besd-file-sets). |
 
 A duplicate `source_analysis_id` is refused, and so is a file -- a `location`
 or `sidecar_location` -- claimed by two rows.
@@ -523,8 +523,11 @@ lineage) records the Selection, the probes in order, every original member's siz
 and sha256, the subset's members and the tool.
 
 A re-run resumes only the run it is: with the manifest present, the subset's
-members must still be the bytes it records, and are kept; a different Selection
-or a changed member is refused by name and nothing is rewritten.
+members must still be the bytes it records, and are kept, and the original (its
+prefix and every member's sha256), the tool and the Selection must be the ones the
+manifest and its pass lineage record. A different Selection, a changed member, or
+a changed original or tool is refused by name, and nothing is rewritten: retained
+output is never relabelled with a new original.
 
 **The release config** (`resources/generators/eqtlgen-cis-pilot/release-pilot-10.yaml`)
 is OGS-00001's Selection: `layout: ragged`, `command: build-ragged-besd`, the
@@ -538,13 +541,7 @@ frequencies, ADR 0019), `sample_size_kind: total`. The release names no reader:
 reference GRCh38, so the resolver needs a liftover chain, which the release
 config names as a Reference Resource (#292).
 
-**Verification is of the member files.** A BESD `source_file` is a prefix, not a
-file. Preflight holds each member the Acquisition Manifest records to its recorded
-size, and names a missing or resized member; a Resolution Record binds each
-member's size and mtime (`fingerprints.source_member_files`) and the Analysis's
-probe (`resolution_config.source_probe_id`), and the record check holds both
-against the files as they are, so a changed member makes the record stale and an
-unchanged set resumes.
+**Verification** is of the member files, not the prefix: see the [release metadata schema](../release-metadata-schema.md#besd-file-sets) for the one definition of a BESD file set's identity and how preflight and the record check hold it.
 
 ## Selection
 
