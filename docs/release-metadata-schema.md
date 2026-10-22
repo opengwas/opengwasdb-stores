@@ -505,6 +505,25 @@ post:
 `post` applies to both phases. `complete-dense` builds the Top-Hit Index
 inline, so the completion phase plans no separate `top_hits` step.
 
+Manifest Generation emits that file from the release config's `completion`
+block ([release config](spec/release-config.md#completion), #340):
+
+- a reference that is `qualified` and `active` gives one bundle under the
+  Store's id, with `completion_state: reference_completed`, the `build` block
+  byte-identical to the one the same config emits as `observed_only`, and the
+  `complete` block whose `ld-panel` and `ancestry` are its Reference Resource's
+  declaration;
+- a reference that is `pending`, on hold or `blocked` gives exactly the
+  Observed-Only bundle a config with no `completion` block emits, so a bundle
+  never declares a completion phase that the config has not qualified and
+  activated. `release.yaml`'s notes say the recipe is blocked, and the
+  candidate's Validation Record records the reference, with `blocked: true`,
+  under `acceptance.completion_reference` (see `validation.yaml` below).
+
+Only an emitted candidate declares this; a Store published before its bundle
+declared completion gains the `complete` block through the one amendment an
+accepted bundle allows (#305), not through a re-emit.
+
 A two-id Reference-Completed release, from before ADR 0037, is the same file
 with a `complete` block instead of `build`. It carries no parent path: the
 parent is `release.yaml`'s `derived_from`, and its artifact path is a pure

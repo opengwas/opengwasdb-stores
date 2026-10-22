@@ -103,6 +103,7 @@ from manifest_generation.candidate_workflow import (
     verify_records,
     write_resolution_receipt,
 )
+from manifest_generation.completion import blocked_reason
 from manifest_generation.emit import CandidateBundle, EmitError, emit, render_yaml
 from manifest_generation.inventory import freeze_release
 from manifest_generation.resolution_area import (
@@ -453,6 +454,17 @@ def stage_render(
             else ""
         )
     )
+    if pipeline.config.completion is not None:
+        reason = blocked_reason(pipeline.config.completion.reference)
+        print(
+            "Reference completion (ADR 0037): "
+            + (
+                f"{reason}: rendering it observed-only, with no complete block"
+                if reason
+                else f"{pipeline.config.completion.resource_id} is qualified and active: "
+                "this bundle declares both phases under its own id"
+            )
+        )
     if tables.reference_overlap_errors:
         raise CandidateError("bundle reference-overlap validation failed:\n  - "
                              + "\n  - ".join(tables.reference_overlap_errors))
@@ -503,6 +515,7 @@ def stage_render(
             validated_at=created_at,
             validator_name=MODULE,
             trait_ontology_mapping=trait_ontology_run.provenance(),
+            completion=pipeline.config.completion,
         ),
         sidecars={
             "source_readiness.tsv": tables.source_readiness_tsv,

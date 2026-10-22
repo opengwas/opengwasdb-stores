@@ -770,9 +770,9 @@ def _plan_completing_own_store(bundle: Bundle, artifact_root: Path | str | None)
         raise ValueError(
             f"Bundle {bundle.store_id}: a reference_completed release with no derived_from "
             f"completes its own Store, which is planned only for "
-            f"{sorted(SINGLE_ID_COMPLETION_LAYOUTS)} layout, not {bundle.layout!r}: the "
-            "Observed-View Check that gates the replacement compares no other layout yet "
-            "(ADR 0037)"
+            f"{sorted(SINGLE_ID_COMPLETION_LAYOUTS)} layout, not {bundle.layout!r}: Dense "
+            "completion is the only completion path ported so far. ADR 0037's Observed-View "
+            "Check also covers the Dense Component of Hybrid Stores"
         )
     if not isinstance(bundle.build.get("build"), Mapping):
         raise ValueError(
