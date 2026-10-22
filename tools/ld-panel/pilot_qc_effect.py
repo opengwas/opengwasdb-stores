@@ -66,6 +66,24 @@ def read_blocks(path: Path) -> list[dict[str, str]]:
         return list(csv.DictReader(fh, delimiter="\t"))
 
 
+def variant_reports(afreq: Path, vmiss: Path) -> list[dict[str, str]]:
+    """plink2's frequency and missingness reports, joined pairwise on variant ID.
+
+    The two reports are the same variant list in the same order, so zipping
+    them blind would pair a variant with its neighbour's missingness if one
+    report ever gained a row. strict=True refuses a length mismatch, and the ID
+    comparison refuses a reordering; neither is a silent skip.
+    """
+    rows: list[dict[str, str]] = []
+    with afreq.open(newline="") as fa, vmiss.open(newline="") as fm:
+        for freq, miss in zip(csv.DictReader(fa, delimiter="\t"), csv.DictReader(fm, delimiter="\t"),
+                              strict=True):
+            if freq["ID"] != miss["ID"]:
+                raise SystemExit(f"plink2 reports disagree on variant order at {freq['ID']} / {miss['ID']}")
+            rows.append({**freq, "F_MISS": miss["F_MISS"]})
+    return rows
+
+
 def frequencies_and_missingness(plink2: str, pfile: Path, threads: int, out: Path,
                                 chrom: str) -> list[dict[str, object]]:
     """plink2's per-variant allele frequency and missingness, joined on variant ID.
@@ -79,21 +97,13 @@ def frequencies_and_missingness(plink2: str, pfile: Path, threads: int, out: Pat
             "--threads", str(threads), "--out", str(out)]
     subprocess.run(argv, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     rows: list[dict[str, object]] = []
-    # The two reports are the same variant list in the same order, so zipping
-    # them blind would pair a variant with its neighbour's missingness if one
-    # report ever gained a row. strict=True refuses a length mismatch, and the ID
-    # comparison refuses a reordering; neither is a silent skip.
-    with Path(f"{out}.afreq").open(newline="") as fa, Path(f"{out}.vmiss").open(newline="") as fm:
-        for freq, miss in zip(csv.DictReader(fa, delimiter="\t"), csv.DictReader(fm, delimiter="\t"),
-                              strict=True):
-            if freq["ID"] != miss["ID"]:
-                raise SystemExit(f"plink2 reports disagree on variant order at {freq['ID']} / {miss['ID']}")
-            fields = freq["ID"].split(":")
-            if len(fields) != 4 or not fields[1].isdigit():
-                raise SystemExit(f"unreadable variant ID {freq['ID']} in {pfile}")
-            rows.append({"chrom": chrom, "pos": int(fields[1]), "ref": freq["REF"],
-                         "alt": freq["ALT"], "alt_freqs": freq["ALT_FREQS"],
-                         "obs": int(freq["OBS_CT"]), "f_miss": float(miss["F_MISS"])})
+    for report in variant_reports(Path(f"{out}.afreq"), Path(f"{out}.vmiss")):
+        fields = report["ID"].split(":")
+        if len(fields) != 4 or not fields[1].isdigit():
+            raise SystemExit(f"unreadable variant ID {report['ID']} in {pfile}")
+        rows.append({"chrom": chrom, "pos": int(fields[1]), "ref": report["REF"],
+                     "alt": report["ALT"], "alt_freqs": report["ALT_FREQS"],
+                     "obs": int(report["OBS_CT"]), "f_miss": float(report["F_MISS"])})
     return rows
 
 
