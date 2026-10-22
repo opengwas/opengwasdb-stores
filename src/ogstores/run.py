@@ -1798,8 +1798,10 @@ def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
     `components.dense`, `components.overflow` (whose counters over every
     Analysis are in `all_analyses`) or `crossovers`. The axis and Analyses
     failures carry their counts elsewhere: the part's
-    `axis.parent_rows_unmapped` and `axis.order_preserved`, and
-    `analyses.identical`.
+    `axis.parent_rows_unmapped` and `axis.order_preserved`, the Overflow's
+    `axis.child_dense_rows_unshared` and `axis.child_dense_order_preserved`,
+    and `analyses.identical`. A failure of a part this reading does not know
+    is named alone, so it never hides the other counts.
     """
     analyses = verdict["analyses"]
     named: list[str] = []
@@ -1811,11 +1813,19 @@ def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
         elif part == "crossovers":
             section = verdict["crossovers"]
         else:
-            section = verdict["components"][part]
-        if counter == "parent_rows_unmapped":
+            section = verdict.get("components", {}).get(part)
+        if section is None:
+            named.append(name)
+        elif counter == "parent_rows_unmapped":
             named.append(f"{name}={section['axis']['parent_rows_unmapped']}")
         elif counter == "order_not_preserved":
             named.append(f"{prefix}order_preserved={str(section['axis']['order_preserved']).lower()}")
+        elif counter == "child_dense_rows_not_on_shared_axis":
+            axis = section["axis"]
+            named.append(
+                f"{prefix}child_dense_rows_unshared={axis['child_dense_rows_unshared']} "
+                f"(child_dense_order_preserved={str(axis['child_dense_order_preserved']).lower()})"
+            )
         elif name == "analyses_mismatch":
             named.append(
                 f"analyses_identical={str(analyses['identical']).lower()} "

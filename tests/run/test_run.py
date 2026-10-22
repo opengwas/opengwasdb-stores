@@ -2266,6 +2266,124 @@ class TestObservedViewCheckFailureMessage(unittest.TestCase):
         self.assertIn("error: refused: not Dense", message)
         self.assertIn(self.VERDICT_PATH, message)
 
+    # A Hybrid verdict (opengwasdb#295) names each failure after the part that
+    # counted it and keeps that part's counters beneath it; a Ragged one
+    # (opengwasdb#296) keeps unprefixed names and top-level counters, as a
+    # Dense one does (#333).
+
+    def mismatch(self, failing: str) -> str:
+        """The whole exit-1 message, around the failing counters it names."""
+        return (
+            "Step 'completion-observed-view-check' for OGS-00111 found the completed Store differs "
+            f"from the published one in what was observed (exit 1); failing counters: {failing}; "
+            f"verdict: {self.VERDICT_PATH}\nNothing was published and the published Store is as it was.\n"
+        )
+
+    @staticmethod
+    def hybrid_verdict(**parts: Any) -> str:
+        verdict: dict[str, Any] = {
+            "layout": "hybrid",
+            "analyses": {"n_parent": 3, "n_child": 3, "identical": True},
+            "components": {
+                "dense": {
+                    "axis": {"parent_rows_unmapped": 0, "order_preserved": True},
+                    "totals": {"z_mismatch": 2, "inserted_observed_cells": 1, "crossover_cells": 3},
+                },
+                "overflow": {
+                    "axis": {
+                        "parent_rows_unmapped": 0,
+                        "order_preserved": True,
+                        "child_dense_rows_unshared": 0,
+                        "child_dense_order_preserved": True,
+                    },
+                    "totals": {"parent_associations": 11, "crossovers": 3, "child_associations": 8, "eaf_mismatch": 4},
+                    "all_analyses": {"observed_in_both": 5, "imputed_cells": 0, "analyses_count_mismatch": 1},
+                },
+            },
+            "crossovers": {"n": 3, "rows": 2, "totals": {"z_mismatch": 6, "se_mismatch": 0}},
+            "passed": False,
+            **parts,
+        }
+        return json.dumps(verdict, indent=2) + "\n"
+
+    def test_a_hybrid_verdict_names_each_part_s_counters_with_their_counts(self) -> None:
+        message = self.message(
+            1,
+            self.hybrid_verdict(
+                failures=[
+                    "dense.z_mismatch", "dense.inserted_observed_cells", "overflow.eaf_mismatch",
+                    "overflow.observed_in_both", "overflow.analyses_count_mismatch", "crossovers.z_mismatch",
+                ],
+            ),
+        )
+        record_check()
+        self.assertEqual(
+            message,
+            self.mismatch(
+                "dense.z_mismatch=2, dense.inserted_observed_cells=1, overflow.eaf_mismatch=4, "
+                "overflow.observed_in_both=5, overflow.analyses_count_mismatch=1, crossovers.z_mismatch=6"
+            ),
+        )
+
+    def test_a_hybrid_verdict_s_axis_failures_name_their_counts(self) -> None:
+        message = self.message(
+            1,
+            self.hybrid_verdict(
+                analyses={"n_parent": 3, "n_child": 2, "identical": False},
+                components={
+                    "dense": {"axis": {"parent_rows_unmapped": 4, "order_preserved": False}, "totals": {}},
+                    "overflow": {
+                        "axis": {
+                            "parent_rows_unmapped": 7,
+                            "order_preserved": False,
+                            "child_dense_rows_unshared": 2,
+                            "child_dense_order_preserved": True,
+                        },
+                        "totals": {},
+                        "all_analyses": {},
+                    },
+                },
+                failures=[
+                    "dense.parent_rows_unmapped", "dense.order_not_preserved", "overflow.parent_rows_unmapped",
+                    "overflow.order_not_preserved", "overflow.child_dense_rows_not_on_shared_axis",
+                    "analyses_mismatch",
+                ],
+            ),
+        )
+        record_check()
+        self.assertEqual(
+            message,
+            self.mismatch(
+                "dense.parent_rows_unmapped=4, dense.order_preserved=false, overflow.parent_rows_unmapped=7, "
+                "overflow.order_preserved=false, "
+                "overflow.child_dense_rows_unshared=2 (child_dense_order_preserved=true), "
+                "analyses_identical=false (n_parent=3, n_child=2)"
+            ),
+        )
+
+    def test_a_part_the_message_does_not_know_is_named_and_the_others_still_counted(self) -> None:
+        message = self.message(1, self.hybrid_verdict(failures=["dense.z_mismatch", "panel.blocks_missing"]))
+        record_check()
+        self.assertEqual(message, self.mismatch("dense.z_mismatch=2, panel.blocks_missing"))
+
+    def test_a_ragged_verdict_names_its_counters_with_their_counts(self) -> None:
+        verdict = {
+            "seed": 20261021,
+            "n_random": 1000,
+            "analyses": {"n_parent": 4, "n_child": 4, "identical": True},
+            "axis": {"parent_rows_unmapped": 0, "order_preserved": True, "n_parent": 9, "n_child": 12},
+            "ld_panel": {"path": "/panel", "ancestry": "EUR", "cis_window_bp": 1000000},
+            "totals": {
+                "observed_in_source": 30, "imputed": 12, "nan_rows": 0, "regions": 5,
+                "target_observed_not_in_source": 1, "imputed_outside_retained": 2, "z_mismatch": 0,
+            },
+            "failures": ["target_observed_not_in_source", "imputed_outside_retained"],
+            "passed": False,
+        }
+        message = self.message(1, json.dumps(verdict, indent=2) + "\n")
+        record_check()
+        self.assertEqual(message, self.mismatch("target_observed_not_in_source=1, imputed_outside_retained=2"))
+
 
 class TestFirstJsonObject(unittest.TestCase):
     """The one decoder of a verdict a step prints on stdout (#306, #309).
