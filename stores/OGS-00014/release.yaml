@@ -1,7 +1,7 @@
 store_id: OGS-00014
 label: mvp-phs002453-amr
 access_posture: public
-status: built
+status: validated
 derived_from: null
 created_at: '2026-10-14T08:39:20Z'
 source_snapshot_id: dbgap-phs002453-mvp-amr-metadata-2026-10-13

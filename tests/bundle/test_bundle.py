@@ -221,7 +221,7 @@ class TestBundleContract(unittest.TestCase):
     }
     # The MVP observed bundles' Release Status: the #221 batch built and
     # validated their Stores, which #331 published and recorded.
-    MVP_STATUS = "built"
+    MVP_STATUS = "validated"
     # The commit of each bundle's frozen-input Validation Record, which
     # register's record replaced and names as its `acceptance.commit`.
     MVP_FROZEN_INPUT_RECORD = {
