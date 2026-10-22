@@ -1,6 +1,6 @@
-snapshot_id: ukb-b-probe-10-2026-10-22
+snapshot_id: ukb-b-probe-10-2026-10-22c
 source_collection_id: opengwas-gwas-vcf
-frozen_at: '2026-10-21T23:59:15Z'
+frozen_at: '2026-10-22T08:18:47Z'
 frozen_by: manifest_generation.freeze
 selection:
   analyses:
@@ -30,18 +30,18 @@ duplicate_content_groups: []
 inventory_tsv_sha256: 934816718c437685bc774287bc1faa615a1031fda71d455f124f4812819c5826
 source_metadata_table:
   frozen:
-    path: ukb-b-probe-10-2026-10-22.source-metadata.tsv
-    sha256: d827237074e692d219f03c73d424fbb31f76d36f8b8e56048036c465edcd9bb2
-    bytes: 1087
+    path: ukb-b-probe-10-2026-10-22c.source-metadata.tsv
+    sha256: 64449a9d2b63c972323aad1da3d689c1a65aed59596f9d9132edc3a5f6307634
+    bytes: 1230
     rows: 10
   original:
     path: resources/generators/ukb-b/connectors/source-metadata-table.tsv
-    sha256: 3262b980fad1acc0c67c0e69d7232abb91e1d9961711c8e0c56e7aa25f1c7b4f
-    bytes: 294886
+    sha256: 3b6e577696285fbeee047446e5474f5299d3486163877f704f63d767ab6fcf39
+    bytes: 327581
     rows: 2514
 acquisition_manifest:
   frozen:
-    path: ukb-b-probe-10-2026-10-22.acquisition-manifest.tsv
+    path: ukb-b-probe-10-2026-10-22c.acquisition-manifest.tsv
     sha256: bba2c720a90e3a58aef711dd4c8f0cda9d479886231280388d2c69435b1a4414
     bytes: 2112
     rows: 10

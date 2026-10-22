@@ -36,9 +36,12 @@ projection and the refusals:
   (``sd`` / ``declared_standardised``), and the adapter writes no
   ``declared_effect_scale`` that could drift from them (#287).
 - **Collection-wide facts are not written.** The GRCh37 build, the UK Biobank
-  terms of access, ``MRC-IEU`` and the first author are the same for every
-  Analysis, so the release config's ``defaults`` supply them (#287). The Store's
-  ``analysis_group_id`` (``ukb-b``) is a release default too.
+  terms of access and ``MRC-IEU`` are the same for every Analysis, so the
+  release config's ``defaults`` supply them (#287). The Store's
+  ``analysis_group_id`` (``ukb-b``) is a release default too. The First Author
+  is different: the schema has no release-wide default for it, and the provider
+  JSON carries ``author`` per Analysis, so the adapter writes it -- and refuses a
+  provider JSON that records none rather than emitting a blank author.
 - **The Source Ancestry Label** is the provider's own ``population`` label
   (``European`` for all 2,514), carried verbatim, and translated to
   ``source_superpopulation`` through the tracked map
@@ -103,6 +106,11 @@ OUTPUT_COLUMNS: tuple[str, ...] = (
     "sample_size",
     "n_cases",
     "n_controls",
+    # The provider's `author`. Unlike the licence and the consortium, which the
+    # release config defaults, a first author has no release-wide default in the
+    # schema: an Analysis's first author is a per-Analysis source fact, and the
+    # provider JSON is the only channel that carries it (#289).
+    "first_author",
 )
 
 #: The declared selection's Analysis id columns, in the order the adapter reads
@@ -236,6 +244,14 @@ def convert_rows(
                 "to no super-population"
             )
             continue
+        record = records[analysis_id]
+        first_author = str(getattr(record, "author", "") or "").strip()
+        if not first_author:
+            problems.append(
+                f"{analysis_id}: provider JSON records no author, and a first author has no "
+                "release-config default"
+            )
+            continue
         study_design = (
             "case-control" if resolution["sample_size_kind"] == "case_control" else "quantitative"
         )
@@ -250,6 +266,7 @@ def convert_rows(
                 "sample_size": resolution["sample_size"],
                 "n_cases": resolution["n_cases"] if study_design == "case-control" else "",
                 "n_controls": resolution["n_controls"] if study_design == "case-control" else "",
+                "first_author": first_author,
             }
         )
     if problems:

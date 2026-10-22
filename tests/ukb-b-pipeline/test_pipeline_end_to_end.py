@@ -127,6 +127,9 @@ class UkbPipelineEndToEndTest(unittest.TestCase):
             self.assertEqual(row["source_genome_build"], "GRCh37")
             self.assertEqual(row["license"], "UK Biobank terms of access")
             self.assertEqual(row["consortium"], "MRC-IEU")
+            # The First Author has no release-config default; it comes from the
+            # provider JSON, through the Source Metadata Table (#289).
+            self.assertEqual(row["first_author"], "Ben Elsworth")
             self.assertEqual(row["analysis_group_id"], "ukb-b")
             self.assertEqual(
                 row["source_file"], str(self.ukb.source_dir / f"{row['source_analysis_id']}.vcf.gz")

@@ -36,6 +36,7 @@ EXPECTED_ROWS = [
         "sample_size": "463010",
         "n_cases": "6661",
         "n_controls": "456349",
+        "first_author": "Ben Elsworth",
     },
     {
         "source_analysis_id": "ukb-b-10054",
@@ -47,6 +48,7 @@ EXPECTED_ROWS = [
         "sample_size": "64949",
         "n_cases": "29408",
         "n_controls": "35541",
+        "first_author": "Ben Elsworth",
     },
     {
         "source_analysis_id": "ukb-b-10787",
@@ -58,6 +60,7 @@ EXPECTED_ROWS = [
         "sample_size": "461950",
         "n_cases": "",
         "n_controls": "",
+        "first_author": "Ben Elsworth",
     },
 ]
 
@@ -105,7 +108,6 @@ class AdapterTest(unittest.TestCase):
             "source_genome_build",
             "license",
             "consortium",
-            "first_author",
             "analysis_group_id",
         ):
             self.assertNotIn(column, header)
@@ -167,6 +169,16 @@ class AdapterTest(unittest.TestCase):
         document["population"] = "Martian"
         path.write_text(json.dumps(document), encoding="utf-8")
         self.assertRefused("ukb-b-10054", "Martian")
+
+    def test_a_provider_json_with_no_author_is_refused_by_name(self) -> None:
+        # `first_author` has no release-config default (unlike license and
+        # consortium), so the source must supply it: the provider JSON's `author`
+        # is the only channel.
+        path = self.fixture.source_dir / "ukb-b-10054.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document.pop("author", None)
+        path.write_text(json.dumps(document), encoding="utf-8")
+        self.assertRefused("ukb-b-10054", "author")
 
     def test_a_declared_label_that_disagrees_with_the_provider_is_refused(self) -> None:
         rows = [

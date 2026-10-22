@@ -78,6 +78,7 @@ class UkbFreezeFixture(unittest.TestCase):
                     {
                         "id": analysis_id.upper(),
                         "trait": TRAITS[analysis_id],
+                        "author": "Ben Elsworth",
                         "population": "European",
                         "sample_size": 1000,
                         "ncase": "NA",

@@ -54,7 +54,7 @@ source_collection:
     source_metadata_table: resources/generators/ukb-b/connectors/source-metadata-table.tsv
     acquisition_manifest: resources/generators/ukb-b/connectors/acquisition-manifest.tsv
   inventory:
-    snapshot_id: ukb-b-restored-2026-10-22
+    snapshot_id: ukb-b-restored-2026-10-22c
     directory: resources/inventories
 
 selection:
