@@ -81,9 +81,11 @@ def frequencies_and_missingness(plink2: str, pfile: Path, threads: int, out: Pat
     rows: list[dict[str, object]] = []
     # The two reports are the same variant list in the same order, so zipping
     # them blind would pair a variant with its neighbour's missingness if one
-    # report ever gained a row. Refuse a disagreement instead.
+    # report ever gained a row. strict=True refuses a length mismatch, and the ID
+    # comparison refuses a reordering; neither is a silent skip.
     with Path(f"{out}.afreq").open(newline="") as fa, Path(f"{out}.vmiss").open(newline="") as fm:
-        for freq, miss in zip(csv.DictReader(fa, delimiter="\t"), csv.DictReader(fm, delimiter="\t")):
+        for freq, miss in zip(csv.DictReader(fa, delimiter="\t"), csv.DictReader(fm, delimiter="\t"),
+                              strict=True):
             if freq["ID"] != miss["ID"]:
                 raise SystemExit(f"plink2 reports disagree on variant order at {freq['ID']} / {miss['ID']}")
             fields = freq["ID"].split(":")
@@ -96,12 +98,21 @@ def frequencies_and_missingness(plink2: str, pfile: Path, threads: int, out: Pat
 
 
 def record_filters(path: Path) -> dict[tuple[int, str, str], str]:
-    """VCF FILTER of every biallelic record in the block region, by (pos, REF, ALT)."""
+    """VCF FILTER of every biallelic record in the block region, by (pos, REF, ALT).
+
+    A record and a panel row are joined on that key, so two records under one key
+    would make the join ambiguous. gnomAD splits multi-allelic sites, so the same
+    position with the same two alleles can only recur as an exact repeat; refuse
+    any key whose FILTER values disagree rather than letting the last one win.
+    """
     filters: dict[tuple[int, str, str], str] = {}
     for _chrom, pos, ref, alt, filt in (line.rstrip("\n").split("\t") for line in path.read_text().splitlines()):
         if "," in alt:
             continue  # plink2 kept biallelic records only, so there is no FILTER to join to
-        filters[(int(pos), ref, alt)] = filt
+        key = (int(pos), ref, alt)
+        if key in filters and filters[key] != filt:
+            raise SystemExit(f"{path}: {key[0]}:{key[1]}:{key[2]} is {filters[key]} and {filt}")
+        filters[key] = filt
     return filters
 
 
