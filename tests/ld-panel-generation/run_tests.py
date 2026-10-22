@@ -312,13 +312,24 @@ def test_membership_keep_format() -> None:
               "PLINK keep file must be an explicit one-column IID list")
 
 
-AMR_PILOT = ROOT / "resources/reference-resources/hgdp1kgp-hg38-ld/amr-pilot"
+AMR_LD = ROOT / "resources/reference-resources/hgdp1kgp-hg38-amr-ld"
+
+
+def test_amr_regions() -> None:
+    # The genome-wide AMR panel reuses the EUR block layout, relabelled AMR (#241).
+    def rows(path: Path) -> list[dict[str, str]]: return list(csv.DictReader(path.open(), delimiter="\t"))
+    eur = [(r["chr"], r["start"], r["end"]) for r in rows(AMR_LD.parent / "hgdp1kgp-hg38-ld/ld_regions_hg38.tsv")
+           if r["ancestry"] == "EUR"]
+    amr = rows(AMR_LD / "ld_regions_hg38.amr.tsv")
+    check(len(eur) == 1357 and [(r["chr"], r["start"], r["end"]) for r in amr] == eur and
+          all(r["ancestry"] == "AMR" and r["boundary_layout"] == "EUR" for r in amr),
+          "the AMR layout must be exactly the EUR blocks, relabelled AMR")
 
 
 def test_amr_pilot_mapping() -> None:
     def table(path: Path) -> list[dict[str, str]]: return list(csv.DictReader(path.open(), delimiter="\t"))
-    production = {r["population"] for r in table(AMR_PILOT.parent / "populations_to_superpop.tsv")}
-    pilot = {r["population"]: r for r in table(AMR_PILOT / "populations_to_superpop.tsv")}
+    production = {r["population"] for r in table(AMR_LD.parent / "hgdp1kgp-hg38-ld/populations_to_superpop.tsv")}
+    pilot = {r["population"]: r for r in table(AMR_LD / "populations_to_superpop.tsv")}
     included = {p for p, r in pilot.items() if r["status"] == "included"}
     check(set(pilot) == production, "the pilot mapping must label exactly the production populations")
     check(included == {"CLM", "MXL", "PEL", "PUR"} and all(pilot[p]["panel"] == "AMR" for p in included),
@@ -328,7 +339,7 @@ def test_amr_pilot_mapping() -> None:
           "HGDP American populations must be excluded by name")
     check(all(r["status"] == "excluded" and not r["panel"] and r["reason"]
               for p, r in pilot.items() if p not in included), "population is neither mapped nor excluded")
-    samples = table(AMR_PILOT / "phase3-amr-samples.tsv")
+    samples = table(AMR_LD / "phase3-amr-samples.tsv")
     pops = {p: sum(r["pop"] == p for r in samples) for p in included}
     check(len({r["sample"] for r in samples}) == len(samples) == 347 and
           pops == {"CLM": 94, "MXL": 64, "PEL": 85, "PUR": 104} and
@@ -418,11 +429,11 @@ def main() -> None:
     test_block(); test_maf_floor(); test_alid_collisions(); test_call_rate(); test_run_panels_floor_resume()
     test_verify_block(); test_heldout_calibration()
     test_canonical_effect_allele_ld_orientation()
-    test_mapping(); test_membership_keep_format(); test_amr_pilot_mapping(); test_amr_pilot_membership()
+    test_mapping(); test_membership_keep_format(); test_amr_regions(); test_amr_pilot_mapping(); test_amr_pilot_membership()
     test_index_validation(); test_compressed_pvar_input()
     test_plink_raw_input()
     for script in ("acquire_hgdp1kgp.py", "construct_block.py", "run_panels.py", "verify_block.py",
-                   "heldout_calibration.py"):
+                   "heldout_calibration.py", "boundary_ld.py", "run_amr_pilot.py", "build_amr_panel.py"):
         subprocess.run([sys.executable, str(SCRIPT.with_name(script)), "--help"], check=True,
                        stdout=subprocess.DEVNULL)
     print(f"ok — {checks} checks passed")

@@ -23,7 +23,7 @@ population mapping, block definition or Store was changed.
 | Decision | Implementation |
 |---|---|
 | 1kGP AMR samples from the existing gnomAD cache | The native GRCh38 gnomAD v3.1.2 HGDP+1kGP VCFs. No download, no Phase 3 GRCh37 genotypes. |
-| Exclude HGDP | The pilot mapping (`resources/reference-resources/hgdp1kgp-hg38-ld/amr-pilot/populations_to_superpop.tsv`) includes only CLM, MXL, PEL and PUR. It excludes Pima, Maya, Karitiana, Surui and Colombian by name. The production mapping is unchanged. |
+| Exclude HGDP | The pilot mapping (`resources/reference-resources/hgdp1kgp-hg38-amr-ld/populations_to_superpop.tsv`, under `hgdp1kgp-hg38-ld/amr-pilot/` when the pilot ran) includes only CLM, MXL, PEL and PUR. It excludes Pima, Maya, Karitiana, Surui and Colombian by name. The production mapping is unchanged. |
 | EUR block boundaries | Five frozen EUR-layout blocks (`amr-pilot/blocks.tsv`), the same five regions as the EUR calibration control's comparison. LD is estimated from AMR genotypes only. |
 | Start with 345 | The 347 Phase 3 AMR IDs, filtered by gnomAD `high_quality`, give 345. Nothing is substituted for the two failures. |
 | MAF = 0.01 | `construct_block --maf 0.01`. MAF is the minor-allele count over twice the called individuals. A MAF floor replaces the MAC floor (every block's provenance records `mac_threshold: null`), and the CLIs refuse both together. |

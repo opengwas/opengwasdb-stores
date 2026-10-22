@@ -37,6 +37,7 @@ from materialize_reference import VCF, conversion_command, region_vcf_command
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 PILOT = REPO / "resources/reference-resources/hgdp1kgp-hg38-ld/amr-pilot"
+AMR = REPO / "resources/reference-resources/hgdp1kgp-hg38-amr-ld"
 MAC_STRATA = ((7, 9), (10, 19), (20, 49), (50, None))
 
 
@@ -187,8 +188,8 @@ def main() -> int:
     ap.add_argument("--reference-root", type=Path, default=Path("/data/opengwasdb/reference/hgdp1kgp-hg38"))
     ap.add_argument("--out", type=Path, required=True, help="New directory for every output and receipt")
     ap.add_argument("--blocks", type=Path, default=PILOT / "blocks.tsv")
-    ap.add_argument("--mapping", type=Path, default=PILOT / "populations_to_superpop.tsv")
-    ap.add_argument("--samples", type=Path, default=PILOT / "phase3-amr-samples.tsv")
+    ap.add_argument("--mapping", type=Path, default=AMR / "populations_to_superpop.tsv")
+    ap.add_argument("--samples", type=Path, default=AMR / "phase3-amr-samples.tsv")
     ap.add_argument("--maf", type=float, default=.01); ap.add_argument("--window", type=int, default=250_000)
     ap.add_argument("--max-missing", type=float, default=.2,
                     help="Largest share of members uncalled at a retained variant (owner decision, #241)")
