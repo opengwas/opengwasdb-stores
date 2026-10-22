@@ -291,9 +291,12 @@ Its translations, and only these:
   `declared_standardised`); the adapter writes no `declared_effect_scale` that
   could drift from them.
 - **Collection-wide facts are not written.** The GRCh37 build, the UK Biobank
-  terms of access, `MRC-IEU`, the first author and the `ukb-b` analysis group
-  are the same for every Analysis; the release config's `defaults` supply them
-  (#287).
+  terms of access, `MRC-IEU` and the `ukb-b` analysis group are the same for
+  every Analysis, so the release config's `defaults` supply them (#287). The
+  First Author is not one of those: the schema has no release-wide default for
+  it, and the provider JSON carries `author` per Analysis, so the adapter writes
+  each row's `first_author` from it -- and refuses a provider JSON that records
+  none, rather than emitting a blank author.
 - **Ancestry is a source label, never an assignment.** `source_superpopulation`
   is the provider's `European` translated through the tracked map; nothing here
   claims `af_assigned`.
@@ -551,7 +554,7 @@ python3 -m manifest_generation.providers.ukb_b.write_acquisition_manifest \
   --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
   --checksums <the recorded checksum receipt> \
   --integrity <the recorded integrity receipt> \
-  [--verification <the recorded deep-verification report>] \
+  --verification <the recorded deep-verification report> \
   --out <acquisition manifest>
 ```
 
@@ -568,13 +571,26 @@ deep verification still holds the recorded sha256 (`checksum_mismatch`), its
 size and sha256 -- the identity the run holds the Analysis to -- and its
 `error` says which check failed and what it saw.
 
+The deep verification report is **required**, and it is evidence or it is
+refused. It must be a JSON object carrying `ok` and `deep` (both booleans),
+`rows` (the number of files it verified) and the four per-Analysis lists
+`missing`, `size_mismatch`, `checksum_mismatch` and `index_mismatch`; a report
+that verified nothing is not evidence, so `{}`, a shallow report (`deep:
+false` -- it compares sizes and mtimes, never a checksum), `rows: 0`, a report
+whose `rows` is not this Selection's size, one that names an Analysis the
+Selection does not contain, one whose `ok` is `true` while it lists failures,
+and one whose `ok` is `false` while it names none are each refused by name.
+Every failure it lists becomes that row's non-ready status, `missing`
+included, so a file the verification found absent is a `missing_file` row with
+the reason rather than a ready one.
+
 The writer refuses a declared Analysis the recorded evidence does not cover,
 a recorded file outside `--source-dir` or not named `<id>.vcf.gz`, and a
 missing provider JSON sidecar: silently marking one ready, or inventing an
 identity for it, would be guessing about a frozen input. It records each
 receipt's path, sha256 and row count beside the manifest
-(`<out-stem>.meta.yaml`), which freeze checksums into the inventory's
-provenance as the pass lineage.
+(`<out-stem>.meta.yaml`), plus how many Analyses the verification refused,
+which freeze checksums into the inventory's provenance as the pass lineage.
 
 ## Selection
 

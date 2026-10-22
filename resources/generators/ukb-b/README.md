@@ -38,6 +38,10 @@ python3 -m manifest_generation.providers.ukb_b.write_acquisition_manifest \
   --out resources/generators/ukb-b/connectors/acquisition-manifest.tsv
 ```
 
+All three receipts are required: the writer refuses an absent, shallow, empty or
+partial verification report rather than treating it as "nothing failed"
+(`docs/spec/source-connectors.md`).
+
 `receipts/` holds **copies** of the three receipts #219 wrote under
 `/data/opengwasdb/work/epic232/219/` (the checksums receipt is 605 KB and names
 each VCF's path, size, mtime and sha256; the integrity receipt is the

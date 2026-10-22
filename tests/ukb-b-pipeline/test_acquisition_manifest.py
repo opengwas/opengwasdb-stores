@@ -18,6 +18,7 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import hashlib
 import json
 import tempfile
 import unittest
@@ -27,6 +28,7 @@ import yaml
 
 from manifest_generation.acquisition_manifest import load_acquisition_manifest
 from manifest_generation.providers.ukb_b import write_acquisition_manifest as writer
+from manifest_generation.source_inventory import InventoryError
 from manifest_generation.source_inventory import (
     KNOWN_READINESS_STATUSES,
     READY_STATUSES,
@@ -85,7 +87,9 @@ class AcquisitionManifestWriterTest(unittest.TestCase):
                 str((self.fixture.source_dir / f"{analysis_id}.json").stat().st_size),
             )
             self.assertEqual(row["error"], "")
-            self.assertEqual(manifest.entry(analysis_id).sha256, row["sha256"])
+            # The checksum is the fixture's own bytes, computed here.
+            self.assertEqual(row["sha256"], hashlib.sha256(body).hexdigest())
+            self.assertEqual(manifest.entry(analysis_id).sha256, hashlib.sha256(body).hexdigest())
 
     def test_the_statuses_are_shared_readiness_vocabulary(self) -> None:
         self.assertTrue(SOURCE_VERIFICATION_STATUSES <= KNOWN_READINESS_STATUSES)
@@ -100,13 +104,21 @@ class AcquisitionManifestWriterTest(unittest.TestCase):
             sorted(document["evidence"]),
             ["checksums", "integrity", "verification"],
         )
-        for name, path in (
-            ("checksums", self.fixture.checksums),
-            ("integrity", self.fixture.integrity),
-            ("verification", self.fixture.verification),
+        for name, path, rows in (
+            ("checksums", self.fixture.checksums, len(ANALYSES)),
+            ("integrity", self.fixture.integrity, len(ANALYSES)),
+            # A verification report records one row per verified file and names
+            # no failures, so no Analysis is counted as a refused one.
+            ("verification", self.fixture.verification, len(ANALYSES)),
         ):
-            self.assertEqual(document["evidence"][name]["path"], str(path))
-            self.assertEqual(len(document["evidence"][name]["sha256"]), 64)
+            recorded = document["evidence"][name]
+            self.assertEqual(recorded["path"], str(path))
+            self.assertEqual(recorded["sha256"], hashlib.sha256(path.read_bytes()).hexdigest())
+            self.assertEqual(recorded["rows"], rows)
+        # The verification receipt is the only one that can refuse an Analysis,
+        # so it alone records how many it did.
+        self.assertEqual(document["evidence"]["verification"]["failures"], 0)
+        self.assertNotIn("failures", document["evidence"]["checksums"])
 
     def test_the_command_line_writes_the_manifest(self) -> None:
         self.assertEqual(
@@ -131,6 +143,126 @@ class AcquisitionManifestWriterTest(unittest.TestCase):
         self.assertEqual(
             load_acquisition_manifest(self.out).readiness_counts, {"ok": len(ANALYSES)}
         )
+
+    # -- the verification report is evidence, or it is refused -------------
+
+    def write_verification(self, document) -> None:
+        self.fixture.verification.write_text(
+            document if isinstance(document, str) else json.dumps(document), encoding="utf-8"
+        )
+
+    def assertRefused(self, *fragments: str) -> None:
+        with self.assertRaises(InventoryError) as caught:
+            self.write()
+        for fragment in fragments:
+            self.assertIn(fragment, str(caught.exception))
+
+    def test_an_absent_verification_report_is_refused(self) -> None:
+        self.fixture.verification.unlink()
+        self.assertRefused("verification report", "not found")
+
+    def test_an_empty_verification_report_is_refused(self) -> None:
+        # `{}` is a report that verified nothing: not three ready rows.
+        self.write_verification({})
+        self.assertRefused("ok", "deep", "rows")
+
+    def test_a_shallow_verification_report_is_refused(self) -> None:
+        # A shallow report compares sizes and mtimes, never a checksum.
+        self.write_verification(
+            {
+                "ok": True,
+                "deep": False,
+                "rows": len(ANALYSES),
+                "missing": [],
+                "size_mismatch": [],
+                "checksum_mismatch": [],
+                "index_mismatch": [],
+            }
+        )
+        self.assertRefused("deep")
+
+    def test_a_failed_verification_report_is_refused(self) -> None:
+        self.write_verification({"ok": False, "deep": False, "rows": 0})
+        self.assertRefused("deep", "rows")
+
+    def test_a_report_that_does_not_cover_the_selection_is_refused(self) -> None:
+        self.write_verification(
+            {
+                "ok": True,
+                "deep": True,
+                "rows": len(ANALYSES) - 1,
+                "missing": [],
+                "size_mismatch": [],
+                "checksum_mismatch": [],
+                "index_mismatch": [],
+            }
+        )
+        self.assertRefused("rows", str(len(ANALYSES) - 1), str(len(ANALYSES)))
+
+    def test_a_report_naming_an_analysis_outside_the_selection_is_refused(self) -> None:
+        self.write_verification(
+            {
+                "ok": False,
+                "deep": True,
+                "rows": len(ANALYSES),
+                "missing": ["ukb-b-99999"],
+                "size_mismatch": [],
+                "checksum_mismatch": [],
+                "index_mismatch": [],
+            }
+        )
+        self.assertRefused("ukb-b-99999", "not selected")
+
+    def test_a_report_that_says_ok_while_listing_a_failure_is_refused(self) -> None:
+        self.write_verification(
+            {
+                "ok": True,
+                "deep": True,
+                "rows": len(ANALYSES),
+                "missing": ["ukb-b-10054"],
+                "size_mismatch": [],
+                "checksum_mismatch": [],
+                "index_mismatch": [],
+            }
+        )
+        self.assertRefused("ok", "ukb-b-10054")
+
+    def test_a_report_listing_a_missing_file_makes_its_row_non_ready(self) -> None:
+        # The deep verification found it gone; the row records that, with the
+        # reason, instead of claiming the file verified.
+        self.write_verification(
+            {
+                "ok": False,
+                "deep": True,
+                "rows": len(ANALYSES),
+                "missing": ["ukb-b-10054"],
+                "size_mismatch": [],
+                "checksum_mismatch": [],
+                "index_mismatch": [],
+            }
+        )
+        self.write()
+        row = self.rows()["ukb-b-10054"]
+        self.assertEqual(row["status"], "missing_file")
+        self.assertIn("ukb-b-10054", row["error"])
+        self.assertEqual(self.rows()["ukb-b-10001"]["status"], "ok")
+
+    def test_the_verification_report_is_required_on_the_command_line(self) -> None:
+        with self.assertRaises(SystemExit):
+            writer.main(
+                [
+                    "--declared-selection",
+                    str(self.fixture.declared_selection),
+                    "--source-dir",
+                    str(self.fixture.source_dir),
+                    "--checksums",
+                    str(self.fixture.checksums),
+                    "--integrity",
+                    str(self.fixture.integrity),
+                    "--out",
+                    str(self.out),
+                ]
+            )
 
     # -- the integrity failures -------------------------------------------
 
@@ -167,11 +299,16 @@ class AcquisitionManifestWriterTest(unittest.TestCase):
         self.assertNotReady("ukb-b-10054", "checksum_mismatch", "recorded sha256")
 
     def test_a_reported_index_mismatch_is_its_own_row(self) -> None:
-        self.rewrite_json(
-            self.fixture.verification,
-            lambda document: document.update(
-                {"index_mismatch": ["ukb-b-10054 (index bytes changed)"]}
-            ),
+        self.write_verification(
+            {
+                "ok": False,
+                "deep": True,
+                "rows": len(ANALYSES),
+                "missing": [],
+                "size_mismatch": [],
+                "checksum_mismatch": [],
+                "index_mismatch": ["ukb-b-10054 (index bytes changed)"],
+            }
         )
         self.assertNotReady("ukb-b-10054", "index_mismatch", "recorded index")
 

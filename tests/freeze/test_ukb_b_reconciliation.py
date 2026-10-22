@@ -114,7 +114,22 @@ class UkbFreezeFixture(unittest.TestCase):
         self.integrity = self.root / "integrity.json"
         self.integrity.write_text(json.dumps({"schema_version": 1, "entries": integrity}), encoding="utf-8")
         self.verification = self.root / "verify-deep.json"
-        self.verification.write_text(json.dumps({"missing": [], "ok": True, "rows": len(ANALYSES)}), encoding="utf-8")
+        # A complete deep verification report: the writer refuses anything less,
+        # because a report that verified nothing is not evidence (#289 review).
+        self.verification.write_text(
+            json.dumps(
+                {
+                    "checksum_mismatch": [],
+                    "deep": True,
+                    "index_mismatch": [],
+                    "missing": [],
+                    "ok": True,
+                    "rows": len(ANALYSES),
+                    "size_mismatch": [],
+                }
+            ),
+            encoding="utf-8",
+        )
         self.table = self.root / "source-metadata-table.tsv"
         convert(self.declared_selection, self.source_dir, self.table)
         self.manifest = self.root / "acquisition-manifest.tsv"
@@ -123,9 +138,9 @@ class UkbFreezeFixture(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def write_manifest(self, declared: Path | None = None) -> None:
+    def write_manifest(self) -> None:
         write_from_evidence(
-            declared or self.declared_selection,
+            self.declared_selection,
             self.source_dir,
             Evidence(self.checksums, self.integrity, self.verification),
             self.manifest,
@@ -162,17 +177,11 @@ class UkbFreezeReconciliationTest(UkbFreezeFixture):
         self.assertTrue(all(row.ready for row in frozen.rows))
 
     def test_a_declared_analysis_with_no_manifest_entry_fails(self) -> None:
-        # Acquisition covered the first two and never attempted the third: the
-        # retired inventory called this "missing", and refused the freeze.
-        write_tsv(
-            self.root / "partial-selection.tsv",
-            ("analysis_id", "source_analysis_id", "source_label"),
-            [
-                {"analysis_id": analysis_id, "source_analysis_id": analysis_id, "source_label": TRAITS[analysis_id]}
-                for analysis_id in ANALYSES[:2]
-            ],
-        )
-        self.write_manifest(self.root / "partial-selection.tsv")
+        # A manifest that does not mention the third Analysis -- acquisition never
+        # attempted it, or the manifest is partial: the retired inventory called
+        # this "missing", and refused the freeze.
+        rows = [row for row in self.manifest_rows() if row["source_analysis_id"] != "ukb-b-3"]
+        write_tsv(self.manifest, tuple(rows[0]), rows)
         self.assertFreezeFails(
             ReconciliationError, "no Acquisition Manifest entry", "ukb-b-3"
         )

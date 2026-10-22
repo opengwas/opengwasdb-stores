@@ -16,6 +16,7 @@ evidence:
   verification:
     path: resources/generators/ukb-b/receipts/verify-deep.json
     sha256: 689c3859b2375c9889a86343253ef96f4103156850568bfc2cae84165209fc8c
-    rows: 0
+    rows: 2514
+    failures: 0
 readiness_rule: presence, size, checksum, index presence, index identity, stream integrity; the first
   failing check is the status and the error says what it saw

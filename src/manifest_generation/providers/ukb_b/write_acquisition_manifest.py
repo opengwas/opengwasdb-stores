@@ -13,7 +13,8 @@ fresh 425 GB read -- into the canonical Acquisition Manifest
 - ``--integrity``: the deep compressed-stream receipt, one status per Analysis
   (``...integrity.json``: ``ok``, ``missing_file``, ``missing_index``,
   ``bad_index`` or ``integrity_failed``, from ``bgzip -t`` and ``tabix -l``);
-- ``--verification``: the optional deep identity re-verification report
+- ``--verification``: the deep identity re-verification report (required: an
+  absent, shallow, empty, partial or self-contradictory one is refused)
   (``...verify-deep.json``: ``missing``, ``size_mismatch``,
   ``checksum_mismatch``, ``index_mismatch``, ``mtime_changed``).
 
@@ -43,6 +44,12 @@ inventory as the fact it is and never a release member. A non-ready row keeps
 the recorded ``location``, ``bytes`` and ``sha256`` -- the identity the run
 holds the Analysis to -- so the refusal does not erase its own pin, and the
 ``error`` says which check failed and what it saw.
+
+The verification report is evidence or it is refused: it must say it was deep,
+how many files it verified and what it found, and its `ok` must agree with the
+failures it lists. Every failure it names -- `missing` included -- becomes that
+row's non-ready status, so a file the deep verification found absent is a
+`missing_file` row with the reason.
 
 The writer refuses a declared Analysis the recorded evidence does not cover:
 silently marking one ready, or inventing an identity for it, would be guessing
@@ -77,7 +84,7 @@ from manifest_generation.acquisition_manifest import (
     load_acquisition_manifest,
     pass_lineage_path,
 )
-from manifest_generation.connector_tsv import raise_problems, write_connector
+from manifest_generation.connector_tsv import listed, raise_problems, write_connector
 from manifest_generation.providers.ukb_b.source_metadata_adapter import (
     declared_analysis_id,
     read_declared_selection,
@@ -109,6 +116,9 @@ VERIFICATION_STATUSES: tuple[tuple[str, str], ...] = (
     ("checksum_mismatch", "checksum_mismatch"),
     ("index_mismatch", "index_mismatch"),
 )
+
+#: The summary a deep verification report carries: what it verified and how.
+VERIFICATION_SUMMARY_KEYS: tuple[str, ...] = ("ok", "deep", "rows")
 
 #: The deep integrity receipt's statuses, and the readiness status each one is.
 INTEGRITY_STATUSES: Mapping[str, str] = {
@@ -144,11 +154,14 @@ class Evidence:
         self,
         checksums: Path,
         integrity: Path,
-        verification: Path | None = None,
+        verification: Path,
     ) -> None:
         self.checksums_path = Path(checksums)
         self.integrity_path = Path(integrity)
-        self.verification_path = Path(verification) if verification is not None else None
+        # Required, not optional: without a deep verification the writer cannot
+        # know a checksum is intact, and an absent report must never read as
+        # "nothing failed" (#289 review).
+        self.verification_path = Path(verification)
         self.identities: dict[str, RecordedIdentity] = {
             analysis_id: RecordedIdentity(analysis_id, entry)
             for analysis_id, entry in _entries(self.checksums_path, "checksum receipt").items()
@@ -157,9 +170,7 @@ class Evidence:
             analysis_id: dict(entry)
             for analysis_id, entry in _entries(self.integrity_path, "integrity receipt").items()
         }
-        self.verification: dict[str, str] = {}
-        if self.verification_path is not None:
-            self.verification = _verification_statuses(self.verification_path)
+        self.verification = _verification_report(self.verification_path)
 
     def digest(self) -> dict[str, Any]:
         """Each receipt's path, sha256 and row count, for the pass lineage."""
@@ -167,12 +178,14 @@ class Evidence:
             "checksums": (self.checksums_path, len(self.identities)),
             "integrity": (self.integrity_path, len(self.integrity)),
         }
-        if self.verification_path is not None:
-            recorded["verification"] = (self.verification_path, len(self.verification))
-        return {
+        recorded["verification"] = (self.verification_path, self.verification.rows)
+        digest = {
             name: {"path": str(path), "sha256": sha256_file(path), "rows": rows}
             for name, (path, rows) in recorded.items()
         }
+        # What the verification refused, beside how many files it verified.
+        digest["verification"]["failures"] = len(self.verification.statuses)
+        return digest
 
 
 def _entries(path: Path, what: str) -> Mapping[str, Mapping[str, Any]]:
@@ -193,8 +206,29 @@ def _entries(path: Path, what: str) -> Mapping[str, Mapping[str, Any]]:
     return entries
 
 
-def _verification_statuses(path: Path) -> dict[str, str]:
-    """``analysis_id -> status`` for every Analysis the deep verification refused."""
+class VerificationReport:
+    """A deep verification report: how many files it verified, and what it refused.
+
+    ``statuses`` is ``analysis_id -> readiness status`` for every Analysis the
+    report refused, so a missing, truncated, re-checksummed or re-indexed file
+    becomes that row's non-ready status instead of disappearing.
+    """
+
+    def __init__(self, path: Path, rows: int, statuses: Mapping[str, str]) -> None:
+        self.path = path
+        self.rows = rows
+        self.statuses = dict(statuses)
+
+
+def _verification_report(path: Path) -> VerificationReport:
+    """Read the deep verification report, refusing an unusable one by name.
+
+    A report that verified nothing is not evidence: `{}`, a shallow report, a
+    report of zero rows, one that does not say what it verified, one whose `ok`
+    contradicts the failures it lists, and one that names no failures while
+    saying it found some are each refused rather than read as an empty success
+    list.
+    """
     path = Path(path)
     if not path.is_file():
         raise WriterError(f"ukb-b deep verification report not found: {path}")
@@ -204,19 +238,49 @@ def _verification_statuses(path: Path) -> dict[str, str]:
         raise WriterError(f"ukb-b deep verification report {path} is not readable JSON: {exc}") from exc
     if not isinstance(document, dict):
         raise WriterError(f"ukb-b deep verification report {path} is not a JSON object")
+    problems: list[str] = []
+    for key in VERIFICATION_SUMMARY_KEYS:
+        if key not in document:
+            problems.append(f"{key!r} is missing")
+    if "ok" in document and not isinstance(document["ok"], bool):
+        problems.append(f"'ok' {document['ok']!r} is not true or false")
+    if "deep" in document and document["deep"] is not True:
+        problems.append(
+            f"'deep' is not true ({document['deep']!r}): a shallow report compares sizes and "
+            "mtimes, never a checksum"
+        )
+    if "rows" in document:
+        rows = document["rows"]
+        if isinstance(rows, bool) or not isinstance(rows, int) or rows < 1:
+            problems.append(f"'rows' {rows!r} is not a whole number of verified Analyses")
+    for key, _status in VERIFICATION_STATUSES:
+        if key not in document:
+            problems.append(f"{key!r} is missing")
+        elif not isinstance(document[key], list):
+            problems.append(f"{key!r} {document[key]!r} is not a list")
+    if problems:
+        raise_problems(WriterError, f"ukb-b deep verification report {path}", problems)
+
     statuses: dict[str, str] = {}
     for key, status in VERIFICATION_STATUSES:
-        values = document.get(key) or []
-        if not isinstance(values, list):
-            raise WriterError(f"ukb-b deep verification report {path}: {key!r} is not a list")
-        for value in values:
+        for value in document[key]:
             match = _ENTRY_DETAIL.match(str(value).strip())
             if match is None:
                 raise WriterError(
                     f"ukb-b deep verification report {path}: {key!r} entry {value!r} names no Analysis"
                 )
             statuses.setdefault(match.group(1), status)
-    return statuses
+    problems = []
+    if document["ok"] is True and statuses:
+        problems.append(
+            "its 'ok' is true but it lists failures: "
+            + listed(sorted(statuses))
+        )
+    if document["ok"] is False and not statuses:
+        problems.append("its 'ok' is false but it names no Analysis and no failure")
+    if problems:
+        raise_problems(WriterError, f"ukb-b deep verification report {path}", problems)
+    return VerificationReport(path=path, rows=document["rows"], statuses=statuses)
 
 
 def write_from_evidence(
@@ -263,8 +327,25 @@ def build_rows(
 ) -> tuple[list[dict[str, str]], list[str]]:
     """One canonical manifest row per declared Analysis, and every problem the evidence has."""
     source_dir = Path(source_dir)
-    rows: list[dict[str, str]] = []
+    analysis_ids = list(analysis_ids)
+    report = evidence.verification
     problems: list[str] = []
+    # Coverage: the report is evidence about *these* Analyses or it is not
+    # evidence about them.
+    if report.rows != len(analysis_ids):
+        problems.append(
+            f"the deep verification report's 'rows' is {report.rows}, but this Selection has "
+            f"{len(analysis_ids)} Analysis/Analyses"
+        )
+    unknown = sorted(set(report.statuses) - set(analysis_ids))
+    if unknown:
+        problems.append(
+            f"the deep verification report names Analysis/Analyses this Selection does not "
+            f"contain (not selected): {listed(unknown)}"
+        )
+    if problems:
+        raise_problems(WriterError, f"ukb-b deep verification report {report.path}", problems)
+    rows: list[dict[str, str]] = []
     for analysis_id in analysis_ids:
         identity = evidence.identities.get(analysis_id)
         if identity is None:
@@ -317,9 +398,17 @@ def _readiness(
     evidence: Evidence,
 ) -> tuple[str, str]:
     """The Analysis's readiness status and, when it is not ready, what the check saw."""
-    verified = evidence.verification.get(analysis_id)
+    verified = evidence.verification.statuses.get(analysis_id)
     index = location.with_name(location.name + ".tbi")
     integrity = evidence.integrity.get(analysis_id)
+    if verified == "missing_file" and location.is_file():
+        # The verification found it gone; it is back now, which is a stale
+        # snapshot rather than a verified file, and the row says so.
+        return (
+            "missing_file",
+            f"missing_file: the deep verification found {location} absent, and it has since "
+            "reappeared; re-verify before freezing",
+        )
     if not location.is_file():
         return "missing_file", f"missing_file: {location} is not present"
     recorded_bytes = identity.bytes if isinstance(identity.bytes, int) else None
@@ -374,8 +463,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--checksums", required=True, type=Path, help="the recorded checksum receipt")
     parser.add_argument("--integrity", required=True, type=Path, help="the recorded integrity receipt")
     parser.add_argument(
-        "--verification", type=Path,
-        help="the recorded deep identity re-verification report, when there is one",
+        "--verification", required=True, type=Path,
+        help="the recorded deep identity re-verification report",
     )
     parser.add_argument("--out", required=True, type=Path, help="the Acquisition Manifest to write")
     args = parser.parse_args(argv)
