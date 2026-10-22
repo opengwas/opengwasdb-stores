@@ -1962,10 +1962,7 @@ def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[
 
     The same VCF and bundle, built by `build-hybrid` against a plain ALID
     variant reference without `HYBRID_OFF_REFERENCE_INDEXES`, and completed by
-    `complete-hybrid` against an LD panel over `HYBRID_PANEL_INDEXES`. Like
-    OGS-00011, it regenerates its overview and builds an `hm3` Indexed
-    Variant Subset in both phases, from `hybrid_subset_checkout`'s list; it
-    runs from that checkout.
+    `complete-hybrid` against an LD panel over `HYBRID_PANEL_INDEXES`.
     """
     import yaml
 
@@ -1978,6 +1975,7 @@ def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[
         artifact_root=artifacts,
         vcf_path=create_signal_fixture_vcf(root / "signal.vcf.gz"),
         post_top_hits=False,
+        post_overview=False,
     )
     reference = root / "variant-reference.txt"
     reference.write_text(
@@ -1989,7 +1987,30 @@ def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[
     build_yaml["layout"] = "hybrid"
     build_yaml["build"]["command"] = "build-hybrid"
     build_yaml["build"]["options"]["variant-reference"] = str(reference)
+    build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
+    amend_to_complete_own_store(
+        stores,
+        store_id,
+        ld_panel=create_signal_ld_panel(root / "ld-panel", indexes=HYBRID_PANEL_INDEXES),
+        command="complete-hybrid",
+    )
+    return stores, artifacts
+
+
+def prepare_hybrid_subset_signal_release(root: Path, store_id: str) -> tuple[Path, Path]:
+    """`prepare_hybrid_single_id_signal_release`'s release with OGS-00011's post steps (#333).
+
+    It regenerates its overview and builds an `hm3` Indexed Variant Subset in
+    both phases, from `hybrid_subset_checkout`'s list, so it runs from that
+    checkout.
+    """
+    import yaml
+
+    stores, artifacts = prepare_hybrid_single_id_signal_release(root, store_id)
     subset = hybrid_subset_checkout()
+    build_yaml_p = stores / store_id / "build.yaml"
+    build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
+    build_yaml["post"]["overview"] = True
     build_yaml["indexed_subsets"] = [
         {
             "name": "hm3",
@@ -1999,12 +2020,6 @@ def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[
         }
     ]
     build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
-    amend_to_complete_own_store(
-        stores,
-        store_id,
-        ld_panel=create_signal_ld_panel(root / "ld-panel", indexes=HYBRID_PANEL_INDEXES),
-        command="complete-hybrid",
-    )
     return stores, artifacts
 
 
@@ -2171,18 +2186,17 @@ def hybrid_single_id_completion_template() -> dict[str, Any]:
     """The one single-id completed Hybrid release this process builds, built on first use (#333).
 
     `run_single_id_completion` from `prepare_hybrid_single_id_signal_release`,
-    run from `hybrid_subset_checkout`, copying both trees as `complete` starts,
-    with no rerun: what a rerun shows does not depend on the layout, and
-    `single_id_completion_template` shows it. A test that may write copies a
-    tree; the template is never written again.
+    copying both trees as `complete` starts, with no rerun: what a rerun shows
+    does not depend on the layout, and `single_id_completion_template` shows
+    it. A test that may write copies a tree; the template is never written
+    again. Its post steps are validation only; the overview and an Indexed
+    Variant Subset cost every test that builds it some 20 s, so one class
+    builds a release of its own with them (`prepare_hybrid_subset_signal_release`).
     """
     global _HYBRID_SINGLE_ID_COMPLETION
     if _HYBRID_SINGLE_ID_COMPLETION is None:
         _HYBRID_SINGLE_ID_COMPLETION = run_single_id_completion(
-            "OGS-00130",
-            prepare_hybrid_single_id_signal_release,
-            copy_complete_started=True,
-            checkout=hybrid_subset_checkout()["checkout"],
+            "OGS-00130", prepare_hybrid_single_id_signal_release, copy_complete_started=True
         )
     return _HYBRID_SINGLE_ID_COMPLETION
 
@@ -3340,11 +3354,8 @@ class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
     one adds. Every test only reads the template.
     """
 
-    BUILD_PHASE_RECORDS = ["build", "indexed-subset-hm3", "overview", "validate", "register"]
-    COMPLETION_RECORDS = [
-        "complete", "completion-indexed-subset-hm3", "completion-overview", "completion-validate",
-        "completion-observed-view-check", "completion-register",
-    ]
+    BUILD_PHASE_RECORDS = ["build", "validate", "register"]
+    COMPLETION_RECORDS = ["complete", "completion-validate", "completion-observed-view-check", "completion-register"]
 
     @classmethod
     def setUpClass(cls) -> None:
@@ -3377,29 +3388,6 @@ class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
             paths.publication_marker(self.STORE_ID, root=self.artifacts),
         ):
             self.assertFalse(leftover.exists(), leftover)
-
-    def test_the_completion_phase_builds_the_subset_and_the_overview_on_the_completed_store(self) -> None:
-        """As OGS-00011's will: `hm3` holds the listed positions the Store holds, the held-out one now imputed."""
-        staged = str(paths.partial_store_path(self.STORE_ID, root=self.artifacts))
-        for step in ("completion-indexed-subset-hm3", "completion-overview"):
-            self.assertEqual(self.record(step)["argv"][2], staged, step)
-        q = query_store(self.store_p)
-        try:
-            rows = q.analysis(self.template["analysis_id"], indexed_subset="hm3")
-            table = q.variants_table()
-        finally:
-            q.close()
-        self.assertEqual(
-            {
-                table[int(index)]["alid"]: str(status)
-                for index, status in zip(rows["variant_index"], rows["association_status"], strict=True)
-            },
-            {
-                SIGNAL_ALID[i]: "imputed" if i == SIGNAL_HELD_OUT_INDEX else "observed"
-                for i in HYBRID_SUBSET_INDEXES
-            },
-        )
-        self.assertTrue((self.store_p / "overview.html").is_file())
 
     def test_the_completed_store_keeps_the_id_and_takes_its_own_release_id(self) -> None:
         manifest_doc = json.loads((self.store_p / "manifest.json").read_text(encoding="utf-8"))
@@ -3456,6 +3444,54 @@ class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
         )
         archived_record = yaml.safe_load((archive / "validation.yaml").read_text(encoding="utf-8"))
         self.assertEqual(archived_record["observed"]["completion_state"], "observed_only")
+
+
+class TestWorkflowCompletedHybridStoreGetsItsSubsetAndOverview(unittest.TestCase):
+    """The completion phase builds an Indexed Variant Subset and the overview on a completed Hybrid Store (#333).
+
+    As OGS-00011's will. The release is `prepare_hybrid_subset_signal_release`'s,
+    built by this class alone from `hybrid_subset_checkout`: the shared Hybrid
+    template leaves both post steps out, since every process that builds it
+    would pay for them.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.built = run_single_id_completion(
+            "OGS-00131", prepare_hybrid_subset_signal_release, checkout=hybrid_subset_checkout()["checkout"]
+        )
+        cls.addClassCleanup(cls.built["temp_dir"].cleanup)
+
+    def test_the_completion_phase_builds_the_subset_and_the_overview_on_the_completed_store(self) -> None:
+        """`hm3` holds the listed positions the Store holds, the held-out one now imputed."""
+        res = self.built["release_result"]
+        self.assertEqual(res.returncode, 0, f"The entry point failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
+        store_id, artifacts = self.built["store_id"], self.built["artifacts"]
+        rec_dir = paths.records_dir(store_id, root=artifacts)
+        staged = str(paths.partial_store_path(store_id, root=artifacts))
+        for step in ("indexed-subset-hm3", "overview", "completion-indexed-subset-hm3", "completion-overview"):
+            record = json.loads((rec_dir / f"{step}.json").read_text(encoding="utf-8"))
+            self.assertTrue(record["success"], step)
+            self.assertEqual(record["argv"][2], staged, step)
+        store_p = paths.store_path(store_id, root=artifacts)
+        self.assertEqual(json.loads((store_p / "manifest.json").read_text())["completion_state"], "reference_completed")
+        q = query_store(store_p)
+        try:
+            rows = q.analysis(self.built["analysis_id"], indexed_subset="hm3")
+            table = q.variants_table()
+        finally:
+            q.close()
+        self.assertEqual(
+            {
+                table[int(index)]["alid"]: str(status)
+                for index, status in zip(rows["variant_index"], rows["association_status"], strict=True)
+            },
+            {
+                SIGNAL_ALID[i]: "imputed" if i == SIGNAL_HELD_OUT_INDEX else "observed"
+                for i in HYBRID_SUBSET_INDEXES
+            },
+        )
+        self.assertTrue((store_p / "overview.html").is_file())
 
 
 class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
