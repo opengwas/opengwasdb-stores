@@ -141,6 +141,22 @@ def _classify_stored_effect_scale(units: object) -> str | None:
     return None
 
 
+def _text(value: object) -> str:
+    """A provider JSON text field, read from the raw value.
+
+    JSON ``null`` is absence, not the string ``"None"``: stringifying it first
+    would put "None" in a bundle field and hide that the provider said nothing.
+    A non-string value (a number, a list) is described as JSON, never flattened.
+    """
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float, bool)):
+        return json.dumps(value)
+    return ""
+
+
 def _as_count(value: object) -> float | None:
     try:
         number = float(value)  # type: ignore[arg-type]
@@ -195,9 +211,10 @@ def resolve_record(analysis_id: str, document: Mapping[str, object], *, sha256: 
     else:
         return ProviderRecord(
             analysis_id=analysis_id, provider_id=provider_id, batch=batch,
-            population=str(document.get("population", "")), units="" if units is None else str(units),
-            trait=str(document.get("trait", "")), author=str(document.get("author", "")),
-            consortium=str(document.get("consortium", "")), build=str(document.get("build", "")),
+            population=_text(document.get("population")),
+            units="" if units is None else str(units),
+            trait=_text(document.get("trait")), author=_text(document.get("author")),
+            consortium=_text(document.get("consortium")), build=_text(document.get("build")),
             sha256=sha256, size=size, resolution_status="unresolved",
             resolution_notes="provider JSON had neither a usable ncase/ncontrol pair nor a usable sample_size",
             stored_effect_scale="", sample_size_kind="", sample_size="", n_cases="", n_controls="",
@@ -207,12 +224,12 @@ def resolve_record(analysis_id: str, document: Mapping[str, object], *, sha256: 
         analysis_id=analysis_id,
         provider_id=provider_id,
         batch=batch,
-        population=str(document.get("population", "")),
+        population=_text(document.get("population")),
         units="" if units is None else str(units),
-        trait=str(document.get("trait", "")),
-        author=str(document.get("author", "")),
-        consortium=str(document.get("consortium", "")),
-        build=str(document.get("build", "")),
+        trait=_text(document.get("trait")),
+        author=_text(document.get("author")),
+        consortium=_text(document.get("consortium")),
+        build=_text(document.get("build")),
         sha256=sha256,
         size=size,
         resolution_status=status,

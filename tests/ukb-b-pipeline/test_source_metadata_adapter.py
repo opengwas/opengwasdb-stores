@@ -180,6 +180,16 @@ class AdapterTest(unittest.TestCase):
         path.write_text(json.dumps(document), encoding="utf-8")
         self.assertRefused("ukb-b-10054", "author")
 
+    def test_a_null_author_is_refused_like_a_missing_one(self) -> None:
+        # JSON null is an absent author, not the string "None": the adapter must
+        # read the raw value, not a stringified one (#289 review).
+        path = self.fixture.source_dir / "ukb-b-10054.json"
+        document = json.loads(path.read_text(encoding="utf-8"))
+        document["author"] = None
+        path.write_text(json.dumps(document), encoding="utf-8")
+        self.assertRefused("ukb-b-10054", "author")
+        self.assertFalse(self.out.exists(), "a refused conversion leaves no table for freeze")
+
     def test_a_declared_label_that_disagrees_with_the_provider_is_refused(self) -> None:
         rows = [
             {"analysis_id": analysis_id, "source_analysis_id": analysis_id, "source_label": "Other"}

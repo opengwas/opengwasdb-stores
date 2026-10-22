@@ -245,7 +245,10 @@ def convert_rows(
             )
             continue
         record = records[analysis_id]
-        first_author = str(getattr(record, "author", "") or "").strip()
+        # The raw value: a provider JSON `null` is an absent author, never the
+        # string `str(None)` (#289 review). `provider_metadata` already reads it
+        # that way; this keeps the adapter honest on its own too.
+        first_author = (getattr(record, "author", "") or "").strip()
         if not first_author:
             problems.append(
                 f"{analysis_id}: provider JSON records no author, and a first author has no "
