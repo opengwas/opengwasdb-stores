@@ -1689,18 +1689,16 @@ class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
 
     def test_a_ragged_layout_is_refused(self) -> None:
         """The Observed-View Check compares no Ragged Store yet, so a Ragged one is not planned (ADR 0037)."""
-        for layout, command in (("ragged", "complete-ragged"),):
-            with self.subTest(layout=layout):
-                bundle_obj = self.completed(
-                    layout,
-                    complete={**self.COMPLETE_BLOCK, "command": command},
-                    post={"top_hits": False, "overview": False},
-                )
-                with self.assertRaises(ValueError) as ctx:
-                    plan(bundle_obj)
-                record_check()
-                self.assertIn(repr(layout), str(ctx.exception))
-                self.assertIn("ADR 0037", str(ctx.exception))
+        bundle_obj = self.completed(
+            "ragged",
+            complete={**self.COMPLETE_BLOCK, "command": "complete-ragged"},
+            post={"top_hits": False, "overview": False},
+        )
+        with self.assertRaises(ValueError) as ctx:
+            plan(bundle_obj)
+        record_check()
+        self.assertIn("'ragged'", str(ctx.exception))
+        self.assertIn("ADR 0037", str(ctx.exception))
 
 
 class TestPlanSingleIdHybridReferenceCompleted(unittest.TestCase):
@@ -1710,6 +1708,9 @@ class TestPlanSingleIdHybridReferenceCompleted(unittest.TestCase):
     block. The golden was written by the planner before Hybrid was admitted:
     its observed-only plan of OGS-00011, then its completion phase for the
     amended bundle, which carries no layout rule of its own.
+
+    The `complete` options stand in for OGS-00011's own until its bundle
+    declares them (#334); the golden's completion phase is regenerated then.
     """
 
     GOLDEN = REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00011-single-id-completed.json"

@@ -171,7 +171,8 @@ Variant Subset guard.
 ## Coordination with core #295
 
 Core opengwas/opengwasdb#295 extends `check-observed-view` from Dense pairs to
-Hybrid pairs: the Dense Components, every crossover, and a seeded sample of
+Hybrid pairs: the Dense Components, every crossover (a source Overflow association
+whose ALID becomes a Dense row on completion), and a seeded sample of
 whole Overflow Analyses with exhaustive per-Analysis counts. Stores #333 moved
 the pin to `eb4c749b`, #295's merge into the core integration branch
 `orch/232-observed-view` (core PR #303), so that a Hybrid release can complete

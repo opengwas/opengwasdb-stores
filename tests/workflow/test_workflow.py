@@ -1944,7 +1944,7 @@ def kill_release_run(proc: subprocess.Popen, pause: Path) -> None:
 
 
 def run_single_id_completion(
-    store_id: str, prepare: Callable[[Path, str], tuple[Path, Path]]
+    store_id: str, prepare: Callable[[Path, str], tuple[Path, Path]], *, copy_complete_started: bool = False
 ) -> dict[str, Any]:
     """One fresh entry-point run of a release that completes its own Store, paused twice (#304, #333).
 
@@ -1957,12 +1957,13 @@ def run_single_id_completion(
     The run is paused twice. As `complete` starts, once the build phase has
     published the Observed-Only Store, its observed view is read
     (`observed_before`, from `observed_view`), because the swap deletes that
-    Store (#309), and both trees are copied, mtimes kept, to
-    `complete_started` (`stores`, `artifacts`), for a test that completes a
-    published Store. As the Observed-View Check starts, with the completed
-    Store staged and validated, both trees are copied to `check_started`, for
-    a test that tampers with the staged Store before its own run checks it.
-    Each is None when the run never got there. No snapshot is written again:
+    Store (#309); with `copy_complete_started`, both trees are also copied,
+    mtimes kept, to `complete_started` (`stores`, `artifacts`), for a test
+    that completes a published Store. As the Observed-View Check starts, with
+    the completed Store staged and validated, both trees are copied to
+    `check_started`, for a test that tampers with the staged Store before its
+    own run checks it. Each is None when the run never got there or was not
+    asked to copy. No snapshot is written again:
     a test copies it. Should anything raise meanwhile, the run is killed and
     reaped (`kill_release_run`), its pause file removed, and the error raised.
     """
@@ -1988,9 +1989,10 @@ def run_single_id_completion(
                     break
                 if point == "complete-started":
                     observed_before = observed_view(paths.store_path(store_id, root=artifacts), analysis_id)
-                snapshots[point] = {tree: root / point / tree for tree in ("stores", "artifacts")}
-                shutil.copytree(stores, snapshots[point]["stores"])
-                shutil.copytree(artifacts, snapshots[point]["artifacts"])
+                if point != "complete-started" or copy_complete_started:
+                    snapshots[point] = {tree: root / point / tree for tree in ("stores", "artifacts")}
+                    shutil.copytree(stores, snapshots[point]["stores"])
+                    shutil.copytree(artifacts, snapshots[point]["artifacts"])
                 pause.unlink()
             if proc.poll() is None and time.monotonic() >= deadline:
                 kill_release_run(proc, pause)
@@ -2056,13 +2058,16 @@ def hybrid_single_id_completion_template() -> dict[str, Any]:
     """The one single-id completed Hybrid release this process builds, built on first use (#333).
 
     `run_single_id_completion` from `prepare_hybrid_single_id_signal_release`,
-    with no rerun: what a rerun shows does not depend on the layout, and
-    `single_id_completion_template` shows it. A test that may write copies a
-    tree; the template is never written again.
+    copying both trees as `complete` starts, with no rerun: what a rerun shows
+    does not depend on the layout, and `single_id_completion_template` shows
+    it. A test that may write copies a tree; the template is never written
+    again.
     """
     global _HYBRID_SINGLE_ID_COMPLETION
     if _HYBRID_SINGLE_ID_COMPLETION is None:
-        _HYBRID_SINGLE_ID_COMPLETION = run_single_id_completion("OGS-00130", prepare_hybrid_single_id_signal_release)
+        _HYBRID_SINGLE_ID_COMPLETION = run_single_id_completion(
+            "OGS-00130", prepare_hybrid_single_id_signal_release, copy_complete_started=True
+        )
     return _HYBRID_SINGLE_ID_COMPLETION
 
 
@@ -3188,6 +3193,9 @@ class TestWorkflowSingleIdHybridFailingObservedViewCheck(TestWorkflowSingleIdFai
         from opengwasdb.encoding import DenseZPlane
         from opengwasdb.store.open import open_store
 
+        # The held-out position is on the variant reference, which the
+        # Observed-Only variant count counts on, and the crossover is observed.
+        self.assertNotIn(SIGNAL_HELD_OUT_INDEX, HYBRID_OFF_REFERENCE_INDEXES)
         component = open_store(staged_p).dense_component()
         (crossover,) = set(HYBRID_OFF_REFERENCE_INDEXES) & set(HYBRID_PANEL_INDEXES)
         found = query_store(component.path).lookup([SIGNAL_ALID[crossover]], [f"test_analysis_{self.STORE_ID}"])
@@ -3256,6 +3264,7 @@ class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
 
     def test_the_check_compared_both_components_and_the_crossover_and_passed(self) -> None:
         """Two Overflow associations, one of them on the panel: one crossover, one left in the Overflow."""
+        self.assertNotIn(SIGNAL_HELD_OUT_INDEX, HYBRID_OFF_REFERENCE_INDEXES, "both are observed in the VCF")
         verdict = json.loads(self.record("completion-observed-view-check")["stdout"])
         self.assertEqual(verdict["layout"], "hybrid")
         self.assertIs(verdict["passed"], True)
