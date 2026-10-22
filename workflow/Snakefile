@@ -231,9 +231,7 @@ onstart:
     # maintained variant list that matches its declaration. Refuse before the
     # build starts rather than hours in.
     try:
-        resources.verify_indexed_subsets_for_releases(
-            scheduled, registry_root=REGISTRY_ROOT, repo_root=paths.REPO_ROOT
-        )
+        resources.verify_indexed_subsets_for_releases(scheduled, registry_root=REGISTRY_ROOT)
     except (
         resources.IndexedSubsetRuntimeError,
         resources.ReferenceResourceError,

@@ -858,9 +858,7 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     except runtime.RuntimeGuardError as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
     try:
-        resources.verify_indexed_subsets_for_releases(
-            idle, registry_root=registry_root, repo_root=paths.REPO_ROOT
-        )
+        resources.verify_indexed_subsets_for_releases(idle, registry_root=registry_root)
     except (resources.IndexedSubsetRuntimeError, resources.ReferenceResourceError) as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
     try:
@@ -951,9 +949,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     # Declared Indexed Variant Subsets need a runtime capability the tracked pin
     # deliberately predates, and a maintained variant list that matches its
     # declaration. Refuse before the snapshot or any build work (#209).
-    resources.verify_indexed_subsets_for_releases(
-        scheduled, registry_root=registry_root, repo_root=paths.REPO_ROOT
-    )
+    resources.verify_indexed_subsets_for_releases(scheduled, registry_root=registry_root)
     # A release that completes its own Store gates its swap on the Observed-View
     # Check, which the resolved runtime must provide (#306).
     resources.verify_observed_view_check_for_releases(scheduled, registry_root=registry_root)
