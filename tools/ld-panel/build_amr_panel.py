@@ -28,7 +28,7 @@ Run it under ``taskset`` with at most --cpus CPUs, and PYTHONNOUSERSITE=1.
 """
 from __future__ import annotations
 
-import argparse, csv, json, os, subprocess, sys
+import argparse, csv, json, os, shutil, subprocess, sys
 from collections.abc import Callable, Iterable
 from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
 from typing import TypeVar
@@ -75,6 +75,28 @@ def run_all(fn: Callable[[T], object], items: Iterable[T], workers: int) -> None
         except BaseException:
             pool.shutdown(cancel_futures=True)
             raise
+
+
+def freeze_membership(candidate_dir: Path, members_dir: Path) -> str:
+    """Freeze the membership this panel was started with; return its SHA-256.
+
+    make_membership writes a fresh copy into the run directory, so a rerun
+    compares a candidate against members/ instead of against itself (#354). A
+    first run has nothing to compare and adopts the candidate. A later run must
+    match the frozen hash; a mismatch raises before anything is copied, because
+    every converted chromosome and built block of this panel was made from the
+    members/ bytes the panel was started with.
+    """
+    frozen = members_dir / "AMR.keep.sha256"
+    candidate = sha256(candidate_dir / "AMR.keep")
+    if frozen.exists() and frozen.read_text().strip() != candidate:
+        raise SystemExit(f"AMR membership differs from the one this panel was started with "
+                         f"({candidate} != {frozen.read_text().strip()})")
+    members_dir.mkdir(parents=True, exist_ok=True)
+    for name in ("AMR.keep", "membership.json"):
+        shutil.copy(candidate_dir / name, members_dir / name)
+    frozen.write_text(candidate + "\n")
+    return candidate
 
 
 def conversion_marker(pass_only: bool, mac: int | None, members_sha: str | None) -> str:
@@ -224,17 +246,25 @@ def main() -> int:
     steps, py, members = Steps(run, env), sys.executable, out / "members"
     summary: dict[str, object] = {}
     try:
-        # 1. Membership, unchanged across invocations, then preflight.
-        frozen = members / "AMR.keep.sha256"
+        # 1. Membership, computed fresh in the run directory and then frozen
+        # against the panel's own members/, so a rerun cannot compare the panel
+        # with itself. Then preflight.
+        candidate = run / "members"
         steps.run("membership", [py, str(HERE / "make_membership.py"), "--cohort", str(source / "cohort_populations.tsv"),
                                  "--mapping", str(args.mapping), "--panels", "AMR", "--samples", str(args.samples),
-                                 "--out", str(members)])
-        keep_sha = sha256(members / "AMR.keep")
-        if frozen.exists() and frozen.read_text().strip() != keep_sha:
-            raise SystemExit("AMR membership differs from the one this panel was started with")
-        frozen.write_text(keep_sha + "\n")
+                                 "--out", str(candidate)])
+        expected_marker = conversion_marker(pass_only=True, mac=1, members_sha=sha256(candidate / "AMR.keep"))
+        # A converted chromosome whose marker records another conversion stops
+        # the run here, before members/ or any converted file is touched.
+        pending: list[str] = []
+        for chrom in chromosomes:
+            marker = out / "pgen/AMR" / f"chr{chrom}.complete"
+            if not marker.exists(): pending.append(chrom); continue
+            if not marker_matches(marker.read_text(), expected_marker):
+                raise SystemExit(f"pgen/AMR/chr{chrom}.complete records a different conversion "
+                                 f"({marker.read_text().strip()}); refusing to reconvert chr{chrom}")
+        keep_sha = freeze_membership(candidate, members)
         amr = read_ids(members / "AMR.keep")
-        expected_marker = conversion_marker(pass_only=True, mac=1, members_sha=keep_sha)
         receipt["membership"] = {**reconcile_membership(amr, args.samples, source / "cohort_populations.tsv",
                                                         source / META), "amr_keep_sha256": keep_sha}
         sources = {}
@@ -257,13 +287,6 @@ def main() -> int:
             for suffix in (".pgen", ".pvar.zst", ".psam"):
                 if not Path(f"{prefix}{suffix}").exists(): raise SystemExit(f"conversion wrote no {prefix}{suffix}")
             Path(f"{prefix}.complete").write_text(expected_marker)
-        pending: list[str] = []
-        for chrom in chromosomes:
-            marker = out / "pgen/AMR" / f"chr{chrom}.complete"
-            if not marker.exists(): pending.append(chrom); continue
-            if not marker_matches(marker.read_text(), expected_marker):
-                raise SystemExit(f"pgen/AMR/chr{chrom}.complete records a different conversion "
-                                 f"({marker.read_text().strip()}); refusing to reconvert chr{chrom}")
         run_all(convert, pending, args.readers)
         receipt["conversion"] = {c: conversion_counts(out / "pgen/AMR" / f"chr{c}.log") for c in chromosomes}
 

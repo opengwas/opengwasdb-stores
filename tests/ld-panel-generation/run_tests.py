@@ -414,6 +414,39 @@ def test_run_all_stops_on_first_failure() -> None:
     check(sorted(done) == [9, 10, 11, 12], f"run_all did not run every item: {done}")
 
 
+def test_freeze_membership() -> None:
+    # #354: make_membership writes into the run directory, so a rerun cannot
+    # compare the panel's frozen membership against itself. The freeze compares
+    # the candidate's hash with members/ and copies only on a match; a changed
+    # membership refuses and leaves members/ byte-identical.
+    keep = "#IID\nS1\nS2\n"
+    digest = "0a7c17e56a0241b51cd39fe842a7313bf8ee827d71a1f0a43b15c40774afe9b3"
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        candidate, members = tmp / "runs/20261022T000000Z/members", tmp / "members"
+        candidate.mkdir(parents=True)
+        (candidate / "AMR.keep").write_text(keep)
+        (candidate / "membership.json").write_text('{"AMR": 2}\n')
+        check(panel.freeze_membership(candidate, members) == digest and
+              (members / "AMR.keep").read_text() == keep and
+              (members / "membership.json").read_text() == '{"AMR": 2}\n' and
+              (members / "AMR.keep.sha256").read_text() == digest + "\n",
+              "a first run must copy the candidate membership and freeze its hash")
+        before = (members / "AMR.keep").read_bytes()
+        check(panel.freeze_membership(candidate, members) == digest and
+              (members / "AMR.keep").read_bytes() == before,
+              "a matching run must not change the frozen membership")
+        (candidate / "AMR.keep").write_text("#IID\nS1\n")
+        try:
+            panel.freeze_membership(candidate, members)
+            check(False, "a changed membership must refuse")
+        except SystemExit as exc:
+            check("membership" in str(exc), f"the refusal does not say what changed: {exc}")
+        check((members / "AMR.keep").read_bytes() == before and
+              (members / "AMR.keep.sha256").read_text() == digest + "\n",
+              "a refused membership change must leave members/ untouched")
+
+
 def test_canonical_effect_allele_ld_orientation() -> None:
     dosage = np.tile([0.0, 1.0, 2.0, 1.0], 10)
     # PLINK exports ALT dosage. Variant 1's canonical effect allele is ALT,
@@ -570,6 +603,7 @@ def main() -> None:
     test_block(); test_maf_floor(); test_alid_collisions(); test_call_rate(); test_run_panels_floor_resume()
     test_verify_block(); test_heldout_calibration(); test_pair_records(); test_panel_summary()
     test_conversion_markers(); test_run_all_stops_on_first_failure()
+    test_freeze_membership()
     test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_amr_regions(); test_amr_pilot_mapping(); test_amr_pilot_membership()
     test_index_validation(); test_compressed_pvar_input()
