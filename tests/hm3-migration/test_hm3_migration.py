@@ -164,6 +164,13 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "source-assembly": "hg38",
         },
         "post": {"top_hits": False, "overview": True},
+        # #334 amends OGS-00011's accepted bundle to declare completion
+        # (ADR 0037): the same build phase, then completion against the UKB EUR
+        # panel at the build's 24 workers.
+        "complete": {
+            "command": "complete-hybrid",
+            "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR", "n-workers": 24},
+        },
     },
     "OGS-00012": {
         "phase": "build",
@@ -310,7 +317,8 @@ class TestRegistryMigration(unittest.TestCase):
 
         Note: OGS-00012/13/14/16 additionally carry the owner-authorized
         execution-only `n-workers: 16` amendment, and OGS-00009 (#312),
-        OGS-00012 (#227) and OGS-00017 (#223) their completion phase.
+        OGS-00011 (#334), OGS-00012 (#227) and OGS-00017 (#223) their
+        completion phase.
         """
         for store_id, expected in EXPECTED_UNRELATED.items():
             build = load_build(store_id)

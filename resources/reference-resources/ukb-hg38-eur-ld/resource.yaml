@@ -75,3 +75,11 @@ notes: >
   `qualification: qualified` and `activation: active`, the activation being the
   `EUR -> ukb` alias above. The panel was not re-verified for that release: the
   gaps in the paragraph above stand unchanged.
+
+  Also the declared completion panel for the EUR Hybrid Store (2026-10-22,
+  #334). OGS-00011 declares completion against this panel through the same
+  `EUR -> ukb` alias, for ancestry EUR, on the owner decision of 2026-10-21;
+  its completion follows #225's rebuild of the Store. That Store's Dense axis
+  is the gnomAD v4 EUR common-variant reference rather than this panel, so
+  completion extends the axis with the panel's variants. The panel was not
+  re-verified for that release either: the gaps above still stand.

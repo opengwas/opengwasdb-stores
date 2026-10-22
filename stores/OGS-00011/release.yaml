@@ -78,4 +78,17 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
 
 
   Review: 148 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
-  (#203); see sidecars/exclusions.tsv'
+  (#203); see sidecars/exclusions.tsv
+
+
+  Completion under its own id (2026-10-22). The bundle now declares completion_state: reference_completed
+  and, after its build phase, a complete block: complete-hybrid against the UKB EUR LD panel, ukb-hg38-eur-ld
+  at /data/opengwasdb/reference/ld, for ancestry EUR at 24 workers. The owner decided this on 2026-10-21.
+  It is the one amendment ADR 0037 Decision 1 allows an accepted bundle, and its "Clarified by #305" section
+  says only how that rule is enforced: the build phase still plans exactly the argv that wrote the published
+  Store, with unchanged membership, so completing this Store schedules no rebuild. Every built Analysis
+  carries Assigned Ancestry EUR: 3,169 of the bundle''s rows are build members and all of them are EUR, so
+  completion imputes all 3,169 and the panel vocabulary matches the Analyses exactly. This Store''s Dense axis
+  is the gnomAD v4 EUR common-variant reference, not the UKB panel, so completion extends it: an Overflow
+  observation at a variant the panel adds to the Dense axis crosses into the Dense Component as an observed
+  cell and leaves the Overflow (opengwas/opengwasdb#99). Release Status is unchanged.'

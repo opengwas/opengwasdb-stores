@@ -5,10 +5,11 @@ Verifies:
 - OGS-00003 Dense observed-only golden test against external JSON fixture.
 - OGS-00004 and OGS-00005 Hybrid observed-only golden tests against external JSON fixtures.
 - OGS-00006 and OGS-00007 Ragged SSF observed-only golden tests against external JSON fixtures.
-- Single-id completion (ADR 0037): OGS-00003 (Dense), OGS-00011 (Hybrid) and OGS-00006 (Ragged)
-  gaining a `complete` block plan both phases against golden fixtures, the build phase being the
-  observed-only plan; a Ragged one's Observed-View Check takes the LD panel and ancestry its
-  `complete` block declares, and a Ragged `complete` block that lacks either is refused.
+- Single-id completion (ADR 0037): OGS-00003 (Dense), OGS-00011 (Hybrid, which declares the
+  `complete` block itself from #334) and OGS-00006 (Ragged) plan both phases against golden
+  fixtures, the build phase being the observed-only plan; a Ragged one's Observed-View Check
+  takes the LD panel and ancestry its `complete` block declares, and a Ragged `complete`
+  block that lacks either is refused.
 - Committed registry (#211): the eight Dense-component bundles declare `hm3`, and
   the declared subset Step sits before overview/validate; the four Ragged-only
   bundles declare none and plan unchanged.
@@ -1692,35 +1693,33 @@ class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
 class TestPlanSingleIdHybridReferenceCompleted(unittest.TestCase):
     """A Hybrid release without `derived_from` completes its own Store, as a Dense one does (ADR 0037, #333).
 
-    The fixture is OGS-00011's committed recipe gaining a `complete-hybrid`
-    block. The golden was written by the planner before Hybrid was admitted:
-    its observed-only plan of OGS-00011, then its completion phase for the
-    amended bundle, which carries no layout rule of its own.
-
-    The `complete` options stand in for OGS-00011's own until its bundle
-    declares them (#334); the golden's completion phase is regenerated then.
+    The fixture is OGS-00011's committed bundle, which declares the completion
+    itself from #334. The golden was written by the planner before Hybrid was
+    admitted: its observed-only plan of OGS-00011, then its own completion
+    phase for the amended bundle, which carries no layout rule of its own. The
+    options that phase planned stood in for OGS-00011's own (#333); #334's
+    `complete` block matched them, so the golden did not change.
     """
 
     GOLDEN = REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00011-single-id-completed.json"
     STORE = "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
-    COMPLETE_BLOCK = {
-        "command": "complete-hybrid",
-        "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR", "n-workers": 24},
-    }
 
-    def completed(self) -> Bundle:
-        observed = load("OGS-00011")
+    def observed_only(self) -> Bundle:
+        """OGS-00011 as published before it declared completion: same recipe, no `complete` block."""
+        amended = load("OGS-00011")
+        build = {key: value for key, value in amended.build.items() if key != "complete"}
+        build["completion_state"] = "observed_only"
         return Bundle(
-            store_id=observed.store_id,
-            root=observed.root,
-            release=observed.release,
-            build={**observed.build, "completion_state": "reference_completed", "complete": self.COMPLETE_BLOCK},
-            analyses_path=observed.analyses_path,
+            store_id=amended.store_id,
+            root=amended.root,
+            release=amended.release,
+            build=build,
+            analyses_path=amended.analyses_path,
         )
 
     def test_both_phases_match_the_golden(self) -> None:
         """Build phase as today, then complete-hybrid, the HM3 subset, overview, validate and the check."""
-        steps = plan(self.completed())
+        steps = plan(load("OGS-00011"))
         assert_steps_match_golden(self, steps, self.GOLDEN)
         record_check()
         self.assertEqual(
@@ -1734,10 +1733,15 @@ class TestPlanSingleIdHybridReferenceCompleted(unittest.TestCase):
             validate_step_argv_against_cli(self, step)
 
     def test_the_build_phase_is_the_observed_only_plan(self) -> None:
-        """What OGS-00011 plans today is its build phase, step for step (ADR 0037, #305)."""
-        steps = plan(self.completed())
+        """The build phase equals the planner's observed-only plan for this bundle (ADR 0037, #305).
+
+        `observed_only()` drops the block the way the planner does, so this
+        comparison alone cannot catch a planner that drifts; the golden's build
+        steps are what anchor what OGS-00011 planned before #334.
+        """
+        steps = plan(load("OGS-00011"))
         record_check()
-        self.assertEqual([s for s in steps if s.phase == "build"], plan(load("OGS-00011")))
+        self.assertEqual([s for s in steps if s.phase == "build"], plan(self.observed_only()))
 
 
 class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
