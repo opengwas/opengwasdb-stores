@@ -44,7 +44,9 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
 15. A Hybrid release completes its own Store too (#333): one entry-point run
    builds and publishes the Observed-Only Hybrid Store, completes it, moving an
    Overflow association into the Dense Component, passes the Observed-View
-   Check across both components and publishes the completed Store at its path.
+   Check across both components and publishes the completed Store at its path;
+   a perturbed crossover fails the check, naming it, and the Observed-Only Store
+   stays published.
 """
 
 from __future__ import annotations
@@ -2634,14 +2636,37 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
     opengwasdb's plane `patch` API. The check then fails, `completion-register`
     never runs, and the Observed-Only Store the build phase published is
     exactly as it was.
+
+    A subclass runs the same test on another layout's release: its template,
+    the cell it perturbs (`tamper`), the failure that names, and the
+    Observed-Only Store's variant count (#333).
     """
 
     CHECK_STEP = "completion-observed-view-check"
+    FAILURE = "z_mismatch"
+    # The VCF's positions; the held-out one is in no Dense Store before completion.
+    OBSERVED_ONLY_N_VARIANTS = len(SIGNAL_POSITIONS) - 1
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.template = single_id_completion_template()
+        cls.template = cls.build_template()
         cls.STORE_ID: str = cls.template["store_id"]
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return single_id_completion_template()
+
+    def tamper(self, staged_p: Path) -> None:
+        """Perturb one observed Z of the staged completed Store."""
+        import numpy as np
+        from opengwasdb.encoding import DenseZPlane
+        from opengwasdb.store.open import open_store
+
+        found = query_store(staged_p).lookup([SIGNAL_ALID[0]], [f"test_analysis_{self.STORE_ID}"])
+        rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
+        opened = open_store(staged_p)
+        plane = DenseZPlane.open(opened.arrays(mode="r+"), opened.manifest.encoding)
+        plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
 
     @staticmethod
     def hash_tree(root: Path) -> dict[str, str]:
@@ -2654,10 +2679,7 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
         }
 
     def test_a_tampered_completed_store_is_refused_and_the_observed_only_store_survives(self) -> None:
-        import numpy as np
         import yaml
-        from opengwasdb.encoding import DenseZPlane
-        from opengwasdb.store.open import open_store
 
         self.assertIsNotNone(self.template["check_started"], "the template's run never reached its check")
         with tempfile.TemporaryDirectory() as temp:
@@ -2689,12 +2711,7 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
                 register_before = (paths.records_dir(self.STORE_ID, root=artifacts) / "register.json").read_bytes()
                 validation_before = (stores / self.STORE_ID / "validation.yaml").read_bytes()
 
-                # Perturb one observed Z of the staged completed Store.
-                found = query_store(staged_p).lookup([SIGNAL_ALID[0]], [f"test_analysis_{self.STORE_ID}"])
-                rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
-                opened = open_store(staged_p)
-                plane = DenseZPlane.open(opened.arrays(mode="r+"), opened.manifest.encoding)
-                plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
+                self.tamper(staged_p)
                 pause.unlink()
                 returncode = proc.wait(timeout=600)
 
@@ -2705,8 +2722,8 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
             verdict_p = paths.work_dir(self.STORE_ID, root=artifacts) / "observed-view-check.json"
             verdict = json.loads(verdict_p.read_text(encoding="utf-8"))
             self.assertIs(verdict["passed"], False)
-            self.assertIn("z_mismatch", verdict["failures"])
-            self.assertIn("z_mismatch", output)
+            self.assertIn(self.FAILURE, verdict["failures"])
+            self.assertIn(f"{self.FAILURE}=1", output)
             self.assertIn(str(verdict_p), output)
 
             # The check failed, so nothing registered and nothing was published.
@@ -2721,8 +2738,40 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
             self.assertFalse(paths.publication_marker(self.STORE_ID, root=artifacts).exists())
             self.assertEqual(
                 yaml.safe_load((stores / self.STORE_ID / "validation.yaml").read_text())["observed"]["n_variants"],
-                len(SIGNAL_POSITIONS) - 1,
+                self.OBSERVED_ONLY_N_VARIANTS,
             )
+
+
+class TestWorkflowSingleIdHybridFailingObservedViewCheck(TestWorkflowSingleIdFailingObservedViewCheck):
+    """A Hybrid completed Store that fails the Observed-View Check is not published either (#333, ADR 0037).
+
+    The release is `hybrid_single_id_completion_template`'s, and the cell
+    perturbed is its crossover: the Overflow association completion moved into
+    the Dense Component, which the Hybrid check compares with its source value.
+    """
+
+    FAILURE = "crossovers.z_mismatch"
+    # The shared axis: the variant reference's ten positions, the held-out one
+    # among them, and the two the Overflow holds.
+    OBSERVED_ONLY_N_VARIANTS = len(SIGNAL_POSITIONS)
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return hybrid_single_id_completion_template()
+
+    def tamper(self, staged_p: Path) -> None:
+        """Perturb the crossover's Z in the staged Store's Dense Component."""
+        import numpy as np
+        from opengwasdb.encoding import DenseZPlane
+        from opengwasdb.store.open import open_store
+
+        component = open_store(staged_p).dense_component()
+        (crossover,) = set(HYBRID_OFF_REFERENCE_INDEXES) & set(HYBRID_PANEL_INDEXES)
+        found = query_store(component.path).lookup([SIGNAL_ALID[crossover]], [f"test_analysis_{self.STORE_ID}"])
+        self.assertEqual(list(found["association_status"]), ["observed"])
+        rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
+        plane = DenseZPlane.open(component.arrays(mode="r+"), component.manifest.encoding)
+        plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
 
 
 class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):

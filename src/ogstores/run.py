@@ -1783,26 +1783,38 @@ def first_json_object(text: str) -> dict[str, Any]:
 def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
     """Each name in a verdict's `failures`, with its count where the verdict holds one.
 
-    A counter is in `totals`. The three axis and Analyses failures carry
-    theirs elsewhere: `axis.parent_rows_unmapped`, `axis.order_preserved` and
+    A Dense verdict's counters are in `totals`. A Hybrid verdict (opengwasdb
+    #295) names each failure after the part that counted it, `dense.`,
+    `overflow.` or `crossovers.`, and that part holds its `totals`:
+    `components.dense`, `components.overflow` (whose counters over every
+    Analysis are in `all_analyses`) or `crossovers`. The axis and Analyses
+    failures carry their counts elsewhere: the part's
+    `axis.parent_rows_unmapped` and `axis.order_preserved`, and
     `analyses.identical`.
     """
-    totals, axis, analyses = verdict["totals"], verdict["axis"], verdict["analyses"]
+    analyses = verdict["analyses"]
     named: list[str] = []
     for name in verdict["failures"]:
-        if name in totals:
-            named.append(f"{name}={totals[name]}")
-        elif name == "parent_rows_unmapped":
-            named.append(f"parent_rows_unmapped={axis['parent_rows_unmapped']}")
-        elif name == "order_not_preserved":
-            named.append(f"order_preserved={str(axis['order_preserved']).lower()}")
+        part, _, counter = name.rpartition(".")
+        prefix = f"{part}." if part else ""
+        if not part:
+            section = verdict
+        elif part == "crossovers":
+            section = verdict["crossovers"]
+        else:
+            section = verdict["components"][part]
+        if counter == "parent_rows_unmapped":
+            named.append(f"{name}={section['axis']['parent_rows_unmapped']}")
+        elif counter == "order_not_preserved":
+            named.append(f"{prefix}order_preserved={str(section['axis']['order_preserved']).lower()}")
         elif name == "analyses_mismatch":
             named.append(
                 f"analyses_identical={str(analyses['identical']).lower()} "
                 f"(n_parent={analyses['n_parent']}, n_child={analyses['n_child']})"
             )
         else:
-            named.append(name)
+            totals = {**section["totals"], **section.get("all_analyses", {})}
+            named.append(f"{name}={totals[counter]}" if counter in totals else name)
     return ", ".join(named)
 
 
