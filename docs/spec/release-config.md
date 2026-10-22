@@ -293,10 +293,15 @@ refused. Four blocks use them, by id:
   source build that differs from that reference build with: a `liftover_chain`
   resource, whose declaration states its `from_genome_build`,
   `to_genome_build` and `sha256`. The resolver is passed `--chain-file` for its
-  `location`; a chain whose `to_genome_build` is not the reference build, or
-  whose file no longer has the declared checksum, is refused. Without it the
-  resolver refuses a source on another build. The chain's checksum is part of
-  the resolution contract.
+  `location`; a chain whose `to_genome_build` is not the reference build is
+  refused when the settings are composed, because that is a declaration. The
+  file's own bytes are checked before the `resolve` stage starts the resolver:
+  a chain that is absent, or whose `sha256` is not the declared one, refuses the
+  run by name. Without a chain the resolver refuses a source on another build.
+  The declared checksum is part of the resolution contract, and it is the
+  declared one that the settings digest covers -- composing a run's settings
+  reads no liftover chain file, so a config whose chain lives under `/data`
+  still composes on a CI runner that has no `/data`.
   `maf_floor` (default 0.01), `extraction_panel` (default none) and `gates`
   (`tau` 0.50, `delta` 0.20, `n_min` 5000, `residual_max` 0.06) are passed to
   the resolver as written.

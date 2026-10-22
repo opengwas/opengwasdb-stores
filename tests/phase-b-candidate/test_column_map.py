@@ -9,6 +9,12 @@ and each Resolution Record's fingerprint carry their checksums; the emitted
 bundle binds the map in `build.yaml` and carries a non-built-in map under
 `column_maps/`. A changed map or chain makes the records stale.
 
+Composing a release's resolver settings reads no liftover chain file, so the
+chain is only ever read *before resolution*: its declaration's checksum is what the
+settings digest covers, and the `resolve` stage refuses an absent chain or one
+which is not those bytes, by name. Both are tested here, the second through the
+entry point.
+
 Expected digests and fingerprints are computed here from the files' bytes, not
 by the code under test.
 
@@ -21,6 +27,7 @@ from __future__ import annotations
 import hashlib
 import importlib.resources
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -35,8 +42,10 @@ from manifest_generation import candidate_workflow
 from manifest_generation.candidate_workflow import (
     RECEIPT_FILENAME,
     CandidateError,
+    declared_setting_checksums,
     derive_resolver_manifest,
     read_analysis_metadata,
+    verify_liftover_chain,
     verify_records,
     load_candidate_configuration,
     resolver_argv,
@@ -59,6 +68,9 @@ from test_phase_b_candidate import (  # sibling suite's fixture helpers
 
 MAP_CAPABILITY = "opengwasdb.column-map"
 CHAIN_ID = "fixture-liftover"
+#: The chain Reference Resource this repository declares, with its committed
+#: ``resource.yaml`` (``from_genome_build`` GRCh37, ``to_genome_build`` GRCh38).
+DECLARED_CHAIN_ID = "liftover-hg19-to-hg38"
 
 
 def _builtin_bytes(name: str) -> bytes:
@@ -193,11 +205,32 @@ class ColumnMapTests(unittest.TestCase):
         # And unpatched, a name is not refused as "not a file".
         resolver_settings_digest(settings)
 
-    def test_the_digest_covers_the_chains_bytes(self) -> None:
-        settings = ["--chain-file", str(self.chain_path)]
-        before = resolver_settings_digest(settings)
-        self.chain_path.write_bytes(b"another chain\n")
-        self.assertNotEqual(before, resolver_settings_digest(settings))
+    def test_the_digest_covers_the_declared_chain_checksum_not_its_bytes(self) -> None:
+        declaration = self._declare_chain()
+        config = self._config(declaration)
+        settings = resolver_settings(config)
+        before = resolver_settings_digest(
+            settings, declared_checksums=declared_setting_checksums(config)
+        )
+        # Composing the routing key reads no chain file: it is gone, and the
+        # digest is what the declaration said it would be.
+        self.chain_path.unlink()
+        self.assertEqual(
+            before,
+            resolver_settings_digest(
+                settings, declared_checksums=declared_setting_checksums(config)
+            ),
+        )
+        # A declaration naming another file is another routing key.
+        document = yaml.safe_load(declaration.read_text(encoding="utf-8"))
+        document["sha256"] = "1" * 64
+        declaration.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        self.assertNotEqual(
+            before,
+            resolver_settings_digest(
+                settings, declared_checksums=declared_setting_checksums(config)
+            ),
+        )
 
     # -- the declared liftover chain ----------------------------------------------------
 
@@ -212,10 +245,27 @@ class ColumnMapTests(unittest.TestCase):
         with self.assertRaisesRegex(CandidateError, "lifts to GRCh37.*Ancestry Reference Panel"):
             resolver_settings(self._config(declaration))
 
-    def test_a_chain_that_is_not_the_declared_file_is_refused(self) -> None:
-        declaration = self._declare_chain(sha256="0" * 64)
+    def test_composing_the_settings_reads_no_chain_bytes(self) -> None:
+        declaration = self._declare_chain()
+        self.chain_path.write_bytes(b"not the declared chain\n")
+        self.assertEqual(
+            self._flag(resolver_settings(self._config(declaration)), "--chain-file"),
+            str(self.chain_path),
+        )
+
+    def test_a_chain_that_is_not_the_declared_file_is_refused_before_resolution(self) -> None:
+        config = self._config(self._declare_chain(sha256="0" * 64))
         with self.assertRaisesRegex(CandidateError, "has sha256 .*declares " + "0" * 64):
-            resolver_settings(self._config(declaration))
+            verify_liftover_chain(config)
+
+    def test_a_chain_file_that_is_absent_is_refused_by_name_before_resolution(self) -> None:
+        config = self._config(self._declare_chain())
+        self.chain_path.unlink()
+        with self.assertRaisesRegex(
+            CandidateError,
+            re.escape(f"liftover chain {self.chain_path} (Reference Resource {CHAIN_ID!r}) is not a file"),
+        ):
+            verify_liftover_chain(config)
 
     def test_the_chain_resource_must_be_a_liftover_chain(self) -> None:
         self._declare_chain()
@@ -235,6 +285,54 @@ class ColumnMapTests(unittest.TestCase):
         self.assertRegex(declaration["sha256"], r"^[0-9a-f]{64}$")
 
     # -- records and the candidate -------------------------------------------------------
+
+
+class ChainVerificationTests(unittest.TestCase):
+    """The declared chain's bytes are checked before resolution, and refused by name (#292)."""
+
+    setUp = ColumnMapTests.setUp
+    tearDown = ColumnMapTests.tearDown
+    _edit_config = ColumnMapTests._edit_config
+
+    def _declare_chain_at(self, location: Path) -> None:
+        """The repository's own chain declaration, pointed at a location of the test's choosing."""
+
+        def edit(document: dict) -> None:
+            document["reference_resources"].append(
+                {"resource_id": DECLARED_CHAIN_ID, "kind": "liftover_chain", "location": str(location)}
+            )
+            document["ancestry_assignment"]["liftover_chain_resource_id"] = DECLARED_CHAIN_ID
+
+        self._edit_config(edit)
+
+    def _declared_sha256(self) -> str:
+        declaration = yaml.safe_load(
+            (
+                REPO_ROOT / "resources" / "reference-resources" / DECLARED_CHAIN_ID / "resource.yaml"
+            ).read_text(encoding="utf-8")
+        )
+        return str(declaration["sha256"])
+
+    def test_a_chain_that_is_not_the_declared_bytes_stops_the_resolve_stage(self) -> None:
+        self._declare_chain_at(self.chain_path)  # the fixture's bytes, not the host chain's
+        resolved_log = self.fixture.root / "resolved.log"
+        run = _run_cli(self.fixture, "--stage", "resolve", resolved_log=resolved_log)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"liftover chain {self.chain_path}", run.stderr)
+        self.assertIn(f"declares {self._declared_sha256()}", run.stderr)
+        # Refused before the resolver was started.
+        self.assertFalse(resolved_log.exists())
+        self.assertFalse((self.fixture.work_root / STORE_ID / "resolver" / "resolve.log").exists())
+
+    def test_an_absent_chain_stops_the_resolve_stage_by_name(self) -> None:
+        absent = self.fixture.root / "reference" / "absent.over.chain.gz"
+        self._declare_chain_at(absent)
+        run = _run_cli(self.fixture, "--stage", "resolve")
+        self.assertNotEqual(run.returncode, 0)
+        self.assertIn(f"liftover chain {absent}", run.stderr)
+        self.assertIn("is not a file", run.stderr)
+        self.assertFalse((self.fixture.registry_root / STORE_ID).exists())
+
 
 class MappedCandidateTests(unittest.TestCase):
     """One candidate generated through a carried map, shared by every read-only assertion on it."""
