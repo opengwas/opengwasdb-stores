@@ -1,0 +1,21 @@
+acquisition_manifest: resources/generators/ukb-b/connectors/acquisition-manifest.tsv
+sha256: be8cb170116a2c42afc729608749bee848c55e73e8f95245680a803250740df9
+rows: 2514
+readiness_counts:
+  ok: 2514
+written_by: manifest_generation.providers.ukb_b.write_acquisition_manifest
+evidence:
+  checksums:
+    path: resources/generators/ukb-b/receipts/ukb-b-restored-2026-10-11.checksums.json
+    sha256: 0bf039ffc2adda4cf45880d2bfdc32ee643d9188338e0842bd9bd8674c9e52b5
+    rows: 2514
+  integrity:
+    path: resources/generators/ukb-b/receipts/ukb-b-restored-2026-10-11.integrity.json
+    sha256: 6a1931e6ea206aaea901a144c84869d2f07a0b0c8a37f02984af962403113e61
+    rows: 2514
+  verification:
+    path: resources/generators/ukb-b/receipts/verify-deep.json
+    sha256: 689c3859b2375c9889a86343253ef96f4103156850568bfc2cae84165209fc8c
+    rows: 0
+readiness_rule: presence, size, checksum, index presence, index identity, stream integrity; the first
+  failing check is the status and the error says what it saw

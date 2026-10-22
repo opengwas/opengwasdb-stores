@@ -235,6 +235,64 @@ BMI_IRN             Body mass index, inverse-rank norm…   BMI_IRN             
 AB1_ACTINOMYCOSIS   Actinomycosis                         AB1_ACTINOMYCOSIS   Finnish                EUR                     case-control    433889       132      433757
 ```
 
+### The ukb-b adapter
+
+`src/manifest_generation/providers/ukb_b/source_metadata_adapter.py` converts
+ukb-b into the canonical table (#289) from two inputs, because ukb-b publishes
+neither a manifest this host can read nor a live API: the registry's **declared
+selection**
+(`resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv`,
+2,514 Analyses, whose `inclusion_reason` cites the OpenGWAS IGD
+`data/ukb-b/manifest.tsv`) and the **provider JSON sidecar** beside each VCF
+(`<id>.json`), which holds the study-level fields OpenGWAS's
+`POST /api/gwasinfo` served before the stored token expired on 2026-08-21.
+
+The declared selection is the intent: every declared Analysis must have a
+provider JSON, and no other Analysis is written. The JSON resolution is
+`providers.ukb_b.provider_metadata`'s -- the exact-ID check (`json.id` must be
+the declared id, case-insensitively), the batch check (`ukb-b`), and its
+contract (`unit` -> the effect scale, a usable `ncase`/`ncontrol` pair ->
+`case_control`, otherwise `sample_size` -> `total`) -- so the table agrees with
+the resolution record #219 froze.
+
+| Provider JSON field | Canonical column |
+|---|---|
+| `id` (`UKB-b-<n>`) | `source_analysis_id`, `source_trait_id` (the registry's `ukb-b-<n>`) |
+| `trait` | `source_trait_label` |
+| `population` | `source_ancestry_label`, and its tracked-map translation as `source_superpopulation` |
+| `ncase`, `ncontrol`, `sample_size` | `study_design`, `sample_size`, `n_cases`, `n_controls` |
+
+Its translations, and only these:
+
+- **Study design.** A usable `ncase`/`ncontrol` pair is a `case-control` row,
+  carrying both counts; otherwise the provider's `sample_size` is a
+  `quantitative` row's total, and no counts are carried -- a zero where counts
+  do not apply is the absence-vs-zero confusion the bundle contract refuses
+  (#133). A JSON with neither a pair nor a sample size is refused by name, as
+  is one whose `id` or `batch` does not match, whose declared Source Trait
+  Label disagrees with the provider's, or whose `population` the tracked map
+  cannot translate.
+- **No declared effect scale.** Every ukb-b Analysis is on the SD scale (the
+  provider's `units` is `SD` for all 2,514, the 1,846 binary traits included),
+  and the release config's method tiers say so (`sd` /
+  `declared_standardised`); the adapter writes no `declared_effect_scale` that
+  could drift from them.
+- **Collection-wide facts are not written.** The GRCh37 build, the UK Biobank
+  terms of access, `MRC-IEU`, the first author and the `ukb-b` analysis group
+  are the same for every Analysis; the release config's `defaults` supply them
+  (#287).
+- **Ancestry is a source label, never an assignment.** `source_superpopulation`
+  is the provider's `European` translated through the tracked map; nothing here
+  claims `af_assigned`.
+
+Example:
+
+```text
+source_analysis_id  source_trait_label                     source_trait_id     source_ancestry_label  source_superpopulation  study_design    sample_size  n_cases  n_controls
+ukb-b-10001         Operative procedures - secondary …     ukb-b-10001         European               EUR                     case-control    463010       6661     456349
+ukb-b-10787         Standing height                        ukb-b-10787         European               EUR                     quantitative    461950
+```
+
 ## Acquisition Manifest
 
 What acquisition produced for a Source Collection: one row per Analysis it
@@ -245,7 +303,7 @@ file for that Analysis -- an explained absence (see Freeze).
 | Column | Required | Description |
 |---|---:|---|
 | `source_analysis_id` | Yes, every row | The Analysis the file was acquired for: its claim. Unique. |
-| `status` | Yes, every row | The readiness vocabulary of `source_inventory.py`: `ok` and `already_present` are ready; `missing_remote_harmonised_yaml`, `header_rejected`, `metadata_rejected`, `data_absent_upstream`, `data_failed`, `yaml_failed`, `dry_run` and `error` record why there is no usable file. An unknown status is refused. |
+| `status` | Yes, every row | The readiness vocabulary of `source_inventory.py`: `ok` and `already_present` are ready; `missing_remote_harmonised_yaml`, `header_rejected`, `metadata_rejected`, `data_absent_upstream`, `data_failed`, `yaml_failed`, `dry_run` and `error` record why there is no usable file. A Source Collection whose acquisition only *records* identities re-verifies them instead, and reports `missing_file`, `missing_index`, `size_mismatch`, `checksum_mismatch`, `index_mismatch`, `bad_index` or `integrity_failed` (`SOURCE_VERIFICATION_STATUSES`, #289). An unknown status is refused. |
 | `location` | Column yes; value on every ready row | The exact local path acquisition wrote. Becomes the inventory's `data_file`. |
 | `bytes` | Column yes; value on every ready row | The file's size in bytes, with no leading zero. Becomes `data_bytes`. On a refused row it is the size the run holds the Analysis to (see the FinnGen writer below). |
 | `sha256` | Column yes; value on every ready row | The file's lower-case sha256. On a refused row it is the digest the run holds the Analysis to, so the refusal does not erase its own pin. |
@@ -464,6 +522,46 @@ that commit and a file it only re-canonicalised carries
 `sha256:unrecorded` with the evidence searched, because no conversion-time
 record names that code. A rewritten file whose extracted original is gone is
 refused by name rather than given an invented identity.
+
+### The ukb-b acquisition writer
+
+ukb-b's files were copied into the mirror, not downloaded by an acquisition
+run, so there is no transfer to report. What the restored inventory recorded
+once is the mirror's identity, and
+`src/manifest_generation/providers/ukb_b/write_acquisition_manifest.py` turns
+that record -- never a fresh read of 425 GB -- into the canonical manifest
+(#289):
+
+```sh
+python3 -m manifest_generation.providers.ukb_b.write_acquisition_manifest \
+  --declared-selection resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv \
+  --source-dir /data/opengwasdb/raw/gwas-vcf/ukb-b \
+  --checksums <the recorded checksum receipt> \
+  --integrity <the recorded integrity receipt> \
+  [--verification <the recorded deep-verification report>] \
+  --out <acquisition manifest>
+```
+
+One row per declared Analysis, with its VCF (`location`, `bytes`, `sha256`) and
+its provider JSON as the sidecar (`sidecar_location`, `sidecar_bytes`). The
+readiness `status` is derived from the recorded evidence *and* the cheap checks
+a writer can make without reading a byte, in this order, so the most
+fundamental failure is the one reported: the file is still there
+(`missing_file`), its size is still the recorded one (`size_mismatch`), the
+deep verification still holds the recorded sha256 (`checksum_mismatch`), its
+`.tbi` is still there (`missing_index`), the index is still the recorded one
+(`index_mismatch`), and the compressed stream and index still open
+(`integrity_failed`, `bad_index`). A non-ready row keeps the recorded location,
+size and sha256 -- the identity the run holds the Analysis to -- and its
+`error` says which check failed and what it saw.
+
+The writer refuses a declared Analysis the recorded evidence does not cover,
+a recorded file outside `--source-dir` or not named `<id>.vcf.gz`, and a
+missing provider JSON sidecar: silently marking one ready, or inventing an
+identity for it, would be guessing about a frozen input. It records each
+receipt's path, sha256 and row count beside the manifest
+(`<out-stem>.meta.yaml`), which freeze checksums into the inventory's
+provenance as the pass lineage.
 
 ## Selection
 

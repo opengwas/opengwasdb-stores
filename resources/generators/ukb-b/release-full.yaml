@@ -1,0 +1,182 @@
+# Release config for the full restored ukb-b release (#289), OGS-00009's content.
+#
+# The release config schema is docs/spec/release-config.md (#287); the connectors
+# it names are documented in docs/spec/source-connectors.md (#283, #289). This
+# file replaces config-candidate.yaml and config-pilot-10.yaml for every new run;
+# those stay unchanged, with the other R-era configs, because OGS-00009's and
+# OGS-00008's generator.commands cite them as history.
+#
+# Membership is the frozen Source Inventory named below, never a glob over the
+# VCF mirror (/data/opengwasdb/raw/gwas-vcf/ukb-b, 425 GB, never copied). That
+# snapshot is the shared freeze of ukb-b's two connector files for this
+# Selection:
+#   - the Source Metadata Table the ukb-b adapter writes from the registry's
+#     declared selection (resources/inventories/ukb-b-restored-2026-10-11.declared-selection.tsv,
+#     2,514 rows, sha256 0ae5c2d7...) and the provider JSON sidecars beside each
+#     VCF: 2,514 Analyses, 1,846 case-control and 668 quantitative, every one
+#     labelled European by the provider;
+#   - the Acquisition Manifest the ukb-b writer derives from the recorded
+#     checksum, integrity and deep-verification receipts of #219 -- 2,514 ready
+#     rows, each with its VCF and its provider JSON sidecar. No byte of the
+#     mirror is re-read to write it.
+# A new acquisition, a changed Selection or a changed connector is a re-freeze
+# under a new snapshot id, never a rewrite of a frozen snapshot. The #219
+# snapshot (ukb-b-restored-2026-10-11, its own local format) stays as OGS-00009's
+# accepted record and is not touched.
+
+release_config_version: 1
+
+label: ukb-b-full
+access_posture: public
+description: >
+  Full dense Store Release of all 2,514 UK Biobank (ukb-b) GWAS-VCF Analyses
+  declared in the OpenGWAS IGD collection and verified present in
+  /data/opengwasdb/raw/gwas-vcf/ukb-b, reference-completed under its own id
+  against the UKB EUR LD panel (ADR 0037).
+notes: >
+  Membership is the frozen Source Inventory of the shared freeze: 2,514
+  Analyses, each with a recorded sha256, size and Tabix index. Analytical
+  Metadata comes from each Analysis's provider JSON sidecar (exact-ID checked,
+  batch checked, sha256-bound), because the stored OpenGWAS API token expired on
+  2026-08-21 and no live /api/gwasinfo call is possible. Ancestry is the
+  provider's own population label (source_fallback), never an AF-based
+  assignment: the ukb-b VCFs do carry FORMAT/AF, so the historical
+  source_trusted_no_af value is not reproduced. The owner accepted these source
+  labels (all EUR) for OGS-00009 (#312, 2026-10-21); this release still measures
+  ancestry through the shared resolver, and the candidate records what it
+  measured. Every Analysis is on the SD scale -- the provider's units is SD for
+  all 2,514, including the 1,846 binary traits -- which the method tiers below
+  declare (sd / declared_standardised), as OGS-00009's accepted bundle does.
+
+source_collection:
+  source_collection_id: opengwas-gwas-vcf
+  connectors:
+    source_metadata_table: resources/generators/ukb-b/connectors/source-metadata-table.tsv
+    acquisition_manifest: resources/generators/ukb-b/connectors/acquisition-manifest.tsv
+  inventory:
+    snapshot_id: ukb-b-restored-2026-10-22
+    directory: resources/inventories
+
+selection:
+  all: true
+  expect_rows: 2514
+
+# The observed-only Dense Build Recipe the candidate carries, as OGS-00009's
+# accepted build.yaml declares it: the upstream GWAS-VCF reader, the hg19 source
+# assembly, and the release's own worker width. `command` names a subcommand,
+# never an import path (ADR 0023), and the artifact root is deployment
+# configuration, never a bundle field (#126).
+build:
+  layout: dense
+  completion_state: observed_only
+  command: build-dense-vcf
+  options:
+    # opengwasdb's own GWAS-VCF reader: the same reader the R path used, and the
+    # one the accepted build declares. It has never run on real ukb-b at the
+    # pipeline's pinned opengwasdb, which is why #289 probes ten Analyses before
+    # the full resolve is scheduled.
+    source-reader-capability: opengwasdb.gwas-vcf
+    # The VCFs are GRCh37 (##contig=<...,assembly=GRCh37>); the build lifts to
+    # the GRCh38 reference with opengwasdb#288's strand-aware lift.
+    source-assembly: hg19
+    n-workers: 32
+  post:
+    top_hits: true
+    overview: true
+
+# The maintained hm3 Indexed Variant Subset, exactly as OGS-00009 declares it.
+# The values are the maintained Reference Resource's, never a copy of them
+# (manifest_generation.indexed_subsets); they are written out here so a reviewer
+# can see that this release declares what the accepted bundle declares.
+indexed_subsets:
+  - name: hm3
+    resource_id: hapmap3-hg38
+    variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
+    reference_assembly: GRCh38
+    checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+
+defaults:
+  # Collection-wide facts the adapter does not write (#287): every ukb-b file is
+  # GRCh37, published under the UK Biobank terms of access by the MRC-IEU group,
+  # and the whole batch is one analysis group.
+  source_genome_build: GRCh37
+  license: UK Biobank terms of access
+  consortium: MRC-IEU
+  sample_size_scope: analysis_level
+  analysis_group_id: ukb-b
+  # One method tier per study design, and both declare the SD scale: OGS-00009's
+  # accepted bundle carries stored_effect_scale=sd, original_effect_scale=sd and
+  # original_sd_method=declared_standardised on all 2,514 rows, the 1,846
+  # case-control ones included, because the provider standardises every trait
+  # (units=SD) and publishes no log-OR. `sample_size_kind` is the one tier field
+  # that differs: the 1,846 binary traits report a case/control split, the 668
+  # quantitative traits a total.
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      original_sd_method: declared_standardised
+      sample_size_kind: total
+    case-control:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      original_sd_method: declared_standardised
+      sample_size_kind: case_control
+
+release_policy:
+  # The Assigned Ancestry check tests each measured assignment against this; it
+  # never moves an Analysis (ADR 0036). ukb-b is a European cohort, and the
+  # provider labels every Analysis European.
+  selection_superpopulation: EUR
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    ancestry: multi
+    super_populations: [AFR, AMR, EAS, EUR, MID, NAF, SAS]
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    location_kind: external_file
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+    # Canonical declaration: resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml
+  - resource_id: canonical-trait-mapping-efo
+    kind: trait_ontology_mapping
+    location: resources/reference-resources/canonical-trait-mapping-efo
+    location_kind: tracked_directory
+    version: "3"
+
+ancestry_assignment:
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  # The full reference scan, as the R path used: a 10k extraction panel failed
+  # the preregistered concordance gate (#152).
+  extraction_panel: null
+  gates:
+    tau: 0.50
+    delta: 0.20
+    n_min: 5000
+    residual_max: 0.06
+
+effect_scale_validation:
+  # Recorded for the SD-estimation sidecar. Every ukb-b Analysis's tier declares
+  # its scale, so no phenotype SD is estimated and no reference-AF fallback is
+  # declared: the absent ukb-hg38-eur-af resource (#219 limitation 3) is not
+  # needed by this release.
+  maf_min: 0.01
+  maf_max: 0.5
+  dispersion_max: 0.5
+  reference_resources: []
+
+trait_ontology_mapping:
+  reference_resource_id: canonical-trait-mapping-efo
+
+runtime:
+  # The resolver reads every Analysis's VCF (425 GB in all) with liftover; the
+  # host is shared and another session is building Stores, so the default is the
+  # shared cap of 16 workers (the issue #150 cap is 64).
+  cores: 16
+  min_free_gb: 50
+
+output:
+  work_root: /data/opengwasdb/work/ukb-b-restored
