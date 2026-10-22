@@ -26,6 +26,12 @@ from manifest_generation.source_metadata_table import load_source_metadata_table
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "eqtlgen-fixture.epi"
 
+EXPECTED_HEADER = (
+    "source_analysis_id", "source_trait_label", "study_design", "sample_size",
+    "target_ensembl_gene_id", "target_chromosome", "target_start", "target_end",
+    "tissue", "source_probe_id",
+)
+
 EXPECTED = [
     {
         "source_analysis_id": "ENSG00000175445::whole_blood",
@@ -78,9 +84,9 @@ class EqtlgenSourceMetadataAdapterTest(unittest.TestCase):
     def test_every_probe_becomes_one_canonical_row(self) -> None:
         convert_epi(FIXTURE, self.out, tissue="whole_blood", sample_size=31684)
         table = load_source_metadata_table(self.out)
+        self.assertEqual(table.columns, EXPECTED_HEADER)
         self.assertEqual(
-            [dict(table.row(analysis_id)) for analysis_id in table.analysis_ids],
-            [{column: row.get(column, "") for column in table.columns} for row in EXPECTED],
+            [dict(table.row(analysis_id)) for analysis_id in table.analysis_ids], EXPECTED
         )
 
     def test_a_probe_on_a_chromosome_the_table_does_not_know_is_refused_by_name(self) -> None:
