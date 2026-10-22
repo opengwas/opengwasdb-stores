@@ -1530,17 +1530,25 @@ def _column_map_option_errors(build: Mapping[str, Any]) -> list[str]:
 def column_map_binding(build: Mapping[str, Any]) -> ColumnMapBinding | None:
     """The Build Recipe's Column Map binding, or ``None`` when it binds none.
 
-    Raises ``ValueError`` for a binding ``check()`` would refuse: the planner
-    never composes a flag from a malformed one.
+    Only the recorded fields are read, with no file I/O, so the planner may
+    call it (ADR 0031). Raises ``ValueError`` for a binding malformed in shape;
+    that a built-in's checksum is the pinned package's is ``check()``'s and
+    the run-time verification's to say.
     """
-    binding, errors = _column_map_binding(build)
+    binding, errors = _column_map_binding(build, check_builtin=False)
     if errors:
         raise ValueError("; ".join(errors))
     return binding
 
 
-def _column_map_binding(build: Mapping[str, Any]) -> tuple[ColumnMapBinding | None, list[str]]:
-    """The Build Recipe's binding, or ``None`` when it binds none or binds one malformed."""
+def _column_map_binding(
+    build: Mapping[str, Any], *, check_builtin: bool = True
+) -> tuple[ColumnMapBinding | None, list[str]]:
+    """The Build Recipe's binding, or ``None`` when it binds none or binds one malformed.
+
+    ``check_builtin`` compares a built-in's name and checksum with the pinned
+    package, which reads the packaged map: only ``check()`` does.
+    """
     if COLUMN_MAP_KEY not in build:
         return None, []
     raw = build[COLUMN_MAP_KEY]
@@ -1567,7 +1575,7 @@ def _column_map_binding(build: Mapping[str, Any]) -> tuple[ColumnMapBinding | No
             f"{where} file {file!r} must be a file name in {COLUMN_MAPS_DIR}/ matching "
             f"{INDEXED_SUBSET_NAME_RE.pattern}, with no '..', ending {COLUMN_MAP_SUFFIX}"
         )
-    if file is None and isinstance(name, str):
+    if file is None and isinstance(name, str) and check_builtin:
         builtins = _builtin_column_maps()
         packaged = builtins.get(name)
         if packaged is None:

@@ -1855,6 +1855,18 @@ class TestColumnMapPlan(unittest.TestCase):
         record_check()
         self.assertEqual([s.argv for s in here], [s.argv for s in there])
 
+    def test_planning_a_built_in_map_opens_no_file_even_with_a_cold_cache(self) -> None:
+        """ADR 0031: the built-in's packaged checksum is `check()`'s to verify, never `plan()`'s."""
+        import ogstores.bundle as bundle_module
+
+        bundle_module._builtin_column_maps.cache_clear()
+        bundle = self.bundle(binding=self.BUILTIN)
+        with mock.patch.object(Path, "open", side_effect=AssertionError("plan() opened a file")), \
+                mock.patch.object(builtins, "open", side_effect=AssertionError("plan() opened a file")):
+            steps = plan(bundle, artifact_root="/art")
+        record_check()
+        self.assertEqual(self.value(steps[0]), "gwas-ssf")
+
     def test_a_hybrid_build_takes_the_map_too(self) -> None:
         steps = plan(self.bundle(layout="hybrid", command="build-hybrid", binding=self.BUILTIN))
         record_check()
