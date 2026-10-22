@@ -1,6 +1,6 @@
-snapshot_id: eqtlgen-cis-pilot-10-2026-10-22b
+snapshot_id: eqtlgen-cis-pilot-10-2026-10-22c
 source_collection_id: eqtlgen-cis
-frozen_at: '2026-10-22T11:52:18Z'
+frozen_at: '2026-10-22T13:46:33Z'
 frozen_by: manifest_generation.freeze
 selection:
   analyses:
@@ -25,21 +25,21 @@ study_design_counts:
 ready_study_design_counts:
   quantitative: 10
 duplicate_content_groups: []
-inventory_tsv_sha256: 355f4000916379aab93313269f861e91d7c1189b428cbe21f977e88be77b4205
+inventory_tsv_sha256: 40c14a41cebf876aa1f4d449f8808281c7ba755bc844538983cbf8d7fa10f48b
 source_metadata_table:
   frozen:
-    path: eqtlgen-cis-pilot-10-2026-10-22b.source-metadata.tsv
-    sha256: 7e8a25617fafb39c7993bbac6b3a1b277c13141ee7514fa746a4d08c1503825e
+    path: eqtlgen-cis-pilot-10-2026-10-22c.source-metadata.tsv
+    sha256: 42dccf1e9b0898696b3989d0a9215885b49f945d5b950be0f6e64bd7de68c5cf
     bytes: 1307
     rows: 10
   original:
     path: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
-    sha256: 7e8a25617fafb39c7993bbac6b3a1b277c13141ee7514fa746a4d08c1503825e
+    sha256: 42dccf1e9b0898696b3989d0a9215885b49f945d5b950be0f6e64bd7de68c5cf
     bytes: 1307
     rows: 10
 acquisition_manifest:
   frozen:
-    path: eqtlgen-cis-pilot-10-2026-10-22b.acquisition-manifest.tsv
+    path: eqtlgen-cis-pilot-10-2026-10-22c.acquisition-manifest.tsv
     sha256: 032144ba452e6505f7b7ac2bb4b03569d5f7d8ec571849e99a854c500e22c6f9
     bytes: 6910
     rows: 10

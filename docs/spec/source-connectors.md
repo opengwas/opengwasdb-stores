@@ -606,11 +606,11 @@ gene. Its connectors are two modules in
 the pipeline.
 
 **The metadata adapter** (`source_metadata_adapter`) writes the Source Metadata
-Table from a file set's `.epi`, one row per probe:
+Table from a BESD file set, one row per probe:
 
 ```sh
 python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
-  --epi <file set>.epi --tissue whole_blood --sample-size 31684 --out <source metadata table>
+  --prefix <file set> --tissue whole_blood --study-total 31684 --out <source metadata table>
 ```
 
 `source_analysis_id` is the bare probe id, the id `build-ragged-besd` gives the
@@ -619,8 +619,8 @@ is declared. It is never `<probe>::<tissue>`, as OGS-00001 and OGS-00002 named
 theirs: an `analysis_id` never contains `:` (issue #319), and `bundle.check()`
 refuses one that does. `source_probe_id` is the probe,
 `source_trait_label` the `.epi`'s gene column (the probe's own id: the file names
-no symbol), `study_design` is `quantitative`, and `tissue` and `sample_size` are
-the study-wide facts the operator states, the same on every row: never defaults.
+no symbol), `study_design` is `quantitative`, `tissue` is the operator's statement
+(never a default) and `sample_size` is derived from the file, per probe, as below.
 The tissue is recorded in its own column, never in the id, and a blank or padded
 `--tissue` is refused before anything is written.
 The probe is the target: `target_ensembl_gene_id` is the probe,
@@ -630,6 +630,30 @@ declares no ancestry label (Assigned Ancestry is measured), no build (the releas
 config's `defaults.source_genome_build`, `GRCh37`) and no trait ontology term. A
 chromosome outside the vocabulary, a repeated probe or a short row fails the whole
 adapter, by line and probe.
+
+**Sample size** is the probe's maximum pair N. eQTLGen's beta and SE are
+z-standardised with each SNP-gene pair's own N: b = z / sqrt(2p(1-p)(N + z^2)) and
+se = 1 / sqrt(2p(1-p)(N + z^2)). A pair's N is therefore recoverable,
+`N = 1 / (2p(1-p) se^2) - z^2` with z = b / se and p the `.esi` frequency, and the
+adapter writes the maximum over the probe's pairs, rounded to the nearest integer
+(halves up) and capped at `--study-total`.
+
+- **Bound.** Only pairs with finite N and `|z| >= 1` count. The formula is
+  ill-conditioned for small z because the stored values are coarse. Against the
+  published per-pair `NrSamples` (the 2019-12-11 cis-eQTL file, 12 genes, 85,079
+  pairs) the relative error of derived N is: up to 300% (median 31%) for `|z|`
+  below 0.001, 3% median and 31% maximum for 0.001-0.01, 0.4% maximum for 0.1-0.5,
+  0.08% for 0.5-1, 0.04% for 1-2, and 0.004% for `|z|` 10 and above. Without the
+  bound 61% of the 19,250 probes took an N above the study's 31,684 (up to
+  126,741), and TNF 30,851 against a published maximum of 14,263.
+- **Cap.** The bounded maximum can still exceed the study total by the rounding
+  noise of the stored values: 5,443 of 19,250 probes exceed 31,684, by at most 13
+  (0.04%). The cap at `--study-total` absorbs that, so no probe claims more samples
+  than the study had.
+- A probe with no qualifying pair fails the adapter by name.
+- The Analysis's SD is **declared**, not estimated (the release config below), and
+  the sample size kind is `variant_level`. Per-association N is not stored yet
+  (opengwasdb#302); the formula is how to recover it.
 
 **The acquisition writer** (`acquire`) subsets the genome-wide file set to a
 release's Selection, because `build-ragged-besd` demands that its file set hold
@@ -671,8 +695,9 @@ build-ragged-besd`, the option `source-build: hg19` (passed to the command
 verbatim) and no `tissue` option, which would name each Analysis
 `<probe>::<tissue>`, `defaults.source_genome_build: GRCh37`, and one method tier,
 `quantitative`: `stored_effect_scale: sd`, `original_sd_method:
-estimated_from_source_maf` (the resolver measures the SD from the `.esi`
-frequencies, ADR 0019), `sample_size_kind: total`. The release names no reader:
+declared_standardised` (the effects are z-standardised, so the SD is 1 by
+construction; the resolver reports `scale_already_declared` and `original_sd`
+stays blank, #300), `sample_size_kind: variant_level`. The release names no reader:
 `build-ragged-besd` reads BESD, so the resolver's reader is `opengwasdb.besd`
 (`candidate_workflow.COMMAND_READER_CAPABILITY`). The source is hg19 and the
 reference GRCh38, so the resolver needs a liftover chain, which the release

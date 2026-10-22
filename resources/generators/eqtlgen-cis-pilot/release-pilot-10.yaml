@@ -12,12 +12,13 @@
 # genome-wide BESD file set, /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse (19,250
 # probes). Connectors (ADR 0036):
 #   - the Source Metadata Table lists the 10 probes of OGS-00001's Selection, one
-#     Analysis each, with eQTLGen's study-wide sample size; it is written by
-#     manifest_generation.providers.eqtlgen.source_metadata_adapter from
-#     /data/opengwasdb/raw/eqtlgen/pilot-10.epi:
+#     Analysis each, with each probe's maximum pair N (capped at the study total
+#     31,684; docs/spec/source-connectors.md, the eQTLGen section); it is written by
+#     manifest_generation.providers.eqtlgen.source_metadata_adapter from the file
+#     set /data/opengwasdb/raw/eqtlgen/pilot-10:
 #       python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
-#         --epi /data/opengwasdb/raw/eqtlgen/pilot-10.epi --tissue whole_blood \
-#         --sample-size 31684 --out resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
+#         --prefix /data/opengwasdb/raw/eqtlgen/pilot-10 --tissue whole_blood \
+#         --study-total 31684 --out resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
 #   - the Acquisition Manifest records the file set acquisition wrote for this
 #     Selection (build-ragged-besd needs a file set holding exactly the probes it
 #     builds): a subset of the genome-wide set, with the original's prefix and
@@ -44,15 +45,21 @@ access_posture: public
 trial: true
 description: >
   The 10-probe eQTLGen cis-eQTL pilot on the shared Manifest Generation pipeline:
-  the Selection the Trial Store Release OGS-00001 was built from, resolved from the
-  BESD source's own allele frequencies. A Ragged Observed-Only candidate; not the
+  the Selection the Trial Store Release OGS-00001 was built from, with its ancestry measured from
+  the BESD source's own allele frequencies. A Ragged Observed-Only candidate; not the
   full eQTLGen cis-eQTL catalogue (19,250 genes).
 notes: >
   Probes are the pilot's ten (LPL, SORT1, APOE, GSDMB, ERAP2, TNF, TP53, IL6,
   CETP, MYC; Ensembl ids in the Selection below), spanning 8 chromosomes and
   including one MHC-adjacent locus (TNF). The source is on GRCh37 (hg19); the
-  Store is GRCh38. Ancestry and the phenotype SD are measured by Analysis
-  Resolution, where OGS-00001 left them blank.
+  Store is GRCh38. Ancestry is measured by Analysis Resolution, where OGS-00001
+  left it blank. The SD is declared, not estimated: eQTLGen's beta and SE are
+  z-standardised with each SNP-gene pair's own N, so SD is 1 by construction and
+  the original_sd cell stays blank (declared_standardised). TNF's measured 2.04
+  was sqrt(31,684 / pair N), an N of about 7,600, not a phenotype SD. Each
+  Analysis's sample_size is the maximum pair N derived from the file, kind
+  variant_level (see release-full.yaml); per-association N is not stored yet
+  (opengwasdb#302).
 
 source_collection:
   source_collection_id: eqtlgen-cis
@@ -61,7 +68,8 @@ source_collection:
     acquisition_manifest: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.tsv
   inventory:
     # ...-22b: re-frozen when the Analyses were renamed to bare probe ids (#319).
-    snapshot_id: eqtlgen-cis-pilot-10-2026-10-22b
+    # ...-22c: re-frozen with each probe's derived sample size (#314).
+    snapshot_id: eqtlgen-cis-pilot-10-2026-10-22c
     directory: resources/inventories
 
 # OGS-00001's 10, written out so a reviewer reads the membership (and the probes
@@ -104,15 +112,20 @@ defaults:
   # them to the reference's GRCh38.
   source_genome_build: GRCh37
   sample_size_scope: analysis_level
-  # The Analysis's SD is measured by the resolver from the source allele
-  # frequencies (ADR 0019), as for Chen 2023: eQTLGen's effects are on the
-  # standardised-expression scale, and the .esi carries a frequency per variant.
+  # eQTLGen's beta and SE are z-standardised with each SNP-gene pair's own N
+  # (b = z / sqrt(2p(1-p)(N + z^2)), se = 1 / sqrt(2p(1-p)(N + z^2))), so the
+  # effect scale is SD units by construction and the tier declares it
+  # (declared_standardised) instead of estimating a phenotype SD: an estimate would
+  # only measure sqrt(study N / pair N). The resolver then reports
+  # phenotype_sd scale_already_declared (#300). The Analysis's N is the maximum
+  # over its pairs, derived from the file (see notes), so its kind is
+  # variant_level.
   by_study_design:
     quantitative:
       stored_effect_scale: sd
       original_effect_scale: sd
-      original_sd_method: estimated_from_source_maf
-      sample_size_kind: total
+      original_sd_method: declared_standardised
+      sample_size_kind: variant_level
 
 release_policy:
   # The Assigned Ancestry check tests each Analysis against this; it never moves
