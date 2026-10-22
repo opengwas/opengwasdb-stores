@@ -135,6 +135,28 @@ class AcquireTest(unittest.TestCase):
         self.assertEqual(record["selection"], {"analyses": ["PROBE_A::blood", "PROBE_C::blood"]})
         self.assertEqual(record["original"]["members"][".esi"]["sha256"], sha(f"{self.source}.esi"))
 
+    def test_the_lineage_counts_the_original_and_the_subset(self) -> None:
+        """Probes, SNPs and associations, so a reader sees what the subset dropped."""
+        self.run_acquire()
+        record = yaml.safe_load(pass_lineage_path(self.out).read_text())
+        self.assertEqual(record["original"]["counts"], {"probes": 3, "snps": 4, "associations": 5})
+        self.assertEqual(record["subset"]["counts"], {"probes": 2, "snps": 3, "associations": 3})
+
+    def test_the_source_url_is_on_every_row_and_in_the_lineage(self) -> None:
+        self.run_acquire(source_url="https://eqtlgen.org/cis-eqtls.html")
+        manifest = load_acquisition_manifest(self.out)
+        self.assertEqual({e.source_url for e in manifest.entries}, {"https://eqtlgen.org/cis-eqtls.html"})
+        record = yaml.safe_load(pass_lineage_path(self.out).read_text())
+        self.assertEqual(record["source_url"], "https://eqtlgen.org/cis-eqtls.html")
+
+    def test_a_resume_with_another_source_url_is_refused_and_nothing_changes(self) -> None:
+        self.run_acquire(source_url="https://eqtlgen.org/cis-eqtls.html")
+        before = self.snapshot()
+        with self.assertRaises(AcquisitionError) as caught:
+            self.run_acquire(source_url="https://example.org/other")
+        self.assertIn("source URL", str(caught.exception))
+        self.assertEqual(self.snapshot(), before)
+
     # -- resume ---------------------------------------------------------------
 
     def test_a_resume_keeps_the_subset_and_the_record_byte_for_byte(self) -> None:

@@ -50,6 +50,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import struct
 import sys
 import tempfile
 from pathlib import Path
@@ -75,12 +76,14 @@ from manifest_generation.source_metadata_table import load_source_metadata_table
 #: The writer a subset's lineage names: the module that changes the file set.
 TOOL_MODULE = "manifest_generation.providers.eqtlgen.subset_besd"
 READY_STATUS = "ok"
+#: The magic, 15 reserved uint32s and the uint64 ``val_num`` that open a SPARSE_FILE_TYPE_3 ``.besd``.
+BESD_HEADER_BYTES = 4 + 15 * 4 + 8
 COLUMNS_WRITTEN: tuple[str, ...] = tuple(
     column for column in COLUMNS
     if column in {
         "source_analysis_id", "status", "location", "bytes", "sha256",
         "original_location", "original_sha256", "reformat_tool",
-        "source_probe_id", "members",
+        "source_probe_id", "members", "source_url",
     }
 )
 
@@ -100,6 +103,26 @@ def member_identity(prefix: Path) -> dict[str, dict[str, Any]]:
     return identity
 
 
+def file_set_counts(prefix: Path) -> dict[str, int]:
+    """A file set's probes, SNPs and associations, from its ``.epi`` and ``.esi`` lines and ``.besd`` header.
+
+    ``val_num`` (the uint64 after the magic and 15 reserved words) counts each
+    association twice, a beta and an SE.
+    """
+    with open(f"{prefix}.besd", "rb") as fh:
+        val_num = struct.unpack("<Q", fh.read(BESD_HEADER_BYTES)[BESD_HEADER_BYTES - 8:])[0]
+    return {
+        "probes": _line_count(Path(f"{prefix}.epi")),
+        "snps": _line_count(Path(f"{prefix}.esi")),
+        "associations": val_num // 2,
+    }
+
+
+def _line_count(path: Path) -> int:
+    with open(path, "rb") as fh:
+        return sum(1 for line in fh if line.strip())
+
+
 def tool_identity() -> str:
     """The tool and its version: the subset writer's module name and the sha256 of its source."""
     from manifest_generation.providers.eqtlgen import subset_besd
@@ -115,6 +138,7 @@ def acquire(
     name: str | None,
     out: Path,
     adopt_prefix: Path | None = None,
+    source_url: str = "",
 ) -> Path:
     """Subset ``source_prefix`` to the config's Selection under ``out_dir`` and write the manifest at ``out``.
 
@@ -146,7 +170,7 @@ def acquire(
     tool = tool_identity()
     if out.is_file():
         members = _resume_members(
-            out, prefix, rows, source_prefix, original, tool, selection.as_dict()
+            out, prefix, rows, source_prefix, original, tool, selection.as_dict(), source_url
         )
     elif adopt_prefix is not None:
         members = _adopt(source_prefix, prefix, probes)
@@ -172,12 +196,15 @@ def acquire(
             "reformat_tool": tool,
             "source_probe_id": row["source_probe_id"],
             "members": members_cell,
+            "source_url": source_url,
         }
         for row in rows
     ]
     write_connector(out, ACQUISITION_MANIFEST, COLUMNS_WRITTEN, manifest_rows)
     load_acquisition_manifest(out)
-    _write_pass_lineage(out, config, selection.as_dict(), probes, source_prefix, original, prefix, members, tool)
+    _write_pass_lineage(
+        out, config, selection.as_dict(), probes, source_prefix, original, prefix, members, tool, source_url
+    )
     return out
 
 
@@ -209,6 +236,7 @@ def _resume_members(
     original: Mapping[str, Mapping[str, Any]],
     tool: str,
     selection: Mapping[str, Any],
+    source_url: str = "",
 ) -> dict[str, dict[str, Any]]:
     """The subset a manifest already at ``out`` recorded, if it is still on disk and this run's.
 
@@ -227,7 +255,7 @@ def _resume_members(
     first = recorded.entries[0]
     if first.location != str(prefix):
         raise AcquisitionError(f"{out} records its file set at {first.location}, not {prefix}")
-    _lineage_problems(out, first, source_prefix, original, tool, selection)
+    _lineage_problems(out, first, source_prefix, original, tool, selection, source_url)
     actual = member_identity(prefix)
     changed = [
         f"{suffix} (recorded sha256 {first.members[suffix]['sha256']}, on disk {actual[suffix]['sha256']})"
@@ -249,6 +277,7 @@ def _lineage_problems(
     original: Mapping[str, Mapping[str, Any]],
     tool: str,
     selection: Mapping[str, Any],
+    source_url: str = "",
 ) -> None:
     """Refuse, by name, a run whose original, tool or Selection is not the one the record names."""
     lineage = first.lineage
@@ -266,6 +295,8 @@ def _lineage_problems(
             )
         if lineage.reformat_tool != tool:
             problems.append(f"tool is {tool}, recorded {lineage.reformat_tool}")
+    if first.source_url != source_url:
+        problems.append(f"source URL is {source_url!r}, recorded {first.source_url!r}")
     sidecar = pass_lineage_path(out)
     record = yaml.safe_load(sidecar.read_text(encoding="utf-8")) if sidecar.is_file() else None
     if not isinstance(record, dict):
@@ -294,6 +325,7 @@ def _write_pass_lineage(
     prefix: Path,
     members: Mapping[str, Mapping[str, Any]],
     tool: str,
+    source_url: str = "",
 ) -> Path:
     sidecar = pass_lineage_path(out)
     document = {
@@ -305,9 +337,18 @@ def _write_pass_lineage(
         "release_config": str(config),
         "selection": dict(selection),
         "probes": list(probes),
-        "original": {"prefix": str(source_prefix), "members": {k: dict(v) for k, v in original.items()}},
-        "subset": {"prefix": str(prefix), "members": {k: dict(v) for k, v in members.items()}},
+        "original": {
+            "prefix": str(source_prefix),
+            "members": {k: dict(v) for k, v in original.items()},
+            "counts": file_set_counts(source_prefix),
+        },
+        "subset": {
+            "prefix": str(prefix),
+            "members": {k: dict(v) for k, v in members.items()},
+            "counts": file_set_counts(prefix),
+        },
         "reformat_tool": tool,
+        "source_url": source_url,
     }
     atomic_write(
         sidecar, yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100)
@@ -327,12 +368,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--adopt-prefix", type=Path,
         help="record this existing file set, if it is the subset writer's output, instead of writing one",
     )
+    parser.add_argument("--source-url", default="", help="where the source is published, written on every row")
     parser.add_argument("--out", required=True, type=Path, help="the Acquisition Manifest to write")
     args = parser.parse_args(argv)
     try:
         acquire(
             config=args.config, source_prefix=args.source_prefix, out_dir=args.out_dir,
-            name=args.name, out=args.out, adopt_prefix=args.adopt_prefix,
+            name=args.name, out=args.out, adopt_prefix=args.adopt_prefix, source_url=args.source_url,
         )
     except (FreezeError, SelectionError, ValueError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

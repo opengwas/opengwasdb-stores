@@ -1,6 +1,6 @@
-snapshot_id: eqtlgen-cis-pilot-10-2026-10-22b
+snapshot_id: eqtlgen-cis-pilot-10-2026-10-22d
 source_collection_id: eqtlgen-cis
-frozen_at: '2026-10-22T11:52:18Z'
+frozen_at: '2026-10-22T15:21:21Z'
 frozen_by: manifest_generation.freeze
 selection:
   analyses:
@@ -25,34 +25,34 @@ study_design_counts:
 ready_study_design_counts:
   quantitative: 10
 duplicate_content_groups: []
-inventory_tsv_sha256: 355f4000916379aab93313269f861e91d7c1189b428cbe21f977e88be77b4205
+inventory_tsv_sha256: fe9e0ac4af490a1a9230b88d5a7dad769d1667aea2d5c67d7ced2ff2c3a60d94
 source_metadata_table:
   frozen:
-    path: eqtlgen-cis-pilot-10-2026-10-22b.source-metadata.tsv
-    sha256: 7e8a25617fafb39c7993bbac6b3a1b277c13141ee7514fa746a4d08c1503825e
-    bytes: 1307
+    path: eqtlgen-cis-pilot-10-2026-10-22d.source-metadata.tsv
+    sha256: 093eba531deb9234da411e8e3c8b84b32c9734925edf7c2d3fa886b254bd29ae
+    bytes: 1376
     rows: 10
   original:
     path: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
-    sha256: 7e8a25617fafb39c7993bbac6b3a1b277c13141ee7514fa746a4d08c1503825e
-    bytes: 1307
+    sha256: 093eba531deb9234da411e8e3c8b84b32c9734925edf7c2d3fa886b254bd29ae
+    bytes: 1376
     rows: 10
 acquisition_manifest:
   frozen:
-    path: eqtlgen-cis-pilot-10-2026-10-22b.acquisition-manifest.tsv
-    sha256: 032144ba452e6505f7b7ac2bb4b03569d5f7d8ec571849e99a854c500e22c6f9
-    bytes: 6910
+    path: eqtlgen-cis-pilot-10-2026-10-22d.acquisition-manifest.tsv
+    sha256: 9c617f9039b0fcad20d32993fdbc3dcd58e7422193eee88ba4683092ad055a6a
+    bytes: 7271
     rows: 10
   original:
     path: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.tsv
-    sha256: 032144ba452e6505f7b7ac2bb4b03569d5f7d8ec571849e99a854c500e22c6f9
-    bytes: 6910
+    sha256: 9c617f9039b0fcad20d32993fdbc3dcd58e7422193eee88ba4683092ad055a6a
+    bytes: 7271
     rows: 10
     readiness_counts:
       ok: 10
     pass_lineage:
       path: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.meta.yaml
-      sha256: db6af141a0294c19d38631578d21c85ebb474ffc5ba026735a7328843391c9d9
+      sha256: 722693504d7a3cd23c42dc130d872bd306f07c9e913ed8a87b99a54d0c0445b4
   unselected_entries: 0
 lineage:
 - analysis_id: ENSG00000073605
