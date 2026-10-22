@@ -261,7 +261,7 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertEqual(list(bundle.check(loaded, registry_root=REPO_ROOT / "stores")), [])
         record_check()
-        self.assertEqual(loaded.status, "accepted")
+        self.assertEqual(loaded.status, "validated")  # accepted, then validated by #352
         record_check()
         self.assertEqual(loaded.release["accepted_at"], "2026-10-22T16:00:43Z")
         record_check()
