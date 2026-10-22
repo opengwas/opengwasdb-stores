@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import contextlib
 import csv
+import hashlib
 import io
 import re
 import subprocess
@@ -36,12 +37,37 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 import yaml
 
 from manifest_generation.providers.ukb_b import generate_candidate as candidate
-from manifest_generation.providers.ukb_b import inventory as ukb_inventory
 from ogstores import bundle
 from ogstores import plan as plan_module
 from ogstores.paths import RETIRED_STORE_IDS
 
-INVENTORY_COLUMNS = ukb_inventory.INVENTORY_COLUMNS
+#: The legacy ukb-b inventory columns (#219, retired with providers/ukb_b/inventory.py),
+#: which this fixture writes for generate_candidate.py to read until #340 ports it.
+INVENTORY_COLUMNS = (
+    "analysis_id",
+    "source_label",
+    "source_genome_build",
+    "source_file",
+    "data_bytes",
+    "sha256",
+    "checksum_algorithm",
+    "mtime_ns",
+    "index_file",
+    "index_bytes",
+    "index_sha256",
+    "index_status",
+    "readiness_status",
+    "exclusion_reason",
+)
+
+
+def sha256_file(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def read_inventory(path: Path) -> list[dict[str, str]]:
+    with path.open(newline="", encoding="utf-8") as fh:
+        return list(csv.DictReader(fh, delimiter="\t"))
 
 #: The tree before #312. The observed-only bundle is pinned against the bytes
 #: this revision emits from the same fixture, so the pinned values come from the
@@ -83,7 +109,7 @@ def inventory_row(source: Path, analysis_id: str) -> dict[str, str]:
         "source_genome_build": "GRCh37",
         "source_file": str(source),
         "data_bytes": str(stat.st_size),
-        "sha256": ukb_inventory.sha256_file(source),
+        "sha256": sha256_file(source),
         "checksum_algorithm": "sha256",
         "mtime_ns": str(stat.st_mtime_ns),
         "index_file": str(source) + ".tbi",
@@ -772,7 +798,7 @@ class TestRegisteredOGS00009(unittest.TestCase):
         self.assertEqual(self.loaded.completion_state, "reference_completed")
         self.assertIsNone(self.loaded.derived_from)
         self.assertTrue(self.loaded.completes_own_store)
-        inventory = ukb_inventory.read_inventory(REPO_ROOT / self.config["inventory"])
+        inventory = read_inventory(REPO_ROOT / self.config["inventory"])
         members, excluded = bundle.membership_ids(self.loaded)
         self.assertEqual(len(inventory), 2514)
         self.assertEqual(sorted(members + excluded), sorted(row["analysis_id"] for row in inventory))

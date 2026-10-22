@@ -56,7 +56,6 @@ import yaml
 
 from manifest_generation import REPO_ROOT
 from manifest_generation.emit import CandidateBundle, emit
-from manifest_generation.providers.ukb_b import inventory as ukb_inventory
 from ogstores.paths import RETIRED_STORE_IDS, is_valid_store_id
 
 #: The module this generator runs as, recorded in the bundle it emits.
@@ -184,7 +183,47 @@ def _read_tsv(path: Path) -> list[dict[str, str]]:
 
 
 def sha256_file(path: Path) -> str:
-    return ukb_inventory.sha256_file(path)
+    digest = hashlib.sha256()
+    with path.open("rb") as fh:
+        for chunk in iter(lambda: fh.read(8 * 1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+#: The legacy ukb-b inventory columns (#219). The frozen inventory this emitter
+#: reads predates the shared freeze's column set and stays exactly as accepted;
+#: #289 retires this emitter with the rest of ukb-b's bespoke path.
+INVENTORY_COLUMNS: tuple[str, ...] = (
+    "analysis_id",
+    "source_label",
+    "source_genome_build",
+    "source_file",
+    "data_bytes",
+    "sha256",
+    "checksum_algorithm",
+    "mtime_ns",
+    "index_file",
+    "index_bytes",
+    "index_sha256",
+    "index_status",
+    "readiness_status",
+    "exclusion_reason",
+)
+
+
+def read_inventory(path: Path) -> tuple[dict[str, str], ...]:
+    """The frozen inventory's rows, refusing a missing column and a duplicate Analysis."""
+    rows = _read_tsv(path)
+    for column in ("analysis_id", "sha256"):
+        if column not in rows[0]:
+            raise CandidateError(f"inventory {path} is missing the {column} column")
+    seen: dict[str, int] = {}
+    for row in rows:
+        seen[row["analysis_id"]] = seen.get(row["analysis_id"], 0) + 1
+    duplicates = sorted(analysis_id for analysis_id, count in seen.items() if count > 1)
+    if duplicates:
+        raise CandidateError(f"inventory {path} has duplicate analysis_id: {', '.join(duplicates)}")
+    return tuple(rows)
 
 
 def _resolve(root: Path, value: str) -> Path:
@@ -738,7 +777,7 @@ def main(argv: list[str] | None = None) -> int:
     resolution_path = Path(args.resolution) if args.resolution else _resolve(repo_root, str(document["resolution"]))
     declared_path = Path(args.declared) if args.declared else _resolve(repo_root, str(document["declared"]))
 
-    inventory = ukb_inventory.read_inventory(inventory_path)
+    inventory = read_inventory(inventory_path)
     resolution = _index_by_id(_read_tsv(resolution_path), f"resolution table {resolution_path}")
     declared = _index_by_id(_read_tsv(declared_path), f"declared selection {declared_path}")
     ancestry_records = load_ancestry_records(Path(args.ancestry_records)) if args.ancestry_records else None
