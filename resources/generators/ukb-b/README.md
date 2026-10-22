@@ -123,6 +123,62 @@ untouched: it is OGS-00009's accepted record, in the retired local format.
   runs the shared step (#286) against the Canonical Trait Mapping Table;
   OGS-00009's accepted bundle records every row `unmapped`.
 
+## Criterion 1: the full comparison against OGS-00009 (#289)
+
+The 2,514-Analysis resolve was run once, against the final code, **into a
+temporary registry** -- never over `stores/OGS-00009`:
+
+```sh
+generate-candidate OGS-00009 --config resources/generators/ukb-b/release-full.yaml \
+  --cores 24 \
+  --registry-root /data/opengwasdb/work/289/stores \
+  --work-root /data/opengwasdb/work/289/work \
+  --resolution-root /data/opengwasdb/work/289/res
+```
+
+It took about **14 minutes** at 24 workers (4.8 CPU-hours summed; every
+Analysis read a median 66,947 rows, bounded by the resolver's 50,000-site
+ancestry bound, and peaked at 71 MB), with `opengwasdb 0.3.0` at `d405de0` and
+the declared `hg19 → hg38` chain on every record. Evidence:
+`/data/opengwasdb/work/289/` (`run.log`, the bundle under `stores/OGS-00009/`,
+`work/OGS-00009/resolver/resolution_receipt.json`, and the records under
+`res/opengwas-gwas-vcf/checkpoint/`).
+
+**Result: 2,514 Analyses resolved (0 failures, 0 controlled failures), 2,514
+admitted, 0 excluded, `bundle.check()` clean**, and `build.yaml` equal to
+`stores/OGS-00009/build.yaml` document for document -- the observed `build`
+block, the `complete-dense` block against `ukb-hg38-eur-ld`, `post` and the
+`hm3` subset.
+
+| Comparison | Result |
+|---|---|
+| Membership | 2,514 = 2,514; no Analysis missing, extra or excluded on either side, so there are no exclusions to explain by reason. |
+| `analyses.tsv`, 28 of the 34 accepted columns | Identical on every row: `analysis_id`, source ids and labels, `source_file`, `checksum`, `size_bytes`, `source_genome_build`, licence, consortium, First Author, `source_ancestry_label`, `assigned_ancestry`, `original_effect_scale`, `original_sd`, `original_sd_method`, `stored_effect_scale`, `sample_size_kind`, `sample_size_scope`, `sample_size`, `n_cases`, `n_controls`, `analysis_group_id`, `exclude_from_build`, `analysis_index`, ... |
+| `analyses.tsv`, the other columns | The five that differ, and the eight added, are the by-design differences listed below. |
+| `build.yaml` | **Equal** to the accepted one. |
+| `validation.yaml` | The pipeline ran what #219 could not: `schema`, `files`, `ancestry`, `effect_scale`, `sd_estimation` and `reference_overlap` are all `passed`, where the accepted bundle records `ancestry`, `effect_scale` and `sd_estimation` `not_run` and a `reader_smoke_test` `not_run`. The completion reference is `qualified`/`active` and not blocked. |
+| `release.yaml` | `status: candidate` (the accepted bundle is `accepted`), `derived_from: null` in both, the same label and description family; the snapshot id, notes and `generator` block name the shared pipeline instead of the retired bespoke generator. |
+| Ancestry assigned | **Identical**: all 2,514 `EUR`, and measured rather than copied -- `gate_reason ok` on every row, dominant proportion 0.940-1.000 (median 0.998), NNLS residual at most 0.0062 (limit 0.06), EAF orientation `passed` (r 0.740-0.999, median 0.966). |
+| Phenotype SD | Every row `skipped / scale_already_declared`: the tier declares the SD scale, so nothing is estimated. Matches the accepted `declared_standardised` with a blank `original_sd`. |
+| Case/control counts | 1,846 rows `case_control` with their counts, 668 `total` without, exactly the accepted declaration. |
+| Trait mappings | 553 rows mapped by the Canonical Trait Mapping Table (353 distinct terms) and 1,961 `unmapped`; the accepted bundle is `unmapped` on all 2,514. |
+
+The by-design differences, each as the probe found it:
+
+- `ancestry_assignment_method`: `source_fallback` in the accepted bundle,
+  `af_assigned` here -- the pipeline measures what the bundle recorded, and the
+  measurements agreed on every row.
+- `inclusion_reason`: the accepted wording cites the declared selection; the
+  pipeline's member vocabulary is `selected_ready_source`.
+- `trait_ontology_id`, `trait_ontology_label`, `trait_ontology_mapping_method`
+  (553 rows): mapped where the accepted bundle has no mapping; a gain, not a
+  regression, and the remaining 1,961 stay `unmapped` exactly as accepted.
+- The eight added columns the pipeline writes and the accepted bundle predates:
+  `source_reader_capability` (`opengwasdb.gwas-vcf`), `source_url` (blank, as
+  accepted), `downloaded_file` (the basename), `info_score_threshold` and
+  `maf_threshold` (literal `NaN`, no declaration), and the
+  `imputation_score_column`/`_kind`/`_provenance` triple (blank, undeclared).
+
 ## Retired paths
 
 ukb-b's bespoke path is gone (#289):
