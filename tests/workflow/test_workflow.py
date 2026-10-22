@@ -337,6 +337,22 @@ def create_completed_child_bundle(
     return child_dir
 
 
+def revise_registry_analyses(stores_dir: Path, store_id: str) -> None:
+    """Change a trait's name in the bundle's analyses.tsv: the content a rebuild is scheduled for (#339).
+
+    A bundle file that is merely newer than the release's records no longer
+    schedules a rebuild, so a test of a forced or refused rebuild changes
+    what the bundle says, as a revised release does.
+    """
+    analyses_p = stores_dir / store_id / "analyses.tsv"
+    lines = analyses_p.read_text(encoding="utf-8").splitlines()
+    column = lines[0].split("\t").index("trait_name")
+    row = lines[1].split("\t")
+    row[column] += " (revised)"
+    lines[1] = "\t".join(row)
+    analyses_p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def amend_to_complete_own_store(stores_dir: Path, store_id: str, *, ld_panel: Path) -> Path:
     """Give an Observed-Only fixture bundle a `complete` block: one id, published twice (ADR 0037).
 
@@ -884,8 +900,8 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
     def test_rebuilding_a_published_release_is_refused_before_any_job_writes(self) -> None:
         """A run that would rebuild a published release refuses before any job runs (#195).
 
-        A fresh checkout gives every bundle file a newer mtime than the records
-        beside its published Store, so Snakemake schedules the whole chain
+        A bundle revised after its Store was published (or one whose records
+        are older than its inputs) makes Snakemake schedule the whole chain
         again. Before #195 that run rebuilt into `.partial`, rewrote the
         release's `work/` and `records/`, and only then failed at publication
         with `StoreExistsError`: the Store survived, its evidence did not.
@@ -900,7 +916,9 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
             return {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in files}
 
         # Age the published release by a day, keeping its files' relative
-        # order, so the bundle is newer than its records as after a checkout.
+        # order, so the bundle is newer than its records, and revise the bundle
+        # as a changed release would: a newer file alone schedules nothing (#339).
+        revise_registry_analyses(self.stores_dir, store_id)
         day_ns = 86_400 * 10**9
         for p in store_dir.rglob("*"):
             if p.is_file():
@@ -927,7 +945,11 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertFalse(paths.partial_store_path(store_id, root=self.artifact_root).exists())
 
     def age_published_release(self, store_id: str) -> None:
-        """Make the bundle newer than the published release's files, as a fresh checkout does."""
+        """Make the bundle newer than the published release's files and revise its analyses.tsv.
+
+        A newer bundle alone is a fresh checkout, which schedules nothing (#339).
+        """
+        revise_registry_analyses(self.stores_dir, store_id)
         day_ns = 86_400 * 10**9
         for p in paths.store_dir(store_id, root=self.artifact_root).rglob("*"):
             if p.is_file():
@@ -943,6 +965,144 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
 
     def records_of(self, records_dir: Path) -> dict[str, tuple[int, bytes]]:
         return {p.name: (p.stat().st_mtime_ns, p.read_bytes()) for p in sorted(records_dir.iterdir())}
+
+    def rewrite_registry_analyses(self, store_id: str, *, extra_row: bool = False) -> Path:
+        """Write the bundle's analyses.tsv again, as a fresh checkout does: a newer mtime, the same bytes unless `extra_row`."""
+        analyses_p = self.stores_dir / store_id / "analyses.tsv"
+        text = analyses_p.read_text(encoding="utf-8")
+        if extra_row:
+            first_row = text.splitlines()[1].split("\t")
+            first_row[0] = "extra-analysis"
+            text += "\t".join(first_row) + "\n"
+        later = time.time_ns()
+        analyses_p.write_text(text, encoding="utf-8")
+        os.utime(analyses_p, ns=(later, later))
+        return analyses_p
+
+    def test_a_registry_file_rewritten_with_the_same_content_schedules_nothing(self) -> None:
+        """A newer analyses.tsv with the content the work/ copy came from is no change (#339)."""
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        self.rewrite_registry_analyses(store_id)
+        records_dir = paths.records_dir(store_id, root=self.artifact_root)
+        before = self.records_of(records_dir)
+        work_before = self.records_of(paths.store_dir(store_id, root=self.artifact_root) / "work")
+
+        dry = run_release([store_id, "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertEqual(scheduled_targets(dry.stdout), [], dry.stdout)
+
+        res = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertEqual(self.records_of(records_dir), before)
+        self.assertEqual(
+            self.records_of(paths.store_dir(store_id, root=self.artifact_root) / "work"), work_before
+        )
+
+    def assert_scheduled_and_refused(self, store_id: str) -> None:
+        dry = run_release([store_id, "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        scheduled = scheduled_targets(dry.stdout)
+        self.assertIn("analyses.exclusions", scheduled, dry.stdout)
+        self.assertIn("build", scheduled, dry.stdout)
+        self.assertIn("would refuse", dry.stdout)
+        self.assertIn("already published", dry.stdout)
+        res = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("already published", res.stderr)
+        self.assertIn("Nothing was written", res.stderr)
+
+    def test_changed_content_with_an_older_mtime_still_schedules_the_build_and_is_refused(self) -> None:
+        """A content mismatch invalidates the job whatever the mtimes say (#339)."""
+        self.use_completed_build()
+        revise_registry_analyses(self.stores_dir, self.STORE_ID)
+        os.utime(self.stores_dir / self.STORE_ID / "analyses.tsv", ns=(10**9, 10**9))
+        self.assert_scheduled_and_refused(self.STORE_ID)
+
+    def test_a_corrupt_sidecar_with_older_mtimes_schedules_the_build_and_is_refused(self) -> None:
+        self.use_completed_build()
+        sidecar = paths.build_manifest_sidecar_path(self.STORE_ID, root=self.artifact_root)
+        written = sidecar.stat()
+        sidecar.write_text("{not json", encoding="utf-8")
+        os.utime(sidecar, ns=(written.st_atime_ns, written.st_mtime_ns))
+        self.assert_scheduled_and_refused(self.STORE_ID)
+
+    def test_identical_content_schedules_nothing_whatever_the_mtimes(self) -> None:
+        self.use_completed_build()
+        analyses_p = self.stores_dir / self.STORE_ID / "analyses.tsv"
+        for ns in (10**9, 4 * 10**18):
+            os.utime(analyses_p, ns=(ns, ns))
+            dry = run_release([self.STORE_ID, "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+            self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+            self.assertEqual(scheduled_targets(dry.stdout), [], dry.stdout)
+
+    def test_a_registry_file_with_changed_content_schedules_the_build_and_is_refused(self) -> None:
+        self.use_completed_build()
+        self.rewrite_registry_analyses(self.STORE_ID, extra_row=True)
+        self.assert_scheduled_and_refused(self.STORE_ID)
+
+    def test_a_forced_unregistered_id_is_left_to_the_snakefiles_unknown_id_guidance(self) -> None:
+        self.use_completed_build()
+        dry = run_release(
+            ["OGS-99999", "--dry-run"],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            config={"force": "1"},
+        )
+        self.assertNotIn("Traceback", dry.stderr)
+        self.assertIn("Unknown Store Release ID 'OGS-99999'", dry.stdout + dry.stderr)
+
+    def assert_forced_run_rebuilds(self, store_id: str) -> None:
+        """Dry run and real run of `force=1` both rebuild the published release and archive its Store (#339)."""
+        build_record = paths.record_path(store_id, "build", root=self.artifact_root)
+        old_start = json.loads(build_record.read_text(encoding="utf-8"))["start_time"]
+
+        dry = run_release(
+            [store_id, "--dry-run"],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            config={"force": "1"},
+        )
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertEqual(
+            scheduled_targets(dry.stdout),
+            ["analyses.exclusions", "build", "top-hits", "overview", "validate", "register", store_id],
+            dry.stdout,
+        )
+        self.assertIn("would snapshot the records", dry.stdout)
+
+        res = run_release(
+            [store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root, config={"force": "1"}
+        )
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertNotEqual(json.loads(build_record.read_text(encoding="utf-8"))["start_time"], old_start)
+        archives = list((paths.store_dir(store_id, root=self.artifact_root) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+
+    def test_a_forced_run_rebuilds_an_unchanged_release_from_the_same_checkout(self) -> None:
+        self.use_completed_build()
+        self.assert_forced_run_rebuilds(self.STORE_ID)
+
+    def test_a_forced_run_rebuilds_an_unchanged_release_from_a_fresh_registry_copy(self) -> None:
+        self.use_completed_build()
+        self.rewrite_registry_analyses(self.STORE_ID)
+        self.assert_forced_run_rebuilds(self.STORE_ID)
+
+    def test_a_forced_run_rebuilds_the_store_from_a_changed_registry_file(self) -> None:
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        analyses_p = self.stores_dir / store_id / "analyses.tsv"
+        analyses_p.write_text(analyses_p.read_text(encoding="utf-8").replace("Test Trait", "Renamed Trait"), encoding="utf-8")
+
+        res = run_release(
+            [store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root, config={"force": "1"}
+        )
+
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        built_from = paths.build_manifest_path(store_id, root=self.artifact_root).read_text(encoding="utf-8")
+        self.assertIn("Renamed Trait", built_from)
+        archives = list((paths.store_dir(store_id, root=self.artifact_root) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
 
     def test_forced_rebuild_archives_the_old_release_and_publishes_the_new(self) -> None:
         """`--config force=1` replaces a named release; the old Store, records and record are archived (#195)."""
@@ -2461,12 +2621,31 @@ class TestWorkflowCompletingAStoreBuiltBefore304(PublishedReleaseCopies):
         replaced = yaml.safe_load((archives[0] / "validation.yaml").read_text(encoding="utf-8"))
         self.assertEqual(replaced["observed"]["n_variants"], len(SIGNAL_POSITIONS) - 1, "the Observed-Only Store's record")
 
-    def test_an_unforced_run_rebuilding_its_build_phase_is_still_refused_unchanged(self) -> None:
-        """Only completion-phase jobs are let through: a fresh checkout reschedules the build phase too (#195)."""
+    def test_bundle_files_all_rewritten_later_still_plan_only_the_completion_phase(self) -> None:
+        """A fresh checkout rewrites every bundle file; the identical analyses.tsv is no new membership (#339)."""
         stores, artifacts, store_id = self.observed_only_copy()
         amend_to_complete_own_store(stores, store_id, ld_panel=self.td / "ld-panel")
+        later = max(p.stat().st_mtime_ns for p in paths.store_dir(store_id, root=artifacts).rglob("*")) + 10**9
+        for name in ("release.yaml", "build.yaml", "analyses.tsv", "validation.yaml"):
+            if (stores / store_id / name).is_file():
+                os.utime(stores / store_id / name, ns=(later, later))
+
+        dry = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        records = [t for t in scheduled_targets(dry.stdout) if t != store_id]
+        self.assertEqual(records, self.COMPLETION_RECORDS)
+        self.assertNotIn("would refuse", dry.stdout)
+
+    def test_an_unforced_run_rebuilding_its_build_phase_is_still_refused_unchanged(self) -> None:
+        """Only completion-phase jobs are let through: a rescheduled build phase is still refused (#195)."""
+        stores, artifacts, store_id = self.observed_only_copy()
+        amend_to_complete_own_store(stores, store_id, ld_panel=self.td / "ld-panel")
+        # The records are older than the manifest the build reads, as after an
+        # interrupted build phase: unchanged membership, so only the published
+        # guard stands between this run and a rebuild.
         day_ns = 86_400 * 10**9
-        for p in paths.store_dir(store_id, root=artifacts).rglob("*"):
+        for p in paths.records_dir(store_id, root=artifacts).rglob("*"):
             if p.is_file():
                 st = p.stat()
                 os.utime(p, ns=(st.st_atime_ns - day_ns, st.st_mtime_ns - day_ns))
@@ -2537,6 +2716,23 @@ class TestWorkflowTheOneAmendmentOfAnAcceptedBundle(PublishedReleaseCopies):
         except amendment.AmendmentError as exc:
             return str(exc)
         return ""
+
+    def test_a_stale_parent_manifest_is_rerun_when_only_the_child_is_named(self) -> None:
+        """The `derived_from` walk: the child's dry run schedules the parent's build_manifest, and the unforced run is refused (#339)."""
+        template = two_id_completion_template()
+        stores, artifacts = self.published_copy(template["stores"], template["artifacts"])
+        parent_analyses = stores / template["parent_id"] / "analyses.tsv"
+        revise_registry_analyses(stores, template["parent_id"])
+        os.utime(parent_analyses, ns=(10**9, 10**9))
+
+        dry = run_release([template["child_id"], "--dry-run"], registry_root=stores, artifact_root=artifacts)
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertIn("analyses.exclusions", scheduled_targets(dry.stdout), dry.stdout)
+        self.assertIn("already published", dry.stdout)
+        res = run_release([template["child_id"]], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("already published", res.stderr)
 
     def test_observed_only_and_two_id_releases_are_not_checked_even_after_planner_drift(self) -> None:
         template = two_id_completion_template()
@@ -2706,7 +2902,8 @@ class TestWorkflowForcedRunOfACompletedSingleIdRelease(unittest.TestCase):
 
     def test_a_forced_run_rebuilds_both_phases_and_replaces_the_store(self) -> None:
         store_dir = paths.store_dir(self.store_id, root=self.artifacts)
-        # A fresh checkout: every bundle file newer than the release's files.
+        # A revised bundle, every file newer than the release's files.
+        revise_registry_analyses(self.stores, self.store_id)
         day_ns = 86_400 * 10**9
         for p in store_dir.rglob("*"):
             if p.is_file():
