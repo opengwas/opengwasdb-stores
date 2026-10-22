@@ -363,7 +363,7 @@ A `reference_completed` release with no `derived_from` completes its own Store u
 
 `completion-observed-view-check` is the Observed-View Check (opengwasdb `check-observed-view`, [ADR 0037](../adr/0037-reference-completion-replaces-its-store.md) Decision 2): `opengwasdb check-observed-view <published Store> <staged Store> --seed 20261021 --n-random 1000 --output <work dir>/observed-view-check.json`. Its first Store argument is the published one (`published_store_arg` 2), which staging leaves alone, and the second the staged one, rewritten to `.partial`. The seed is one fixed default for every release, the ADR's benchmark seed; there is no `build.yaml` option for it. The verdict is the command's stdout, so it is the step's record; the same JSON is written to `work/observed-view-check.json`, not to `records/`. A non-zero exit fails the step, so `completion-register` never runs and the Observed-Only Store is not touched: exit 1 (a mismatch) is reported with the failing counters and their counts and the path of the verdict, exit 2 (a refusal, which prints no verdict) as a refusal with the command's stderr. Every such message names the verdict's path, `<artifact root>/<id>/work/observed-view-check.json`; the counts include the axis ones (`parent_rows_unmapped`, `order_preserved`, `analyses_identical`), and a stdout that holds no decodable verdict is reported as "verdict unreadable" with the reason and the start of stdout. Snakemake removes a failed job's record by contract, so a failed check leaves no record: its verdict is that file, and the fixed seed makes it exactly reproducible from the same staged Store. The evidence of a swap is the passing check's record: `completion-register` refuses to publish without it, and archives a copy of it with the swap (below). A runtime without the command refuses a release that completes its own Store before anything is written (`resources.verify_observed_view_check_for_releases`, called from the entry point's dry run and run and from the Snakefile's `onstart`, as the Indexed Variant Subset guard is), naming the command and the runtime pin.
 
-Every completion-phase record name differs from every build-phase one, so both phases' records stay in `records/` once the completed Store replaces the Observed-Only Store. The first step keeps the name `complete`, so `register` still accepts a `complete-dense-resume` substitution for it. Only a Dense release is planned this way: `plan()` refuses another layout, naming it and ADR 0037, because the Observed-View Check that gates the replacement compares only Dense Stores so far. A two-id child (`derived_from`) plans exactly as before. The golden is `tests/plan/golden/OGS-00003-single-id-completed.json`: OGS-00003's recipe with a `complete` block, whose build phase is OGS-00003's own golden.
+Every completion-phase record name differs from every build-phase one, so both phases' records stay in `records/` once the completed Store replaces the Observed-Only Store. The first step keeps the name `complete`, so `register` still accepts a `complete-dense-resume` substitution for it. Only a Dense release is planned this way: `plan()` refuses another layout, naming it and ADR 0037, because Dense completion is the only completion path ported so far. The Observed-View Check ADR 0037 defines also covers the Dense Component of Hybrid Stores, so Hybrid completion is unported work rather than a limit of the check. A two-id child (`derived_from`) plans exactly as before. The golden is `tests/plan/golden/OGS-00003-single-id-completed.json`: OGS-00003's recipe with a `complete` block, whose build phase is OGS-00003's own golden.
 
 This is the entire adapter layer. It replaces `workflow/phase.py`, `workflow/model.py`, `release_plan.py`, `release_manifest.py`, `metadata_resolution.py` and `catalogue_coverage.py` (~4,100 lines on PR #105).
 
@@ -1000,8 +1000,46 @@ run alone repeats the in-memory steps it needs, never `freeze`, `preflight` or
 | `prepare` | frozen inventory, frozen Source Metadata Table | `<work-root>/<id>/resolver/analyses.tsv` | reconstruct a source path or re-select membership |
 | `resolve` | the resolver manifest | records in the Source Collection's Resolution Area; `<work-root>/<id>/resolver/{index.json,resolve.log,resolution_receipt.json}` | load a reference, fork a worker, or compute ancestry/SD here |
 | `verify` | the records the receipt names | nothing | accept a missing, stale, edited or duplicate record, or one outside the Selection |
-| `render` | records, frozen Source Metadata Table, the Canonical Trait Mapping Table, config | Trait Ontology Mapping, then the release policy, then `<work-root>/<id>/bundle/` | compute a statistic; write into `stores/`; carry files filtered to another region policy |
+| `render` | records, frozen Source Metadata Table, the Canonical Trait Mapping Table, config | Trait Ontology Mapping, then the release policy, then `<work-root>/<id>/bundle/` | compute a statistic; write into `stores/`; carry files filtered to another region policy; declare a completion phase the config has not qualified and activated |
 | `emit` | the rendered bundle | a staged bundle, then `stores/<id>/` | build, validate or accept a Store; write a non-`candidate` status |
+
+**Reference completion (#340, ADR 0037).** A release whose `build` block says
+`completion_state: reference_completed` declares a `completion` recipe in its
+release config ([release config](release-config.md#completion)): the
+`complete-dense` flags and the LD panel it completes against, with the owner's
+`qualification` and `activation` of that panel kept apart from the `status` its
+Reference Resource declares. Only a Dense release declares one here: ADR 0037's
+Observed-View Check also covers the Dense Component of Hybrid Stores, so Hybrid
+completion is unported work rather than something the contract forbids.
+
+`render` decides the recipe's place in the bundle, and it is the only place the
+decision is made:
+
+- a reference that is `qualified` and `active` emits `build.yaml` with
+  `completion_state: reference_completed`, the `build` block byte-identical to
+  the one an Observed-Only release gets, and a `complete` block whose `ld-panel`
+  is the declared Reference Resource's location and whose `ancestry` is its
+  declared ancestry. `release.yaml` claims no `derived_from`: one id is
+  published twice, its Observed-Only Store first and its completed Store to the
+  same path (ADR 0037);
+- any other reference emits the Observed-Only bundle, unchanged, and records
+  the reason twice: `release.yaml`'s notes say the recipe is blocked and name
+  the qualification and activation, and `validation.yaml` carries
+  `acceptance.completion_reference` with `blocked: true`, as #312's OGS-00009
+  recorded its qualified one. The stages print the same sentence, so an
+  operator who meant to complete is not left guessing.
+
+The panel is a Reference Resource like any other the release declares, and a
+*qualified, active* reference makes `preflight` require it present before
+anything is rendered. A blocked one is never opened, so its panel is not
+required and the Observed-Only bundle is still emitted where no panel exists. A
+config that declares a non-Dense layout, a `complete-dense` flag naming the
+panel, `reference_completed` with no recipe or `observed_only` with one, or the
+retired `completed_store_id` keys is refused when it loads, not when the bundle
+is emitted -- and so is a *qualified, active* reference whose declaration is
+missing, records no `status`, or completes an ancestry other than
+`release_policy.selection_superpopulation`. A blocked reference is never opened,
+so none of that applies to it.
 
 Re-running a stopped run repeats nothing costly: `freeze` finds the frozen
 snapshot and `resolve` reuses every record whose fingerprint still matches.
