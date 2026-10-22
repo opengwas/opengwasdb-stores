@@ -26,6 +26,10 @@ from pathlib import Path
 import yaml
 
 from manifest_generation import REPO_ROOT
+from manifest_generation.candidate_workflow import (
+    load_candidate_configuration,
+    render_build_yaml,
+)
 from manifest_generation.freeze import load_frozen_connectors
 from manifest_generation.release_config import load_release_config
 from manifest_generation.selection import select
@@ -125,6 +129,38 @@ class FullReleaseConfigTest(unittest.TestCase):
             [dict(entry) for entry in self.config.indexed_subsets or []],
             accepted["indexed_subsets"],
         )
+
+    def test_the_rendered_recipe_is_the_accepted_build_yaml(self) -> None:
+        # The strongest form of "reproduces OGS-00009's complete recipe": the
+        # pipeline's own rendering of this config, for that Store id, is the
+        # committed build.yaml -- both blocks, the hm3 subset, the post steps and
+        # the hg19 source assembly, document for document.
+        candidate = load_candidate_configuration(FULL_CONFIG, REPO_ROOT)
+        self.assertEqual(
+            render_build_yaml("OGS-00009", candidate),
+            yaml.safe_load(ACCEPTED_BUILD.read_text(encoding="utf-8")),
+        )
+
+    def test_the_completion_reference_is_ogs_00009_s(self) -> None:
+        completion = self.config.completion
+        self.assertIsNotNone(completion)
+        self.assertEqual(completion.command, "complete-dense")
+        self.assertEqual(completion.options, {"n-workers": 32})
+        self.assertEqual(
+            dict(completion.reference),
+            {
+                "resource_id": "ukb-hg38-eur-ld",
+                "qualification": "qualified",
+                "activation": "active",
+            },
+        )
+        # The panel, its ancestry and its declared status are the Reference
+        # Resource declaration's, read through the config's entry for it.
+        self.assertEqual(completion.panel.location, "/data/opengwasdb/reference/ld")
+        self.assertEqual(completion.panel.ancestry, "EUR")
+        self.assertEqual(completion.panel.status, "available")
+        self.assertIn("ukb-hg38-eur-ld", self.config.required_resource_ids)
+        self.assertEqual(self.config.build.completion_state, "reference_completed")
 
     def test_the_release_is_a_european_dense_release_of_the_gwas_vcf_collection(self) -> None:
         self.assertEqual(self.config.source_collection_id, "opengwas-gwas-vcf")

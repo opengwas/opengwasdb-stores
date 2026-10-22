@@ -61,14 +61,20 @@ selection:
   all: true
   expect_rows: 2514
 
-# The observed-only Dense Build Recipe the candidate carries, as OGS-00009's
-# accepted build.yaml declares it: the upstream GWAS-VCF reader, the hg19 source
+# The Dense Build Recipe the candidate carries, as OGS-00009's accepted
+# build.yaml declares it: the upstream GWAS-VCF reader, the hg19 source
 # assembly, and the release's own worker width. `command` names a subcommand,
 # never an import path (ADR 0023), and the artifact root is deployment
 # configuration, never a bundle field (#126).
+#
+# `completion_state: reference_completed` says this release completes its own
+# Store against the declared LD panel, so the bundle carries the observed
+# `build` block above and the `complete` block below under **one** id, with no
+# `derived_from` (ADR 0037, #340). The `build` block is byte-identical to the
+# observed-only one.
 build:
   layout: dense
-  completion_state: observed_only
+  completion_state: reference_completed
   command: build-dense-vcf
   options:
     # opengwasdb's own GWAS-VCF reader: the same reader the R path used, and the
@@ -145,6 +151,15 @@ reference_resources:
     location: resources/reference-resources/canonical-trait-mapping-efo
     location_kind: tracked_directory
     version: "3"
+  # Reference Completion's LD panel (ADR 0037, #340): the owner-approved UKB EUR
+  # panel, as resources/reference-resources/ukb-hg38-eur-ld/resource.yaml
+  # declares it. The entry's location is the panel root preflight proves present;
+  # its declared status, ancestry and `EUR -> ukb` ancestry directory are read
+  # from that declaration, never restated here.
+  - resource_id: ukb-hg38-eur-ld
+    kind: ld_panel
+    location: /data/opengwasdb/reference/ld
+    location_kind: external_directory
 
 ancestry_assignment:
   reference_resource_id: ukb-ancestry-mixture-hg38
@@ -170,6 +185,23 @@ effect_scale_validation:
 
 trait_ontology_mapping:
   reference_resource_id: canonical-trait-mapping-efo
+
+# Reference Completion (ADR 0037, #312, #340). This is OGS-00009's accepted
+# `complete` recipe: `complete-dense` against the UKB EUR LD panel, at the
+# build's own width. The reference block holds only the owner's qualification
+# and the panel's activation; the panel's declared status (`available`), its
+# ancestry (`EUR`) and its directory are the Reference Resource declaration's,
+# and the panel and ancestry are therefore not `options`. `--ancestry` names
+# both `<ld-panel>/EUR/<chr>/` and the Analyses it completes, which is why the
+# `EUR -> ukb` alias exists under /data/opengwasdb/reference/ld (#312).
+completion:
+  reference:
+    resource_id: ukb-hg38-eur-ld
+    qualification: qualified
+    activation: active
+  command: complete-dense
+  options:
+    n-workers: 32
 
 runtime:
   # The resolver reads every Analysis's VCF (425 GB in all) with liftover; the

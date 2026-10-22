@@ -59,9 +59,12 @@ selection:
     - ukb-b-19953
   expect_rows: 10
 
+# The release's own recipe shape, so the probe measures the bundle the full run
+# will make: one id carrying an observed `build` block and a `complete` block
+# (ADR 0037, #340). Only the build width is the probe's.
 build:
   layout: dense
-  completion_state: observed_only
+  completion_state: reference_completed
   command: build-dense-vcf
   options:
     source-reader-capability: opengwasdb.gwas-vcf
@@ -108,6 +111,12 @@ reference_resources:
     location: resources/reference-resources/canonical-trait-mapping-efo
     location_kind: tracked_directory
     version: "3"
+  # The panel the release completes against; the probe carries the same recipe
+  # so its bundle has the release's shape.
+  - resource_id: ukb-hg38-eur-ld
+    kind: ld_panel
+    location: /data/opengwasdb/reference/ld
+    location_kind: external_directory
 
 ancestry_assignment:
   reference_resource_id: ukb-ancestry-mixture-hg38
@@ -127,6 +136,18 @@ effect_scale_validation:
 
 trait_ontology_mapping:
   reference_resource_id: canonical-trait-mapping-efo
+
+# OGS-00009's `complete` recipe, at the same width as the full release: the
+# panel and its ancestry are the Reference Resource declaration's (`EUR`,
+# through the `EUR -> ukb` alias), so only the worker count is an option.
+completion:
+  reference:
+    resource_id: ukb-hg38-eur-ld
+    qualification: qualified
+    activation: active
+  command: complete-dense
+  options:
+    n-workers: 32
 
 runtime:
   cores: 2
