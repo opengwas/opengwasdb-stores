@@ -1,0 +1,97 @@
+snapshot_id: eqtlgen-cis-pilot-10-2026-10-22
+source_collection_id: eqtlgen-cis
+frozen_at: '2026-10-22T00:43:26Z'
+frozen_by: manifest_generation.freeze
+selection:
+  analyses:
+  - ENSG00000175445::whole_blood
+  - ENSG00000134243::whole_blood
+  - ENSG00000130203::whole_blood
+  - ENSG00000073605::whole_blood
+  - ENSG00000164308::whole_blood
+  - ENSG00000232810::whole_blood
+  - ENSG00000141510::whole_blood
+  - ENSG00000136244::whole_blood
+  - ENSG00000087237::whole_blood
+  - ENSG00000136997::whole_blood
+  expect_rows: 10
+rows: 10
+readiness_counts:
+  ok: 10
+ready_rows: 10
+ready_bytes: 13841760
+study_design_counts:
+  quantitative: 10
+ready_study_design_counts:
+  quantitative: 10
+duplicate_content_groups: []
+inventory_tsv_sha256: fac1f4a0423816c1d4526271577c87f93c53ffe25e4500c4432d91a3fb4cf87a
+source_metadata_table:
+  frozen:
+    path: eqtlgen-cis-pilot-10-2026-10-22.source-metadata.tsv
+    sha256: 91a1c7c0fe079782cfc91857f4f4c3633469a93b2f8f223667368e9d1e49528d
+    bytes: 1437
+    rows: 10
+  original:
+    path: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
+    sha256: 91a1c7c0fe079782cfc91857f4f4c3633469a93b2f8f223667368e9d1e49528d
+    bytes: 1437
+    rows: 10
+acquisition_manifest:
+  frozen:
+    path: eqtlgen-cis-pilot-10-2026-10-22.acquisition-manifest.tsv
+    sha256: 656fe7145db6a9c41316512b2f4c884c0adc2f244e613cfe721c9175d20566de
+    bytes: 7040
+    rows: 10
+  original:
+    path: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.tsv
+    sha256: 656fe7145db6a9c41316512b2f4c884c0adc2f244e613cfe721c9175d20566de
+    bytes: 7040
+    rows: 10
+    readiness_counts:
+      ok: 10
+    pass_lineage:
+      path: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.meta.yaml
+      sha256: 6565e7551facdb4df69d199b926a82e0d507bd7364ee17179afa467eaddab598
+  unselected_entries: 0
+lineage:
+- analysis_id: ENSG00000073605::whole_blood
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:7c064154f970343d75d6d421cf547f6b3689b49d102eef7f49ba3db486229850
+- analysis_id: ENSG00000087237::whole_blood
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:7c064154f970343d75d6d421cf547f6b3689b49d102eef7f49ba3db486229850
+- analysis_id: ENSG00000130203::whole_blood
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:7c064154f970343d75d6d421cf547f6b3689b49d102eef7f49ba3db486229850
+- analysis_id: ENSG00000134243::whole_blood
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:7c064154f970343d75d6d421cf547f6b3689b49d102eef7f49ba3db486229850
+- analysis_id: ENSG00000136244::whole_blood
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:7c064154f970343d75d6d421cf547f6b3689b49d102eef7f49ba3db486229850
+- analysis_id: ENSG00000136997::whole_blood
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:7c064154f970343d75d6d421cf547f6b3689b49d102eef7f49ba3db486229850
+- analysis_id: ENSG00000141510::whole_blood
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:7c064154f970343d75d6d421cf547f6b3689b49d102eef7f49ba3db486229850
+- analysis_id: ENSG00000164308::whole_blood
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:7c064154f970343d75d6d421cf547f6b3689b49d102eef7f49ba3db486229850
+- analysis_id: ENSG00000175445::whole_blood
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:7c064154f970343d75d6d421cf547f6b3689b49d102eef7f49ba3db486229850
+- analysis_id: ENSG00000232810::whole_blood
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:7c064154f970343d75d6d421cf547f6b3689b49d102eef7f49ba3db486229850

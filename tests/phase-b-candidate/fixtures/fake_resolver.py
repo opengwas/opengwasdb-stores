@@ -15,7 +15,11 @@ to (not the ones it resumes), so a test can see what a run re-resolved;
 ``FAKE_RESOLVER_PAUSE_FILE`` holds it before it writes anything. Its record
 metrics vary per resolution, as the real resolver's timings do.
 Like the real resolver it re-runs a ``controlled_failure`` record even under
-``--resume``.
+``--resume``. A BESD row (``opengwasdb.besd``) must name its ``source_probe_id`` and
+any other must not, and its record binds the probe and the size and mtime of each
+member file of the file set ``source_file`` is the prefix of, as the pinned
+resolver's does (``source_member_files``, opengwasdb#282); the index lists each
+file set it resolved that invocation under ``source_measurements``.
 It computes no ancestry, alignment or SD -- that stays OpenGWASDB's, and the
 real resolver is exercised upstream.
 """
@@ -32,6 +36,8 @@ import time
 from pathlib import Path
 
 RECORD_SCHEMA_VERSION = 1
+BESD_CAPABILITY = "opengwasdb.besd"
+BESD_MEMBER_SUFFIXES = (".besd", ".epi", ".esi")
 
 
 def _opengwasdb_version() -> str:
@@ -129,6 +135,18 @@ def parse_args(argv: list[str]) -> dict:
     return options
 
 
+def besd_member_stats(prefix: str) -> dict:
+    """Size and mtime of each member file, ``None`` for one that is missing."""
+    stats = {}
+    for suffix in BESD_MEMBER_SUFFIXES:
+        try:
+            stat = Path(f"{prefix}{suffix}").stat()
+            stats[suffix] = {"bytes": stat.st_size, "mtime_ns": stat.st_mtime_ns}
+        except OSError:
+            stats[suffix] = {"bytes": None, "mtime_ns": None}
+    return stats
+
+
 def chain_fingerprint(options: dict) -> dict:
     """The ``assembly.chain_*`` fingerprint, as the real resolver records it."""
     chain = options.get("chain_file")
@@ -224,6 +242,9 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
         })
     if row.get("maf_threshold") not in (None, "", "NaN"):
         fingerprints["resolution_config"]["maf_threshold"] = float(row["maf_threshold"])
+    if row.get("source_probe_id"):
+        fingerprints["source_member_files"] = besd_member_stats(row["source_file"])
+        fingerprints["resolution_config"]["source_probe_id"] = row["source_probe_id"]
     fingerprints["fingerprint_digest"] = fingerprint_digest(fingerprints)
     return fingerprints
 
@@ -418,6 +439,17 @@ def main(argv: list[str]) -> int:
             raise SystemExit(
                 f"fake resolver: analysis {row.get('analysis_id')!r}: source_genome_build is required"
             )
+        capability = row.get("source_reader_capability") or options.get("capability")
+        probe = (row.get("source_probe_id") or "").strip()
+        if capability == BESD_CAPABILITY and not probe:
+            raise SystemExit(
+                f"fake resolver: BESD analysis {row.get('analysis_id')!r} has no source_probe_id"
+            )
+        if capability != BESD_CAPABILITY and probe:
+            raise SystemExit(
+                f"fake resolver: analysis {row.get('analysis_id')!r} sets source_probe_id, "
+                f"which only {BESD_CAPABILITY!r} reads"
+            )
 
     outcomes_path = os.environ.get("FAKE_RESOLVER_OUTCOMES")
     outcomes: dict = {}
@@ -437,6 +469,7 @@ def main(argv: list[str]) -> int:
     resolved_log = Path(log) if log else None
 
     analyses = []
+    measured: dict[tuple[str, str], list[str]] = {}
     n_success = 0
     n_failed = 0
     n_resumed = 0
@@ -469,6 +502,10 @@ def main(argv: list[str]) -> int:
                 return 1
             atomic_write_json(record_path, record)
             written += 1
+            if row.get("source_probe_id"):
+                measured.setdefault(
+                    (row["source_file"], row["source_genome_build"]), []
+                ).append(analysis_id)
             if resolved_log is not None:
                 with resolved_log.open("a", encoding="utf-8") as fh:
                     fh.write(analysis_id + "\n")
@@ -510,6 +547,20 @@ def main(argv: list[str]) -> int:
         "failed_analyses": failed_ids,
         "analyses": analyses,
     }
+    if measured:
+        index_data["source_measurements"] = [
+            {
+                "measurement_id": fingerprint_digest(
+                    {"source_file": prefix, "source_genome_build": build,
+                     "source_member_files": besd_member_stats(prefix)}
+                ),
+                "source_file": prefix,
+                "source_genome_build": build,
+                "analyses": ids,
+                "error": None,
+            }
+            for (prefix, build), ids in measured.items()
+        ]
     atomic_write_json(records_dir / "index.json", index_data)
     print(json.dumps({"n_total": len(rows), "n_success": n_success, "n_failed": n_failed, "n_resumed": n_resumed}))
     return 0

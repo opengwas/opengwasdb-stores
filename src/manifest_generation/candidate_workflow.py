@@ -86,6 +86,7 @@ from manifest_generation.resolution_area import (
     ResolutionArea,
     ResolutionAreaError,
 )
+from manifest_generation.acquisition_manifest import BESD_MEMBERS
 from manifest_generation.safe_write import atomic_write_bytes
 from manifest_generation.source_inventory import (
     INVENTORY_COLUMNS,
@@ -136,6 +137,7 @@ RESOLVER_MANIFEST_COLUMNS: tuple[str, ...] = (
     "imputation_score_kind",
     "imputation_score_provenance",
     "maf_threshold",
+    "source_probe_id",
 )
 
 #: The canonical Release Bundle ``analyses.tsv`` columns this generator emits.
@@ -484,6 +486,12 @@ SOURCE_TRUSTED_NO_AF: str = "source_trusted_no_af"
 #: The reader a release uses when its Build Recipe names none.
 DEFAULT_SOURCE_READER_CAPABILITY: str = "opengwasdb.gwas-ssf"
 
+#: The reader a build command implies, for a command that reads one format and
+#: takes no ``source-reader-capability`` flag: ``build-ragged-besd`` reads BESD
+#: file sets, whose resolver reader is ``opengwasdb.besd`` (#291). Options are
+#: passed to the command verbatim, so the release config cannot name it there.
+COMMAND_READER_CAPABILITY: Mapping[str, str] = {"build-ragged-besd": "opengwasdb.besd"}
+
 
 def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfiguration:
     """Load the release config (``release_config``) and read the reviewed listings it names.
@@ -513,7 +521,9 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
         },
         effect_scale_block=dict(base.effect_scale),
         reader_capability=str(
-            base.build.options.get("source-reader-capability") or DEFAULT_SOURCE_READER_CAPABILITY
+            base.build.options.get("source-reader-capability")
+            or COMMAND_READER_CAPABILITY.get(base.build.command)
+            or DEFAULT_SOURCE_READER_CAPABILITY
         ),
         target_ancestry=base.selection_superpopulation,
         info_score_threshold=base.info_score_threshold,
@@ -799,6 +809,8 @@ class AnalysisMetadata:
     target_rows: str = ""
     tissue: str = ""
     context: str = ""
+    #: The probe the Analysis reads in a BESD file set (``source_probe_id``, #291).
+    source_probe_id: str = ""
     #: The Store's Analysis id, when the table declares one (``analysis_id``,
     #: #288). Blank means the pipeline's default, ``analysis_id`` above: a Source
     #: Collection whose ids are namespaced, or otherwise not its source's, says
@@ -869,6 +881,7 @@ def read_analysis_metadata(
             source_genome_build=row.get("source_genome_build", ""),
             tissue=row.get("tissue", ""),
             context=row.get("context", ""),
+            source_probe_id=row.get("source_probe_id", ""),
             **{column: row.get(column, "") for column in ANALYSIS_TARGETS_COLUMNS[1:]},
         )
     return found
@@ -1079,6 +1092,9 @@ class ResolverRow:
     #: The per-Analysis MAF floor: the configured default, or literal ``NaN``
     #: for a no-MAF-filter release or a MAF-exempt genotyping technology.
     maf_threshold: str = "NaN"
+    #: The ``.epi`` probe a BESD Analysis reads in the file set ``source_file`` is the
+    #: prefix of; blank for every other source (#291).
+    source_probe_id: str = ""
 
     def as_dict(self) -> dict[str, str]:
         return {name: getattr(self, name) for name in RESOLVER_MANIFEST_COLUMNS}
@@ -1139,6 +1155,7 @@ def derive_resolver_manifest(
                 imputation_score_kind=kind,
                 imputation_score_provenance=provenance,
                 maf_threshold=analysis_maf_threshold(row, config),
+                source_probe_id=resolved.source_probe_id if resolved else "",
             )
         )
     if not manifest:
@@ -1858,7 +1875,42 @@ def _verify_fingerprints(
                 f"{row.analysis_id}: resolver resolution_config.maf_threshold is "
                 f"{resolution_config.get('maf_threshold')!r}, expected {wanted_maf!r}"
             )
+    # A BESD record binds its probe: the file set is shared, so which of its
+    # Analyses a record is for is part of its identity (#291).
+    if row.source_probe_id and isinstance(resolution_config, Mapping):
+        if resolution_config.get("source_probe_id") != row.source_probe_id:
+            failures.append(
+                f"{row.analysis_id}: resolver resolution_config.source_probe_id is "
+                f"{resolution_config.get('source_probe_id')!r}, expected {row.source_probe_id!r}"
+            )
     failures.extend(_verify_source_file_unchanged(row, fingerprints))
+    return failures
+
+
+def _stat_problems(
+    analysis_id: str, what: str, path: Path, recorded_bytes: Any, recorded_mtime_ns: Any
+) -> list[str]:
+    """Why ``path`` is no longer the size and mtime a resolver record was produced against.
+
+    ``what`` names it in the diagnostics ("source file", "source member x.esi").
+    """
+    try:
+        stat = path.stat()
+    except OSError:
+        return [
+            f"{analysis_id}: {what} for the resolver record cannot be inspected: {path}"
+        ]
+    failures: list[str] = []
+    if recorded_bytes != stat.st_size:
+        failures.append(
+            f"{analysis_id}: {what} size is {stat.st_size} but the resolver "
+            f"record was produced against {recorded_bytes!r}; re-run resolution"
+        )
+    if recorded_mtime_ns != stat.st_mtime_ns:
+        failures.append(
+            f"{analysis_id}: {what} mtime is {stat.st_mtime_ns} but the "
+            f"resolver record was produced against {recorded_mtime_ns!r}; re-run resolution"
+        )
     return failures
 
 
@@ -1866,26 +1918,37 @@ def _verify_source_file_unchanged(
     row: ResolverRow, fingerprints: Mapping[str, Any]
 ) -> list[str]:
     """Require the source file to still match the size/mtime the resolver recorded."""
-    try:
-        stat = Path(row.source_file).stat()
-    except OSError:
-        return [
-            f"{row.analysis_id}: source file for the resolver record cannot be "
-            f"inspected: {row.source_file}"
-        ]
+    if row.source_probe_id:
+        return _verify_member_files_unchanged(row, fingerprints)
+    return _stat_problems(
+        row.analysis_id, "source file", Path(row.source_file),
+        fingerprints.get("source_file_bytes"), fingerprints.get("source_file_mtime_ns"),
+    )
+
+
+def _verify_member_files_unchanged(
+    row: ResolverRow, fingerprints: Mapping[str, Any]
+) -> list[str]:
+    """Require each member of a BESD file set to match the size/mtime the resolver recorded.
+
+    A BESD ``source_file`` is the prefix of three files, not a file, so the
+    record binds ``source_member_files`` -- each member's size and mtime -- and
+    that is what is held against the files as they are now (#291).
+    """
+    recorded = fingerprints.get("source_member_files")
+    if not isinstance(recorded, Mapping):
+        return [f"{row.analysis_id}: resolver record has no source_member_files for {row.source_file}"]
     failures: list[str] = []
-    recorded_bytes = fingerprints.get("source_file_bytes")
-    if recorded_bytes != stat.st_size:
-        failures.append(
-            f"{row.analysis_id}: source file size is {stat.st_size} but the resolver "
-            f"record was produced against {recorded_bytes!r}; re-run resolution"
-        )
-    recorded_mtime = fingerprints.get("source_file_mtime_ns")
-    if recorded_mtime != stat.st_mtime_ns:
-        failures.append(
-            f"{row.analysis_id}: source file mtime is {stat.st_mtime_ns} but the "
-            f"resolver record was produced against {recorded_mtime!r}; re-run resolution"
-        )
+    for suffix in BESD_MEMBERS:
+        member = Path(f"{row.source_file}{suffix}")
+        was = recorded.get(suffix)
+        if not isinstance(was, Mapping):
+            failures.append(f"{row.analysis_id}: resolver record has no {suffix} in source_member_files")
+            continue
+        failures.extend(_stat_problems(
+            row.analysis_id, f"source member {member.name}", member,
+            was.get("bytes"), was.get("mtime_ns"),
+        ))
     return failures
 
 
@@ -3455,6 +3518,31 @@ def render_build_yaml(store_id: str, config: CandidateConfiguration) -> dict[str
     return document
 
 
+def besd_source_snapshot(
+    config: CandidateConfiguration, manifest_rows: Sequence[ResolverRow]
+) -> dict[str, str]:
+    """The ``source_snapshot`` keys ``build-ragged-besd`` reads: the file set's prefix and its build.
+
+    ``ogstores.plan`` takes the BESD prefix from ``source_snapshot.besd_prefix``
+    (the file set is a bundle fact, not derived from the artifact root), and
+    ``bundle.check`` requires it. Every Analysis of a release reads the one file
+    set, and the build is the recipe's own ``source-build`` (#291). Empty for any
+    other build command.
+    """
+    if config.build_command != "build-ragged-besd":
+        return {}
+    prefixes = sorted({row.source_file for row in manifest_rows})
+    if len(prefixes) != 1:
+        raise CandidateError(
+            f"build-ragged-besd reads one BESD file set; the selected Analyses name "
+            f"{len(prefixes)}: {', '.join(prefixes[:5]) or '(none)'}"
+        )
+    build = str(config.build_options.get("source-build") or "")
+    if not build:
+        raise CandidateError("build-ragged-besd needs the build option 'source-build' (the source's build)")
+    return {"besd_prefix": prefixes[0], "source_genome_build": build}
+
+
 def render_column_maps(config: CandidateConfiguration) -> dict[str, bytes]:
     """The Column Map a bundle carries under ``column_maps/``: empty for a built-in or none."""
     binding = column_map_binding(config)
@@ -3478,6 +3566,7 @@ def render_release_yaml(
     generator_version: str,
     resolver_receipt_path: Path | None = None,
     resolver_receipt_sha256: str | None = None,
+    manifest_rows: Sequence[ResolverRow] = (),
 ) -> dict[str, Any]:
     """Render the candidate ``release.yaml`` identity record as the emitter's document.
 
@@ -3565,6 +3654,7 @@ def render_release_yaml(
             ),
             "resolver_receipt_sha256": resolver_receipt_sha256,
             "resolver_opengwasdb_version": index_summary.get("opengwasdb_version"),
+            **besd_source_snapshot(config, manifest_rows),
         },
         "generator": {"version": generator_version},
         "description": config.description,
@@ -3731,6 +3821,7 @@ def _int_or_empty(value: Any) -> str:
 __all__ = [
     "ACQUISITION_EVIDENCE_SIDECARS",
     "ANALYSIS_TARGETS_COLUMNS",
+    "besd_source_snapshot",
     "acquisition_evidence",
     "ANCESTRY_SIDECAR_COLUMNS",
     "ANALYSES_COLUMNS",

@@ -63,6 +63,8 @@ EXEMPT_TESTS: dict[str, str] = {
         "the phase-b-candidate stage-test fixtures, whose directory is not a package",
     "tests/ukb-b-pipeline/test_pipeline_end_to_end.py":
         "the phase-b-candidate stage-test fixtures, whose directory is not a package",
+    "tests/eqtlgen-pipeline/test_pipeline_end_to_end.py":
+        "the phase-b-candidate stage-test fixtures, whose directory is not a package",
     "tests/workflow/test_release_faults.py": "Store Release Build tests importing their sibling test module",
 }
 
