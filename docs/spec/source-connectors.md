@@ -613,11 +613,16 @@ python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
   --epi <file set>.epi --tissue whole_blood --sample-size 31684 --out <source metadata table>
 ```
 
-`source_analysis_id` is `<probe>::<tissue>`, the id `build-ragged-besd` gives the
-Analysis, so no Store-identity column is declared. `source_probe_id` is the probe,
+`source_analysis_id` is the bare probe id, the id `build-ragged-besd` gives the
+Analysis when the Build Recipe passes it no `tissue`, so no Store-identity column
+is declared. It is never `<probe>::<tissue>`, as OGS-00001 and OGS-00002 named
+theirs: an `analysis_id` never contains `:` (issue #319), and `bundle.check()`
+refuses one that does. `source_probe_id` is the probe,
 `source_trait_label` the `.epi`'s gene column (the probe's own id: the file names
 no symbol), `study_design` is `quantitative`, and `tissue` and `sample_size` are
 the study-wide facts the operator states, the same on every row: never defaults.
+The tissue is recorded in its own column, never in the id, and a blank or padded
+`--tissue` is refused before anything is written.
 The probe is the target: `target_ensembl_gene_id` is the probe,
 `target_chromosome` its chromosome, and `target_start` and `target_end` both its
 base pair, a one-base span (the file gives a position, not the gene's extent). It
@@ -657,9 +662,10 @@ a changed original or tool is refused by name, and nothing is rewritten: retaine
 output is never relabelled with a new original.
 
 **The release config** (`resources/generators/eqtlgen-cis-pilot/release-pilot-10.yaml`)
-is OGS-00001's Selection: `layout: ragged`, `command: build-ragged-besd`, the
-options `source-build: hg19` and `tissue: whole_blood` (passed to the command
-verbatim), `defaults.source_genome_build: GRCh37`, and one method tier,
+is OGS-00001's Selection, by bare probe id: `layout: ragged`, `command:
+build-ragged-besd`, the option `source-build: hg19` (passed to the command
+verbatim) and no `tissue` option, which would name each Analysis
+`<probe>::<tissue>`, `defaults.source_genome_build: GRCh37`, and one method tier,
 `quantitative`: `stored_effect_scale: sd`, `original_sd_method:
 estimated_from_source_maf` (the resolver measures the SD from the `.esi`
 frequencies, ADR 0019), `sample_size_kind: total`. The release names no reader:

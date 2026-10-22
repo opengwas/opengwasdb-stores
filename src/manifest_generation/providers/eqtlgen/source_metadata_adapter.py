@@ -7,9 +7,11 @@ carries no study metadata, so this adapter writes one canonical row per probe
 (``manifest_generation.source_metadata_table``) and takes the study-level facts
 from the operator, never from a default:
 
-- ``source_analysis_id`` is ``<probe>::<tissue>``, the id ``build-ragged-besd``
-  gives the Analysis, so the Store's Analysis ids are the source's own and no
-  Store-identity column is declared;
+- ``source_analysis_id`` is the bare probe id, the id ``build-ragged-besd``
+  gives the Analysis when the Build Recipe passes it no ``tissue``, so the
+  Store's Analysis ids are the source's own and no Store-identity column is
+  declared. It is never ``<probe>::<tissue>``: an ``analysis_id`` never contains
+  ``:`` (issue #319), and ``bundle.check()`` refuses one that does;
 - ``source_probe_id`` is the ``.epi`` probe the Analysis reads;
 - ``source_trait_label`` is the ``.epi`` gene column (the probe's own id: the
   file names no symbol), which is the Analysis Label;
@@ -21,6 +23,8 @@ from the operator, never from a default:
   study-wide N, the same on every probe), and nothing else is declared: no
   ancestry label (Assigned Ancestry is measured), no build (the release
   config's default) and no trait ontology term (a gene is not the Trait, #141).
+  The tissue is recorded in its own column, never in the id, and a blank or
+  padded one is refused before anything is written (issue #319).
 
 A probe the table cannot describe -- a chromosome outside ``1``-``22``, ``X``,
 ``Y``, ``MT``, a repeated probe, a short row -- fails the whole adapter by line
@@ -106,7 +110,7 @@ def convert_epi(epi: Path, out: Path, *, tissue: str, sample_size: int) -> None:
         if row_problems:
             continue
         rows.append({
-            "source_analysis_id": f"{probe}::{tissue}",
+            "source_analysis_id": probe,
             "source_probe_id": probe,
             "source_trait_label": gene or probe,
             "study_design": "quantitative",
