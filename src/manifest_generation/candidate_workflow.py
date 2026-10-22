@@ -65,6 +65,12 @@ import yaml
 
 from ogstores.bundle import SUPERPOPULATIONS
 from manifest_generation import quality_checks
+from manifest_generation.completion import (
+    CompletionRecipe,
+    acceptance as completion_acceptance,
+    blocked_reason,
+    completion_block,
+)
 from manifest_generation.quality_checks import (
     NON_QUANTITATIVE_EFFECT_SCALES,
     CheckSummary,
@@ -462,6 +468,9 @@ class CandidateConfiguration:
     #: ``resources/reference-resources/<id>/resource.yaml``: its ``genome_build``
     #: is the resolver's ``--reference-build`` (opengwasdb#277).
     ancestry_reference_declaration: Path | None = None
+    #: The completion recipe the release config declares (#340, ADR 0037), or
+    #: ``None`` for a release that completes nothing.
+    completion: CompletionRecipe | None = None
 
 
 #: The Ancestry Assignment Method of an Analysis whose source has no allele
@@ -533,6 +542,7 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
             Path(repo_root) / "resources" / "reference-resources"
             / base.ancestry_reference_resource_id / "resource.yaml"
         ),
+        completion=base.completion,
     )
 
 
@@ -3295,20 +3305,33 @@ def _derive_checks(
 
 
 def render_build_yaml(store_id: str, config: CandidateConfiguration) -> dict[str, Any]:
-    """Render the observed-only Hybrid Build Recipe as the emitter's ``build.yaml`` document.
+    """Render the Build Recipe as the emitter's ``build.yaml`` document.
+
+    A qualified, active completion reference puts both phases in the Store's own
+    bundle (ADR 0037): the `build` block exactly as an Observed-Only release
+    declares it, so completing a published Store schedules no rebuild, then the
+    `complete` block, with `completion_state: reference_completed` and no
+    `derived_from`. A reference short of that changes nothing: the same recipe,
+    Observed-Only, with the reason recorded in `release.yaml` and
+    `validation.yaml`.
 
     The recipe is a registry fact plus ``opengwasdb`` flags; it carries no
     artifact root (issue #126) and names a subcommand, never an import path
     (ADR 0023).
     """
+    complete = completion_block(config.completion)
     document = {
         "store_id": store_id,
         "layout": config.layout,
-        "completion_state": config.completion_state,
+        "completion_state": "reference_completed" if complete else "observed_only",
         "build": {
             "command": config.build_command,
             "options": dict(config.build_options),
         },
+        # The completion phase follows the build in the same bundle (ADR 0037).
+        # `post` serves both; `complete-dense` builds the Top-Hit Index inline,
+        # so the planner gives the completion phase no `top_hits` step.
+        **({"complete": complete} if complete else {}),
         "post": dict(config.post) or {"top_hits": False, "overview": True},
     }
     # Dense and Hybrid releases declare the maintained hm3 Indexed Variant
@@ -3392,6 +3415,21 @@ def render_release_yaml(
         "non-target/unassigned ancestry, orientation failures, unusable source AF and "
         "ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv)."
     )
+    if config.completion is not None:
+        reason = blocked_reason(config.completion.reference)
+        if reason is None:
+            notes_lines.append(
+                f"Reference completion (ADR 0037): {config.completion.resource_id} is "
+                f"qualification {config.completion.reference['qualification']}, activation "
+                f"{config.completion.reference['activation']}; this bundle declares both phases "
+                "under this id, with no derived_from: the build phase publishes the Observed-Only "
+                "Store and the completion phase replaces it once the Observed-View Check passes."
+            )
+        else:
+            notes_lines.append(
+                f"Reference completion (ADR 0037): blocked: {reason}; this bundle is "
+                "Observed-Only and declares no complete block."
+            )
     if config.require_maf_filtered:
         notes_lines.append(
             "Store composition (#203): this shared Store admits only Analyses whose "
@@ -3445,6 +3483,7 @@ def render_validation_yaml(
     validated_at: str,
     validator_name: str,
     trait_ontology_mapping: Mapping[str, Any],
+    completion: CompletionRecipe | None = None,
 ) -> dict[str, Any]:
     """Render the candidate Validation Record as the emitter's ``validation.yaml`` document.
 
@@ -3453,10 +3492,14 @@ def render_validation_yaml(
     evidence that does exist. ``trait_ontology_mapping`` is the Trait Ontology
     Mapping run's provenance (#286): the Canonical Trait Mapping Table's
     identity, the method counts and any rejected source terms.
+
+    A declared completion reference is recorded under ``acceptance``, with
+    whether it blocks completion (#308, #312): an Observed-Only bundle then says
+    which reference blocked it and why.
     """
     status = ("failed" if tables.reference_overlap_errors else
               "passed_with_warnings" if tables.warnings else "passed")
-    document = {
+    document: dict[str, Any] = {
         "status": status,
         "validated_at": validated_at,
         "validator": {"name": validator_name, "version": None},
@@ -3500,6 +3543,8 @@ def render_validation_yaml(
         "warnings": list(tables.warnings),
         "errors": list(tables.reference_overlap_errors),
     }
+    if completion is not None:
+        document["acceptance"] = completion_acceptance(completion)
     return document
 
 
