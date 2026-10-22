@@ -46,7 +46,8 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    Overflow association into the Dense Component, passes the Observed-View
    Check across both components and publishes the completed Store at its path;
    a perturbed crossover fails the check, naming it, and the Observed-Only Store
-   stays published.
+   stays published; and a published Observed-Only Hybrid release whose bundle
+   gains a `complete-hybrid` block runs only its completion phase.
 """
 
 from __future__ import annotations
@@ -2873,6 +2874,66 @@ class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
         )
         archived_record = yaml.safe_load((archive / "validation.yaml").read_text(encoding="utf-8"))
         self.assertEqual(archived_record["observed"]["completion_state"], "observed_only")
+
+
+class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
+    """A published Observed-Only Hybrid Store is completed later under its id, with no rebuild (#333, #305).
+
+    The release is a copy of `hybrid_single_id_completion_template` as its
+    run stood when `complete` started (`complete_started`, through
+    `copy_snapshot`): the build phase had published the Observed-Only Store
+    and nothing of the completion phase had run. That build phase is what the
+    bundle plans without its `complete` block (`tests/plan`), so with the
+    block taken out the copy is an accepted, published Observed-Only release
+    with nothing left to do. The bundle then gains a `complete-hybrid` block,
+    the one amendment ADR 0037 allows, and an unforced run completes the
+    Store. `TestWorkflowCompletingAStoreBuiltBefore304` shows the same for a
+    Dense Store the workflow built before #304.
+    """
+
+    def test_the_amended_bundle_runs_only_the_completion_phase(self) -> None:
+        import yaml
+
+        template = hybrid_single_id_completion_template()
+        store_id = template["store_id"]
+        self.assertIsNotNone(template["complete_started"], "the template's run never reached `complete`")
+        stores, artifacts = copy_snapshot(template["complete_started"], built=template, into=self.td)
+        build_yaml_p = stores / store_id / "build.yaml"
+        declared = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
+        observed_only = {key: value for key, value in declared.items() if key != "complete"}
+        build_yaml_p.write_text(yaml.safe_dump({**observed_only, "completion_state": "observed_only"}), encoding="utf-8")
+
+        published = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(published.returncode, 0, published.stdout + published.stderr)
+        self.assertEqual([t for t in scheduled_targets(published.stdout) if t != store_id], [])
+
+        amend_to_complete_own_store(
+            stores, store_id, ld_panel=Path(declared["complete"]["options"]["ld-panel"]), command="complete-hybrid"
+        )
+        store_dir = paths.store_dir(store_id, root=artifacts)
+        build_phase_before = {
+            p: (p.stat().st_mtime_ns, p.read_bytes())
+            for directory in ("records", "work") for p in sorted((store_dir / directory).iterdir())
+        }
+        dry = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+        res = run_release([store_id], registry_root=stores, artifact_root=artifacts)
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertEqual(
+            [t for t in scheduled_targets(dry.stdout) if t != store_id],
+            TestWorkflowCompletingAStoreBuiltBefore304.COMPLETION_RECORDS,
+        )
+        self.assertNotIn("would refuse", dry.stdout)
+        self.assertEqual(res.returncode, 0, f"the completion failed:\n{res.stdout}\n{res.stderr}")
+        for p, (mtime, content) in build_phase_before.items():
+            self.assertEqual((p.stat().st_mtime_ns, p.read_bytes()), (mtime, content), f"{p} was rewritten")
+        rec_dir = paths.records_dir(store_id, root=artifacts)
+        for step in TestWorkflowCompletingAStoreBuiltBefore304.COMPLETION_RECORDS:
+            self.assertTrue(json.loads((rec_dir / f"{step}.json").read_text(encoding="utf-8"))["success"], step)
+        manifest_doc = json.loads((paths.store_path(store_id, root=artifacts) / "manifest.json").read_text())
+        self.assertEqual(
+            (manifest_doc["primary_layout"], manifest_doc["completion_state"]), ("hybrid", "reference_completed")
+        )
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
