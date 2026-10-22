@@ -160,6 +160,10 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "variant-reference": "/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz",
             "n-workers": 24,
             "checkpoint": True,
+            # #225 adds the rsid-conflict policy as a Release Erratum: the sources
+            # name some variants two ways, and the build refused them rather than
+            # choose a name (opengwasdb#306).
+            "on-rsid-conflict": "drop",
             "source-reader-capability": "opengwasdb.gwas-ssf",
             "source-assembly": "hg38",
         },
@@ -317,8 +321,8 @@ class TestRegistryMigration(unittest.TestCase):
 
         Note: OGS-00012/13/14/16 additionally carry the owner-authorized
         execution-only `n-workers: 16` amendment, and OGS-00009 (#312),
-        OGS-00011 (#334), OGS-00012 (#227) and OGS-00017 (#223) their
-        completion phase.
+        OGS-00011 (#334, plus #225's rsid-conflict policy), OGS-00012 (#227)
+        and OGS-00017 (#223) their completion phase.
         """
         for store_id, expected in EXPECTED_UNRELATED.items():
             build = load_build(store_id)

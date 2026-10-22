@@ -91,4 +91,16 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
   completion imputes all 3,169 and the panel vocabulary matches the Analyses exactly. This Store''s Dense axis
   is the gnomAD v4 EUR common-variant reference, not the UKB panel, so completion extends it: an Overflow
   observation at a variant the panel adds to the Dense axis crosses into the Dense Component as an observed
-  cell and leaves the Overflow (opengwas/opengwasdb#99). Release Status is unchanged.'
+  cell and leaves the Overflow (opengwas/opengwasdb#99). Release Status is unchanged.
+
+
+  Release Erratum (issue #225, 2026-10-22): this Store could not be rebuilt from the accepted Build
+  Recipe. build-hybrid at the stores pin d405de0 refuses a routing key its sources name with two
+  different rsids, and 99,577 case-folded routing keys here are named that way: 105 Analyses, every one
+  an upper-case Source against a lower-case one, over the 79.0 M keys that carry a lower-case spelling
+  (0.13%). On the owner decision of 2026-10-22 the recipe gains on-rsid-conflict: drop, so a variant
+  whose sources disagree stores no rsid, and the build reports how many variants that leaves unnamed
+  (opengwas/opengwasdb#306). The counts are carried into the Validation Record of the build that
+  replaces this Store. Membership, the completion block and every other build option are unchanged; the
+  build phase no longer plans the argv that wrote the published Store, and differs from it only in the
+  flag this erratum adds. Release Status is unchanged until that rebuild publishes.'
