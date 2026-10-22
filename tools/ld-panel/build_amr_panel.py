@@ -306,14 +306,22 @@ def main() -> int:
                                         "--ancestry", "AMR", "--thresh", "0.9",
                                         "--out", str(out / "verify/underresolved_0.9.txt")])
 
-        # 5. Held-out calibration on the pilot's blocks, under the final QC.
+        # 5. Held-out calibration on the pilot's blocks, under the final QC. A
+        # result newer than the conversion it was measured from is reused: it
+        # costs replicates x two panels per block, and nothing else changed.
         for row in calibration:
-            steps.run(f"calibrate_{block_label(row)}", [
+            label, result = block_label(row), out / "calibration" / f"{block_label(row)}.json"
+            converted = out / "pgen/AMR" / f"chr{row['chr']}.complete"
+            if result.exists() and converted.exists() and result.stat().st_mtime > converted.stat().st_mtime:
+                continue
+            # check=False: a failed calibration is reported as {"failed": log} in
+            # the summary, not a reason to abandon the rest of the panel.
+            steps.run(f"calibrate_{label}", [
                 py, str(HERE / "heldout_calibration.py"), "--pfile", str(out / "pgen/AMR" / f"chr{row['chr']}"),
                 "--keep", str(members / "AMR.keep"), "--chrom", row["chr"], "--start", row["start"],
                 "--end", row["end"], "--cohort", str(source / "cohort_populations.tsv"), "--maf", str(args.maf),
                 "--max-missing", str(args.max_missing), "--replicates", str(args.replicates),
-                "--out", str(out / "calibration" / f"{block_label(row)}.json")])
+                "--out", str(result)], check=False)
 
         # The panel as it stands, over every invocation so far.
         summary = panel_summary(out, args.regions, calibration, run, maf=args.maf,
