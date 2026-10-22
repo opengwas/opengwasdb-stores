@@ -9,8 +9,8 @@ and each Resolution Record's fingerprint carry their checksums; the emitted
 bundle binds the map in `build.yaml` and carries a non-built-in map under
 `column_maps/`. A changed map or chain makes the records stale.
 
-Composing a release's resolver settings reads no host file, so the chain is
-only ever read *before resolution*: its declaration's checksum is what the
+Composing a release's resolver settings reads no liftover chain file, so the
+chain is only ever read *before resolution*: its declaration's checksum is what the
 settings digest covers, and the `resolve` stage refuses an absent chain or one
 which is not those bytes, by name. Both are tested here, the second through the
 entry point.

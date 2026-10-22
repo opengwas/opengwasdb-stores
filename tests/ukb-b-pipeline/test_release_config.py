@@ -151,7 +151,7 @@ class FullReleaseConfigTest(unittest.TestCase):
         # The VCFs are GRCh37 and the ancestry mixture is GRCh38, so the resolver
         # is passed the declared chain (#292); without it a cross-build source is
         # refused. Its declared checksum joins the settings digest. Composing the
-        # settings reads no host file, so this passes on a runner with no /data.
+        # settings reads no chain file, so this passes on a runner with no /data.
         self.assertEqual(self.config.liftover_chain_resource_id, "liftover-hg19-to-hg38")
         chain = self.config.reference_resources["liftover-hg19-to-hg38"]
         self.assertEqual(chain.kind, "liftover_chain")

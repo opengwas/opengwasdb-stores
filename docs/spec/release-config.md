@@ -300,8 +300,8 @@ refused. Four blocks use them, by id:
   run by name. Without a chain the resolver refuses a source on another build.
   The declared checksum is part of the resolution contract, and it is the
   declared one that the settings digest covers -- composing a run's settings
-  reads no host file, so a config whose chain lives under `/data` still composes
-  on a CI runner that has no `/data`.
+  reads no liftover chain file, so a config whose chain lives under `/data`
+  still composes on a CI runner that has no `/data`.
   `maf_floor` (default 0.01), `extraction_panel` (default none) and `gates`
   (`tau` 0.50, `delta` 0.20, `n_min` 5000, `residual_max` 0.06) are passed to
   the resolver as written.
