@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import tempfile
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -60,12 +61,22 @@ def standardised_ea_dosages(genotypes: np.ndarray, variants: list[dict[str, obje
     """Unit-norm centred effect-allele dosages for panel ``rows``, and their EAF.
 
     ``genotypes`` and ``variants`` are as :func:`construct_block` takes them;
-    each row names its variant by ``SNP`` and its effect allele by ``EA``.
+    each row names its effect allele by ``EA``, and its source record by
+    ``BP``/``REF``/``ALT`` or, in tables that predate them, by ``SNP``. An ALID
+    can name two records (#348), so a row that names more than one is refused.
     Missing calls are mean-imputed, as in construction, so for a block built
     from these genotypes ``x.T @ x`` is the LD its eigendecomposition stores.
     """
-    index = {alid: i for i, alid in enumerate(variant_alids(variants)) if alid is not None}
-    columns = [index[str(r["SNP"])] for r in rows]
+    if all("REF" in r and "ALT" in r for r in rows):
+        keys = [(int(v["pos"]), str(v["allele1"]).upper(), str(v["allele2"]).upper()) for v in variants]
+        wanted = [(int(r["BP"]), str(r["REF"]), str(r["ALT"])) for r in rows]
+    else:
+        keys, wanted = variant_alids(variants), [str(r["SNP"]) for r in rows]
+    records = Counter(k for k in keys if k is not None)
+    ambiguous = [w for w in wanted if records[w] > 1]
+    if ambiguous: raise ValueError(f"{len(ambiguous)} rows name more than one source record, e.g. {ambiguous[0]}")
+    index = {k: i for i, k in enumerate(keys) if k is not None}
+    columns = [index[w] for w in wanted]
     alt = np.asarray(genotypes, dtype=np.float64)[:, columns]
     alt_is_ea = np.array([str(variants[c]["allele2"]).upper() == r["EA"] for c, r in zip(columns, rows)])
     dosage = np.where(alt_is_ea, alt, 2 - alt)
@@ -187,6 +198,8 @@ def construct_block(
             "CHR": str(v["chrom"]).removeprefix("chr"), "BP": int(v["pos"]),
             "SNP": canonical_alid(v["chrom"], v["pos"], a1, a2),
             "OA": a2, "EA": a1, "EAF": eaf, "MAC": float(mac[source_i]),
+            # The source record, which an ALID alone cannot name (#348).
+            "REF": str(v["allele1"]).upper(), "ALT": str(v["allele2"]).upper(),
         })
     provenance = {
         "interval": interval, "n_individuals": int(g.shape[0]),

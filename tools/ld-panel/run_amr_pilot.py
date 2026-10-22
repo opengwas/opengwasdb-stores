@@ -120,11 +120,14 @@ def filter_composition(records: Path, table: Path, start: int, end: int) -> dict
     from construct_block import canonical_alid
     biallelic = [line.split("\t") for line in records.read_text().splitlines()]
     biallelic = [r for r in biallelic if "," not in r[3] and start <= int(r[1]) <= end]
-    # Retained ALIDs name one record each (construct_block excludes collisions).
+    # A retained row names its source record; tables from before #348 only by ALID.
+    by_record = {(int(pos), ref.upper(), alt.upper()): flt for chrom, pos, ref, alt, flt in biallelic}
     by_alid = {canonical_alid(chrom, pos, ref, alt): flt for chrom, pos, ref, alt, flt in biallelic}
-    with table.open(newline="") as fh: kept = [r["SNP"] for r in csv.DictReader(fh, delimiter="\t")]
+    with table.open(newline="") as fh:
+        kept = [by_record[(int(r["BP"]), r["REF"], r["ALT"])] if "REF" in r else by_alid[r["SNP"]]
+                for r in csv.DictReader(fh, delimiter="\t")]
     count = lambda values: {k: values.count(k) for k in sorted(set(values))}
-    return {"input_biallelic": count([r[4] for r in biallelic]), "retained": count([by_alid[a] for a in kept])}
+    return {"input_biallelic": count([r[4] for r in biallelic]), "retained": count(kept)}
 
 
 def retained_distribution(table: Path) -> dict[str, object]:

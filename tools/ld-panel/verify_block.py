@@ -18,7 +18,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from construct_block import _plink_extract, canonical_alid, standardised_ea_dosages, variant_alids
+from construct_block import _plink_extract, canonical_alid, standardised_ea_dosages
 from find_underresolved_blocks import components_needed
 
 
@@ -41,6 +41,9 @@ def verify_block(base: Path, genotypes: np.ndarray, variants: list[dict[str, obj
     require(len(set(alids)) == len(alids) and all(
         r["EA"] < r["OA"] and canonical_alid(r["CHR"], r["BP"], r["EA"], r["OA"]) == r["SNP"]
         == canonical_panel_alid(r["SNP"]) for r in rows), "alids")
+    # A row's source record, where recorded, must be the variant its ALID names.
+    require(all(canonical_alid(r["CHR"], r["BP"], r["REF"], r["ALT"]) == r["SNP"]
+                for r in rows if "REF" in r and "ALT" in r), "alids")
     finite = bool(np.isfinite(values).all() and np.isfinite(vectors).all())
     require(finite, "finite")
     require(bool((values >= 0).all()), "non_negative")
@@ -50,10 +53,11 @@ def verify_block(base: Path, genotypes: np.ndarray, variants: list[dict[str, obj
     require(needed <= vectors.shape[1], "resolved_at_thresh")
 
     binding_error = None
-    nameable = set(variant_alids(variants)) - {None}
-    require(all(a in nameable for a in alids), "binding")
-    if finite and "binding" not in failures and "row_count" not in failures:
+    try:
         x, eaf = standardised_ea_dosages(genotypes, variants, rows)
+    except (KeyError, ValueError):  # a row names no source record, or more than one
+        require(False, "binding")
+    if finite and "binding" not in failures and "row_count" not in failures:
         require(np.allclose(eaf, [float(r["EAF"]) for r in rows], rtol=0, atol=1e-9), "eaf")
         projected = ((x @ vectors) ** 2).sum(axis=0)
         binding_error = float(np.max(np.abs(projected - values[:vectors.shape[1]])) / values[0])

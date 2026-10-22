@@ -134,17 +134,28 @@ def test_alid_collisions() -> None:
     rng = np.random.default_rng(7)
     rare = np.r_[np.ones(20), np.zeros(n - 20)]  # MAC 20
     common = rng.binomial(2, .3, n).astype(float)
-    g = np.column_stack([rare, common, rng.binomial(2, .3, n), rng.binomial(2, .2, n)])
-    variants = [{"chrom": "1", "pos": 100, "allele1": "GA", "allele2": "G"},
-                {"chrom": "1", "pos": 100, "allele1": "G", "allele2": "GA"},
+    g = np.column_stack([common, rare, rng.binomial(2, .3, n), rng.binomial(2, .2, n)])
+    variants = [{"chrom": "1", "pos": 100, "allele1": "G", "allele2": "GA"},
+                {"chrom": "1", "pos": 100, "allele1": "GA", "allele2": "G"},
                 {"chrom": "1", "pos": 100, "allele1": "G", "allele2": "A"},
                 {"chrom": "1", "pos": 101, "allele1": "C", "allele2": "T"}]
     result = module.construct_block(g, variants, mac_threshold=1, component_floor=1)
+    table = result.variant_table
     common_mac = min(common.sum(), 2 * n - common.sum())
-    check([r["SNP"] for r in result.variant_table] == ["1:100:G:GA", "1:100:A:G", "1:101:C:T"] and
-          result.variant_table[0]["MAC"] == common_mac and result.provenance["n_variants_alid_collision"] == 1,
-          "a shared ALID must keep only its more frequent record")
-    sparse = g.copy(); sparse[:60, 1] = np.nan  # the common insertion is 30% missing
+    check([r["SNP"] for r in table] == ["1:100:G:GA", "1:100:A:G", "1:101:C:T"] and
+          table[0]["MAC"] == common_mac and (table[0]["REF"], table[0]["ALT"]) == ("G", "GA") and
+          result.provenance["n_variants_alid_collision"] == 1,
+          "a shared ALID must keep only its more frequent record, and name it")
+    # Dosages must come from the kept record, not whichever record shares its ALID.
+    _, eaf = module.standardised_ea_dosages(g, variants, table)
+    check(np.allclose(eaf, [r["EAF"] for r in table], rtol=0, atol=1e-12),
+          "dosages were read from the wrong record of a shared ALID")
+    try:
+        module.standardised_ea_dosages(g, variants, [{k: v for k, v in table[0].items() if k not in ("REF", "ALT")}])
+        check(False, "an ALID naming two records was resolved without its source alleles")
+    except ValueError:
+        check(True, "")
+    sparse = g.copy(); sparse[:60, 0] = np.nan  # the common insertion is 30% missing
     again = module.construct_block(sparse, variants, mac_threshold=1, max_missing_rate=.2, component_floor=1)
     check(again.variant_table[0]["MAC"] == 20 and again.provenance["n_variants_alid_collision"] == 0 and
           again.provenance["n_variants_high_missing"] == 1,

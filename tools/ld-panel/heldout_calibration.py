@@ -46,8 +46,10 @@ def calibrate_block(genotypes: np.ndarray, variants: list[dict[str, object]], po
     built = {"held_out": construct_block(g[~test], variants, **floor),
              "test_in_sample": construct_block(g[test], variants, **floor)}
     # z-scores exist only where the variant passes the floor in both halves.
-    in_test = {r["SNP"] for r in built["test_in_sample"].variant_table}
-    shared = [r for r in built["held_out"].variant_table if r["SNP"] in in_test]
+    # Rows pair by source record: the halves may keep different records of a shared ALID (#348).
+    record = lambda r: (r["SNP"], r["REF"], r["ALT"])
+    in_test = {record(r) for r in built["test_in_sample"].variant_table}
+    shared = [r for r in built["held_out"].variant_table if record(r) in in_test]
     settings = {"maf_threshold": maf_threshold, "max_missing_rate": max_missing_rate,
                 "test_fraction": test_fraction, "mask_fraction": mask_fraction,
                 "replicates": replicates, "ncp": ncp, "thresh": thresh, "min_cor": min_cor,
@@ -60,9 +62,9 @@ def calibrate_block(genotypes: np.ndarray, variants: list[dict[str, object]], po
     panels = {}
     for name, result in built.items():
         k = min(components_needed(result.eigenvalues, thresh), result.eigenvectors.shape[1])
-        row_of = {r["SNP"]: i for i, r in enumerate(result.variant_table)}
+        row_of = {record(r): i for i, r in enumerate(result.variant_table)}
         panels[name] = (result.eigenvalues[:k], result.eigenvectors[:, :k],
-                        np.array([row_of[r["SNP"]] for r in shared]))
+                        np.array([row_of[record(r)] for r in shared]))
     rng = np.random.default_rng(seed + 1)
     m, rows = len(shared), []
     for replicate in range(replicates):
