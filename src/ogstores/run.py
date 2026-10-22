@@ -672,11 +672,20 @@ def _fsync_dir(dir_path: Path) -> None:
         pass
 
 
+def record_text(record_data: dict[str, Any]) -> str:
+    """A step record as it is written: indented JSON in key order, with a final newline.
+
+    `tools/relocate_store.py` writes moved records back with this, so a
+    relocated record differs from the original only in the paths it moved (#331).
+    """
+    return json.dumps(record_data, indent=2, sort_keys=False) + "\n"
+
+
 def _write_record_atomically(record_data: dict[str, Any], record_p: Path) -> None:
     """Atomically write record_data to record_p using a temp file + os.replace."""
     record_p.parent.mkdir(parents=True, exist_ok=True)
     temp_p = record_p.with_name(f".{record_p.name}.tmp.{os.getpid()}.{time.time_ns()}")
-    payload = json.dumps(record_data, indent=2, sort_keys=False) + "\n"
+    payload = record_text(record_data)
     with open(temp_p, "w", encoding="utf-8") as f:
         f.write(payload)
         f.flush()
@@ -1953,6 +1962,7 @@ __all__ = [
     "is_store_producing_step",
     "job_record",
     "load_record",
+    "record_text",
     "pending_force_snapshots",
     "prepare_release_run",
     "publish_store",

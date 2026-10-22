@@ -94,10 +94,11 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
 
 15. **Moving a published release to another Artifact Root (#331; `TestWorkflowEndToEndRelocation`)**:
    - Each test takes contract 6's published release (`dense_release_template`) into a root of its own, its records naming that root (`copy_snapshot`).
-   - `tools/relocate_store.py` moves it to a second root. The old directory is gone, and every file keeps its mtime. Each record is what `run` would write with only its path fields (`argv`, `planned_argv`, `inputs`, `outputs`, `record_path`, `published_store`) moved, and none of them names the old root; `stdout`, `stderr` and every other field are byte for byte as written. The receipt names both roots, each record's sha256 before and after, and how many strings each field had moved. An unforced release at the new root has nothing to do and rewrites no record, and the next register of its build phase passes.
+   - `tools/relocate_store.py` moves it to a second root. The old directory is gone, and every file keeps its mtime. Each record is what `run` would write with only its path fields (`argv`, `planned_argv`, `inputs`, `outputs`, `record_path`, `published_store`) moved, and none of them names the old root; `stdout`, `stderr` and every other field are byte for byte as written. The receipt is `complete` and names both roots, each record's sha256 before and after, and how many strings each field had moved. An unforced release at the new root has nothing to do and rewrites no record, and the next register of its build phase passes.
    - The negative control: the same release moved by a plain rename also has nothing to do at the new root, but its next register refuses it with `ArgvDriftError` naming the old root and writes nothing.
    - The tool refuses, moving and writing nothing, while `publication.json` exists, while a Store is staged, when the target exists, and when the records name another root (a plain copy of the release).
    - `--dry-run` names every record and writes nothing.
+   - Its other refusals, and a move that fails part-way and is finished by `--resume`, are `tests/relocate-store`'s, on synthetic releases.
 
 ## Running the suite
 

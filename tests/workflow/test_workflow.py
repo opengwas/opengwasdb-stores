@@ -1205,7 +1205,9 @@ class TestWorkflowEndToEndRelocation(unittest.TestCase):
 
     Each test takes the end-to-end tests' published release (`dense_release_template`)
     into a root of its own, its records naming that root as if it had been
-    built there (`copy_snapshot`), and moves it to a second root.
+    built there (`copy_snapshot`), and moves it to a second root. The tool's
+    other refusals, and an interrupted move resumed, are `tests/relocate-store`'s,
+    on synthetic releases.
     """
 
     @classmethod
@@ -1218,12 +1220,15 @@ class TestWorkflowEndToEndRelocation(unittest.TestCase):
         self.assertEqual(built.returncode, 0, f"the template release failed:\n{built.stdout}\n{built.stderr}")
         self.temp_dir = tempfile.TemporaryDirectory()
         self.td = Path(self.temp_dir.name)
-        self.stores, self.old_root, self.new_root = self.release_built_in(self.td)
-        self.old_dir = paths.store_dir(self.store_id, root=self.old_root)
-        self.new_dir = paths.store_dir(self.store_id, root=self.new_root)
 
     def tearDown(self) -> None:
         self.temp_dir.cleanup()
+
+    def take_release(self) -> None:
+        """The template release as if built in this test's directory, with an empty second root beside it."""
+        self.stores, self.old_root, self.new_root = self.release_built_in(self.td)
+        self.old_dir = paths.store_dir(self.store_id, root=self.old_root)
+        self.new_dir = paths.store_dir(self.store_id, root=self.new_root)
 
     def release_built_in(self, into: Path) -> tuple[Path, Path, Path]:
         """The template release as if built under `into`: its registry, its root, and an empty second root."""
@@ -1240,6 +1245,7 @@ class TestWorkflowEndToEndRelocation(unittest.TestCase):
         """Only the records' path fields change; the release at the new root has nothing to do."""
         import yaml
 
+        self.take_release()
         records_before = {p.name: p.read_bytes() for p in sorted((self.old_dir / "records").glob("*.json"))}
         mtimes_before = {
             str(p.relative_to(self.old_dir)): p.stat().st_mtime_ns for p in self.old_dir.rglob("*") if p.is_file()
@@ -1252,6 +1258,7 @@ class TestWorkflowEndToEndRelocation(unittest.TestCase):
         receipts = sorted((self.new_dir / "relocations").glob("*.json"))
         self.assertEqual(len(receipts), 1, receipts)
         receipt = json.loads(receipts[0].read_text(encoding="utf-8"))
+        self.assertEqual(receipt["status"], "complete")
         self.assertEqual((receipt["old_root"], receipt["new_root"]), (str(self.old_root), str(self.new_root)))
         self.assertEqual(
             {
@@ -1273,7 +1280,7 @@ class TestWorkflowEndToEndRelocation(unittest.TestCase):
                 field: moved_paths(value, {str(self.old_dir): str(self.new_dir)}) if field in RECORD_PATH_FIELDS else value
                 for field, value in record.items()
             }
-            self.assertEqual(after.decode("utf-8"), json.dumps(moved_record, indent=2) + "\n", name)
+            self.assertEqual(after.decode("utf-8"), run.record_text(moved_record), name)
             for field in RECORD_PATH_FIELDS:
                 self.assertEqual(strings_under(moved_record[field], self.old_root), 0, f"{name}: {field}")
             entry = receipt_records[f"records/{name}"]
@@ -1296,6 +1303,7 @@ class TestWorkflowEndToEndRelocation(unittest.TestCase):
 
     def test_a_release_moved_by_plain_rename_drifts_at_its_next_register(self) -> None:
         """Without the tool the release still looks up to date, and its next register refuses it, naming the old root."""
+        self.take_release()
         os.rename(self.old_dir, self.new_dir)  # what `mv` does on one filesystem
         rerun = run_release([self.store_id], registry_root=self.stores, artifact_root=self.new_root)
         self.assertEqual(rerun.returncode, 0, rerun.stdout + rerun.stderr)
@@ -1343,6 +1351,7 @@ class TestWorkflowEndToEndRelocation(unittest.TestCase):
                 self.assertEqual(tree_state(self.td), before)
 
     def test_a_dry_run_changes_nothing_and_names_what_would_change(self) -> None:
+        self.take_release()
         before = tree_state(self.td)
 
         dry = relocate_store(self.store_id, self.old_root, self.new_root, "--dry-run")
