@@ -168,17 +168,18 @@ class TestBundleContract(unittest.TestCase):
             self.assertEqual(errors, [], f"{store_id}: {errors}")
 
     def test_ogs_00015_frozen_dev_input_is_not_scientific_acceptance(self) -> None:
-        """OGS-00015 is the owner-authorized, frozen EAS input manifest.
+        """OGS-00015 is the owner-authorized, frozen EAS input manifest, and its Store claims no scientific acceptance.
 
-        #247 `accepted` is the registry's fixed-input acceptance gate, not a
+        #247 `accepted` was the registry's fixed-input acceptance gate, not a
         flag bypass and not scientific release validation: the exact
-        241-Analysis membership is accepted and frozen for dev construction,
-        while human scientific acceptance stays pending and the Validation
-        Record stays not_run.
+        241-Analysis membership was accepted and frozen for dev construction.
+        Its Store was then built and validated (#331), and register's
+        Validation Record replaced the frozen-input one, which stays in git at
+        its `acceptance.commit`. Human scientific acceptance stays pending.
         """
         loaded = bundle.load("OGS-00015", registry_root=REPO_ROOT / "stores")
         record_check()
-        self.assertEqual(loaded.status, "accepted")
+        self.assertEqual(loaded.status, self.MVP_STATUS)
         record_check()
         self.assertTrue(loaded.release.get("accepted_at"))
         record_check()
@@ -200,19 +201,7 @@ class TestBundleContract(unittest.TestCase):
         self.assertEqual(
             snapshot["resolver_source_evidence_scope"], "capped_pilot_diagnostic"
         )
-        acceptance = loaded.validation["acceptance"]
-        record_check()
-        self.assertIs(acceptance["membership_accepted"], True)
-        record_check()
-        self.assertIs(acceptance["membership_frozen"], True)
-        record_check()
-        self.assertEqual(acceptance["human_acceptance"], "pending")
-        record_check()
-        self.assertIn("6156153525", acceptance["owner_authorization"])
-        record_check()
-        self.assertIn("6156153173", acceptance["owner_authorization"])
-        record_check()
-        self.assertEqual(loaded.validation["status"], "not_run")
+        self.assert_mvp_built_record("OGS-00015", 241)
         record_check()
         summary = bundle.summarise(loaded)
         self.assertEqual(summary["n_analyses"], 241)
@@ -230,6 +219,44 @@ class TestBundleContract(unittest.TestCase):
         "OGS-00015": ("eas", 241),
         "OGS-00016": ("meta", 1691),
     }
+    # The MVP observed bundles' Release Status: the #221 batch built and
+    # validated their Stores, which #331 published and recorded.
+    MVP_STATUS = "validated"
+    # The commit of each bundle's frozen-input Validation Record, which
+    # register's record replaced and names as its `acceptance.commit`.
+    MVP_FROZEN_INPUT_RECORD = {
+        **dict.fromkeys(("OGS-00012", "OGS-00013", "OGS-00014", "OGS-00016"), "9c9b92bc4ffd112de30ab661924079140ecd45aa"),
+        "OGS-00015": "fa2ea2cde7eeb06d1e52ad67c30e501743c66009",
+    }
+
+    def assert_mvp_built_record(self, store_id: str, n_analyses: int) -> None:
+        """Register's passing Validation Record, from the #221 batch's runtime, over the frozen-input one.
+
+        The owner authorization and the pending human acceptance that record
+        held are in the notes, and the record itself in git at its
+        `acceptance.commit`.
+        """
+        loaded = bundle.load(store_id, registry_root=REPO_ROOT / "stores")
+        validation = loaded.validation
+        record_check()
+        self.assertEqual(validation["status"], "passed", store_id)
+        record_check()
+        self.assertEqual(
+            validation["validator"], {"name": "opengwasdb validate", "version": "opengwasdb@4e922566d7fa4c13a11be3637069da63e48be28c"},
+            store_id,
+        )
+        record_check()
+        self.assertEqual(validation["observed"]["n_analyses"], n_analyses, store_id)
+        record_check()
+        self.assertEqual(validation["acceptance"]["commit"], self.MVP_FROZEN_INPUT_RECORD[store_id], store_id)
+        notes = " ".join(loaded.release["notes"].split())  # OGS-00015's notes are wrapped
+        for authorization in ("6156153525", "6156153173"):
+            record_check()
+            self.assertIn(authorization, notes, store_id)
+        record_check()
+        self.assertIn("Human scientific acceptance remains pending.", notes, store_id)
+        record_check()
+        self.assertIn(f"/data/opengwasdb/stores/{store_id}/store.opengwasdb", notes, store_id)
 
     def test_mvp_observed_stores_cover_the_6022_partition_without_exclusions(self) -> None:
         total = 0
@@ -252,10 +279,10 @@ class TestBundleContract(unittest.TestCase):
             self.assertFalse((REPO_ROOT / "stores" / child).exists(), child)
 
     def test_mvp_observed_stores_are_frozen_dev_inputs(self) -> None:
-        for store_id, (slug, _) in self.MVP_OBSERVED.items():
+        for store_id, (slug, n_analyses) in self.MVP_OBSERVED.items():
             loaded = bundle.load(store_id, registry_root=REPO_ROOT / "stores")
             record_check()
-            self.assertEqual(loaded.status, "accepted", store_id)
+            self.assertEqual(loaded.status, self.MVP_STATUS, store_id)
             record_check()
             self.assertTrue(loaded.release.get("accepted_at"), store_id)
             record_check()
@@ -272,19 +299,7 @@ class TestBundleContract(unittest.TestCase):
                 "capped_pilot_diagnostic",
                 store_id,
             )
-            acceptance = loaded.validation["acceptance"]
-            record_check()
-            self.assertIs(acceptance["membership_accepted"], True, store_id)
-            record_check()
-            self.assertIs(acceptance["membership_frozen"], True, store_id)
-            record_check()
-            self.assertEqual(acceptance["human_acceptance"], "pending", store_id)
-            record_check()
-            self.assertIn("6156153525", acceptance["owner_authorization"], store_id)
-            record_check()
-            self.assertIn("6156153173", acceptance["owner_authorization"], store_id)
-            record_check()
-            self.assertEqual(loaded.validation["status"], "not_run", store_id)
+            self.assert_mvp_built_record(store_id, n_analyses)
 
     def test_ogs_00014_preserves_unassigned_amr_analyses(self) -> None:
         rows = opengwasdb_analyses.read_analyses(
@@ -395,7 +410,7 @@ class TestBundleContract(unittest.TestCase):
                 store_id,
             )
             record_check()
-            self.assertEqual(loaded.status, "accepted", store_id)
+            self.assertEqual(loaded.status, self.MVP_STATUS, store_id)
             record_check()
             self.assertTrue(loaded.release.get("accepted_at"), store_id)
         # EAS and FinnGen recipes are untouched by the amendment.

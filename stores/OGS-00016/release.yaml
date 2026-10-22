@@ -1,7 +1,7 @@
 store_id: OGS-00016
 label: mvp-phs002453-meta-observed-only
 access_posture: public
-status: accepted
+status: validated
 derived_from: null
 created_at: '2026-10-14T08:39:26Z'
 source_snapshot_id: dbgap-phs002453-mvp-meta-metadata-2026-10-13
@@ -25,6 +25,8 @@ notes: |-
   Canonical tuple. 1,691 x empty/unassigned (assigned_ancestry/ancestry_assignment_method). The corrected re-emission changed only the source_ancestry_label column and the META canonical method, leaving every sample size, effect scale, source ID, source path and evidence tag unchanged.
 
   Provenance bindings. This bundle is bound to the actual source snapshot named in source_snapshot (metadata refresh root + content sha, mapping table sha, source-metadata fingerprint snapshot, candidate table sha, planned manifest sha, resolution table sha) and to the resolver/emission records (resolution receipt sha, records index sha, merge receipt sha, emission config sha, parent-code receipt sha) plus the authoritative emission code commit 26d834eba609c21c09be0137c4a0d00846a355c3 and its two script sha256s. No scientific release validation, publication approval or mirror promotion is claimed.
+
+  Store built and published (issue #331, 2026-10-22). The #221 batch built this release's Store from stores cde84de with opengwasdb 0.3.0 at 4e92256, format 0.2.0, GRCh38. The build ran from 2026-10-14 18:05 to 2026-10-20 20:55 UTC (146.8 h). Top hits, the HM3 Indexed Variant Subset and the overview followed, then validate, from 2026-10-20 22:43 to 2026-10-21 05:45 UTC (7.0 h). register published the Store on 2026-10-21 05:45 UTC and wrote the Validation Record, copied into this bundle unchanged. It replaces the bundle's earlier Validation Record, which recorded the owner authorization and the pending human acceptance the paragraphs above cite; that record is in git at its acceptance.commit, 9c9b92b. The new record reads status passed, with no warnings or errors, and reports 1,691 Analyses, 27,929,380 variants and 47,228,581,580 associations. The Store is observed-only, and stays so: cross-ancestry META is not reference-completed. The Store was built in a dev Artifact Root, /data/opengwasdb/work/epic232/221/dev-builds-16w. On 2026-10-22, tools/relocate_store.py moved it to /data/opengwasdb/stores, renaming its directory and rewriting the 33 artifact paths in its six step records; stdout and stderr were left as written. The receipt beside the Store, relocations/20261022T151443.904667Z.json, holds each record's sha256 before and after. The Store is published at /data/opengwasdb/stores/OGS-00016/store.opengwasdb. This supersedes the statements above, and in the description, that no Store has been built or validated. The Validation Record's acceptance.warnings still say "No Store build or validation has run." That line is carried over from the accepted bundle's earlier record and predates the build. Human scientific acceptance remains pending.
 accepted_at: '2026-10-14T08:39:26Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
