@@ -1,5 +1,6 @@
 store_id: OGS-00001
 label: pilot-10
+association_coverage: cis
 access_posture: public
 status: built
 trial: true

@@ -163,6 +163,7 @@ published artifact path is now a pure function of the identifier.
 |---|---:|---|
 | `store_id` | Yes | Opaque `OGS-` 5-digit identifier (ADR 0022): the directory name under `stores/`, and must match it. |
 | `label` | Yes | Source-natural display name; provenance, never an identifier (ADR 0022). |
+| `association_coverage` | Yes | What associations the Store holds, in one vocabulary shared with opengwasdb: `gwas` (genome-wide), `cis` (a cis window around each Analysis's target only), `cis_and_signals` (a cis window plus significant signals elsewhere) or `signals_only` (significant signals and their flanks, no cis window). It replaced `full_gwas` and `cis_plus_signals` (issue #341, [ADR 0040](adr/0040-association-coverage-is-declared-in-the-release-bundle.md)). `bundle.check()` refuses any other value and a value that is not a string, and `Bundle.association_coverage` raises rather than answering a default, because the Analysis Catalog shows it and counts Analyses by it. A region-filtered release declares `cis_and_signals` or `signals_only` and must agree with its `region_policy.association_coverage`. Every committed bundle declares it. |
 | `access_posture` | No | Declared availability category: `public`, `controlled`, or `embargoed`. The one store-level fact the retired Store Family tier genuinely declared (ADR 0028); every committed bundle declares it, but it is descriptive rather than structurally required. |
 | `status` | Yes | Registry lifecycle state: `candidate`, `accepted`, `built`, `validated`, `superseded`, or `withdrawn`. |
 | `trial` | No | Whether this is a Trial Store Release: a deliberately small Store Release used to exercise a Source Collection, Source Format or Store Layout (issue #321). Absent means `false`. Only a YAML boolean is accepted. The registry's YAML loader follows YAML 1.1, so the unquoted spellings `true`, `yes` and `on` (and `false`, `no`, `off`) are booleans; a quoted `trial: "yes"` is a string and `trial: 1` is a number, and `bundle.check()` refuses both. A reader that does not gate on `check()` refuses them too rather than reading them as `false`: the Analysis Catalog's serving policy excludes every Trial Store Release, and a coerced value would serve one. |
@@ -179,7 +180,8 @@ published artifact path is now a pure function of the identifier.
 | `notes` | No | Free-text release notes. |
 
 `bundle.check()` requires exactly the keys marked Yes above and rejects a
-`generator` that is not a mapping or whose `commands` is empty. It also holds
+`generator` that is not a mapping or whose `commands` is empty. It holds
+`association_coverage` to its four-value vocabulary (issue #341, ADR 0040), and
 the descriptive facts the Analysis Catalog's serving policy reads (ADR 0008) to
 a checked shape: `trial` must be a YAML boolean, and absent means `false` (a
 quoted `trial: "yes"` or a numeric `trial: 1` is refused, and `Bundle.trial`

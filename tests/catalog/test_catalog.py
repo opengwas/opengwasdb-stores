@@ -89,6 +89,7 @@ def write_bundle(
     release_data: dict[str, Any] = {
         "store_id": store_id,
         "label": f"label-{store_id}",
+        "association_coverage": "gwas",
         "status": status,
         "access_posture": "public",
         "source_snapshot_id": "fixture-snapshot-v1",
@@ -354,11 +355,10 @@ class ServingPolicyTest(unittest.TestCase):
             ],
         )
 
-    def test_association_coverage_and_reference_assembly_are_null_until_reported(self) -> None:
+    def test_reference_assembly_is_null_until_reported(self) -> None:
         self.assertEqual(
-            query(self.root, "SELECT DISTINCT association_coverage, reference_assembly FROM stores "
-                             "WHERE status = 'validated'"),
-            [(None, None)],
+            query(self.root, "SELECT DISTINCT reference_assembly FROM stores WHERE status = 'validated'"),
+            [(None,)],
         )
 
     def test_catalog_meta_records_the_build(self) -> None:
@@ -997,7 +997,7 @@ class FeaturesTest(unittest.TestCase):
         registry, cls.root = cls.tmp / "stores", cls.tmp / "root"
         registry.mkdir()
         cls.root.mkdir()
-        write_bundle(registry, "OGS-00001", observed_extra={"association_coverage": "full"}, rows=[
+        write_bundle(registry, "OGS-00001", release={"association_coverage": "gwas"}, rows=[
             analysis_row("L1", analysis_label="Standing height", trait_ontology_label="body height",
                          consortium="GIANT", first_author="Yengo", sample_size="5000"),
             analysis_row("L2", analysis_label="Asthma", assigned_ancestry="EAS",
@@ -1015,8 +1015,8 @@ class FeaturesTest(unittest.TestCase):
             analysis_row("L11", analysis_label="Assigned wins", assigned_ancestry="EAS",
                          source_ancestry_label="META"),
         ])
-        write_bundle(registry, "OGS-00002", release={"access_posture": "controlled"},
-                     observed_extra={"association_coverage": "cis_and_signals"}, rows=[
+        write_bundle(registry, "OGS-00002", release={"access_posture": "controlled",
+                                                     "association_coverage": "cis_and_signals"}, rows=[
             analysis_row("E1", analysis_label="BRCA2 expression", tissue="liver", trait_chr="13",
                          trait_bp="32000000", assigned_ancestry="AFR"),
             analysis_row("E2", analysis_label="BRCA2 protein", context="SomaScan", trait_chr="13",

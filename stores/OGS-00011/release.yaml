@@ -1,5 +1,6 @@
 store_id: OGS-00011
 label: eur-hybrid-full
+association_coverage: gwas
 access_posture: public
 status: accepted
 derived_from: null

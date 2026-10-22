@@ -62,6 +62,7 @@ def candidate(store_id: str = STORE_ID, **changes) -> emitter.CandidateBundle:
         "release": {
             "store_id": store_id,
             "label": "fixture",
+            "association_coverage": "gwas",
             "status": "candidate",
             "derived_from": None,
             "created_at": "2026-10-14T00:00:00Z",
