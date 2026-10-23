@@ -1193,7 +1193,7 @@ class FeaturesTest(unittest.TestCase):
                 ("OGS-00001:L6", "binary", "phenotype"),
                 ("OGS-00001:L8", "continuous", "phenotype"),
                 ("OGS-00001:L9", "continuous", "phenotype"),
-                ("OGS-00001:L10", None, "phenotype"),
+                ("OGS-00001:L10", "continuous", "phenotype"),
                 ("OGS-00001:L11", "continuous", "phenotype"),
                 ("OGS-00002:E1", "continuous", "molecular"),
                 ("OGS-00002:E2", "continuous", "molecular"),
@@ -1275,6 +1275,50 @@ class SearchIntegrityTest(unittest.TestCase):
 
     def test_a_scan_of_the_index_holds_no_placeholder(self) -> None:
         self.assertEqual(query(self.root, "SELECT COUNT(*) FROM analysis_search"), [(2,)])
+
+
+class OutcomeTypeTest(unittest.TestCase):
+    """An SD effect is continuous whatever its sample size's granularity (#362)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = Path(tempfile.mkdtemp(prefix="analysis_catalog_outcome_type_"))
+        registry, cls.root = cls.tmp / "stores", cls.tmp / "root"
+        registry.mkdir()
+        cls.root.mkdir()
+        write_bundle(registry, "OGS-00001", rows=[
+            analysis_row("V1", stored_effect_scale="sd", sample_size_kind="variant_level"),
+            analysis_row("T1", stored_effect_scale="sd", sample_size_kind="total"),
+            analysis_row("C1", stored_effect_scale="sd", sample_size_kind="case_control",
+                         n_cases="10", n_controls="90"),
+            analysis_row("B1", stored_effect_scale="log_or", sample_size_kind="case_control",
+                         n_cases="10", n_controls="90"),
+            analysis_row("N1", stored_effect_scale="", sample_size_kind=""),
+        ])
+        build_catalog(registry, cls.root)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def test_the_outcome_type_of_each_literal_pair(self) -> None:
+        self.assertEqual(
+            query(self.root, "SELECT id, outcome_type FROM analyses ORDER BY id"),
+            [
+                ("OGS-00001:B1", "binary"),
+                ("OGS-00001:C1", "binary"),
+                ("OGS-00001:N1", None),
+                ("OGS-00001:T1", "continuous"),
+                ("OGS-00001:V1", "continuous"),
+            ],
+        )
+
+    def test_the_outcome_type_count_agrees(self) -> None:
+        self.assertEqual(
+            query(self.root, "SELECT value, n_analyses FROM counts WHERE dimension = 'outcome_type' "
+                             "ORDER BY value"),
+            [(None, 1), ("binary", 2), ("continuous", 2)],
+        )
 
 
 SORTABLE_COLUMNS = (
