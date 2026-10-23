@@ -17,11 +17,13 @@ This suite asserts the container migration:
   3. The records rebuilt and registered through the workflow keep their
      observed measurements exactly: OGS-00001..3, and OGS-00005 since issue
      #195 rebuilt and re-registered it with `pixi run release --config
-     force=1`, and OGS-00006 since issue #332 rebuilt it at format 0.2.0 the
-     same way. The one correction to OGS-00001..3 since is their
-     `format_version`, a Release Erratum (issue #195): `register` recorded its
-     own fabricated default "1.0", and the true value is the "0.1.0" each
-     Store's manifest declares.
+     force=1`, and OGS-00006 twice through issue #332: at format 0.2.0, then
+     again at an opengwasdb that takes the bundle's declared Association
+     Coverage as a build input, so the second rebuild is the first record here
+     that carries the two coverage keys. The one correction to OGS-00001..3
+     since is their `format_version`, a Release Erratum (issue #195):
+     `register` recorded its own fabricated default "1.0", and the true value
+     is the "0.1.0" each Store's manifest declares.
   4. The two remaining migrated records (OGS-00004, OGS-00007) record every
      measurement they do not have as `null` rather than inventing one.
      OGS-00005 and OGS-00006 were the others until a forced rebuild replaced
@@ -53,7 +55,9 @@ This suite asserts the container migration:
      true `observed.n_associations` (#322) are the producing step's report or
      null, never a value read from the Store or derived from matrix cells. A
      record committed before #322 does not carry the two coverage keys and is
-     not migrated.
+     not migrated; the first that does is OGS-00006's 23 Oct 2026 rebuild
+     (#332), whose builder was given `signals_only`, the value the bundle
+     declares (ADR 0040).
 
 Run from the repository root:
     pixi run python tests/validation-record/test_validation_record.py
@@ -184,13 +188,20 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # on 22 Oct 2026 (#332): the format-0.1.0 Store published in September
     # failed `validate` for the missing variant-centric index, which only a
     # format-0.2.0 build writes (#344). Null is again what no step reported.
+    # Rebuilt a second time from the same bundle on 23 Oct 2026, at 2f308cb,
+    # which takes the declared Association Coverage as a build input
+    # (opengwasdb#298, #341): the first rebuild had recorded the builder's own
+    # `cis_and_signals` default, and the store now records the declared
+    # `signals_only` and the assembly nothing reported.
     "OGS-00006": {
         "format_version": None,
         "n_analyses": 1400,
         "n_variants": 12086463,
         "n_associations": 58054212,
+        "association_coverage": "signals_only",
+        "reference_assembly": None,
         "store_bytes": None,
-        "build_elapsed_s": 1439.111,
+        "build_elapsed_s": 850.366,
         "validate_status": "passed_with_warnings",
         "completion_state": "observed_only",
     },

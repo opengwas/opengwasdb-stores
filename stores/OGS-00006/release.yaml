@@ -63,4 +63,20 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   carries no observed.format_version because no step at this pin reports it; the Store manifest
   declares 0.2.0, as `opengwasdb info` shows.
 
+  Release Erratum (issue #332, 2026-10-23): that rebuild was the first at format
+  0.2.0, and it recorded its associations under the region policy the builder assumed when a
+  Release Bundle declared none. The value it wrote, `cis_and_signals`, says the Store holds
+  a cis window. It holds none: the `filter_summary.tsv` sidecar records `cis_rows = 0` for
+  all 1,400 Analyses, and only significant-trans and suggestive regions, which is
+  `signals_only` -- the coverage this bundle declares from 2026-10-23 on (issue #341), and the
+  one opengwas/opengwasdb#298 takes this release to illustrate: significant trans signals and
+  suggestive leads with no cis region. Once the pin moved to an opengwasdb that takes the
+  declared value as a build input, the Store was rebuilt again from this unchanged bundle by
+  a forced run at `2f308cb`. That run took 14 minutes 26 seconds, passed
+  `--association-coverage signals_only` to the builder, and archived the Store it replaced
+  under `replaced/20261023T230254Z/` beside it. `opengwasdb info` reports format 0.2.0,
+  `signals_only` and `observed_only`; the Validation Record is the one `register` wrote for
+  that run, `passed_with_warnings`, with 1,400 Analyses, 12,086,463 variants, 58,054,212
+  associations and the same 1,397 EAF-orientation warnings; and the release stays `validated`.
+
   '
