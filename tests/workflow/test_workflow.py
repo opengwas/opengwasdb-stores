@@ -44,9 +44,13 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
 15. Association Coverage is a build input (#341): a Ragged release is built and
     published at the coverage its `release.yaml` declares, which `plan()` puts
     into the build argv, `opengwasdb info` reports back from the Store, and the
-    Validation Record records; and a Ragged Store published before the flag
-    existed stays up to date under the current workflow, with default rerun
-    triggers, because no trigger reads an argv token.
+    Validation Record records; a Ragged Store published before the flag existed
+    stays up to date under the current workflow, with default rerun triggers,
+    because no trigger reads an argv token; and that Store may still gain its
+    own completion, the amendment check tolerating the declaration-derived flag
+    alone (ADR 0040) and refusing a record that names another coverage.
+    Each scenario is one test method, so a fixture is built once however the
+    suite is sharded.
 """
 
 from __future__ import annotations
@@ -80,8 +84,12 @@ import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from ogstores import bundle, manifest, paths, register, release, resources, run
+from ogstores import amendment, bundle, manifest, paths, register, release, resources, run
 from ogstores.plan import plan
+
+# The single-id completion gate the amendment scenario patches for a Ragged
+# release, which epic #232's #336 owns in production code.
+import ogstores.plan as plan_module
 
 # The completed child is asserted on through opengwasdb's published query
 # facade, never on its internal arrays (#303).
@@ -3368,12 +3376,19 @@ class TestRaggedReleaseBuildsAtItsDeclaredCoverage(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls.temp_dir.cleanup()
 
-    def test_the_release_builds_and_publishes(self) -> None:
-        self.assertEqual(self.result.returncode, 0, self.result.stdout + self.result.stderr)
-        self.assertTrue(paths.store_path(self.STORE_ID, root=self.artifacts).is_dir())
+    def test_the_release_is_built_published_and_recorded_at_its_declared_coverage(self) -> None:
+        """One fixture build, all of it: argv, the published Store, and the record (#341).
 
-    def test_the_builder_is_given_the_declared_coverage(self) -> None:
-        """The planned and executed argv both name it, from `release.yaml` and nowhere else."""
+        End to end at fixture scale: the value in `release.yaml` is the value
+        the builder is given, the value the Store's own manifest carries, and
+        the value the Validation Record records. One method, so the fixture is
+        built once however the suite is sharded.
+        """
+        self.assertEqual(self.result.returncode, 0, self.result.stdout + self.result.stderr)
+        store_p = paths.store_path(self.STORE_ID, root=self.artifacts)
+        self.assertTrue(store_p.is_dir())
+
+        # The builder got the declared value, from `release.yaml` and nowhere else.
         record = json.loads(
             paths.record_path(self.STORE_ID, "build", root=self.artifacts).read_text(encoding="utf-8")
         )
@@ -3381,28 +3396,18 @@ class TestRaggedReleaseBuildsAtItsDeclaredCoverage(unittest.TestCase):
             self.assertIn("--association-coverage", argv)
             self.assertEqual(argv[argv.index("--association-coverage") + 1], RAGGED_FIXTURE_COVERAGE)
 
-    def test_the_published_store_reports_the_declared_coverage(self) -> None:
-        """`opengwasdb info` reads the Store's own manifest, not the bundle (#341)."""
+        # And the published Store says it too: `info` reads the manifest, not the bundle.
         info = subprocess.run(
-            [
-                run.get_opengwasdb_executable(),
-                "info",
-                str(paths.store_path(self.STORE_ID, root=self.artifacts)),
-                "--format",
-                "json",
-            ],
+            [run.get_opengwasdb_executable(), "info", str(store_p), "--format", "json"],
             capture_output=True,
             text=True,
             check=True,
         )
         self.assertEqual(json.loads(info.stdout)["association_coverage"], RAGGED_FIXTURE_COVERAGE)
 
-    def test_the_validation_record_records_the_declared_coverage(self) -> None:
-        record = yaml.safe_load(
-            (self.stores / self.STORE_ID / "validation.yaml").read_text(encoding="utf-8")
-        )
-        self.assertIn(record["status"], ("passed", "passed_with_warnings"))
-        self.assertEqual(record["observed"]["association_coverage"], RAGGED_FIXTURE_COVERAGE)
+        validation = yaml.safe_load((self.stores / self.STORE_ID / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertIn(validation["status"], ("passed", "passed_with_warnings"))
+        self.assertEqual(validation["observed"]["association_coverage"], RAGGED_FIXTURE_COVERAGE)
 
 
 # `dev` before #341: the workflow whose `plan()` names no `--association-coverage`,
@@ -3428,6 +3433,20 @@ def effective_snakemake_metadata(output: Path) -> Path:
     chunks = [encoded[i:i + max_len] for i in range(0, len(encoded), max_len)]
     directory = release.snakemake_directory() / ".snakemake" / "metadata"
     return directory.joinpath(*(["@" + c for c in chunks[:-1]] + chunks[-1:]))
+
+
+def _without_declared_coverage(argv: list[str], declared: str) -> list[str]:
+    """`argv` with the one `--association-coverage <declared>` pair #341 composes removed.
+
+    The plan a published Ragged Store's record was held to differs from this
+    branch's plan by that pair alone, so the recorded argv is the plan minus it.
+    """
+    flag = plan_module.ASSOCIATION_COVERAGE_FLAG
+    positions = [index for index, token in enumerate(argv) if token == f"--{flag}"]
+    assert len(positions) == 1, f"expected one --{flag} in {argv}"
+    index = positions[0]
+    assert argv[index + 1] == declared, (argv, declared)
+    return [*argv[:index], *argv[index + 2:]]
 
 
 def pre_341_published_store() -> dict[str, Any]:
@@ -3593,13 +3612,15 @@ class TestWorkflowKeepingAStorePublishedBefore341(PublishedReleaseCopies):
         cls.template = pre_341_published_store()
         cls.STORE_ID: str = cls.template["store_id"]
 
-    def observed_only_published_records(self) -> dict[str, Any]:
-        record = json.loads(
-            paths.record_path(self.STORE_ID, "build", root=self.template["artifacts"]).read_text(encoding="utf-8")
-        )
-        return record
+    def test_the_current_workflow_neither_rebuilds_nor_refuses_it(self) -> None:
+        """The whole published-before-#341 scenario in one method, so the fixture is built once.
 
-    def test_the_store_was_built_by_the_old_code(self) -> None:
+        That the Store was built by the archived code, that its `build` record
+        names no coverage, that the current run has Snakemake metadata to
+        compare against, that the dry run and the run execute no job, that no
+        record or work file is rewritten, and that the plan really did change.
+        """
+        # 1. The archived revision built and published it, and its own records say so.
         old = self.template["old_result"]
         self.assertEqual(old.returncode, 0, f"the pre-#341 build failed:\n{old.stdout}\n{old.stderr}")
         self.assertTrue(
@@ -3611,12 +3632,16 @@ class TestWorkflowKeepingAStorePublishedBefore341(PublishedReleaseCopies):
                 (paths.records_dir(self.STORE_ID, root=self.template["artifacts"]) / name).is_file(), name
             )
 
-    def test_the_current_run_reads_that_runs_metadata(self) -> None:
-        """What makes the guard mean something: Snakemake has a record to compare against.
+        # 2. The state under test: a published Store whose argv predates the argument.
+        record = json.loads(
+            paths.record_path(self.STORE_ID, "build", root=self.template["artifacts"]).read_text(encoding="utf-8")
+        )
+        self.assertNotIn("--association-coverage", record["argv"])
+        self.assertNotIn("--association-coverage", record["planned_argv"])
 
-        Without it, "Nothing to be done" would only say the outputs are newer
-        than their inputs, which is not the property under test.
-        """
+        # 3. What makes the guard mean something: this run has metadata to compare
+        # against, so "Nothing to be done" is about triggers, not about missing
+        # provenance (with none, Snakemake decides by mtime alone).
         for name in ("build.json", "validate.json"):
             record_p = paths.records_dir(self.STORE_ID, root=self.template["artifacts"]) / name
             self.assertTrue(
@@ -3624,52 +3649,134 @@ class TestWorkflowKeepingAStorePublishedBefore341(PublishedReleaseCopies):
                 f"the archived run kept no Snakemake metadata for {name} where this run reads it",
             )
 
-    def test_its_build_record_names_no_coverage(self) -> None:
-        """The state under test: a published Store whose argv predates the argument."""
-        record = self.observed_only_published_records()
-        self.assertNotIn("--association-coverage", record["argv"])
-        self.assertNotIn("--association-coverage", record["planned_argv"])
-
-    def test_the_current_dry_run_schedules_no_job(self) -> None:
+        # 4. The dry run schedules no job, and the real run refuses nothing and does nothing.
         dry = self.template["dry_result"]
         self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
         self.assertIn("Nothing to be done", dry.stdout)
         self.assertEqual(scheduled_targets(dry.stdout), [])
         self.assertNotIn("would refuse", dry.stdout)
 
-    def test_a_current_run_executes_no_job_and_rewrites_nothing(self) -> None:
         res = self.template["release_result"]
         self.assertEqual(res.returncode, 0, f"the run failed:\n{res.stdout}\n{res.stderr}")
         self.assertIn("nothing to be done", res.stdout + res.stderr)
-        self.assertEqual(self.template["published_after"], self.template["published_before"])
+        self.assertEqual(
+            self.template["published_after"],
+            self.template["published_before"],
+            "the run rewrote a record or a work file",
+        )
 
-    def test_the_current_plan_differs_only_by_the_flag(self) -> None:
-        """The change is real: the same bundle plans the flag now, so the argv did change.
-
-        Nothing else about the step moved: staging normalization aside, the plan
-        this branch makes is the recorded argv with the two flag tokens added.
-        What keeps the published Store up to date is that no rerun trigger reads
-        an argv token at all, not that the argv is unchanged.
-        """
+        # 5. The change is real: this branch plans the flag, and the plan is the
+        # recorded argv with exactly those two tokens added. What keeps the Store
+        # up to date is that no rerun trigger reads an argv token at all, not
+        # that the argv is unchanged.
         loaded = bundle.load(self.STORE_ID, registry_root=self.template["stores"])
         planned = plan(loaded, artifact_root=self.template["artifacts"])[0]
-        record = self.observed_only_published_records()
         self.assertIn("--association-coverage", planned.argv)
         executed = register.normalize_executed_argv_for_staging(
             record["argv"], self.STORE_ID, artifact_root=self.template["artifacts"]
         )
-        without_flag: list[str] = []
-        skip = False
-        for token in planned.argv:
-            if token == "--association-coverage":
-                skip = True
-                continue
-            if skip:
-                skip = False
-                self.assertEqual(token, RAGGED_FIXTURE_COVERAGE)
-                continue
-            without_flag.append(token)
-        self.assertEqual(without_flag, executed, "the plan and the record differ by exactly the added flag")
+        self.assertEqual(
+            _without_declared_coverage(planned.argv, RAGGED_FIXTURE_COVERAGE),
+            executed,
+            "the plan and the record differ by more than the added flag",
+        )
+
+
+class TestWorkflowCompletingAStorePublishedBefore341(PublishedReleaseCopies):
+    """A Ragged Store published before #341 may gain its own completion, and nothing else.
+
+    Adding a single-id completion to a published Store is the one amendment ADR
+    0037 allows, and the amendment check holds each Store-writing step to the
+    argv its own record planned. #341 added a token to every Ragged build step,
+    so a Store published before it plans an argv its record does not hold. ADR
+    0040 records the one exception: a record that names no coverage matches a
+    plan that differs by exactly the declaration-derived
+    `--association-coverage <release.yaml value>` pair, because the flag only
+    names what the old builder hard-coded and the Store's data does not change
+    (the owner's pre-release decision on opengwas/opengwasdb#298). A record that
+    names another coverage is refused, and so is every other difference.
+
+    The single-id completion gate itself is #232's (#336) and is patched here
+    only, so the comparison can be reached; production code still plans a
+    single-id completion for Dense Stores alone. Nothing else is stubbed: the
+    Store, its records and its derived build manifest are the archived run's.
+    """
+
+    COMPLETE_BLOCK: dict[str, Any] = {
+        "command": "complete-ragged",
+        "options": {"ld-panel": "/panel", "ancestry": "EUR"},
+    }
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = pre_341_published_store()
+        cls.STORE_ID: str = cls.template["store_id"]
+
+    def amended_copy(
+        self,
+        *,
+        declared: str = RAGGED_FIXTURE_COVERAGE,
+        recorded_coverage: str | None = None,
+        build_options: dict[str, Any] | None = None,
+    ) -> tuple[bundle.Bundle, Path]:
+        """A copy of the published release whose bundle gained its `complete` block.
+
+        `recorded_coverage` appends a coverage the *record* names, for the case
+        that must still be refused; `build_options` replaces the recipe's build
+        options, for the same reason.
+        """
+        stores, artifacts = self.published_copy(self.template["stores"], self.template["artifacts"])
+        build_p = stores / self.STORE_ID / "build.yaml"
+        document = yaml.safe_load(build_p.read_text(encoding="utf-8"))
+        document["completion_state"] = "reference_completed"
+        document["complete"] = dict(self.COMPLETE_BLOCK)
+        if build_options is not None:
+            document["build"]["options"] = build_options
+        build_p.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+        release_p = stores / self.STORE_ID / "release.yaml"
+        release_doc = yaml.safe_load(release_p.read_text(encoding="utf-8"))
+        release_doc["association_coverage"] = declared
+        release_p.write_text(yaml.safe_dump(release_doc), encoding="utf-8")
+
+        if recorded_coverage is not None:
+            record_p = paths.record_path(self.STORE_ID, "build", root=artifacts)
+            record = json.loads(record_p.read_text(encoding="utf-8"))
+            record["planned_argv"] = [*record["planned_argv"], "--association-coverage", recorded_coverage]
+            run._write_record_atomically(record, record_p)
+        return bundle.load(self.STORE_ID, registry_root=stores), artifacts
+
+    def test_a_legacy_store_may_gain_its_completion_but_no_other_amendment(self) -> None:
+        """The exception, its boundary, and everything it does not cover, in one method."""
+        # 1. Production still plans a single-id completion for Dense Stores only;
+        #    lifting that is #232's #336, not this ticket's.
+        loaded, artifacts = self.amended_copy()
+        with self.assertRaisesRegex(ValueError, "complete"):
+            plan(loaded, artifact_root=artifacts)
+
+        with mock.patch.object(plan_module, "SINGLE_ID_COMPLETION_LAYOUTS", frozenset({"dense", "ragged"})):
+            # 2. The Store published before #341 passes the amendment check: the
+            #    plan differs from its record by the declared flag alone.
+            self.assertEqual(
+                amendment.bundle_changes(loaded, artifacts),
+                [],
+                "a published Ragged Store may gain its completion without a rebuild",
+            )
+            self.assertIn("--association-coverage", plan(loaded, artifact_root=artifacts)[0].argv)
+
+            # 3. A record that names another coverage is still refused, naming both.
+            mismatched, mismatched_artifacts = self.amended_copy(recorded_coverage="cis")
+            mismatch = amendment.bundle_changes(mismatched, mismatched_artifacts)
+            self.assertEqual(len(mismatch), 1, mismatch)
+            self.assertIn("association-coverage", mismatch[0])
+            self.assertIn("cis", mismatch[0])
+            self.assertIn(RAGGED_FIXTURE_COVERAGE, mismatch[0])
+
+            # 4. Any other change to the Store-writing step is still an amendment.
+            changed, changed_artifacts = self.amended_copy(build_options={"stored-effect-scale": "log_or"})
+            other = amendment.bundle_changes(changed, changed_artifacts)
+            self.assertEqual(len(other), 1, other)
+            self.assertIn("stored-effect-scale", other[0])
 
 
 if __name__ == "__main__":

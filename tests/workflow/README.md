@@ -117,6 +117,20 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
      at its mtime, under Snakemake's default rerun triggers. The current plan
      does differ: it is the recorded argv with the flag added, which is why
      the guard is a fact about rerun triggers and not about an unchanged argv.
+   - The same Store may still gain its own completion
+     (`TestWorkflowCompletingAStorePublishedBefore341`). Its `build` record
+     names no coverage; the plan now names the declared one, so the amendment
+     check (contract 14) reports that difference. ADR 0040 records the one
+     exception: a record that names no coverage matches a plan differing by the
+     declaration-derived pair alone, while a record naming another coverage is
+     refused, naming both values, and every other difference is refused as
+     before. The single-id completion gate itself is #232's (#336) and is
+     patched in that test only, so production still plans a single-id
+     completion for Dense Stores alone; the Store, its records and its derived
+     build manifest are the archived run's.
+   - Each of those two scenarios, and the Ragged build above, asserts itself in
+     **one** test method, so a fixture is built once however the suite is
+     sharded.
 
 ## Running the suite
 
