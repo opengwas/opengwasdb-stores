@@ -423,11 +423,12 @@ LD-panel toolchain (`ld-panel/`), the release benchmarks and the proofs that
 write `docs/benchmark-output/` (`benchmarks/`), the Reference Resources' build
 and verify scripts (`reference-resources/<resource_id>/`), the environment
 check (`env_check.py`, `pixi run env-check`), the site build (`build-site.sh`,
-`pixi run docs`), and one-off analyses and spikes. None of it is a package:
-each is run as a script, and the few tests that load one by path are listed in
-`tests/packaging/test_imports.py`. If one starts being run as a step in
-producing a Store Release, it belongs in `src/manifest_generation/` or
-`workflow/`.
+`pixi run docs`), the move of a published release to another Artifact Root
+with its step records (`relocate_store.py`), and one-off analyses and spikes.
+None of it is a package: each is run as a script, and the few tests that load
+one by path are listed in `tests/packaging/test_imports.py`. If one starts
+being run as a step in producing a Store Release, it belongs in
+`src/manifest_generation/` or `workflow/`.
 
 ### `tests/`
 

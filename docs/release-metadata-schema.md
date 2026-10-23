@@ -543,8 +543,9 @@ It declares both blocks and has no `derived_from`: the `build` block builds and
 publishes the Observed-Only Store, exactly as the same file would as
 `observed_only`, and the `complete` block then completes that published Store
 and replaces it. The completion's source is the id's own Store path, so the
-recipe names no Store path at all. Only Dense releases are planned this way,
-because the Observed-View Check covers only Dense Stores so far.
+recipe names no Store path at all. Dense, Hybrid and Ragged releases are all
+planned this way. A Ragged release's `complete` options must name its
+`ld-panel` and `ancestry`, which the Observed-View Check is given too.
 
 ```yaml
 store_id: OGS-00043
@@ -625,7 +626,7 @@ is written by the ordinary step executor; no new record schema is introduced.
 | `variant_list` | Yes | The concrete canonical-ALID list path the build passes as `--variant-list`. It must match the resource declaration's `location`. Recorded so the immutable bundle is self-contained; `plan()` never opens it. |
 | `reference_assembly` | Yes | The list's assembly, passed as `--reference-assembly`. It must match the resource declaration's `genome_build`. |
 | `checksum` | No | The maintained list's sha256 as 64 hex characters. When present it must equal the resource declaration's `checksums.alid_sha256`. |
-| `options` | No | `build-indexed-subset` flags passed through verbatim (`plan.render_options`). `overwrite` is refused, and so is any key that normalises (`strip().lstrip('-')`) to `variant-list` or `reference-assembly`: those are the declaration's own verified inputs, and re-specifying one in `options` would let the executed CLI use a value the runtime did not hash or check. |
+| `options` | No | `build-indexed-subset` flags passed through verbatim (`plan.render_options`), so the same declared policy reaches both phases' subset steps. `overwrite` is refused, and so is any key that normalises (`strip().lstrip('-')`) to `variant-list` or `reference-assembly`: those are the declaration's own verified inputs, and re-specifying one in `options` would let the executed CLI use a value the runtime did not hash or check. A value must render as CLI tokens -- a string, number or bool, or a non-empty list of them; a mapping would arrive as its own repr and `null` or an empty list as nothing at all, so both are refused. |
 
 The key is optional; omit it to declare no subsets. An explicit `indexed_subsets:
 null` is malformed rather than treated as omitted, so a generator cannot
@@ -638,10 +639,21 @@ indexed_subsets:
     variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
     reference_assembly: GRCh38
     checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+    options:
+      overflow-only: skip
 ```
 
+That last declaration is OGS-00011's (stores #225). A requested ALID that
+only a Hybrid release's shared axis carries cannot be indexed in its Dense
+Component, and `--overflow-only skip` leaves such an ALID out and records how
+many the subset skipped (opengwas/opengwasdb#324, and that repository's
+ADR 0065). The planner does not interpret the flag: it renders the mapping
+into the two `build-indexed-subset` steps, build phase and completion phase
+alike, exactly as declared.
+
 `bundle.check()` validates the declaration shape (names, required strings,
-checksum syntax, uniqueness, Dense/Hybrid only, no `overwrite`) without any
+checksum syntax, uniqueness, Dense/Hybrid only, no `overwrite`, and `options`
+values that render as CLI tokens) without any
 resource I/O. Whether the `resource_id` resolves, whether the list matches the
 maintained checksum, and whether the runtime provides `build-indexed-subset`
 are run-time facts the release entry point verifies before a build; the
@@ -861,6 +873,7 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `observed.validate_status` | Yes | The validate verdict the release-level `status` is derived from. |
 | `observed.completion_state` | No | The completion state of the Store this publication published (#307, [ADR 0037](adr/0037-reference-completion-replaces-its-store.md)): `observed_only` for a build phase, which for a release that completes its own Store is the Observed-Only Store users can query while completion runs, and `reference_completed` for a completion phase or a two-id child. It follows the phase published, never `build.yaml`'s declaration, and is read from the plan and the bundle rather than from the Store (ADR 0023). Absent in records written before #307; the master list then reports the bundle's declared state, which for an Observed-Only Store and for a two-id child is the state that record's Store was published in. |
 | `observed.variant_reference` | No | Variant-reference provenance (issue #148): `provided` when the artifact already existed (a skipped `variant-reference` pre-stage, or a build option naming an existing panel with no declared pre-stage, as OGS-00004/OGS-00005 do), `extracted` when the workflow ran `extract-variant-reference`, and absent when the release uses no variant reference. |
+| `observed.rsid_conflicts` | No | What a Hybrid build's rsid harvest compared across its sources (issue #225, opengwas/opengwasdb#306): `policy`, the `on-rsid-conflict` policy it built under (`refuse` or `drop`); `n_keys`, how many routing keys its sources named differently; and `n_variants`, how many stored variants that left with no rsid under `drop`. The counts are `0` when the harvest disputed nothing and `null` when it compared no names across sources (`--reference-panel`, or a reference that names its own rsids), so absence is never recorded as zero. A release that completes its own Store carries them from its build phase, whose builder reports them and whose `complete-hybrid` reports none (issue #225, [ADR 0037](adr/0037-reference-completion-replaces-its-store.md)). Absent when no build record carries the block, as one from a runtime without the policy does. The build's `sample` of disputed keys is not a measurement and stays in its step record (`records/build.json`). |
 | `checks.store` | Yes, `register` record | This run's `opengwasdb validate --format json` verdict: `failed` when `ok` is false, `passed_with_warnings` when it reported a warning, `passed` otherwise, and `not_run` when the plan has no validate step. The only check a `register`-written record carries (#195). |
 | `checks.schema` | Yes, Phase B record | Whether required files and fields conform to OpenGWASDB's shared core schema and this registry's release-bundle requirements. Written by a Manifest Generator; not carried into a registered record. |
 | `checks.files` | Yes, Phase B record | Whether referenced source or filtered files exist and match checksums. Written by a Manifest Generator; not carried into a registered record. |

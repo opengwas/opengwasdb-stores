@@ -227,6 +227,35 @@ threadpoolctl = ">=3.0"
 # off-reference rows lift onto the reverse strand is now refused, not signed
 # wrongly.
 #
+# Repinned for #333 to `eb4c749b`, the merge of opengwasdb#295 into the core
+# integration branch for stores epic #232 (opengwasdb PR #303), not yet on core
+# `dev`: `check-observed-view` now compares a Hybrid pair, so a Hybrid release
+# can complete its own Store. The range `d405de0..eb4c749` is #295's two commits
+# and merge, the branch's empty first commit and core `dev`'s docs-only PR #293;
+# #295 is its only functional change.
+#
+# Repinned for #336 to `32f47b3b`, the merge of opengwasdb#296 into the same
+# integration branch, not yet on core `dev` either: `check-observed-view` now
+# compares a Ragged pair, region by region against the LD panel completion
+# used, so a Ragged release can complete its own Store. The range
+# `eb4c749..32f47b3` is #296's commits and merge; #296 is its only functional
+# change.
+#
+# Repinned for #225 to `1e2fb42`, the merge of opengwasdb#306 into the same
+# integration branch, again not yet on core `dev`: `build-hybrid` gained
+# `--on-rsid-conflict {refuse,drop}` and always reports what its rsid harvest
+# compared, so a Hybrid build can record where its sources disagree on a
+# variant's name instead of refusing every such key. The range
+# `32f47b3..1e2fb42` is #306's commits and merge; #306 is its only functional
+# change.
+#
+# Repinned for #225 to `496bfe9`, the merge of opengwasdb#324 into the same
+# integration branch, again not yet on core `dev`: `build-indexed-subset` gained
+# `--overflow-only {refuse,skip}` and records the ALIDs a Hybrid's subset leaves
+# out for living only on its Overflow axis, so a subset build need not refuse a
+# Store whose shared axis is short of the list. The range `1e2fb42..496bfe9` is
+# #324's commit and merge; #324 is its only functional change.
+#
 # Repinned for #314 to `d8896e6`, the opengwasdb `dev` merge of PR #305. The full
 # eQTLGen cis Store (OGS-00027) fails `validate` at `d405de0`: 13 hg19 SNPs
 # collide on one hg38 variant after the lift, so one Analysis's CSR segment
@@ -249,6 +278,14 @@ threadpoolctl = ">=3.0"
 # format stays 0.2.0, and the pinned runtime reads a legacy `full` in an
 # existing Store's `manifest.json` as `gwas`.
 #
+# Repinned for the epic #232 integration branch to `2f308cb8`, the merge of
+# opengwasdb `dev` into `orch/232-observed-view`. It is the first revision that
+# carries both lines of work at once -- #295, #296, #306 and #324 from the
+# integration branch, #304 and #298 from `dev` -- so a Store built from the
+# integration branch and a Store built from `dev` are built by one runtime. The
+# range `496bfe9..2f308cb` is that merge and #306's ADR renumbering; nothing
+# else changed in it, and the Store format stays 0.2.0.
+#
 # Because these capabilities ship in the tracked pin, the ordinary
 # `pixi run release` invocation resolves a capable runtime from this
 # environment with no ad-hoc `PATH` overlay (the HM3 proof's temporary
@@ -264,7 +301,7 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "75f0e77a85bd6b8e55a1f5753922153c7304aef0" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "2f308cb8bd866d9549fa8e75d9622bdd7f29bcad" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

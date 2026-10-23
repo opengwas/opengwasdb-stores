@@ -13,7 +13,9 @@ Responsibilities:
 3. Harvests observed measurements from step records:
    `format_version`, `n_variants`, `n_analyses`, `n_associations`,
    `association_coverage`, `reference_assembly`, `store_bytes`,
-   `build_elapsed_s`, `completion_state`, and `validate_status`.
+   `build_elapsed_s`, `completion_state`, and `validate_status`, plus the
+   `rsid_conflicts` counts a Hybrid build reports (#225) when it reports them,
+   which a completion phase carries from the build phase that reported them.
    `n_associations`, `association_coverage` and `reference_assembly` are the
    producing step's reported values or None: matrix cells are never reported
    as associations, and an unreported key is recorded absent rather than
@@ -96,6 +98,11 @@ BUILD_ENVIRONMENT_FIELDS: tuple[str, ...] = (
     "python_version",
     "platform",
 )
+# The keys of the `rsid_conflicts` block a Hybrid build reports and `register`
+# copies into the Validation Record (#225): the policy it built under, how many
+# routing keys its sources named differently, and how many variants that left
+# unnamed. The build's `sample` is left in the step record.
+RSID_CONFLICT_FIELDS: tuple[str, ...] = ("policy", "n_keys", "n_variants")
 
 
 class RegisterError(RuntimeError):
@@ -483,6 +490,26 @@ def published_completion_state(bundle_obj: Bundle, phase: str) -> str:
     return bundle_obj.completion_state or ""
 
 
+def _reported_rsid_conflicts(record: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The rsid-conflict counts one step record reports, or None when it reports no block (#225).
+
+    A Hybrid build at the pinned runtime always reports `rsid_conflicts`
+    (opengwas/opengwasdb#306), with a count of `0` when its harvest disputed
+    nothing and `null` when it compared no names across sources. A record with
+    no such block was written by a builder that reports none -- one older than
+    the option, or a non-Hybrid one -- and nothing is invented for it. Only the
+    counts and the policy are a measurement; the sample names individual
+    variants and stays in the step record.
+    """
+    stdout_json = _extract_json_from_text(record.get("stdout", ""))
+    if not stdout_json:
+        return None
+    reported = stdout_json.get("rsid_conflicts")
+    if not isinstance(reported, Mapping):
+        return None
+    return {key: reported.get(key) for key in RSID_CONFLICT_FIELDS}
+
+
 def _reported_association_count(
     payload: dict[str, Any], step_name: str, where: str
 ) -> int | None:
@@ -564,13 +591,19 @@ def harvest_observed_measurements(
     """Harvest observed measurements from step records without opening any Store (ADR 0023).
 
     `earlier_records` are the records of the release's phases before this
-    one: a completion phase's build phase (ADR 0037). Only the elapsed total
-    counts them, so `build_elapsed_s` is every step of the release.
+    one: a completion phase's build phase (ADR 0037). The elapsed total counts
+    them, so `build_elapsed_s` is every step of the release, and a completion
+    carries the rsid-conflict counts its build reported, because the builder
+    that completes a Store reports none (#225).
     """
     total_elapsed = sum(
         float(rec.get("elapsed_seconds", 0.0))
         for rec in [*(earlier_records or {}).values(), *step_records.values()]
     )
+
+    # The phase this register publishes; a plan with no step of its own phase is
+    # refused before it gets here.
+    phase = planned_steps[0].phase if planned_steps else BUILD_PHASE
 
     # Only a step that printed it can report the format version; none is
     # assumed, because 0.1.0 Stores were registered as "1.0" (#135, #195).
@@ -581,6 +614,7 @@ def harvest_observed_measurements(
     association_coverage: str | None = None
     reference_assembly: str | None = None
     store_bytes: int | None = None
+    rsid_conflicts: dict[str, Any] | None = None
     validate_status, _, _ = validate_verdict(step_records.get(_validate_step(planned_steps)))
 
     # 1. Harvest from build or complete record
@@ -606,6 +640,7 @@ def harvest_observed_measurements(
             )
             if "format_version" in stdout_json and isinstance(stdout_json["format_version"], str):
                 format_version = stdout_json["format_version"]
+            rsid_conflicts = _reported_rsid_conflicts(rec)
         else:
             stdout_text = rec.get("stdout", "")
             m_var = re.search(r"(\d+)\s+variants", stdout_text)
@@ -617,6 +652,16 @@ def harvest_observed_measurements(
 
     # 2. The validate record carries only its verdict: its JSON has exactly the
     # keys `validate_verdict` accepts, so it reports no measurement (#195).
+
+    # A release that completes its own Store publishes twice under one id, and
+    # the completed Store inherits the build's rsid harvest: `complete-hybrid`
+    # reports no `rsid_conflicts`, so the phase that publishes the shipped Store
+    # carries the counts of the build record it verified, unless its own builder
+    # reported them (#225, ADR 0037).
+    if rsid_conflicts is None and phase == COMPLETION_PHASE:
+        build_record = (earlier_records or {}).get("build")
+        if build_record is not None:
+            rsid_conflicts = _reported_rsid_conflicts(build_record)
 
     # Fallback for n_analyses from the derived build manifest, if the builder did
     # not print it. Count the built manifest, never the bundle's audit table:
@@ -645,9 +690,7 @@ def harvest_observed_measurements(
         "store_bytes": store_bytes,
         "build_elapsed_s": round(total_elapsed, 3),
         "validate_status": validate_status,
-        "completion_state": published_completion_state(
-            bundle_obj, planned_steps[0].phase if planned_steps else BUILD_PHASE
-        ),
+        "completion_state": published_completion_state(bundle_obj, phase),
     }
 
     # Variant-reference provenance (issue #148). A declared pre-stage records
@@ -669,6 +712,12 @@ def harvest_observed_measurements(
 
     if is_resumed:
         observed["resumed"] = True
+
+    # Absent only when no record reported the block, as a builder older than the
+    # option or a non-Hybrid one does; a Hybrid build that compared no names
+    # reports null counts, which are written as reported (#225).
+    if rsid_conflicts is not None:
+        observed["rsid_conflicts"] = rsid_conflicts
 
     return observed
 
@@ -1336,6 +1385,7 @@ def register_release(
 __all__ = [
     "BUILD_ENVIRONMENT_FIELDS",
     "OBSERVED_FIELDS",
+    "RSID_CONFLICT_FIELDS",
     "VALIDATOR_NAME",
     "ArgvDriftError",
     "AssociationCoverageMismatchError",

@@ -62,7 +62,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from ogstores import amendment, bundle, paths, register, resources, run, runtime
+from ogstores import amendment, bundle, manifest, paths, register, resources, run, runtime
+from ogstores.plan import plan as plan_steps
 
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
 
@@ -205,10 +206,96 @@ def snakemake_directory() -> Path:
     return Path(os.environ.get(SNAKEMAKE_DIRECTORY_ENV) or paths.REPO_ROOT)
 
 
-def snakemake_argv(
-    inv: Invocation, *, dry_run: bool, extra_config: dict[str, str] | None = None
+def _build_manifest_read_by_first_step(
+    store_id: str, registry_root: Path, root: Path
+) -> tuple[bundle.Bundle, Path | None, Path]:
+    """The bundle, the build manifest its first planned step reads (None if it reads none), and that step's record."""
+    b = bundle.load(store_id, registry_root=registry_root)
+    first = plan_steps(b, artifact_root=root)[0]
+    manifest_p = paths.build_manifest_path(store_id, root=root)
+    return (
+        b,
+        manifest_p if manifest_p in first.inputs else None,
+        paths.record_path(store_id, first.name, root=root),
+    )
+
+
+def forced_run_outputs(forced: Iterable[str], registry_root: Path, root: Path) -> list[str]:
+    """The files whose jobs a forced release reruns, so it rebuilds whatever its mtimes and content say (#339).
+
+    Snakemake's `--forcerun <file>` reruns the job that writes the file and
+    every job downstream of it. For each forced release that is its build
+    manifest, when its first step reads one, and its first planned step's
+    record: the whole build phase, and through its `register` record the
+    completion phase of a release that completes its own Store. Only the
+    forced releases are named, so no other release in the run is touched. An
+    id that is not registered is left to the Snakefile, which names the
+    registered ones.
+    """
+    registered = set(registered_ids(registry_root))
+    outputs: list[str] = []
+    for store_id in sorted(set(forced) & registered):
+        _, manifest_p, first_record = _build_manifest_read_by_first_step(store_id, registry_root, root)
+        if manifest_p is not None:
+            outputs.append(str(manifest_p))
+        outputs.append(str(first_record))
+    return outputs
+
+
+def stale_manifest_outputs(store_ids: Iterable[str], registry_root: Path, root: Path) -> list[str]:
+    """The build manifests whose `work/` copies the bundle would no longer produce (#339).
+
+    Snakemake decides by mtime, so a changed `analyses.tsv` with an older mtime,
+    or a sidecar it cannot read, would schedule nothing. Each named release,
+    and every registered parent it derives from, whose manifest and sidecar
+    exist but are not `manifest.build_manifest_is_current` has its manifest
+    named here, to be rerun with everything downstream. Nothing is written.
+    """
+    registered = set(registered_ids(registry_root))
+    outputs: list[str] = []
+    seen: set[str] = set()
+    pending = [store_id for store_id in store_ids if store_id in registered]
+    while pending:
+        store_id = pending.pop()
+        if store_id in seen:
+            continue
+        seen.add(store_id)
+        b, manifest_p, _ = _build_manifest_read_by_first_step(store_id, registry_root, root)
+        if b.derived_from in registered:
+            pending.append(b.derived_from)
+        sidecar_p = paths.build_manifest_sidecar_path(store_id, root=root)
+        if (
+            manifest_p is not None
+            and manifest_p.is_file()
+            and sidecar_p.is_file()
+            and not manifest.build_manifest_is_current(b.analyses_path, manifest_p, sidecar_p)
+        ):
+            outputs.append(str(manifest_p))
+    return sorted(outputs)
+
+
+def force_run_files(
+    inv: Invocation, force: bool, requested: Iterable[str], registry_root: Path, root: Path
 ) -> list[str]:
-    """The one Snakemake command line, with the ids before `--config`, which takes every word after it."""
+    """Everything the entry point reruns whatever Snakemake's mtimes say: forced releases and stale manifests."""
+    files = forced_run_outputs(run.forced_releases(force, inv.targets), registry_root, root)
+    files += stale_manifest_outputs(requested, registry_root, root)
+    return list(dict.fromkeys(files))
+
+
+def snakemake_argv(
+    inv: Invocation,
+    *,
+    dry_run: bool,
+    extra_config: dict[str, str] | None = None,
+    force_run: Iterable[str] = (),
+) -> list[str]:
+    """The one Snakemake command line, with the ids before `--config`, which takes every word after it.
+
+    `force_run` is the entry point's own `--forcerun`, from `forced_run_outputs`;
+    an operator cannot pass one (`UNSAFE_OPTIONS`). It follows the targets, since
+    it takes every word up to the next option.
+    """
     argv = [sys.executable, "-m", "snakemake", "--snakefile", str(SNAKEFILE), "--cores", inv.cores]
     if dry_run:
         argv.append("--dry-run")
@@ -217,6 +304,9 @@ def snakemake_argv(
     if inv.rerun_incomplete:
         argv.append("--rerun-incomplete")
     argv.extend(inv.targets)
+    force_run = list(force_run)
+    if force_run:
+        argv.extend(["--forcerun", *force_run])
     config = {**inv.config, **(extra_config or {})}
     if config:
         argv.append("--config")
@@ -683,8 +773,18 @@ def _run_snakemake(
 
 def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> int:
     """Show the plan and what the guard would do, writing nothing."""
+    try:
+        requested, left_out = resolve_targets(inv, registry_root)
+    except bundle.NotBuildableError as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
+        return 0
     result = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), env=snakemake_env(root, create=False),
+        snakemake_argv(
+            inv,
+            dry_run=True,
+            force_run=force_run_files(inv, force, requested, registry_root, root),
+        ),
+        cwd=snakemake_directory(), env=snakemake_env(root, create=False),
         capture_output=True, text=True
     )
     sys.stdout.write(result.stdout)
@@ -694,7 +794,6 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     scheduled = scheduled_releases(result.stdout + result.stderr)
     jobs = scheduled_jobs(result.stdout + result.stderr)
     try:
-        requested, left_out = resolve_targets(inv, registry_root)
         bundle.refuse_unbuildable(_bundles(registry_root, (store_id for _, store_id in scheduled)))
     except bundle.NotBuildableError as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
@@ -762,9 +861,7 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     except runtime.RuntimeGuardError as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
     try:
-        resources.verify_indexed_subsets_for_releases(
-            idle, registry_root=registry_root, repo_root=paths.REPO_ROOT
-        )
+        resources.verify_indexed_subsets_for_releases(idle, registry_root=registry_root)
     except (resources.IndexedSubsetRuntimeError, resources.ReferenceResourceError) as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
     try:
@@ -828,8 +925,10 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     # refusal and its resolutions, not the IncompleteFilesException it causes.
     run.refuse_pending_force_snapshots([(root, store_id) for store_id in requested])
 
+    force_run = force_run_files(inv, force, requested, registry_root, root)
     plan = subprocess.run(
-        snakemake_argv(inv, dry_run=True), cwd=snakemake_directory(), env=snakemake_env(root, create=False),
+        snakemake_argv(inv, dry_run=True, force_run=force_run),
+        cwd=snakemake_directory(), env=snakemake_env(root, create=False),
         capture_output=True, text=True
     )
     if plan.returncode != 0:
@@ -857,9 +956,9 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     # Declared Indexed Variant Subsets need a runtime capability the tracked pin
     # deliberately predates, and a maintained variant list that matches its
     # declaration. Refuse before the snapshot or any build work (#209).
-    resources.verify_indexed_subsets_for_releases(
-        scheduled, registry_root=registry_root, repo_root=paths.REPO_ROOT
-    )
+    # The list is read from the repository that holds the bundle, which the
+    # guard derives from `registry_root` (stores #333).
+    resources.verify_indexed_subsets_for_releases(scheduled, registry_root=registry_root)
     # A carried Column Map is re-hashed against its binding before any build
     # reads it (#292).
     resources.verify_column_maps_for_releases(scheduled, registry_root=registry_root)
@@ -886,7 +985,7 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
             # The hand-off spares the Snakefile's `onstart` check from probing
             # the same runtime's subcommands again; it still checks the pin.
             returncode, interrupted = _run_snakemake(
-                snakemake_argv(inv, dry_run=False, extra_config={"release_run": stamp}),
+                snakemake_argv(inv, dry_run=False, extra_config={"release_run": stamp}, force_run=force_run),
                 locks.fds(),
                 extra_env={runtime.VERIFIED_RUNTIME_ENV: identity.handoff()},
                 root=root,

@@ -285,6 +285,24 @@ class TestIndexedSubsetRuntimeGate(unittest.TestCase):
             )
         record_check()
 
+    def test_the_resources_checked_are_those_of_the_registry_s_repository(self) -> None:
+        """Unless a caller names a repository, the one holding the registry: `resources/` beside `stores/` (#333)."""
+        beside = self.registry.parent / "resources"
+        declaration = beside / "reference-resources" / "hapmap3-hg38" / "resource.yaml"
+        shutil.copytree(self.repo / "resources", beside)
+        resources.verify_indexed_subsets_for_releases(
+            [("/AR", self.store_id)], registry_root=self.registry, executable=str(self.capable)
+        )
+        record_check()
+
+        shutil.rmtree(beside)
+        with self.assertRaises(resources.ReferenceResourceError) as ctx:
+            resources.verify_indexed_subsets_for_releases(
+                [("/AR", self.store_id)], registry_root=self.registry, executable=str(self.capable)
+            )
+        record_check()
+        self.assertIn(f"{declaration} does not exist", str(ctx.exception))
+
     def test_capability_probe_distinguishes_executables(self) -> None:
         incapable = self.tmp / "opengwasdb-incapable"
         incapable.write_text("#!/bin/sh\nexit 2\n", encoding="utf-8")

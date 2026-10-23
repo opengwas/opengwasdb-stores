@@ -62,6 +62,29 @@ from ogstores.plan import plan
 #: #291 whose first parent is PR #288's merge: stores #312's OGS-00009 rebuild
 #: needs #288's strand-aware hg19 lift. The range `023774a..d405de0` is #288's
 #: commits and merge plus the #291 merge; #288 is its only functional change.
+#: Then to `eb4c749b`, core #295's merge into the core integration branch for
+#: stores epic #232 (core PR #303), not yet on core `dev`: its
+#: `check-observed-view` compares a Hybrid pair, which stores #333 needs for a
+#: Hybrid release to complete its own Store. The range `d405de0..eb4c749` is
+#: #295's commits and merge, the branch's empty first commit and core `dev`'s
+#: docs-only PR #293; #295 is its only functional change.
+#: Then to `32f47b3b`, core #296's merge into the same integration branch, not
+#: yet on core `dev` either: its `check-observed-view` compares a Ragged pair,
+#: which stores #336 needs for a Ragged release to complete its own Store. The
+#: range `eb4c749..32f47b3` is #296's commits and merge; #296 is its only
+#: functional change.
+#: Then to `1e2fb42`, core #306's merge into the same integration branch, again
+#: not yet on core `dev`: `build-hybrid` gained `--on-rsid-conflict
+#: {refuse,drop}` and always reports what its rsid harvest compared, which
+#: stores #225 needs to build OGS-00011 from sources that name one variant two
+#: ways. The range `32f47b3..1e2fb42` is #306's commits and merge; #306 is its
+#: only functional change.
+#: Then to `496bfe9`, core #324's merge into the same integration branch, again
+#: not yet on core `dev`: `build-indexed-subset` gained `--overflow-only
+#: {refuse,skip}` and records the ALIDs a Hybrid's subset leaves out for living
+#: only on its Overflow axis, which stores #225 needs to index OGS-00011's HM3
+#: list without refusing the whole subset. The range `1e2fb42..496bfe9` is
+#: #324's commit and merge; #324 is its only functional change.
 #: Then to `d8896e4`, the core `dev` merge of PR #305, for OGS-00027 (#314):
 #: `build-ragged-besd` drops an ESI entry whose lifted variant another entry also
 #: claims, and `validate` requires each Analysis's CSR `variant_index` segment to
@@ -76,7 +99,12 @@ from ogstores.plan import plan
 #: JSON, which `register` holds to the release's declaration. The range
 #: `d8896e4..75f0e77` is #298's own commits and its merge; there is no Store
 #: format bump.
-PINNED_OPENGWASDB_REVISION: str = "75f0e77a85bd6b8e55a1f5753922153c7304aef0"
+#: Then to `2f308cb8`, the core `dev` merge into the same integration branch,
+#: which is the first revision to carry both lines of work at once: the
+#: integration branch's #295, #296, #306 and #324 above, and core `dev`'s #304
+#: and #298. The range `496bfe9..2f308cb` is that merge and #306's ADR
+#: renumbering; no behaviour changed in it beyond the two lines joining.
+PINNED_OPENGWASDB_REVISION: str = "2f308cb8bd866d9549fa8e75d9622bdd7f29bcad"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference

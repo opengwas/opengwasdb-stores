@@ -672,11 +672,20 @@ def _fsync_dir(dir_path: Path) -> None:
         pass
 
 
+def record_text(record_data: dict[str, Any]) -> str:
+    """A step record as it is written: indented JSON in key order, with a final newline.
+
+    `tools/relocate_store.py` writes moved records back with this, so a
+    relocated record differs from the original only in the paths it moved (#331).
+    """
+    return json.dumps(record_data, indent=2, sort_keys=False) + "\n"
+
+
 def _write_record_atomically(record_data: dict[str, Any], record_p: Path) -> None:
     """Atomically write record_data to record_p using a temp file + os.replace."""
     record_p.parent.mkdir(parents=True, exist_ok=True)
     temp_p = record_p.with_name(f".{record_p.name}.tmp.{os.getpid()}.{time.time_ns()}")
-    payload = json.dumps(record_data, indent=2, sort_keys=False) + "\n"
+    payload = record_text(record_data)
     with open(temp_p, "w", encoding="utf-8") as f:
         f.write(payload)
         f.flush()
@@ -1783,26 +1792,48 @@ def first_json_object(text: str) -> dict[str, Any]:
 def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
     """Each name in a verdict's `failures`, with its count where the verdict holds one.
 
-    A counter is in `totals`. The three axis and Analyses failures carry
-    theirs elsewhere: `axis.parent_rows_unmapped`, `axis.order_preserved` and
-    `analyses.identical`.
+    A Dense verdict's counters are in `totals`. A Hybrid verdict (opengwasdb
+    #295) names each failure after the part that counted it, `dense.`,
+    `overflow.` or `crossovers.`, and that part holds its `totals`:
+    `components.dense`, `components.overflow` (whose counters over every
+    Analysis are in `all_analyses`) or `crossovers`. The axis and Analyses
+    failures carry their counts elsewhere: the part's
+    `axis.parent_rows_unmapped` and `axis.order_preserved`, the Overflow's
+    `axis.child_dense_rows_unshared` and `axis.child_dense_order_preserved`,
+    and `analyses.identical`. A failure of a part this reading does not know
+    is named alone, so it never hides the other counts.
     """
-    totals, axis, analyses = verdict["totals"], verdict["axis"], verdict["analyses"]
+    analyses = verdict["analyses"]
     named: list[str] = []
     for name in verdict["failures"]:
-        if name in totals:
-            named.append(f"{name}={totals[name]}")
-        elif name == "parent_rows_unmapped":
-            named.append(f"parent_rows_unmapped={axis['parent_rows_unmapped']}")
-        elif name == "order_not_preserved":
-            named.append(f"order_preserved={str(axis['order_preserved']).lower()}")
+        part, _, counter = name.rpartition(".")
+        prefix = f"{part}." if part else ""
+        if not part:
+            section = verdict
+        elif part == "crossovers":
+            section = verdict["crossovers"]
+        else:
+            section = verdict.get("components", {}).get(part)
+        if section is None:
+            named.append(name)
+        elif counter == "parent_rows_unmapped":
+            named.append(f"{name}={section['axis']['parent_rows_unmapped']}")
+        elif counter == "order_not_preserved":
+            named.append(f"{prefix}order_preserved={str(section['axis']['order_preserved']).lower()}")
+        elif counter == "child_dense_rows_not_on_shared_axis":
+            axis = section["axis"]
+            named.append(
+                f"{prefix}child_dense_rows_unshared={axis['child_dense_rows_unshared']} "
+                f"(child_dense_order_preserved={str(axis['child_dense_order_preserved']).lower()})"
+            )
         elif name == "analyses_mismatch":
             named.append(
                 f"analyses_identical={str(analyses['identical']).lower()} "
                 f"(n_parent={analyses['n_parent']}, n_child={analyses['n_child']})"
             )
         else:
-            named.append(name)
+            totals = {**section["totals"], **section.get("all_analyses", {})}
+            named.append(f"{name}={totals[counter]}" if counter in totals else name)
     return ", ".join(named)
 
 
@@ -1956,6 +1987,7 @@ __all__ = [
     "pending_force_snapshots",
     "prepare_release_run",
     "publish_store",
+    "record_text",
     "refuse_pending_force_snapshots",
     "refuse_rebuilding_published_releases",
     "restore_force_snapshot",

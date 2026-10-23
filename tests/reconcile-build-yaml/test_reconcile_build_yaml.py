@@ -77,6 +77,15 @@ def introspect_active_cli() -> dict[str, set[str]]:
     return commands
 
 
+def option_choices(command: str, flag: str) -> tuple[str, ...] | None:
+    """The values the active CLI accepts for one flag, or None when it takes any."""
+    click_group = typer.main.get_command(opengwasdb_cli.app)
+    for param in click_group.commands[command].params:
+        if f"--{flag}" in getattr(param, "opts", ()):
+            return tuple(getattr(param.type, "choices", ())) or None
+    return None
+
+
 def load_yaml(path: Path) -> dict[str, Any]:
     with open(path, encoding="utf-8") as f:
         return yaml.safe_load(f)
@@ -131,6 +140,20 @@ def test_reconcile_stores() -> None:
     check("source-assembly" in active_cli["build-dense-vcf"], "build-dense-vcf has --source-assembly")
     check("source-reader-capability" in active_cli["build-hybrid"], "build-hybrid has --source-reader-capability")
     check("source-assembly" in active_cli["build-hybrid"], "build-hybrid has --source-assembly")
+    # OGS-00011's recipe declares this one, and no Store this suite reconciles
+    # does (#225): a pin without it would silently drop the policy the recipe
+    # sets, so it is checked here beside the flags those Stores use.
+    check("on-rsid-conflict" in active_cli["build-hybrid"], "build-hybrid has --on-rsid-conflict")
+    # OGS-00011's hm3 declaration passes this one through to every
+    # build-indexed-subset step it plans, and no other Store this suite
+    # reconciles declares it (#225): a pin without the flag would drop the
+    # policy, and a pin without the value the recipe gives it would refuse the
+    # step, so both are checked live beside the flags those Stores use.
+    check("overflow-only" in active_cli["build-indexed-subset"], "build-indexed-subset has --overflow-only")
+    check(
+        "skip" in (option_choices("build-indexed-subset", "overflow-only") or ()),
+        "build-indexed-subset --overflow-only accepts 'skip'",
+    )
     check("analyses" in active_cli["build-ragged-besd"], "build-ragged-besd has --analyses")
 
     stores_dir = REPO_ROOT / "stores"

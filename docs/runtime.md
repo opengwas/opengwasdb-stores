@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `d8896e46677ae9d54f1fc08a974e8c7e41d105cc`, the core `dev` merge of PR #305; its first parent is PR #293's docs-only merge, its second PR #304's branch head `3929444` |
-| Core merge | opengwas/opengwasdb PR #305 (`build-ragged-besd` drops lift-colliding ESI entries, `validate` requires each Analysis's `variant_index` slice to be strictly increasing, core #304), on top of `dev` with #277, #278, #281, #282, #288 and #291; earlier pins: the `dev` merge of PR #291 `d405de0` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288), PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Revision | `2f308cb8bd866d9549fa8e75d9622bdd7f29bcad`, the merge of core `dev` into the core integration branch `orch/232-observed-view` (core PR #303), which starts from core `dev` at `829b501`: the first revision carrying both lines of work, the integration branch's #295, #296, #306 and #324 and `dev`'s #304 and #298 |
+| Core merge | opengwas/opengwasdb #298 (Association Coverage is a build input, core #341), #305 (`build-ragged-besd` drops lift-colliding ESI entries, `validate` requires a strictly increasing `variant_index`, core #304), #324 (a policy for a Hybrid subset request that only the Overflow axis carries), #306 (an rsid-conflict policy for the Hybrid build's name harvest, and compound-id normalisation in the readers), #296 (Ragged `check-observed-view`) and #295 (Hybrid `check-observed-view`) on top of `dev`, which carries PR #291 (`check-observed-view`, core #289), #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: #324's merge `496bfe9` (stores #225), the `dev` merge of PR #305 `d8896e4` (stores #314), #306's merge `1e2fb42` (stores #225), #296's merge `32f47b3b` (stores #336), #295's merge `eb4c749b` (stores #333), the core `dev` merge of PR #291 `d405de0a` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -47,6 +47,16 @@ re-run `pixi lock` in the same commit.
   BESD builders share it, so signed statistics and EAF follow the projected
   allele pair on a reverse-strand variant. A single-pass Hybrid build whose
   off-reference rows lift onto the reverse strand is refused.
+- **A policy for the Hybrid build's rsid harvest** (opengwas/opengwasdb#306,
+  moved here for stores #225's OGS-00011 rebuild). `build-hybrid
+  --on-rsid-conflict {refuse,drop}` decides what a routing key its sources name
+  differently stores, and the build always reports what it compared as
+  `rsid_conflicts`. See "Coordination with core #306".
+- **A policy for a Hybrid subset's Overflow-only ALIDs**
+  (opengwas/opengwasdb#324, moved here for the same rebuild).
+  `build-indexed-subset --overflow-only {refuse,skip}` decides a requested ALID
+  only the Hybrid's shared axis carries, and a `skip` build records how many.
+  See "Coordination with core #324".
 - **One policy for a post-lift variant collision** (opengwas/opengwasdb#304;
   moved here for stores #314's OGS-00027). A chain set need not be injective: two
   hg19 loci can map into one hg38 position, and when their projected alleles
@@ -56,6 +66,12 @@ re-run `pixi lock` in the same commit.
   cannot hold one `variant_index` twice in one Analysis's segment. `validate`
   requires each Analysis's `variant_index` slice to be **strictly increasing**,
   on every release, and reports a repeat separately from a decrease.
+- **Association Coverage as a build input** (opengwas/opengwasdb#298, core
+  #341). Both Ragged builders require `--association-coverage`; Dense and Hybrid
+  accept only `gwas`; every builder and completion command reports the coverage
+  it wrote, and `register` refuses a build whose reported coverage differs from
+  the release's declaration. A legacy `full` in an existing Store's manifest is
+  read as `gwas`; the Store format did not move.
 
 ## The pre-write gate
 
@@ -177,6 +193,51 @@ written, by
 in its dry run and its run, and the Snakefile in `onstart`, beside the Indexed
 Variant Subset guard.
 
+## Coordination with core #295
+
+Core opengwas/opengwasdb#295 extends `check-observed-view` from Dense pairs to
+Hybrid pairs: the Dense Components, every crossover (a source Overflow association
+whose ALID becomes a Dense row on completion), and a seeded sample of
+whole Overflow Analyses with exhaustive per-Analysis counts. Stores #333 moved
+the pin to `eb4c749b`, #295's merge into the core integration branch
+`orch/232-observed-view` (core PR #303), so that a Hybrid release can complete
+its own Store (ADR 0037). That revision is not yet on core `dev`. The pin
+has since moved to the merge of core `dev` into that branch, which carries
+`dev`'s #304 and #298 as well (the pin table above); the branch itself has not
+merged into `dev` yet.
+
+`--help` shows the same `check-observed-view` command on revisions that compare
+only Dense pairs, so the capability probe above cannot tell them apart. The
+exact-pin check is what refuses an older runtime for a Hybrid or Ragged
+single-id release: any revision other than the pin is refused before anything
+is written.
+
+## Coordination with core #296
+
+Core opengwas/opengwasdb#296 extends `check-observed-view` to Ragged pairs. A
+Ragged Store has no chunk-rows, so the check samples whole Analyses
+(`--n-random` of them, from the same seed) and, for each, rebuilds the regions
+completion retained from the LD panel: every observed association must come
+back identical and not imputed, and every imputed association must lie inside
+a retained region. That rebuild needs the panel completion used, so the
+check refuses a Ragged pair without `--ld-panel` (exit 2); `--ancestry`
+defaults to the one the completed Store records and, when given, must match
+it. The planner passes both from the bundle's `complete` options. Stores #336
+moved the pin to `32f47b3b`, #296's merge into the same integration branch, so
+that a Ragged release can complete its own Store (ADR 0037). Like `eb4c749b`,
+it is not yet on core `dev`.
+
+The capability probe cannot tell `32f47b3b` from `eb4c749b` either: it asks
+only whether `check-observed-view --help` succeeds, and on both it does. Here
+too the exact-pin check, not the probe, is what refuses an older runtime for a
+Ragged single-id release.
+
+The check compares observed SE exactly. `complete-ragged` refits and
+re-quantises SE stored as `int8_residual`, which on real data moves every
+observed SE slightly (opengwas/opengwasdb#301), so a Ragged Store whose builder
+chose that encoding, as OGS-00006's did, fails the check until #301 is
+resolved.
+
 ## Coordination with core #304
 
 Core opengwas/opengwasdb#304 is the fix for the collision class the full eQTLGen
@@ -189,3 +250,67 @@ validation rule, so it applies to every release, not only to new builds: it
 reads each registered Ragged and Hybrid Store's full `variant_index` and finds
 no repeat, so no published Store becomes invalid at this pin. A Store built
 before it that does carry a repeat must be rebuilt, not revalidated.
+## Coordination with core #306
+
+A single-pass Hybrid build whose variant reference names no rsids harvests a
+name for each source site, and two sites that case-fold to one routing key can
+disagree: the EBI GWAS-SSF Sources spell some alleles in lower case and carry a
+compound `variant_id` as their name. Refusing that was what stopped the
+OGS-00011 rebuild of 2026-10-22, at `1:905:C:T`, and no option resolved it.
+
+Core opengwas/opengwasdb#306 adds `build-hybrid --on-rsid-conflict {refuse,drop}`,
+default `refuse`, which is the behaviour it had. Under `drop` the disputed
+routing key gives no rsid to the variants it reaches: the table cell is `.` and
+the key is absent from the rsid index, which is how a Store already records a
+variant it can name no other way. The build always reports what its harvest
+compared as `rsid_conflicts: {policy, n_keys, n_variants, sample}` in its stdout
+JSON, with both counts `0` when nothing was disputed and `null` when no names
+were compared across sources (`--reference-panel`, or a reference that names its
+own rsids); a `--reference-panel` build refuses `drop` rather than ignore it.
+The same change normalises a compound `rsN:pos:a:b` id and the first item of a
+`;` list in the readers, so a name that is really one rsid is compared as that
+rsid.
+
+The policy is per Build Recipe, so it is the recipe that declares it; stores
+#225 adds `on-rsid-conflict: drop` to OGS-00011's, as a Release Erratum, and
+`register` copies the counts into the Validation Record's
+`observed.rsid_conflicts`. A release that completes its own Store carries them
+from its build phase, because `complete-hybrid` reports none: the counts
+describe the completed Store too. A checkpoint records the policy, so a build
+checkpointed before the option existed reads as `refuse`: resuming it under
+`drop` is refused, as resuming under any other changed parameter is.
+
+## Coordination with core #324
+
+A subset build on a Hybrid root indexes the release's nested Dense Component,
+not the whole release: an ALID the release carries only on the shared/Overflow
+axis has a Variant Index there that this index cannot address. Resolving it
+against the Dense Component alone would count it absent and leave it out
+silently, so the builder refused the whole request and named the ALIDs. That is
+what stopped the OGS-00011 rebuild of 2026-10-23: 17,151 of the 1,206,903 HM3
+ALIDs it requested were Overflow-only, and 149 were absent from the release
+altogether.
+
+Core opengwas/opengwasdb#324 adds `build-indexed-subset --overflow-only
+{refuse,skip}`, default `refuse`, which is the behaviour it had and names the
+`skip` remedy when it refuses. Under `skip` the Overflow-only ALIDs stay out of
+the index, and the group records `overflow_only_count` -- always written, `0`
+when there were none -- beside the first 20 skipped ALIDs as
+`overflow_only_sample`, in variant-list order. The count is never folded into
+`absent_count`, which keeps its meaning: the release does not carry the ALID at
+all. The recorded counts must sum `requested_count = resolved_count +
+absent_count + overflow_only_count`, and both the read seam and `validate`
+enforce it. A group written before the option records neither attribute and is
+read as `0`, because the builder that wrote it could only refuse such a
+request; a Dense root has no Overflow axis, so it accepts the flag with no
+effect.
+
+The policy is per declared subset, so it is the declaration that carries it:
+stores #225 gives OGS-00011's `hm3` declaration `options: {overflow-only:
+skip}`, and the planner passes the whole `options` mapping through to both
+phases' `build-indexed-subset` argv. The build prints the human counts and a
+JSON summary whose `overflow_only` block holds `policy`, `n_overflow_only` and
+the sample. `register` harvests no subset output -- it reads the Store's build
+or completion step -- so the counts of a subset built here live in that step's
+record, `records/<phase>indexed-subset-<name>.json`, and nowhere in the
+Validation Record.

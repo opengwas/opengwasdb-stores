@@ -64,9 +64,10 @@ sets the old one aside, swaps them, and archives the old records.
      - no inserted panel row carries an observed cell.
    - **Record:** the verdict carries the seed, the sample and the counts, and
      is kept as the step's record.
-   - **Scope:** the check covers Dense Stores and the Dense Component of
-     Hybrid Stores. Ragged completion needs its own check before it can use
-     this path.
+   - **Scope:** the check covers Dense Stores, Hybrid Stores, whose
+     Dense Component it checks as above and whose Overflow it checks too
+     (Clarified by #333 below), and Ragged Stores, which it checks Analysis
+     by Analysis (Clarified by #336 below).
 
 3. **The replaced Observed-Only Store is deleted, not archived.** Unlike a
    forced re-run, the swap deletes the replaced Store's arrays once the new
@@ -202,3 +203,69 @@ The amendment rule of Decision 1 is enforced before any job runs, as follows.
   for the published Store" means the argv that wrote it.
 - **Left to review.** `release.yaml`'s prose and provenance. No code
   enforces accepted-bundle immutability for those fields, for any bundle.
+
+## Clarified by #333
+
+A Hybrid release completes its own Store too. The planner admits it as it
+does a Dense one, with `complete-hybrid`. (A Ragged release was still refused
+until #336, below.)
+
+- **What the check covers in a Hybrid Store.** Completion changes both
+  components. An Overflow association at a variant the LD panel adds to the
+  Dense axis moves into the Dense Component as an observed cell (a crossover),
+  and the Overflow is rebuilt without it. So an inserted panel row may carry
+  an observed cell after all, but only a crossover. opengwasdb#295 checks:
+  - the Dense and shared axes, exhaustively;
+  - every crossover against its source value;
+  - the Dense Component by the sample of Decision 2, with crossovers set aside;
+  - a seeded sample of whole Overflow Analyses, association by association;
+  - every Analysis's Overflow count, less its crossovers.
+- **One step for both layouts.** The check's step and argv are the same as a
+  Dense release's. `--n-random` draws 1,000 chunk-rows of the Dense Component
+  and 1,000 Overflow Analyses from the same seed. The command reads the layout
+  from the two Stores.
+- **The gate on the runtime is the pin.** A core whose check compares only
+  Dense pairs offers the same command, so probing for it cannot refuse it. The
+  release entry point refuses any core but the pinned revision, which has
+  #295.
+- **No resume.** `complete-dense` keeps a checkpoint and resumes after an
+  interruption; `complete-hybrid` does not, so an interrupted Hybrid
+  completion starts again from the published Observed-Only Store.
+
+## Clarified by #336
+
+A Ragged release completes its own Store too, with `complete-ragged`. With
+it, every layout can.
+
+- **What the check covers in a Ragged Store.** There is no grid of
+  chunk-rows, and completion rebuilds the variant axis, so opengwasdb#296
+  matches by ALID:
+  - every source variant in the completed axis, and the same Analyses in
+    both, exhaustively;
+  - a seeded sample of whole Analyses (`--n-random` of them, from the same
+    seed). In each, every observed association keeps its decoded Z, SE and
+    EAF and is not marked imputed, no association the source lacks is
+    observed, and every imputed association lies in a region completion
+    retained.
+- **The check needs the panel.** Retained regions are not stored as
+  coordinates; the check rebuilds them from the LD panel completion used,
+  and refuses a Ragged pair without it. So for a Ragged release the planner
+  passes the `complete` block's `ld-panel` to the check step, and refuses a
+  `complete` block without one. Dense and Hybrid steps are unchanged.
+- **The registry requires the ancestry.** Neither command needs it:
+  `complete-ragged` defaults to `EUR`, and the check reads the ancestry from
+  the completed Store's manifest. But a silent `EUR` default could complete a
+  non-EUR Store against the wrong panel. So a completing Ragged bundle must
+  declare `ancestry` too, the planner refuses one that does not, and the
+  check is given it and cross-checks it against the completed Store's
+  record.
+- **SE is compared exactly.** `complete-ragged` refits and re-quantises SE
+  stored as `int8_residual`, which on real data moves observed SE slightly
+  (opengwas/opengwasdb#301). Until that is resolved, a Ragged Store whose SE
+  is stored that way, as OGS-00006's is, fails the check.
+- **No resume and no extra steps.** `complete-ragged` keeps no checkpoint, so
+  an interrupted completion starts again from the published Observed-Only
+  Store. It builds its Top-Hit Index inline and writes the format-0.2.0
+  `by_variant` index, which validation audits; a Ragged Store has no overview
+  and no Indexed Variant Subsets. Its completion phase is `complete`,
+  validation and the check.

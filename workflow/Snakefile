@@ -252,9 +252,7 @@ onstart:
     # maintained variant list that matches its declaration. Refuse before the
     # build starts rather than hours in.
     try:
-        resources.verify_indexed_subsets_for_releases(
-            scheduled, registry_root=REGISTRY_ROOT, repo_root=paths.REPO_ROOT
-        )
+        resources.verify_indexed_subsets_for_releases(scheduled, registry_root=REGISTRY_ROOT)
     except (
         resources.IndexedSubsetRuntimeError,
         resources.ReferenceResourceError,
@@ -288,9 +286,30 @@ rule all:
         [record(sid, release_register(get_bundle(sid))) for sid in BUILDABLE_STORE_IDS]
 
 
+def build_manifest_input(wildcards):
+    """The bundle's analyses.tsv, its mtime ignored when it would change nothing.
+
+    A fresh checkout gives every registry file a newer mtime than the Store
+    published from it. A newer file with unchanged content is no reason to
+    rerun (#339): when materialising the bundle would give the `work/` files
+    already on disk, the input is `ancient`. The reverse is not decided here:
+    a changed manifest is left to Snakemake's mtime, so a direct `snakemake`
+    run misses one that is older than its outputs. The entry point
+    (`release.stale_manifest_outputs`) forces those reruns itself.
+    """
+    source = get_bundle(wildcards.store_id).analyses_path
+    if manifest.build_manifest_is_current(
+        source,
+        paths.build_manifest_path(wildcards.store_id, root=wildcards.root),
+        paths.build_manifest_sidecar_path(wildcards.store_id, root=wildcards.root),
+    ):
+        return ancient(str(source))
+    return str(source)
+
+
 rule build_manifest:
     input:
-        lambda wildcards: str(get_bundle(wildcards.store_id).analyses_path)
+        build_manifest_input
     output:
         manifest="{root}/{store_id}/work/analyses.tsv",
         sidecar="{root}/{store_id}/work/analyses.exclusions.json",
