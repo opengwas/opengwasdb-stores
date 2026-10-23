@@ -1,0 +1,166 @@
+# The 10-Analysis FinnGen R13 probe (#288): the release config the first real
+# resolve runs.
+#
+# The one-pass resolver has never read a real FinnGen endpoint through a Column
+# Map at the pipeline's pinned opengwasdb: #288's stage-1 run resolved all 2,754
+# Analyses as `resolution_failed` because `opengwasdb.finngen-r13` cannot stream
+# source metrics, and #292 has now landed the Release Bundle's Column Map and the
+# resolver's `--column-map`. Ten Analyses therefore go through
+# `generate-candidate` before the full 2,754-Analysis resolve (2.16 TB) is
+# scheduled: the probe reports each Analysis's Resolution Record -- read, or
+# refused and why -- with its measured ancestry and SD, and every difference
+# from the same row of the accepted `stores/OGS-00017/analyses.tsv`.
+#
+# The ten are the first endpoint of the frozen manifest, six more case-control
+# endpoints spanning the smallest and largest case counts (132 cases in
+# AB1_ACTINOMYCOSIS to 203,299 in RX_STATIN; ALCODELIRIUM is the endpoint whose
+# manifest label carries a trailing non-breaking space), and all three
+# inverse-rank-normalised quantitative endpoints. Seven case-control and three
+# quantitative, so both method tiers are exercised.
+#
+# Membership, connectors, defaults and the Build Recipe are release-r13-full.yaml's:
+# only the Selection, the snapshot id and the work root differ, so the probe
+# measures the bundle the full run will make.
+
+release_config_version: 1
+
+label: r13-probe-10
+association_coverage: gwas
+access_posture: public
+# A Trial Store Release (#321): release.yaml records `trial: true`.
+trial: true
+description: >
+  Ten FinnGen R13 endpoints -- seven case-control and all three
+  inverse-rank-normalised quantitative endpoints -- resolved through
+  opengwasdb's built-in `finngen-r13` Column Map, as the bounded probe before
+  the full 2,754-Analysis resolve (#288). A probe, not a Store Release: its
+  candidate is compared against stores/OGS-00017's accepted rows and is never
+  registered.
+notes: >
+  The probe answers the two questions the full run would otherwise answer after
+  reading 2.16 TB: whether the pinned resolver reads a real FinnGen endpoint
+  through the built-in `finngen-r13` Column Map at all, and what the measured
+  Assigned Ancestry is (the accepted bundle is `unassigned` on every row, since
+  the FinnGen reader cannot resolve them, so a measured ancestry is a finding,
+  not a regression). The quantitative endpoints' tier declares the SD scale
+  (`declared_standardised`), so their SD is a declaration, not an estimate.
+
+source_collection:
+  source_collection_id: finngen-r13
+  connectors:
+    source_metadata_table: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-22/finngen-r13.source-metadata.tsv
+    acquisition_manifest: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13-full.acquisition-manifest.tsv
+  inventory:
+    snapshot_id: finngen-r13-probe-10-2026-10-23
+    directory: resources/inventories
+
+selection:
+  analyses:
+    # Seven case-control endpoints: the manifest's first, the one whose label
+    # carries a trailing non-breaking space, and a spread of case counts.
+    - AB1_ACTINOMYCOSIS
+    - ALCODELIRIUM
+    - CD2_INSITU_BREAST
+    - K11_IBD_STRICT
+    - M13_ARTHROPATHIES
+    - RX_STATIN
+    - T2D
+    # Every inverse-rank-normalised quantitative endpoint in the release.
+    - BMI_IRN
+    - HEIGHT_IRN
+    - WEIGHT_IRN
+  expect_rows: 10
+
+# The release's own Build Recipe shape, so the probe measures the bundle the
+# full run will make: the generic Column Map reader, the hg38 source assembly
+# and the release's observed-only Dense build. Only the worker width is the
+# probe's own.
+build:
+  layout: dense
+  completion_state: observed_only
+  command: build-dense-vcf
+  options:
+    source-reader-capability: opengwasdb.column-map
+    source-assembly: hg38
+    # Ten endpoints: the probe's own width, not the release's 32.
+    n-workers: 10
+  post:
+    top_hits: true
+    overview: true
+
+# The release's Column Map, as release-r13-full.yaml binds it (#292).
+column_map:
+  builtin: finngen-r13
+
+defaults:
+  source_genome_build: GRCh38
+  license: FinnGen public data
+  consortium: FinnGen
+  sample_size_scope: analysis_level
+  # One method tier per study design, as the release declares them: the IRN
+  # quantitative endpoints are standardised over the whole cohort by
+  # construction, so their tier declares the scale instead of estimating a
+  # phenotype SD. Case-control endpoints are on the log-OR scale with counts.
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      original_sd_method: declared_standardised
+      sample_size_kind: total
+    case-control:
+      stored_effect_scale: log_or
+      original_effect_scale: log_or
+      original_sd_method: binary_trait
+      sample_size_kind: case_control
+
+release_policy:
+  selection_superpopulation: EUR
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    ancestry: multi
+    super_populations: [AFR, AMR, EAS, EUR, MID, NAF, SAS]
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    location_kind: external_file
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+  - resource_id: canonical-trait-mapping-efo
+    kind: trait_ontology_mapping
+    location: resources/reference-resources/canonical-trait-mapping-efo
+    location_kind: tracked_directory
+    version: "3"
+
+ancestry_assignment:
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  maf_floor: 0.01
+  # The full reference scan, as the R path used: a 10k extraction panel failed
+  # the preregistered concordance gate (#152).
+  extraction_panel: null
+  gates:
+    tau: 0.50
+    delta: 0.20
+    n_min: 5000
+    residual_max: 0.06
+
+effect_scale_validation:
+  # Recorded for the SD-estimation sidecar; the quantitative tier declares its
+  # scale, so no phenotype SD is estimated and no reference-AF fallback is
+  # declared.
+  maf_min: 0.01
+  maf_max: 0.5
+  dispersion_max: 0.5
+  reference_resources: []
+
+trait_ontology_mapping:
+  reference_resource_id: canonical-trait-mapping-efo
+
+runtime:
+  # Ten endpoints of ~760 MB each; the host is shared and another session is
+  # building Stores, so the probe stays well inside the shared cap of 16.
+  cores: 10
+  min_free_gb: 50
+
+output:
+  work_root: /data/opengwasdb/work/finngen-r13-probe-10

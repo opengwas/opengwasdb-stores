@@ -92,6 +92,10 @@ OPTIONAL_COLUMNS: tuple[str, ...] = (
     "target_rows",
     "tissue",
     "context",
+    # The probe an Analysis reads in a BESD file set (#291): eQTLGen's Analyses
+    # are one study's probes, so the file says which one each is. Required by
+    # the resolver for a BESD source, refused for any other.
+    "source_probe_id",
 )
 
 #: Every canonical column, in the order a writer emits them.

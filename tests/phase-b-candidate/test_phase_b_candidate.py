@@ -52,7 +52,7 @@ import time
 import unittest
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Iterator
+from typing import Iterator, Sequence
 from unittest import mock
 
 import yaml
@@ -203,6 +203,9 @@ TRAIT_TABLE_TEXT = (
 )
 #: sha256 of TRAIT_TABLE_TEXT.
 TRAIT_TABLE_SHA256 = "92a1eabaf92b3821219cc8e52c83245c3e93efaa29cf4ebbf7b05cc5724d14de"
+#: The LD panel a fixture completion completes against: the tracked EUR panel
+#: declaration (#312), whose ancestry is the fixture's Selection super-population.
+COMPLETION_PANEL_RESOURCE_ID = "ukb-hg38-eur-ld"
 #: A trait_ontology_mapping block for tests that render validation.yaml for other reasons.
 TRAIT_ONTOLOGY_PROVENANCE = {
     "canonical_trait_mapping_table": None,
@@ -249,14 +252,22 @@ class FixtureBuilder:
         self.inventory_dir = root / "inventory"
         self.inventory_dir.mkdir(parents=True, exist_ok=True)
 
-    def build(self, *, freeze: bool = True) -> Fixture:
+    def build(
+        self,
+        *,
+        freeze: bool = True,
+        completion: dict | None = None,
+        layout: str = "hybrid",
+    ) -> Fixture:
         """Write the mirror, both connector files and a release config.
 
         ``freeze`` freezes the Source Inventory up front, as unit tests that
         read it before any stage runs need; without it, the entry point's
-        ``freeze`` stage writes it.
+        ``freeze`` stage writes it. ``completion`` declares a reference-completion
+        recipe beside a ``dense`` release's ``build`` block (#340, ADR 0037).
         """
         (self.reference / "ref_freqs.tsv.gz").write_bytes(b"fixture reference\n")
+        (self.reference / "ld").mkdir(parents=True, exist_ok=True)
         (self.reference / "ancestry_groups.tsv").write_text(
             "fine_group\tsuper_population\nEUR_A\tEUR\nEAS_A\tEAS\n", encoding="utf-8"
         )
@@ -344,6 +355,7 @@ class FixtureBuilder:
         config = {
             "release_config_version": RELEASE_CONFIG_VERSION,
             "label": "fixture-candidate",
+            "association_coverage": "gwas",
             "access_posture": "public",
             "description": "fixture candidate",
             "notes": "fixture notes",
@@ -357,14 +369,16 @@ class FixtureBuilder:
             },
             "selection": SELECTION,
             "build": {
-                "layout": "hybrid",
+                "layout": layout,
                 "completion_state": "observed_only",
-                "command": "build-hybrid",
+                "command": "build-hybrid" if layout == "hybrid" else "build-dense-vcf",
                 "options": {
                     "source-reader-capability": "opengwasdb.gwas-ssf",
                     "source-assembly": "hg38",
                 },
-                "post": {"top_hits": False, "overview": True},
+                # A Dense release plans the Top-Hit Index and the completion
+                # inline, so its post steps are the Dense golden's (§`tests/plan`).
+                "post": {"top_hits": layout == "dense", "overview": True},
             },
             "defaults": {
                 "source_genome_build": "GRCh38",
@@ -422,6 +436,21 @@ class FixtureBuilder:
             "runtime": {"cores": 4, "min_free_gb": 0},
             "output": {"work_root": str(work_root)},
         }
+        if completion is not None:
+            config["build"]["completion_state"] = "reference_completed"
+            config["completion"] = completion
+            config["reference_resources"].append(
+                {
+                    # The tracked panel declaration supplies the ancestry, which
+                    # complete-dense names both the panel directory and the
+                    # Analyses' filter with; this release declares it present
+                    # under the fixture's own reference root.
+                    "resource_id": COMPLETION_PANEL_RESOURCE_ID,
+                    "kind": "ld_panel",
+                    "location": str(self.reference / "ld"),
+                    "location_kind": "external_directory",
+                }
+            )
         config_path = self.root / "config.yaml"
         config_path.write_text(yaml.safe_dump(config, sort_keys=False), encoding="utf-8")
 
@@ -1711,6 +1740,35 @@ class CandidateWorkflowTests(unittest.TestCase):
         self.assertIn("summary.yaml", emitted)
         self.assertEqual(every_file(), emitted)
 
+    def test_a_trial_config_emits_trial_true_and_changes_nothing_else(self) -> None:
+        """`trial: true` in the release config is `trial: true` in release.yaml (#321).
+
+        A config without the key emits no `trial` at all (absent means false),
+        and the two release.yaml files differ by that one line.
+        """
+        self.assertEqual(_run_cli(self.fixture).returncode, 0)
+        release_path = self.fixture.registry_root / STORE_ID / "release.yaml"
+        pinned = ("--stage", "emit", "--created-at", "2026-10-14T00:00:00Z")
+        plain = _run_cli(self.fixture, *pinned)
+        self.assertEqual(plain.returncode, 0, plain.stderr)
+        without = release_path.read_text(encoding="utf-8")
+        self.assertNotIn("trial", yaml.safe_load(without))
+
+        document = yaml.safe_load(self.fixture.config_path.read_text(encoding="utf-8"))
+        document["trial"] = True
+        self.fixture.config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        trial = _run_cli(self.fixture, *pinned)
+        self.assertEqual(trial.returncode, 0, trial.stderr)
+        with_trial = release_path.read_text(encoding="utf-8")
+
+        self.assertIs(yaml.safe_load(with_trial)["trial"], True)
+        self.assertEqual(with_trial.replace("trial: true\n", "", 1), without)
+        emitted = bundle_module.load(STORE_ID, registry_root=self.fixture.registry_root)
+        self.assertTrue(emitted.trial)
+        self.assertEqual(
+            bundle_module.check(emitted, registry_root=self.fixture.registry_root), []
+        )
+
     def test_interrupted_run_preserves_prior_candidate(self) -> None:
         first = _run_cli(self.fixture)
         self.assertEqual(first.returncode, 0, first.stderr)
@@ -2968,6 +3026,50 @@ class CandidateWorkflowTests(unittest.TestCase):
             release["notes"],
         )
 
+    def test_the_release_yaml_declares_the_configs_association_coverage(self) -> None:
+        """The candidate emitter writes the config's fact, after `label:` (#341, ADR 0040).
+
+        It is never inferred from the Store Layout, which is the wrong answer
+        opengwasdb#298 exists to remove.
+        """
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        tables = build_candidate_tables(
+            inventory_rows=[], outcomes=[], config=config, index_summary={}
+        )
+        arguments = dict(
+            store_id=STORE_ID,
+            config=config,
+            tables=tables,
+            created_at="2026-01-01T00:00:00Z",
+            inventory_sha256="a" * 64,
+            preflight_report=Path("preflight.json"),
+            index_summary={},
+            generator_version="test",
+        )
+        release = render_release_yaml(**arguments)
+        self.assertEqual(release["association_coverage"], "gwas")
+        self.assertEqual(
+            list(release)[:3], ["store_id", "label", "association_coverage"]
+        )
+
+        declared = {**config.__dict__, "base": replace(config.base, association_coverage="cis")}
+        self.assertEqual(
+            render_release_yaml(**{**arguments, "config": type(config)(**declared)})[
+                "association_coverage"
+            ],
+            "cis",
+        )
+
+        with self.assertRaisesRegex(CandidateError, "association_coverage"):
+            render_release_yaml(
+                **{
+                    **arguments,
+                    "config": type(config)(
+                        **{**config.__dict__, "base": replace(config.base, association_coverage="")}
+                    ),
+                }
+            )
+
     def test_zero_build_eligible_rows_is_excluded_and_not_missing(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         config = replace(config, build_options={**config.build_options, "variant-reference": "/axis.gz"})
@@ -3187,6 +3289,299 @@ class CandidateWorkflowTests(unittest.TestCase):
         )
         self.assertNotEqual(missing.returncode, 0)
         self.assertIn("store_id", missing.stderr + missing.stdout)
+
+
+class ReferenceCompletionTests(unittest.TestCase):
+    """A release config's completion recipe reaches the emitted bundle (#340, ADR 0037).
+
+    The end-to-end seams: a Dense release through ``prepare``, ``resolve`` (the
+    fake resolver), ``render`` and ``emit`` into a temporary registry, once with
+    a qualified and active reference and once with one short of that. The
+    fixture starts from the Source Collection's connector files and a release
+    config only, as ``EntryPointStageTests`` does.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="reference-completion-")
+        self.root = Path(self._tmp.name)
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def fixture(self, name: str, *, completion: dict | None = None) -> Fixture:
+        return FixtureBuilder(self.root / name).build(completion=completion, layout="dense")
+
+    #: One run's timestamp, so two renders of one fixture compare byte for byte.
+    CREATED_AT = "2026-10-22T00:00:00Z"
+
+    def stages(self, fixture: Fixture, *names: str) -> list[subprocess.CompletedProcess]:
+        results = []
+        for name in names:
+            result = _run_cli(fixture, "--stage", name, *("--created-at", self.CREATED_AT))
+            self.assertEqual(result.returncode, 0, f"{name}: {result.stderr}{result.stdout}")
+            results.append(result)
+        return results
+
+    def bundle(self, fixture: Fixture, name: str) -> dict:
+        return yaml.safe_load((fixture.registry_root / STORE_ID / name).read_text(encoding="utf-8"))
+
+    def qualified(self, **changes) -> dict:
+        return {
+            "reference": {
+                "resource_id": COMPLETION_PANEL_RESOURCE_ID,
+                "qualification": "qualified",
+                "activation": "active",
+                **changes,
+            },
+            "command": "complete-dense",
+            "options": {"n-workers": 2},
+        }
+
+    def test_a_qualified_active_reference_emits_a_bundle_that_plans_both_phases(self) -> None:
+        fixture = self.fixture("qualified", completion=self.qualified())
+
+        started = time.monotonic()
+        results = self.stages(fixture, "prepare", "resolve", "render", "emit")
+        elapsed = time.monotonic() - started
+        # Seam: one end-to-end run of the four stages, well under five seconds.
+        self.assertLess(elapsed, 5.0, f"the end-to-end run took {elapsed:.1f} s")
+        self.assertIn("is qualified and active", results[-2].stdout)
+
+        build = self.bundle(fixture, "build.yaml")
+        self.assertEqual(build["completion_state"], "reference_completed")
+        self.assertEqual(
+            build["complete"],
+            {
+                "command": "complete-dense",
+                "options": {
+                    "ld-panel": str(fixture.root / "reference" / "ld"),
+                    "ancestry": "EUR",
+                    "n-workers": 2,
+                },
+            },
+        )
+        self.assertEqual(
+            list(build),
+            ["store_id", "layout", "completion_state", "build", "complete", "post", "indexed_subsets"],
+        )
+        # One bundle under one id: no second id is minted and no lineage edge is claimed.
+        self.assertIsNone(self.bundle(fixture, "release.yaml")["derived_from"])
+        self.assertEqual(
+            self.bundle(fixture, "validation.yaml")["acceptance"],
+            {
+                "completion_reference": {
+                    "resource_id": COMPLETION_PANEL_RESOURCE_ID,
+                    "declared_status": "available",
+                    "qualification": "qualified",
+                    "activation": "active",
+                    "blocked": False,
+                }
+            },
+        )
+
+        # The bundle is a Release Bundle, and it plans both phases under its id.
+        loaded = bundle_module.load(STORE_ID, registry_root=fixture.registry_root)
+        self.assertEqual(list(bundle_module.check(loaded, registry_root=fixture.registry_root)), [])
+        self.assertTrue(loaded.completes_own_store)
+        self.assertIsNone(loaded.derived_from)
+        artifact_root = self.root / "artifacts"
+        steps = plan(loaded, artifact_root=artifact_root)
+        self.assert_matches_the_single_id_golden(steps, fixture, artifact_root)
+        complete = next(step for step in steps if step.name == "complete")
+        self.assertEqual(complete.argv[complete.argv.index("--release-id") + 1], f"{STORE_ID}-completed")
+        self.assertEqual(
+            option(complete.argv, "--ld-panel"), str(fixture.root / "reference" / "ld")
+        )
+        self.assertEqual(option(complete.argv, "--ancestry"), "EUR")
+        self.assertEqual(option(complete.argv, "--n-workers"), "2")
+
+    #: Where the golden's bundle plans its artifacts, and the bundle's own id.
+    GOLDEN_ARTIFACT_ROOT = "/data/opengwasdb/stores"
+    GOLDEN_STORE_ID = "OGS-00003"
+    #: The golden's LD panel, which this fixture replaces with its own.
+    GOLDEN_LD_PANEL = "/data/opengwasdb/reference/ld/hgdp1kgp-hg38"
+    #: Options this fixture's recipe intentionally omits from a golden step.
+    OMITTED_OPTIONS: Mapping[str, tuple[str, ...]] = {"build": ("--n-workers",)}
+
+    def fixture_option_values(self, fixture: Fixture) -> Mapping[str, Mapping[str, str]]:
+        """The few options this fixture sets differently from the golden's recipe.
+
+        The golden is a FinnGen release; this fixture is a GWAS-SSF one, so its
+        reader capability is the SSF reader's.
+        """
+        return {
+            "build": {"--source-reader-capability": "opengwasdb.gwas-ssf"},
+            "complete": {
+                "--ld-panel": str(fixture.root / "reference" / "ld"),
+                "--n-workers": "2",
+            },
+        }
+
+    def expected_tokens(
+        self, step: str, tokens: Sequence[str], fixture: Fixture, artifact_root: Path,
+        *, options: bool = False,
+    ) -> list[str]:
+        """One golden step's tokens, rewritten for this fixture's documented differences.
+
+        Three substitutions (the Store id, the artifact root, the LD panel) and
+        one omitted option are all this fixture changes. Everything else -- every
+        flag, every value and every positional path -- must be the golden's
+        exactly, so a step missing a required flag such as `validate`'s
+        `--format` fails here.
+        """
+        substitutions = {
+            self.GOLDEN_STORE_ID: STORE_ID,
+            f"{self.GOLDEN_ARTIFACT_ROOT}/": f"{artifact_root}/",
+            self.GOLDEN_LD_PANEL: str(fixture.root / "reference" / "ld"),
+        }
+        expected: list[str] = []
+        for token in tokens:
+            for before, after in substitutions.items():
+                token = token.replace(before, after)
+            expected.append(token)
+        if not options:
+            return expected
+        for flag, value in self.fixture_option_values(fixture).get(step, {}).items():
+            expected[expected.index(flag) + 1] = value
+        for flag in self.OMITTED_OPTIONS.get(step, ()):
+            position = expected.index(flag)
+            del expected[position:position + 2]
+        return expected
+
+    def assert_matches_the_single_id_golden(self, steps, fixture: Fixture, artifact_root: Path) -> None:
+        """The plan is the committed single-id golden's, exactly, where the two agree.
+
+        The golden pins what a completion bundle adds (#305, ADR 0037): the step
+        sequence, each step's phase, its command, its flags and their values,
+        its positionals, and what it reads and writes. This fixture's id, its
+        artifact root, its panel and two options are the only differences, and
+        each is listed above.
+        """
+        golden = json.loads(
+            (REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00003-single-id-completed.json").read_text()
+        )
+        self.assertEqual([step.phase for step in steps], [entry.get("phase", "build") for entry in golden])
+        self.assertEqual([step.name for step in steps], [entry["name"] for entry in golden])
+        for step, expected in zip(steps, golden):
+            with self.subTest(step=step.name):
+                self.assertEqual(
+                    step.argv,
+                    self.expected_tokens(
+                        step.name, expected["argv"], fixture, artifact_root, options=True
+                    ),
+                )
+                self.assertEqual(
+                    [str(path) for path in step.inputs],
+                    self.expected_tokens(step.name, expected["inputs"], fixture, artifact_root),
+                )
+                self.assertEqual(
+                    [str(path) for path in step.outputs],
+                    self.expected_tokens(step.name, expected["outputs"], fixture, artifact_root),
+                )
+                if "published_store_arg" in expected:
+                    self.assertEqual(step.published_store_arg, expected["published_store_arg"])
+
+    def test_a_reference_short_of_qualified_and_active_emits_the_bundle_without_one(self) -> None:
+        references = {
+            "pending qualification": {"qualification": "pending"},
+            "pending activation": {"activation": "pending"},
+            "on hold and blocked": {"qualification": "hold", "activation": "blocked"},
+            # A blocked reference is never opened: this one names a panel that
+            # does not exist, and preflight neither requires nor finds it.
+            "pending, panel absent": {"qualification": "pending", "panel": "absent"},
+        }
+        for case, changes in references.items():
+            with self.subTest(case):
+                fixture = self.fixture("observed-" + case.replace(" ", "-").replace(",", ""))
+                self.stages(fixture, "prepare", "resolve", "render", "emit")
+                observed = {
+                    name: (fixture.registry_root / STORE_ID / name).read_bytes()
+                    for name in ("build.yaml", "analyses.tsv", "release.yaml", "validation.yaml")
+                }
+                observed_release = self.bundle(fixture, "release.yaml")
+                observed_validation = self.bundle(fixture, "validation.yaml")
+
+                # The same fixture, the same Selection: only the recipe is added,
+                # and its reference is short of qualified and active. The panel's
+                # location is absent in the last case and present in the others.
+                panel = fixture.root / ("missing-ld" if changes.get("panel") == "absent" else "reference/ld")
+                if changes.get("panel") == "absent":
+                    panel.rmdir() if panel.is_dir() else None
+                document = yaml.safe_load(fixture.config_path.read_text(encoding="utf-8"))
+                document["build"]["completion_state"] = "reference_completed"
+                document["completion"] = self.qualified(
+                    **{key: value for key, value in changes.items() if key != "panel"}
+                )
+                document["reference_resources"].append(
+                    {
+                        "resource_id": COMPLETION_PANEL_RESOURCE_ID,
+                        "kind": "ld_panel",
+                        "location": str(panel),
+                        "location_kind": "external_directory",
+                    }
+                )
+                fixture.config_path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+                # Only the recipe changed, so the resolved records are the ones
+                # this run already kept: preflight, render and emit re-read them.
+                results = self.stages(fixture, "preflight", "render", "emit")
+
+                # The recipe and the membership are the Observed-Only bundle's, byte for byte.
+                for name in ("build.yaml", "analyses.tsv"):
+                    self.assertEqual(
+                        (fixture.registry_root / STORE_ID / name).read_bytes(),
+                        observed[name],
+                        f"{name} is not the bundle a config without a completion block emits",
+                    )
+                self.assertEqual(self.bundle(fixture, "build.yaml")["completion_state"], "observed_only")
+                self.assertNotIn("complete:", (fixture.registry_root / STORE_ID / "build.yaml").read_text())
+
+                # Everything but the paragraph that says why is unchanged.
+                release = self.bundle(fixture, "release.yaml")
+                paragraphs = release["notes"].split("\n\n")
+                self.assertIn(
+                    f"Reference completion (ADR 0037): blocked: completion reference "
+                    f"{COMPLETION_PANEL_RESOURCE_ID} is qualification "
+                    f"{changes.get('qualification', 'qualified')}, activation "
+                    f"{changes.get('activation', 'active')}, not qualified and active; this "
+                    "bundle is Observed-Only and declares no complete block.",
+                    paragraphs,
+                )
+                self.assertEqual(
+                    [p for p in paragraphs if not p.startswith("Reference completion")],
+                    observed_release["notes"].split("\n\n"),
+                )
+                self.assertEqual(
+                    {key: value for key, value in release.items() if key != "notes"},
+                    {key: value for key, value in observed_release.items() if key != "notes"},
+                )
+                # The Validation Record says so, and records no status: the
+                # declaration was never read.
+                self.assertEqual(
+                    self.bundle(fixture, "validation.yaml")["acceptance"]["completion_reference"],
+                    {
+                        "resource_id": COMPLETION_PANEL_RESOURCE_ID,
+                        "qualification": changes.get("qualification", "qualified"),
+                        "activation": changes.get("activation", "active"),
+                        "blocked": True,
+                    },
+                )
+                self.assertEqual(
+                    {key: value for key, value in self.bundle(fixture, "validation.yaml").items()
+                     if key != "acceptance"},
+                    {key: value for key, value in observed_validation.items() if key != "acceptance"},
+                )
+                # The operator is told at render time, as the ukb-b generator said it on stderr.
+                self.assertIn("not qualified and active", results[1].stdout)
+                self.assertIn("observed-only, with no complete block", results[1].stdout)
+                self.assertNotIn("acceptance", observed_validation)
+
+                loaded = bundle_module.load(STORE_ID, registry_root=fixture.registry_root)
+                self.assertEqual(list(bundle_module.check(loaded, registry_root=fixture.registry_root)), [])
+                self.assertFalse(loaded.completes_own_store)
+
+
+def option(argv: Sequence[str], flag: str) -> str:
+    return argv[argv.index(flag) + 1]
 
 
 class EntryPointStageTests(unittest.TestCase):

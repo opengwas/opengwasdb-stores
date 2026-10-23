@@ -28,7 +28,7 @@ from pathlib import Path
 
 import yaml
 
-from manifest_generation.providers.ukb_b import inventory as ukb
+from manifest_generation.providers.ukb_b import source_metadata_adapter as adapter
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SNAPSHOT_ID = "ukb-b-restored-2026-10-11"
@@ -71,10 +71,10 @@ class TestDeclaredSelectionHome(unittest.TestCase):
             rows = list(csv.DictReader(fh, delimiter="\t"))
         self.assertEqual(len(rows), FROZEN_ROWS)
         self.assertEqual(self.provenance["declared_selection"]["rows"], FROZEN_ROWS)
-        selection = ukb.read_declared_selection(self.path)
-        self.assertEqual(len(selection.rows), FROZEN_ROWS)
-        self.assertEqual(selection.sha256, FROZEN_SHA256)
-        self.assertEqual(len({row.analysis_id for row in selection.rows}), FROZEN_ROWS)
+        # The adapter that reads it as intent (#289) finds every row once.
+        selection = adapter.read_declared_selection(self.path)
+        self.assertEqual(len(selection), FROZEN_ROWS)
+        self.assertEqual(len({row["analysis_id"] for row in selection}), FROZEN_ROWS)
 
     def test_the_receipt_path_resolves_inside_the_repository(self) -> None:
         recorded = self.receipt["declared_selection_path"]
@@ -106,10 +106,13 @@ class TestDeclaredSelectionHome(unittest.TestCase):
         )
         self.assertEqual(pilot["inputs"]["candidates"], NEW_DECLARED_SELECTION)
 
-    def test_the_inventory_tool_defaults_to_the_new_location(self) -> None:
-        self.assertEqual(ukb.DEFAULT_DECLARED_SELECTION, NEW_DECLARED_SELECTION)
-        args = ukb.parse_args(["reconcile", "--source-dir", "/tmp/does-not-matter"])
-        self.assertEqual(args.declared, NEW_DECLARED_SELECTION)
+    def test_the_generator_readme_documents_the_new_location(self) -> None:
+        # The retired inventory tool defaulted here (#219); the README is what an
+        # operator now reads to find the file the two writers take (#289).
+        readme = (
+            REPO_ROOT / "resources" / "generators" / "ukb-b" / "README.md"
+        ).read_text(encoding="utf-8")
+        self.assertIn(NEW_DECLARED_SELECTION, readme)
 
 
 if __name__ == "__main__":

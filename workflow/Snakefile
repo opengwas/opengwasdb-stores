@@ -130,6 +130,26 @@ def step_input(wildcards) -> list[str]:
     return [str(p) for p in steps[0].inputs]
 
 
+def stage_column_map(store_id: str, destination: Path) -> None:
+    """Stage a release's carried Column Map, or refuse naming it (#292).
+
+    A function and not inline in the rule: `resources` is a Snakemake keyword
+    inside a rule's `run:`, and shadows the module there.
+    """
+    try:
+        resources.stage_column_map(get_bundle(store_id), destination)
+    except resources.ReferenceResourceError as exc:
+        raise WorkflowError(str(exc))
+
+
+def check_staged_column_map(store_id: str, root: str, inputs) -> None:
+    """Refuse a step whose staged Column Map is not the bound one, naming it (#292)."""
+    try:
+        resources.verify_staged_column_map(get_bundle(store_id), root, inputs)
+    except resources.ReferenceResourceError as exc:
+        raise WorkflowError(str(exc))
+
+
 def last_step_record(wildcards, phase: str) -> str:
     """The record a phase's register consumes: the phase's last planned step's."""
     names = [s.name for s in get_steps(wildcards.store_id, wildcards.root) if s.phase == phase]
@@ -141,6 +161,7 @@ def last_step_record(wildcards, phase: str) -> str:
 wildcard_constraints:
     root=".+",
     store_id=r"OGS-\d{5}",
+    file=r"[^/]+\.toml",
     step="|".join([
         *EXECUTION_STEPS,
         INDEXED_SUBSET_STEP_PATTERN,
@@ -237,6 +258,12 @@ onstart:
         resources.ReferenceResourceError,
     ) as exc:
         raise WorkflowError(str(exc))
+    # Defence in depth for a direct `snakemake` run (#292): a carried Column Map
+    # is re-hashed against its binding before any build reads it.
+    try:
+        resources.verify_column_maps_for_releases(scheduled, registry_root=REGISTRY_ROOT)
+    except resources.ReferenceResourceError as exc:
+        raise WorkflowError(str(exc))
     # Defence in depth for a direct `snakemake` run (#306): a release that
     # completes its own Store gates its swap on the Observed-View Check, which
     # the resolved runtime must provide.
@@ -294,6 +321,20 @@ rule build_manifest:
         )
 
 
+# A carried Column Map, staged under the artifact root where `plan()` names it
+# for the build (`--column-map`), once its bytes match the Build Recipe's
+# binding (#292). A refusal names the map.
+rule column_map:
+    input:
+        lambda wildcards: str(
+            Path(get_bundle(wildcards.store_id).root) / bundle.column_map_path(wildcards.file)
+        )
+    output:
+        "{root}/{store_id}/work/column_maps/{file}"
+    run:
+        stage_column_map(wildcards.store_id, Path(output[0]))
+
+
 rule step:
     input:
         step_input
@@ -304,6 +345,9 @@ rule step:
             s for s in get_steps(wildcards.store_id, wildcards.root)
             if s.name == wildcards.step
         )
+        # A staged Column Map is up to date as far as Snakemake can tell, even
+        # if it changed since: its bytes are checked here, before the step reads them.
+        check_staged_column_map(wildcards.store_id, wildcards.root, step.inputs)
         run.run_step(
             step,
             store_id=wildcards.store_id,

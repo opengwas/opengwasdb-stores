@@ -72,6 +72,7 @@ EXPECTED_RAGGED = (
     "OGS-00024",
     "OGS-00025",
     "OGS-00026",
+    "OGS-00027",
 )
 
 # Dense-component Release Bundles that explicitly declare no subset. They were
@@ -426,7 +427,7 @@ class TestRegistryMigration(unittest.TestCase):
         record_check()
         self.assertIn("12/14 Dense-component bundles declare hm3; 2 explicitly opted out", rendered)
         record_check()
-        self.assertIn("7/7 Ragged-only bundles declare none", rendered)
+        self.assertIn("8/8 Ragged-only bundles declare none", rendered)
         record_check()
         self.assertIn("every registered Release Bundle", rendered)
 

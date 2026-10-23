@@ -1,5 +1,6 @@
 store_id: OGS-00017
 label: r13-full
+association_coverage: gwas
 access_posture: public
 status: accepted
 derived_from: ~

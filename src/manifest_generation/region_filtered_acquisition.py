@@ -80,6 +80,7 @@ from manifest_generation.region_filter import (
     RegionFilterError,
     RegionPolicy,
     TargetSpan,
+    canonical_association_coverage,
     filter_file,
     load_qc_panel,
 )
@@ -154,7 +155,7 @@ def policy_record(policy: RegionPolicy, qc_panel: QcPanel, target: TargetSpan | 
         "suggestive_lead_min_distance_bp": policy.suggestive_lead_min_distance_bp,
         "qc_panel": {"resource_id": qc_panel.resource_id, "sha256": qc_panel.sha256},
     }
-    if policy.association_coverage == "cis_plus_signals":
+    if policy.association_coverage == "cis_and_signals":
         record["cis_flank_bp"] = policy.cis_flank_bp
         if target is not None:
             record["target"] = {"chromosome": target.chromosome, "start": target.start, "end": target.end}
@@ -183,7 +184,7 @@ def acquire_region_filtered(
     builds = dict(source_genome_builds or {})
     out_dir, manifest_path = Path(out_dir), Path(manifest_path)
     ready = [entry for entry in originals.entries if entry.ready]
-    if policy.association_coverage == "cis_plus_signals":
+    if policy.association_coverage == "cis_and_signals":
         untargeted = [entry.source_analysis_id for entry in ready if entry.source_analysis_id not in targets]
         if untargeted:
             raise RegionFilteredAcquisitionError(
@@ -449,11 +450,25 @@ def _resume_problems(
 
 
 def policy_differences(recorded: Mapping[str, Any], expected: Mapping[str, Any]) -> list[str]:
-    """Each key a recorded region policy has another value for, as ``<key> <recorded>, not <expected>``."""
+    """Each key a recorded region policy has another value for, as ``<key> <recorded>, not <expected>``.
+
+    ``association_coverage`` is compared in the current vocabulary (#341): a
+    frozen record that says the retired ``cis_plus_signals`` is the config's
+    ``cis_and_signals``, because a frozen manifest is evidence no rename may
+    rewrite. Every other key is compared exactly as recorded.
+    """
+    def same(key: str) -> bool:
+        if key == "association_coverage":
+            return (
+                canonical_association_coverage(recorded.get(key))
+                == canonical_association_coverage(expected.get(key))
+            )
+        return recorded.get(key) == expected.get(key)
+
     return [
         f"{key} {recorded.get(key)!r}, not {expected.get(key)!r}"
         for key in sorted(set(recorded) | set(expected))
-        if recorded.get(key) != expected.get(key)
+        if not same(key)
     ]
 
 
@@ -621,7 +636,7 @@ def region_lineage_problems(
             f"the frozen files cannot be checked against region policy {policy.region_policy_id}: "
             f"its QC panel {resource.resource_id!r} cannot be read: {exc}"
         ]
-    cis = policy.association_coverage == "cis_plus_signals"
+    cis = policy.association_coverage == "cis_and_signals"
     targets = table_target_spans(table) if cis else {}
     differing: dict[str, list[str]] = {}
     for entry in ready:

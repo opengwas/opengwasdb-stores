@@ -77,7 +77,7 @@ def create_bundle(
         "label": f"fixture-{store_id}",
         "status": "candidate",
         "source_collection_id": "fixture-collection",
-        "association_coverage": "full_gwas",
+        "association_coverage": "gwas",
         "derived_from": None,
         "created_at": "2026-08-18T08:51:59Z",
         "source_snapshot_id": "fixture-snapshot",

@@ -113,6 +113,44 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - Contract 13 holds for it (`TestWorkflowSingleIdRaggedFailingObservedViewCheck`): an observed Z of the staged Store is perturbed in its stored codes, the check fails naming `z_mismatch=1` and the verdict's path, and the published Observed-Only Store is untouched.
    - Contract 14 holds for it (`TestWorkflowCompletingAPublishedRaggedStore`, a subclass of the Hybrid class that supplies its template, layout and completion command): the amended bundle runs only the completion phase, its build phase's Top-Hit record included in what stays unchanged.
    - A forced run of the completed release rebuilds both phases and replaces the Store twice, as for a Dense one (`TestWorkflowForcedRunOfACompletedRaggedRelease`, a subclass of `TestWorkflowForcedRunOfACompletedSingleIdRelease` that supplies its template and records).
+18. **Association Coverage reaches the builder, and a published Store is not
+    rebuilt because its argv now names it (#341, ADR 0040, opengwas/opengwasdb#298)**:
+   - A Ragged release builds end to end at fixture scale
+     (`TestRaggedReleaseBuildsAtItsDeclaredCoverage`,
+     `create_ragged_fixture_store`): the `build` record's planned and executed
+     argv both name `--association-coverage signals_only`, the value
+     `release.yaml` declares and no layout's default; `opengwasdb info
+     --format json` on the published Store reports it, and so does the
+     Validation Record's `observed.association_coverage`.
+   - A Ragged Store published before #341 stays up to date
+     (`TestWorkflowKeepingAStorePublishedBefore341`): the workflow as it was at
+     `PRE_341_REVISION` (`e42066b`, before the flag existed) builds and
+     publishes the same fixture from a `git archive` of itself, with its own
+     `ogstores` on `PYTHONPATH` and its `.snakemake` this checkout's. Two edges
+     of that run are supplied by the test, and nothing else about it changes:
+     the archived `runtime.py` is repinned to the runtime this environment
+     provides, as contract 14's template does, and a fixture `opengwasdb` on
+     `PATH` adds the flag the pre-#341 code cannot name, because the pinned
+     runtime requires it. Its records are still its own, naming no such token
+     — which is the state under test. The current dry run says "Nothing to be
+     done" and schedules no job, the current run executes nothing, prints
+     "nothing to be done", and leaves every record and work file byte for byte
+     at its mtime, under Snakemake's default rerun triggers. The current plan
+     does differ: it is the recorded argv with the flag added, which is why
+     the guard is a fact about rerun triggers and not about an unchanged argv.
+   - The same Store may still gain its own completion
+     (`TestWorkflowCompletingAStorePublishedBefore341`). Its `build` record
+     names no coverage; the plan now names the declared one, so the amendment
+     check (contract 14) reports that difference. ADR 0040 records the one
+     exception: a record that names no coverage matches a plan differing by the
+     declaration-derived pair alone, while a record naming another coverage is
+     refused, naming both values, and every other difference is refused as
+     before. The single-id completion gate itself is #232's (#336) and is in
+     this tree, so a Ragged release plans its own completion with no patch; the
+     Store, its records and its derived build manifest are the archived run's.
+   - Each of those two scenarios, and the Ragged build above, asserts itself in
+     **one** test method, so a fixture is built once however the suite is
+     sharded.
 
 ## Running the suite
 

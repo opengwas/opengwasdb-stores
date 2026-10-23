@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """Public-CLI integration test for resumable FinnGen artifact acquisition.
 
-Drives the R path's acquisition interface (``--release-dir``), which stays
-until the R generator retires with #288's acceptance criterion 1: the working
-bundle's checksums are filled from what was fetched, its download evidence and
-``validation.yaml`` are written, and the same acquisition is recorded in the
-shared Acquisition Manifest beside them.
+Drives the R-era acquisition interface (``--release-dir``), which outlives the
+R generator deleted with the rest of that path: the recorded receipts of
+OGS-00003 and OGS-00017 cite it, and it still fills a working bundle's
+checksums from what was fetched, writes its download evidence and
+``validation.yaml``, and records the same acquisition in the shared Acquisition
+Manifest beside them.
 """
 from __future__ import annotations
 

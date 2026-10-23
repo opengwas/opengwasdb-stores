@@ -256,6 +256,36 @@ threadpoolctl = ">=3.0"
 # Store whose shared axis is short of the list. The range `1e2fb42..496bfe9` is
 # #324's commit and merge; #324 is its only functional change.
 #
+# Repinned for #314 to `d8896e6`, the opengwasdb `dev` merge of PR #305. The full
+# eQTLGen cis Store (OGS-00027) fails `validate` at `d405de0`: 13 hg19 SNPs
+# collide on one hg38 variant after the lift, so one Analysis's CSR segment
+# holds one `variant_index` twice. `d8896e4` makes `build-ragged-besd` drop every
+# ESI entry in a colliding group, with its associations, exactly as a liftover
+# failure is, and tightens `validate` to require each Analysis's `variant_index`
+# slice to be strictly increasing (naming a repeat separately from a decrease).
+# The range `d405de0..d8896e4` is #304's three commits and its merge plus a
+# docs-only merge (#293, agent skills); #304 is its only functional change, and
+# the Store format stays 0.2.0.
+#
+# Repinned for #341 to `75f0e77a`, the opengwasdb `dev` merge of PR #298, which
+# makes Association Coverage a build input. `build-ragged-ssf` and
+# `build-ragged-besd` now require `--association-coverage` (one of `gwas`, `cis`,
+# `cis_and_signals`, `signals_only`, the four-value vocabulary ADR 0040 settles),
+# `build-dense-vcf` and `build-hybrid` accept only `gwas`, and every builder and
+# completion command prints `association_coverage` in its stdout JSON. The range
+# `d8896e4..75f0e77` is #298's own commits and its merge. There is no Store
+# format bump (the owner's decision on opengwas/opengwasdb#298): the Store
+# format stays 0.2.0, and the pinned runtime reads a legacy `full` in an
+# existing Store's `manifest.json` as `gwas`.
+#
+# Repinned for the epic #232 integration branch to `2f308cb8`, the merge of
+# opengwasdb `dev` into `orch/232-observed-view`. It is the first revision that
+# carries both lines of work at once -- #295, #296, #306 and #324 from the
+# integration branch, #304 and #298 from `dev` -- so a Store built from the
+# integration branch and a Store built from `dev` are built by one runtime. The
+# range `496bfe9..2f308cb` is that merge and #306's ADR renumbering; nothing
+# else changed in it, and the Store format stays 0.2.0.
+#
 # Because these capabilities ship in the tracked pin, the ordinary
 # `pixi run release` invocation resolves a capable runtime from this
 # environment with no ad-hoc `PATH` overlay (the HM3 proof's temporary
@@ -271,7 +301,7 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "496bfe9cc9bbc85c60718d62aa4c6d43d83af810" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "2f308cb8bd866d9549fa8e75d9622bdd7f29bcad" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
@@ -294,6 +324,7 @@ r-ggplot2 = "*"
 r-knitr = "*"
 r-scales = "*"
 r-tibble = "*"
+r-rsqlite = "*"
 r-tidyr = "*"
 r-jsonlite = "*"
 r-curl = "*"
@@ -375,6 +406,20 @@ curation = { features = ["python", "curation"] }
 #
 generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate" }
 
+# The Analysis Catalog (#323, ADR 0039): rebuild the cross-Store listing of every
+# Analysis of every served Store Release from the registry's Release Bundles,
+# into <artifact-root>/catalog/versions/<version>/, and swap `current`. It reads
+# bundles only and never opens a Store. Run after a merge to dev, from a clean
+# checkout; a rebuild with unchanged inputs writes nothing. Resolves the
+# Artifact Root as ogstores does; `--artifact-root PATH` overrides it.
+#
+#   pixi run catalog [--registry stores] [--artifact-root PATH]
+#
+#
+# It also renders the summary report (#325), which needs Quarto and R beside
+# the builder, so the task runs in `dev` whichever environment is default.
+catalog = { cmd = "python3 -m analysis_catalog", default-environment = "dev" }
+
 [feature.python.tasks]
 # Manifest Generation: freeze the Source Inventory a release config selects,
 # with the shared freeze over the Source Collection's connector files (#283),
@@ -402,6 +447,7 @@ concordance-run = { cmd = "python3 -m manifest_generation.run_concordance_study"
 bundle-check = { cmd = "python3 -m manifest_generation.check_bundles" }
 audit-indexed-subsets = { cmd = "python3 -m ogstores.audit_indexed_subsets" }
 env-check = { cmd = "python3 tools/env_check.py" }
+worktree-prune = { cmd = "python3 tools/prune_worktrees.py" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.r.tasks]
@@ -435,9 +481,13 @@ docs = { cmd = "bash tools/build-site.sh" }
 # in this repository (resources/data/*.tsv, "download separately" per
 # .gitignore) to build ebi-studies.qmd/make-dashboard.r's inputs. docs-smoke
 # renders only beta-scale-estimation.qmd, which is fully self-contained (no
-# external data reads), so it is safe to run from a bare checkout — this is
+# external data reads), so it is safe to run from a bare checkout, in `docs` as well as `dev` — this is
 # what CI uses as its documentation smoke test.
 docs-smoke = { cmd = "quarto render docs/reports/beta-scale-estimation.qmd --to html" }
+# Smoke render of the Analysis Catalog summary (#325) against a fixture catalog.
+# Needs the builder as well as Quarto, so run it in `dev`, not `docs`; CI runs it
+# in the same job as docs-smoke.
+catalog-summary-smoke = { cmd = "python3 tests/catalog/smoke_summary.py" }
 
 [feature.ld-panel.tasks]
 ld-acquire = { cmd = "python3 tools/ld-panel/acquire_hgdp1kgp.py" }

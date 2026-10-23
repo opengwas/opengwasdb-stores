@@ -23,6 +23,7 @@
 release_config_version: 1
 
 label: 2023-chen-full-european
+association_coverage: signals_only
 access_posture: public
 description: >
   Full European-ancestry slice of the Chen et al. 2023 plasma metabolome atlas

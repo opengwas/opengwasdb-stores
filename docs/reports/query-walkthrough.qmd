@@ -97,7 +97,7 @@ The four fields worth understanding:
   source GWAS. `reference_completed` means gaps have additionally been
   *imputed* from an LD reference panel. See
   [Observed vs completed](#observed-versus-reference-completed).
-- **`association_coverage`** — `full` (genome-wide) versus `cis_and_signals`
+- **`association_coverage`** — `gwas` (genome-wide) versus `cis_and_signals`
   (only regions near the gene of interest, plus significant hits). A
   `cis_and_signals` store genuinely does not contain most of the genome; an
   empty result there means "not stored", not "no effect".

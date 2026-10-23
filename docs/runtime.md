@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `496bfe9cc9bbc85c60718d62aa4c6d43d83af810`, the merge of core #324 (`build-indexed-subset --overflow-only`) into the core integration branch `orch/232-observed-view` (core PR #303), which starts from core `dev` at `829b501`; not yet on core `dev` |
-| Core merge | opengwas/opengwasdb #324 (a policy for a Hybrid subset request that only the Overflow axis carries), #306 (an rsid-conflict policy for the Hybrid build's name harvest, and compound-id normalisation in the readers), #296 (Ragged `check-observed-view`) and #295 (Hybrid `check-observed-view`) on top of `dev`, which carries PR #291 (`check-observed-view`, core #289), #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: #306's merge `1e2fb42` (stores #225), #296's merge `32f47b3b` (stores #336), #295's merge `eb4c749b` (stores #333), the core `dev` merge of PR #291 `d405de0a` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Revision | `2f308cb8bd866d9549fa8e75d9622bdd7f29bcad`, the merge of core `dev` into the core integration branch `orch/232-observed-view` (core PR #303), which starts from core `dev` at `829b501`: the first revision carrying both lines of work, the integration branch's #295, #296, #306 and #324 and `dev`'s #304 and #298 |
+| Core merge | opengwas/opengwasdb #298 (Association Coverage is a build input, core #341), #305 (`build-ragged-besd` drops lift-colliding ESI entries, `validate` requires a strictly increasing `variant_index`, core #304), #324 (a policy for a Hybrid subset request that only the Overflow axis carries), #306 (an rsid-conflict policy for the Hybrid build's name harvest, and compound-id normalisation in the readers), #296 (Ragged `check-observed-view`) and #295 (Hybrid `check-observed-view`) on top of `dev`, which carries PR #291 (`check-observed-view`, core #289), #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: #324's merge `496bfe9` (stores #225), the `dev` merge of PR #305 `d8896e4` (stores #314), #306's merge `1e2fb42` (stores #225), #296's merge `32f47b3b` (stores #336), #295's merge `eb4c749b` (stores #333), the core `dev` merge of PR #291 `d405de0a` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -57,6 +57,21 @@ re-run `pixi lock` in the same commit.
   `build-indexed-subset --overflow-only {refuse,skip}` decides a requested ALID
   only the Hybrid's shared axis carries, and a `skip` build records how many.
   See "Coordination with core #324".
+- **One policy for a post-lift variant collision** (opengwas/opengwasdb#304;
+  moved here for stores #314's OGS-00027). A chain set need not be injective: two
+  hg19 loci can map into one hg38 position, and when their projected alleles
+  agree they become one canonical variant. `build-ragged-besd` now drops every
+  ESI entry in such a colliding group, with its associations, exactly as a
+  liftover failure is, and records the counts in `provenance.lift`; a Ragged CSR
+  cannot hold one `variant_index` twice in one Analysis's segment. `validate`
+  requires each Analysis's `variant_index` slice to be **strictly increasing**,
+  on every release, and reports a repeat separately from a decrease.
+- **Association Coverage as a build input** (opengwas/opengwasdb#298, core
+  #341). Both Ragged builders require `--association-coverage`; Dense and Hybrid
+  accept only `gwas`; every builder and completion command reports the coverage
+  it wrote, and `register` refuses a build whose reported coverage differs from
+  the release's declaration. A legacy `full` in an existing Store's manifest is
+  read as `gwas`; the Store format did not move.
 
 ## The pre-write gate
 
@@ -186,9 +201,10 @@ whose ALID becomes a Dense row on completion), and a seeded sample of
 whole Overflow Analyses with exhaustive per-Analysis counts. Stores #333 moved
 the pin to `eb4c749b`, #295's merge into the core integration branch
 `orch/232-observed-view` (core PR #303), so that a Hybrid release can complete
-its own Store (ADR 0037). That revision is not yet on core `dev`; when the
-branch merges there, the pin moves to the merge on `dev`, as stores #312 did for
-PR #291.
+its own Store (ADR 0037). That revision is not yet on core `dev`. The pin
+has since moved to the merge of core `dev` into that branch, which carries
+`dev`'s #304 and #298 as well (the pin table above); the branch itself has not
+merged into `dev` yet.
 
 `--help` shows the same `check-observed-view` command on revisions that compare
 only Dense pairs, so the capability probe above cannot tell them apart. The
@@ -222,6 +238,18 @@ observed SE slightly (opengwas/opengwasdb#301), so a Ragged Store whose builder
 chose that encoding, as OGS-00006's did, fails the check until #301 is
 resolved.
 
+## Coordination with core #304
+
+Core opengwas/opengwasdb#304 is the fix for the collision class the full eQTLGen
+cis Store (OGS-00027, stores #314) hit: 13 of its hg19 SNPs land on one hg38
+variant after the lift, so `d405de0`'s `validate` passed a Store whose CSR held a
+`variant_index` twice in one Analysis's segment. The pin moved to `d8896e4`, the
+`dev` merge of PR #305, whose range from `d405de0` is #304's three commits and
+its merge plus a docs-only merge (#293). The tightened ordering rule is a
+validation rule, so it applies to every release, not only to new builds: it
+reads each registered Ragged and Hybrid Store's full `variant_index` and finds
+no repeat, so no published Store becomes invalid at this pin. A Store built
+before it that does carry a repeat must be rebuilt, not revalidated.
 ## Coordination with core #306
 
 A single-pass Hybrid build whose variant reference names no rsids harvests a

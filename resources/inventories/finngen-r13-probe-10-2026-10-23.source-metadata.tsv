@@ -1,0 +1,11 @@
+source_analysis_id	source_trait_label	source_trait_id	source_ancestry_label	source_superpopulation	study_design	sample_size	n_cases	n_controls	analysis_id	analysis_group_id
+AB1_ACTINOMYCOSIS	Actinomycosis	AB1_ACTINOMYCOSIS	Finnish	EUR	case-control	433889	132	433757	finngen-r13-AB1_ACTINOMYCOSIS	I Certain infectious and parasitic diseases (AB1_)
+ALCODELIRIUM	Alcohol withdrawal state with delirium	ALCODELIRIUM	Finnish	EUR	case-control	500186	2693	497493	finngen-r13-ALCODELIRIUM	V Mental and behavioural disorders (F5_)
+BMI_IRN	Body mass index, inverse-rank normalized	BMI_IRN	Finnish	EUR	quantitative	362216			finngen-r13-BMI_IRN	Quantitative endpoints
+CD2_INSITU_BREAST	Carcinoma in situ of breast	CD2_INSITU_BREAST	Finnish	EUR	case-control	281909	194	281715	finngen-r13-CD2_INSITU_BREAST	II Neoplasms from hospital discharges (CD2_)
+HEIGHT_IRN	Height, inverse-rank normalized	HEIGHT_IRN	Finnish	EUR	quantitative	364515			finngen-r13-HEIGHT_IRN	Quantitative endpoints
+K11_IBD_STRICT	Inflammatory bowel disease, strict (require KELA)	K11_IBD_STRICT	Finnish	EUR	case-control	500186	11246	488940	finngen-r13-K11_IBD_STRICT	XI Diseases of the digestive system (K11_)
+M13_ARTHROPATHIES	Arthropathies	M13_ARTHROPATHIES	Finnish	EUR	case-control	500186	191339	308847	finngen-r13-M13_ARTHROPATHIES	XIII Diseases of the musculoskeletal system and connective tissue (M13_)
+RX_STATIN	Statin medication	RX_STATIN	Finnish	EUR	case-control	500186	203299	296887	finngen-r13-RX_STATIN	IX Diseases of the circulatory system (I9_)
+T2D	Type 2 diabetes, definitions combined	T2D	Finnish	EUR	case-control	486019	89727	396292	finngen-r13-T2D	Diabetes endpoints
+WEIGHT_IRN	Weight, inverse-rank normalized	WEIGHT_IRN	Finnish	EUR	quantitative	369975			finngen-r13-WEIGHT_IRN	Quantitative endpoints

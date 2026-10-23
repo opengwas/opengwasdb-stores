@@ -2,8 +2,7 @@
 
 A curated fallback for Trait Ontology Mapping (see `CONTEXT.md`) when a
 Source Collection doesn't supply its own `trait_ontology_id`/
-`trait_ontology_label` — currently only `opengwas-gwas-vcf-dense` (ukb-b) is
-in this position; `gwas-ssf-ragged`'s GWAS Catalog source already supplies
+`trait_ontology_label` — currently only ukb-b is in this position; `gwas-ssf-ragged`'s GWAS Catalog source already supplies
 `MAPPED_TRAIT`/`MAPPED_TRAIT_URI` for every currently-built bundle.
 
 ## Lookup contract
@@ -61,8 +60,7 @@ changes lookup behaviour — it only adds provenance for reviewers.
 Exact-match lookup only works when trait labels are already reasonably
 clean and consistent. `gwas-ssf-ragged`'s GWAS Catalog-derived labels rarely
 need this fallback (0 unmapped rows across every currently-built bundle at
-time of writing). `opengwas-gwas-vcf-dense` (ukb-b)'s ~2,500 free-text UK
-Biobank field descriptions (e.g. `"Operative procedures - secondary OPCS:
+time of writing). ukb-b's ~2,500 free-text UK Biobank field descriptions (e.g. `"Operative procedures - secondary OPCS:
 Z84.6 Knee joint"`) are the opposite case: too numerous and too messy for
 hand curation. Those rows come from the curation pipeline described in "How
 rows are added".

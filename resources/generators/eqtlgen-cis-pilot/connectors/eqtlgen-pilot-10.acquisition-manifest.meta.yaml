@@ -1,0 +1,65 @@
+acquisition_manifest: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.tsv
+sha256: 9c617f9039b0fcad20d32993fdbc3dcd58e7422193eee88ba4683092ad055a6a
+rows: 10
+readiness_counts:
+  ok: 10
+written_by: manifest_generation.providers.eqtlgen.acquire
+release_config: resources/generators/eqtlgen-cis-pilot/release-pilot-10.yaml
+selection:
+  analyses:
+  - ENSG00000175445
+  - ENSG00000134243
+  - ENSG00000130203
+  - ENSG00000073605
+  - ENSG00000164308
+  - ENSG00000232810
+  - ENSG00000141510
+  - ENSG00000136244
+  - ENSG00000087237
+  - ENSG00000136997
+  expect_rows: 10
+probes:
+- ENSG00000175445
+- ENSG00000134243
+- ENSG00000130203
+- ENSG00000073605
+- ENSG00000164308
+- ENSG00000232810
+- ENSG00000141510
+- ENSG00000136244
+- ENSG00000087237
+- ENSG00000136997
+original:
+  prefix: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  members:
+    .besd:
+      bytes: 2037737744
+      sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+    .epi:
+      bytes: 917832
+      sha256: ba9810b0254faeda783b051ccb49b48c74f3022e1c517b438fe612bdcd6f1b86
+    .esi:
+      bytes: 338182684
+      sha256: 4841e8965821dc1d7bd4ea4a05ba789e24fc729b5ed7a6d2b0bdea31b1cf696a
+  counts:
+    probes: 19250
+    snps: 8932843
+    associations: 127339354
+subset:
+  prefix: /data/opengwasdb/raw/eqtlgen/pilot-10
+  members:
+    .besd:
+      bytes: 1384176
+      sha256: f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58
+    .epi:
+      bytes: 475
+      sha256: 5c87eb60d4d9df5c4a375e61608a2538976256882ab24c70ea50a73d80ebe6b6
+    .esi:
+      bytes: 3270860
+      sha256: d7e38838fbfd1afaa7844b8f98be248647b325dc2513f6a6f6815912ceda9294
+  counts:
+    probes: 10
+    snps: 86496
+    associations: 86496
+reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+source_url: https://eqtlgen.org/cis-eqtls.html

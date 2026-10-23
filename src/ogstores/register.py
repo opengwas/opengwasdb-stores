@@ -11,10 +11,18 @@ Responsibilities:
    - Legitimate divergence: `complete-dense-resume` substituted for a planned `complete-dense`
      is accepted and recorded as `resumed: true` in `validation.yaml`.
 3. Harvests observed measurements from step records:
-   `format_version`, `n_variants`, `n_analyses`, `n_associations`, `store_bytes`,
+3. Harvests observed measurements from step records:
+   `format_version`, `n_variants`, `n_analyses`, `n_associations`,
+   `association_coverage`, `reference_assembly`, `store_bytes`,
    `build_elapsed_s`, `completion_state`, and `validate_status`, plus the
    `rsid_conflicts` counts a Hybrid build reports (#225) when it reports them,
    which a completion phase carries from the build phase that reported them.
+   `n_associations`, `association_coverage` and `reference_assembly` are the
+   producing step's reported values or None: matrix cells are never reported
+   as associations, and an unreported key is recorded absent rather than
+   derived (#322). A reported `association_coverage` must be the release's own
+   declaration in `release.yaml`, which is the value the builder was given:
+   a mismatch is refused, naming both (#341).
    The verdict, `checks`, `warnings` and `errors` are this run's alone: they come
    from `opengwasdb validate --format json`, and nothing is carried from the
    Validation Record being replaced (#195). A candidate's Phase B evidence is
@@ -69,6 +77,12 @@ OBSERVED_FIELDS: tuple[str, ...] = (
     "n_analyses",
     "n_variants",
     "n_associations",
+    # What associations the Store is expected to hold and the assembly its
+    # coordinates are on. Both are recorded as opengwasdb reports them (for
+    # coverage, `full` or `cis_and_signals`), only ever the producing step's
+    # report, never read from the Store or its `manifest.json` (ADR 0023, #322).
+    "association_coverage",
+    "reference_assembly",
     "store_bytes",
     "build_elapsed_s",
     "validate_status",
@@ -118,6 +132,18 @@ class ArgvDriftError(RegisterError, ValueError):
 
 class ValidateVerdictError(RegisterError, ValueError):
     """Raised when the validate step's record carries no `--format json` verdict."""
+
+    pass
+
+
+class ObservedMeasurementError(RegisterError, ValueError):
+    """Raised when a producing step's stdout JSON carries a malformed observed measurement."""
+
+    pass
+
+
+class AssociationCoverageMismatchError(RegisterError, ValueError):
+    """Raised when a producing step reports a coverage the release does not declare (#341)."""
 
     pass
 
@@ -485,6 +511,75 @@ def _reported_rsid_conflicts(record: Mapping[str, Any]) -> dict[str, Any] | None
     return {key: reported.get(key) for key in RSID_CONFLICT_FIELDS}
 
 
+def _reported_association_count(
+    payload: dict[str, Any], step_name: str, where: str
+) -> int | None:
+    """The step's reported `n_associations`, or None when the step printed no such key.
+
+    A present value must be a non-negative integer that is not a bool: a string,
+    float, list, negative or boolean is malformed, and recording it as None
+    would present "opengwasdb reported something else" as "opengwasdb reported
+    nothing" (#322).
+    """
+    if "n_associations" not in payload:
+        return None
+    value = payload["n_associations"]
+    if type(value) is not int or value < 0:
+        raise ObservedMeasurementError(
+            f"The {step_name} step's record {where} carries n_associations={value!r} in its "
+            "stdout JSON; opengwasdb reports it as a non-negative integer, so register "
+            "refuses rather than recording null for a value that was present (#322)"
+        )
+    return value
+
+
+def _reported_observed_text(
+    payload: dict[str, Any], key: str, step_name: str, where: str
+) -> str | None:
+    """The step's reported string for `key`, or None when the step printed no such key.
+
+    A present value must be a non-empty string: an empty, blank or non-string
+    value is malformed, and recording it as None would present "opengwasdb
+    reported something else" as "opengwasdb reported nothing" (#322).
+    """
+    if key not in payload:
+        return None
+    value = payload[key]
+    if not isinstance(value, str) or not value.strip():
+        raise ObservedMeasurementError(
+            f"The {step_name} step's record {where} carries {key}={value!r} in its stdout "
+            "JSON; opengwasdb reports it as a non-empty string, so register refuses rather "
+            "than recording null or the value for something that was present (#322)"
+        )
+    return value
+
+
+def require_declared_association_coverage(
+    reported: str | None, bundle_obj: Bundle, producing_step: str, where: str
+) -> None:
+    """Refuse a producing step whose reported coverage is not the one the release declares.
+
+    The declaration in `release.yaml` is what the builder was given
+    (`--association-coverage`, ADR 0040), so a Store built at another coverage
+    is not the Store the release describes, however well it validates (#341).
+    Both values are named, because the useful question is which of the two is
+    wrong. A step that reported nothing is an opengwasdb whose stdout carried no
+    such key: that records `null`, as it always has (#322), rather than a
+    refusal the older runtime could never satisfy.
+    """
+    if reported is None:
+        return
+    declared = bundle_obj.association_coverage
+    if reported != declared:
+        raise AssociationCoverageMismatchError(
+            f"The {producing_step} step's record {where} reports association_coverage "
+            f"{reported!r}, but release.yaml declares {declared!r} for "
+            f"{bundle_obj.store_id}. The builder was given the declared value, so the "
+            "Store it wrote is not the release this bundle describes: nothing was "
+            "registered (ADRs 0040, 0023)."
+        )
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
@@ -517,6 +612,8 @@ def harvest_observed_measurements(
     n_variants: int | None = None
     n_analyses: int | None = None
     n_associations: int | None = None
+    association_coverage: str | None = None
+    reference_assembly: str | None = None
     store_bytes: int | None = None
     rsid_conflicts: dict[str, Any] | None = None
     validate_status, _, _ = validate_verdict(step_records.get(_validate_step(planned_steps)))
@@ -525,14 +622,23 @@ def harvest_observed_measurements(
     producing_step = next((s.name for s in planned_steps if s.name in ("build", "complete")), None)
     if producing_step and producing_step in step_records:
         rec = step_records[producing_step]
+        where = rec.get("record_path") or f"records/{producing_step}.json"
         stdout_json = _extract_json_from_text(rec.get("stdout", ""))
         if stdout_json:
             if "n_variants" in stdout_json and isinstance(stdout_json["n_variants"], int):
                 n_variants = stdout_json["n_variants"]
             if "n_analyses" in stdout_json and isinstance(stdout_json["n_analyses"], int):
                 n_analyses = stdout_json["n_analyses"]
-            if "n_associations" in stdout_json and isinstance(stdout_json["n_associations"], int):
-                n_associations = stdout_json["n_associations"]
+            n_associations = _reported_association_count(stdout_json, producing_step, where)
+            association_coverage = _reported_observed_text(
+                stdout_json, "association_coverage", producing_step, where
+            )
+            require_declared_association_coverage(
+                association_coverage, bundle_obj, producing_step, where
+            )
+            reference_assembly = _reported_observed_text(
+                stdout_json, "reference_assembly", producing_step, where
+            )
             if "format_version" in stdout_json and isinstance(stdout_json["format_version"], str):
                 format_version = stdout_json["format_version"]
             rsid_conflicts = _reported_rsid_conflicts(rec)
@@ -570,16 +676,18 @@ def harvest_observed_measurements(
         except Exception:
             pass
 
-    # Fallback for n_associations on dense layout
-    if n_associations is None and n_variants is not None and n_analyses is not None:
-        if bundle_obj.layout == "dense":
-            n_associations = n_variants * n_analyses
+    # No fallback for n_associations: `n_variants * n_analyses` counts a Dense
+    # Store's matrix cells, and an Observed-Only Store has many empty cells, so
+    # the product looks right and is wrong (#322). Only a step that reported the
+    # count can fill it, or the record says null.
 
     observed: dict[str, Any] = {
         "format_version": format_version,
         "n_analyses": n_analyses,
         "n_variants": n_variants,
         "n_associations": n_associations,
+        "association_coverage": association_coverage,
+        "reference_assembly": reference_assembly,
         "store_bytes": store_bytes,
         "build_elapsed_s": round(total_elapsed, 3),
         "validate_status": validate_status,
@@ -1281,6 +1389,7 @@ __all__ = [
     "RSID_CONFLICT_FIELDS",
     "VALIDATOR_NAME",
     "ArgvDriftError",
+    "AssociationCoverageMismatchError",
     "MissingRecordError",
     "ObservedViewCheckError",
     "PUBLICATION_BOUNDARIES",

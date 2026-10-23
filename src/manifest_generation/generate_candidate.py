@@ -83,6 +83,7 @@ from manifest_generation.candidate_workflow import (
     apply_release_policy,
     build_candidate_tables,
     build_resolution_receipt,
+    declared_setting_checksums,
     derive_resolver_manifest,
     load_candidate_configuration,
     map_candidate_trait_ontologies,
@@ -90,6 +91,7 @@ from manifest_generation.candidate_workflow import (
     read_analysis_metadata,
     read_resolution_receipt,
     render_build_yaml,
+    render_column_maps,
     render_release_yaml,
     render_resolver_manifest,
     render_validation_yaml,
@@ -100,9 +102,11 @@ from manifest_generation.candidate_workflow import (
     sha256_file,
     sha256_text,
     validate_candidate_analyses,
+    verify_liftover_chain,
     verify_records,
     write_resolution_receipt,
 )
+from manifest_generation.completion import blocked_reason
 from manifest_generation.emit import CandidateBundle, EmitError, emit, render_yaml
 from manifest_generation.inventory import freeze_release
 from manifest_generation.resolution_area import (
@@ -287,9 +291,16 @@ def stage_prepare(pipeline: Pipeline) -> tuple[list, dict]:
 
 def stage_resolve(pipeline: Pipeline, manifest: list) -> None:
     area = pipeline.resolution_area
+    # The resolver opens the declared liftover chain, so its bytes are checked
+    # before anything else here (#292): composing the settings below reads no
+    # host file, and a CI runner has no /data to read.
+    verify_liftover_chain(pipeline.config)
     # Each set of resolver settings has its own checkpoint, so a Selection
     # resolved under other settings never evicts this one's records (#284).
-    settings_digest = resolver_settings_digest(resolver_settings(pipeline.config))
+    settings_digest = resolver_settings_digest(
+        resolver_settings(pipeline.config),
+        declared_checksums=declared_setting_checksums(pipeline.config),
+    )
     checkpoint = area.checkpoint_dir(settings_digest)
     argv = resolver_argv(
         resolver_bin=pipeline.args.resolver,
@@ -453,6 +464,17 @@ def stage_render(
             else ""
         )
     )
+    if pipeline.config.completion is not None:
+        reason = blocked_reason(pipeline.config.completion.reference)
+        print(
+            "Reference completion (ADR 0037): "
+            + (
+                f"{reason}: rendering it observed-only, with no complete block"
+                if reason
+                else f"{pipeline.config.completion.resource_id} is qualified and active: "
+                "this bundle declares both phases under its own id"
+            )
+        )
     if tables.reference_overlap_errors:
         raise CandidateError("bundle reference-overlap validation failed:\n  - "
                              + "\n  - ".join(tables.reference_overlap_errors))
@@ -493,8 +515,10 @@ def stage_render(
             generator_version=generator_version,
             resolver_receipt_path=pipeline.receipt_path,
             resolver_receipt_sha256=receipt_sha256,
+            manifest_rows=manifest,
         ),
         build=render_build_yaml(pipeline.store_id, pipeline.config),
+        column_maps=render_column_maps(pipeline.config),
         analyses_tsv=tables.analyses_tsv,
         commands=commands,
         validation=render_validation_yaml(
@@ -503,6 +527,7 @@ def stage_render(
             validated_at=created_at,
             validator_name=MODULE,
             trait_ontology_mapping=trait_ontology_run.provenance(),
+            completion=pipeline.config.completion,
         ),
         sidecars={
             "source_readiness.tsv": tables.source_readiness_tsv,
@@ -540,6 +565,10 @@ def write_rendered(candidate: CandidateBundle, directory: Path) -> None:
         (staging / "validation.yaml").write_text(render_yaml(candidate.validation), encoding="utf-8")
     for name, text in candidate.sidecars.items():
         (staging / "sidecars" / name).write_text(text, encoding="utf-8")
+    if candidate.column_maps:
+        (staging / "column_maps").mkdir()
+        for name, data in candidate.column_maps.items():
+            (staging / "column_maps" / name).write_bytes(data)
     shutil.rmtree(directory, ignore_errors=True)
     staging.rename(directory)
 

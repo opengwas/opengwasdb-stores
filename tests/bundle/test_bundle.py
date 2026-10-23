@@ -36,6 +36,80 @@ def record_check() -> None:
     n_checks += 1
 
 
+def write_bundle(
+    registry: Path,
+    store_id: str = "OGS-00090",
+    *,
+    release: dict[str, Any] | None = None,
+    build: dict[str, Any] | None = None,
+    analyses: str | None = None,
+    status: str = "accepted",
+) -> bundle.Bundle:
+    """Write one minimal Release Bundle under `registry` and load it.
+
+    Module-level so a class testing one part of the contract can sit beside the
+    tests it belongs with instead of inheriting every test of the class that
+    first needed the fixture.
+    """
+    root = registry / store_id
+    root.mkdir(parents=True, exist_ok=True)
+    release_data: dict[str, Any] = {
+        "store_id": store_id,
+        "label": "fixture",
+        "association_coverage": "gwas",
+        "status": status,
+        "source_snapshot_id": "fixture-snapshot-v1",
+        "derived_from": None,
+        "created_at": "2026-09-17T00:00:00Z",
+        "description": "Fixture Release Bundle",
+        "generator": {"commands": ["fixtures/generate.py"]},
+    }
+    if release:
+        release_data.update(release)
+    build_data: dict[str, Any] = {
+        "store_id": store_id,
+        "layout": "dense",
+        "completion_state": "observed_only",
+        "build": {"command": "build-dense-vcf", "options": {}},
+        "post": {
+            "top_hits": False,
+            "rho": False,
+            "overview": True,
+            "validate": True,
+        },
+    }
+    if build:
+        build_data.update(build)
+    if analyses is None:
+        analyses = (
+            "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+            "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+            "original_sd_method\tassigned_ancestry\t"
+            "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
+            "source_file\n"
+            "FIXTURE_1\tsd\ttotal\tanalysis_level\t1000\tsd\t"
+            "declared_standardised\tEUR\taf_assigned\t"
+            f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\n"
+        )
+
+    (root / "release.yaml").write_text(
+        yaml.safe_dump(release_data), encoding="utf-8"
+    )
+    (root / "build.yaml").write_text(
+        yaml.safe_dump(build_data), encoding="utf-8"
+    )
+    (root / "analyses.tsv").write_text(analyses, encoding="utf-8")
+    return bundle.load(store_id, registry_root=registry)
+
+
+# A Ragged Build Recipe: the only layout that can carry a coverage other than
+# `gwas`, so the four-value vocabulary is exercised on it (#341).
+RAGGED_BUILD: dict[str, Any] = {
+    "layout": "ragged",
+    "build": {"command": "build-ragged-ssf", "options": {}},
+}
+
+
 class TestBundleContract(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp_dir = Path(tempfile.mkdtemp(prefix="ogstores_bundle_"))
@@ -52,54 +126,14 @@ class TestBundleContract(unittest.TestCase):
         analyses: str | None = None,
         status: str = "accepted",
     ) -> bundle.Bundle:
-        root = self.tmp_dir / store_id
-        root.mkdir(parents=True, exist_ok=True)
-        release_data: dict[str, Any] = {
-            "store_id": store_id,
-            "label": "fixture",
-            "status": status,
-            "source_snapshot_id": "fixture-snapshot-v1",
-            "derived_from": None,
-            "created_at": "2026-09-17T00:00:00Z",
-            "description": "Fixture Release Bundle",
-            "generator": {"commands": ["fixtures/generate.py"]},
-        }
-        if release:
-            release_data.update(release)
-        build_data: dict[str, Any] = {
-            "store_id": store_id,
-            "layout": "dense",
-            "completion_state": "observed_only",
-            "build": {"command": "build-dense-vcf", "options": {}},
-            "post": {
-                "top_hits": False,
-                "rho": False,
-                "overview": True,
-                "validate": True,
-            },
-        }
-        if build:
-            build_data.update(build)
-        if analyses is None:
-            analyses = (
-                "analysis_id\tstored_effect_scale\tsample_size_kind\t"
-                "sample_size_scope\tsample_size\toriginal_effect_scale\t"
-                "original_sd_method\tassigned_ancestry\t"
-                "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
-                "source_file\n"
-                "FIXTURE_1\tsd\ttotal\tanalysis_level\t1000\tsd\t"
-                "declared_standardised\tEUR\taf_assigned\t"
-                f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\n"
-            )
-
-        (root / "release.yaml").write_text(
-            yaml.safe_dump(release_data), encoding="utf-8"
+        return write_bundle(
+            self.tmp_dir,
+            store_id,
+            release=release,
+            build=build,
+            analyses=analyses,
+            status=status,
         )
-        (root / "build.yaml").write_text(
-            yaml.safe_dump(build_data), encoding="utf-8"
-        )
-        (root / "analyses.tsv").write_text(analyses, encoding="utf-8")
-        return bundle.load(store_id, registry_root=self.tmp_dir)
 
     def test_manifest_generation_rules_are_not_the_contracts(self) -> None:
         """Manifest Generation's rules are its own (#250).
@@ -152,12 +186,12 @@ class TestBundleContract(unittest.TestCase):
         )
         # The five bundles migrated in #252 take the next ids after the ones
         # reserved for OGS-00018-00021. Those, and OGS-00010, are retired unused
-        # (#308, #312): ids are never reused.
+        # (#308, #312): ids are never reused. OGS-00027 is the full eQTLGen release (#314).
         allocated = [f"OGS-{number:05d}" for number in [*range(1, 18)]]
         self.assertEqual(
             store_ids,
             [store_id for store_id in allocated if store_id not in paths.RETIRED_STORE_IDS]
-            + [f"OGS-{number:05d}" for number in range(22, 27)],
+            + [f"OGS-{number:05d}" for number in range(22, 28)],
         )
         for store_id in store_ids:
             errors = bundle.check(
@@ -211,6 +245,67 @@ class TestBundleContract(unittest.TestCase):
         self.assertEqual(summary["n_excluded"], 0)
         record_check()
         self.assertFalse((REPO_ROOT / "stores" / "OGS-00021").exists())
+
+    def test_ogs_00027_is_validated_and_scientifically_accepted(self) -> None:
+        """The owner accepted the full eQTLGen candidate (#314 comment 6345246939).
+
+        `accepted` is the fixed-input gate for building. The Store was then built
+        and validated at opengwasdb d8896e4, and `register` replaced the
+        candidate record with its own, carrying the acceptance evidence under
+        `acceptance.acceptance` with the commit it came from. The owner then
+        accepted the released Store scientifically (#314 comment 6360207599),
+        so `human_acceptance` is `accepted` and the Release Status moved
+        accepted -> built -> validated.
+        """
+        loaded = bundle.load("OGS-00027", registry_root=REPO_ROOT / "stores")
+        record_check()
+        self.assertEqual(list(bundle.check(loaded, registry_root=REPO_ROOT / "stores")), [])
+        record_check()
+        self.assertEqual(loaded.status, "validated")
+        record_check()
+        self.assertEqual(bundle.validate_status_transition("accepted", "built"), [])
+        record_check()
+        self.assertEqual(bundle.validate_status_transition("built", loaded.status), [])
+        record_check()
+        self.assertEqual(loaded.release["accepted_at"], "2026-10-22T16:00:43Z")
+        record_check()
+        self.assertEqual(loaded.validation["status"], "passed")
+        record_check()
+        self.assertEqual(
+            loaded.validation["validator"]["version"],
+            "opengwasdb@d8896e46677ae9d54f1fc08a974e8c7e41d105cc",
+        )
+        observed = loaded.validation["observed"]
+        record_check()
+        self.assertEqual(
+            (observed["n_analyses"], observed["n_variants"], observed["n_associations"]),
+            (19250, 8927061, 127112772),
+        )
+        carried = loaded.validation["acceptance"]
+        record_check()
+        self.assertEqual(carried["commit"], "2c0396c7280f38b0b9ca1465a5a5ed2a48c995ce")
+        acceptance = carried["acceptance"]
+        record_check()
+        self.assertEqual(acceptance["status"], "accepted")
+        record_check()
+        self.assertIs(acceptance["membership_accepted"], True)
+        record_check()
+        self.assertIs(acceptance["membership_frozen"], True)
+        record_check()
+        self.assertEqual(acceptance["frozen_at"], "2026-10-22T16:00:43Z")
+        record_check()
+        self.assertEqual(acceptance["human_acceptance"], "accepted")
+        record_check()
+        self.assertEqual(acceptance["human_acceptance_date"], "2026-10-23")
+        record_check()
+        self.assertIn("issuecomment-6360207599", acceptance["human_acceptance_authorization"])
+        record_check()
+        self.assertIn("issuecomment-6345246939", acceptance["owner_authorization"])
+        record_check()
+        self.assertEqual(acceptance["owner_authorization_date"], "2026-10-22")
+        summary = bundle.summarise(loaded)
+        record_check()
+        self.assertEqual((summary["n_analyses"], summary["n_admitted"], summary["n_excluded"]), (19250, 19250, 0))
 
     MVP_OBSERVED = {
         "OGS-00012": ("eur", 1669),
@@ -995,12 +1090,14 @@ class TestBundleContract(unittest.TestCase):
         )
 
     def test_legacy_blank_analysis_exemption_is_reported_not_silently_dropped(self) -> None:
-        """Issue #142: the #134 exemption's tolerated count must be surfaced, never zero.
+        """Issue #142: each exemption's tolerated count must be surfaced, never zero.
 
-        The exemption itself is unchanged (still exactly OGS-00001 and OGS-00002,
-        still suppressing only blank required Analysis values, still no fabricated
-        value). What must not happen is a clean ``[]`` that erases the 70 tolerated
-        blank required values, so the gate's second channel reports the count.
+        The #134 exemption itself is unchanged (still exactly OGS-00001 and
+        OGS-00002, still suppressing only blank required Analysis values, still no
+        fabricated value). Both legacy releases also carry eQTLGen's
+        ``<probe>::<tissue>`` ids, disclosed as a second tolerated gap (#319). What
+        must not happen is a clean ``[]`` that erases either gap, so the gate's
+        second channel reports both counts.
         """
         registry = REPO_ROOT / "stores"
         for store_id in ("OGS-00001", "OGS-00002"):
@@ -1009,15 +1106,20 @@ class TestBundleContract(unittest.TestCase):
                 registry_root=registry,
             )
             record_check()
-            # Primary channel: the exemption still yields a clean pass.
+            # Primary channel: the exemptions still yield a clean pass.
             self.assertEqual(result, [], f"{store_id}: {result}")
-            # Second channel: the tolerated gap is reported, not silently zero.
-            self.assertEqual(len(result.tolerated), 1, result.tolerated)
-            gap = result.tolerated[0]
-            self.assertEqual(gap.store_id, store_id)
-            self.assertEqual(gap.count, 70)
-            self.assertEqual(gap.citation, "#134")
-            self.assertEqual(gap.detail, "blank required Analysis values")
+            # Second channel: both tolerated gaps are reported, not silently zero.
+            self.assertEqual(len(result.tolerated), 2, result.tolerated)
+            by_citation = {gap.citation: gap for gap in result.tolerated}
+            self.assertEqual(sorted(by_citation), ["#134", "#319"], result.tolerated)
+            blank = by_citation["#134"]
+            self.assertEqual(blank.store_id, store_id)
+            self.assertEqual(blank.count, 70)
+            self.assertEqual(blank.detail, "blank required Analysis values")
+            namespaced = by_citation["#319"]
+            self.assertEqual(namespaced.store_id, store_id)
+            self.assertEqual(namespaced.count, 10)
+            self.assertEqual(namespaced.detail, "analysis_id values containing ':'")
 
     def test_a_bundle_store_release_build_will_not_build_discloses_its_blanks(self) -> None:
         """Required values must be present only in a bundle the release workflow builds (#250, #247).
@@ -1034,7 +1136,16 @@ class TestBundleContract(unittest.TestCase):
         )
         for status in sorted(bundle.VALID_STATUSES - bundle.BUILDABLE_STATUSES):
             with self.subTest(status=status):
-                checked = self.make_bundle(status=status, analyses=unresolved)
+                # A `superseded` release must name its successor, so the fixture
+                # registers one to name (#321).
+                release = (
+                    {"superseded_by": write_bundle(self.tmp_dir, "OGS-00089").store_id}
+                    if status == "superseded"
+                    else None
+                )
+                checked = self.make_bundle(
+                    status=status, release=release, analyses=unresolved
+                )
                 result = bundle.check(checked, registry_root=self.tmp_dir)
                 record_check()
                 self.assertEqual(result, [])
@@ -1539,6 +1650,399 @@ class TestBundleContract(unittest.TestCase):
                 patch.stop()
 
 
+class TestAssociationCoverage(unittest.TestCase):
+    """`release.yaml` declares what associations its Store holds (#341).
+
+    The four values are `gwas`, `cis`, `cis_and_signals` and `signals_only`;
+    the Analysis Catalog reads the declared value and opengwasdb#298 makes it a
+    build input (ADR 0040). It is a descriptive fact, so backfilling it is not a
+    new Store Release (ADR 0004).
+    """
+
+    def setUp(self) -> None:
+        self.tmp_dir = Path(tempfile.mkdtemp(prefix="ogstores_bundle_coverage_"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_the_four_values_pass_the_contract(self) -> None:
+        """Each value passes on a layout that can carry it: `gwas` on Dense, the rest on Ragged."""
+        for value in ("gwas", "cis", "cis_and_signals", "signals_only"):
+            with self.subTest(value=value):
+                checked = write_bundle(
+                    self.tmp_dir,
+                    "OGS-00110",
+                    release={"association_coverage": value},
+                    build=None if value == "gwas" else RAGGED_BUILD,
+                )
+                self.assertEqual(checked.association_coverage, value)
+                self.assertEqual(bundle.check(checked, registry_root=self.tmp_dir), [])
+                record_check()
+
+    def test_a_dense_or_hybrid_release_carries_gwas_only(self) -> None:
+        """A cell for every (variant, Analysis) cannot hold anything but `gwas` (opengwasdb#298)."""
+        for layout, command in (("dense", "build-dense-vcf"), ("hybrid", "build-hybrid")):
+            build = {"layout": layout, "build": {"command": command, "options": {}}}
+            for value in ("cis", "cis_and_signals", "signals_only"):
+                with self.subTest(layout=layout, value=value):
+                    errors = bundle.check(
+                        write_bundle(
+                            self.tmp_dir,
+                            "OGS-00116",
+                            release={"association_coverage": value},
+                            build=build,
+                        ),
+                        registry_root=self.tmp_dir,
+                    )
+                    record_check()
+                    self.assertTrue(
+                        any("association_coverage" in error and "gwas" in error for error in errors),
+                        (layout, value, errors),
+                    )
+            # The builder's own vocabulary, not a second one: `gwas` passes.
+            self.assertEqual(
+                bundle.check(
+                    write_bundle(
+                        self.tmp_dir,
+                        "OGS-00117",
+                        release={"association_coverage": "gwas"},
+                        build=build,
+                    ),
+                    registry_root=self.tmp_dir,
+                ),
+                [],
+            )
+            record_check()
+
+    def test_a_missing_declaration_is_refused(self) -> None:
+        checked = write_bundle(self.tmp_dir, "OGS-00111")
+        release = dict(checked.release)
+        release.pop("association_coverage")
+        errors = bundle.check(
+            replace(checked, release=release), registry_root=self.tmp_dir
+        )
+        record_check()
+        self.assertTrue(any("association_coverage" in error for error in errors), errors)
+
+    def test_an_unknown_value_is_refused(self) -> None:
+        """The retired registry spelling is not a value a reader may see (#341)."""
+        for value in ("full_gwas", "full", "cis_plus_signals", "trans", "top_hits"):
+            with self.subTest(value=value):
+                checked = write_bundle(
+                    self.tmp_dir, "OGS-00112", release={"association_coverage": value}
+                )
+                errors = bundle.check(checked, registry_root=self.tmp_dir)
+                record_check()
+                self.assertTrue(
+                    any("association_coverage" in error for error in errors), (value, errors)
+                )
+
+    def test_a_non_string_value_is_refused(self) -> None:
+        for value in (True, 1, None, ["gwas"], {"coverage": "gwas"}):
+            with self.subTest(value=value):
+                checked = write_bundle(
+                    self.tmp_dir, "OGS-00113", release={"association_coverage": value}
+                )
+                errors = bundle.check(checked, registry_root=self.tmp_dir)
+                record_check()
+                self.assertTrue(
+                    any("association_coverage" in error for error in errors), (value, errors)
+                )
+
+    def test_a_malformed_declaration_stops_a_reader_instead_of_being_coerced(self) -> None:
+        """`check()` is not every reader's gate: `.association_coverage` raises (§ADR 0040).
+
+        The catalog reads the declared value, so reading an unknown or absent one
+        as a default would show a layout's coverage as the Store's.
+        """
+        absent = write_bundle(self.tmp_dir, "OGS-00114")
+        release = dict(absent.release)
+        release.pop("association_coverage")
+        with self.assertRaises(ValueError) as caught:
+            replace(absent, release=release).association_coverage
+        self.assertIn("association_coverage", str(caught.exception))
+        self.assertIn(absent.store_id, str(caught.exception))
+
+        unknown = write_bundle(
+            self.tmp_dir, "OGS-00115", release={"association_coverage": "full_gwas"}
+        )
+        with self.assertRaises(ValueError) as caught:
+            unknown.association_coverage
+        self.assertIn("full_gwas", str(caught.exception))
+
+    def test_every_committed_bundle_declares_its_true_coverage(self) -> None:
+        """The 22 committed bundles, checked against their configs and Collections.
+
+        Every Dense and Hybrid Store is genome-wide. Chen 2023's four
+        region-filtered Stores keep significant signals and their flanks only;
+        OGS-00007 keeps Sun's cis windows plus its significant signals; and the
+        eQTLGen Stores are cis-only, which their BESD sources show.
+        """
+        expected = {
+            "OGS-00001": "cis",
+            "OGS-00002": "cis",
+            "OGS-00003": "gwas",
+            "OGS-00004": "gwas",
+            "OGS-00005": "gwas",
+            "OGS-00006": "signals_only",
+            "OGS-00007": "cis_and_signals",
+            "OGS-00008": "gwas",
+            "OGS-00009": "gwas",
+            "OGS-00011": "gwas",
+            "OGS-00012": "gwas",
+            "OGS-00013": "gwas",
+            "OGS-00014": "gwas",
+            "OGS-00015": "gwas",
+            "OGS-00016": "gwas",
+            "OGS-00017": "gwas",
+            "OGS-00022": "gwas",
+            "OGS-00023": "gwas",
+            "OGS-00024": "signals_only",
+            "OGS-00025": "signals_only",
+            "OGS-00026": "signals_only",
+            "OGS-00027": "cis",
+        }
+        registry = REPO_ROOT / "stores"
+        declared = {
+            store_id: bundle.load(store_id, registry_root=registry).association_coverage
+            for store_id in sorted(expected)
+        }
+        self.assertEqual(declared, expected)
+
+
+class TestTrialAndSupersededBy(unittest.TestCase):
+    """`release.yaml` records whether a release is a trial, and what replaced it (#321).
+
+    Both are descriptive facts about a Store Release, not serving decisions
+    (ADR 0008): the Analysis Catalog's serving policy reads them, so
+    `bundle.check()` holds them to a checked vocabulary rather than free text.
+    """
+
+    def setUp(self) -> None:
+        self.tmp_dir = Path(tempfile.mkdtemp(prefix="ogstores_bundle_markers_"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_trial_must_be_a_boolean(self) -> None:
+        """A quoted `trial: "yes"` and a numeric `trial: 1` are refused, not read either way."""
+        for value in ("yes", "true", 1, 0):
+            checked = write_bundle(
+                self.tmp_dir, release={"trial": value}
+            )
+            errors = bundle.check(checked, registry_root=self.tmp_dir)
+            record_check()
+            self.assertTrue(any("trial" in error for error in errors), (value, errors))
+
+    def test_trial_is_false_when_the_field_is_absent(self) -> None:
+        """An unmarked release is not a trial, so no bundle needed a `trial: false` backfill."""
+        self.assertFalse(write_bundle(self.tmp_dir, "OGS-00091").trial)
+        self.assertFalse(
+            write_bundle(self.tmp_dir, "OGS-00092", release={"trial": False}).trial
+        )
+
+    def test_a_malformed_trial_stops_a_reader_instead_of_reading_false(self) -> None:
+        """`check()` is not every reader's gate: `.trial` refuses a value it cannot read.
+
+        Coercing `trial: "yes"`, `1` or `null` to false is exactly the silent
+        substitution CONTRIBUTING forbids: a Trial Store Release would be served.
+        """
+        for value in ("yes", 1, 0, None):
+            checked = write_bundle(
+                self.tmp_dir, "OGS-00102", release={"trial": value}
+            )
+            with self.assertRaises(ValueError, msg=repr(value)) as caught:
+                checked.trial
+            self.assertIn("trial", str(caught.exception), value)
+            self.assertIn(checked.store_id, str(caught.exception), value)
+
+    def test_a_quoted_trial_spelling_is_refused_as_written(self) -> None:
+        """The literal text `trial: "yes"` is a string, so it is refused (#321)."""
+        checked = write_bundle(self.tmp_dir, "OGS-00103", release={"trial": True})
+        path = checked.root / "release.yaml"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("trial: true", 'trial: "yes"'),
+            encoding="utf-8",
+        )
+        reloaded = bundle.load("OGS-00103", registry_root=self.tmp_dir)
+        errors = bundle.check(reloaded, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(any("trial" in error for error in errors), errors)
+
+    def test_an_unquoted_yaml_boolean_spelling_is_read_as_true(self) -> None:
+        """YAML 1.1's `yes` is a boolean, which is what the documentation says (#321)."""
+        checked = write_bundle(self.tmp_dir, "OGS-00104", release={"trial": True})
+        path = checked.root / "release.yaml"
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("trial: true", "trial: yes"),
+            encoding="utf-8",
+        )
+        reloaded = bundle.load("OGS-00104", registry_root=self.tmp_dir)
+        self.assertIs(reloaded.trial, True)
+        self.assertEqual(bundle.check(reloaded, registry_root=self.tmp_dir), [])
+        record_check()
+
+    def test_a_trial_store_release_passes_the_contract(self) -> None:
+        trial = write_bundle(self.tmp_dir, "OGS-00093", release={"trial": True})
+        self.assertTrue(trial.trial)
+        self.assertEqual(bundle.check(trial, registry_root=self.tmp_dir), [])
+        record_check()
+
+    def test_a_superseded_release_names_its_successor(self) -> None:
+        """A `superseded` release with no successor leaves a reader nowhere to go (#323)."""
+        write_bundle(self.tmp_dir, "OGS-00094")
+        orphan = write_bundle(self.tmp_dir, "OGS-00095", status="superseded")
+        errors = bundle.check(orphan, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(any("superseded_by" in error for error in errors), errors)
+
+    def test_superseded_by_is_only_for_a_superseded_release(self) -> None:
+        """A live release that names a successor contradicts its own Release Status."""
+        successor = write_bundle(self.tmp_dir, "OGS-00096")
+        live = write_bundle(
+            self.tmp_dir, "OGS-00097", release={"superseded_by": successor.store_id}
+        )
+        errors = bundle.check(live, registry_root=self.tmp_dir)
+        record_check()
+        self.assertTrue(any("superseded_by" in error for error in errors), errors)
+
+    def test_a_superseded_pair_passes_the_contract(self) -> None:
+        successor = write_bundle(self.tmp_dir, "OGS-00100")
+        old = write_bundle(
+            self.tmp_dir,
+            "OGS-00101",
+            status="superseded",
+            release={"superseded_by": successor.store_id},
+        )
+        self.assertEqual(old.superseded_by, successor.store_id)
+        self.assertEqual(bundle.check(old, registry_root=self.tmp_dir), [])
+        record_check()
+
+    def test_superseded_by_must_name_a_registered_release(self) -> None:
+        """A successor that is not in the registry is a dangling pointer, not a fact."""
+        for value, fragment in (
+            ("OGS-00999", "unresolvable superseded_by"),
+            ("not-a-store-id", "not a valid store_id"),
+        ):
+            old = write_bundle(
+                self.tmp_dir,
+                release={"superseded_by": value},
+                status="superseded",
+            )
+            errors = bundle.check(old, registry_root=self.tmp_dir)
+            record_check()
+            self.assertTrue(any(fragment in error for error in errors), (value, errors))
+
+    # The Trial Store Releases of the committed registry, as a literal: the
+    # nine releases that exercise a Source Collection, Source Format or Store
+    # Layout while the generic release pipeline is developed (CONTEXT.md).
+    TRIAL_STORE_RELEASES = (
+        "OGS-00001",
+        "OGS-00002",
+        "OGS-00003",
+        "OGS-00004",
+        "OGS-00005",
+        "OGS-00007",
+        "OGS-00008",
+        "OGS-00022",
+        "OGS-00023",
+    )
+
+    def test_the_committed_registry_marks_exactly_the_trial_store_releases(self) -> None:
+        """Marked in the bundle, not inferred from a "pilot" label (issue #321)."""
+        registry = REPO_ROOT / "stores"
+        marked, errors = [], []
+        for path in sorted(registry.iterdir()):
+            if not path.is_dir() or not paths.is_valid_store_id(path.name):
+                continue
+            loaded = bundle.load(path.name, registry_root=registry)
+            if loaded.trial:
+                marked.append(path.name)
+                result = bundle.check(loaded, registry_root=registry)
+                record_check()
+                errors.extend(f"{path.name}: {error}" for error in result)
+        self.assertEqual(tuple(marked), self.TRIAL_STORE_RELEASES)
+        self.assertEqual(errors, [])
+
+
+class TestAnalysisIdRule(unittest.TestCase):
+    """`analysis_id` is one path segment, so `<store_id>:<analysis_id>` splits (#319).
+
+    The Analysis Catalog names an Analysis `<store_id>:<analysis_id>`, and a client splits
+    that on `:` to get its two parts -- R `strsplit`, JavaScript `split(":")`,
+    Python `str.split(":")`. `analysis_id` is also the filename of the resolver's
+    per-Analysis record, and `:` is not legal in a Windows filename. So the value
+    must match `^[A-Za-z0-9][A-Za-z0-9._-]*$`. The two legacy eQTLGen releases
+    keep their `<probe>::<tissue>` ids, disclosed as a tolerated gap rather than
+    edited (ADR 0004).
+    """
+
+    setUp = TestBundleContract.setUp
+    tearDown = TestBundleContract.tearDown
+    make_bundle = TestBundleContract.make_bundle
+
+    def check_id(self, analysis_id: str, *, excluded: bool = False) -> bundle.CheckResult:
+        """`check()` on a one-row bundle whose only Analysis is named `analysis_id`."""
+        base = self.make_bundle()
+        header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
+        values = row.replace("FIXTURE_1", analysis_id)
+        if excluded:
+            header += "\texclude_from_build"
+            values += "\ttrue"
+        checked = self.make_bundle(analyses=header + "\n" + values + "\n")
+        record_check()
+        return bundle.check(checked, registry_root=self.tmp_dir)
+
+    def test_an_analysis_id_outside_the_pattern_is_refused_and_names_its_row(self) -> None:
+        for analysis_id in (
+            "ENSG00000175445::whole_blood",
+            "EFO:0001073",
+            "ukb b",
+            "ukb/b",
+            ".hidden",
+            "-leading",
+        ):
+            with self.subTest(analysis_id=analysis_id):
+                errors = self.check_id(analysis_id)
+                self.assertEqual(len(errors), 1, errors)
+                self.assertIn(f"analysis_id {analysis_id!r}", errors[0])
+                self.assertIn("on analyses.tsv row 1", errors[0])
+
+    def test_an_excluded_row_is_checked_too(self) -> None:
+        """An excluded Analysis is still named by the Analysis Catalog, so it is still checked."""
+        errors = self.check_id("ENSG00000175445::whole_blood", excluded=True)
+        self.assertEqual(len(errors), 1, errors)
+
+    def test_ordinary_analysis_ids_pass(self) -> None:
+        for analysis_id in ("GCST000998", "ENSG00000175445", "ukb-b-19953", "a.b_c-1"):
+            with self.subTest(analysis_id=analysis_id):
+                self.assertEqual(self.check_id(analysis_id), [])
+
+    def test_the_two_legacy_releases_tolerate_their_namespaced_ids(self) -> None:
+        """Only OGS-00001 and OGS-00002 are exempt, and only as a disclosed gap."""
+        self.assertEqual(
+            bundle.LEGACY_ANALYSIS_ID_RELEASES, frozenset({"OGS-00001", "OGS-00002"})
+        )
+        for store_id in ("OGS-00001", "OGS-00002"):
+            with self.subTest(store_id=store_id):
+                base = self.make_bundle(store_id=store_id)
+                header, row = (base.root / "analyses.tsv").read_text().strip().split("\n")
+                analyses = (
+                    header + "\n"
+                    + row.replace("FIXTURE_1", "ENSG00000175445::whole_blood") + "\n"
+                )
+                checked = self.make_bundle(store_id=store_id, analyses=analyses)
+                result = bundle.check(checked, registry_root=self.tmp_dir)
+                record_check()
+                self.assertEqual(result, [], result)
+                self.assertEqual(len(result.tolerated), 1, result.tolerated)
+                gap = result.tolerated[0]
+                self.assertEqual(gap.store_id, store_id)
+                self.assertEqual(gap.count, 1)
+                self.assertEqual(gap.citation, "#319")
+                self.assertEqual(gap.detail, "analysis_id values containing ':'")
+
+
 class TestQualityCheckSidecar(unittest.TestCase):
     """`sidecars/quality_checks.tsv` is an optional contract file (#285, ADR 0036).
 
@@ -1961,6 +2465,17 @@ class TestColumnMapContract(unittest.TestCase):
                 "complete": {"command": "complete-dense", "options": {"column-map": "x"}},
             },
         )
+        for key in ("variant_reference", "variant-reference"):
+            self.assert_refused(
+                f"build.{key}.options must not set ['column-map']",
+                recipe={
+                    "build": {
+                        "command": "build-dense-vcf",
+                        "options": {"variant-reference": "/ref/panel.txt"},
+                        key: {"output": "/ref/panel.txt", "options": {"column-map": "x"}},
+                    }
+                },
+            )
 
 
 class TestBundleSummary(unittest.TestCase):
@@ -2144,7 +2659,6 @@ class TestArtifactPaths(unittest.TestCase):
         self.assertEqual(paths.store_dir(store_id, root), root / store_id)
         self.assertEqual(paths.source_dir(store_id, root), root / store_id / "source")
         self.assertEqual(paths.work_dir(store_id, root), root / store_id / "work")
-        self.assertEqual(paths.generation_dir(store_id, root), root / store_id / "generate")
         self.assertEqual(
             paths.store_path(store_id, root), root / store_id / "store.opengwasdb"
         )

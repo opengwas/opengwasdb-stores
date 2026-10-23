@@ -1,0 +1,189 @@
+# Release config for the 10-probe eQTLGen cis-eQTL pilot: the Trial Store
+# Release OGS-00001 was built as (#291).
+#
+# The release config schema is docs/spec/release-config.md; the connectors it
+# names are documented in docs/spec/source-connectors.md (the eQTLGen section).
+# It replaces config-pilot-10.yaml and the generator that read it,
+# manifest_generation.providers.eqtlgen.generate, retired with #291.
+# config-pilot-10.yaml stays unchanged, with the other pre-pipeline configs,
+# because OGS-00001's generator.commands cite it as history.
+#
+# eQTLGen's 2019 whole-blood cis-eQTL meta-analysis (31,684 samples) is one
+# genome-wide BESD file set, /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse (19,250
+# probes). Connectors (ADR 0036):
+#   - the Source Metadata Table lists the 10 probes of OGS-00001's Selection, one
+#     Analysis each, with each probe's maximum pair N (capped at the study total
+#     31,684; docs/spec/source-connectors.md, the eQTLGen section); it is written by
+#     manifest_generation.providers.eqtlgen.source_metadata_adapter from the file
+#     set /data/opengwasdb/raw/eqtlgen/pilot-10:
+#       python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
+#         --prefix /data/opengwasdb/raw/eqtlgen/pilot-10 --tissue whole_blood \
+#         --study-total 31684 --first-author Võsa --publication-pmid 34475573 \
+#         --gene-symbols resources/generators/eqtlgen-cis/connectors/gene-symbols.tsv --out resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
+#   - the Acquisition Manifest records the file set acquisition wrote for this
+#     Selection (build-ragged-besd needs a file set holding exactly the probes it
+#     builds): a subset of the genome-wide set, with the original's prefix and
+#     .besd sha256, each member's sha256 and the tool as lineage, and
+#     connectors/eqtlgen-pilot-10.acquisition-manifest.meta.yaml records the Selection
+#     and every original member's sha256. The subset is
+#     /data/opengwasdb/raw/eqtlgen/pilot-10, the file set OGS-00001 was built from
+#     in September 2026; acquisition adopted it only after showing that
+#     subset_besd.write_besd_subset, run on the genome-wide set for this Selection
+#     now, produces a file set with every member's sha256 identical:
+#       python3 -m manifest_generation.providers.eqtlgen.acquire \
+#         --config resources/generators/eqtlgen-cis-pilot/release-pilot-10.yaml \
+#         --source-prefix /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse \
+#         --adopt-prefix /data/opengwasdb/raw/eqtlgen/pilot-10 \
+#         --source-url https://eqtlgen.org/cis-eqtls.html \
+#         --out resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.tsv
+#     A new acquisition, a changed Selection or a changed connector is a re-freeze
+#     under a new snapshot id, never a rewrite of a frozen pass.
+
+release_config_version: 1
+
+label: pilot-10
+association_coverage: cis
+access_posture: public
+# A Trial Store Release (#321): release.yaml records `trial: true`.
+trial: true
+description: >
+  The 10-probe eQTLGen cis-eQTL pilot on the shared Manifest Generation pipeline:
+  the Selection the Trial Store Release OGS-00001 was built from, with its ancestry measured from
+  the BESD source's own allele frequencies. A Ragged Observed-Only candidate; not the
+  full eQTLGen cis-eQTL catalogue (19,250 genes).
+notes: >
+  Probes are the pilot's ten (LPL, SORT1, APOE, GSDMB, ERAP2, TNF, TP53, IL6,
+  CETP, MYC; Ensembl ids in the Selection below), spanning 8 chromosomes and
+  including one MHC-adjacent locus (TNF). The source is on GRCh37 (hg19); the
+  Store is GRCh38. Ancestry is measured by Analysis Resolution, where OGS-00001
+  left it blank. The SD is declared, not estimated: eQTLGen's beta and SE are
+  z-standardised with each SNP-gene pair's own N, so SD is 1 by construction and
+  the original_sd cell stays blank (declared_standardised). TNF's measured 2.04
+  was sqrt(31,684 / pair N), an N of about 7,600, not a phenotype SD. Each
+  Analysis's sample_size is the maximum pair N derived from the file, kind
+  variant_level (see release-full.yaml); per-association N is not stored yet
+  (opengwasdb#302). The study is Võsa et al., Nature Genetics 2021 (PMID 34475573),
+  and each Analysis is labelled with eQTLGen's published gene symbol.
+
+source_collection:
+  source_collection_id: eqtlgen-cis
+  connectors:
+    source_metadata_table: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
+    acquisition_manifest: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.tsv
+  inventory:
+    # ...-22b: re-frozen when the Analyses were renamed to bare probe ids (#319).
+    # ...-22c: re-frozen with each probe's derived sample size (#314).
+    # ...-22d: re-frozen with the publication metadata and gene-symbol labels (#314).
+    snapshot_id: eqtlgen-cis-pilot-10-2026-10-22d
+    directory: resources/inventories
+
+# OGS-00001's 10, written out so a reviewer reads the membership (and the probes
+# acquisition subsets the file set to) line by line. Each is the bare probe id:
+# OGS-00001 named them `<probe>::whole_blood`, and an analysis_id never contains
+# ':' (issue #319).
+selection:
+  analyses:
+    - ENSG00000175445
+    - ENSG00000134243
+    - ENSG00000130203
+    - ENSG00000073605
+    - ENSG00000164308
+    - ENSG00000232810
+    - ENSG00000141510
+    - ENSG00000136244
+    - ENSG00000087237
+    - ENSG00000136997
+  expect_rows: 10
+
+# The observed-only Ragged Build Recipe OGS-00001 carries, less its `tissue`
+# option: with one, opengwasdb names each Analysis `<probe>::<tissue>`, and an
+# analysis_id never contains ':' (issue #319). The tissue is the Source Metadata
+# Table's, rendered into the Release Manifest. `command` names an opengwasdb
+# subcommand and `options` its flags (ADR 0023). The Source Reader Capability is
+# the command's own: build-ragged-besd reads BESD, so the pipeline's resolver
+# reader is opengwasdb.besd and the recipe does not name it.
+build:
+  layout: ragged
+  completion_state: observed_only
+  command: build-ragged-besd
+  options:
+    source-build: hg19
+  post:
+    top_hits: false
+    overview: false
+
+defaults:
+  # The source's build: eQTLGen's coordinates are hg19, and the resolver lifts
+  # them to the reference's GRCh38.
+  source_genome_build: GRCh37
+  sample_size_scope: analysis_level
+  # eQTLGen's beta and SE are z-standardised with each SNP-gene pair's own N
+  # (b = z / sqrt(2p(1-p)(N + z^2)), se = 1 / sqrt(2p(1-p)(N + z^2))), so the
+  # effect scale is SD units by construction and the tier declares it
+  # (declared_standardised) instead of estimating a phenotype SD: an estimate would
+  # only measure sqrt(study N / pair N). The resolver then reports
+  # phenotype_sd scale_already_declared (#300). The Analysis's N is the maximum
+  # over its pairs, derived from the file (see notes), so its kind is
+  # variant_level.
+  by_study_design:
+    quantitative:
+      stored_effect_scale: sd
+      original_effect_scale: sd
+      original_sd_method: declared_standardised
+      sample_size_kind: variant_level
+
+release_policy:
+  # The Assigned Ancestry check tests each Analysis against this; it never moves
+  # an Analysis (ADR 0036). eQTLGen is a European-ancestry meta-analysis;
+  # ancestry is measured from the source allele frequencies, never taken from a label.
+  selection_superpopulation: EUR
+
+reference_resources:
+  - resource_id: ukb-ancestry-mixture-hg38
+    kind: ancestry_mixture
+    ancestry: multi
+    super_populations: [AFR, AMR, EAS, EUR, MID, NAF, SAS]
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz
+    location_kind: external_file
+    fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
+    # Canonical declaration: resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml
+  - resource_id: liftover-hg19-to-hg38
+    kind: liftover_chain
+    location: /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz
+    location_kind: external_file
+    # Canonical declaration: resources/reference-resources/liftover-hg19-to-hg38/resource.yaml
+  - resource_id: canonical-trait-mapping-efo
+    kind: trait_ontology_mapping
+    location: resources/reference-resources/canonical-trait-mapping-efo
+    location_kind: tracked_directory
+    version: "3"
+
+ancestry_assignment:
+  reference_resource_id: ukb-ancestry-mixture-hg38
+  # eQTLGen is hg19, the reference GRCh38: the resolver lifts through this chain (#292).
+  liftover_chain_resource_id: liftover-hg19-to-hg38
+  maf_floor: 0.01
+  extraction_panel: null
+  gates:
+    tau: 0.50
+    delta: 0.20
+    n_min: 5000
+    residual_max: 0.06
+
+effect_scale_validation:
+  maf_min: 0.01
+  maf_max: 0.5
+  dispersion_max: 0.5
+  reference_resources: []
+
+trait_ontology_mapping:
+  reference_resource_id: canonical-trait-mapping-efo
+
+runtime:
+  cores: 16
+  min_free_gb: 1
+
+output:
+  work_root: /data/opengwasdb/work/eqtlgen-cis-pilot

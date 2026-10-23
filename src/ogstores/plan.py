@@ -14,8 +14,9 @@ gets the BESD argv shape whatever else it declares.
 
 `build.options` keys are `opengwasdb` flag names rendered verbatim -- this
 module never interprets one (ADR 0023). The only arguments it composes are the
-registry's own facts: the Store Release's single `OGS-` identity, the derived
-build manifest path, and artifact paths. The same `OGS-` id is passed as both
+registry's own facts: the Store Release's single `OGS-` identity, the declared
+Association Coverage for a Ragged build (ADR 0040), the derived build manifest
+path, and artifact paths. The same `OGS-` id is passed as both
 the `opengwasdb` Store identity and Release identity; Store Family is not read
 by the planner (issue #129). The artifact root those paths hang from is
 deployment configuration, resolved by `paths.artifact_root()` and passed in;
@@ -77,6 +78,8 @@ from ogstores.bundle import (
     INDEXED_SUBSET_REQUIRED_KEYS,
     INDEXED_SUBSET_RESERVED_OPTION_KEYS,
     Bundle,
+    ColumnMapBinding,
+    column_map_binding,
     indexed_subset_step_name,
     is_valid_indexed_subset_name,
     normalize_option_key,
@@ -145,6 +148,9 @@ class CommandSpec:
     inputs: tuple[str, ...]
     identity: bool = True
     analyses_flag: bool = False
+    #: Takes `--column-map PATH|NAME` (opengwasdb ADR 0063): the build commands
+    #: that read source files through a Column Map. A completion reads no source.
+    column_map: bool = False
     top_hits_cmd: str | None = None
     rho_cmd: str | None = None
     overview_cmd: str | None = None
@@ -157,6 +163,7 @@ COMMANDS: dict[str, CommandSpec] = {
         name="dense",
         positionals=("analyses", "store"),
         inputs=("analyses",),
+        column_map=True,
         top_hits_cmd="build-dense-top-hits",
         rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
@@ -167,6 +174,7 @@ COMMANDS: dict[str, CommandSpec] = {
         name="hybrid",
         positionals=("analyses", "store"),
         inputs=("analyses",),
+        column_map=True,
         overview_cmd="regenerate-overview",
     ),
     "build-ragged-ssf": CommandSpec(
@@ -253,6 +261,23 @@ DEFAULT_COMMANDS: dict[tuple[str, str], str] = {
     ("hybrid", "reference_completed"): "complete-hybrid",
     ("ragged", "reference_completed"): "complete-ragged",
 }
+
+# Association Coverage is a build input (opengwas/opengwasdb#298, ADR 0040): the
+# Ragged builders require `--association-coverage`, because the same command
+# builds a cis-eQTL release, a significant-signals metabolite release and a
+# genome-wide one, and no file in the source says which of them it was given.
+# The value is the release's own declaration in `release.yaml` -- never a Build
+# Recipe option, which would make a change to it a new Store Release (ADR 0004)
+# -- so `plan()` composes the flag exactly as it composes the identity ones.
+ASSOCIATION_COVERAGE_FLAG: str = "association-coverage"
+RAGGED_BUILD_COMMANDS: frozenset[str] = frozenset({"build-ragged-ssf", "build-ragged-besd"})
+# The Dense and Hybrid builders take `--association-coverage` too, but `gwas`
+# is the only value a layout with a cell for every (variant, Analysis) can
+# carry, so it is their default and their only accepted value
+# (`bundle.check()` refuses a Dense or Hybrid bundle declaring another). Their
+# argv names no flag: the default is the declaration, and adding a token that
+# never changes argv would only rewrite the records of Stores already
+# published. A completion reads its parent Store's coverage, and names none.
 
 # Post-processing keys that are identical across every committed Release Bundle,
 # so a Build Recipe states only the ones it chooses differently from these
@@ -515,6 +540,12 @@ def _variant_reference_declaration(
                     f"Bundle {store_id}: variant_reference 'options' must be a mapping"
                 )
             extract_options = dict(raw_options)
+            reserved = reserved_options(extract_options, ("column-map",))
+            if reserved:
+                raise ValueError(
+                    f"Bundle {store_id}: variant_reference.options must not set {reserved}; "
+                    "the extraction reads through the Build Recipe's checksummed column_map binding"
+                )
     else:
         raise ValueError(
             f"Bundle {store_id}: variant_reference must be a path string or a mapping, "
@@ -684,6 +715,42 @@ def _select_spec(bundle: Bundle, key: tuple[str, str]) -> tuple[str, CommandSpec
     return command, spec
 
 
+def _column_map_arguments(
+    bundle: Bundle, spec: CommandSpec, command: str, root: Path
+) -> tuple[list[str], list[Path]]:
+    """`--column-map` for a build command, from the Build Recipe's checksummed binding.
+
+    The value is a built-in map's name, or the carried map staged under the
+    release's work directory (`paths.column_map_path`): a path under the
+    artifact root, the same from any checkout. The staged copy is an input of
+    the first step, so the workflow stages it, re-hashed against the binding,
+    before anything reads it (`ogstores.resources.stage_column_map`). A command
+    that takes no map, given a bundle that reads through one, is refused: it
+    would read the sources some other way.
+    """
+    try:
+        binding = column_map_binding(bundle.build)
+    except ValueError as exc:
+        raise ValueError(f"Bundle {bundle.store_id}: {exc}") from exc
+    if binding is None or spec.phase != "build":
+        return [], []
+    if not spec.column_map:
+        raise ValueError(
+            f"Bundle {bundle.store_id} binds Column Map {binding.name!r}, but {command!r} "
+            "reads no source through a Column Map; drop the binding or choose a command that does"
+        )
+    return _column_map_flag(binding, bundle.store_id, root)
+
+
+def _column_map_flag(
+    binding: ColumnMapBinding, store_id: str, root: Path
+) -> tuple[list[str], list[Path]]:
+    if binding.file is None:
+        return ["--column-map", binding.name], []
+    staged = paths.column_map_path(store_id, binding.file, root=root)
+    return ["--column-map", str(staged)], [staged]
+
+
 def plan(
     bundle: Bundle,
     artifact_root: Path | str | None = None,
@@ -724,6 +791,18 @@ def plan(
     root = _resolve_artifact_root(artifact_root)
     phase_block = bundle.build.get(spec.phase) or {}
     options = phase_block.get("options") or {}
+    if command in RAGGED_BUILD_COMMANDS:
+        # The declaration is the only source of the value: an option that
+        # rendered the same flag would either duplicate it (the CLI takes the
+        # last) or contradict the release, and ADR 0040 makes `release.yaml`
+        # the one declaration.
+        overridden = reserved_options(options, (ASSOCIATION_COVERAGE_FLAG,))
+        if overridden:
+            raise ValueError(
+                f"Bundle {bundle.store_id}: build.options must not set {overridden}; "
+                f"--{ASSOCIATION_COVERAGE_FLAG} is the release's declared "
+                "association_coverage in release.yaml (ADR 0040)"
+            )
     store_p = paths.store_path(bundle.store_id, root=root)
 
     argv = ["opengwasdb", command]
@@ -734,11 +813,16 @@ def plan(
     argv.extend(["--release-id", bundle.store_id])
     if spec.analyses_flag:
         argv.extend(["--analyses", str(paths.build_manifest_path(bundle.store_id, root=root))])
+    if command in RAGGED_BUILD_COMMANDS:
+        argv.extend(["--" + ASSOCIATION_COVERAGE_FLAG, bundle.association_coverage])
     argv.extend(render_options(options))
+    column_map_args, column_map_inputs = _column_map_arguments(bundle, spec, command, root)
+    argv.extend(column_map_args)
 
     inputs: list[Path] = []
     for token in spec.inputs:
         inputs.extend(_resolve(token, bundle, root))
+    inputs.extend(column_map_inputs)
 
     steps: list[Step] = []
     declaration = _variant_reference_declaration(
@@ -755,11 +839,14 @@ def plan(
             str(ref_output),
         ]
         ref_argv.extend(render_options(ref_options))
+        # The pre-stage reads the same source files, so it reads them through
+        # the same map (opengwasdb ADR 0063).
+        ref_argv.extend(column_map_args)
         steps.append(
             Step(
                 name="variant-reference",
                 argv=ref_argv,
-                inputs=[manifest_p],
+                inputs=[manifest_p, *column_map_inputs],
                 outputs=[ref_output],
             )
         )
@@ -789,9 +876,9 @@ def _plan_completing_own_store(bundle: Bundle, artifact_root: Path | str | None)
         raise ValueError(
             f"Bundle {bundle.store_id}: a reference_completed release with no derived_from "
             f"completes its own Store, which is planned only for "
-            f"{sorted(SINGLE_ID_COMPLETION_LAYOUTS)} layout, not {bundle.layout!r}: the "
-            "Observed-View Check that gates the replacement compares no other layout yet "
-            "(ADR 0037)"
+            f"{sorted(SINGLE_ID_COMPLETION_LAYOUTS)} layout, not {bundle.layout!r}: Dense "
+            "completion is the only completion path ported so far. ADR 0037's Observed-View "
+            "Check also covers the Dense Component of Hybrid Stores"
         )
     if not isinstance(bundle.build.get("build"), Mapping):
         raise ValueError(
@@ -908,6 +995,7 @@ def _observed_view_check_options(
 
 
 __all__ = [
+    "ASSOCIATION_COVERAGE_FLAG",
     "BUILD_PHASE",
     "COMMANDS",
     "COMPLETED_RELEASE_SUFFIX",
@@ -921,6 +1009,7 @@ __all__ = [
     "OBSERVED_VIEW_CHECK_STEP",
     "OBSERVED_VIEW_VERDICT_FILENAME",
     "POST_DEFAULTS",
+    "RAGGED_BUILD_COMMANDS",
     "REGISTER_STEPS",
     "SINGLE_ID_COMPLETION_LAYOUTS",
     "VARIANT_REFERENCE_BLOCK_KEYS",

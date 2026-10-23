@@ -55,6 +55,7 @@ def minimal_config(root: Path) -> dict[str, Any]:
     return {
         "release_config_version": RELEASE_CONFIG_VERSION,
         "label": "fixture-release",
+        "association_coverage": "gwas",
         "description": "A fixture release.",
         "source_collection": {
             "source_collection_id": "gwas-catalog-ssf",
@@ -126,6 +127,7 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
     def test_a_minimal_config_loads_with_its_defaults(self) -> None:
         config = self.load()
         self.assertEqual(config.label, "fixture-release")
+        self.assertEqual(config.association_coverage, "gwas")
         self.assertEqual(config.access_posture, "public")
         self.assertEqual(config.source_collection_id, "gwas-catalog-ssf")
         self.assertIsNone(config.connectors)
@@ -221,6 +223,64 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
             "qc_panel_resource_id": "qc-panel-hg38",
             **policy,
         }
+        # A region-filtered release declares the coverage its policy filters to,
+        # so the fixture is consistent unless a test makes it otherwise (#341).
+        document["association_coverage"] = document["region_policy"]["association_coverage"]
+
+    def test_every_shipped_release_config_declares_its_association_coverage(self) -> None:
+        """Every release config states the coverage its bundle declares (#341).
+
+        The value is the one `release.yaml` carries, so a candidate can write it
+        without inferring it from the Store Layout.
+        """
+        expected = {
+            "dbgap-mvp/release-afr.yaml": "gwas",
+            "dbgap-mvp/release-amr.yaml": "gwas",
+            "dbgap-mvp/release-eas.yaml": "gwas",
+            "dbgap-mvp/release-eur.yaml": "gwas",
+            "dbgap-mvp/release-meta.yaml": "gwas",
+            "eqtlgen-cis/release-full.yaml": "cis",
+            "eqtlgen-cis-pilot/release-pilot-10.yaml": "cis",
+            "finngen-r13/release-r13-full.yaml": "gwas",
+            "finngen-r13/release-r13-probe-10.yaml": "gwas",
+            "gwas-catalog-eur-hybrid/release-eur-hybrid-full.yaml": "gwas",
+            "gwas-catalog-eur-hybrid/release-eur-hybrid-pilot-10.yaml": "gwas",
+            "gwas-catalog-eur-hybrid/release-eur-hybrid-quant-pilot-10.yaml": "gwas",
+            "gwas-catalog-ragged/release-chen-2023-european.yaml": "signals_only",
+            "gwas-catalog-ragged/release-sun-2018-pilot-10.yaml": "cis_and_signals",
+            "ukb-b/release-full.yaml": "gwas",
+            "ukb-b/release-probe-10.yaml": "gwas",
+        }
+        loaded = {
+            name: load_release_config(REPO_ROOT / "resources/generators" / name, REPO_ROOT).association_coverage
+            for name in expected
+        }
+        self.assertEqual(loaded, expected)
+
+    def test_a_config_without_an_association_coverage_is_refused(self) -> None:
+        """The emitter writes the declared value, so a config cannot omit it (#341)."""
+        self.assertRefused(lambda d: d.pop("association_coverage"), "association_coverage")
+
+    def test_an_unknown_association_coverage_is_refused(self) -> None:
+        for value in ("full_gwas", "full", "cis_plus_signals", "trans", "", None):
+            with self.subTest(value=value):
+                self.assertRefused(
+                    lambda d, value=value: d.update(association_coverage=value),
+                    "association_coverage",
+                )
+
+    def test_a_region_filtered_config_declares_its_region_policys_coverage(self) -> None:
+        """A region policy filters to one coverage, so the release declares the same one (#341)."""
+        self.assertEqual(
+            self.load(lambda d: self.region_policy(d, association_coverage="cis_and_signals", cis_flank_bp=1000000))
+            .association_coverage,
+            "cis_and_signals",
+        )
+        def mismatched(document):
+            self.region_policy(document, association_coverage="signals_only")
+            document["association_coverage"] = "gwas"
+
+        self.assertRefused(mismatched, "association_coverage", "region_policy")
 
     def test_a_region_policy_loads_with_the_qc_panel_it_keeps(self) -> None:
         from manifest_generation.region_filter import RegionPolicy
@@ -233,7 +293,7 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
         self.assertEqual(config.qc_panel_resource_id, "qc-panel-hg38")
         self.assertIn("qc-panel-hg38", config.required_resource_ids)
         cis = self.load(lambda d: self.region_policy(
-            d, association_coverage="cis_plus_signals", cis_flank_bp=1000000,
+            d, association_coverage="cis_and_signals", cis_flank_bp=1000000,
             region_policy_id="cis-1mb_sig-trans-1mb_suggestive-leads",
         ))
         self.assertEqual(cis.region_policy.cis_flank_bp, 1_000_000)
@@ -242,7 +302,7 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
     def test_a_region_policy_is_refused_unless_it_is_complete_and_consistent(self) -> None:
         self.assertRefused(lambda d: self.region_policy(d, association_coverage="cis"),
                            "region_policy.association_coverage", "'cis'")
-        self.assertRefused(lambda d: self.region_policy(d, association_coverage="cis_plus_signals"),
+        self.assertRefused(lambda d: self.region_policy(d, association_coverage="cis_and_signals"),
                            "region_policy.cis_flank_bp")
         self.assertRefused(lambda d: self.region_policy(d, cis_flank_bp=1000000),
                            "region_policy.cis_flank_bp", "signals_only")
@@ -273,6 +333,17 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
         self.assertEqual(
             self.load(lambda d: d.update(access_posture="embargoed")).access_posture, "embargoed"
         )
+
+    def test_trial_is_false_unless_the_config_declares_it(self) -> None:
+        """A Trial Store Release says so in its config, as release.yaml records it (#321)."""
+        self.assertFalse(self.load().trial)
+        self.assertTrue(self.load(lambda d: d.update(trial=True)).trial)
+        self.assertFalse(self.load(lambda d: d.update(trial=False)).trial)
+        # Only a YAML boolean, as release.yaml takes it: a quoted "yes", a
+        # number or null is never read as true or false.
+        for value in ("yes", 1, None):
+            with self.subTest(trial=value):
+                self.assertRefused(lambda d, v=value: d.update(trial=v), "trial", "YAML boolean")
 
     def test_a_ragged_release_declares_no_indexed_subset(self) -> None:
         def edit(document):
@@ -686,6 +757,25 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                 self.assertEqual([row.analysis_id for row in manifest], ready)
                 # The shared table's declarations for these Analyses, and only those.
                 self.assertEqual(any(row.imputation_score_column for row in manifest), declares)
+
+    def test_exactly_the_pilot_and_probe_configs_are_trial_store_releases(self) -> None:
+        """A deliberately small release is a Trial Store Release, and its config says so (#321)."""
+        declared = {
+            f"{path.parent.name}/{path.name}"
+            for path in shipped_release_configs()
+            if load_release_config(path, REPO_ROOT).trial
+        }
+        self.assertEqual(
+            declared,
+            {
+                "eqtlgen-cis-pilot/release-pilot-10.yaml",
+                "finngen-r13/release-r13-probe-10.yaml",
+                "gwas-catalog-eur-hybrid/release-eur-hybrid-pilot-10.yaml",
+                "gwas-catalog-eur-hybrid/release-eur-hybrid-quant-pilot-10.yaml",
+                "gwas-catalog-ragged/release-sun-2018-pilot-10.yaml",
+                "ukb-b/release-probe-10.yaml",
+            },
+        )
 
     def test_the_pilot_configs_select_exactly_their_trial_store_releases(self) -> None:
         for name, store_id in (

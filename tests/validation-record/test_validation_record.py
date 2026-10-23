@@ -49,6 +49,11 @@ This suite asserts the container migration:
      `reference_completed` for its completion phase, and `reference_completed`
      for a two-id child. The records committed before it was written do not
      carry it and are not migrated.
+  9. `observed.association_coverage`, `observed.reference_assembly` and the
+     true `observed.n_associations` (#322) are the producing step's report or
+     null, never a value read from the Store or derived from matrix cells. A
+     record committed before #322 does not carry the two coverage keys and is
+     not migrated.
 
 Run from the repository root:
     pixi run python tests/validation-record/test_validation_record.py
@@ -100,13 +105,17 @@ CONDITIONAL_OBSERVED_MAPPINGS: dict[str, tuple[str, ...]] = {
     "rsid_conflicts": ("policy", "n_keys", "n_variants"),
 }
 
-# The observed key #307 added: the completion state of the Store the record's
-# publication published (ADR 0037). It is in `OBSERVED_FIELDS`, so `register`
-# writes it on every publication from #307 on, but the records committed before
-# it were written by a `register` that did not know it. They are not migrated:
-# the master list reports their bundle's declared state instead, so they keep
-# the values they recorded (issue #307).
+# The observed keys a later issue added. Each is in `OBSERVED_FIELDS`, so
+# `register` writes it on every publication from that issue on, but the records
+# committed before it were written by a `register` that did not know it. They
+# are not migrated (#326 re-registers): the master list reports their bundle's
+# declared completion state instead, and the catalog reads Coverage and
+# assembly from a re-registered record. So a committed record may lack any of
+# these and still be the register shape (issues #307, #322).
 COMPLETION_STATE_FIELD = "completion_state"
+POSTDATED_OBSERVED_FIELDS: frozenset[str] = frozenset(
+    {COMPLETION_STATE_FIELD, "association_coverage", "reference_assembly"}
+)
 PUBLISHED_COMPLETION_STATES: frozenset[str] = frozenset(
     {"observed_only", "reference_completed"}
 )
@@ -217,10 +226,11 @@ class TestCommittedValidationRecords(unittest.TestCase):
                 f"{store_id}.build_environment must carry exactly the register keys",
             )
             observed = record["observed"]
-            # `completion_state` postdates these records; every other register
-            # key is present, with an absent measurement recorded as null.
+            # The postdating keys were not written by the `register` that wrote
+            # these records; every other register key is present, with an absent
+            # measurement recorded as null.
             self.assertEqual(
-                set(OBSERVED_FIELDS) - set(observed) - {COMPLETION_STATE_FIELD},
+                set(OBSERVED_FIELDS) - set(observed) - POSTDATED_OBSERVED_FIELDS,
                 set(),
                 f"{store_id}.observed must carry every register key, with absent "
                 "measurements recorded as null",

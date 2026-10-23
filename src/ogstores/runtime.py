@@ -85,7 +85,26 @@ from ogstores.plan import plan
 #: only on its Overflow axis, which stores #225 needs to index OGS-00011's HM3
 #: list without refusing the whole subset. The range `1e2fb42..496bfe9` is
 #: #324's commit and merge; #324 is its only functional change.
-PINNED_OPENGWASDB_REVISION: str = "496bfe9cc9bbc85c60718d62aa4c6d43d83af810"
+#: Then to `d8896e4`, the core `dev` merge of PR #305, for OGS-00027 (#314):
+#: `build-ragged-besd` drops an ESI entry whose lifted variant another entry also
+#: claims, and `validate` requires each Analysis's CSR `variant_index` segment to
+#: be strictly increasing, so the 13 hg19 eQTLGen SNPs that collide on one hg38
+#: variant after the lift no longer reach a Store. The range
+#: `d405de0..d8896e4` is #304's three commits and its merge plus a docs-only
+#: merge (#293); #304 is its only functional change.
+#: Then to `75f0e77a`, the core `dev` merge of PR #298, which makes Association
+#: Coverage a build input (#341): both Ragged builders require
+#: `--association-coverage`, Dense and Hybrid accept only `gwas`, and every
+#: builder and completion command reports the coverage it wrote in its stdout
+#: JSON, which `register` holds to the release's declaration. The range
+#: `d8896e4..75f0e77` is #298's own commits and its merge; there is no Store
+#: format bump.
+#: Then to `2f308cb8`, the core `dev` merge into the same integration branch,
+#: which is the first revision to carry both lines of work at once: the
+#: integration branch's #295, #296, #306 and #324 above, and core `dev`'s #304
+#: and #298. The range `496bfe9..2f308cb` is that merge and #306's ADR
+#: renumbering; no behaviour changed in it beyond the two lines joining.
+PINNED_OPENGWASDB_REVISION: str = "2f308cb8bd866d9549fa8e75d9622bdd7f29bcad"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference
@@ -250,7 +269,7 @@ def normalize_scheduled(scheduled: Iterable[tuple]) -> list[ScheduledJob]:
     """Normalize `(root, store_id)` or `(root, store_id, step)` dry-run jobs.
 
     An item without a step is a job that has no CLI step (`build_manifest`,
-    `register`) or a caller that did not supply one; see
+    `column_map`, `register`) or a caller that did not supply one; see
     `resolve_scheduled_steps` for how an unknown step set is handled.
     """
     jobs: list[ScheduledJob] = []
