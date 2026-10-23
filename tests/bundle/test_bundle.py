@@ -255,13 +255,16 @@ class TestBundleContract(unittest.TestCase):
         pending because scientific acceptance follows the built Store. The Store
         was then built and validated at opengwasdb d8896e4, and `register`
         replaced the candidate record with its own, carrying the acceptance
-        evidence under `acceptance.acceptance` with the commit it came from.
+        evidence under `acceptance.acceptance` with the commit it came from. Its
+        Release Status is `built`, the lifecycle's next state after `accepted`.
         """
         loaded = bundle.load("OGS-00027", registry_root=REPO_ROOT / "stores")
         record_check()
         self.assertEqual(list(bundle.check(loaded, registry_root=REPO_ROOT / "stores")), [])
         record_check()
-        self.assertEqual(loaded.status, "accepted")
+        self.assertEqual(loaded.status, "built")
+        record_check()
+        self.assertEqual(bundle.validate_status_transition("accepted", loaded.status), [])
         record_check()
         self.assertEqual(loaded.release["accepted_at"], "2026-10-22T16:00:43Z")
         record_check()
