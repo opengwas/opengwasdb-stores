@@ -11,7 +11,6 @@ Responsibilities:
    - Legitimate divergence: `complete-dense-resume` substituted for a planned `complete-dense`
      is accepted and recorded as `resumed: true` in `validation.yaml`.
 3. Harvests observed measurements from step records:
-3. Harvests observed measurements from step records:
    `format_version`, `n_variants`, `n_analyses`, `n_associations`,
    `association_coverage`, `reference_assembly`, `store_bytes`,
    `build_elapsed_s`, `completion_state`, and `validate_status`, plus the

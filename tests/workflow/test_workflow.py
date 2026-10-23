@@ -118,8 +118,8 @@ from ogstores import (
 )
 from ogstores.plan import plan
 
-# The single-id completion gate the amendment scenario patches for a Ragged
-# release, which epic #232's #336 owns in production code.
+# The flag the planner adds to a Ragged build for its declared Association
+# Coverage (#341), which the pre-#341 amendment scenario reads.
 import ogstores.plan as plan_module
 
 # The completed child is asserted on through opengwasdb's published query
