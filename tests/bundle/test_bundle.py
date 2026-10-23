@@ -102,6 +102,14 @@ def write_bundle(
     return bundle.load(store_id, registry_root=registry)
 
 
+# A Ragged Build Recipe: the only layout that can carry a coverage other than
+# `gwas`, so the four-value vocabulary is exercised on it (#341).
+RAGGED_BUILD: dict[str, Any] = {
+    "layout": "ragged",
+    "build": {"command": "build-ragged-ssf", "options": {}},
+}
+
+
 class TestBundleContract(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp_dir = Path(tempfile.mkdtemp(prefix="ogstores_bundle_"))
@@ -1610,14 +1618,53 @@ class TestAssociationCoverage(unittest.TestCase):
         shutil.rmtree(self.tmp_dir, ignore_errors=True)
 
     def test_the_four_values_pass_the_contract(self) -> None:
+        """Each value passes on a layout that can carry it: `gwas` on Dense, the rest on Ragged."""
         for value in ("gwas", "cis", "cis_and_signals", "signals_only"):
             with self.subTest(value=value):
                 checked = write_bundle(
-                    self.tmp_dir, "OGS-00110", release={"association_coverage": value}
+                    self.tmp_dir,
+                    "OGS-00110",
+                    release={"association_coverage": value},
+                    build=None if value == "gwas" else RAGGED_BUILD,
                 )
                 self.assertEqual(checked.association_coverage, value)
                 self.assertEqual(bundle.check(checked, registry_root=self.tmp_dir), [])
                 record_check()
+
+    def test_a_dense_or_hybrid_release_carries_gwas_only(self) -> None:
+        """A cell for every (variant, Analysis) cannot hold anything but `gwas` (opengwasdb#298)."""
+        for layout, command in (("dense", "build-dense-vcf"), ("hybrid", "build-hybrid")):
+            build = {"layout": layout, "build": {"command": command, "options": {}}}
+            for value in ("cis", "cis_and_signals", "signals_only"):
+                with self.subTest(layout=layout, value=value):
+                    errors = bundle.check(
+                        write_bundle(
+                            self.tmp_dir,
+                            "OGS-00116",
+                            release={"association_coverage": value},
+                            build=build,
+                        ),
+                        registry_root=self.tmp_dir,
+                    )
+                    record_check()
+                    self.assertTrue(
+                        any("association_coverage" in error and "gwas" in error for error in errors),
+                        (layout, value, errors),
+                    )
+            # The builder's own vocabulary, not a second one: `gwas` passes.
+            self.assertEqual(
+                bundle.check(
+                    write_bundle(
+                        self.tmp_dir,
+                        "OGS-00117",
+                        release={"association_coverage": "gwas"},
+                        build=build,
+                    ),
+                    registry_root=self.tmp_dir,
+                ),
+                [],
+            )
+            record_check()
 
     def test_a_missing_declaration_is_refused(self) -> None:
         checked = write_bundle(self.tmp_dir, "OGS-00111")

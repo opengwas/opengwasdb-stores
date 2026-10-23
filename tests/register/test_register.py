@@ -42,6 +42,7 @@ from ogstores.bundle import Bundle
 from ogstores.plan import OBSERVED_VIEW_CHECK_STEP, Step, plan
 from ogstores.register import (
     ArgvDriftError,
+    AssociationCoverageMismatchError,
     MissingRecordError,
     RegisterError,
     StepFailedError,
@@ -71,6 +72,7 @@ def create_test_bundle_and_records(
     post: dict[str, Any] | None = None,
     variant_reference: object = None,
     custom_records: dict[str, dict[str, Any]] | None = None,
+    coverage: str = "gwas",
 ) -> tuple[Bundle, Path, Path]:
     """Helper to create a test bundle with staged artifact directories and valid execution records."""
     stores_root = temp_dir / "stores"
@@ -85,7 +87,7 @@ def create_test_bundle_and_records(
         "label": f"test-{store_id}",
         "status": "candidate",
         "source_collection_id": "test-collection",
-        "association_coverage": "gwas",
+        "association_coverage": coverage,
         "derived_from": derived_from,
         "created_at": "2026-08-18T08:51:59Z",
         "description": "Test release",
@@ -319,18 +321,30 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         self.assertEqual(written["observed"]["n_associations"], 424242)
 
     def test_association_coverage_and_reference_assembly_come_from_the_build_report(self) -> None:
-        """Both come from the producing step's stdout JSON, under the keys register reads (#322)."""
-        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00059")
+        """Both come from the producing step's stdout JSON, under the keys register reads (#322).
+
+        The coverage is the one `release.yaml` declares, because that is the
+        value the builder was given (`--association-coverage`, ADR 0040); a
+        report of any other value is refused, below.
+        """
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            "OGS-00059",
+            layout="ragged",
+            command="build-ragged-ssf",
+            post=RAGGED_POST,
+            coverage="signals_only",
+        )
         set_step_stdout("OGS-00059", "build", artifact_root, {
             "n_variants": 1000,
             "n_analyses": 2,
-            "association_coverage": "cis_and_signals",
+            "association_coverage": "signals_only",
             "reference_assembly": "GRCh38",
         })
 
         written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
 
-        self.assertEqual(written["observed"]["association_coverage"], "cis_and_signals")
+        self.assertEqual(written["observed"]["association_coverage"], "signals_only")
         self.assertEqual(written["observed"]["reference_assembly"], "GRCh38")
 
     def test_the_completion_step_reports_association_coverage_and_reference_assembly(self) -> None:
@@ -346,15 +360,39 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
             "n_variants": 1000,
             "n_analyses": 2,
             "n_associations": 7,
-            "association_coverage": "full",
+            "association_coverage": "gwas",
             "reference_assembly": "GRCh37",
         })
 
         written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
 
-        self.assertEqual(written["observed"]["association_coverage"], "full")
+        self.assertEqual(written["observed"]["association_coverage"], "gwas")
         self.assertEqual(written["observed"]["reference_assembly"], "GRCh37")
         self.assertEqual(written["observed"]["n_associations"], 7)
+
+    def test_a_reported_coverage_other_than_the_declared_one_is_refused(self) -> None:
+        """The Store is not the release its bundle describes, and both values are named (#341)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            "OGS-00064",
+            layout="ragged",
+            command="build-ragged-ssf",
+            post=RAGGED_POST,
+            coverage="signals_only",
+        )
+        set_step_stdout("OGS-00064", "build", artifact_root, {
+            "n_variants": 1000,
+            "n_analyses": 2,
+            "association_coverage": "cis_and_signals",
+        })
+
+        with self.assertRaises(AssociationCoverageMismatchError) as ctx:
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        message = str(ctx.exception)
+        self.assertIn("cis_and_signals", message, "the reported value is named")
+        self.assertIn("signals_only", message, "the declared value is named")
+        self.assertFalse((b.root / "validation.yaml").exists(), "nothing is written")
 
     def test_unreported_association_coverage_and_reference_assembly_are_null(self) -> None:
         """A key the producing step does not print is recorded as null, present rather than omitted."""
@@ -437,6 +475,11 @@ def set_step_stdout(
     rec = json.loads(rec_p.read_text(encoding="utf-8"))
     rec["stdout"] = json.dumps(payload) + "\n"
     run._write_record_atomically(rec, rec_p)
+
+
+#: A Ragged Store Release's post-processing: it has no `overview.html`, so a
+#: Ragged plan refuses one, and its top-hit indexes are built inline by BESD.
+RAGGED_POST: dict[str, Any] = {"top_hits": True, "rho": False, "overview": False, "validate": True}
 
 
 class TestRegisterRecordsOnlyThisRun(unittest.TestCase):

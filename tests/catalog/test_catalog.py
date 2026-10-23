@@ -82,6 +82,7 @@ def write_bundle(
     validation: bool = True,
     observed_extra: dict[str, Any] | None = None,
     validation_status: str = "passed",
+    layout: str = "dense",
 ) -> None:
     root = registry / store_id
     root.mkdir(parents=True, exist_ok=True)
@@ -101,10 +102,16 @@ def write_bundle(
     release_data.update(release or {})
     build_data = {
         "store_id": store_id,
-        "layout": "dense",
+        "layout": layout,
+        # The coverage a layout can carry (#341, opengwasdb#298): only a Ragged
+        # Store can hold anything but `gwas`, so a fixture that declares one is
+        # a Ragged fixture, and `bundle.check()` refuses the mismatch otherwise.
         "completion_state": "observed_only",
-        "build": {"command": "build-dense-vcf", "options": {}},
-        "post": {"top_hits": False, "rho": False, "overview": True, "validate": True},
+        "build": {
+            "command": "build-dense-vcf" if layout == "dense" else "build-ragged-ssf",
+            "options": {},
+        },
+        "post": {"top_hits": False, "rho": False, "overview": layout == "dense", "validate": True},
     }
     (root / "release.yaml").write_text(yaml.safe_dump(release_data), encoding="utf-8")
     (root / "build.yaml").write_text(yaml.safe_dump(build_data), encoding="utf-8")
@@ -402,8 +409,9 @@ class DeclaredAssociationCoverageTest(TempDirCase):
             self.registry, "OGS-00001",
             release={"association_coverage": "signals_only"},
             observed_extra={"association_coverage": "cis_and_signals"},
+            layout="ragged",
         )
-        write_bundle(self.registry, "OGS-00002", release={"association_coverage": "cis"})
+        write_bundle(self.registry, "OGS-00002", release={"association_coverage": "cis"}, layout="ragged")
         self.build()
         self.assertEqual(
             query(self.root, "SELECT store_id, association_coverage FROM stores ORDER BY store_id"),
@@ -1043,8 +1051,9 @@ class FeaturesTest(unittest.TestCase):
             analysis_row("L11", analysis_label="Assigned wins", assigned_ancestry="EAS",
                          source_ancestry_label="META"),
         ])
-        write_bundle(registry, "OGS-00002", release={"access_posture": "controlled",
-                                                     "association_coverage": "cis_and_signals"}, rows=[
+        write_bundle(registry, "OGS-00002", layout="ragged",
+                     release={"access_posture": "controlled",
+                              "association_coverage": "cis_and_signals"}, rows=[
             analysis_row("E1", analysis_label="BRCA2 expression", tissue="liver", trait_chr="13",
                          trait_bp="32000000", assigned_ancestry="AFR"),
             analysis_row("E2", analysis_label="BRCA2 protein", context="SomaScan", trait_chr="13",

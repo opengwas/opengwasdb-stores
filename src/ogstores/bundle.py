@@ -198,6 +198,12 @@ ASSOCIATION_COVERAGES: tuple[str, ...] = (
     "signals_only",
 )
 
+# The layouts whose Store holds a cell for every (variant, Analysis), so the
+# only Association Coverage they can carry is `gwas`
+# (opengwas/opengwasdb#298, `COVERAGES_BY_LAYOUT`): an association outside that
+# coverage would be indistinguishable from one the source did not report.
+DENSE_COMPONENT_ONLY_GWAS_COVERAGE: frozenset[str] = frozenset({"dense", "hybrid"})
+
 # The controlled vocabulary for ``assigned_ancestry``: the seven super-population
 # codes the ancestry-mixture Reference Resource assigns (see
 # resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml and
@@ -1094,6 +1100,24 @@ def _check_build(bundle: Bundle) -> list[str]:
     block_name = "complete" if completion_state == "reference_completed" else "build"
     block = build.get(block_name)
     release = bundle.release if isinstance(bundle.release, Mapping) else {}
+    # A Dense or Hybrid Store has a cell for every (variant, Analysis), so a
+    # missing cell there already means the source did not report the
+    # association: `gwas` is the only coverage such a release can carry, and
+    # both builders refuse any other value (opengwas/opengwasdb#298). The
+    # registry states the same rule where a release is declared, so a wrong
+    # bundle is refused by `check()`, before a build reaches the builder.
+    declared_coverage = release.get("association_coverage")
+    if (
+        layout in DENSE_COMPONENT_ONLY_GWAS_COVERAGE
+        and isinstance(declared_coverage, str)
+        and declared_coverage in ASSOCIATION_COVERAGES
+        and declared_coverage != "gwas"
+    ):
+        errors.append(
+            f"release.yaml association_coverage {declared_coverage!r} is not 'gwas': "
+            f"a {layout} Store Release has a cell for every (variant, Analysis), so "
+            "it can carry only 'gwas' (opengwas/opengwasdb#298)"
+        )
     if completion_state == "reference_completed" and not release.get("derived_from"):
         # One id, published twice (ADR 0037): the build phase publishes the
         # Observed-Only Store that the completion phase then completes.
@@ -1988,6 +2012,7 @@ __all__ = [
     "COLUMN_MAP_CAPABILITY",
     "COLUMN_MAP_KEY",
     "COLUMN_MAP_SUFFIX",
+    "DENSE_COMPONENT_ONLY_GWAS_COVERAGE",
     "Bundle",
     "CheckResult",
     "ColumnMapBinding",

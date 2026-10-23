@@ -274,6 +274,7 @@ class TestPlanDense(unittest.TestCase):
             release={
                 "store_id": "OGS-00099",
                 "label": "test-label",
+                "association_coverage": "gwas",
                 "status": "accepted",
             },
             build={
@@ -970,6 +971,7 @@ class TestPlanRagged(unittest.TestCase):
         release_base = {
             "store_id": "OGS-00097",
             "label": "synthetic-besd",
+            "association_coverage": "cis",
             "family": "custom-besd-family",
             "status": "accepted",
         }
@@ -1015,6 +1017,7 @@ class TestPlanRagged(unittest.TestCase):
             release={
                 "store_id": "OGS-00096",
                 "family": "custom-ragged-family",
+                "association_coverage": "cis",
                 "status": "accepted",
             },
             build={
@@ -1046,6 +1049,61 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(build_step.argv[idx_anc + 1], "EUR")
 
         validate_step_argv_against_cli(self, build_step)
+
+    def test_a_recipe_may_not_set_the_declared_coverage(self) -> None:
+        """`--association-coverage` is the release's declaration, never a Build Recipe option (#341).
+
+        The declaration is in `release.yaml` (ADR 0040), so a recipe that also
+        rendered the flag would either duplicate it (the CLI takes the last) or
+        contradict the release. ADR 0004 makes the recipe the wrong home for it
+        besides: changing it would make a new Store Release.
+        """
+        for options in (
+            {"association-coverage": "cis"},
+            {"--association-coverage": "cis"},
+        ):
+            with self.subTest(options=options):
+                bundle_obj = Bundle(
+                    store_id="OGS-00098",
+                    root=Path("stores/OGS-00098"),
+                    release={
+                        "store_id": "OGS-00098",
+                        "label": "declared-coverage",
+                        "association_coverage": "signals_only",
+                        "status": "accepted",
+                    },
+                    build={
+                        "store_id": "OGS-00098",
+                        "layout": "ragged",
+                        "completion_state": "observed_only",
+                        "build": {"command": "build-ragged-ssf", "options": options},
+                        "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
+                    },
+                    analyses_path=Path("stores/OGS-00098/analyses.tsv"),
+                )
+                with self.assertRaisesRegex(ValueError, "association-coverage"):
+                    plan(bundle_obj)
+                record_check()
+
+    def test_every_ragged_build_carries_its_declared_coverage(self) -> None:
+        """Both Ragged builders take the release's own value; no other layout names the flag."""
+        for bundle_obj, expected in (
+            (self.bundle_00001, "cis"),
+            (self.bundle_00006, "signals_only"),
+            (self.bundle_00007, "cis_and_signals"),
+        ):
+            steps = plan(bundle_obj)
+            argv = steps[0].argv
+            record_check()
+            self.assertIn("--association-coverage", argv)
+            self.assertEqual(argv[argv.index("--association-coverage") + 1], expected)
+            record_check()
+            # Composed from the bundle, so the release cannot disagree with itself.
+            self.assertEqual(bundle_obj.association_coverage, expected)
+        for store_id in ("OGS-00003", "OGS-00004", "OGS-00005"):
+            steps = plan(load(store_id))
+            record_check()
+            self.assertNotIn("--association-coverage", steps[0].argv, store_id)
 
     def test_ragged_pure_function_no_io_and_tripwires(self) -> None:
         """plan() on ragged performs no file or network I/O; tripwires guard calls."""
@@ -1815,7 +1873,7 @@ class TestColumnMapPlan(unittest.TestCase):
         return Bundle(
             store_id=store_id,
             root=Path(root),
-            release={"store_id": store_id, "status": "accepted"},
+            release={"store_id": store_id, "status": "accepted", "association_coverage": "gwas"},
             build=build,
             analyses_path=Path(root) / "analyses.tsv",
         )
@@ -2031,6 +2089,7 @@ class TestVariantReferencePreStage(unittest.TestCase):
             release={
                 "store_id": "OGS-00094",
                 "label": "variant-ref-test",
+                "association_coverage": "gwas",
                 "status": "accepted",
                 "derived_from": None,
             },
@@ -2061,6 +2120,7 @@ class TestVariantReferencePreStage(unittest.TestCase):
             release={
                 "store_id": store_id,
                 "label": f"variant-ref-{layout}",
+                "association_coverage": "gwas",
                 "status": "accepted",
                 "derived_from": None,
             },
@@ -2271,6 +2331,7 @@ class TestVariantReferencePreStage(unittest.TestCase):
             release={
                 "store_id": "OGS-00094",
                 "label": "variant-ref-completed",
+                "association_coverage": "gwas",
                 "status": "accepted",
                 "derived_from": "OGS-00093",
             },
@@ -2355,6 +2416,7 @@ class TestIndexedSubsets(unittest.TestCase):
             release={
                 "store_id": "OGS-00090",
                 "label": "fixture",
+                "association_coverage": "gwas",
                 "status": "accepted",
                 "derived_from": derived_from,
             },

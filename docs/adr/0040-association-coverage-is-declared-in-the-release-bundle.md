@@ -54,10 +54,15 @@ no published Store is rewritten.
 release, so ADR 0004 (an accepted bundle is not edited) does not make the
 backfill a new release, and no identity, checksum or amendment check reads it:
 the amendment check compares a plan's argv and the manifest a Store was built
-from, and `release.yaml` is neither. The builder receives the declared value
-once opengwas/opengwasdb#298 lands and this repository's pin moves past it; that
-is also when `register` can refuse a mismatch with the value opengwasdb
-reports.
+from, and `release.yaml` is neither. **The builder receives the declared value.**
+opengwas/opengwasdb#298 makes coverage a build input, and this repository's pin
+moved past it (#341): `plan()` appends `--association-coverage <release.yaml
+value>` to every Ragged build step, from the declaration and never from the Build
+Recipe, whose change would make a new Store Release (ADR 0004). The Dense and
+Hybrid argv name no flag, because `gwas` is their default and the only value
+their layout can carry, which `bundle.check()` now enforces. `register` refuses
+a publication whose producing step reports a coverage other than the declared
+one, naming both values, and records `null` when the step reports none.
 
 ## Consequences
 
