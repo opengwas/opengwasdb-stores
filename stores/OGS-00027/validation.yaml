@@ -28,7 +28,9 @@ acceptance:
   commit: 2c0396c7280f38b0b9ca1465a5a5ed2a48c995ce
   acceptance:
     status: accepted
-    human_acceptance: pending
+    human_acceptance: accepted
+    human_acceptance_date: '2026-10-23'
+    human_acceptance_authorization: https://github.com/opengwas/opengwasdb-stores/issues/314#issuecomment-6360207599
     membership_accepted: true
     membership_frozen: true
     frozen_at: '2026-10-22T16:00:43Z'
