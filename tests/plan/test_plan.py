@@ -1061,29 +1061,68 @@ class TestPlanRagged(unittest.TestCase):
         for options in (
             {"association-coverage": "cis"},
             {"--association-coverage": "cis"},
+            # The `=value` spelling renders as one token, and click takes the
+            # last value an option is given, so a recipe could otherwise
+            # override the declaration with a flag `plan()` never sees as one.
+            {"association-coverage=cis": True},
+            {"--association-coverage=cis": True},
+            {"association-coverage": "cis", "association-coverage=signals_only": True},
         ):
             with self.subTest(options=options):
-                bundle_obj = Bundle(
-                    store_id="OGS-00098",
-                    root=Path("stores/OGS-00098"),
-                    release={
-                        "store_id": "OGS-00098",
-                        "label": "declared-coverage",
-                        "association_coverage": "signals_only",
-                        "status": "accepted",
-                    },
-                    build={
-                        "store_id": "OGS-00098",
-                        "layout": "ragged",
-                        "completion_state": "observed_only",
-                        "build": {"command": "build-ragged-ssf", "options": options},
-                        "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
-                    },
-                    analyses_path=Path("stores/OGS-00098/analyses.tsv"),
-                )
                 with self.assertRaisesRegex(ValueError, "association-coverage"):
-                    plan(bundle_obj)
+                    plan(self._declared_coverage_bundle(options))
                 record_check()
+
+    def test_an_eq_spelling_would_reach_the_builder_last(self) -> None:
+        """Why the refusal has to recognise `--flag=value`: the pinned CLI takes the last one (#341).
+
+        `render_options` renders `{key: value}` verbatim (ADR 0023), so a
+        recipe's `association-coverage=cis` becomes the single token
+        `--association-coverage=cis`. Parsing that after the declared pair with
+        the CLI's own parser yields `cis`, which is the override the refusal
+        above exists to stop.
+        """
+        rendered = render_options({"association-coverage=cis": True})
+        record_check()
+        self.assertEqual(rendered, ["--association-coverage=cis"])
+        declared = ["--association-coverage", "signals_only"]
+
+        import click
+        import typer
+        from opengwasdb.cli.main import app
+
+        build = typer.main.get_command(app).commands["build-ragged-ssf"]
+        parser = build.make_parser(click.Context(build))
+        parsed, _, _ = parser.parse_args(
+            args=[
+                "manifest.tsv", "filtered", "store",
+                "--store-id", "OGS-00098", "--release-id", "OGS-00098",
+                *declared, *rendered,
+            ]
+        )
+        record_check()
+        self.assertEqual(parsed["association_coverage"], "cis")
+
+    def _declared_coverage_bundle(self, options: dict) -> Bundle:
+        """A Ragged fixture bundle declaring `signals_only`, with `options` in its recipe."""
+        return Bundle(
+            store_id="OGS-00098",
+            root=Path("stores/OGS-00098"),
+            release={
+                "store_id": "OGS-00098",
+                "label": "declared-coverage",
+                "association_coverage": "signals_only",
+                "status": "accepted",
+            },
+            build={
+                "store_id": "OGS-00098",
+                "layout": "ragged",
+                "completion_state": "observed_only",
+                "build": {"command": "build-ragged-ssf", "options": options},
+                "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
+            },
+            analyses_path=Path("stores/OGS-00098/analyses.tsv"),
+        )
 
     def test_every_ragged_build_carries_its_declared_coverage(self) -> None:
         """Both Ragged builders take the release's own value; no other layout names the flag."""

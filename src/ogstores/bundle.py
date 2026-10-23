@@ -140,10 +140,16 @@ def reserved_options(options: Mapping[Any, Any], reserved: Iterable[str]) -> lis
     """The `options` keys, as written, that render as one of the `reserved` flags.
 
     A reserved flag is one the registry composes from a verified input of its
-    own; passed through `options`, it would reach the CLI unverified.
+    own; passed through `options`, it would reach the CLI unverified. The
+    comparison is against the flag the key *sets*, not the whole key: a key may
+    carry its value after an `=`, and `{"min-cor=0.5": true}` renders the one
+    token `--min-cor=0.5`, which the CLI's parser reads exactly as
+    `--min-cor 0.5` (issue #341).
     """
     flags = frozenset(reserved)
-    return sorted(str(key) for key in options if normalize_option_key(key) in flags)
+    return sorted(
+        str(key) for key in options if normalize_option_key(key).split("=", 1)[0] in flags
+    )
 
 
 def is_valid_indexed_subset_name(name: object) -> bool:
