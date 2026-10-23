@@ -10,7 +10,7 @@ their recorded commands as history.
 | Release config | Store Release built as | Region policy |
 |---|---|---|
 | `release-chen-2023-european.yaml` | OGS-00006 (1,400 Analyses) | `signals_only`: significant-trans flanks and suggestive leads |
-| `release-sun-2018-pilot-10.yaml` | OGS-00007 (10 Analyses) | `cis_plus_signals`: also a 1 Mb flank around each target gene |
+| `release-sun-2018-pilot-10.yaml` | OGS-00007 (10 Analyses) | `cis_and_signals`: also a 1 Mb flank around each target gene |
 
 Both keep the QC panel (`qc-panel-hg38`), so Analysis Resolution can measure
 ancestry and phenotype SD from the filtered rows.

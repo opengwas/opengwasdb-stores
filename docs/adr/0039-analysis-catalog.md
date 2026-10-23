@@ -40,8 +40,10 @@ including any Release Erratum, is authoritative over a Store's frozen
 
 **Registry fields it needs** are added as release facts, not serving decisions,
 so no `served` flag appears. `release.yaml` gains `trial` and `superseded_by`
-(#321); the Validation Record gains `association_coverage` and
-`reference_assembly` (#322); and its `n_associations` comes from a count
+(#321) and `association_coverage` (#341,
+[ADR 0040](0040-association-coverage-is-declared-in-the-release-bundle.md)); the
+Validation Record gains `reference_assembly` (#322); and its `n_associations`
+comes from a count
 OpenGWASDB reports or is null — `register`'s Dense fallback of `n_variants ×
 n_analyses` counts matrix cells, not associations, and is removed.
 
@@ -111,10 +113,12 @@ indexes for counts, search and paging.
   either says so (`case_control` or `log_or`), `NULL` when neither field gives
   a reading; `trait_class` (phenotype or molecular) from `context`, `tissue`
   and `trait_chr`; and `ancestry_category`, Assigned Ancestry or `META` for an
-  unassigned row whose Source Ancestry Label is exactly `META`. Genome-wide or cis is not derived: it is the
-  Store's Association Coverage as OpenGWASDB reports it, counted as it is and
-  never relabelled, and `NULL` until opengwasdb#294. The counts and the report
-  read those columns, so a type is derived once and defined in one place.
+  unassigned row whose Source Ancestry Label is exactly `META`. Genome-wide
+  or cis is not derived: it is the Store Release's declared Association
+  Coverage (`release.yaml`, one of `gwas`, `cis`, `cis_and_signals` and
+  `signals_only`), counted as it is and never relabelled, and never a layout's
+  default. The counts and the report read those columns, so a type is derived
+  once and defined in one place.
 - **A placeholder row is an `analyses` row with `listed = 0`.** Listing,
   search and counts see only `listed = 1`, through the `listed_analyses` view,
   and the paging indexes are partial indexes over those rows, so a retired
@@ -225,6 +229,13 @@ possible export alongside it, not the served store.
 
 ## Consequences
 
+- **Association Coverage is the release's declaration, not the builder's
+  report** (#341). The catalog reads `release.yaml` for
+  `stores.association_coverage`, the `coverage` count dimension and the summary
+  report; the Validation Record's `observed.association_coverage` stays what
+  opengwasdb reported, and is not what the catalog serves. This ADR's earlier
+  statement that the Validation Record gains the field is superseded by ADR
+  0040.
 - **CONTEXT.md gains Analysis Catalog**, and the Store Registry entry's
   `_Avoid_: catalogue` now forbids the word for the registry rather than for the
   catalog.

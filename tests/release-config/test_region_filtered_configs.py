@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import csv
 import unittest
+from dataclasses import replace
 
 from manifest_generation import REPO_ROOT
 from manifest_generation.freeze import load_frozen_connectors
@@ -51,13 +52,40 @@ class RegionFilteredConfigTests(unittest.TestCase):
 
     def test_sun_selects_ogs_00007s_10_analyses_with_a_cis_window(self) -> None:
         config = load_release_config(RAGGED / "release-sun-2018-pilot-10.yaml", REPO_ROOT)
-        self.assertEqual(config.region_policy.association_coverage, "cis_plus_signals")
+        self.assertEqual(config.region_policy.association_coverage, "cis_and_signals")
         self.assertEqual(config.region_policy.cis_flank_bp, 1_000_000)
         self.assertTrue(config.trust_source_ancestry_without_af)
         self.assertEqual(config.maf_threshold, "0")
         self.assertEqual(config.method_tiers["quantitative"].original_sd_method, "declared_standardised")
         selected = self.selected(config)
         self.assertEqual(selected, bundle_analyses("OGS-00007"))
+
+    def test_the_frozen_lineages_retired_spelling_is_the_configs_coverage(self) -> None:
+        """Sun's frozen lineage says `cis_plus_signals`; the config says `cis_and_signals` (#341).
+
+        A frozen Acquisition Manifest is checksummed evidence and is never
+        rewritten, so preflight's "filtered to exactly this policy" comparison
+        reads the retired spelling as the current one. The same lineage read as
+        another coverage is still refused, so the alias is not a wildcard.
+        """
+        config = load_release_config(RAGGED / "release-sun-2018-pilot-10.yaml", REPO_ROOT)
+        self.assertEqual(config.region_policy.association_coverage, "cis_and_signals")
+        provenance = config.inventory_provenance_path
+        table, manifest = load_frozen_connectors(provenance)
+        evidence = frozen_evidence(provenance)
+        self.assertEqual(region_lineage_problems(config, table, manifest, evidence), [])
+
+        other = replace(
+            config,
+            region_policy=replace(
+                config.region_policy, association_coverage="signals_only", cis_flank_bp=None
+            ),
+        )
+        problems = region_lineage_problems(other, table, manifest, evidence)
+        self.assertTrue(
+            any("association_coverage" in problem and "signals_only" in problem for problem in problems),
+            problems,
+        )
 
     def test_every_frozen_file_was_filtered_to_its_configs_policy_and_qc_panel(self) -> None:
         """ADR 0036 (#300): a region-filtered release's files keep the QC panel, without exception.

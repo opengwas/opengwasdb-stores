@@ -1,5 +1,6 @@
 store_id: OGS-00006
 label: 2023-chen-full-european
+association_coverage: signals_only
 access_posture: public
 status: built
 derived_from: null

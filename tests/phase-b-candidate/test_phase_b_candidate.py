@@ -355,6 +355,7 @@ class FixtureBuilder:
         config = {
             "release_config_version": RELEASE_CONFIG_VERSION,
             "label": "fixture-candidate",
+            "association_coverage": "gwas",
             "access_posture": "public",
             "description": "fixture candidate",
             "notes": "fixture notes",
@@ -3024,6 +3025,50 @@ class CandidateWorkflowTests(unittest.TestCase):
             "is excluded as not_maf_filtered.",
             release["notes"],
         )
+
+    def test_the_release_yaml_declares_the_configs_association_coverage(self) -> None:
+        """The candidate emitter writes the config's fact, after `label:` (#341, ADR 0040).
+
+        It is never inferred from the Store Layout, which is the wrong answer
+        opengwasdb#298 exists to remove.
+        """
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        tables = build_candidate_tables(
+            inventory_rows=[], outcomes=[], config=config, index_summary={}
+        )
+        arguments = dict(
+            store_id=STORE_ID,
+            config=config,
+            tables=tables,
+            created_at="2026-01-01T00:00:00Z",
+            inventory_sha256="a" * 64,
+            preflight_report=Path("preflight.json"),
+            index_summary={},
+            generator_version="test",
+        )
+        release = render_release_yaml(**arguments)
+        self.assertEqual(release["association_coverage"], "gwas")
+        self.assertEqual(
+            list(release)[:3], ["store_id", "label", "association_coverage"]
+        )
+
+        declared = {**config.__dict__, "base": replace(config.base, association_coverage="cis")}
+        self.assertEqual(
+            render_release_yaml(**{**arguments, "config": type(config)(**declared)})[
+                "association_coverage"
+            ],
+            "cis",
+        )
+
+        with self.assertRaisesRegex(CandidateError, "association_coverage"):
+            render_release_yaml(
+                **{
+                    **arguments,
+                    "config": type(config)(
+                        **{**config.__dict__, "base": replace(config.base, association_coverage="")}
+                    ),
+                }
+            )
 
     def test_zero_build_eligible_rows_is_excluded_and_not_missing(self) -> None:
         config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)

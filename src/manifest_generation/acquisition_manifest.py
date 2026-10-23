@@ -52,7 +52,10 @@ from manifest_generation.connector_tsv import (
     raise_problems,
     read_connector,
 )
-from manifest_generation.region_filter import ASSOCIATION_COVERAGES
+from manifest_generation.region_filter import (
+    REGION_POLICY_COVERAGES,
+    canonical_association_coverage,
+)
 from manifest_generation.source_inventory import (
     KNOWN_READINESS_STATUSES,
     READY_STATUSES,
@@ -357,6 +360,18 @@ def _members_problems(row: Mapping[str, str]) -> list[str]:
     return problems
 
 
+def _canonical_policy(policy: Any) -> Any:
+    """A recorded region policy read in the current Association Coverage vocabulary (#341).
+
+    An Acquisition Manifest that froze ``cis_plus_signals`` is immutable evidence,
+    so the retired spelling is aliased on read, never rewritten; a reader of this
+    policy elsewhere sees one vocabulary.
+    """
+    if isinstance(policy, Mapping) and "association_coverage" in policy:
+        return {**policy, "association_coverage": canonical_association_coverage(policy["association_coverage"])}
+    return policy
+
+
 def _region_policy_problems(text: str) -> list[str]:
     """Why a recorded region policy is not a complete one (docs/spec/source-connectors.md).
 
@@ -380,11 +395,14 @@ def _region_policy_problems(text: str) -> list[str]:
 
     if not isinstance(policy.get("region_policy_id"), str) or not policy["region_policy_id"]:
         problems.append("region_policy names no region_policy_id")
-    coverage = policy.get("association_coverage")
-    if coverage not in ASSOCIATION_COVERAGES:
+    # A frozen policy records the spelling its run used, and `cis_plus_signals`
+    # is evidence this repository does not rewrite (#341); read it through the
+    # one alias so a current value is what the checks below see.
+    coverage = canonical_association_coverage(policy.get("association_coverage"))
+    if coverage not in REGION_POLICY_COVERAGES:
         problems.append(
-            f"region_policy association_coverage {coverage!r} is not one "
-            f"of {', '.join(ASSOCIATION_COVERAGES)}"
+            f"region_policy association_coverage {policy.get('association_coverage')!r} is not one "
+            f"of {', '.join(REGION_POLICY_COVERAGES)}"
         )
     for key, valid, what in (
         ("trans_flank_bp", whole, "a whole number of bases"),
@@ -401,7 +419,7 @@ def _region_policy_problems(text: str) -> list[str]:
         and isinstance(panel.get("sha256"), str) and _SHA256.match(panel["sha256"])
     ):
         problems.append(f"region_policy qc_panel {panel!r} names no resource_id and sha256")
-    if coverage == "cis_plus_signals":
+    if coverage == "cis_and_signals":
         if not whole(policy.get("cis_flank_bp")):
             problems.append(f"region_policy cis_flank_bp {policy.get('cis_flank_bp')!r} is not a whole number of bases")
         target = policy.get("target")
@@ -412,7 +430,7 @@ def _region_policy_problems(text: str) -> list[str]:
         ):
             problems.append(f"region_policy target {target!r} is not a chromosome, start and end")
     elif "cis_flank_bp" in policy or "target" in policy:
-        problems.append(f"region_policy cis_flank_bp and target belong to cis_plus_signals, not {coverage!r}")
+        problems.append(f"region_policy cis_flank_bp and target belong to cis_and_signals, not {coverage!r}")
     return problems
 
 
@@ -421,7 +439,7 @@ def _entry(row: Mapping[str, str]) -> AcquisitionEntry:
         Lineage(
             *(row.get(column, "") for column in LINEAGE_COLUMNS),
             original_bytes=int(row["original_bytes"]) if row.get("original_bytes") else None,
-            region_policy=json.loads(row["region_policy"]) if row.get("region_policy") else None,
+            region_policy=_canonical_policy(json.loads(row["region_policy"])) if row.get("region_policy") else None,
         )
         if row.get("original_location")
         else None

@@ -1,5 +1,6 @@
 store_id: OGS-00004
 label: eur-hybrid-pilot-10
+association_coverage: gwas
 access_posture: public
 status: built
 trial: true

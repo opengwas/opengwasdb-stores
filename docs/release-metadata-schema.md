@@ -163,6 +163,7 @@ published artifact path is now a pure function of the identifier.
 |---|---:|---|
 | `store_id` | Yes | Opaque `OGS-` 5-digit identifier (ADR 0022): the directory name under `stores/`, and must match it. |
 | `label` | Yes | Source-natural display name; provenance, never an identifier (ADR 0022). |
+| `association_coverage` | Yes | What associations the Store holds, in one vocabulary shared with opengwasdb: `gwas` (genome-wide), `cis` (a cis window around each Analysis's target only), `cis_and_signals` (a cis window plus significant signals elsewhere) or `signals_only` (significant signals and their flanks, no cis window). It replaced `full_gwas` and `cis_plus_signals` (issue #341, [ADR 0040](adr/0040-association-coverage-is-declared-in-the-release-bundle.md)). `bundle.check()` refuses any other value and a value that is not a string, and `Bundle.association_coverage` raises rather than answering a default, because the Analysis Catalog shows it and counts Analyses by it. It is also the value `plan()` passes to a Ragged build as `--association-coverage` (issue #341), so it is declared, never inferred from the Store Layout. A Dense or Hybrid release can carry only `gwas`, and `bundle.check()` refuses any other value there (opengwas/opengwasdb#298). A region-filtered release declares `cis_and_signals` or `signals_only` and must agree with its `region_policy.association_coverage`. Every committed bundle declares it. |
 | `access_posture` | No | Declared availability category: `public`, `controlled`, or `embargoed`. The one store-level fact the retired Store Family tier genuinely declared (ADR 0028); every committed bundle declares it, but it is descriptive rather than structurally required. |
 | `status` | Yes | Registry lifecycle state: `candidate`, `accepted`, `built`, `validated`, `superseded`, or `withdrawn`. |
 | `trial` | No | Whether this is a Trial Store Release: a deliberately small Store Release used to exercise a Source Collection, Source Format or Store Layout (issue #321). Absent means `false`. Only a YAML boolean is accepted. The registry's YAML loader follows YAML 1.1, so the unquoted spellings `true`, `yes` and `on` (and `false`, `no`, `off`) are booleans; a quoted `trial: "yes"` is a string and `trial: 1` is a number, and `bundle.check()` refuses both. A reader that does not gate on `check()` refuses them too rather than reading them as `false`: the Analysis Catalog's serving policy excludes every Trial Store Release, and a coerced value would serve one. |
@@ -179,7 +180,8 @@ published artifact path is now a pure function of the identifier.
 | `notes` | No | Free-text release notes. |
 
 `bundle.check()` requires exactly the keys marked Yes above and rejects a
-`generator` that is not a mapping or whose `commands` is empty. It also holds
+`generator` that is not a mapping or whose `commands` is empty. It holds
+`association_coverage` to its four-value vocabulary (issue #341, ADR 0040), and
 the descriptive facts the Analysis Catalog's serving policy reads (ADR 0008) to
 a checked shape: `trial` must be a YAML boolean, and absent means `false` (a
 quoted `trial: "yes"` or a numeric `trial: 1` is refused, and `Bundle.trial`
@@ -766,8 +768,15 @@ parameter schema (ADR 0023).
 
 An unrecognised or invalid flag fails in the CLI argument parser in
 milliseconds, before any expensive work. `plan()` composes only the arguments
-that are the registry's own facts — store identity, the derived build manifest
-path, and artifact paths. Everything else comes from `options`.
+that are the registry's own facts — store identity, the declared
+`association_coverage` for a Ragged build, the derived build manifest path, and
+artifact paths. Everything else comes from `options`.
+
+A flag the registry composes is refused in `options`, because a recipe's copy
+would be a second declaration: `plan()` refuses a `build.options` key that
+renders `--association-coverage` on a Ragged build, since `release.yaml`
+declares that value (ADR 0040) and a recipe change would be a new Store Release
+(ADR 0004).
 
 ### Post-processing support
 
@@ -845,7 +854,7 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `observed.n_analyses` | Yes | Analysis count the build reported, or `null` when it was not recorded. |
 | `observed.n_variants` | Yes | Variant count the build reported, or `null` when it was not recorded. |
 | `observed.n_associations` | Yes | The association count the producing step (`build` or `complete`) reported, or `null` when it was not recorded. It is the Store's observed association count, never a value `register` derives: until #322 a Dense build that reported none recorded `n_variants × n_analyses`, which counts matrix cells and overstates a Store with empty cells. |
-| `observed.association_coverage` | No | The Association Coverage the producing step reported, or `null` when it did not. The value is opengwasdb's, in opengwasdb's own vocabulary (`full` or `cis_and_signals` today), not this repository's; `register` records it and checks no vocabulary of its own. Read from the step's stdout JSON, never from the Store's `manifest.json` (ADR 0023, #322). A present value that is not a non-empty string is refused, not recorded as `null`. `register` writes the key on every publication from #322 on; records written before it do not carry it and are not migrated. |
+| `observed.association_coverage` | No | The Association Coverage the producing step reported, or `null` when it did not: evidence about the build, not the fact the Analysis Catalog serves, which is `release.yaml:association_coverage` (issue #341). The value is what opengwasdb reports, in the same four-value vocabulary as this repository (`gwas`, `cis`, `cis_and_signals`, `signals_only`); a legacy `full` in a Store built before opengwas/opengwasdb#298 reads as `gwas`. `register` records it as reported, checks no vocabulary of its own, and refuses a report that differs from the release's declaration, naming both values (#341): the builder was given the declared value, so a Store at another coverage is not the Store the bundle describes. Read from the step's stdout JSON, never from the Store's `manifest.json` (ADR 0023, #322). A present value that is not a non-empty string is refused, not recorded as `null`. `register` writes the key on every publication from #322 on; records written before it do not carry it and are not migrated. |
 | `observed.reference_assembly` | No | The reference assembly the producing step reported, or `null` when it did not, such as `GRCh37` or `GRCh38`. Read from the step's stdout JSON, never from the Store's `manifest.json` (ADR 0023, #322). A present value that is not a non-empty string is refused, not recorded as `null`. `register` writes the key on every publication from #322 on; records written before it do not carry it and are not migrated. |
 | `observed.store_bytes` | Yes | Store size in bytes the build reported, or `null` when it was not recorded. |
 | `observed.build_elapsed_s` | Yes | Summed step elapsed seconds, or `null` when it was not recorded. For a release that completes its own Store it is the steps of both phases (ADR 0037). |

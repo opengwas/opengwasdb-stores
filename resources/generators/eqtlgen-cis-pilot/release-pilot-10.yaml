@@ -42,6 +42,7 @@
 release_config_version: 1
 
 label: pilot-10
+association_coverage: cis
 access_posture: public
 # A Trial Store Release (#321): release.yaml records `trial: true`.
 trial: true

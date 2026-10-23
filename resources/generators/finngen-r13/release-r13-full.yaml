@@ -29,6 +29,7 @@
 release_config_version: 1
 
 label: r13-full
+association_coverage: gwas
 access_posture: public
 description: >
   Full FinnGen R13 release: every endpoint in the frozen public

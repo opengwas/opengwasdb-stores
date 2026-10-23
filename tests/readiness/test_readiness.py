@@ -217,7 +217,7 @@ class TestEvidenceChannels(unittest.TestCase):
             "n_analyses": 1,
             "n_variants": 10,
             "n_associations": 5,
-            "association_coverage": "full_gwas",
+            "association_coverage": "gwas",
             "reference_assembly": "GRCh38",
         }
         return {**STORE_VALIDATION, "observed": {**complete, **observed}}

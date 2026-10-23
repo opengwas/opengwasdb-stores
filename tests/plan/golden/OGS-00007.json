@@ -11,6 +11,8 @@
       "OGS-00007",
       "--release-id",
       "OGS-00007",
+      "--association-coverage",
+      "cis_and_signals",
       "--stored-effect-scale",
       "sd"
     ],

@@ -1,5 +1,6 @@
 release_config_version: 1
 label: mvp-phs002453-meta
+association_coverage: gwas
 access_posture: public
 description: >
   MVP PMID 39024449 cross-ancestry (META) observed-only release: every ready Analysis in the dbGaP phs002453 Source Collection's Multi-ancestry bucket. The Selection names no single super-population, so Assigned Ancestry is never assigned and no Analysis is excluded for ancestry; the ancestry fit is still measured and kept in the Quality Check sidecar. The bound count is the retired partition's 1,691.

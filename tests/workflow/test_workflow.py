@@ -41,6 +41,16 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    observed-only or two-id releases are not checked; an unforced rebuild of an
    amended release's build phase is still refused; and a forced run of a
    completed single-id release rebuilds both phases.
+15. Association Coverage is a build input (#341): a Ragged release is built and
+    published at the coverage its `release.yaml` declares, which `plan()` puts
+    into the build argv, `opengwasdb info` reports back from the Store, and the
+    Validation Record records; a Ragged Store published before the flag existed
+    stays up to date under the current workflow, with default rerun triggers,
+    because no trigger reads an argv token; and that Store may still gain its
+    own completion, the amendment check tolerating the declaration-derived flag
+    alone (ADR 0040) and refusing a record that names another coverage.
+    Each scenario is one test method, so a fixture is built once however the
+    suite is sharded.
 """
 
 from __future__ import annotations
@@ -74,8 +84,12 @@ import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from ogstores import bundle, manifest, paths, release, resources, run
+from ogstores import amendment, bundle, manifest, paths, register, release, resources, run
 from ogstores.plan import plan
+
+# The single-id completion gate the amendment scenario patches for a Ragged
+# release, which epic #232's #336 owns in production code.
+import ogstores.plan as plan_module
 
 # The completed child is asserted on through opengwasdb's published query
 # facade, never on its internal arrays (#303).
@@ -298,7 +312,7 @@ def create_completed_child_bundle(
         "label": f"fixture-completed-{child_id}",
         "status": "accepted",
         "source_collection_id": "test-collection",
-        "association_coverage": "full_gwas",
+        "association_coverage": "gwas",
         "derived_from": parent_id,
         "created_at": "2026-08-18T16:00:00Z",
         "description": f"Fixture reference-completed store {child_id} for workflow testing",
@@ -391,7 +405,7 @@ def create_dense_fixture_store(
         "label": f"fixture-dense-{store_id}",
         "status": status,
         "source_collection_id": "test-collection",
-        "association_coverage": "full_gwas",
+        "association_coverage": "gwas",
         "derived_from": None,
         "created_at": "2026-08-18T08:51:59Z",
         "description": f"Fixture dense store {store_id} for workflow testing",
@@ -2696,7 +2710,7 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
             "label": "child-release",
             "status": "accepted",
             "source_collection_id": "test-collection",
-            "association_coverage": "full_gwas",
+            "association_coverage": "gwas",
             "derived_from": parent_id,
             "created_at": "2026-08-18T16:00:00Z",
             "description": "Child release",
@@ -2757,7 +2771,7 @@ class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
             "label": "completed-child",
             "status": "accepted",
             "source_collection_id": "test-collection",
-            "association_coverage": "full_gwas",
+            "association_coverage": "gwas",
             "derived_from": parent_id,
             "created_at": "2026-08-18T16:00:00Z",
             "description": "Completed child store",
@@ -3236,6 +3250,533 @@ class TestWorkflowCarriedColumnMap(unittest.TestCase):
         self.assertIn("the staged Column Map 'mvp-map'", res.stderr)
         self.assertFalse(self.build_record.exists())
         self.assertFalse(paths.store_path(self.STORE_ID, root=self.artifacts).exists())
+
+# ---------------------------------------------------------------------------
+# Association Coverage as a build input (#341, ADR 0040, opengwas/opengwasdb#298)
+# ---------------------------------------------------------------------------
+
+#: The coverage the Ragged fixture declares. `signals_only` is not any layout's
+#: default, so a build that reported it cannot have got it from the layout: the
+#: value is the release's own declaration or the test proves nothing.
+RAGGED_FIXTURE_COVERAGE: str = "signals_only"
+
+
+def create_ragged_fixture_store(
+    stores: Path,
+    store_id: str = "OGS-00130",
+    *,
+    artifact_root: Path,
+    coverage: str = RAGGED_FIXTURE_COVERAGE,
+) -> Path:
+    """Write a small Ragged SSF Release Bundle and the sources its build reads.
+
+    Two Analyses over a three-variant GWAS-SSF source each, under
+    `<artifact-root>/<store_id>/source/`, which is where `plan()` points
+    `build-ragged-ssf`'s `FILTERED_DIR`. Only the columns the builder and the
+    shared Analysis schema require are written: this fixture exists to prove
+    which Association Coverage reaches the builder and comes back out of the
+    Store (ADR 0040), not to exercise a real source.
+    """
+    bundle_dir = stores / store_id
+    bundle_dir.mkdir(parents=True)
+    (bundle_dir / "release.yaml").write_text(
+        yaml.safe_dump({
+            "store_id": store_id,
+            "label": f"fixture-ragged-{coverage}",
+            "association_coverage": coverage,
+            "status": "accepted",
+            "source_snapshot_id": "fixture-snapshot-v1",
+            "created_at": "2026-10-01T00:00:00Z",
+            "description": "Fixture Ragged Store Release",
+            "generator": {"commands": ["fixtures/generate.py"]},
+        }),
+        encoding="utf-8",
+    )
+    (bundle_dir / "build.yaml").write_text(
+        yaml.safe_dump({
+            "store_id": store_id,
+            "layout": "ragged",
+            "completion_state": "observed_only",
+            "build": {"command": "build-ragged-ssf", "options": {}},
+            "post": {"top_hits": False, "overview": False, "validate": True},
+        }),
+        encoding="utf-8",
+    )
+
+    columns = [
+        "analysis_index", "analysis_id", "analysis_label", "trait_chr", "trait_bp",
+        "sample_size", "tissue", "context", "mhc", "source_file",
+        "stored_effect_scale", "sample_size_kind", "sample_size_scope",
+        "original_effect_scale", "original_sd_method", "ancestry_assignment_method",
+    ]
+    rows = [
+        {
+            "analysis_index": str(i),
+            "analysis_id": f"FIXTURE_{i + 1}",
+            "analysis_label": f"Fixture trait {i + 1}",
+            "trait_chr": "1",
+            "trait_bp": str(50_000 + i * 10_000),
+            "sample_size": "1000",
+            "tissue": "plasma",
+            "context": "fixture",
+            "mhc": "false",
+            "source_file": f"FIXTURE_{i + 1}.tsv.gz",
+            "stored_effect_scale": "sd",
+            "sample_size_kind": "total",
+            "sample_size_scope": "analysis_level",
+            "original_effect_scale": "sd",
+            "original_sd_method": "declared_standardised",
+            "ancestry_assignment_method": "af_assigned",
+        }
+        for i in range(2)
+    ]
+    (bundle_dir / "analyses.tsv").write_text(
+        "\n".join(["\t".join(columns), *("\t".join(row[c] for c in columns) for row in rows)]) + "\n",
+        encoding="utf-8",
+    )
+
+    source = paths.source_dir(store_id, root=artifact_root)
+    source.mkdir(parents=True)
+    ssf_columns = [
+        "chromosome", "base_pair_location", "rsid", "effect_allele", "other_allele",
+        "beta", "standard_error", "effect_allele_frequency",
+    ]
+    for i in range(2):
+        lines = ["\t".join(ssf_columns)]
+        lines += [
+            f"1\t{100_000 + j * 1_000}\trs{i}{j}\tA\tG\t0.1\t0.05\t0.3"
+            for j in range(3)
+        ]
+        with gzip.open(source / f"FIXTURE_{i + 1}.tsv.gz", "wt", encoding="utf-8") as handle:
+            handle.write("\n".join(lines) + "\n")
+    return bundle_dir
+
+
+class TestRaggedReleaseBuildsAtItsDeclaredCoverage(unittest.TestCase):
+    """A Ragged release publishes a Store at the coverage its bundle declares (#341).
+
+    End to end at fixture scale: the value in `release.yaml` is the value the
+    builder is given, the value the Store's own manifest carries, and the value
+    the Validation Record records.
+    """
+
+    STORE_ID: str = "OGS-00130"
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.temp_dir = tempfile.TemporaryDirectory()
+        root = Path(cls.temp_dir.name)
+        cls.stores, cls.artifacts = root / "stores", root / "artifacts"
+        cls.stores.mkdir()
+        cls.artifacts.mkdir()
+        create_ragged_fixture_store(cls.stores, cls.STORE_ID, artifact_root=cls.artifacts)
+        cls.result = run_release([cls.STORE_ID], registry_root=cls.stores, artifact_root=cls.artifacts)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.temp_dir.cleanup()
+
+    def test_the_release_is_built_published_and_recorded_at_its_declared_coverage(self) -> None:
+        """One fixture build, all of it: argv, the published Store, and the record (#341).
+
+        End to end at fixture scale: the value in `release.yaml` is the value
+        the builder is given, the value the Store's own manifest carries, and
+        the value the Validation Record records. One method, so the fixture is
+        built once however the suite is sharded.
+        """
+        self.assertEqual(self.result.returncode, 0, self.result.stdout + self.result.stderr)
+        store_p = paths.store_path(self.STORE_ID, root=self.artifacts)
+        self.assertTrue(store_p.is_dir())
+
+        # The builder got the declared value, from `release.yaml` and nowhere else.
+        record = json.loads(
+            paths.record_path(self.STORE_ID, "build", root=self.artifacts).read_text(encoding="utf-8")
+        )
+        for argv in (record["planned_argv"], record["argv"]):
+            self.assertIn("--association-coverage", argv)
+            self.assertEqual(argv[argv.index("--association-coverage") + 1], RAGGED_FIXTURE_COVERAGE)
+
+        # And the published Store says it too: `info` reads the manifest, not the bundle.
+        info = subprocess.run(
+            [run.get_opengwasdb_executable(), "info", str(store_p), "--format", "json"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        self.assertEqual(json.loads(info.stdout)["association_coverage"], RAGGED_FIXTURE_COVERAGE)
+
+        validation = yaml.safe_load((self.stores / self.STORE_ID / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertIn(validation["status"], ("passed", "passed_with_warnings"))
+        self.assertEqual(validation["observed"]["association_coverage"], RAGGED_FIXTURE_COVERAGE)
+
+
+# `dev` before #341: the workflow whose `plan()` names no `--association-coverage`,
+# so the Records of a Store it published hold no such token. It stays reachable
+# from `dev` and `main` however #341 is merged; CI fetches full history for this
+# suite to have it.
+PRE_341_REVISION: str = "e42066b"
+
+_PRE_341_PUBLISHED: dict[str, Any] | None = None
+
+
+def effective_snakemake_metadata(output: Path) -> Path:
+    """Where the current code reads what Snakemake recorded about the job that wrote `output`.
+
+    `release.snakemake_directory()` is the checkout root for an ordinary run and
+    a private directory when the test runner gives the process one
+    (`tests/run_all_tests.py`). A fixture that hands the current code an earlier
+    run's metadata must put it where *this* run will look, or the dry run finds
+    none and proves nothing about the rerun triggers.
+    """
+    encoded = base64.urlsafe_b64encode(str(output).encode()).decode()
+    max_len = os.pathconf(REPO_ROOT, "PC_NAME_MAX") - 1
+    chunks = [encoded[i:i + max_len] for i in range(0, len(encoded), max_len)]
+    directory = release.snakemake_directory() / ".snakemake" / "metadata"
+    return directory.joinpath(*(["@" + c for c in chunks[:-1]] + chunks[-1:]))
+
+
+def _without_declared_coverage(argv: list[str], declared: str) -> list[str]:
+    """`argv` with the one `--association-coverage <declared>` pair #341 composes removed.
+
+    The plan a published Ragged Store's record was held to differs from this
+    branch's plan by that pair alone, so the recorded argv is the plan minus it.
+    """
+    flag = plan_module.ASSOCIATION_COVERAGE_FLAG
+    positions = [index for index, token in enumerate(argv) if token == f"--{flag}"]
+    assert len(positions) == 1, f"expected one --{flag} in {argv}"
+    index = positions[0]
+    assert argv[index + 1] == declared, (argv, declared)
+    return [*argv[:index], *argv[index + 2:]]
+
+
+def pre_341_published_store() -> dict[str, Any]:
+    """A Ragged Store built and published by the pre-#341 workflow, once per process.
+
+    The Store is the fixture `create_ragged_fixture_store` writes, built by the
+    workflow as it was at `PRE_341_REVISION`, run from a `git archive` of
+    itself with its own `ogstores` ahead of this checkout's editable install.
+    The archive's `.snakemake` is this checkout's, so the current code reads
+    that run's Snakemake metadata, as an operator's checkout would after a pull.
+
+    Two things the archived revision cannot do for itself are supplied at the
+    edge, and nothing else about it changes:
+
+    - the runtime pin is repinned to the one this environment provides, that
+      code's own way to run another runtime (stores#218), as
+      `pre_304_completion_template` does; and
+    - `build-ragged-ssf` requires an Association Coverage at the pinned runtime
+      (opengwas/opengwasdb#298), which code that predates #341 cannot name. A
+      small `opengwasdb` on `PATH` ahead of the real one adds the flag to the
+      two Ragged builders' argv, so the *builder* can run. The Store's records
+      are still that run's own: `run.py` records the argv it planned, which
+      names no such token, and which is the state under test. The shim sits in
+      an install prefix whose `site-packages` is this environment's, so the
+      runtime guard proves the real revision from the real metadata.
+    """
+    global _PRE_341_PUBLISHED
+    if _PRE_341_PUBLISHED is not None:
+        return _PRE_341_PUBLISHED
+
+    present = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "cat-file", "-e", f"{PRE_341_REVISION}^{{commit}}"], capture_output=True
+    )
+    if present.returncode != 0:
+        raise RuntimeError(
+            f"revision {PRE_341_REVISION} is not in this clone, so no Store can be built with the "
+            "workflow as it was before #341. A shallow clone lacks it: fetch the full history "
+            "(`git fetch --unshallow`; CI checks this suite out with `fetch-depth: 0`)."
+        )
+
+    store_id = "OGS-00131"
+    temp_dir = tempfile.TemporaryDirectory()
+    root = Path(temp_dir.name)
+    checkout = root / "pre-341"
+    checkout.mkdir()
+    archive = subprocess.run(
+        ["git", "-C", str(REPO_ROOT), "archive", "--format=tar", PRE_341_REVISION], capture_output=True, check=True
+    )
+    with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
+        tar.extractall(checkout, filter="data")
+
+    from ogstores import runtime as runtime_module
+
+    runtime_py = checkout / "src" / "ogstores" / "runtime.py"
+    pin = re.compile(r'^PINNED_OPENGWASDB_REVISION: str = "[0-9a-f]{40}"$', re.MULTILINE)
+    text = runtime_py.read_text(encoding="utf-8")
+    if len(pin.findall(text)) != 1:
+        raise RuntimeError(f"{runtime_py} no longer states its pin as this test expects")
+    runtime_py.write_text(
+        pin.sub(f'PINNED_OPENGWASDB_REVISION: str = "{runtime_module.PINNED_OPENGWASDB_REVISION}"', text),
+        encoding="utf-8",
+    )
+
+    shim_root = root / "runtime-shim"
+    (shim_root / "bin").mkdir(parents=True)
+    python_dir = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    (shim_root / "lib" / python_dir).mkdir(parents=True)
+    (shim_root / "lib" / python_dir / "site-packages").symlink_to(
+        Path(sys.prefix) / "lib" / python_dir / "site-packages", target_is_directory=True
+    )
+    real_opengwasdb = Path(run.get_opengwasdb_executable())
+    shim = shim_root / "bin" / "opengwasdb"
+    shim.write_text(
+        f"""#!{sys.executable}
+# Test fixture only: the pre-#341 code cannot declare a coverage, and the pinned
+# runtime requires one for the Ragged builders (opengwas/opengwasdb#298).
+import os
+import sys
+
+coverage = os.environ["OGSTORES_FIXTURE_COVERAGE"]
+argv = sys.argv[1:]
+if argv[:1] in (["build-ragged-ssf"], ["build-ragged-besd"]):
+    argv = [argv[0], "--association-coverage", coverage, *argv[1:]]
+os.execv({str(real_opengwasdb)!r}, [{str(real_opengwasdb)!r}, *argv])
+""",
+        encoding="utf-8",
+    )
+    shim.chmod(0o755)
+
+    # The archived run's Snakemake metadata must land where the current code
+    # reads it, which is this run's working directory, not always the checkout.
+    shared_metadata = release.snakemake_directory() / ".snakemake"
+    shared_metadata.mkdir(parents=True, exist_ok=True)
+    (checkout / ".snakemake").symlink_to(shared_metadata, target_is_directory=True)
+
+    old_code = checkout / "src"
+    old_env = {
+        **os.environ,
+        "PYTHONPATH": str(old_code),
+        "PATH": f"{shim_root / 'bin'}{os.pathsep}{os.environ['PATH']}",
+        "OGSTORES_FIXTURE_COVERAGE": RAGGED_FIXTURE_COVERAGE,
+    }
+    imported = subprocess.run(
+        [sys.executable, "-c", "import ogstores; print(ogstores.__file__)"],
+        cwd=checkout, env=old_env, capture_output=True, text=True, check=True,
+    ).stdout.strip()
+
+    stores = root / "stores"
+    artifacts = root / "artifacts"
+    stores.mkdir()
+    artifacts.mkdir()
+    create_ragged_fixture_store(stores, store_id, artifact_root=artifacts)
+    old_result = subprocess.run(
+        [
+            sys.executable, str(checkout / "workflow" / "release.py"), store_id, "--cores", "1",
+            "--config", f"registry_root={stores}", f"artifact_root={artifacts}",
+        ],
+        cwd=checkout, env=old_env, capture_output=True, text=True,
+    )
+    store_dir = paths.store_dir(store_id, root=artifacts)
+    published_before = {
+        p: (p.stat().st_mtime_ns, p.read_bytes())
+        for directory in ("records", "work")
+        for p in sorted((store_dir / directory).iterdir())
+    }
+    dry_result = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+    release_result = run_release([store_id], registry_root=stores, artifact_root=artifacts)
+    after = {
+        p: (p.stat().st_mtime_ns, p.read_bytes())
+        for directory in ("records", "work")
+        for p in sorted((store_dir / directory).iterdir())
+    }
+
+    _PRE_341_PUBLISHED = {
+        "temp_dir": temp_dir,
+        "store_id": store_id,
+        "imported": imported,
+        "old_code": old_code,
+        "old_result": old_result,
+        "stores": stores,
+        "artifacts": artifacts,
+        "published_before": published_before,
+        "published_after": after,
+        "dry_result": dry_result,
+        "release_result": release_result,
+    }
+    return _PRE_341_PUBLISHED
+
+
+class TestWorkflowKeepingAStorePublishedBefore341(PublishedReleaseCopies):
+    """A Ragged Store published before #341 stays up to date, with default rerun triggers.
+
+    #341 puts `--association-coverage` into every Ragged build step, so the
+    argv `plan()` produces for such a release changed. This proves the change
+    cannot rebuild or refuse the Store it was not built with: Snakemake's
+    up-to-date decision reads the rule's own code, the planned input list and
+    the record's mtime, and no part of the argv, so the archived revision's
+    run is left alone and the current one executes no job.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = pre_341_published_store()
+        cls.STORE_ID: str = cls.template["store_id"]
+
+    def test_the_current_workflow_neither_rebuilds_nor_refuses_it(self) -> None:
+        """The whole published-before-#341 scenario in one method, so the fixture is built once.
+
+        That the Store was built by the archived code, that its `build` record
+        names no coverage, that the current run has Snakemake metadata to
+        compare against, that the dry run and the run execute no job, that no
+        record or work file is rewritten, and that the plan really did change.
+        """
+        # 1. The archived revision built and published it, and its own records say so.
+        old = self.template["old_result"]
+        self.assertEqual(old.returncode, 0, f"the pre-#341 build failed:\n{old.stdout}\n{old.stderr}")
+        self.assertTrue(
+            self.template["imported"].startswith(str(self.template["old_code"])),
+            f"the old entry point imported {self.template['imported']}",
+        )
+        for name in ("build.json", "validate.json", "register.json"):
+            self.assertTrue(
+                (paths.records_dir(self.STORE_ID, root=self.template["artifacts"]) / name).is_file(), name
+            )
+
+        # 2. The state under test: a published Store whose argv predates the argument.
+        record = json.loads(
+            paths.record_path(self.STORE_ID, "build", root=self.template["artifacts"]).read_text(encoding="utf-8")
+        )
+        self.assertNotIn("--association-coverage", record["argv"])
+        self.assertNotIn("--association-coverage", record["planned_argv"])
+
+        # 3. What makes the guard mean something: this run has metadata to compare
+        # against, so "Nothing to be done" is about triggers, not about missing
+        # provenance (with none, Snakemake decides by mtime alone).
+        for name in ("build.json", "validate.json"):
+            record_p = paths.records_dir(self.STORE_ID, root=self.template["artifacts"]) / name
+            self.assertTrue(
+                effective_snakemake_metadata(record_p).is_file(),
+                f"the archived run kept no Snakemake metadata for {name} where this run reads it",
+            )
+
+        # 4. The dry run schedules no job, and the real run refuses nothing and does nothing.
+        dry = self.template["dry_result"]
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertIn("Nothing to be done", dry.stdout)
+        self.assertEqual(scheduled_targets(dry.stdout), [])
+        self.assertNotIn("would refuse", dry.stdout)
+
+        res = self.template["release_result"]
+        self.assertEqual(res.returncode, 0, f"the run failed:\n{res.stdout}\n{res.stderr}")
+        self.assertIn("nothing to be done", res.stdout + res.stderr)
+        self.assertEqual(
+            self.template["published_after"],
+            self.template["published_before"],
+            "the run rewrote a record or a work file",
+        )
+
+        # 5. The change is real: this branch plans the flag, and the plan is the
+        # recorded argv with exactly those two tokens added. What keeps the Store
+        # up to date is that no rerun trigger reads an argv token at all, not
+        # that the argv is unchanged.
+        loaded = bundle.load(self.STORE_ID, registry_root=self.template["stores"])
+        planned = plan(loaded, artifact_root=self.template["artifacts"])[0]
+        self.assertIn("--association-coverage", planned.argv)
+        executed = register.normalize_executed_argv_for_staging(
+            record["argv"], self.STORE_ID, artifact_root=self.template["artifacts"]
+        )
+        self.assertEqual(
+            _without_declared_coverage(planned.argv, RAGGED_FIXTURE_COVERAGE),
+            executed,
+            "the plan and the record differ by more than the added flag",
+        )
+
+
+class TestWorkflowCompletingAStorePublishedBefore341(PublishedReleaseCopies):
+    """A Ragged Store published before #341 may gain its own completion, and nothing else.
+
+    Adding a single-id completion to a published Store is the one amendment ADR
+    0037 allows, and the amendment check holds each Store-writing step to the
+    argv its own record planned. #341 added a token to every Ragged build step,
+    so a Store published before it plans an argv its record does not hold. ADR
+    0040 records the one exception: a record that names no coverage matches a
+    plan that differs by exactly the declaration-derived
+    `--association-coverage <release.yaml value>` pair, because the flag only
+    names what the old builder hard-coded and the Store's data does not change
+    (the owner's pre-release decision on opengwas/opengwasdb#298). A record that
+    names another coverage is refused, and so is every other difference.
+
+    The single-id completion gate itself is #232's (#336) and is patched here
+    only, so the comparison can be reached; production code still plans a
+    single-id completion for Dense Stores alone. Nothing else is stubbed: the
+    Store, its records and its derived build manifest are the archived run's.
+    """
+
+    COMPLETE_BLOCK: dict[str, Any] = {
+        "command": "complete-ragged",
+        "options": {"ld-panel": "/panel", "ancestry": "EUR"},
+    }
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = pre_341_published_store()
+        cls.STORE_ID: str = cls.template["store_id"]
+
+    def amended_copy(
+        self,
+        *,
+        declared: str = RAGGED_FIXTURE_COVERAGE,
+        recorded_coverage: str | None = None,
+        build_options: dict[str, Any] | None = None,
+    ) -> tuple[bundle.Bundle, Path]:
+        """A copy of the published release whose bundle gained its `complete` block.
+
+        `recorded_coverage` appends a coverage the *record* names, for the case
+        that must still be refused; `build_options` replaces the recipe's build
+        options, for the same reason.
+        """
+        stores, artifacts = self.published_copy(self.template["stores"], self.template["artifacts"])
+        build_p = stores / self.STORE_ID / "build.yaml"
+        document = yaml.safe_load(build_p.read_text(encoding="utf-8"))
+        document["completion_state"] = "reference_completed"
+        document["complete"] = dict(self.COMPLETE_BLOCK)
+        if build_options is not None:
+            document["build"]["options"] = build_options
+        build_p.write_text(yaml.safe_dump(document), encoding="utf-8")
+
+        release_p = stores / self.STORE_ID / "release.yaml"
+        release_doc = yaml.safe_load(release_p.read_text(encoding="utf-8"))
+        release_doc["association_coverage"] = declared
+        release_p.write_text(yaml.safe_dump(release_doc), encoding="utf-8")
+
+        if recorded_coverage is not None:
+            record_p = paths.record_path(self.STORE_ID, "build", root=artifacts)
+            record = json.loads(record_p.read_text(encoding="utf-8"))
+            record["planned_argv"] = [*record["planned_argv"], "--association-coverage", recorded_coverage]
+            run._write_record_atomically(record, record_p)
+        return bundle.load(self.STORE_ID, registry_root=stores), artifacts
+
+    def test_a_legacy_store_may_gain_its_completion_but_no_other_amendment(self) -> None:
+        """The exception, its boundary, and everything it does not cover, in one method."""
+        # 1. Production still plans a single-id completion for Dense Stores only;
+        #    lifting that is #232's #336, not this ticket's.
+        loaded, artifacts = self.amended_copy()
+        with self.assertRaisesRegex(ValueError, "complete"):
+            plan(loaded, artifact_root=artifacts)
+
+        with mock.patch.object(plan_module, "SINGLE_ID_COMPLETION_LAYOUTS", frozenset({"dense", "ragged"})):
+            # 2. The Store published before #341 passes the amendment check: the
+            #    plan differs from its record by the declared flag alone.
+            self.assertEqual(
+                amendment.bundle_changes(loaded, artifacts),
+                [],
+                "a published Ragged Store may gain its completion without a rebuild",
+            )
+            self.assertIn("--association-coverage", plan(loaded, artifact_root=artifacts)[0].argv)
+
+            # 3. A record that names another coverage is still refused, naming both.
+            mismatched, mismatched_artifacts = self.amended_copy(recorded_coverage="cis")
+            mismatch = amendment.bundle_changes(mismatched, mismatched_artifacts)
+            self.assertEqual(len(mismatch), 1, mismatch)
+            self.assertIn("association-coverage", mismatch[0])
+            self.assertIn("cis", mismatch[0])
+            self.assertIn(RAGGED_FIXTURE_COVERAGE, mismatch[0])
+
+            # 4. Any other change to the Store-writing step is still an amendment.
+            changed, changed_artifacts = self.amended_copy(build_options={"stored-effect-scale": "log_or"})
+            other = amendment.bundle_changes(changed, changed_artifacts)
+            self.assertEqual(len(other), 1, other)
+            self.assertIn("stored-effect-scale", other[0])
 
 
 if __name__ == "__main__":

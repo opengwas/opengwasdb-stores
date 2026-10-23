@@ -30,6 +30,7 @@
 release_config_version: 1
 
 label: eqtlgen-full
+association_coverage: cis
 access_posture: public
 description: >
   The full eQTLGen cis-eQTL catalogue on the shared Manifest Generation pipeline:

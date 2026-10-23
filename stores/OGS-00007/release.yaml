@@ -1,5 +1,6 @@
 store_id: OGS-00007
 label: 2018-sun-pilot-10
+association_coverage: cis_and_signals
 access_posture: public
 status: built
 trial: true

@@ -27,6 +27,7 @@
 release_config_version: 1
 
 label: ukb-b-full
+association_coverage: gwas
 access_posture: public
 description: >
   Full dense Store Release of all 2,514 UK Biobank (ukb-b) GWAS-VCF Analyses

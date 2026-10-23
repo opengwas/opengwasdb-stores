@@ -67,12 +67,15 @@ BUILDABLE_STATUSES: frozenset[str] = frozenset({"accepted", "built", "validated"
 # Release-level identity and provenance required by the current bundle contract.
 # The identity file trims to identity, lineage, status, creation time, source
 # snapshot identity, prose, and the generation command log (issue #136).
-# Coverage, cadence, Source Collection, source defaults, the sidecar pointer
-# map, and the standalone build_environment block were removed because they are
-# derived elsewhere or read by no code.
+# Cadence, Source Collection, source defaults, the sidecar pointer map, and the
+# standalone build_environment block were removed because they are derived
+# elsewhere or read by no code. `association_coverage` was removed by ADR 0029
+# for the same reason and is restored by ADR 0040 (#341): the Analysis Catalog
+# reads it, and opengwasdb#298 makes it a build input.
 RELEASE_REQUIRED_KEYS: tuple[str, ...] = (
     "store_id",
     "label",
+    "association_coverage",
     "status",
     "source_snapshot_id",
     "created_at",
@@ -137,10 +140,16 @@ def reserved_options(options: Mapping[Any, Any], reserved: Iterable[str]) -> lis
     """The `options` keys, as written, that render as one of the `reserved` flags.
 
     A reserved flag is one the registry composes from a verified input of its
-    own; passed through `options`, it would reach the CLI unverified.
+    own; passed through `options`, it would reach the CLI unverified. The
+    comparison is against the flag the key *sets*, not the whole key: a key may
+    carry its value after an `=`, and `{"min-cor=0.5": true}` renders the one
+    token `--min-cor=0.5`, which the CLI's parser reads exactly as
+    `--min-cor 0.5` (issue #341).
     """
     flags = frozenset(reserved)
-    return sorted(str(key) for key in options if normalize_option_key(key) in flags)
+    return sorted(
+        str(key) for key in options if normalize_option_key(key).split("=", 1)[0] in flags
+    )
 
 
 def is_valid_indexed_subset_name(name: object) -> bool:
@@ -181,6 +190,25 @@ LEGACY_ANALYSIS_ID_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002
 # column (ADR 0017); retire it in favour of the upstream validator if
 # OpenGWASDB ever adopts the rule (issue #319).
 _ANALYSIS_ID_RE: re.Pattern[str] = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*\Z")
+
+# The Association Coverage values a Store Release declares (#341): what
+# associations its Store is expected to hold. One vocabulary for the registry
+# and for opengwasdb (opengwas/opengwasdb#298), which renamed its own ``full``
+# to ``gwas``; this replaced ``full_gwas`` and ``cis_plus_signals``. A region
+# policy filters to ``cis_and_signals`` or ``signals_only`` only
+# (``manifest_generation.region_filter.REGION_POLICY_COVERAGES``).
+ASSOCIATION_COVERAGES: tuple[str, ...] = (
+    "gwas",
+    "cis",
+    "cis_and_signals",
+    "signals_only",
+)
+
+# The layouts whose Store holds a cell for every (variant, Analysis), so the
+# only Association Coverage they can carry is `gwas`
+# (opengwas/opengwasdb#298, `COVERAGES_BY_LAYOUT`): an association outside that
+# coverage would be indistinguishable from one the source did not report.
+DENSE_COMPONENT_ONLY_GWAS_COVERAGE: frozenset[str] = frozenset({"dense", "hybrid"})
 
 # The controlled vocabulary for ``assigned_ancestry``: the seven super-population
 # codes the ancestry-mixture Reference Resource assigns (see
@@ -441,6 +469,26 @@ class Bundle:
             f"{self.store_id}: release.yaml trial must be a YAML boolean, "
             f"got {value!r}"
         )
+
+    @property
+    def association_coverage(self) -> str:
+        """What associations this Store Release holds: one of the four values (#341).
+
+        The Analysis Catalog shows it and counts Analyses by it, and refuses a
+        bundle `check()` rejects before reading any fact. A reader that has not
+        gated must still not read an absent, unknown or non-string value as a
+        default -- that would show a layout's coverage as the Store's -- so
+        anything outside the vocabulary raises rather than answering one
+        (ADR 0040).
+        """
+        release = self.release if isinstance(self.release, Mapping) else {}
+        value = release.get("association_coverage")
+        if not isinstance(value, str) or value not in ASSOCIATION_COVERAGES:
+            raise ValueError(
+                f"{self.store_id}: release.yaml association_coverage must be one of "
+                f"{', '.join(ASSOCIATION_COVERAGES)}, got {value!r}"
+            )
+        return value
 
     @property
     def superseded_by(self) -> str | None:
@@ -846,6 +894,18 @@ def _check_release(bundle: Bundle) -> list[str]:
         if _is_missing(release, key):
             errors.append(f"release.yaml is missing required key: {key!r}")
 
+    # `association_coverage` is a checked vocabulary rather than free text: the
+    # catalog shows it and counts by it, so an unknown or non-string value is
+    # refused as written instead of being stored (ADR 0040, #341).
+    coverage = release.get("association_coverage")
+    if "association_coverage" in release and not (
+        isinstance(coverage, str) and coverage in ASSOCIATION_COVERAGES
+    ):
+        errors.append(
+            f"release.yaml association_coverage {coverage!r} is not one of "
+            f"{', '.join(ASSOCIATION_COVERAGES)}"
+        )
+
     status = release.get("status")
     if status is not None and status not in VALID_STATUSES:
         errors.append(
@@ -1046,6 +1106,24 @@ def _check_build(bundle: Bundle) -> list[str]:
     block_name = "complete" if completion_state == "reference_completed" else "build"
     block = build.get(block_name)
     release = bundle.release if isinstance(bundle.release, Mapping) else {}
+    # A Dense or Hybrid Store has a cell for every (variant, Analysis), so a
+    # missing cell there already means the source did not report the
+    # association: `gwas` is the only coverage such a release can carry, and
+    # both builders refuse any other value (opengwas/opengwasdb#298). The
+    # registry states the same rule where a release is declared, so a wrong
+    # bundle is refused by `check()`, before a build reaches the builder.
+    declared_coverage = release.get("association_coverage")
+    if (
+        layout in DENSE_COMPONENT_ONLY_GWAS_COVERAGE
+        and isinstance(declared_coverage, str)
+        and declared_coverage in ASSOCIATION_COVERAGES
+        and declared_coverage != "gwas"
+    ):
+        errors.append(
+            f"release.yaml association_coverage {declared_coverage!r} is not 'gwas': "
+            f"a {layout} Store Release has a cell for every (variant, Analysis), so "
+            "it can carry only 'gwas' (opengwas/opengwasdb#298)"
+        )
     if completion_state == "reference_completed" and not release.get("derived_from"):
         # One id, published twice (ADR 0037): the build phase publishes the
         # Observed-Only Store that the completion phase then completes.
@@ -1932,6 +2010,7 @@ def check(
 
 
 __all__ = [
+    "ASSOCIATION_COVERAGES",
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
     "COLUMN_MAPS_DIR",
@@ -1939,6 +2018,7 @@ __all__ = [
     "COLUMN_MAP_CAPABILITY",
     "COLUMN_MAP_KEY",
     "COLUMN_MAP_SUFFIX",
+    "DENSE_COMPONENT_ONLY_GWAS_COVERAGE",
     "Bundle",
     "CheckResult",
     "ColumnMapBinding",

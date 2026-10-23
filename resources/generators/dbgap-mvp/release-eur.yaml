@@ -1,5 +1,6 @@
 release_config_version: 1
 label: mvp-phs002453-eur
+association_coverage: gwas
 access_posture: public
 description: >
   MVP PMID 39024449 European (EUR) ancestry observed-only release: every ready Analysis in the dbGaP phs002453 Source Collection's European bucket. The Source Metadata Table is the deposit's own metadata through the dbGaP MVP adapter; the bound count is the retired partition's 1,669.

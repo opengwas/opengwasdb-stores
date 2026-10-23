@@ -1,5 +1,6 @@
 store_id: OGS-00025
 label: 2023-chen-full-east-asian
+association_coverage: signals_only
 access_posture: public
 status: built
 derived_from: null

@@ -56,6 +56,7 @@ def write_bundle(
     release_data: dict[str, Any] = {
         "store_id": store_id,
         "label": "fixture",
+        "association_coverage": "gwas",
         "status": status,
         "source_snapshot_id": "fixture-snapshot-v1",
         "derived_from": None,
@@ -99,6 +100,14 @@ def write_bundle(
     )
     (root / "analyses.tsv").write_text(analyses, encoding="utf-8")
     return bundle.load(store_id, registry_root=registry)
+
+
+# A Ragged Build Recipe: the only layout that can carry a coverage other than
+# `gwas`, so the four-value vocabulary is exercised on it (#341).
+RAGGED_BUILD: dict[str, Any] = {
+    "layout": "ragged",
+    "build": {"command": "build-ragged-ssf", "options": {}},
+}
 
 
 class TestBundleContract(unittest.TestCase):
@@ -1591,6 +1600,166 @@ class TestBundleContract(unittest.TestCase):
         finally:
             for patch in helper_patches:
                 patch.stop()
+
+
+class TestAssociationCoverage(unittest.TestCase):
+    """`release.yaml` declares what associations its Store holds (#341).
+
+    The four values are `gwas`, `cis`, `cis_and_signals` and `signals_only`;
+    the Analysis Catalog reads the declared value and opengwasdb#298 makes it a
+    build input (ADR 0040). It is a descriptive fact, so backfilling it is not a
+    new Store Release (ADR 0004).
+    """
+
+    def setUp(self) -> None:
+        self.tmp_dir = Path(tempfile.mkdtemp(prefix="ogstores_bundle_coverage_"))
+
+    def tearDown(self) -> None:
+        shutil.rmtree(self.tmp_dir, ignore_errors=True)
+
+    def test_the_four_values_pass_the_contract(self) -> None:
+        """Each value passes on a layout that can carry it: `gwas` on Dense, the rest on Ragged."""
+        for value in ("gwas", "cis", "cis_and_signals", "signals_only"):
+            with self.subTest(value=value):
+                checked = write_bundle(
+                    self.tmp_dir,
+                    "OGS-00110",
+                    release={"association_coverage": value},
+                    build=None if value == "gwas" else RAGGED_BUILD,
+                )
+                self.assertEqual(checked.association_coverage, value)
+                self.assertEqual(bundle.check(checked, registry_root=self.tmp_dir), [])
+                record_check()
+
+    def test_a_dense_or_hybrid_release_carries_gwas_only(self) -> None:
+        """A cell for every (variant, Analysis) cannot hold anything but `gwas` (opengwasdb#298)."""
+        for layout, command in (("dense", "build-dense-vcf"), ("hybrid", "build-hybrid")):
+            build = {"layout": layout, "build": {"command": command, "options": {}}}
+            for value in ("cis", "cis_and_signals", "signals_only"):
+                with self.subTest(layout=layout, value=value):
+                    errors = bundle.check(
+                        write_bundle(
+                            self.tmp_dir,
+                            "OGS-00116",
+                            release={"association_coverage": value},
+                            build=build,
+                        ),
+                        registry_root=self.tmp_dir,
+                    )
+                    record_check()
+                    self.assertTrue(
+                        any("association_coverage" in error and "gwas" in error for error in errors),
+                        (layout, value, errors),
+                    )
+            # The builder's own vocabulary, not a second one: `gwas` passes.
+            self.assertEqual(
+                bundle.check(
+                    write_bundle(
+                        self.tmp_dir,
+                        "OGS-00117",
+                        release={"association_coverage": "gwas"},
+                        build=build,
+                    ),
+                    registry_root=self.tmp_dir,
+                ),
+                [],
+            )
+            record_check()
+
+    def test_a_missing_declaration_is_refused(self) -> None:
+        checked = write_bundle(self.tmp_dir, "OGS-00111")
+        release = dict(checked.release)
+        release.pop("association_coverage")
+        errors = bundle.check(
+            replace(checked, release=release), registry_root=self.tmp_dir
+        )
+        record_check()
+        self.assertTrue(any("association_coverage" in error for error in errors), errors)
+
+    def test_an_unknown_value_is_refused(self) -> None:
+        """The retired registry spelling is not a value a reader may see (#341)."""
+        for value in ("full_gwas", "full", "cis_plus_signals", "trans", "top_hits"):
+            with self.subTest(value=value):
+                checked = write_bundle(
+                    self.tmp_dir, "OGS-00112", release={"association_coverage": value}
+                )
+                errors = bundle.check(checked, registry_root=self.tmp_dir)
+                record_check()
+                self.assertTrue(
+                    any("association_coverage" in error for error in errors), (value, errors)
+                )
+
+    def test_a_non_string_value_is_refused(self) -> None:
+        for value in (True, 1, None, ["gwas"], {"coverage": "gwas"}):
+            with self.subTest(value=value):
+                checked = write_bundle(
+                    self.tmp_dir, "OGS-00113", release={"association_coverage": value}
+                )
+                errors = bundle.check(checked, registry_root=self.tmp_dir)
+                record_check()
+                self.assertTrue(
+                    any("association_coverage" in error for error in errors), (value, errors)
+                )
+
+    def test_a_malformed_declaration_stops_a_reader_instead_of_being_coerced(self) -> None:
+        """`check()` is not every reader's gate: `.association_coverage` raises (§ADR 0040).
+
+        The catalog reads the declared value, so reading an unknown or absent one
+        as a default would show a layout's coverage as the Store's.
+        """
+        absent = write_bundle(self.tmp_dir, "OGS-00114")
+        release = dict(absent.release)
+        release.pop("association_coverage")
+        with self.assertRaises(ValueError) as caught:
+            replace(absent, release=release).association_coverage
+        self.assertIn("association_coverage", str(caught.exception))
+        self.assertIn(absent.store_id, str(caught.exception))
+
+        unknown = write_bundle(
+            self.tmp_dir, "OGS-00115", release={"association_coverage": "full_gwas"}
+        )
+        with self.assertRaises(ValueError) as caught:
+            unknown.association_coverage
+        self.assertIn("full_gwas", str(caught.exception))
+
+    def test_every_committed_bundle_declares_its_true_coverage(self) -> None:
+        """The 22 committed bundles, checked against their configs and Collections.
+
+        Every Dense and Hybrid Store is genome-wide. Chen 2023's four
+        region-filtered Stores keep significant signals and their flanks only;
+        OGS-00007 keeps Sun's cis windows plus its significant signals; and the
+        eQTLGen Stores are cis-only, which their BESD sources show.
+        """
+        expected = {
+            "OGS-00001": "cis",
+            "OGS-00002": "cis",
+            "OGS-00003": "gwas",
+            "OGS-00004": "gwas",
+            "OGS-00005": "gwas",
+            "OGS-00006": "signals_only",
+            "OGS-00007": "cis_and_signals",
+            "OGS-00008": "gwas",
+            "OGS-00009": "gwas",
+            "OGS-00011": "gwas",
+            "OGS-00012": "gwas",
+            "OGS-00013": "gwas",
+            "OGS-00014": "gwas",
+            "OGS-00015": "gwas",
+            "OGS-00016": "gwas",
+            "OGS-00017": "gwas",
+            "OGS-00022": "gwas",
+            "OGS-00023": "gwas",
+            "OGS-00024": "signals_only",
+            "OGS-00025": "signals_only",
+            "OGS-00026": "signals_only",
+            "OGS-00027": "cis",
+        }
+        registry = REPO_ROOT / "stores"
+        declared = {
+            store_id: bundle.load(store_id, registry_root=registry).association_coverage
+            for store_id in sorted(expected)
+        }
+        self.assertEqual(declared, expected)
 
 
 class TestTrialAndSupersededBy(unittest.TestCase):

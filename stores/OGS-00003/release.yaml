@@ -1,5 +1,6 @@
 store_id: OGS-00003
 label: r13-pilot-20
+association_coverage: gwas
 access_posture: public
 status: built
 trial: true
