@@ -33,6 +33,31 @@ def split_individuals(populations: list[str], *, test_fraction: float, seed: int
     return test
 
 
+def record(row: dict[str, object]) -> tuple[object, object, object]:
+    """A row's source record: its canonical ALID and the REF/ALT it was kept from (#348)."""
+    return (row["SNP"], row["REF"], row["ALT"])
+
+
+def pair_records(train_rows: list[dict[str, object]], test_rows: list[dict[str, object]]
+                 ) -> tuple[list[dict[str, object]], int]:
+    """Pair the halves' variants by source record, and count the ALIDs they disagree on.
+
+    The split can keep the deletion on one side and the insertion on the other:
+    the ALID is then the same variant, but the halves carry no dosage the other
+    can standardise, so it pairs nothing and is counted rather than silently
+    shrinking ``shared``.
+    """
+    by_alid: dict[object, set[tuple[object, object]]] = {}
+    for row in test_rows: by_alid.setdefault(row["SNP"], set()).add((row["REF"], row["ALT"]))
+    shared, mismatched = [], set()
+    for row in train_rows:
+        others = by_alid.get(row["SNP"])
+        if others is None: continue
+        if (row["REF"], row["ALT"]) in others: shared.append(row)
+        else: mismatched.add(row["SNP"])
+    return shared, len(mismatched)
+
+
 def calibrate_block(genotypes: np.ndarray, variants: list[dict[str, object]], populations: list[str], *,
                     maf_threshold: float, max_missing_rate: float | None = None,
                     test_fraction: float = 1 / 3, mask_fraction: float = .2,
@@ -47,14 +72,13 @@ def calibrate_block(genotypes: np.ndarray, variants: list[dict[str, object]], po
              "test_in_sample": construct_block(g[test], variants, **floor)}
     # z-scores exist only where the variant passes the floor in both halves.
     # Rows pair by source record: the halves may keep different records of a shared ALID (#348).
-    record = lambda r: (r["SNP"], r["REF"], r["ALT"])
-    in_test = {record(r) for r in built["test_in_sample"].variant_table}
-    shared = [r for r in built["held_out"].variant_table if record(r) in in_test]
+    shared, n_mismatched = pair_records(built["held_out"].variant_table, built["test_in_sample"].variant_table)
     settings = {"maf_threshold": maf_threshold, "max_missing_rate": max_missing_rate,
                 "test_fraction": test_fraction, "mask_fraction": mask_fraction,
                 "replicates": replicates, "ncp": ncp, "thresh": thresh, "min_cor": min_cor,
                 "component_floor": component_floor, "seed": seed}
-    counts = {"n_train": int((~test).sum()), "n_test": int(test.sum()), "n_shared_variants": len(shared)}
+    counts = {"n_train": int((~test).sum()), "n_test": int(test.sum()), "n_shared_variants": len(shared),
+              "n_alid_record_mismatch": n_mismatched}
     if len(shared) < 10:  # too few to draw causal variants and a masked set from
         return {**counts, "panels": {}, "settings": settings, "replicates": [],
                 "skipped": f"{len(shared)} variants pass the floor in both halves"}

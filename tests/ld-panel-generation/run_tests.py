@@ -2,7 +2,7 @@
 """Fixture-driven tests for issues #35-40's in-repository implementation."""
 from __future__ import annotations
 
-import csv, importlib.util, json, shutil, subprocess, sys, tempfile
+import csv, importlib.util, json, os, shutil, subprocess, sys, tempfile
 from pathlib import Path
 
 import numpy as np
@@ -28,6 +28,16 @@ assert verify_spec.loader; verify_spec.loader.exec_module(verify)
 calibration_spec = importlib.util.spec_from_file_location("heldout_calibration", SCRIPT.with_name("heldout_calibration.py"))
 calibration = importlib.util.module_from_spec(calibration_spec); sys.modules[calibration_spec.name] = calibration
 assert calibration_spec.loader; calibration_spec.loader.exec_module(calibration)
+pilot_qc_spec = importlib.util.spec_from_file_location("pilot_qc_effect", SCRIPT.with_name("pilot_qc_effect.py"))
+pilot_qc = importlib.util.module_from_spec(pilot_qc_spec); sys.modules[pilot_qc_spec.name] = pilot_qc
+assert pilot_qc_spec.loader; pilot_qc_spec.loader.exec_module(pilot_qc)
+# The runner imports its siblings by bare name, so it loads after them.
+pilot_spec = importlib.util.spec_from_file_location("run_amr_pilot", SCRIPT.with_name("run_amr_pilot.py"))
+pilot = importlib.util.module_from_spec(pilot_spec); sys.modules[pilot_spec.name] = pilot
+assert pilot_spec.loader; pilot_spec.loader.exec_module(pilot)
+panel_spec = importlib.util.spec_from_file_location("build_amr_panel", SCRIPT.with_name("build_amr_panel.py"))
+panel = importlib.util.module_from_spec(panel_spec); sys.modules[panel_spec.name] = panel
+assert panel_spec.loader; panel_spec.loader.exec_module(panel)
 
 checks = 0
 def check(value: bool, message: str) -> None:
@@ -311,6 +321,233 @@ def test_heldout_calibration() -> None:
     check(np.median(held_out) < .5, f"masked z-scores without LD scored as recovered: {held_out}")
 
 
+def test_pair_records() -> None:
+    # #348: the split can keep a different record of one ALID on each side, so
+    # the halves share no dosage to standardise. It pairs nothing and is counted.
+    train = [{"SNP": "1:100:G:GA", "REF": "G", "ALT": "GA"},
+             {"SNP": "1:101:C:T", "REF": "C", "ALT": "T"}]
+    test = [{"SNP": "1:100:G:GA", "REF": "GA", "ALT": "G"},
+            {"SNP": "1:101:C:T", "REF": "C", "ALT": "T"}]
+    shared, mismatched = calibration.pair_records(train, test)
+    check(shared == [train[1]] and mismatched == 1,
+          f"an ALID the halves kept different records of must be counted, not shared: {shared}, {mismatched}")
+
+
+def test_pilot_qc_effect() -> None:
+    # #355: the tool behind docs/data/amr-ld-pilot-qc-effect.json joins plink2's
+    # frequency and missingness reports pairwise, joins VCF FILTER by
+    # (pos, REF, ALT), and counts what each owner rule keeps. Every guard is
+    # exercised on a tiny fixture rather than the real pilot.
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        afreq, vmiss = tmp / "chr22.afreq", tmp / "chr22.vmiss"
+        afreq.write_text("#CHROM\tPOS\tID\tREF\tALT\tALT_FREQS\tOBS_CT\n"
+                         "22\t100\t22:100:A:G\tA\tG\t0.2\t690\n"
+                         "22\t101\t22:101:C:T\tC\tT\t0.3\t690\n")
+        vmiss.write_text("#CHROM\tPOS\tID\tMISSING_CT\tOBS_CT\tF_MISS\n"
+                         "22\t100\t22:100:A:G\t0\t690\t0\n")
+        try:
+            pilot_qc.variant_reports(afreq, vmiss)
+            check(False, "a missingness report shorter than its frequency report must raise")
+        except ValueError:
+            check(True, "")
+        vmiss.write_text("#CHROM\tPOS\tID\tMISSING_CT\tOBS_CT\tF_MISS\n"
+                         "22\t101\t22:101:C:T\t0\t690\t0\n"
+                         "22\t100\t22:100:A:G\t0\t690\t0\n")
+        try:
+            pilot_qc.variant_reports(afreq, vmiss)
+            check(False, "reports listing variants in different orders must raise")
+        except SystemExit:
+            check(True, "")
+        # A record and a pfile variant are joined on (pos, REF, ALT). gnomAD
+        # splits multi-allelic sites, so the same key can only recur as an exact
+        # repeat; two FILTERs under one key would make the join ambiguous.
+        records = tmp / "22_100-200.records.tsv"
+        records.write_text("22\t100\tA\tG\tPASS\n22\t100\tA\tG\tPASS\n22\t101\tC\tT\tLowQual\n")
+        check(pilot_qc.record_filters(records) == {(100, "A", "G"): "PASS", (101, "C", "T"): "LowQual"},
+              "an exact repeat is one record and keeps its FILTER")
+        records.write_text("22\t100\tA\tG\tPASS\n22\t100\tA\tG\tLowQual\n")
+        try:
+            pilot_qc.record_filters(records)
+            check(False, "two records under one (pos, REF, ALT) with different FILTER must raise")
+        except SystemExit as exc:
+            check("100:A:G" in str(exc), f"the conflicting-FILTER refusal does not name the key: {exc}")
+        # Five records with one collision pair, and the counts worked out by hand:
+        #   A  MAF .20  PASS  called        -> floor, QC, its own group
+        #   B1 MAF .15  PASS  called        -> floor, QC, group B
+        #   B2 MAF .05  PASS  called        -> floor, QC, group B (the collision)
+        #   C  MAF .005 FAIL  called        -> below the MAF floor
+        #   D  MAF .30  PASS  55% missing   -> above the MAF floor, fails 80% called
+        rows = [
+            {"alid": "1:100:A:G", "pass": True, "f_miss": 0.0, "maf": .20, "obs": 690},
+            {"alid": "1:200:G:GA", "pass": True, "f_miss": .05, "maf": .15, "obs": 690},
+            {"alid": "1:200:G:GA", "pass": True, "f_miss": .10, "maf": .05, "obs": 690},
+            {"alid": "1:300:C:T", "pass": False, "f_miss": 0.0, "maf": .005, "obs": 690},
+            {"alid": "1:400:T:C", "pass": True, "f_miss": .55, "maf": .30, "obs": 690},
+        ]
+        measured = pilot_qc.qc_effect(rows)
+        check((measured["records_maf"], measured["records_maf_pass_call_rate"]) == (4, 3),
+              f"the MAF, PASS and call-rate counts are wrong: {measured}")
+        check((measured["collision_groups"], measured["collision_records"]) == (1, 2),
+              f"the collision counts are wrong: {measured}")
+        check((measured["retained_drop_all"], measured["retained_keep_one"]) == (1, 2),
+              f"the drop-all/keep-one counts are wrong: {measured}")
+        check(np.allclose(measured["maf_gaps"], [.10]), f"the collision MAF gap is wrong: {measured['maf_gaps']}")
+
+
+def test_panel_summary() -> None:
+    # #354: a panel's summary must name every block the panel declares -- not
+    # just the chromosomes this invocation touched -- and must not credit a
+    # verification report written before the block it verified.
+    g, variants = ld_fixture()
+    built = module.construct_block(g, variants, mac_threshold=1, component_floor=5)
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp)
+        for name in ("22/100-200", "22/300-400"):
+            module._atomic_outputs(out / "panel/AMR" / name, built)
+            (out / "verify").mkdir(exist_ok=True)
+            (out / "verify" / f"{name.replace('/', '_')}.json").write_text(json.dumps({"failures": []}))
+        def provenance(name: str) -> float:
+            return (out / "panel/AMR" / name).with_suffix(".provenance.json").stat().st_mtime
+        fresh, stale = out / "verify/22_100-200.json", out / "verify/22_300-400.json"
+        os.utime(fresh, (provenance("22/100-200") + 60, provenance("22/100-200") + 60))
+        os.utime(stale, (provenance("22/300-400") - 60, provenance("22/300-400") - 60))
+        (out / "panel/failures.tsv").write_text(
+            "AMR/22/500-600\t1\tSystemExit: no variants remain after filtering\n")
+        regions = out / "regions.tsv"
+        regions.write_text("chr\tstart\tend\tancestry\n22\t100\t200\tAMR\n22\t300\t400\tAMR\n"
+                           "22\t500\t600\tAMR\n22\t700\t800\tAMR\n")
+        # Calibration follows the same freshness rule as the run step: only a
+        # result newer than the conversion it was measured from is a measurement.
+        marker = out / "pgen/AMR/chr22.complete"
+        marker.parent.mkdir(parents=True)
+        marker.write_text(panel.conversion_marker(True, 1, "0" * 64))
+        converted = marker.stat().st_mtime
+        (out / "calibration").mkdir()
+        settings = {"maf_threshold": .01, "max_missing_rate": .2, "replicates": 20}
+        for label, offset, recorded in (("22_100-200", 60, settings),
+                                        ("22_300-400", -60, settings),
+                                        ("22_700-800", 60, {**settings, "maf_threshold": .05})):
+            result = out / "calibration" / f"{label}.json"
+            result.write_text(json.dumps({"n_train": 1, "n_test": 1, "n_shared_variants": 0,
+                                          "n_alid_record_mismatch": 0, "skipped": "fixture",
+                                          "settings": recorded}))
+            os.utime(result, (converted + offset, converted + offset))
+        run = out / "runs/20261022T000000Z"
+        (run / "logs").mkdir(parents=True)
+        (run / "logs/calibrate_22_500-600.log").write_text("exited 2\n")
+        summary = panel.panel_summary(
+            out, regions, [{"chr": "22", "start": "100", "end": "200"},
+                           {"chr": "22", "start": "300", "end": "400"},
+                           {"chr": "22", "start": "500", "end": "600"},
+                           {"chr": "22", "start": "700", "end": "800"}], run,
+            maf=.01, max_missing=.2, replicates=20, n_individuals=g.shape[0])
+        blocks = summary["blocks"]
+        check(sorted(blocks) == ["22_100-200", "22_300-400", "22_500-600", "22_700-800"] and
+              summary["blocks_declared"] == 4,
+              f"the summary must name every declared block: {sorted(blocks)}")
+        check(blocks["22_100-200"]["status"] == "built" and blocks["22_100-200"]["verification_failures"] == [],
+              "a block verified clean after it was built was not reported clean")
+        check(blocks["22_300-400"]["status"] == "built" and
+              blocks["22_300-400"]["verification_failures"] == ["not_verified"],
+              "a verification report older than the block it verified was credited")
+        check(blocks["22_500-600"]["status"] == "empty", "a block with no variants left must read as empty")
+        check(blocks["22_700-800"] == {"status": "failed", "error": "not built"},
+              "a declared block with neither outputs nor an error must read as failed")
+        calibration = summary["calibration"]
+        check(calibration["22_100-200"] == {"n_train": 1, "n_test": 1, "n_shared_variants": 0,
+                                            "n_alid_record_mismatch": 0, "skipped": "fixture"},
+              f"a result newer than its conversion must be reported as a measurement: {calibration['22_100-200']}")
+        # A retry that fails leaves the earlier result on disk, and publishing it
+        # would report a measurement of the previous conversion as this one's
+        # (a result measured from an earlier conversion is not a measurement of
+        # this one, #354).
+        check(calibration["22_300-400"] == {"stale": str(out / "calibration/22_300-400.json")},
+              f"a result older than its conversion must not be published: {calibration['22_300-400']}")
+        check(calibration["22_500-600"] == {"failed": str(run / "logs/calibrate_22_500-600.log")},
+              f"a calibration this run attempted is reported as failed: {calibration['22_500-600']}")
+        # #354: changing --maf, --max-missing or --replicates leaves the
+        # conversion untouched, so a result newer than its marker can still have
+        # been measured under other QC. It must be re-run, never credited.
+        check(calibration["22_700-800"] == {"stale": str(out / "calibration/22_700-800.json")},
+              f"a fresh result recorded under other settings was credited: {calibration['22_700-800']}")
+
+
+def test_conversion_markers() -> None:
+    # #354: a converted chromosome records what it was converted from, so a
+    # rerun can refuse to overwrite it. Markers written before this change name
+    # PASS-only and MAC alone; membership was frozen separately, so the legacy
+    # text says nothing about which members, and that is not a mismatch.
+    sha, other = "2b6cc790670b0038b3c111a5b223071540ffbaac32c622f59338d1ca13ad67a0", "f" * 64
+    current = panel.conversion_marker(True, 1, sha)
+    check(current.count("\n") == 1 and current.endswith("\n"), "a marker must be one JSON line")
+    check(json.loads(current) == {"pass_only": True, "mac": 1, "members_sha256": sha},
+          f"the marker does not name what it converted: {json.loads(current)}")
+    check(panel.marker_matches(current, panel.conversion_marker(True, 1, sha)),
+          "a marker must match itself")
+    legacy = "plink2 PASS-only biallelic conversion of the AMR members; MAC >= 1"
+    check(panel.marker_matches(legacy, panel.conversion_marker(True, 1, sha)) and
+          panel.marker_matches(legacy, panel.conversion_marker(True, 1, other)),
+          "the legacy marker must match a PASS-only, MAC >= 1 conversion whatever the members hash")
+    check(not panel.marker_matches(legacy, panel.conversion_marker(True, 50, sha)),
+          "the legacy text names MAC >= 1 and must not match a MAC >= 50 conversion")
+    check(not panel.marker_matches(panel.conversion_marker(False, 1, sha), panel.conversion_marker(True, 1, sha)),
+          "a conversion that kept every record must not match a PASS-only one")
+    check(not panel.marker_matches(panel.conversion_marker(True, 1, other), current),
+          "a marker naming other members must not match")
+
+
+def test_run_all_stops_on_first_failure() -> None:
+    # #354: a failing stage must stop the queue, not drain it. A subprocess
+    # already reading a chromosome finishes; one not yet started never runs.
+    ran: list[int] = []
+    def fail_first(item: int) -> None:
+        ran.append(item)
+        if item == 0: raise RuntimeError("conversion failed")
+    try:
+        panel.run_all(fail_first, [0, 1, 2, 3], workers=1)
+        check(False, "run_all swallowed the first failure")
+    except RuntimeError as exc:
+        check(str(exc) == "conversion failed", f"run_all raised a different exception: {exc}")
+    check(ran == [0], f"a queued item ran after the first failure: {ran}")
+    done: list[int] = []
+    panel.run_all(done.append, [9, 10, 11, 12], workers=2)
+    check(sorted(done) == [9, 10, 11, 12], f"run_all did not run every item: {done}")
+
+
+def test_freeze_membership() -> None:
+    # #354: make_membership writes into the run directory, so a rerun cannot
+    # compare the panel's frozen membership against itself. The freeze compares
+    # the candidate's hash with members/ and copies only on a match; a changed
+    # membership refuses and leaves members/ byte-identical.
+    keep = "#IID\nS1\nS2\n"
+    digest = "0a7c17e56a0241b51cd39fe842a7313bf8ee827d71a1f0a43b15c40774afe9b3"
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp = Path(tmp)
+        candidate, members = tmp / "runs/20261022T000000Z/members", tmp / "members"
+        candidate.mkdir(parents=True)
+        (candidate / "AMR.keep").write_text(keep)
+        (candidate / "membership.json").write_text('{"AMR": 2}\n')
+        check(panel.freeze_membership(candidate, members) == digest and
+              (members / "AMR.keep").read_text() == keep and
+              (members / "membership.json").read_text() == '{"AMR": 2}\n' and
+              (members / "AMR.keep.sha256").read_text() == digest + "\n",
+              "a first run must copy the candidate membership and freeze its hash")
+        before = (members / "AMR.keep").read_bytes()
+        check(panel.freeze_membership(candidate, members) == digest and
+              (members / "AMR.keep").read_bytes() == before,
+              "a matching run must not change the frozen membership")
+        (candidate / "AMR.keep").write_text("#IID\nS1\n")
+        try:
+            panel.freeze_membership(candidate, members)
+            check(False, "a changed membership must refuse")
+        except SystemExit as exc:
+            check("membership" in str(exc), f"the refusal does not say what changed: {exc}")
+        check((members / "AMR.keep").read_bytes() == before and
+              (members / "AMR.keep.sha256").read_text() == digest + "\n",
+              "a refused membership change must leave members/ untouched")
+
+
 def test_canonical_effect_allele_ld_orientation() -> None:
     dosage = np.tile([0.0, 1.0, 2.0, 1.0], 10)
     # PLINK exports ALT dosage. Variant 1's canonical effect allele is ALT,
@@ -465,13 +702,17 @@ def test_plink_raw_input() -> None:
 
 def main() -> None:
     test_block(); test_maf_floor(); test_alid_collisions(); test_call_rate(); test_run_panels_floor_resume()
-    test_verify_block(); test_heldout_calibration()
+    test_verify_block(); test_heldout_calibration(); test_pair_records(); test_pilot_qc_effect()
+    test_panel_summary()
+    test_conversion_markers(); test_run_all_stops_on_first_failure()
+    test_freeze_membership()
     test_canonical_effect_allele_ld_orientation()
     test_mapping(); test_membership_keep_format(); test_amr_regions(); test_amr_pilot_mapping(); test_amr_pilot_membership()
     test_index_validation(); test_compressed_pvar_input()
     test_plink_raw_input()
     for script in ("acquire_hgdp1kgp.py", "construct_block.py", "run_panels.py", "verify_block.py",
-                   "heldout_calibration.py", "boundary_ld.py", "run_amr_pilot.py", "build_amr_panel.py"):
+                   "heldout_calibration.py", "boundary_ld.py", "run_amr_pilot.py", "build_amr_panel.py",
+                   "pilot_qc_effect.py"):
         subprocess.run([sys.executable, str(SCRIPT.with_name(script)), "--help"], check=True,
                        stdout=subprocess.DEVNULL)
     print(f"ok — {checks} checks passed")
