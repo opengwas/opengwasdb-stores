@@ -4,6 +4,8 @@ Status: accepted
 
 Supersedes [0007](0007-reference-completion-as-release-lineage.md).
 
+**Amended by [0040](0040-association-coverage-is-declared-in-the-release-bundle.md).** A recorded build argv that names no `--association-coverage` matches a plan that differs only by the declaration-derived coverage pair; the exact-argv rule is otherwise unchanged.
+
 ADR 0007 published a reference-completed Store under a second id, derived from
 its Observed-Only parent. For UKB-B that is OGS-00009 (observed, 33 GB) beside
 OGS-00010 (completed, 47 GB). Every observed cell is stored twice, and each
