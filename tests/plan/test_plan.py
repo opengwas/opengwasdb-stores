@@ -1087,12 +1087,11 @@ class TestPlanRagged(unittest.TestCase):
         self.assertEqual(rendered, ["--association-coverage=cis"])
         declared = ["--association-coverage", "signals_only"]
 
-        import click
         import typer
         from opengwasdb.cli.main import app
 
         build = typer.main.get_command(app).commands["build-ragged-ssf"]
-        parser = build.make_parser(click.Context(build))
+        parser = build.make_parser(build.context_class(build))
         parsed, _, _ = parser.parse_args(
             args=[
                 "manifest.tsv", "filtered", "store",
