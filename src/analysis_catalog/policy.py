@@ -11,6 +11,7 @@ from __future__ import annotations
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from functools import cache
 from math import isfinite
 from pathlib import Path
 from typing import Any
@@ -211,17 +212,32 @@ def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tu
     return tuple(row)
 
 
+@cache
+def _continuous_sample_size_kinds() -> frozenset[str]:
+    """Every sample size kind but `case_control` (#362).
+
+    The vocabulary is opengwasdb's, imported rather than restated, so a kind it
+    adds (or retires) changes this rule with no edit here. Imported lazily, as
+    `_admit` does, so importing the catalog stays cheap.
+    """
+    from opengwasdb.model.enums import SampleSizeKind
+
+    return frozenset(member.value for member in SampleSizeKind) - {"case_control"}
+
+
 def outcome_type(stored_effect_scale: str | None, sample_size_kind: str | None) -> str | None:
     """`binary`, `continuous` or None.
 
     Binary when `sample_size_kind` is `case_control` or `stored_effect_scale` is
-    `log_or` (#324): an `sd` effect with case counts is a
-    binary trait stored in SD units. Continuous for `sd` with `total`. None for
-    every other pair, including a blank, rather than a guess.
+    `log_or` (#324): an `sd` effect with case counts is a binary trait stored in
+    SD units. Continuous for `sd` with any other sample size kind: a `total`
+    sample size or a `variant_level` one, because standardised units do not
+    depend on the sample size's granularity (#362). None for every other pair,
+    including a blank, rather than a guess.
     """
     if sample_size_kind == "case_control" or stored_effect_scale == "log_or":
         return "binary"
-    if stored_effect_scale == "sd" and sample_size_kind == "total":
+    if stored_effect_scale == "sd" and sample_size_kind in _continuous_sample_size_kinds():
         return "continuous"
     return None
 

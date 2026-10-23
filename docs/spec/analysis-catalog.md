@@ -163,8 +163,10 @@ once at build (`analysis_catalog.policy.outcome_type`, `trait_class` and
 - `outcome_type`: `binary` when `sample_size_kind` is `case_control` or
   `stored_effect_scale` is `log_or` (#324), so
   (`sd`, `case_control`) and (`log_hazard`, `case_control`) are binary;
-  `continuous` for (`sd`, `total`); `NULL` otherwise, including a blank and
-  `effective` or `variant_level` without a binary scale. Never a guess.
+  `continuous` for (`sd`, `total`) and every other (`sd`, sample size kind)
+  the contract defines but `case_control`, such as (`sd`, `variant_level`)
+  (#362), because an SD effect is standardised whatever the sample size's
+  granularity; `NULL` otherwise, including a blank. Never a guess.
 - `trait_class`: `molecular` when any of `context`, `tissue` or `trait_chr` is
   set, `phenotype` otherwise. A Store whose bundle lacks the three columns is
   `phenotype`.

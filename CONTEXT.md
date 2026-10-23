@@ -14,7 +14,7 @@ The cross-Store listing of every Analysis of every served Store Release, naming 
 _Avoid_: store registry, service catalogue, Analysis Catalogue (OpenGWASDB's former model)
 
 **Analysis Type**:
-The classification of an Analysis by outcome type (binary or continuous) and trait class (phenotype or molecular). The Analysis Catalog derives both once, at build time, from the Analysis's own Release Manifest fields: binary when its sample size kind is case-control or its stored effect scale is log odds ratio, continuous for an SD effect on a total sample size, and no outcome type otherwise; molecular when it has a context, tissue or trait chromosome, phenotype otherwise. They are catalog-derived labels for counting and filtering, not registry facts, and no Release Manifest column holds them.
+The classification of an Analysis by outcome type (binary or continuous) and trait class (phenotype or molecular). The Analysis Catalog derives both once, at build time, from the Analysis's own Release Manifest fields: binary when its sample size kind is case-control or its stored effect scale is log odds ratio, continuous for an SD effect with any other sample size kind (`total`, `effective` or `variant_level`), and no outcome type otherwise; molecular when it has a context, tissue or trait chromosome, phenotype otherwise. They are catalog-derived labels for counting and filtering, not registry facts, and no Release Manifest column holds them.
 _Avoid_: trait type, study type
 
 **Access Posture**:

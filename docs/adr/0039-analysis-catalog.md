@@ -110,15 +110,17 @@ indexes for counts, search and paging.
 - **The type of an Analysis is a set of columns of `analyses`**, derived once at
   build time from fields the row already holds: `outcome_type` (binary or
   continuous) from `stored_effect_scale` and `sample_size_kind`, binary when
-  either says so (`case_control` or `log_or`), `NULL` when neither field gives
-  a reading; `trait_class` (phenotype or molecular) from `context`, `tissue`
-  and `trait_chr`; and `ancestry_category`, Assigned Ancestry or `META` for an
-  unassigned row whose Source Ancestry Label is exactly `META`. Genome-wide
-  or cis is not derived: it is the Store Release's declared Association
-  Coverage (`release.yaml`, one of `gwas`, `cis`, `cis_and_signals` and
-  `signals_only`), counted as it is and never relabelled, and never a layout's
-  default. The counts and the report read those columns, so a type is derived
-  once and defined in one place.
+  either says so (`case_control` or `log_or`), continuous when the scale is `sd`
+  and the kind is any vocabulary value but `case_control` (the sample size's
+  granularity does not change what standardised units mean, #362), `NULL` when
+  neither field gives a reading; `trait_class` (phenotype or molecular) from
+  `context`, `tissue` and `trait_chr`; and `ancestry_category`, Assigned
+  Ancestry or `META` for an unassigned row whose Source Ancestry Label is
+  exactly `META`. Genome-wide or cis is not derived: it is the Store Release's
+  declared Association Coverage (`release.yaml`, one of `gwas`, `cis`,
+  `cis_and_signals` and `signals_only`), counted as it is and never relabelled,
+  and never a layout's default. The counts and the report read those columns, so
+  a type is derived once and defined in one place.
 - **A placeholder row is an `analyses` row with `listed = 0`.** Listing,
   search and counts see only `listed = 1`, through the `listed_analyses` view,
   and the paging indexes are partial indexes over those rows, so a retired
