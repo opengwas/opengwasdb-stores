@@ -33,6 +33,23 @@ A record names the artifact root it was written under (`record_path`), and the
 bundle is planned under that root for the comparison, so a release copied to
 another root still matches. `--config force=1` keeps its meaning: a forced run
 may rebuild from a changed bundle, so a forced release is not checked.
+
+One documented exception qualifies ADR 0037's exact-argv rule (#341). A Store
+published before this repository passed `--association-coverage` to its Ragged
+builders has a `build` record that names no coverage, while the plan now names
+the release's declared one. Read as a change, that would refuse the completion
+#224 wants for such a Store -- for a reason that is not a rebuild: the flag
+names what the old builder hard-coded, the Store's data does not change, and
+the owner's pre-release decision on opengwas/opengwasdb#298 applies such
+metadata changes in place (#359 relabels the manifests). So a recorded argv
+that names no coverage matches a planned argv that differs by exactly the
+declaration-derived `--association-coverage <release.yaml value>` pair
+(`_legacy_coverage_amendment`). Nothing else is tolerated: a recorded argv that
+*does* name a coverage -- another value included -- is compared whole, as is
+every other token. The exception is one-directional by construction: a record
+that predates the flag cannot witness the value it was built at, so the
+completion's own report is what holds the release to its declaration, and
+`register` refuses a mismatch (#341).
 """
 
 from __future__ import annotations
@@ -47,11 +64,15 @@ from typing import Any
 from ogstores import bundle as bundle_module
 from ogstores import manifest, paths, run
 from ogstores.bundle import Bundle
-from ogstores.plan import BUILD_PHASE, REGISTER_STEPS, Step, plan
+from ogstores.plan import ASSOCIATION_COVERAGE_FLAG, BUILD_PHASE, REGISTER_STEPS, Step, plan
 
 # The steps whose argv made a published Store; every other step is a
 # re-runnable in-place addition to it.
 STORE_WRITING_STEPS: frozenset[str] = run.STORE_PRODUCING_STEPS | {run.VARIANT_REFERENCE_STEP}
+
+#: The flag #341 added to every Ragged build step, in both renderings a recipe
+#: or a plan may use (`--flag value` and `--flag=value`).
+COVERAGE_FLAG: str = f"--{ASSOCIATION_COVERAGE_FLAG}"
 
 
 class AmendmentError(RuntimeError):
@@ -83,6 +104,39 @@ def _record_root(record: dict[str, Any], store_id: str, default: Path) -> Path:
     if record_path.parent.name == "records" and record_path.parent.parent.name == store_id:
         return record_path.parents[2]
     return default
+
+
+def _names_coverage(argv: list[str]) -> bool:
+    """Whether `argv` says anything about Association Coverage, in either spelling."""
+    return any(token == COVERAGE_FLAG or token.startswith(f"{COVERAGE_FLAG}=") for token in argv)
+
+
+def _legacy_coverage_amendment(planned: list[str], recorded: list[str], b: Bundle) -> bool:
+    """Whether `recorded` is `planned` without the coverage pair #341 composed (ADR 0040).
+
+    True only when the plan names exactly one declaration-derived
+    `--association-coverage <release.yaml value>` pair, the recorded argv names
+    no coverage at all, and the two are otherwise identical. A record that
+    names a coverage is never tolerated, whatever it says, and neither is any
+    other difference: this is the one compatibility exception ADR 0040 records,
+    not a general tolerance for a changed plan.
+    """
+    positions = [index for index, token in enumerate(planned) if token == COVERAGE_FLAG]
+    if len(positions) != 1:
+        return False
+    index = positions[0]
+    if len(planned) < index + 2:
+        return False
+    try:
+        declared = b.association_coverage
+    except ValueError:
+        # No checkable declaration, so no pair the exception could derive.
+        return False
+    if planned[index + 1] != declared:
+        return False
+    if _names_coverage(recorded):
+        return False
+    return recorded == [*planned[:index], *planned[index + 2:]]
 
 
 def _phase_changes(b: Bundle, phase: str, register: dict[str, Any], root: Path) -> list[str]:
@@ -121,10 +175,15 @@ def _phase_changes(b: Bundle, phase: str, register: dict[str, Any], root: Path) 
             changes.append(f"{store_id}: {phase} phase step {name!r} has no record of the argv it planned")
             continue
         step = planned_at(_record_root(record, store_id, root)).get(name)
-        if step is not None and step.argv != record["planned_argv"]:
-            changes.append(
-                f"{store_id}: {phase} phase step {name!r}: {run.argv_change(record['planned_argv'], step.argv)}"
-            )
+        if step is None or step.argv == record["planned_argv"]:
+            continue
+        if _legacy_coverage_amendment(step.argv, record["planned_argv"], b):
+            # Published before #341: its record names no coverage and the plan
+            # differs by the declared flag alone (ADR 0040).
+            continue
+        changes.append(
+            f"{store_id}: {phase} phase step {name!r}: {run.argv_change(record['planned_argv'], step.argv)}"
+        )
     return changes
 
 

@@ -170,7 +170,11 @@ def acquire_region_filtered(fixture, policy=POLICY, *, evidence=True) -> None:
 class RegionLineageTests(unittest.TestCase):
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory(prefix="region-lineage-")
-        self.fixture = FixtureBuilder(Path(self._tmp.name)).build()
+        # A Ragged release, because only a Ragged Store can hold a region
+        # policy's coverage: a Dense or Hybrid one has a cell for every
+        # (variant, Analysis), so it can carry only `gwas` (opengwas/opengwasdb
+        # #298, ADR 0040). Every region-filtered Store Family is Ragged.
+        self.fixture = FixtureBuilder(Path(self._tmp.name)).build(layout="ragged")
 
     def tearDown(self) -> None:
         self._tmp.cleanup()

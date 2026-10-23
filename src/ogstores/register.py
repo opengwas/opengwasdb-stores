@@ -17,7 +17,9 @@ Responsibilities:
    `n_associations`, `association_coverage` and `reference_assembly` are the
    producing step's reported values or None: matrix cells are never reported
    as associations, and an unreported key is recorded absent rather than
-   derived (#322).
+   derived (#322). A reported `association_coverage` must be the release's own
+   declaration in `release.yaml`, which is the value the builder was given:
+   a mismatch is refused, naming both (#341).
    The verdict, `checks`, `warnings` and `errors` are this run's alone: they come
    from `opengwasdb validate --format json`, and nothing is carried from the
    Validation Record being replaced (#195). A candidate's Phase B evidence is
@@ -128,6 +130,12 @@ class ValidateVerdictError(RegisterError, ValueError):
 
 class ObservedMeasurementError(RegisterError, ValueError):
     """Raised when a producing step's stdout JSON carries a malformed observed measurement."""
+
+    pass
+
+
+class AssociationCoverageMismatchError(RegisterError, ValueError):
+    """Raised when a producing step reports a coverage the release does not declare (#341)."""
 
     pass
 
@@ -518,6 +526,32 @@ def _reported_observed_text(
     return value
 
 
+def require_declared_association_coverage(
+    reported: str | None, bundle_obj: Bundle, producing_step: str, where: str
+) -> None:
+    """Refuse a producing step whose reported coverage is not the one the release declares.
+
+    The declaration in `release.yaml` is what the builder was given
+    (`--association-coverage`, ADR 0040), so a Store built at another coverage
+    is not the Store the release describes, however well it validates (#341).
+    Both values are named, because the useful question is which of the two is
+    wrong. A step that reported nothing is an opengwasdb whose stdout carried no
+    such key: that records `null`, as it always has (#322), rather than a
+    refusal the older runtime could never satisfy.
+    """
+    if reported is None:
+        return
+    declared = bundle_obj.association_coverage
+    if reported != declared:
+        raise AssociationCoverageMismatchError(
+            f"The {producing_step} step's record {where} reports association_coverage "
+            f"{reported!r}, but release.yaml declares {declared!r} for "
+            f"{bundle_obj.store_id}. The builder was given the declared value, so the "
+            "Store it wrote is not the release this bundle describes: nothing was "
+            "registered (ADRs 0040, 0023)."
+        )
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
@@ -563,6 +597,9 @@ def harvest_observed_measurements(
             n_associations = _reported_association_count(stdout_json, producing_step, where)
             association_coverage = _reported_observed_text(
                 stdout_json, "association_coverage", producing_step, where
+            )
+            require_declared_association_coverage(
+                association_coverage, bundle_obj, producing_step, where
             )
             reference_assembly = _reported_observed_text(
                 stdout_json, "reference_assembly", producing_step, where
@@ -1301,6 +1338,7 @@ __all__ = [
     "OBSERVED_FIELDS",
     "VALIDATOR_NAME",
     "ArgvDriftError",
+    "AssociationCoverageMismatchError",
     "MissingRecordError",
     "ObservedViewCheckError",
     "PUBLICATION_BOUNDARIES",

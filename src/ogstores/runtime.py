@@ -69,7 +69,14 @@ from ogstores.plan import plan
 #: variant after the lift no longer reach a Store. The range
 #: `d405de0..d8896e4` is #304's three commits and its merge plus a docs-only
 #: merge (#293); #304 is its only functional change.
-PINNED_OPENGWASDB_REVISION: str = "d8896e46677ae9d54f1fc08a974e8c7e41d105cc"
+#: Then to `75f0e77a`, the core `dev` merge of PR #298, which makes Association
+#: Coverage a build input (#341): both Ragged builders require
+#: `--association-coverage`, Dense and Hybrid accept only `gwas`, and every
+#: builder and completion command reports the coverage it wrote in its stdout
+#: JSON, which `register` holds to the release's declaration. The range
+#: `d8896e4..75f0e77` is #298's own commits and its merge; there is no Store
+#: format bump.
+PINNED_OPENGWASDB_REVISION: str = "75f0e77a85bd6b8e55a1f5753922153c7304aef0"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference

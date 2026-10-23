@@ -52,17 +52,41 @@ no published Store is rewritten.
 
 **Backfilling it is not a new Store Release.** It is a descriptive fact about a
 release, so ADR 0004 (an accepted bundle is not edited) does not make the
-backfill a new release, and no identity, checksum or amendment check reads it:
-the amendment check compares a plan's argv and the manifest a Store was built
-from, and `release.yaml` is neither. The builder receives the declared value
-once opengwas/opengwasdb#298 lands and this repository's pin moves past it; that
-is also when `register` can refuse a mismatch with the value opengwasdb
-reports.
+backfill a new release, and no identity or checksum reads it: the amendment
+check compares a plan's argv and the manifest a Store was built from, and
+`release.yaml` is neither. **The builder receives the declared value.**
+opengwas/opengwasdb#298 makes coverage a build input, and this repository's pin
+moved past it (#341): `plan()` appends `--association-coverage <release.yaml
+value>` to every Ragged build step, from the declaration and never from the Build
+Recipe, whose change would make a new Store Release (ADR 0004). The Dense and
+Hybrid argv name no flag, because `gwas` is their default and the only value
+their layout can carry, which `bundle.check()` now enforces. `register` refuses
+a publication whose producing step reports a coverage other than the declared
+one, naming both values, and records `null` when the step reports none.
+
+**It qualifies ADR 0037's exact-argv amendment check, once.** A Store published
+before #341 has a `build` record whose argv names no coverage, while the plan
+now names the declared one; read as a change, that would refuse the single-id
+completion #224 wants for such a Store, for a reason that is not a rebuild. The
+flag only names what the old builder hard-coded, the Store's data does not
+change, and the owner's pre-release decision on opengwas/opengwasdb#298 applies
+such metadata changes in place (`#359` relabels the manifests). So the
+amendment check tolerates exactly one difference: a recorded argv that names no
+`--association-coverage` matches a planned argv that differs by the
+declaration-derived pair alone. A record that names a coverage -- another value
+included -- is compared whole, as is every other token, and the bundle's
+manifest membership is still compared byte for byte. The exception is
+one-directional: a record that predates the flag cannot witness the value it was
+built at, so the completion's own report is what holds the release to its
+declaration, which `register` enforces.
 
 ## Consequences
 
 - Every committed bundle declares its true coverage; `pixi run bundle-check`
   requires it and OGS-00006 says `signals_only`.
+- A published Ragged Store whose `build` record predates the flag may gain its
+  own completion without a rebuild: the amendment check tolerates that one
+  difference, and nothing else (see above).
 - Manifest Generation requires `association_coverage` in every release config,
   writes it after `label:` in the candidate `release.yaml`, and refuses a config
   without one. For a region-filtered config it must equal

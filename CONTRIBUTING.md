@@ -177,16 +177,23 @@ another checkout's (`pixi run --manifest-path <other>/pixi.toml -e dev python3
 to run this checkout's tests under an environment installed from elsewhere, or
 with nothing installed.
 
-One test is a deliberate exception. The workflow suite's pre-#304 test
-(`TestWorkflowCompletingAStoreBuiltBefore304`, #305) builds a Store with the
-workflow as it was at an earlier revision. It runs that revision from a `git
-archive`, with the archive's own `src/` ahead of the editable install on
-`PYTHONPATH`, so the old code, not this checkout's, really runs. It exists
-because a Store built by older code must still be completable without a
-rebuild. Installing the old revision instead would cost minutes on every CI
-run, for no extra fidelity. The exception covers that archived revision
-only: this checkout's own code and tests always import from the installed
-package.
+Two tests are a deliberate exception. Both are in the workflow suite, and
+both build a Store with the workflow as it was at an earlier revision. Each
+runs that revision from a `git archive`, with the archive's own `src/` ahead of
+the editable install on `PYTHONPATH`, so the old code, not this checkout's,
+really runs. They exist because a Store built by older code must still be
+completable, and must not be rebuilt or refused, without one:
+
+- `TestWorkflowCompletingAStoreBuiltBefore304` (#305), at the revision before
+  a release could complete its own Store;
+- `TestWorkflowKeepingAStorePublishedBefore341` (#341), at the revision before
+  `plan()` passed the declared Association Coverage to the Ragged builders, so
+  that a Store published before that argument must still stay up to date and
+  accept the completion the amendment check allows.
+
+Installing an old revision instead would cost minutes on every CI run, for no
+extra fidelity. The exception covers those two archived revisions only: this
+checkout's own code and tests always import from the installed package.
 
 ## Repository boundaries
 
