@@ -1,6 +1,6 @@
 store_id: OGS-00014
 layout: dense
-completion_state: observed_only
+completion_state: reference_completed
 post:
   top_hits: true
   overview: true
@@ -10,6 +10,12 @@ build:
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: GRCh38
     n-workers: 16
+complete:
+  command: complete-dense
+  options:
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38-amr/panel
+    ancestry: AMR
+    n-workers: 32
 indexed_subsets:
 - name: hm3
   resource_id: hapmap3-hg38
