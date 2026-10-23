@@ -84,9 +84,12 @@ declaration, which `register` enforces.
 
 - Every committed bundle declares its true coverage; `pixi run bundle-check`
   requires it and OGS-00006 says `signals_only`.
-- A published Ragged Store whose `build` record predates the flag may gain its
-  own completion without a rebuild: the amendment check tolerates that one
-  difference, and nothing else (see above).
+- The amendment check tolerates that one difference and nothing else (see
+  above), so a published Ragged Store whose `build` record predates the flag
+  will gain its own completion without a rebuild once single-id Ragged
+  completion lands. That layout is still refused today, by
+  `SINGLE_ID_COMPLETION_LAYOUTS` in `src/ogstores/plan.py`; lifting the gate is
+  #336 in epic #232.
 - Manifest Generation requires `association_coverage` in every release config,
   writes it after `label:` in the candidate `release.yaml`, and refuses a config
   without one. For a region-filtered config it must equal
