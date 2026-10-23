@@ -249,20 +249,26 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertFalse((REPO_ROOT / "stores" / "OGS-00021").exists())
 
-    def test_ogs_00027_is_built_from_the_accepted_bundle_with_its_acceptance_carried(self) -> None:
+    def test_ogs_00027_is_validated_and_scientifically_accepted(self) -> None:
         """The owner accepted the full eQTLGen candidate (#314 comment 6345246939).
 
-        `accepted` is the fixed-input gate for building; `human_acceptance` stays
-        pending because scientific acceptance follows the built Store. The Store
-        was then built and validated at opengwasdb d8896e4, and `register`
-        replaced the candidate record with its own, carrying the acceptance
-        evidence under `acceptance.acceptance` with the commit it came from.
+        `accepted` is the fixed-input gate for building. The Store was then built
+        and validated at opengwasdb d8896e4, and `register` replaced the
+        candidate record with its own, carrying the acceptance evidence under
+        `acceptance.acceptance` with the commit it came from. The owner then
+        accepted the released Store scientifically (#314 comment 6360207599),
+        so `human_acceptance` is `accepted` and the Release Status moved
+        accepted -> built -> validated.
         """
         loaded = bundle.load("OGS-00027", registry_root=REPO_ROOT / "stores")
         record_check()
         self.assertEqual(list(bundle.check(loaded, registry_root=REPO_ROOT / "stores")), [])
         record_check()
-        self.assertEqual(loaded.status, "validated")  # accepted, then validated by #352
+        self.assertEqual(loaded.status, "validated")
+        record_check()
+        self.assertEqual(bundle.validate_status_transition("accepted", "built"), [])
+        record_check()
+        self.assertEqual(bundle.validate_status_transition("built", loaded.status), [])
         record_check()
         self.assertEqual(loaded.release["accepted_at"], "2026-10-22T16:00:43Z")
         record_check()
@@ -291,7 +297,11 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertEqual(acceptance["frozen_at"], "2026-10-22T16:00:43Z")
         record_check()
-        self.assertEqual(acceptance["human_acceptance"], "pending")
+        self.assertEqual(acceptance["human_acceptance"], "accepted")
+        record_check()
+        self.assertEqual(acceptance["human_acceptance_date"], "2026-10-23")
+        record_check()
+        self.assertIn("issuecomment-6360207599", acceptance["human_acceptance_authorization"])
         record_check()
         self.assertIn("issuecomment-6345246939", acceptance["owner_authorization"])
         record_check()

@@ -70,8 +70,9 @@ notes: 'Every probe of the genome-wide BESD file set, one Analysis each. The Sto
   (issue #152); case-control rows use log_or/binary_trait; non-target/unassigned ancestry, orientation
   failures, unusable source AF and ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv).
 
+  2026-10-23: validated. The Store was built and validated at opengwasdb d8896e4 (19,250 Analyses, 8,927,061 variants, 127,112,772 associations; opengwasdb validate passed), and the owner accepted the released Store scientifically (opengwas/opengwasdb-stores#314 comment 6360207599). An earlier build at d405de0 failed validate on 103 duplicate associations from 13 post-lift collisions; opengwas/opengwasdb#304 drops such entries as ambiguous.
 
-  Validated 2026-10-22 (#352), after read-only checks of the published Store: the Validation Record says
+  Read-only verification of the published Store (#352, 2026-10-22): the Validation Record says
   passed at opengwasdb@d8896e4 (the pin) with 19,250 Analyses, 8,927,061 variants and 127,112,772 associations,
   matching register''s record; the Store opens at the pin and its 19,250 Analysis IDs equal the bundle''s
   19,250 admitted rows as sets (none excluded); info reports format 0.2.0, ragged layout, and the manifest''s
