@@ -79,7 +79,13 @@ from ogstores.plan import plan
 #: stores #225 needs to build OGS-00011 from sources that name one variant two
 #: ways. The range `32f47b3..1e2fb42` is #306's commits and merge; #306 is its
 #: only functional change.
-PINNED_OPENGWASDB_REVISION: str = "1e2fb4203cdda842bd40270a870814e0167607b1"
+#: Then to `496bfe9`, core #324's merge into the same integration branch, again
+#: not yet on core `dev`: `build-indexed-subset` gained `--overflow-only
+#: {refuse,skip}` and records the ALIDs a Hybrid's subset leaves out for living
+#: only on its Overflow axis, which stores #225 needs to index OGS-00011's HM3
+#: list without refusing the whole subset. The range `1e2fb42..496bfe9` is
+#: #324's commit and merge; #324 is its only functional change.
+PINNED_OPENGWASDB_REVISION: str = "496bfe9cc9bbc85c60718d62aa4c6d43d83af810"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference
