@@ -228,13 +228,22 @@ class TestBundleContract(unittest.TestCase):
         **dict.fromkeys(("OGS-00012", "OGS-00013", "OGS-00014", "OGS-00016"), "9c9b92bc4ffd112de30ab661924079140ecd45aa"),
         "OGS-00015": "fa2ea2cde7eeb06d1e52ad67c30e501743c66009",
     }
+    # The runtime whose register wrote each bundle's Validation Record. The
+    # #221 batch built the observed Stores, so that record names its runtime.
+    # OGS-00012's completion published a Store of its own, and register wrote
+    # the record for what it published (ADR 0037).
+    MVP_RECORD_RUNTIME = {
+        **dict.fromkeys(("OGS-00013", "OGS-00014", "OGS-00015", "OGS-00016"), "4e922566d7fa4c13a11be3637069da63e48be28c"),
+        "OGS-00012": "d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c",
+    }
 
     def assert_mvp_built_record(self, store_id: str, n_analyses: int) -> None:
-        """Register's passing Validation Record, from the #221 batch's runtime, over the frozen-input one.
+        """Register's passing Validation Record, over the frozen-input one.
 
-        The owner authorization and the pending human acceptance that record
-        held are in the notes, and the record itself in git at its
-        `acceptance.commit`.
+        The record names the runtime that published the Store it describes.
+        The owner authorization and the pending human acceptance that the
+        frozen-input record held are in the notes, and that record itself in
+        git at its `acceptance.commit`.
         """
         loaded = bundle.load(store_id, registry_root=REPO_ROOT / "stores")
         validation = loaded.validation
@@ -242,7 +251,8 @@ class TestBundleContract(unittest.TestCase):
         self.assertEqual(validation["status"], "passed", store_id)
         record_check()
         self.assertEqual(
-            validation["validator"], {"name": "opengwasdb validate", "version": "opengwasdb@4e922566d7fa4c13a11be3637069da63e48be28c"},
+            validation["validator"],
+            {"name": "opengwasdb validate", "version": f"opengwasdb@{self.MVP_RECORD_RUNTIME[store_id]}"},
             store_id,
         )
         record_check()
