@@ -143,6 +143,30 @@ def reserved_options(options: Mapping[Any, Any], reserved: Iterable[str]) -> lis
     return sorted(str(key) for key in options if normalize_option_key(key) in flags)
 
 
+def unrenderable_options(options: Mapping[Any, Any]) -> list[str]:
+    """The `options` keys, as written, whose value cannot render as CLI tokens.
+
+    `plan.render_options` (ADR 0023) turns a bool into a bare flag, a list into
+    one flag occurrence per item and anything else into `str(value)`. A mapping
+    would arrive as its own repr, and `null` or an empty list as nothing at all
+    -- an option the declaration states and the command never sees. Both are the
+    silently-dropped-instruction class the registry refuses, so a value must be
+    a string, number or bool, or a non-empty list of those.
+    """
+
+    def renders(value: object) -> bool:
+        scalars = (str, int, float, bool)
+        if isinstance(value, scalars):
+            return True
+        return (
+            isinstance(value, (list, tuple))
+            and bool(value)
+            and all(isinstance(item, scalars) for item in value)
+        )
+
+    return sorted(str(key) for key, value in options.items() if not renders(value))
+
+
 def is_valid_indexed_subset_name(name: object) -> bool:
     """Return True if `name` is a filesystem- and consumer-safe subset name."""
     return (
@@ -932,6 +956,15 @@ def _check_indexed_subsets(build: Mapping[str, Any]) -> list[str]:
                         f"{where} options must not set 'overwrite'; a Release Bundle "
                         "declares a named subset to build, not to replace in place"
                     )
+                else:
+                    unrenderable = unrenderable_options(options)
+                    if unrenderable:
+                        errors.append(
+                            f"{where} options must give a value for {unrenderable} "
+                            "that renders as CLI tokens: a string, number or bool, or "
+                            "a non-empty list of them. A mapping would be passed as "
+                            "its own repr, and null or an empty list as nothing"
+                        )
 
     return errors
 
@@ -1792,5 +1825,6 @@ __all__ = [
     "reserved_options",
     "summarise",
     "trait_ontology_id_terms",
+    "unrenderable_options",
     "validate_status_transition",
 ]

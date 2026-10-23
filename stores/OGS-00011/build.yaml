@@ -25,3 +25,5 @@ indexed_subsets:
     variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
     reference_assembly: GRCh38
     checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+    options:
+      overflow-only: skip

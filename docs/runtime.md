@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `1e2fb4203cdda842bd40270a870814e0167607b1`, the merge of core #306 (`build-hybrid --on-rsid-conflict`) into the core integration branch `orch/232-observed-view` (core PR #303), which starts from core `dev` at `829b501`; not yet on core `dev` |
-| Core merge | opengwas/opengwasdb #306 (an rsid-conflict policy for the Hybrid build's name harvest, and compound-id normalisation in the readers), #296 (Ragged `check-observed-view`) and #295 (Hybrid `check-observed-view`) on top of `dev`, which carries PR #291 (`check-observed-view`, core #289), #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: #296's merge `32f47b3b` (stores #336), #295's merge `eb4c749b` (stores #333), the core `dev` merge of PR #291 `d405de0a` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Revision | `496bfe9cc9bbc85c60718d62aa4c6d43d83af810`, the merge of core #324 (`build-indexed-subset --overflow-only`) into the core integration branch `orch/232-observed-view` (core PR #303), which starts from core `dev` at `829b501`; not yet on core `dev` |
+| Core merge | opengwas/opengwasdb #324 (a policy for a Hybrid subset request that only the Overflow axis carries), #306 (an rsid-conflict policy for the Hybrid build's name harvest, and compound-id normalisation in the readers), #296 (Ragged `check-observed-view`) and #295 (Hybrid `check-observed-view`) on top of `dev`, which carries PR #291 (`check-observed-view`, core #289), #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: #306's merge `1e2fb42` (stores #225), #296's merge `32f47b3b` (stores #336), #295's merge `eb4c749b` (stores #333), the core `dev` merge of PR #291 `d405de0a` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -52,6 +52,11 @@ re-run `pixi lock` in the same commit.
   --on-rsid-conflict {refuse,drop}` decides what a routing key its sources name
   differently stores, and the build always reports what it compared as
   `rsid_conflicts`. See "Coordination with core #306".
+- **A policy for a Hybrid subset's Overflow-only ALIDs**
+  (opengwas/opengwasdb#324, moved here for the same rebuild).
+  `build-indexed-subset --overflow-only {refuse,skip}` decides a requested ALID
+  only the Hybrid's shared axis carries, and a `skip` build records how many.
+  See "Coordination with core #324".
 
 ## The pre-write gate
 
@@ -246,3 +251,38 @@ from its build phase, because `complete-hybrid` reports none: the counts
 describe the completed Store too. A checkpoint records the policy, so a build
 checkpointed before the option existed reads as `refuse`: resuming it under
 `drop` is refused, as resuming under any other changed parameter is.
+
+## Coordination with core #324
+
+A subset build on a Hybrid root indexes the release's nested Dense Component,
+not the whole release: an ALID the release carries only on the shared/Overflow
+axis has a Variant Index there that this index cannot address. Resolving it
+against the Dense Component alone would count it absent and leave it out
+silently, so the builder refused the whole request and named the ALIDs. That is
+what stopped the OGS-00011 rebuild of 2026-10-23: 17,151 of the 1,206,903 HM3
+ALIDs it requested were Overflow-only, and 149 were absent from the release
+altogether.
+
+Core opengwas/opengwasdb#324 adds `build-indexed-subset --overflow-only
+{refuse,skip}`, default `refuse`, which is the behaviour it had and names the
+`skip` remedy when it refuses. Under `skip` the Overflow-only ALIDs stay out of
+the index, and the group records `overflow_only_count` -- always written, `0`
+when there were none -- beside the first 20 skipped ALIDs as
+`overflow_only_sample`, in variant-list order. The count is never folded into
+`absent_count`, which keeps its meaning: the release does not carry the ALID at
+all. The recorded counts must sum `requested_count = resolved_count +
+absent_count + overflow_only_count`, and both the read seam and `validate`
+enforce it. A group written before the option records neither attribute and is
+read as `0`, because the builder that wrote it could only refuse such a
+request; a Dense root has no Overflow axis, so it accepts the flag with no
+effect.
+
+The policy is per declared subset, so it is the declaration that carries it:
+stores #225 gives OGS-00011's `hm3` declaration `options: {overflow-only:
+skip}`, and the planner passes the whole `options` mapping through to both
+phases' `build-indexed-subset` argv. The build prints the human counts and a
+JSON summary whose `overflow_only` block holds `policy`, `n_overflow_only` and
+the sample. `register` harvests no subset output -- it reads the Store's build
+or completion step -- so the counts of a subset built here live in that step's
+record, `records/<phase>indexed-subset-<name>.json`, and nowhere in the
+Validation Record.

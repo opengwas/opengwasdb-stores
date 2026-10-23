@@ -39,7 +39,9 @@
       "--variant-list",
       "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
       "--reference-assembly",
-      "GRCh38"
+      "GRCh38",
+      "--overflow-only",
+      "skip"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
@@ -113,7 +115,9 @@
       "--variant-list",
       "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
       "--reference-assembly",
-      "GRCh38"
+      "GRCh38",
+      "--overflow-only",
+      "skip"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",

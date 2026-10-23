@@ -103,4 +103,17 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
   (opengwas/opengwasdb#306). The counts are carried into the Validation Record of the build that
   replaces this Store. Membership, the completion block and every other build option are unchanged; the
   build phase no longer plans the argv that wrote the published Store, and differs from it only in the
-  flag this erratum adds. Release Status is unchanged until that rebuild publishes.'
+  flag this erratum adds. Release Status is unchanged until that rebuild publishes.
+
+  Release Erratum (issue #225, 2026-10-23): the forced rebuild of 2026-10-22 then built the
+  Store and its build step passed, but the HM3 Indexed Variant Subset refused it: 17,151 of the
+  1,206,903 HM3 ALIDs the subset requested were present only on the Hybrid''s shared/Overflow
+  axis, which the subset''s Dense Component cannot index (opengwas/opengwasdb#271, #324). On the
+  owner decision of 2026-10-23 the hm3 declaration gains overflow-only: skip, so those ALIDs
+  stay out of the subset and it records how many it left out
+  (opengwas/opengwasdb#324). That count is a measurement of the subset build, so it lives in
+  the indexed-subset step''s record rather than in the Validation Record, which register
+  assembles from the build''s. Membership, the build step, the completion block and every other
+  build option are unchanged: a subset is a derived acceleration artifact, so its declaration
+  is the only part of the recipe that moves. Release Status is unchanged until the rebuild
+  publishes.'

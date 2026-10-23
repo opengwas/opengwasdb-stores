@@ -793,6 +793,29 @@ class TestBundleContract(unittest.TestCase):
             errors,
         )
 
+    def test_a_declaration_passes_subset_options_through_but_not_any_value(self) -> None:
+        """`options` reaches the CLI verbatim, so a value that cannot render is refused (#225)."""
+        for policy in ("refuse", "skip"):
+            accepted = self.make_bundle(build={
+                "indexed_subsets": [
+                    self._subset_declaration(options={"overflow-only": policy})
+                ],
+            })
+            self.assertEqual(bundle.check(accepted, registry_root=self.tmp_dir), [])
+            record_check()
+
+        for value in ({"policy": "skip"}, None, []):
+            refused = self.make_bundle(build={
+                "indexed_subsets": [
+                    self._subset_declaration(options={"overflow-only": value})
+                ],
+            })
+            errors = bundle.check(refused, registry_root=self.tmp_dir)
+            record_check()
+            self.assertEqual(len(errors), 1, errors)
+            self.assertIn("overflow-only", errors[0])
+            self.assertIn("options", errors[0])
+
     def test_indexed_subsets_reject_malformed_declarations(self) -> None:
         cases: list[dict[str, Any]] = [
             {"indexed_subsets": "not-a-list"},

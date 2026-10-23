@@ -249,6 +249,13 @@ threadpoolctl = ">=3.0"
 # `32f47b3..1e2fb42` is #306's commits and merge; #306 is its only functional
 # change.
 #
+# Repinned for #225 to `496bfe9`, the merge of opengwasdb#324 into the same
+# integration branch, again not yet on core `dev`: `build-indexed-subset` gained
+# `--overflow-only {refuse,skip}` and records the ALIDs a Hybrid's subset leaves
+# out for living only on its Overflow axis, so a subset build need not refuse a
+# Store whose shared axis is short of the list. The range `1e2fb42..496bfe9` is
+# #324's commit and merge; #324 is its only functional change.
+#
 # Because these capabilities ship in the tracked pin, the ordinary
 # `pixi run release` invocation resolves a capable runtime from this
 # environment with no ad-hoc `PATH` overlay (the HM3 proof's temporary
@@ -264,7 +271,7 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "1e2fb4203cdda842bd40270a870814e0167607b1" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "496bfe9cc9bbc85c60718d62aa4c6d43d83af810" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
