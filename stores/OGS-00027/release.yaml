@@ -1,7 +1,7 @@
 store_id: OGS-00027
 label: eqtlgen-full
 access_posture: public
-status: built
+status: validated
 derived_from: null
 created_at: '2026-10-22T15:25:25Z'
 accepted_at: '2026-10-22T16:00:43Z'
@@ -67,4 +67,6 @@ notes: 'Every probe of the genome-wide BESD file set, one Analysis each. The Sto
 
   Policy: full-reference AF ancestry assignment and source-AF-only quantitative phenotype-SD estimation
   (issue #152); case-control rows use log_or/binary_trait; non-target/unassigned ancestry, orientation
-  failures, unusable source AF and ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv).'
+  failures, unusable source AF and ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv).
+
+  2026-10-23: validated. The Store was built and validated at opengwasdb d8896e4 (19,250 Analyses, 8,927,061 variants, 127,112,772 associations; opengwasdb validate passed), and the owner accepted the released Store scientifically (opengwas/opengwasdb-stores#314 comment 6360207599). An earlier build at d405de0 failed validate on 103 duplicate associations from 13 post-lift collisions; opengwas/opengwasdb#304 drops such entries as ambiguous.'
