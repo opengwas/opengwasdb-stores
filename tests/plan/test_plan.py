@@ -2429,6 +2429,47 @@ class TestIndexedSubsets(unittest.TestCase):
         record_check()
         self.assertNotIn(self.CHECKSUM, subset.argv)
 
+    def test_a_declaration_without_options_plans_the_same_argv_as_before(self) -> None:
+        """No `options` key leaves the subset command line exactly as #209 planned it."""
+        steps = plan(self._bundle(indexed_subsets=[self._declaration()]), artifact_root="/AR")
+        subset = next(s for s in steps if s.name == "indexed-subset-hm3")
+        record_check()
+        self.assertEqual(
+            subset.argv,
+            [
+                "opengwasdb",
+                "build-indexed-subset",
+                "/AR/OGS-00090/store.opengwasdb",
+                "hm3",
+                "--variant-list",
+                self.VARIANT_LIST,
+                "--reference-assembly",
+                "GRCh38",
+            ],
+        )
+
+    def test_a_declared_subset_policy_is_passed_through_as_a_flag(self) -> None:
+        """A declaration carries command options verbatim, as ADR 0023 renders them (#225)."""
+        declaration = {**self._declaration(), "options": {"overflow-only": "skip"}}
+        steps = plan(self._bundle(indexed_subsets=[declaration]), artifact_root="/AR")
+        subset = next(s for s in steps if s.name == "indexed-subset-hm3")
+        record_check()
+        self.assertEqual(subset.argv[-2:], ["--overflow-only", "skip"])
+        record_check()
+        self.assertEqual(
+            subset.argv[:-2],
+            [
+                "opengwasdb",
+                "build-indexed-subset",
+                "/AR/OGS-00090/store.opengwasdb",
+                "hm3",
+                "--variant-list",
+                self.VARIANT_LIST,
+                "--reference-assembly",
+                "GRCh38",
+            ],
+        )
+
     def test_hybrid_and_reference_completed_are_supported(self) -> None:
         hybrid = plan(
             self._bundle(
@@ -2486,6 +2527,9 @@ class TestIndexedSubsets(unittest.TestCase):
             [{**self._declaration(), "options": ["not", "a", "mapping"]}],
             [{**self._declaration(), "options": {"variant-list": "/evil"}}],
             [{**self._declaration(), "options": {"--reference-assembly": "hg19"}}],
+            [{**self._declaration(), "options": {"overflow-only": {"policy": "skip"}}}],
+            [{**self._declaration(), "options": {"overflow-only": None}}],
+            [{**self._declaration(), "options": {"overflow-only": []}}],
         ]
         for entry in bad_entries:
             with self.assertRaises(ValueError):

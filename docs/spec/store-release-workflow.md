@@ -595,6 +595,17 @@ executed argv, inputs, outputs, stdout/stderr, timing, success and the
 `opengwasdb` revision used are all captured; `register` requires the record and
 compares executed against planned argv like any other Step.
 
+A declaration may carry `options`, and `plan()` renders each entry into the
+Step's argv verbatim (ADR 0023) in both phases, so a subset policy is declared
+once and reaches the command that builds it. The registry does not interpret a
+flag. It refuses only what it can prove would not arrive as the declaration
+states it: an option that re-specifies `variant_list` or `reference_assembly`,
+`overwrite`, and a value (`bundle.check()`) that cannot render as CLI tokens.
+A `build-indexed-subset` measurement therefore lives in that Step's record and
+not in the Validation Record, which `register` builds from the Store's build or
+completion Step: OGS-00011's `overflow-only` count is the example, in
+`records/indexed-subset-hm3.json` and `records/completion-indexed-subset-hm3.json`.
+
 **Runtime prerequisite.** The capability first shipped in opengwas/opengwasdb
 `4819a2ee` (opengwas/opengwasdb#264), a descendant of the format-0.2.0 builders.
 The repository's tracked current-format runtime now provides it (stores#218; see

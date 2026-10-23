@@ -81,6 +81,7 @@ from ogstores.bundle import (
     is_valid_indexed_subset_name,
     normalize_option_key,
     reserved_options,
+    unrenderable_options,
 )
 
 
@@ -604,6 +605,13 @@ def indexed_subset_declarations(bundle: Bundle) -> list[IndexedSubsetDeclaration
                 raise ValueError(
                     f"{where} options must not set {reserved}; variant_list and "
                     "reference_assembly are the declaration's own verified inputs"
+                )
+            unrenderable = unrenderable_options(options)
+            if unrenderable:
+                raise ValueError(
+                    f"{where} options must give a value for {unrenderable} that "
+                    "renders as CLI tokens: a string, number or bool, or a "
+                    "non-empty list of them"
                 )
         declarations.append(
             IndexedSubsetDeclaration(
