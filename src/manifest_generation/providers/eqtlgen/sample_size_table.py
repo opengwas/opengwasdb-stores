@@ -33,6 +33,7 @@ import argparse
 import gzip
 import hashlib
 import os
+import struct
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -56,8 +57,53 @@ CHUNK_ROWS = 5_000_000
 KEY_SHIFT = 32
 
 
+#: The magic, 15 reserved uint32s and the uint64 ``val_num`` that open a SPARSE_FILE_TYPE_3 ``.besd``.
+BESD_HEADER_BYTES = 4 + 15 * 4 + 8
+
+
 class SampleSizeTableError(InventoryError):
     """The published file and BESD cannot give an unambiguous sample-size table."""
+
+
+def check_besd_layout(besd: Path, n_probes: int) -> None:
+    """Refuse a ``.besd`` whose length or column-offset table does not describe ``n_probes`` probes.
+
+    ``BESDReader`` trusts the offsets it reads, so a damaged table would read as
+    plausible but wrong associations. The file is SPARSE_FILE_TYPE_3 and its size is
+    the one its header and probe count imply; the first offset is 0, the last is the
+    file's value count, offsets never decrease, and each probe's beta block and SE
+    block are the same length.
+    """
+    with open(besd, "rb") as fh:
+        header = fh.read(BESD_HEADER_BYTES)
+        if len(header) < BESD_HEADER_BYTES or struct.unpack("<I", header[:4])[0] != 3:
+            raise SampleSizeTableError(f"{besd} is not a SPARSE_FILE_TYPE_3 BESD file")
+        val_num = struct.unpack("<Q", header[-8:])[0]
+        cols_bytes = 8 * (2 * n_probes + 1)
+        expected = BESD_HEADER_BYTES + cols_bytes + 8 * val_num
+        if besd.stat().st_size != expected:
+            raise SampleSizeTableError(
+                f"{besd} has {besd.stat().st_size} bytes, not the {expected} its header and {n_probes} probes imply"
+            )
+        cols = np.frombuffer(fh.read(cols_bytes), dtype="<i8")
+    problems: list[str] = []
+    if int(cols[0]) != 0:
+        problems.append(f"the first offset is {int(cols[0])}, not 0")
+    if int(cols[-1]) != val_num:
+        problems.append(f"the final offset is {int(cols[-1])}, not the file's {val_num} values")
+    steps = np.diff(cols)
+    if (steps < 0).any():
+        first = int(np.argmax(steps < 0))
+        problems.append(
+            f"offsets do not increase: offset {first + 1} ({int(cols[first + 1])}) is below offset {first} ({int(cols[first])})"
+        )
+    elif not (steps[0::2] == steps[1::2]).all():
+        bad = int(np.argmax(steps[0::2] != steps[1::2]))
+        problems.append(
+            f"probe {bad} has a beta block of {int(steps[2 * bad])} values and an SE block of {int(steps[2 * bad + 1])}"
+        )
+    if problems:
+        raise SampleSizeTableError(f"{besd}: damaged column offsets: {'; '.join(problems)}")
 
 
 def _sha256(path: Path) -> str:
@@ -125,6 +171,7 @@ def build_table(published: Path, prefix: Path, out: Path, *, source_url: str) ->
             raise SampleSizeTableError(f"not found: {member}")
     probe_ids = _read_epi(members["epi"])
     snp_rows = _read_esi(members["esi"])
+    check_besd_layout(members["besd"], len(probe_ids))
     probes = pd.Index(probe_ids)
     if not probes.is_unique:
         raise SampleSizeTableError(f"{members['epi']}: a probe is listed twice")

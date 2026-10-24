@@ -165,6 +165,47 @@ class SampleSizeTableTest(unittest.TestCase):
             self.build(self.publish(header="Gene\tSNP\tZscore\n"))
         self.assertIn("NrSamples", str(caught.exception))
 
+    # -- a damaged .besd is refused before any pair is read (the reader trusts its offsets) --
+
+    def assert_refused_untouched(self, word: str) -> None:
+        with self.assertRaises(SampleSizeTableError) as caught:
+            self.build()
+        self.assertIn("offset", str(caught.exception))
+        self.assertIn(word, str(caught.exception))
+        self.assertFalse(self.out.exists())
+        self.assertFalse(Path(f"{self.out}.provenance.yaml").exists())
+
+    def test_a_probe_whose_offsets_are_another_probes_is_refused_by_name(self) -> None:
+        """Bytes [88:104] over [72:88] give the first probe the second's offsets: plausible but wrong pairs."""
+        raw = bytearray(Path(f"{self.prefix}.besd").read_bytes())
+        raw[72:88] = raw[88:104]
+        Path(f"{self.prefix}.besd").write_bytes(bytes(raw))
+        self.assert_refused_untouched("first")
+
+    def test_offsets_that_decrease_or_stop_short_of_the_values_are_refused(self) -> None:
+        for name, edit, word in (
+            ("final", lambda cols: cols.__setitem__(-1, cols[-1] - 2), "final"),
+            ("decreasing", lambda cols: cols.__setitem__(2, 1), "increas"),
+            ("unequal", lambda cols: cols.__setitem__(1, cols[1] - 1), "block"),
+        ):
+            with self.subTest(name):
+                write_besd(self.prefix)
+                raw = bytearray(Path(f"{self.prefix}.besd").read_bytes())
+                n = len(EPI.splitlines())
+                cols = np.frombuffer(bytes(raw[72:72 + 8 * (2 * n + 1)]), dtype="<i8").copy()
+                edit(cols)
+                raw[72:72 + 8 * (2 * n + 1)] = cols.tobytes()
+                Path(f"{self.prefix}.besd").write_bytes(bytes(raw))
+                self.assert_refused_untouched(word)
+
+    def test_a_besd_of_the_wrong_length_is_refused(self) -> None:
+        with open(f"{self.prefix}.besd", "ab") as fh:
+            fh.write(b"\x00" * 8)
+        with self.assertRaises(SampleSizeTableError) as caught:
+            self.build()
+        self.assertIn("bytes", str(caught.exception))
+        self.assertFalse(self.out.exists())
+
 
 if __name__ == "__main__":
     unittest.main()
