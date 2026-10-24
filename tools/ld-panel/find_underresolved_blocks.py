@@ -27,7 +27,7 @@ from pathlib import Path
 import numpy as np
 
 
-def _components_needed(values: np.ndarray, thresh: float) -> int:
+def components_needed(values: np.ndarray, thresh: float) -> int:
     vals = np.maximum(values.astype(float), 0.0)
     total = float(vals.sum()) or 1.0
     cum = np.cumsum(vals) / total
@@ -67,7 +67,7 @@ def main() -> int:
         scanned += 1
         d = np.load(npz_path)
         stored = d["vectors"].shape[1]
-        needed = _components_needed(d["values"], args.thresh)
+        needed = components_needed(d["values"], args.thresh)
         vals = np.maximum(d["values"].astype(float), 0.0)
         total = float(vals.sum()) or 1.0
         achieved_variances.append(float(np.cumsum(vals)[min(stored, len(vals)) - 1] / total))

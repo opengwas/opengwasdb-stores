@@ -14,6 +14,7 @@ import json
 import os
 import subprocess
 import tempfile
+from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -46,6 +47,44 @@ def canonical_alid(chrom: object, pos: object, allele1: str, allele2: str) -> st
     return f"{chrom}:{int(pos)}:{a1}:{a2}"
 
 
+def variant_alids(variants: list[dict[str, object]]) -> list[str | None]:
+    """Each variant's ALID, or None for a record no ALID can name."""
+    alids: list[str | None] = []
+    for v in variants:
+        try: alids.append(canonical_alid(v["chrom"], v["pos"], str(v["allele1"]), str(v["allele2"])))
+        except ValueError: alids.append(None)
+    return alids
+
+
+def standardised_ea_dosages(genotypes: np.ndarray, variants: list[dict[str, object]],
+                            rows: list[dict[str, object]]) -> tuple[np.ndarray, np.ndarray]:
+    """Unit-norm centred effect-allele dosages for panel ``rows``, and their EAF.
+
+    ``genotypes`` and ``variants`` are as :func:`construct_block` takes them;
+    each row names its effect allele by ``EA``, and its source record by
+    ``BP``/``REF``/``ALT`` or, in tables that predate them, by ``SNP``. An ALID
+    can name two records (#348), so a row that names more than one is refused.
+    Missing calls are mean-imputed, as in construction, so for a block built
+    from these genotypes ``x.T @ x`` is the LD its eigendecomposition stores.
+    """
+    if all("REF" in r and "ALT" in r for r in rows):
+        keys = [(int(v["pos"]), str(v["allele1"]).upper(), str(v["allele2"]).upper()) for v in variants]
+        wanted = [(int(r["BP"]), str(r["REF"]), str(r["ALT"])) for r in rows]
+    else:
+        keys, wanted = variant_alids(variants), [str(r["SNP"]) for r in rows]
+    records = Counter(k for k in keys if k is not None)
+    ambiguous = [w for w in wanted if records[w] > 1]
+    if ambiguous: raise ValueError(f"{len(ambiguous)} rows name more than one source record, e.g. {ambiguous[0]}")
+    index = {k: i for i, k in enumerate(keys) if k is not None}
+    columns = [index[w] for w in wanted]
+    alt = np.asarray(genotypes, dtype=np.float64)[:, columns]
+    alt_is_ea = np.array([str(variants[c]["allele2"]).upper() == r["EA"] for c, r in zip(columns, rows)])
+    dosage = np.where(alt_is_ea, alt, 2 - alt)
+    means = np.nanmean(dosage, axis=0)
+    x = np.where(np.isnan(dosage), means, dosage) - means
+    return x / np.sqrt((x * x).sum(axis=0)), means / 2
+
+
 def construct_block(
     genotypes: np.ndarray,
     variants: list[dict[str, object]],
@@ -53,37 +92,87 @@ def construct_block(
     individual_ids: list[str] | None = None,
     interval: str = "unknown",
     mac_threshold: int = 50,
+    maf_threshold: float | None = None,
+    max_missing_rate: float | None = None,
     cumulative_variance_target: float = 0.99,
     component_floor: int = 250,
 ) -> BlockResult:
-    """Filter by MAC and return a stable eigendecomposition and provenance."""
+    """Filter by one variant floor and return a stable eigendecomposition and provenance.
+
+    The floor is ``maf_threshold`` when given, else ``mac_threshold``; a MAF
+    floor replaces the MAC floor rather than adding to it (#241). MAF is the
+    minor-allele count over twice the called individuals, so missing calls do
+    not dilute it. ``max_missing_rate``, when given, drops variants with a
+    larger share of individuals uncalled.
+    """
     g = np.asarray(genotypes, dtype=np.float64)
     if g.ndim != 2 or g.shape[1] != len(variants):
         raise ValueError("genotypes must be individuals x variants")
     if individual_ids is not None and len(individual_ids) != g.shape[0]:
         raise ValueError("individual_ids length does not match genotypes")
-    if not 0 < cumulative_variance_target <= 1 or mac_threshold < 0 or component_floor < 0:
+    if (not 0 < cumulative_variance_target <= 1 or mac_threshold < 0 or component_floor < 0
+            or (maf_threshold is not None and not 0 <= maf_threshold <= .5)
+            or (max_missing_rate is not None and not 0 <= max_missing_rate <= 1)):
         raise ValueError("invalid construction threshold")
     if g.shape[0] < 2:
         raise ValueError("at least two individuals are required")
 
     # Mean-impute missing calls before centring.  All-missing variants become
     # non-finite and are excluded along with invariant variants.
-    with np.errstate(invalid="ignore"):
-        means = np.nanmean(g, axis=0)
-    filled = np.where(np.isnan(g), means, g)
     ac = np.nansum(g, axis=0)
     called = np.sum(~np.isnan(g), axis=0)
+    means = np.divide(ac, called, out=np.full(g.shape[1], np.nan), where=called > 0)
+    filled = np.where(np.isnan(g), means, g)
     mac = np.minimum(ac, 2 * called - ac)
-    keep = (mac >= mac_threshold) & np.isfinite(means) & (means > 0) & (means < 2)
-    kept = np.flatnonzero(keep)
+    maf = np.divide(mac, 2 * called, out=np.zeros(g.shape[1]), where=called > 0)
+    all_missing = called == 0
+    invariant = ~all_missing & (mac == 0)
+    polymorphic = ~all_missing & ~invariant
+    above = maf >= maf_threshold if maf_threshold is not None else mac >= mac_threshold
+    below = polymorphic & ~above
+    missing_rate = (g.shape[0] - called) / g.shape[0]
+    high_missing = polymorphic & above & (missing_rate > max_missing_rate if max_missing_rate is not None
+                                          else np.zeros(g.shape[1], dtype=bool))
+    eligible = polymorphic & above & ~high_missing
+    # Polymorphic yet constant once mean-imputed (every called individual
+    # heterozygous): nothing to correlate. Decided before collisions, as its
+    # MAF of 0.5 would otherwise win one.
+    constant = np.zeros(g.shape[1], dtype=bool)
+    if eligible.any():
+        candidates = g[:, eligible]
+        constant[eligible] = np.nanmax(candidates, axis=0) == np.nanmin(candidates, axis=0)
+    zero_variance = eligible & constant
+    eligible &= ~constant
+    # A record no ALID can name, or one repeated verbatim, cannot be read back
+    # by any consumer, so it is excluded and counted rather than kept.
+    alids = variant_alids(variants)
+    unnameable = eligible & np.array([a is None for a in alids], dtype=bool)
+    keys = [(int(v["pos"]), str(v["allele1"]).upper(), str(v["allele2"]).upper()) for v in variants]
+    repeats = Counter(keys)
+    duplicate_record = eligible & ~unnameable & np.array([repeats[k] > 1 for k in keys], dtype=bool)
+    eligible &= ~unnameable & ~duplicate_record
+    # An ALID naming two source records is ambiguous to every consumer: gnomAD
+    # splits multi-allelic sites, so the deletion GA>G and the insertion G>GA
+    # at one position both become pos:G:GA (#241, #348). Of the eligible
+    # records sharing an ALID, keep the one with the higher MAF (then call
+    # rate, then input order): the record a GWAS reporting that ALID most
+    # likely means.
+    best: dict[str, int] = {}
+    for i in np.flatnonzero(eligible):
+        alid = alids[i]
+        j = best.get(alid)
+        if j is None or (maf[i], -missing_rate[i]) > (maf[j], -missing_rate[j]): best[alid] = int(i)
+    winners = set(best.values())
+    collided = np.array([bool(eligible[i]) and i not in winners for i in range(len(alids))], dtype=bool)
+    kept = np.flatnonzero(eligible & ~collided)
     if not len(kept):
-        raise ValueError("no variants remain after MAC/invariant filtering")
+        raise ValueError("no variants remain after variant-floor/invariant filtering")
 
     x = filled[:, kept]
     x -= x.mean(axis=0)
     scale = np.sqrt(np.sum(x * x, axis=0))
-    nonzero = scale > 0
+    nonzero = scale > 0  # constant columns were excluded above; this is the numerical backstop
+    zero_variance = int(zero_variance.sum()) + int((~nonzero).sum())
     kept = kept[nonzero]
     x = x[:, nonzero] / scale[nonzero]
     # PLINK --export A emits ALT dosage, while panel rows declare the
@@ -121,11 +210,25 @@ def construct_block(
             "CHR": str(v["chrom"]).removeprefix("chr"), "BP": int(v["pos"]),
             "SNP": canonical_alid(v["chrom"], v["pos"], a1, a2),
             "OA": a2, "EA": a1, "EAF": eaf, "MAC": float(mac[source_i]),
+            # The source record, which an ALID alone cannot name (#348).
+            "REF": str(v["allele1"]).upper(), "ALT": str(v["allele2"]).upper(),
         })
     provenance = {
         "interval": interval, "n_individuals": int(g.shape[0]),
         "n_variants_input": int(g.shape[1]), "n_variants_retained": len(table),
-        "mac_threshold": mac_threshold, "cumulative_variance_target": cumulative_variance_target,
+        "mac_threshold": None if maf_threshold is not None else mac_threshold,
+        "maf_threshold": maf_threshold, "max_missing_rate": max_missing_rate,
+        "alid_collision_rule": "keep_highest_maf",
+        "n_variants_all_missing": int(all_missing.sum()), "n_variants_invariant": int(invariant.sum()),
+        "n_variants_below_floor": int(below.sum()), "n_variants_high_missing": int(high_missing.sum()),
+        "n_variants_zero_variance": zero_variance, "n_variants_unnameable": int(unnameable.sum()),
+        "n_variants_duplicate_record": int(duplicate_record.sum()),
+        "n_variants_alid_collision": int(collided.sum()),
+        "below_floor_mac_counts": {str(int(m)): int(c) for m, c in zip(*np.unique(mac[below], return_counts=True))},
+        "missing_call_rate": float(missing_rate.mean()),
+        "max_missing_call_rate_retained": float(missing_rate[kept].max()),
+        "retained_missing_call_rate_over": {str(c): int((missing_rate[kept] > c).sum()) for c in (.05, .1, .5)},
+        "cumulative_variance_target": cumulative_variance_target,
         "component_floor": component_floor, "components_retained": k,
         "achieved_variance": achieved,
     }
@@ -193,6 +296,13 @@ def _plink_extract(args: argparse.Namespace, work: Path) -> tuple[np.ndarray, li
     subprocess.run([args.plink2, "--pfile", str(prefix), "--export", "A", "--out", str(prefix)], check=True)
     genotypes, names, ids = read_plink_raw(prefix.with_suffix(".raw"))
     pvar = prefix.with_suffix(".pvar")
+    # A raw column is named ID_<counted allele>. Matching each ID against every
+    # name is quadratic, which a floor-free 200k-variant block cannot afford
+    # (#241), so index every prefix that ends at an underscore.
+    matchable = set(names)
+    for name in names:
+        parts = name.split("_")
+        matchable.update("_".join(parts[:i]) for i in range(1, len(parts)))
     variants = []
     with pvar.open() as fh:
         for line in fh:
@@ -200,7 +310,7 @@ def _plink_extract(args: argparse.Namespace, work: Path) -> tuple[np.ndarray, li
             fields = line.rstrip().split("\t")
             if fields[0].lstrip("#") == "CHROM": continue
             chrom, pos, vid, ref, alt = fields[:5]
-            if vid in names or any(name.startswith(vid + "_") for name in names):
+            if vid in matchable:
                 variants.append({"chrom": chrom, "pos": pos, "allele1": ref, "allele2": alt})
     return genotypes, variants, ids
 
@@ -211,7 +321,11 @@ def main() -> int:
     src.add_argument("--pfile", type=Path); src.add_argument("--bfile", type=Path)
     ap.add_argument("--keep", type=Path, required=True); ap.add_argument("--chrom", required=True)
     ap.add_argument("--start", type=int, required=True); ap.add_argument("--end", type=int, required=True)
-    ap.add_argument("--out", type=Path, required=True); ap.add_argument("--mac", type=int, default=50)
+    ap.add_argument("--out", type=Path, required=True)
+    floor = ap.add_mutually_exclusive_group()
+    floor.add_argument("--mac", type=int, default=50)
+    floor.add_argument("--maf", type=float, help="MAF floor over called individuals; replaces --mac")
+    ap.add_argument("--max-missing", type=float, help="Drop variants with a larger share of individuals uncalled")
     ap.add_argument("--cumvar", type=float, default=.99); ap.add_argument("--min-k", type=int, default=250)
     ap.add_argument("--plink2", default="plink2")
     args = ap.parse_args()
@@ -219,6 +333,7 @@ def main() -> int:
         g, variants, ids = _plink_extract(args, Path(tmp))
         result = construct_block(g, variants, individual_ids=ids,
             interval=f"{args.chrom}:{args.start}-{args.end}", mac_threshold=args.mac,
+            maf_threshold=args.maf, max_missing_rate=args.max_missing,
             cumulative_variance_target=args.cumvar, component_floor=args.min_k)
     _atomic_outputs(args.out, result)
     return 0

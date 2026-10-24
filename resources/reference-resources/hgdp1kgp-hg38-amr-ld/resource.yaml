@@ -1,0 +1,68 @@
+resource_id: hgdp1kgp-hg38-amr-ld
+label: HGDP+1kGP hg38 LD reference panel (AMR)
+kind: ld_panel
+ancestry: [AMR]
+genome_build: GRCh38
+variant_id_convention: "chr:pos:a1:a2"
+allele_columns:
+  effect: EA
+  other: OA
+  freq: EAF
+location: /data/opengwasdb/reference/hgdp1kgp-hg38-amr/panel
+location_kind: external_directory
+ld:
+  representation: eigendecomposition
+  block_file: ld_regions_hg38.amr.tsv
+  block_layout: EUR
+  components_retained: variance_driven
+  components_cumvar_target: 0.99
+  component_floor: 250
+source:
+  cohort: gnomAD v3.1.2 HGDP+1kGP harmonised callset, 1kGP Phase 3 AMR samples only
+  n_individuals:
+    AMR: 345
+  members: phase3-amr-samples.tsv
+  population_map: populations_to_superpop.tsv
+  variant_inclusion: >
+    FILTER PASS, biallelic; at least 80% of members called; MAF >= 0.01 over
+    called members, with no MAC floor; of the records sharing an ALID, the one
+    with the higher MAF
+  acquisition: tools/ld-panel/acquire_hgdp1kgp.py
+  generator: tools/ld-panel/build_amr_panel.py
+  build_receipt: /data/opengwasdb/reference/hgdp1kgp-hg38-amr/runs/20261022T183214Z/receipt.json
+description: >
+  AMR LD Reference Panel for reference completion of Analyses assigned AMR. It
+  is built from the 345 high-quality 1kGP Phase 3 AMR samples (CLM 92, MXL 64,
+  PEL 85, PUR 104) of the cached, natively GRCh38 gnomAD HGDP+1kGP callset. HGDP
+  samples are excluded. LD is estimated from AMR genotypes on the EUR block
+  layout, the 1,357 EUR blocks of `hgdp1kgp-hg38-ld`'s `ld_regions_hg38.tsv`
+  relabelled AMR, because no AMR block definitions exist. Eigendecomposition
+  format and canonical ALIDs as `hgdp1kgp-hg38-ld`. Each block's TSV also
+  carries the source record's REF and ALT, which an ALID alone cannot name
+  (#348).
+status: available
+notes: >
+  Owner-approved on 2026-10-22 (#241) as the best AMR reference available until
+  a better one exists. The calibration pilot is in docs/amr-ld-pilot-evidence.md,
+  and this build's numbers are in docs/data/amr-ld-panel-build-summary.json and
+  docs/data/amr-ld-panel-build-blocks.tsv.
+
+  Structurally the lowest-powered panel: 345 individuals cap every block at rank
+  344. In genotype-held-out calibration on five blocks, masked z-scores were
+  recovered with median r 0.85-0.92 outside the MHC (0.98 in it), against
+  0.98-0.99 in-sample, with imputed values shrunk toward zero (slope 0.73-0.96).
+  See ADR 0020 and its amendment.
+
+  Built 2026-10-22: all 1,357 blocks built and verified, with 12,669,255 rows.
+  The 0.99 target needed 250-330 components per block, and the consumer's 0.9
+  truncation needs 23-239, all stored. No block holds a duplicated ALID within
+  it; 1,198 ALIDs do appear in two adjacent blocks, because adjacent EUR-layout
+  blocks share their boundary position and plink2's `--from-bp/--to-bp` include
+  both ends, so a variant kept at a boundary is written into both blocks. They
+  fall on 1,186 of the panel's 1,335 adjacent block pairs, and none repeats
+  inside one block. UKB EUR on chr22, where this layout comes from, carries 12
+  the same way across 12 of its 19 edges. One related pair (NA19657-NA19786,
+  kinship 0.069) is retained; no relatedness pruning was approved.
+
+  Variants on the EUR boundaries carry more weak cross-boundary LD in AMR than in
+  EUR at 7 of 10 tested edges; imputation across an edge is untested.
