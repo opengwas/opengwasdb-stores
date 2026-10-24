@@ -627,7 +627,7 @@ Table from a BESD file set, one row per probe:
 
 ```sh
 python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
-  --prefix <file set> --tissue whole_blood --study-total 31684 \
+  --prefix <file set> --tissue whole_blood --sample-size-table <per-pair table> \
   --first-author Võsa --publication-pmid 34475573 --gene-symbols <gene-symbols.tsv> \
   --out <source metadata table>
 ```
@@ -637,9 +637,8 @@ Analysis when the Build Recipe passes it no `tissue`, so no Store-identity colum
 is declared. It is never `<probe>::<tissue>`, as OGS-00001 and OGS-00002 named
 theirs: an `analysis_id` never contains `:` (issue #319), and `bundle.check()`
 refuses one that does. `source_probe_id` is the probe,
-`source_trait_label` the `.epi`'s gene column (the probe's own id: the file names
-no symbol), `study_design` is `quantitative`, `tissue` is the operator's statement
-(never a default) and `sample_size` is derived from the file, per probe, as below.
+`source_trait_label` the gene's published symbol (below), `study_design` is `quantitative`, `tissue` is the operator's statement
+(never a default) and `sample_size` is the probe's maximum published N, as below.
 The tissue is recorded in its own column, never in the id, and a blank or padded
 `--tissue` is refused before anything is written.
 The probe is the target: `target_ensembl_gene_id` is the probe,
@@ -668,34 +667,53 @@ lineage; a resume with another URL is refused like any other changed lineage.
 The full release's map has 19,250 of 19,250 probes with a symbol, from the
 2019-12-11 file (3,880,187,026 bytes).
 
-**Sample size** is the probe's maximum pair N. eQTLGen's beta and SE are
-z-standardised with each SNP-gene pair's own N: b = z / sqrt(2p(1-p)(N + z^2)) and
-se = 1 / sqrt(2p(1-p)(N + z^2)). A pair's N is therefore recoverable,
-`N = 1 / (2p(1-p) se^2) - z^2` with z = b / se and p the `.esi` frequency, and the
-adapter writes the maximum over the probe's pairs, rounded to the nearest integer
-(halves up) and capped at `--study-total`.
+**Sample size** is the probe's maximum pair N **as published** (#282): the largest
+`NrSamples` the per-pair table (the sample-size table below, the same file
+`build-ragged-besd --sample-size-table` stores as the `n` plane) holds for the probe.
+The adapter reads only the `.epi` and that table, never the BESD's beta and SE, so an
+Analysis's `sample_size` equals the maximum of its own stored `n` and is an observed
+count, not a recovered one (spec section 8). It no longer takes a study total or caps
+anything: the published maximum is at most the study's 31,684. A probe the table has
+no pair for, and an `n` that is not a whole number from 1, are refused by name; table
+rows of probes the file set does not hold are ignored. The table's path, sha256 and
+row count are recorded in `<table>.provenance.yaml`.
 
-- **Bound.** Only pairs with finite N and `|z| >= 1` count. The formula is
-  ill-conditioned for small z because the stored values are coarse. Against the
-  published per-pair `NrSamples` (the 2019-12-11 cis-eQTL file, 12 genes, 85,079
-  pairs) the relative error of derived N is: up to 300% (median 31%) for `|z|`
-  below 0.001, 3% median and 31% maximum for 0.001-0.01, 0.4% maximum for 0.1-0.5,
-  0.08% for 0.5-1, 0.04% for 1-2, and 0.004% for `|z|` 10 and above. Without the
-  bound 61% of the 19,250 probes took an N above the study's 31,684 (up to
-  126,741), and TNF 30,851 against a published maximum of 14,263.
-- **Cap.** The bounded maximum can still exceed the study total by the rounding
-  noise of the stored values: 5,443 of 19,250 probes exceed 31,684, by at most 13
-  (0.04%). The cap at `--study-total` absorbs that, so no probe claims more samples
-  than the study had. In the full release 5,456 of 19,250 probes (28%) take it: they
-  have at least one pair measured in the study's full cohort set, and the rest are
-  covered by fewer cohorts (median 28,927, minimum 232).
-- A probe with no qualifying pair fails the adapter by name. The adapter refuses a
-damaged offset table before slicing it (first offset not 0, final offset not the
-file's value count, offsets that do not increase, or a probe's beta and SE blocks
-of unequal length), and reads the values through opengwasdb's BESD reader.
+An earlier version recovered N from the BESD, `N = 1 / (2p(1-p) se^2) - z^2`, over pairs
+with `|z| >= 1`, capped at the study total. Against the published maxima of the full
+release that was equal for 5,554 of 19,250 probes, above by at most 13 for 13,645 and
+below by up to 1,402 for 51, so it is retired.
+
 - The Analysis's SD is **declared**, not estimated (the release config below), and
-  the sample size kind is `variant_level`. Per-association N is not stored yet
-  (opengwasdb#302); the formula is how to recover it.
+  the sample size kind is `variant_level`.
+
+**The sample-size table** (`sample_size_table`) turns eQTLGen's published cis-eQTL
+file into `build-ragged-besd --sample-size-table`'s input (opengwasdb#302, ADR
+0067), aligned to a BESD file set:
+
+```sh
+python3 -m manifest_generation.providers.eqtlgen.sample_size_table \
+  --published <cis-eQTL file .txt.gz> --source-url <its URL> \
+  --prefix <file set> --out <file set>.sample-size.tsv.gz
+```
+
+It writes `probe_id`, `snp_id`, `n` for every (probe, SNP) pair the BESD holds that
+the published file also holds, with `n` the published `NrSamples`, probes in `.epi`
+order and pairs in BESD order within a probe; a BESD pair the published file lacks
+gets no row (the build stores it missing, never estimated). The published file's
+(Gene, SNP) pairs are matched by the `.epi` probe id and the `.esi` SNP id. A pair
+published twice among those the file set holds, an `.esi` SNP id one probe reaches
+twice, and an `NrSamples` that is not a whole number from 1 are refused by name and
+nothing is written; the tool never overwrites. Beside the table,
+`<table>.provenance.yaml` records the source URL, sha256 and byte count, the BESD
+members' sha256s, the table's sha256, and the counts: BESD pairs, published rows,
+matched, unmatched (BESD pairs with no published row) and published-only. For
+`full-19250` that is 127,339,354 BESD pairs, 127,341,798 published rows, all
+matched, 2,444 published-only. It is not bounded streaming: it holds every published pair
+the file set could hold in memory to sort and join them, 7.75 GB peak RSS and about 11
+minutes on one core for `full-19250` (budget 10 GB). A damaged `.besd` offset table or
+length is refused before the published file is read. The `--eaf-reference` is the declared Reference
+Resource `ukb-ancestry-mixture-hg38-uk-eaf`: the "United Kingdom" column of
+`ukb-ancestry-mixture-hg38`, never an hgdp1kgp-hg38 panel (#348).
 
 **The acquisition writer** (`acquire`) subsets the genome-wide file set to a
 release's Selection, because `build-ragged-besd` demands that its file set hold

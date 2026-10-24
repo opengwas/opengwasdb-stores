@@ -12,13 +12,15 @@
 # genome-wide BESD file set, /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse (19,250
 # probes). Connectors (ADR 0036):
 #   - the Source Metadata Table lists the 10 probes of OGS-00001's Selection, one
-#     Analysis each, with each probe's maximum pair N (capped at the study total
-#     31,684; docs/spec/source-connectors.md, the eQTLGen section); it is written by
+#     Analysis each, with each probe's maximum published pair N (read from the
+#     full file set's sample-size table; docs/spec/source-connectors.md, the eQTLGen
+#     section); it is written by
 #     manifest_generation.providers.eqtlgen.source_metadata_adapter from the file
 #     set /data/opengwasdb/raw/eqtlgen/pilot-10:
 #       python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
 #         --prefix /data/opengwasdb/raw/eqtlgen/pilot-10 --tissue whole_blood \
-#         --study-total 31684 --first-author Võsa --publication-pmid 34475573 \
+#         --sample-size-table /data/opengwasdb/raw/eqtlgen/full-19250.sample-size.tsv.gz \
+#         --first-author Võsa --publication-pmid 34475573 \
 #         --gene-symbols resources/generators/eqtlgen-cis/connectors/gene-symbols.tsv --out resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
 #   - the Acquisition Manifest records the file set acquisition wrote for this
 #     Selection (build-ragged-besd needs a file set holding exactly the probes it
@@ -60,9 +62,8 @@ notes: >
   z-standardised with each SNP-gene pair's own N, so SD is 1 by construction and
   the original_sd cell stays blank (declared_standardised). TNF's measured 2.04
   was sqrt(31,684 / pair N), an N of about 7,600, not a phenotype SD. Each
-  Analysis's sample_size is the maximum pair N derived from the file, kind
-  variant_level (see release-full.yaml); per-association N is not stored yet
-  (opengwasdb#302). The study is Võsa et al., Nature Genetics 2021 (PMID 34475573),
+  Analysis's sample_size is the maximum published pair N, kind variant_level
+  (see release-full.yaml). The study is Võsa et al., Nature Genetics 2021 (PMID 34475573),
   and each Analysis is labelled with eQTLGen's published gene symbol.
 
 source_collection:
@@ -74,7 +75,8 @@ source_collection:
     # ...-22b: re-frozen when the Analyses were renamed to bare probe ids (#319).
     # ...-22c: re-frozen with each probe's derived sample size (#314).
     # ...-22d: re-frozen with the publication metadata and gene-symbol labels (#314).
-    snapshot_id: eqtlgen-cis-pilot-10-2026-10-22d
+    # ...-24: re-frozen with each probe's maximum published sample size (#282).
+    snapshot_id: eqtlgen-cis-pilot-10-2026-10-24
     directory: resources/inventories
 
 # OGS-00001's 10, written out so a reviewer reads the membership (and the probes
@@ -123,7 +125,7 @@ defaults:
   # (declared_standardised) instead of estimating a phenotype SD: an estimate would
   # only measure sqrt(study N / pair N). The resolver then reports
   # phenotype_sd scale_already_declared (#300). The Analysis's N is the maximum
-  # over its pairs, derived from the file (see notes), so its kind is
+  # over its pairs' published N (see notes), so its kind is
   # variant_level.
   by_study_design:
     quantitative:
