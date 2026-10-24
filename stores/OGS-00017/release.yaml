@@ -2,7 +2,7 @@ store_id: OGS-00017
 label: r13-full
 association_coverage: gwas
 access_posture: public
-status: built
+status: validated
 derived_from: ~
 migration:
   previous_store_id: OGS-00016
