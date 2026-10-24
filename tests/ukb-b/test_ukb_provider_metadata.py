@@ -2,8 +2,9 @@
 """Hermetic tests for the ukb-b provider-JSON metadata resolver (issue #219).
 
 Fixture-scale and network-free: they pin the exact-ID/batch gates, the shared
-resolution contract's scale/count vocabulary, the source-ancestry fallback, and
-that cross-check disagreements are surfaced rather than hidden.
+resolution contract's scale/count vocabulary, and that the retired generator's
+resolution-row projection stays retired (#282 review). The canonical table the
+adapter projects these records into is `tests/ukb-b-pipeline`'s seam.
 
 Run from the repository root:
 
@@ -12,13 +13,10 @@ Run from the repository root:
 
 from __future__ import annotations
 
-import csv
 import json
 import tempfile
 import unittest
 from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from manifest_generation.providers.ukb_b import provider_metadata as provider
 
@@ -100,66 +98,13 @@ class ProviderMetadataTest(unittest.TestCase):
         self.assertEqual(problems, [])
         self.assertEqual(records["ukb-b-3"].resolution_status, "unresolved")
 
-    def test_ancestry_is_the_provider_population_source_fallback(self) -> None:
-        self._write("ukb-b-1", record("ukb-b-1"))
-        records, _ = provider.read_provider_records(["ukb-b-1"], self.source)
-        rows = provider.build_resolution_rows(records, inclusion_reason="declared intent")
-        row = rows[0]
-        self.assertEqual(row["source_ancestry_label"], "European")
-        self.assertEqual(row["assigned_ancestry"], "EUR")
-        self.assertEqual(row["ancestry_assignment_method"], "source_fallback")
-        self.assertEqual(row["original_sd_method"], "declared_standardised")
-        self.assertEqual(row["stored_effect_scale"], "sd")
-
-    def test_cross_check_surfaces_disagreements(self) -> None:
-        self._write("ukb-b-1", record("ukb-b-1"))
-        records, _ = provider.read_provider_records(["ukb-b-1"], self.source)
-        recorded = {
-            "ukb-b-1": {
-                "stored_effect_scale": "log_or",
-                "sample_size_kind": "case_control",
-                "sample_size": "1000",
-                "n_cases": "100",
-                "n_controls": "900",
-                "exclude_from_build": "",
-            }
-        }
-        check = provider.cross_check(records, recorded)
-        self.assertEqual(check["shared_ids"], 1)
-        self.assertEqual(check["evaluated"], 1)
-        self.assertEqual(check["skipped"], 0)
-        self.assertEqual([d["field"] for d in check["disagreements"]], ["stored_effect_scale"])
-        self.assertEqual(check["per_field"]["stored_effect_scale"]["disagreements"], 1)
-
-    def test_cross_check_skip_is_not_a_verified_match(self) -> None:
-        # The three historical rows are recorded exclusions with every compared
-        # field blank: they must be skipped, never counted as evaluated agreements.
-        self._write("ukb-b-1", record("ukb-b-1"))
-        self._write("ukb-b-2", record("ukb-b-2"))
-        self._write("ukb-b-3", record("ukb-b-3"))
-        records, _ = provider.read_provider_records(["ukb-b-1", "ukb-b-2", "ukb-b-3"], self.source)
-        recorded = {
-            "ukb-b-1": {field: "" for field in provider.COMPARED_FIELDS} | {"exclude_from_build": "true"},
-            "ukb-b-2": {field: "" for field in provider.COMPARED_FIELDS},
-            "ukb-b-3": {
-                "stored_effect_scale": "sd",
-                "sample_size_kind": "case_control",
-                "sample_size": "1000",
-                "n_cases": "100",
-                "n_controls": "900",
-                "exclude_from_build": "",
-            },
-        }
-        check = provider.cross_check(records, recorded)
-        self.assertEqual(check["shared_ids"], 3)
-        self.assertEqual(check["evaluated"], 1)
-        self.assertEqual(check["skipped"], 2)
-        self.assertEqual(sorted(check["skipped_ids"]), ["ukb-b-1", "ukb-b-2"])
-        self.assertEqual(check["disagreements"], [])
-        # n_cases was blank on the one all-blank non-excluded row, so coverage is
-        # honest; the excluded row is counted under skipped, not under per-field.
-        self.assertEqual(check["per_field"]["n_cases"]["compared"], 1)
-        self.assertEqual(check["per_field"]["n_cases"]["missing"], 1)
+    def test_the_resolution_row_projection_is_gone(self) -> None:
+        # The adapter projects the canonical table straight from ProviderRecord
+        # (#282 review). The retired generator's broad resolution projection and
+        # its hard-coded ancestry map were a second route to the same facts, so
+        # neither survives; the adapter's own suite pins the table's values.
+        self.assertFalse(hasattr(provider, "build_resolution_rows"))
+        self.assertFalse(hasattr(provider, "_resolve_ancestry"))
 
     def test_contradictory_case_control_total_is_surfaced_not_hidden(self) -> None:
         # ncase+ncontrol disagrees with the provider's declared total N.
@@ -174,14 +119,12 @@ class ProviderMetadataTest(unittest.TestCase):
         self.assertEqual(resolved.n_cases, "100")
         self.assertEqual(resolved.n_controls, "900")
 
-    def test_derivation_is_deterministic_on_retry(self) -> None:
+    def test_reading_the_same_sidecars_twice_is_deterministic(self) -> None:
         self._write("ukb-b-1", record("ukb-b-1"))
         self._write("ukb-b-2", record("ukb-b-2", ncase=None, ncontrol=None, sample_size=500))
         first_records, _ = provider.read_provider_records(["ukb-b-1", "ukb-b-2"], self.source)
         second_records, _ = provider.read_provider_records(["ukb-b-1", "ukb-b-2"], self.source)
-        first = provider.render_resolution_tsv(provider.build_resolution_rows(first_records, inclusion_reason="r"))
-        second = provider.render_resolution_tsv(provider.build_resolution_rows(second_records, inclusion_reason="r"))
-        self.assertEqual(first, second)
+        self.assertEqual(first_records, second_records)
 
 
 if __name__ == "__main__":

@@ -29,6 +29,7 @@
 release_config_version: 1
 
 label: r13-full
+association_coverage: gwas
 access_posture: public
 description: >
   Full FinnGen R13 release: every endpoint in the frozen public
@@ -39,11 +40,13 @@ description: >
 notes: >
   Selection is the whole frozen connector table, so the release membership is
   exactly what FinnGen publishes and the pinned manifest checksum makes it
-  reproducible. The FinnGen reader (source-reader-capability below) reads the
-  provider's own tabular files: the release declares no Column Map because
-  opengwasdb already has that reader, and a later FinnGen round in a format the
-  generic tabular reader can describe needs only a new Column Map and a release
-  config (resources/generators/finngen-r13/README.md).
+  reproducible. Every Analysis reads through opengwasdb's built-in `finngen-r13`
+  Column Map, bound below by name and the pinned package's checksum, so
+  Analysis Resolution and Store Release Build read the provider's own tabular
+  files the same way; the release declares no carried map file because the
+  bytes travel with the pinned opengwasdb package (#292). A later FinnGen round
+  in a new format needs only a new Column Map and a release config
+  (resources/generators/finngen-r13/README.md).
 
 source_collection:
   source_collection_id: finngen-r13
@@ -66,9 +69,12 @@ build:
   completion_state: observed_only
   command: build-dense-vcf
   options:
-    # FinnGen's own tabular reader: opengwasdb.readers.finngen, the reader the R
-    # path used too, so the format needs no Column Map yet (ADR 0036).
-    source-reader-capability: opengwasdb.finngen-r13
+    # FinnGen's own tabular files through the generic Column Map reader
+    # (opengwasdb#281, ADR 0063): it streams source metrics, which is what the
+    # one-pass resolver reads, and the built-in `finngen-r13` map reproduces the
+    # dedicated reader's rules (#288). `opengwasdb.finngen-r13` cannot resolve
+    # this collection: it offers no `stream_metric_chunks` (opengwasdb#207).
+    source-reader-capability: opengwasdb.column-map
     source-assembly: hg38
     # Source and target assembly are GRCh38, so no liftover is used. A Dense
     # build's Pass 1 is serial; 32 workers is the release's Pass 2 width.
@@ -76,6 +82,14 @@ build:
   post:
     top_hits: true
     overview: true
+
+# The Column Map every Analysis above reads through (#292). A built-in is bound
+# by its name and the checksum of the file the pinned opengwasdb ships, and the
+# bundle carries no `file` for it: the bytes are the package's. The checksum is
+# part of the resolution contract, so a changed map makes every Resolution
+# Record stale.
+column_map:
+  builtin: finngen-r13
 
 defaults:
   # Collection-wide facts the adapter does not write (#287): FinnGen publishes

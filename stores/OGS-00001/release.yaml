@@ -1,7 +1,9 @@
 store_id: OGS-00001
 label: pilot-10
+association_coverage: cis
 access_posture: public
 status: built
+trial: true
 derived_from: null
 created_at: '2026-08-18T15:44:32.579882+00:00'
 description: 10 well-known genes' cis-eQTL summary statistics from the eQTLGen Consortium's 2019 whole-blood

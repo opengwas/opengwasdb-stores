@@ -1,0 +1,59 @@
+snapshot_id: finngen-r13-probe-10-2026-10-23
+source_collection_id: finngen-r13
+frozen_at: '2026-10-22T07:37:35Z'
+frozen_by: manifest_generation.freeze
+selection:
+  analyses:
+  - AB1_ACTINOMYCOSIS
+  - ALCODELIRIUM
+  - CD2_INSITU_BREAST
+  - K11_IBD_STRICT
+  - M13_ARTHROPATHIES
+  - RX_STATIN
+  - T2D
+  - BMI_IRN
+  - HEIGHT_IRN
+  - WEIGHT_IRN
+  expect_rows: 10
+rows: 10
+readiness_counts:
+  already_present: 10
+ready_rows: 10
+ready_bytes: 7373179646
+study_design_counts:
+  case-control: 7
+  quantitative: 3
+ready_study_design_counts:
+  case-control: 7
+  quantitative: 3
+duplicate_content_groups: []
+inventory_tsv_sha256: c556bc567e7570d265c173c3a04b1a21a62d5e307d17f34376ed177b83738814
+source_metadata_table:
+  frozen:
+    path: finngen-r13-probe-10-2026-10-23.source-metadata.tsv
+    sha256: 2ee7503405b4d7bd3d07c8847bddf7cab5a465ae65fb765811e5197c0baf5dd9
+    bytes: 1776
+    rows: 10
+  original:
+    path: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-22/finngen-r13.source-metadata.tsv
+    sha256: 16782d5716babfc4397f5d3be75a76a19327668eeb8cd8e911f6304059240a59
+    bytes: 550984
+    rows: 2754
+acquisition_manifest:
+  frozen:
+    path: finngen-r13-probe-10-2026-10-23.acquisition-manifest.tsv
+    sha256: d52626019730f4023e33175527c644afa7774f498a7a1db72ee7f73b50ed49af
+    bytes: 2933
+    rows: 10
+  original:
+    path: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13-full.acquisition-manifest.tsv
+    sha256: 7f249fffc3f646b940531a24bdb18a84524db8e1000a7c72d57a78f4439437c7
+    bytes: 842117
+    rows: 2754
+    readiness_counts:
+      already_present: 2754
+    pass_lineage:
+      path: /data/opengwasdb/raw/finngen-r13/connectors/2026-10-21/finngen-r13-full.acquisition-manifest.meta.yaml
+      sha256: e1eb0173b2d9b431c162a61f8505d5e0f830ba53bd8cd2c44049947cdca9ca7e
+  unselected_entries: 2744
+lineage: []

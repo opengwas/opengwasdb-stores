@@ -14,6 +14,7 @@ with no registry lookup.
                                 with `exclude_from_build` rows removed
         work/analyses.exclusions.json   audit sidecar naming the dropped rows
         records/<step>.json     one per executed step
+        tmp/                    a step's temporary files (TMPDIR), removed by the step
         store.opengwasdb        the Store Release
         store.opengwasdb.partial    transient; renamed into place on success
     <artifact-root>/by-label/   generated symlinks
@@ -139,19 +140,26 @@ def source_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
     return store_dir(store_id, root=root) / "source"
 
 
-def generation_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
-    """Manifest Generation's working files for one release: `<root>/<store_id>/generate`.
-
-    A generator's working bundle and acquisition evidence live here, apart
-    from the `source/` a build reads and the `work/` and `records/` Store
-    Release Build owns (#248).
-    """
-    return store_dir(store_id, root=root) / "generate"
-
-
 def work_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
     """Directory for checkpoints and scratch files: `<root>/<store_id>/work`."""
     return store_dir(store_id, root=root) / "work"
+
+
+def tmp_dir(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Where a release's steps put temporary files: `<root>/<store_id>/tmp`.
+
+    Beside the Store, so a step's spill never lands on the root filesystem
+    (`/tmp`) and a rename out of it stays on one filesystem. It is apart from
+    the state the workflow reads back (`work/`, `records/`, the completion
+    checkpoint `<store>/.store.opengwasdb.partial.checkpoint`), because a step
+    owns what it spills there (#312).
+    """
+    return store_dir(store_id, root=root) / "tmp"
+
+
+def entry_point_tmp_dir(root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Where the release entry point's own Snakemake run puts temporary files: `<root>/.tmp`."""
+    return Path(root) / ".tmp"
 
 
 def build_manifest_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
@@ -161,6 +169,17 @@ def build_manifest_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT)
     build-phase command consumes this path, never the bundle row (ADR 0025).
     """
     return work_dir(store_id, root=root) / "analyses.tsv"
+
+
+def column_map_path(store_id: str, file: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """A carried Column Map, staged for the release: `<root>/<store_id>/work/column_maps/<file>`.
+
+    Copied from the bundle's `column_maps/<file>` once its bytes match the
+    Build Recipe's binding, so a build names a path under the artifact root
+    (like the derived build manifest) and the planned argv is the same from any
+    checkout.
+    """
+    return work_dir(store_id, root=root) / "column_maps" / file
 
 
 def build_manifest_sidecar_path(

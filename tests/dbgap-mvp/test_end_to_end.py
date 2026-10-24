@@ -123,6 +123,7 @@ def build(root: Path) -> Path:
     config = {
         "release_config_version": 1,
         "label": "fixture-mvp",
+        "association_coverage": "gwas",
         "access_posture": "public",
         "description": "Two dbGaP MVP-shaped fixture Analyses.",
         "source_collection": {

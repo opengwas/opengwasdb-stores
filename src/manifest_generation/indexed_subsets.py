@@ -17,9 +17,7 @@ entry, or any declaration on a Ragged release is a generator error rather than
 a silent omission (CONTRIBUTING's fail-loud rule).
 
 Ragged releases have no Dense Component, so `resolve_indexed_subsets` returns
-`None` for them and the writer emits no `indexed_subsets` key at all. The
-R mirror `resources/generators/lib/indexed_subsets.R` reads the same one
-declaration; the two must stay in step.
+`None` for them and the writer emits no `indexed_subsets` key at all.
 """
 
 from __future__ import annotations

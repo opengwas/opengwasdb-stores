@@ -160,6 +160,24 @@ class SourceMetadataTableTest(unittest.TestCase):
         table = load_source_metadata_table(write_table(self.tmp, [row], header=header))
         self.assertEqual(table.row("GCST005806")["target_symbol"], "PDK1")
 
+    def test_a_probe_level_table_names_the_probe_each_analysis_reads(self) -> None:
+        """eQTLGen (#291): one study, one Analysis per probe, the study's sample size on each."""
+        header = (
+            "source_analysis_id", "source_probe_id", "source_trait_label", "study_design",
+            "sample_size", "tissue",
+        )
+        rows = [
+            {"source_analysis_id": "ENSG00000175445", "source_probe_id": "ENSG00000175445",
+             "source_trait_label": "ENSG00000175445", "study_design": "quantitative",
+             "sample_size": "31684", "tissue": "whole_blood"},
+            {"source_analysis_id": "ENSG00000134243", "source_probe_id": "ENSG00000134243",
+             "source_trait_label": "ENSG00000134243", "study_design": "quantitative",
+             "sample_size": "31684", "tissue": "whole_blood"},
+        ]
+        table = load_source_metadata_table(write_table(self.tmp, rows, header=header))
+        self.assertEqual(table.row("ENSG00000134243")["source_probe_id"], "ENSG00000134243")
+        self.assertEqual(table.row("ENSG00000175445")["sample_size"], "31684")
+
     def test_the_writer_writes_canonical_order_and_the_reader_reads_it_back(self) -> None:
         path = self.tmp / "written.tsv"
         write_connector(path, SOURCE_METADATA_TABLE, ("study_design", "source_analysis_id"),

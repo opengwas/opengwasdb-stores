@@ -5,9 +5,9 @@ Python lives under `src/` (the packages), `tests/` (the suites), `tools/`
 (scripts) or `workflow/` (the Snakemake wiring and release entry point), and
 nowhere else: not at the repository root, and not as a namespace package such
 as `rogue/module.py`. Only `src/` and `tests/` hold packages. `resources/`
-holds inputs only, so it holds no code, except the
-legacy R generators that remain under `resources/generators/` until stage 2 of
-epic #282 retires them. Each is listed in `LEGACY_R_GENERATORS` with the
+holds inputs only, so it holds no code, except two R metadata resolvers
+under `resources/generators/lib/metadata_resolvers/` that curation's R-resolver
+round-trip still sources. Each is listed in `LEGACY_R_GENERATORS` with the
 ticket that retires it, and an entry whose file is gone fails, so the list
 only shrinks. `resources/scripts/`, the miscellany this layout replaced, does
 not come back.
@@ -33,26 +33,17 @@ PACKAGE_HOMES = ("src/", "tests/")
 # a Snakefile, or anything that starts with a shebang line.
 CODE_SUFFIXES = frozenset({".py", ".r", ".rmd", ".qmd", ".sh", ".smk", ".ipynb", ".js", ".pl"})
 
-# The legacy R generators, and the stage-2 ticket of epic #282 that retires
-# each. A shared helper retires with the last generator that sources it.
-FINNGEN = "#288 (FinnGen onto the pipeline: AC1 deletes the R generator)"
-UKB_B = "#289 (ukb-b onto the pipeline)"
-BOTH = "#288 and #289, whichever retires the last R generator"
+# The R code under resources/, and the ticket that retires each. Every
+# generator's R path has retired (epic #282 stage 2); what is left of it is
+# what curation's R-resolver round-trip still sources.
+EPIC_CLEANUP = "#282 (curation's R-resolver round-trip still sources these)"
 LEGACY_R_GENERATORS: dict[str, str] = {
-    "resources/generators/finngen-r13/generate.R": FINNGEN,
-    "resources/generators/lib/finngen_r13_pilot.R": FINNGEN,
-    "resources/generators/lib/metadata_resolvers/finngen_manifest.R": FINNGEN,
-    "resources/generators/lib/source-formats/finngen-r13-dense/generate.R": FINNGEN,
-    "resources/generators/ukb-b/generate.R": UKB_B,
-    "resources/generators/lib/opengwas_gwas_vcf_dense.R": UKB_B,
-    "resources/generators/lib/metadata_resolvers/opengwas_api.R": UKB_B,
-    "resources/generators/lib/metadata_resolvers/canonical_trait_table.R": UKB_B,
-    "resources/generators/lib/metadata_resolvers/ontology_contract.R": UKB_B,
-    "resources/generators/lib/source-formats/opengwas-gwas-vcf-dense/generate.R": UKB_B,
-    "resources/generators/lib/build_environment.R": BOTH,
-    "resources/generators/lib/emit_registry.R": BOTH,
-    "resources/generators/lib/indexed_subsets.R": BOTH,
-    "resources/generators/lib/schema_validate.R": BOTH,
+    # These two lost their generator when ukb-b's R path retired with #289, but
+    # the curation suites (tests/curation/test_promotion.py, test_e2e_pipeline.py)
+    # still drive the R resolver through them to prove a promoted mapping row
+    # round-trips: no ticket yet moves curation off the R resolver.
+    "resources/generators/lib/metadata_resolvers/canonical_trait_table.R": EPIC_CLEANUP,
+    "resources/generators/lib/metadata_resolvers/ontology_contract.R": EPIC_CLEANUP,
 }
 
 
@@ -136,7 +127,7 @@ class LayoutTest(unittest.TestCase):
     def test_no_python_package_outside_src_and_tests(self) -> None:
         self.assertEqual(packages_outside_homes(self.files), [])
 
-    def test_resources_holds_no_code_but_the_legacy_r_generators(self) -> None:
+    def test_resources_holds_no_code_but_the_listed_r_files(self) -> None:
         code = code_under_resources([(r, head_of(r)) for r in self.files if r.startswith("resources/")])
         unexpected = [relative for relative in code if relative not in LEGACY_R_GENERATORS]
         self.assertEqual(unexpected, [], "resources/ is inputs only; code belongs in src/, tools/ or docs/reports/")

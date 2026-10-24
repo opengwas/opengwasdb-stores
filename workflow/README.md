@@ -154,6 +154,10 @@ entry point's recovery or settlement either. `release.yaml`'s prose and
 provenance are left to review. `--config force=1` still rebuilds a named
 release from its bundle as it now stands.
 
+### Temporary files
+
+Steps write temporary files to `<artifact root>/<store id>/tmp`, and the Snakemake run itself to `<artifact root>/.tmp`, never `/tmp`: `/tmp` is on a small root filesystem and a large build's spill fills it (#312). The release sets `TMPDIR`, `TMP` and `TEMP`; there is nothing to configure. A step killed mid-run (a signal, or `ENOSPC`) leaves its spill there until it is removed by hand (#316).
+
 ### Production Execution vs. Fixture-Scale Tests
 
 - **Workflow tests (`tests/workflow/`) are fixture-scale**: they exercise DAG wiring, command line composition, transaction staging (`.partial`), publication gating, and step resumption using temporary mock bundles and mock executables without requiring multi-gigabyte production data or reference panels.

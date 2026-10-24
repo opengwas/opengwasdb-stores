@@ -19,8 +19,11 @@ dependencies = []
 [tool.setuptools]
 # All importable Python lives under src/ (ADR 0038, #317): Store Release Build
 # (`ogstores`) and Manifest Generation (`manifest_generation`, #249), which meet
-# only at the Release Bundle (ADR 0035), and the trait-mapping curation tooling
-# (`curation`). tests/packaging/test_layout.py keeps it there.
+# only at the Release Bundle (ADR 0035), the trait-mapping curation tooling
+# (`curation`), and the Analysis Catalog (`analysis_catalog`, #323, ADR 0039),
+# which reads Release Bundles only through that contract and which nothing
+# imports, so it can move to the API's repository. tests/packaging/test_layout.py
+# keeps it all there.
 #
 # `manifest_generation` installs editable only: it resolves its inputs and the
 # registry against the checkout it lives in, and refuses to import from
@@ -28,7 +31,7 @@ dependencies = []
 # `python3 -m manifest_generation...` and so rely on that editable install.
 # tests/packaging/test_packages.py keeps this list equal to the package's
 # directories.
-package-dir = { "ogstores" = "src/ogstores", "manifest_generation" = "src/manifest_generation", "curation" = "src/curation" }
+package-dir = { "ogstores" = "src/ogstores", "manifest_generation" = "src/manifest_generation", "analysis_catalog" = "src/analysis_catalog", "curation" = "src/curation" }
 packages = [
     "ogstores",
     "manifest_generation",
@@ -40,5 +43,6 @@ packages = [
     "manifest_generation.providers.gwas_catalog",
     "manifest_generation.providers.opengwas",
     "manifest_generation.providers.ukb_b",
+    "analysis_catalog",
     "curation",
 ]

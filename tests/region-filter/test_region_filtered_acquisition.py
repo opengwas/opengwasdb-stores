@@ -43,7 +43,7 @@ from manifest_generation.source_inventory import sha256_file
 HEADER = "chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\tstandard_error\tp_value\n"
 POLICY = RegionPolicy(
     region_policy_id="cis-1mb_sig-trans-1mb_suggestive-leads",
-    association_coverage="cis_plus_signals",
+    association_coverage="cis_and_signals",
     trans_flank_bp=1_000_000,
     significant_p=5e-8,
     suggestive_p=1e-5,
@@ -127,7 +127,7 @@ class RegionFilteredAcquisitionTest(unittest.TestCase):
             lineage.region_policy,
             {
                 "region_policy_id": "cis-1mb_sig-trans-1mb_suggestive-leads",
-                "association_coverage": "cis_plus_signals",
+                "association_coverage": "cis_and_signals",
                 "cis_flank_bp": 1_000_000,
                 "trans_flank_bp": 1_000_000,
                 "significant_p": 5e-8,

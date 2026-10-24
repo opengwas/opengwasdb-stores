@@ -7,17 +7,12 @@ directory holds its **inputs**:
 
 ```text
 <generator>/           release configs (release-*.yaml, docs/spec/release-config.md),
-                       a legacy generator's configs, reviewed tables,
-                       generation-*.yaml receipts and README
-<family-id>/generate.R legacy R generators, until stage 2 of epic #282 retires
-                       them (FinnGen #288, ukb-b #289)
-lib/*.R                the legacy R generators' shared helpers
-lib/metadata_resolvers/    their metadata resolvers
-lib/source-formats/    their source-format-scoped code
+                       reviewed tables, generation-*.yaml receipts and README
+lib/metadata_resolvers/    the R metadata resolvers curation's round-trip still sources
 ```
 
 Recorded config paths and receipts resolve here, so these files do not move.
-The legacy R generators are the only code here: `resources/` holds inputs
+The two R resolvers are the only code here: `resources/` holds inputs
 (ADR 0038), and `tests/packaging/test_layout.py` lists each R file with the
 ticket that retires it.
 The code that reads them:
@@ -36,8 +31,8 @@ src/manifest_generation/providers/    per-Source-Provider connectors:
   ukb_b/          Source Inventory, provider metadata, candidate generator
   dbgap/mvp/      phs002453 (MVP): acquisition, candidate generator and pilot
   finngen/        R13 acquisition and assessment
-  eqtlgen/        BESD generator and subsetter
-  opengwas/       GWAS-VCF download (download-opengwas-vcfs.R) and annotation
+  eqtlgen/        BESD acquisition (per-Selection subset), the .epi metadata adapter, subsetter
+  opengwas/       GWAS-VCF download (download-opengwas-vcfs.R)
 ```
 
 Run any of it as a module, `python3 -m manifest_generation.<module>`, or through
@@ -62,16 +57,11 @@ one shared pipeline fed by per-source connector files.
    Analyses, which method tier, and what tolerance to accept.
 5. **Every generator emits through one emitter** (#248, ADR 0035).
    `manifest_generation.emit` is the only code that writes a candidate into
-   `stores/<id>/`.
-   A Python generator calls `emit()`. A legacy (R or BESD) generator keeps a
-   family-shaped working bundle in its work root,
-   `<artifact-root>/<output.store_id>/generate`
-   (`python3 -m manifest_generation.emit work-root <id>`), and its
-   `--mode=emit-registry` projects the current contract from that and its
-   config's `build:` block through `manifest_generation.emit project`
-   (`lib/emit_registry.R`).
-   No generator config names a path outside the Store Registry as its output or
-   work root. The emitter writes `status: candidate` and the
+   `stores/<id>/`. The shared pipeline calls `emit()`; a directory rendered
+   elsewhere is emitted with `python3 -m manifest_generation.emit <id> --from
+   <dir> --command ...`. Every release config's output is the Store Registry
+   and its Work Root is its own `output.work_root`. The emitter writes
+   `status: candidate` and the
    generator commands, checks the bundle against the Release Bundle contract,
    writes its `summary.yaml`, and replaces `stores/<id>/` in one step. It
    replaces only an earlier candidate, refuses a bundle that has been accepted

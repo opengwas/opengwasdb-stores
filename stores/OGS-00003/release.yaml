@@ -1,7 +1,9 @@
 store_id: OGS-00003
 label: r13-pilot-20
+association_coverage: gwas
 access_posture: public
 status: built
+trial: true
 derived_from: null
 created_at: '2026-08-18T08:51:59Z'
 description: 'Bounded FinnGen R13 onboarding trial containing all three inverse-rank-normalised quantitative

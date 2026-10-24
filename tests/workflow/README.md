@@ -92,6 +92,46 @@ Test suite for Phase A `workflow/Snakefile` orchestration (Issues #115, #116), g
    - The one amendment (`TestWorkflowTheOneAmendmentOfAnAcceptedBundle`, on copies of #304's single-id and #303's two-id templates): a bundle that completes its own Store and no longer plans the Store it published is refused before any job runs, naming it. A changed `build` option is refused through the entry point with nothing written under either root; a changed membership, a published exclusion audit sidecar that is deleted, malformed, not an object, or lists a dropped entry without an `analysis_id`, and a changed `complete` block once the completion phase has published, are refused by `amendment.refuse_changed_bundles`, the sidecar cases naming it. So is a `register.json` or `completion-register.json` that is `null`, a list or malformed, naming it, never read as an unpublished phase, even with no membership evidence left to compare. A new post step, or post steps recorded by an older planner (no `--format json`), are not refused, and neither is any change to an observed-only or two-id release: an unforced run of the two-id pair after that planner drift does nothing. A release another run held at the probe, gone by the time this run takes its lock, is still checked and refused; its dry run says it could not check it.
    - A forced run of a completed single-id release (`single_id_completion_template`, aged as after a fresh checkout) rebuilds both phases: every record of both is rewritten, the completed Store is archived with the records that described it, the rebuilt Observed-Only Store is archived by the completion phase, and nothing is left pending.
 
+15. **Association Coverage reaches the builder, and a published Store is not
+    rebuilt because its argv now names it (#341, ADR 0040, opengwas/opengwasdb#298)**:
+   - A Ragged release builds end to end at fixture scale
+     (`TestRaggedReleaseBuildsAtItsDeclaredCoverage`,
+     `create_ragged_fixture_store`): the `build` record's planned and executed
+     argv both name `--association-coverage signals_only`, the value
+     `release.yaml` declares and no layout's default; `opengwasdb info
+     --format json` on the published Store reports it, and so does the
+     Validation Record's `observed.association_coverage`.
+   - A Ragged Store published before #341 stays up to date
+     (`TestWorkflowKeepingAStorePublishedBefore341`): the workflow as it was at
+     `PRE_341_REVISION` (`e42066b`, before the flag existed) builds and
+     publishes the same fixture from a `git archive` of itself, with its own
+     `ogstores` on `PYTHONPATH` and its `.snakemake` this checkout's. Two edges
+     of that run are supplied by the test, and nothing else about it changes:
+     the archived `runtime.py` is repinned to the runtime this environment
+     provides, as contract 14's template does, and a fixture `opengwasdb` on
+     `PATH` adds the flag the pre-#341 code cannot name, because the pinned
+     runtime requires it. Its records are still its own, naming no such token
+     — which is the state under test. The current dry run says "Nothing to be
+     done" and schedules no job, the current run executes nothing, prints
+     "nothing to be done", and leaves every record and work file byte for byte
+     at its mtime, under Snakemake's default rerun triggers. The current plan
+     does differ: it is the recorded argv with the flag added, which is why
+     the guard is a fact about rerun triggers and not about an unchanged argv.
+   - The same Store may still gain its own completion
+     (`TestWorkflowCompletingAStorePublishedBefore341`). Its `build` record
+     names no coverage; the plan now names the declared one, so the amendment
+     check (contract 14) reports that difference. ADR 0040 records the one
+     exception: a record that names no coverage matches a plan differing by the
+     declaration-derived pair alone, while a record naming another coverage is
+     refused, naming both values, and every other difference is refused as
+     before. The single-id completion gate itself is #232's (#336) and is
+     patched in that test only, so production still plans a single-id
+     completion for Dense Stores alone; the Store, its records and its derived
+     build manifest are the archived run's.
+   - Each of those two scenarios, and the Ragged build above, asserts itself in
+     **one** test method, so a fixture is built once however the suite is
+     sharded.
+
 ## Running the suite
 
 ```sh

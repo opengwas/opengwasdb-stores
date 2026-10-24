@@ -9,10 +9,11 @@ into the canonical Source Metadata Table the shared freeze reads
 needs only a new Column Map and release config: the selection, the resolution,
 the release policy and the rendering are the pipeline's.
 
-The endpoint classification is the one the R path's metadata resolver applied
-(``resources/generators/lib/metadata_resolvers/finngen_manifest.R``, retired
-here), and it is deliberately strict: an endpoint the manifest cannot describe
-honestly fails the whole adapter instead of shrinking the release silently.
+The endpoint classification is the one the retired R path's metadata resolver
+applied (``resources/generators/lib/metadata_resolvers/finngen_manifest.R``,
+deleted with that path), and it is deliberately strict: an
+endpoint the manifest cannot describe honestly fails the whole adapter instead
+of shrinking the release silently.
 
 - ``category`` is ``Quantitative endpoints`` (compared trimmed and
   case-insensitively, as the R resolver did): the endpoint is

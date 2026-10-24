@@ -67,12 +67,15 @@ BUILDABLE_STATUSES: frozenset[str] = frozenset({"accepted", "built", "validated"
 # Release-level identity and provenance required by the current bundle contract.
 # The identity file trims to identity, lineage, status, creation time, source
 # snapshot identity, prose, and the generation command log (issue #136).
-# Coverage, cadence, Source Collection, source defaults, the sidecar pointer
-# map, and the standalone build_environment block were removed because they are
-# derived elsewhere or read by no code.
+# Cadence, Source Collection, source defaults, the sidecar pointer map, and the
+# standalone build_environment block were removed because they are derived
+# elsewhere or read by no code. `association_coverage` was removed by ADR 0029
+# for the same reason and is restored by ADR 0040 (#341): the Analysis Catalog
+# reads it, and opengwasdb#298 makes it a build input.
 RELEASE_REQUIRED_KEYS: tuple[str, ...] = (
     "store_id",
     "label",
+    "association_coverage",
     "status",
     "source_snapshot_id",
     "created_at",
@@ -137,10 +140,16 @@ def reserved_options(options: Mapping[Any, Any], reserved: Iterable[str]) -> lis
     """The `options` keys, as written, that render as one of the `reserved` flags.
 
     A reserved flag is one the registry composes from a verified input of its
-    own; passed through `options`, it would reach the CLI unverified.
+    own; passed through `options`, it would reach the CLI unverified. The
+    comparison is against the flag the key *sets*, not the whole key: a key may
+    carry its value after an `=`, and `{"min-cor=0.5": true}` renders the one
+    token `--min-cor=0.5`, which the CLI's parser reads exactly as
+    `--min-cor 0.5` (issue #341).
     """
     flags = frozenset(reserved)
-    return sorted(str(key) for key in options if normalize_option_key(key) in flags)
+    return sorted(
+        str(key) for key in options if normalize_option_key(key).split("=", 1)[0] in flags
+    )
 
 
 def is_valid_indexed_subset_name(name: object) -> bool:
@@ -163,6 +172,43 @@ def indexed_subset_step_name(name: str) -> str:
 # releases; any new release (including any future ragged-BESD or completed release)
 # must provide valid required values or fail check().
 LEGACY_BLANK_ANALYSIS_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002"})
+
+# Legacy Trial Store Releases whose ``analysis_id`` predates the rule below
+# (issue #319). OGS-00001 and OGS-00002 carry eQTLGen's ``<probe>::<tissue>``
+# ids, and an accepted bundle is not edited (ADR 0004), so they keep them and
+# disclose the gap instead. Strictly scoped to those two: a rebuilt or any new
+# ragged-BESD release -- the 19,250-Analysis eQTLGen build among them -- names
+# its Analyses by bare probe id and must satisfy the rule.
+LEGACY_ANALYSIS_ID_RELEASES: frozenset[str] = frozenset({"OGS-00001", "OGS-00002"})
+
+# The Analysis Catalog names an Analysis ``<store_id>:<analysis_id>`` (ADR
+# 0039), and a client splits that on ``:`` to get its two parts.
+# ``analysis_id`` is also the filename of the resolver's per-Analysis record,
+# and ``:`` is not legal in a Windows filename. The registry owns this guard
+# because the pinned
+# ``opengwasdb.model.analyses.validate_analyses()`` accepts any string in the
+# column (ADR 0017); retire it in favour of the upstream validator if
+# OpenGWASDB ever adopts the rule (issue #319).
+_ANALYSIS_ID_RE: re.Pattern[str] = re.compile(r"\A[A-Za-z0-9][A-Za-z0-9._-]*\Z")
+
+# The Association Coverage values a Store Release declares (#341): what
+# associations its Store is expected to hold. One vocabulary for the registry
+# and for opengwasdb (opengwas/opengwasdb#298), which renamed its own ``full``
+# to ``gwas``; this replaced ``full_gwas`` and ``cis_plus_signals``. A region
+# policy filters to ``cis_and_signals`` or ``signals_only`` only
+# (``manifest_generation.region_filter.REGION_POLICY_COVERAGES``).
+ASSOCIATION_COVERAGES: tuple[str, ...] = (
+    "gwas",
+    "cis",
+    "cis_and_signals",
+    "signals_only",
+)
+
+# The layouts whose Store holds a cell for every (variant, Analysis), so the
+# only Association Coverage they can carry is `gwas`
+# (opengwas/opengwasdb#298, `COVERAGES_BY_LAYOUT`): an association outside that
+# coverage would be indistinguishable from one the source did not report.
+DENSE_COMPONENT_ONLY_GWAS_COVERAGE: frozenset[str] = frozenset({"dense", "hybrid"})
 
 # The controlled vocabulary for ``assigned_ancestry``: the seven super-population
 # codes the ancestry-mixture Reference Resource assigns (see
@@ -309,6 +355,9 @@ COLUMN_MAP_SUFFIX: str = ".toml"
 _SHA256_RE: re.Pattern[str] = re.compile(r"\A[0-9a-f]{64}\Z")
 #: The flag Store Release Build will compose from the binding; ``options`` may not pass it.
 _COLUMN_MAP_OPTIONS: frozenset[str] = frozenset({"column-map"})
+
+#: The keys a Build Recipe's ``variant_reference`` pre-stage block goes by (``ogstores.plan``).
+_VARIANT_REFERENCE_BLOCKS: tuple[str, ...] = ("variant_reference", "variant-reference")
 _READER_OPTION: str = "source-reader-capability"
 
 SUMMARY_COLUMNS: tuple[str, ...] = (
@@ -398,6 +447,53 @@ class Bundle:
     @property
     def derived_from(self) -> str | None:
         return self.release.get("derived_from")
+
+    @property
+    def trial(self) -> bool:
+        """Whether this is a Trial Store Release; absent means it is not (#321).
+
+        A reader that does not gate on `check()` -- the master list, the
+        Analysis Catalog's serving policy -- must not read `trial: "yes"`, `1`
+        or `null` as "not a trial": that would serve a Trial Store Release. So
+        only an absent key answers `False`, and any other value than a YAML
+        boolean raises rather than being coerced (CONTRIBUTING: fail loudly
+        rather than silently substituting data).
+        """
+        release = self.release if isinstance(self.release, Mapping) else {}
+        if "trial" not in release:
+            return False
+        value = release["trial"]
+        if isinstance(value, bool):
+            return value
+        raise ValueError(
+            f"{self.store_id}: release.yaml trial must be a YAML boolean, "
+            f"got {value!r}"
+        )
+
+    @property
+    def association_coverage(self) -> str:
+        """What associations this Store Release holds: one of the four values (#341).
+
+        The Analysis Catalog shows it and counts Analyses by it, and refuses a
+        bundle `check()` rejects before reading any fact. A reader that has not
+        gated must still not read an absent, unknown or non-string value as a
+        default -- that would show a layout's coverage as the Store's -- so
+        anything outside the vocabulary raises rather than answering one
+        (ADR 0040).
+        """
+        release = self.release if isinstance(self.release, Mapping) else {}
+        value = release.get("association_coverage")
+        if not isinstance(value, str) or value not in ASSOCIATION_COVERAGES:
+            raise ValueError(
+                f"{self.store_id}: release.yaml association_coverage must be one of "
+                f"{', '.join(ASSOCIATION_COVERAGES)}, got {value!r}"
+            )
+        return value
+
+    @property
+    def superseded_by(self) -> str | None:
+        """The `store_id` of the Store Release that replaced this one (#321)."""
+        return self.release.get("superseded_by")
 
     @property
     def completes_own_store(self) -> bool:
@@ -798,11 +894,51 @@ def _check_release(bundle: Bundle) -> list[str]:
         if _is_missing(release, key):
             errors.append(f"release.yaml is missing required key: {key!r}")
 
+    # `association_coverage` is a checked vocabulary rather than free text: the
+    # catalog shows it and counts by it, so an unknown or non-string value is
+    # refused as written instead of being stored (ADR 0040, #341).
+    coverage = release.get("association_coverage")
+    if "association_coverage" in release and not (
+        isinstance(coverage, str) and coverage in ASSOCIATION_COVERAGES
+    ):
+        errors.append(
+            f"release.yaml association_coverage {coverage!r} is not one of "
+            f"{', '.join(ASSOCIATION_COVERAGES)}"
+        )
+
     status = release.get("status")
     if status is not None and status not in VALID_STATUSES:
         errors.append(
             f"release.yaml has invalid status {status!r}; expected one of "
             f"{sorted(VALID_STATUSES)}"
+        )
+
+    # `trial` marks a Trial Store Release, which the Analysis Catalog's serving
+    # policy must be able to exclude exactly (#321). Only a YAML boolean is
+    # accepted: the loader follows YAML 1.1, so unquoted `trial: yes` is already
+    # `True`, while a quoted `trial: "yes"` is a string and `trial: 1` a number.
+    # Both of those are refused rather than read as `true` or `false`: either
+    # reading would serve a Trial Store Release, or hide one.
+    if "trial" in release and not isinstance(release["trial"], bool):
+        errors.append(
+            f"release.yaml trial must be a boolean true or false, got "
+            f"{release['trial']!r}"
+        )
+
+    # `superseded_by` is the successor a reader of an old identifier is sent to
+    # (#323), so it is a fact only a `superseded` release can state, and one it
+    # must state. Whether the successor is registered is a registry question the
+    # Release Lineage stage answers (#321).
+    superseded_by = release.get("superseded_by")
+    if status == "superseded" and superseded_by in (None, ""):
+        errors.append(
+            "release.yaml status is 'superseded' but superseded_by does not name "
+            "the Store Release that replaced it"
+        )
+    elif superseded_by not in (None, "") and status != "superseded":
+        errors.append(
+            f"release.yaml superseded_by {superseded_by!r} is only allowed on a "
+            f"'superseded' Release Status, not {status!r}"
         )
 
     generator = release.get("generator")
@@ -970,6 +1106,24 @@ def _check_build(bundle: Bundle) -> list[str]:
     block_name = "complete" if completion_state == "reference_completed" else "build"
     block = build.get(block_name)
     release = bundle.release if isinstance(bundle.release, Mapping) else {}
+    # A Dense or Hybrid Store has a cell for every (variant, Analysis), so a
+    # missing cell there already means the source did not report the
+    # association: `gwas` is the only coverage such a release can carry, and
+    # both builders refuse any other value (opengwas/opengwasdb#298). The
+    # registry states the same rule where a release is declared, so a wrong
+    # bundle is refused by `check()`, before a build reaches the builder.
+    declared_coverage = release.get("association_coverage")
+    if (
+        layout in DENSE_COMPONENT_ONLY_GWAS_COVERAGE
+        and isinstance(declared_coverage, str)
+        and declared_coverage in ASSOCIATION_COVERAGES
+        and declared_coverage != "gwas"
+    ):
+        errors.append(
+            f"release.yaml association_coverage {declared_coverage!r} is not 'gwas': "
+            f"a {layout} Store Release has a cell for every (variant, Analysis), so "
+            "it can carry only 'gwas' (opengwas/opengwasdb#298)"
+        )
     if completion_state == "reference_completed" and not release.get("derived_from"):
         # One id, published twice (ADR 0037): the build phase publishes the
         # Observed-Only Store that the completion phase then completes.
@@ -1029,45 +1183,69 @@ def _registry_directory(bundle: Bundle, registry_root: Path | str | None) -> Pat
 def _check_lineage(
     bundle: Bundle, registry_root: Path | str | None
 ) -> list[str]:
-    release = bundle.release if isinstance(bundle.release, Mapping) else {}
-    parent_id = release.get("derived_from")
-    errors: list[str] = []
+    """Check the `release.yaml` keys that must name a registered Release Bundle.
 
-    # A reference_completed release without derived_from completes its own
-    # Store (ADR 0037); `_check_build` requires both of its phases' blocks.
-    if parent_id in (None, ""):
-        return errors
-    if not is_valid_store_id(parent_id):
+    `derived_from` names the parent this release derives from (ADR 0007) and
+    `superseded_by` names the release that replaced it (#321). Both are store
+    ids the registry has to hold, so both are resolved the same way, against the
+    same registry root, instead of by two near-identical checks.
+    """
+    release = bundle.release if isinstance(bundle.release, Mapping) else {}
+    errors: list[str] = []
+    for field in ("derived_from", "superseded_by"):
+        errors.extend(_check_registered_reference(bundle, release, field, registry_root))
+    return errors
+
+
+def _check_registered_reference(
+    bundle: Bundle,
+    release: Mapping[str, Any],
+    field: str,
+    registry_root: Path | str | None,
+) -> list[str]:
+    """Refuse a `release.yaml` value that names no registered Release Bundle."""
+    referenced_id = release.get(field)
+
+    # Absent is valid for both keys: a reference_completed release with no
+    # derived_from completes its own Store (ADR 0037, and `_check_build` then
+    # requires both of its phases' blocks), and most releases are never
+    # superseded.
+    if referenced_id in (None, ""):
+        return []
+    if not is_valid_store_id(referenced_id):
         return [
-            f"derived_from {parent_id!r} is not a valid store_id "
+            f"{field} {referenced_id!r} is not a valid store_id "
             "(must match 'OGS-\\d{5}')"
         ]
-    if parent_id == bundle.store_id:
-        return [f"derived_from cannot reference itself: {parent_id!r}"]
+    if referenced_id == bundle.store_id:
+        return [f"{field} cannot reference itself: {referenced_id!r}"]
 
-    parent_root = _registry_directory(bundle, registry_root) / parent_id
+    referenced_root = _registry_directory(bundle, registry_root) / referenced_id
     try:
         registered = (
-            not parent_root.is_symlink()
-            and parent_root.is_dir()
-            and not (parent_root / "release.yaml").is_symlink()
-            and (parent_root / "release.yaml").is_file()
+            not referenced_root.is_symlink()
+            and referenced_root.is_dir()
+            and not (referenced_root / "release.yaml").is_symlink()
+            and (referenced_root / "release.yaml").is_file()
         )
     except OSError as exc:
-        return [f"derived_from {parent_id!r} could not be resolved: {exc}"]
+        return [f"{field} {referenced_id!r} could not be resolved: {exc}"]
     if not registered:
         return [
-            f"unresolvable derived_from {parent_id!r}: registered parent "
+            f"unresolvable {field} {referenced_id!r}: registered "
             "Release Bundle not found"
         ]
 
-    parent_release = _read_yaml(parent_root / "release.yaml")
-    if not isinstance(parent_release, Mapping) or parent_release.get("store_id") != parent_id:
-        errors.append(
-            f"unresolvable derived_from {parent_id!r}: parent release.yaml "
+    referenced_release = _read_yaml(referenced_root / "release.yaml")
+    if (
+        not isinstance(referenced_release, Mapping)
+        or referenced_release.get("store_id") != referenced_id
+    ):
+        return [
+            f"unresolvable {field} {referenced_id!r}: its release.yaml "
             "does not declare the registered store_id"
-        )
-    return errors
+        ]
+    return []
 
 
 def _check_previous_status(
@@ -1121,6 +1299,52 @@ def _check_validation(bundle: Bundle) -> list[str]:
     return errors
 
 
+def _check_analysis_ids(
+    bundle: Bundle, table: opengwasdb_analyses.AnalysesTable
+) -> tuple[list[str], list[ToleratedGap]]:
+    """Every row's ``analysis_id`` must be one path segment (issue #319).
+
+    Callers split ``<store_id>:<analysis_id>`` on ``:``, so the value may not
+    contain it -- nor anything else that would make the id two segments or no
+    filename: a space, ``/``, or a leading ``.``/``-``. Every row of the Release
+    Manifest is judged, excluded ones included, because ``analysis_id`` is also
+    the resolver's per-Analysis filename. The value is judged exactly as
+    ``read_analyses`` returned it, never stripped or coerced, so an id padded
+    with whitespace cannot pass here and then fail a client's split.
+
+    OGS-00001 and OGS-00002 keep their ``<probe>::<tissue>`` ids, which an
+    accepted bundle may not be edited to remove (ADR 0004), so their
+    non-conforming values are disclosed on ``check()``'s second channel -- one
+    record for the release, counting them -- rather than reported as errors.
+    """
+    if "analysis_id" not in table.fieldnames:
+        # The shared schema already reports the missing required column; a
+        # per-row echo of it here would only be noise.
+        return [], []
+    offending: list[tuple[int, str | None]] = []
+    for number, row in enumerate(table.rows, start=1):
+        value = row.get("analysis_id")
+        if not isinstance(value, str) or _ANALYSIS_ID_RE.fullmatch(value) is None:
+            offending.append((number, value))
+    if not offending:
+        return [], []
+    if bundle.store_id in LEGACY_ANALYSIS_ID_RELEASES:
+        return [], [
+            ToleratedGap(
+                store_id=bundle.store_id,
+                count=len(offending),
+                detail="analysis_id values containing ':'",
+                citation="#319",
+            )
+        ]
+    return [
+        f"analysis_id {value!r} on analyses.tsv row {number} is not one path "
+        "segment; an Analysis is addressed as <store_id>:<analysis_id>, split on "
+        f"':', so analysis_id must match {_ANALYSIS_ID_RE.pattern}"
+        for number, value in offending
+    ], []
+
+
 def _check_analyses(
     bundle: Bundle, analyses: Callable[[], opengwasdb_analyses.AnalysesTable]
 ) -> tuple[list[str], list[ToleratedGap]]:
@@ -1143,6 +1367,10 @@ def _check_analyses(
                 f"Store Release {bundle.store_id} analyses.tsv contains retired "
                 f"Analysis column {column!r}"
             )
+
+    analysis_id_errors, analysis_id_tolerated = _check_analysis_ids(bundle, table)
+    errors.extend(analysis_id_errors)
+    tolerated.extend(analysis_id_tolerated)
 
     # A Trait Ontology Mapping is an ontology term plus its trait label. It is
     # never a gene identifier with an authority name standing in for the label:
@@ -1497,21 +1725,55 @@ def _recipe_options(build: Mapping[str, Any]) -> Iterable[tuple[str, Mapping[Any
             yield block_name, options
 
 
+def _variant_reference_options(build: Mapping[str, Any]) -> Iterable[tuple[str, Mapping[Any, Any]]]:
+    """``(location, options)`` for each ``variant_reference`` pre-stage's own ``options``."""
+    for block_name in sorted(STORE_PRODUCING_STEPS):
+        block = build.get(block_name)
+        if not isinstance(block, Mapping):
+            continue
+        for key in _VARIANT_REFERENCE_BLOCKS:
+            declaration = block.get(key)
+            options = declaration.get("options") if isinstance(declaration, Mapping) else None
+            if isinstance(options, Mapping):
+                yield f"{block_name}.{key}", options
+
+
 def _column_map_option_errors(build: Mapping[str, Any]) -> list[str]:
     """``--column-map`` comes from the checksummed binding, never through ``options``."""
     errors: list[str] = []
-    for block_name, options in _recipe_options(build):
+    declared = [(f"{name}.options", options) for name, options in _recipe_options(build)]
+    for where, options in [*declared, *((f"{w}.options", o) for w, o in _variant_reference_options(build))]:
         reserved = reserved_options(options, _COLUMN_MAP_OPTIONS)
         if reserved:
             errors.append(
-                f"build.yaml {block_name}.options must not set {reserved}; the Column Map "
+                f"build.yaml {where} must not set {reserved}; the Column Map "
                 f"is the Build Recipe's checksummed {COLUMN_MAP_KEY!r} binding"
             )
     return errors
 
 
-def _column_map_binding(build: Mapping[str, Any]) -> tuple[ColumnMapBinding | None, list[str]]:
-    """The Build Recipe's binding, or ``None`` when it binds none or binds one malformed."""
+def column_map_binding(build: Mapping[str, Any]) -> ColumnMapBinding | None:
+    """The Build Recipe's Column Map binding, or ``None`` when it binds none.
+
+    Only the recorded fields are read, with no file I/O, so the planner may
+    call it (ADR 0031). Raises ``ValueError`` for a binding malformed in shape;
+    that a built-in's checksum is the pinned package's is ``check()``'s and
+    the run-time verification's to say.
+    """
+    binding, errors = _column_map_binding(build, check_builtin=False)
+    if errors:
+        raise ValueError("; ".join(errors))
+    return binding
+
+
+def _column_map_binding(
+    build: Mapping[str, Any], *, check_builtin: bool = True
+) -> tuple[ColumnMapBinding | None, list[str]]:
+    """The Build Recipe's binding, or ``None`` when it binds none or binds one malformed.
+
+    ``check_builtin`` compares a built-in's name and checksum with the pinned
+    package, which reads the packaged map: only ``check()`` does.
+    """
     if COLUMN_MAP_KEY not in build:
         return None, []
     raw = build[COLUMN_MAP_KEY]
@@ -1538,7 +1800,7 @@ def _column_map_binding(build: Mapping[str, Any]) -> tuple[ColumnMapBinding | No
             f"{where} file {file!r} must be a file name in {COLUMN_MAPS_DIR}/ matching "
             f"{INDEXED_SUBSET_NAME_RE.pattern}, with no '..', ending {COLUMN_MAP_SUFFIX}"
         )
-    if file is None and isinstance(name, str):
+    if file is None and isinstance(name, str) and check_builtin:
         builtins = _builtin_column_maps()
         packaged = builtins.get(name)
         if packaged is None:
@@ -1748,6 +2010,7 @@ def check(
 
 
 __all__ = [
+    "ASSOCIATION_COVERAGES",
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
     "COLUMN_MAPS_DIR",
@@ -1755,9 +2018,12 @@ __all__ = [
     "COLUMN_MAP_CAPABILITY",
     "COLUMN_MAP_KEY",
     "COLUMN_MAP_SUFFIX",
+    "DENSE_COMPONENT_ONLY_GWAS_COVERAGE",
     "Bundle",
     "CheckResult",
     "ColumnMapBinding",
+    "column_map_binding",
+    "LEGACY_ANALYSIS_ID_RELEASES",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
     "LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",

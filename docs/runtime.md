@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c`, the core `dev` merge of PR #291; its first parent is PR #288's merge `ba84a0c` |
-| Core merge | opengwas/opengwasdb PR #291 (`check-observed-view`, core #289), on top of `dev` with #277, #278, #281, #282 and #288 (strand-aware hg19 lift, core #284); earlier pins: PR #291's branch head `023774a7` (stores #306, which excluded #288) and PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Revision | `d8896e46677ae9d54f1fc08a974e8c7e41d105cc`, the core `dev` merge of PR #305; its first parent is PR #293's docs-only merge, its second PR #304's branch head `3929444` |
+| Core merge | opengwas/opengwasdb PR #305 (`build-ragged-besd` drops lift-colliding ESI entries, `validate` requires each Analysis's `variant_index` slice to be strictly increasing, core #304), on top of `dev` with #277, #278, #281, #282, #288 and #291; earlier pins: the `dev` merge of PR #291 `d405de0` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288), PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -47,6 +47,15 @@ re-run `pixi lock` in the same commit.
   BESD builders share it, so signed statistics and EAF follow the projected
   allele pair on a reverse-strand variant. A single-pass Hybrid build whose
   off-reference rows lift onto the reverse strand is refused.
+- **One policy for a post-lift variant collision** (opengwas/opengwasdb#304;
+  moved here for stores #314's OGS-00027). A chain set need not be injective: two
+  hg19 loci can map into one hg38 position, and when their projected alleles
+  agree they become one canonical variant. `build-ragged-besd` now drops every
+  ESI entry in such a colliding group, with its associations, exactly as a
+  liftover failure is, and records the counts in `provenance.lift`; a Ragged CSR
+  cannot hold one `variant_index` twice in one Analysis's segment. `validate`
+  requires each Analysis's `variant_index` slice to be **strictly increasing**,
+  on every release, and reports a repeat separately from a decrease.
 
 ## The pre-write gate
 
@@ -167,3 +176,16 @@ written, by
 `resources.verify_observed_view_check_for_releases`, which the entry point calls
 in its dry run and its run, and the Snakefile in `onstart`, beside the Indexed
 Variant Subset guard.
+
+## Coordination with core #304
+
+Core opengwas/opengwasdb#304 is the fix for the collision class the full eQTLGen
+cis Store (OGS-00027, stores #314) hit: 13 of its hg19 SNPs land on one hg38
+variant after the lift, so `d405de0`'s `validate` passed a Store whose CSR held a
+`variant_index` twice in one Analysis's segment. The pin moved to `d8896e4`, the
+`dev` merge of PR #305, whose range from `d405de0` is #304's three commits and
+its merge plus a docs-only merge (#293). The tightened ordering rule is a
+validation rule, so it applies to every release, not only to new builds: it
+reads each registered Ragged and Hybrid Store's full `variant_index` and finds
+no repeat, so no published Store becomes invalid at this pin. A Store built
+before it that does carry a repeat must be rebuilt, not revalidated.

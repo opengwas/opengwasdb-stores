@@ -999,7 +999,7 @@ _REGISTER_RULES: dict[str, str] = {"register": BUILD_PHASE, "completion_register
 def job_record(rule: str, step: str | None) -> str | None:
     """The record a workflow job writes: its step's, its phase's register's, or None.
 
-    `build_manifest` writes no record. The preflight tells a completion-phase
+    `build_manifest` and `column_map` write no record. The preflight tells a completion-phase
     job from a build-phase one by this name (#305).
     """
     if step is not None:
@@ -1294,6 +1294,22 @@ def _record_completion_start(step: Step, executed_argv: list[str], store_id: str
         )
 
 
+TEMP_VARIABLES = ("TMPDIR", "TMP", "TEMP")
+
+
+def step_env(env: Mapping[str, str] | None, store_id: str, root: Path | str) -> dict[str, str]:
+    """The environment every step's subprocess runs in: `env` (or ours), with temp files on the artifact root.
+
+    `opengwasdb` spills through `tempfile`, which follows `TMPDIR`, and `/tmp`
+    is on a small root filesystem (#312). This is the one place a step's
+    environment is built, so no step can miss it. The directory is the
+    step's to use and is not removed here.
+    """
+    tmp = paths.tmp_dir(store_id, root=root)
+    tmp.mkdir(parents=True, exist_ok=True)
+    return {**(os.environ if env is None else env), **dict.fromkeys(TEMP_VARIABLES, str(tmp))}
+
+
 def execute_step(
     step: Step,
     store_id: str | None = None,
@@ -1536,7 +1552,7 @@ def execute_step(
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
-            env=dict(env) if env is not None else None,
+            env=step_env(env, store_id, resolved_root),
             cwd=str(cwd) if cwd is not None else None,
             start_new_session=True,  # Supervisor (and its build) lead a new process group
             pass_fds=(liveness_read, exec_status_write),

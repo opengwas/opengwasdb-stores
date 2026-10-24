@@ -1,5 +1,6 @@
 release_config_version: 1
 label: mvp-phs002453-eas
+association_coverage: gwas
 access_posture: public
 description: >
   MVP PMID 39024449 East Asian (EAS) ancestry observed-only release: every ready Analysis in the dbGaP phs002453 Source Collection's East Asian bucket. The bound count is the retired partition's 241.

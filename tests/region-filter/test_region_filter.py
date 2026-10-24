@@ -5,7 +5,7 @@ Acquisition filters each file of a region-filtered release to the region policy
 its release config declares, and always keeps the QC-panel positions, so
 Analysis Resolution can still measure ancestry and phenotype SD. The policy is
 the one the R ``gwas-ssf-ragged`` generator applied: a cis flank around the
-Analysis's target (``cis_plus_signals``), a flank around every significant
+Analysis's target (``cis_and_signals``), a flank around every significant
 hit outside it, and suggestive leads at least a minimum distance apart. The
 filter keeps whole source rows, verbatim.
 
@@ -25,10 +25,12 @@ from pathlib import Path
 
 from manifest_generation import REPO_ROOT
 from manifest_generation.region_filter import (
+    ASSOCIATION_COVERAGES,
     QcPanel,
     Region,
     RegionPolicy,
     TargetSpan,
+    canonical_association_coverage,
     filter_file,
     load_qc_panel,
 )
@@ -51,7 +53,7 @@ SIGNALS_ONLY = RegionPolicy(
 )
 CIS_PLUS_SIGNALS = RegionPolicy(
     region_policy_id="cis-1mb_sig-trans-1mb_suggestive-leads",
-    association_coverage="cis_plus_signals",
+    association_coverage="cis_and_signals",
     trans_flank_bp=1_000_000,
     significant_p=5e-8,
     suggestive_p=1e-5,
@@ -274,6 +276,29 @@ class RegionFilterTest(unittest.TestCase):
         rows = [row("1", 100, "NA"), row("1", 100, ""), row("1", 100, "0.5")]
         summary, lines = self.run_filter(rows, panel=panel)
         self.assertEqual((summary.input_rows, lines), (1, [rows[2]]))
+
+
+class AssociationCoverageVocabularyTest(unittest.TestCase):
+    """One vocabulary for Association Coverage (#341).
+
+    The values a release declares are `gwas`, `cis`, `cis_and_signals` and
+    `signals_only`. A region policy is filtered to `cis_and_signals` or
+    `signals_only` only. A frozen Acquisition Manifest records the spelling its
+    run used, and it is immutable evidence, so the retired spellings are read
+    through one alias rather than rewritten.
+    """
+
+    def test_the_four_values_are_the_vocabulary(self) -> None:
+        self.assertEqual(ASSOCIATION_COVERAGES, ("gwas", "cis", "cis_and_signals", "signals_only"))
+
+    def test_the_retired_spellings_read_as_their_current_ones(self) -> None:
+        self.assertEqual(canonical_association_coverage("full_gwas"), "gwas")
+        self.assertEqual(canonical_association_coverage("cis_plus_signals"), "cis_and_signals")
+
+    def test_a_current_value_reads_as_itself(self) -> None:
+        for value in ASSOCIATION_COVERAGES:
+            with self.subTest(value=value):
+                self.assertEqual(canonical_association_coverage(value), value)
 
 
 if __name__ == "__main__":

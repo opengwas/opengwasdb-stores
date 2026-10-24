@@ -48,13 +48,12 @@ Store Release Build is specified in
 Manifest Generation is the `manifest_generation` package under
 `src/manifest_generation/` (#249): the shared candidate workflow and emitter at
 its root, and each Source Provider's connector code (acquisition, metadata
-adapters, provider-specific generators) under `providers/`. Each generator's
-config and reviewed inputs stay under `resources/generators/<generator>/`, and
-each release records the commands it ran in `release.yaml:generator.commands`.
-The legacy R generators also remain under `resources/generators/` until they
-retire (ADR 0036). What is still open is a Manifest Generation Snakemake
-DAG (`workflow/generate.smk`), whose four boundary rules are fixed so Store
-Release Build is not built against a moving target.
+adapters, provider-specific generators) under `providers/`. A source plugs in
+through files: its release config and reviewed inputs stay under
+`resources/generators/<generator>/`, and each release records the commands it
+ran in `release.yaml:generator.commands`. What is still open is a Manifest
+Generation Snakemake DAG (`workflow/generate.smk`), whose four boundary rules
+are fixed so Store Release Build is not built against a moving target.
 
 The single rule everything else follows from (ADR 0023):
 
@@ -86,8 +85,7 @@ resources/               inputs only
   reference-resources/     LD panels, reference AF, trait mappings, QC panels
   annotations/             curated metadata that evolves after release
   inventories/             frozen Source Inventories
-  generators/              release configs, reviewed tables, generation receipts;
-                           the legacy R generators until stage 2 of epic #282
+  generators/              release configs, reviewed tables, generation receipts
 tools/                   repository tooling: ld-panel/, benchmarks/,
                          reference-resources/, the env check, the site build, spikes
 tests/                   the suites, and run_all_tests.py behind `pixi run test`
@@ -186,7 +184,7 @@ therefore be built on CI, a laptop, or the production host without editing it.
 
 ```text
 stores/OGS-00003/                  finngen-r13 / r13-pilot-20, dense observed-only
-resources/generators/finngen-r13/  its Manifest Generation inputs, and the legacy R generator
+resources/generators/finngen-r13/  its release configs and reviewed inputs
 ```
 
 `stores/README.md` describes the registry and lists the Trial Store Releases.

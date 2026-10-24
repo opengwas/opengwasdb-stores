@@ -80,7 +80,73 @@ feat/<name>          a feature branch, in the primary checkout
 ticket/<n>-<slug>    one ticket's work, in its own worktree
 ```
 
+### Where they live
+
+Worktrees live under `/data/opengwasdb/work/worktrees/<name>`, not `/home` or
+`/tmp`: everything this project writes goes under `/data/opengwasdb`. Set
+`TMPDIR` and `PIXI_CACHE_DIR` on `/data` too:
+
+```sh
+export TMPDIR=/data/opengwasdb/work/tmp PIXI_CACHE_DIR=/data/opengwasdb/work/pixi-cache
+git worktree add /data/opengwasdb/work/worktrees/<name> -b ticket/<n>-<slug> origin/dev
+```
+
+With the cache on the same filesystem as the worktrees, pixi reflinks or
+hardlinks each environment from it, so a worktree's environment costs little
+and `pixi install` is quick.
+
 ### Cleaning up
+
+After a branch merges, remove its worktree. In bulk, let the command do it:
+
+```sh
+pixi run -e dev worktree-prune             # dry run: one line per worktree, and why
+pixi run -e dev worktree-prune --sizes     # ... with each .pixi size
+pixi run -e dev worktree-prune --apply     # remove the removable ones
+```
+
+It fetches `origin` first (`--no-fetch` skips that) and removes a worktree only
+if it is not the primary checkout or the one you run it from, is not locked,
+still has its directory, holds no other worktree inside it (that one would go
+too), has HEAD merged into `origin/dev` or `origin/main`,
+has no tracked changes and no untracked files, and has no running process using
+it: a cwd, an **executable**, an open file, or a path under it in any word of a
+command line (`bash -c '... > /x/wt/log'` counts; a relative path does not, and
+a symlinked spelling inside a longer word, `--opt=/lnk/wt/x`, is not resolved).
+Everything else is kept, with the reason and the matched path. Each worktree is
+checked again just before it is removed, with plain `git worktree remove`; if
+git refuses, it is kept and the error reported. It never deletes a branch, never
+runs `git worktree prune` (a worktree whose directory is missing is kept, so its
+commits are never orphaned), and exits non-zero only on errors, not because
+something was kept.
+
+What "merged" means. A worktree on a branch counts as merged if its HEAD is an
+ancestor of `origin/dev` or `origin/main`, or `git cherry` finds every commit's
+patch already there, which recognises a single-commit squash merge. A
+multi-commit squash shows as not merged, which errs toward keeping it. An
+empty commit is never evidence of a merge: `git cherry` calls it merged
+whenever the target has some other empty commit, so it counts as unmerged. A
+detached HEAD must be an ancestor, because `git cherry` ignores whitespace and
+merge commits and removing the worktree would drop the only ref to its commits.
+
+Limits to know:
+
+- The process scan reads `/proc`. A process whose cwd and executable it cannot
+  read (`root`, `sudo`, other users', or a privilege-separated one such as an
+  `sshd` session) is checked by its command line only, so a worktree that only
+  such a process has as its cwd, executable or open file is not noticed. A process of
+  yours whose command line it cannot read keeps every worktree.
+- An **ignored** file that cannot be regenerated (a scratch note in a
+  `.gitignore`d directory, a local `.env`) is not detected: it goes with the
+  worktree. Move such files out first.
+- A worktree that is queued but idle, or a build checkout whose path a release
+  receipt or record names, looks "merged, clean, unused". Lock it, with `git
+  worktree add --lock` or `git worktree lock <path>`, and the command keeps it.
+- `--sizes` counts each file's blocks, so on a reflinking filesystem it
+  overstates what removal frees: shared blocks stay while another environment
+  or the cache holds them.
+
+The commands it runs are these, by hand:
 
 ```sh
 git worktree list                 # every view, and what it has checked out
@@ -111,16 +177,23 @@ another checkout's (`pixi run --manifest-path <other>/pixi.toml -e dev python3
 to run this checkout's tests under an environment installed from elsewhere, or
 with nothing installed.
 
-One test is a deliberate exception. The workflow suite's pre-#304 test
-(`TestWorkflowCompletingAStoreBuiltBefore304`, #305) builds a Store with the
-workflow as it was at an earlier revision. It runs that revision from a `git
-archive`, with the archive's own `src/` ahead of the editable install on
-`PYTHONPATH`, so the old code, not this checkout's, really runs. It exists
-because a Store built by older code must still be completable without a
-rebuild. Installing the old revision instead would cost minutes on every CI
-run, for no extra fidelity. The exception covers that archived revision
-only: this checkout's own code and tests always import from the installed
-package.
+Two tests are a deliberate exception. Both are in the workflow suite, and
+both build a Store with the workflow as it was at an earlier revision. Each
+runs that revision from a `git archive`, with the archive's own `src/` ahead of
+the editable install on `PYTHONPATH`, so the old code, not this checkout's,
+really runs. They exist because a Store built by older code must still be
+completable, and must not be rebuilt or refused, without one:
+
+- `TestWorkflowCompletingAStoreBuiltBefore304` (#305), at the revision before
+  a release could complete its own Store;
+- `TestWorkflowKeepingAStorePublishedBefore341` (#341), at the revision before
+  `plan()` passed the declared Association Coverage to the Ragged builders, so
+  that a Store published before that argument must still stay up to date and
+  accept the completion the amendment check allows.
+
+Installing an old revision instead would cost minutes on every CI run, for no
+extra fidelity. The exception covers those two archived revisions only: this
+checkout's own code and tests always import from the installed package.
 
 ## Repository boundaries
 
@@ -150,13 +223,13 @@ src/               all importable Python
   manifest_generation/  Manifest Generation: sources -> candidate Release Bundle
     providers/         per-Source-Provider connector code
   curation/          Canonical Trait Mapping Table curation
+  analysis_catalog/  Analysis Catalog: reads Release Bundles, publishes the catalog
 workflow/          Snakemake wiring for both workflows, and the release entry point
 resources/         inputs only
   reference-resources/ auxiliary build-time inputs
   annotations/         curated metadata that outlives a release
   inventories/         frozen Source Inventories
-  generators/          release configs, reviewed tables and receipts; legacy R
-                       generators until they retire
+  generators/          release configs, reviewed tables and receipts
 tools/             repository tooling that is neither a package nor an input
 tests/             the suites, and the runner behind `pixi run test`
 docs/              adr/ decisions, spec/ specifications, reports/ report sources,
@@ -171,7 +244,7 @@ else. Code that is neither a workflow's nor a test goes in `tools/`.
 `tests/packaging/test_layout.py` enforces the layout:
 - no Python outside `src/`, `tests/`, `tools/` and `workflow/`;
 - no package outside `src/` and `tests/`;
-- no code under `resources/` but the listed legacy R generators.
+- no code under `resources/` but the listed R metadata resolvers.
 
 To place a new file:
 1. Something the repository produces goes in `stores/`, or in `docs/` if it
@@ -330,13 +403,14 @@ configs, reviewed tables, `generation-*.yaml` receipts and README; recorded
 config paths and receipts resolve here, so they do not move. The code that
 reads them is in `src/manifest_generation/`.
 
-The legacy R generators also live here until stage 2 of epic #282 retires them
-(FinnGen #288, ukb-b #289): `<family-id>/generate.R`, the shared R helpers in
-`lib/`, the metadata resolvers in `lib/metadata_resolvers/`, and
-`lib/source-formats/` for code scoped to a Source Format. Where they call
-Python, they run a `manifest_generation` module with `python3 -m`. They are
-the only code under `resources/`, and `tests/packaging/test_layout.py` lists
-each with the ticket that retires it.
+Every source's connectors and release config are on the shared pipeline
+(ADR 0036), so the only code left here is the two R metadata resolvers under
+`lib/metadata_resolvers/` that curation's R-resolver round-trip still sources.
+`tests/packaging/test_layout.py` lists each with the ticket that retires it.
+That is the code's migration, not a collection's: a collection's move onto the
+pipeline is not finished until its full comparison run against the accepted
+bundle is made and every difference explained, and two are still pending --
+FinnGen's (`OGS-00017`) and ukb-b's (`OGS-00009`).
 
 A generator's only output is a bundle directory. It never builds a Store, and
 it invokes statistics rather than implementing them: if two Store Families
@@ -427,11 +501,13 @@ Use the Pixi environments pinned by this repository:
 ```bash
 pixi run env-check
 pixi run bundle-check
+pixi run catalog                 # the Analysis Catalog and its summary.html; see docs/spec/analysis-catalog.md
 pixi run test
 pixi run test-python
 pixi run test-r
 pixi run test --suite workflow   # one named suite (repeatable)
 pixi run --environment docs docs-smoke
+pixi run --environment dev catalog-summary-smoke   # smoke render of the catalog summary
 ```
 
 `pixi run test` finds the Python suites itself (#257): every

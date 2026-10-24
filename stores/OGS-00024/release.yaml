@@ -1,5 +1,6 @@
 store_id: OGS-00024
 label: 2023-chen-full-african
+association_coverage: signals_only
 access_posture: public
 status: built
 derived_from: null

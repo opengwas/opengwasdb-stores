@@ -1,0 +1,11 @@
+source_analysis_id	status	location	bytes	sha256	sidecar_location	sidecar_bytes	error
+ukb-b-10001	ok	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10001.vcf.gz	160591172	17216756d4320a9222168dcac05469906de605e7ce03a5e509f4e7566953c6eb	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10001.json	595	
+ukb-b-10002	ok	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10002.vcf.gz	121944086	54d222fdfba03682c857e57a7acc884eaaf32914286291aa7d1bf1e68c396f86	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10002.json	573	
+ukb-b-10003	ok	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10003.vcf.gz	115785522	ea781f6584be3df41cc4aaec63a764f79181883ab0552b71ce41964d092257f3	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10003.json	592	
+ukb-b-10008	ok	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10008.vcf.gz	194001141	73fb157c9707da359cb1a227dc7e60d512383a977f2709e5f4b4fe67abea1433	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10008.json	586	
+ukb-b-10011	ok	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10011.vcf.gz	301547543	759f1cf6c308d7b29dbbd12769136f25889c3f0b02022e404af37a8e4d08cbaf	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10011.json	535	
+ukb-b-1004	ok	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-1004.vcf.gz	262634117	d661978cbc23cb7583594dad29b1f6291af10457bda3a85c72a54cd38d0b9264	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-1004.json	526	
+ukb-b-10054	ok	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10054.vcf.gz	226036080	a6cb752889a9fa23703cdef43ad454df225ffd5ff4eb4bda14a0d7210548230d	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10054.json	551	
+ukb-b-10787	ok	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10787.vcf.gz	302024757	2515e3b1bdc7c23ba3ff32a7734ef9a75ef062da8c2b2a49143768702b37b3c3	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-10787.json	508	
+ukb-b-11842	ok	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-11842.vcf.gz	302000262	80288df6a7746ac55ac534a23f9fbd6edf26bc3cd249e939c520011ba8e16ff6	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-11842.json	502	
+ukb-b-19953	ok	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-19953.vcf.gz	301973629	3caf36951f2bda642de9697147ca7cb9caef25512659bbef8128d9eec147788c	/data/opengwasdb/raw/gwas-vcf/ukb-b/ukb-b-19953.json	517	
