@@ -64,7 +64,9 @@ notes: >
   sample_size above is that same maximum, so the two agree. The .esi
   allele frequency is stored per association too, oriented to the effect allele
   and checked once against the UK Biobank "United Kingdom" frequencies
-  (ukb-ancestry-mixture-hg38-uk-eaf), never an hgdp1kgp-hg38 panel. SE stays float16
+  (ukb-ancestry-mixture-hg38-uk-eaf), never an hgdp1kgp-hg38 panel. The reference
+  is a single table, so no eaf-reference-ancestry is passed: opengwasdb ignores it for
+  a table, and the population is the table's column (United Kingdom). SE stays float16
   beside the n plane (ADR 0067 section 4). The study
   is Võsa et al., Nature Genetics 2021 (PMID 34475573, DOI 10.1038/s41588-021-00913-z),
   published at https://eqtlgen.org/cis-eqtls.html; each Analysis is labelled with

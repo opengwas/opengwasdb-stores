@@ -4,8 +4,8 @@
 opengwasdb's ``build-ragged-besd --sample-size-table`` stores a per-association
 ``n`` from a tab-separated table of ``probe_id``, ``snp_id`` and ``n``, grouped by
 probe in ``.epi`` order. eQTLGen publishes the N of every (gene, SNP) pair as
-``NrSamples`` in its cis-eQTL file, ordered by neither. This streams the published
-file once and writes the table **aligned to a BESD file set**: one row for every
+``NrSamples`` in its cis-eQTL file, ordered by neither. This reads the published
+file once, in chunks, and writes the table **aligned to a BESD file set**: one row for every
 (probe, SNP) pair the BESD holds that the published file also holds, probes in
 ``.epi`` order, pairs in the BESD's own order within a probe. The N is the published
 integer, never an estimate: a BESD pair the published file lacks gets no row (the
@@ -15,6 +15,15 @@ A pair is keyed by the ``.epi`` probe id and the ``.esi`` SNP id, which the publ
 file names ``Gene`` and ``SNP``. A (gene, SNP) published twice among the pairs the
 file set holds, an ``.esi`` SNP id reached twice by one probe, and an ``NrSamples``
 that is not a whole number from 1 are refused by name, and nothing is written.
+
+**Memory.** This is not bounded streaming: it holds every published pair the file set
+could hold (a uint64 key and a uint32 N each) in memory to sort and join them, plus
+the ``.esi``'s SNP ids. Measured on ``full-19250`` (127,341,798 published rows,
+127,339,354 BESD pairs, 8.9 million SNPs): peak RSS 7.75 GB (``/usr/bin/time -v``) in
+10 min 55 s, one core. Budget 10 GB; the tool scales with the number of pairs, so a
+larger file set needs proportionally more. A damaged ``.besd`` (length, first or final
+offset, decreasing offsets, unequal beta and SE blocks) is refused before the published
+file is read.
 
 The table's lineage is written beside it as ``<table>.provenance.yaml``: the published
 file's URL, sha256 and byte count, the BESD members' sha256s, the table's own sha256

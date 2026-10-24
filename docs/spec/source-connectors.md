@@ -708,7 +708,10 @@ nothing is written; the tool never overwrites. Beside the table,
 members' sha256s, the table's sha256, and the counts: BESD pairs, published rows,
 matched, unmatched (BESD pairs with no published row) and published-only. For
 `full-19250` that is 127,339,354 BESD pairs, 127,341,798 published rows, all
-matched, 2,444 published-only. The `--eaf-reference` is the declared Reference
+matched, 2,444 published-only. It is not bounded streaming: it holds every published pair
+the file set could hold in memory to sort and join them, 7.75 GB peak RSS and about 11
+minutes on one core for `full-19250` (budget 10 GB). A damaged `.besd` offset table or
+length is refused before the published file is read. The `--eaf-reference` is the declared Reference
 Resource `ukb-ancestry-mixture-hg38-uk-eaf`: the "United Kingdom" column of
 `ukb-ancestry-mixture-hg38`, never an hgdp1kgp-hg38 panel (#348).
 
