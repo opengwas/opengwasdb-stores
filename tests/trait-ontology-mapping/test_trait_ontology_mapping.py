@@ -64,6 +64,7 @@ def _write_resource(
     version: int = 7,
     location: str | None = None,
     location_kind: str | None = "tracked_file",
+    provenance: tuple[str, ...] = ("",) * 7,
 ) -> Path:
     """A Canonical Trait Mapping Table Reference Resource, laid out as in the repository."""
     root = tmp / "resources" / "reference-resources" / name
@@ -77,7 +78,9 @@ def _write_resource(
         + (f"location_kind: {location_kind}\n" if location_kind else ""),
         encoding="utf-8",
     )
-    body = "".join(f"{label}\t{curie}\t{term}\t\t\t\t\t\t\t\n" for label, curie, term in rows)
+    body = "".join(
+        "\t".join((label, curie, term, *provenance)) + "\n" for label, curie, term in rows
+    )
     (root / "mapping.tsv").write_text(TABLE_HEADER + body, encoding="utf-8")
     return root
 
@@ -322,7 +325,6 @@ class DeterminismAndOfflineTests(_TableCase):
 
     def test_a_malformed_table_is_refused(self) -> None:
         cases = {
-            "duplicate-label": [("weight", "EFO:1", "a"), ("WEIGHT ", "EFO:2", "b")],
             "not-a-curie": [("weight", "http://www.ebi.ac.uk/efo/EFO_1", "a")],
             "blank-term": [("weight", "", "a")],
             "blank-label": [("", "EFO:1", "a")],
@@ -330,6 +332,35 @@ class DeterminismAndOfflineTests(_TableCase):
         for name, rows in cases.items():
             with self.subTest(name), self.assertRaises(TraitOntologyMappingError):
                 load_canonical_trait_mapping_table(_write_resource(self.tmp, rows, name=name))
+
+    def test_a_label_listed_twice_is_refused(self) -> None:
+        """Curated, so a second row for one label is a problem, not a first match (#350).
+
+        The retired R resolver took whichever row came first; anything it
+        resolved silently stays resolved here because no table relies on that.
+        A promoted row is never a duplicate either: promotion skips a label it
+        already holds (tests/curation/test_promotion.py).
+        """
+        rows = [("weight", "EFO:1", "a"), ("WEIGHT ", "EFO:2", "b")]
+        with self.assertRaisesRegex(TraitOntologyMappingError, "listed twice"):
+            load_canonical_trait_mapping_table(_write_resource(self.tmp, rows, name="twice"))
+
+    def test_a_row_with_populated_provenance_still_loads(self) -> None:
+        """Curation writes the reviewer columns; the lookup reads its three (#350)."""
+        provenance = ("efo/v3.94.0", "jev", "0.97", "0.42", "human_reviewed", "A Curator", "2026-01-02")
+        table = load_canonical_trait_mapping_table(
+            _write_resource(
+                self.tmp,
+                [("Fixture height", "EFO:9999001", "Fixture height ontology label")],
+                name="curated",
+                provenance=provenance,
+            )
+        )
+        self.assertEqual(table.entries["fixture height"], CanonicalTraitTerm("EFO:9999001", "Fixture height ontology label"))
+        mapping = map_trait_ontology(SourceTrait("GCST1", "fixture height", "", ""), table)
+        self.assertIs(mapping.method, CANONICAL_TABLE_LOOKUP)
+        self.assertEqual(mapping.trait_ontology_id, "EFO:9999001")
+        self.assertEqual(mapping.trait_ontology_label, "Fixture height ontology label")
 
     def test_a_refusal_says_how_many_problems_it_omits(self) -> None:
         rows = [(f"label {n}", f"http://x/{n}", "a") for n in range(25)]
