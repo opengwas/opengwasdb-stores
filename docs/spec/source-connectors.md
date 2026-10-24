@@ -694,8 +694,35 @@ damaged offset table before slicing it (first offset not 0, final offset not the
 file's value count, offsets that do not increase, or a probe's beta and SE blocks
 of unequal length), and reads the values through opengwasdb's BESD reader.
 - The Analysis's SD is **declared**, not estimated (the release config below), and
-  the sample size kind is `variant_level`. Per-association N is not stored yet
-  (opengwasdb#302); the formula is how to recover it.
+  the sample size kind is `variant_level`. The Analysis's `sample_size` stays the
+  recovered maximum pair N; the per-association N a Store holds comes from the
+  published file instead (below).
+
+**The sample-size table** (`sample_size_table`) turns eQTLGen's published cis-eQTL
+file into `build-ragged-besd --sample-size-table`'s input (opengwasdb#302, ADR
+0067), aligned to a BESD file set:
+
+```sh
+python3 -m manifest_generation.providers.eqtlgen.sample_size_table \
+  --published <cis-eQTL file .txt.gz> --source-url <its URL> \
+  --prefix <file set> --out <file set>.sample-size.tsv.gz
+```
+
+It writes `probe_id`, `snp_id`, `n` for every (probe, SNP) pair the BESD holds that
+the published file also holds, with `n` the published `NrSamples`, probes in `.epi`
+order and pairs in BESD order within a probe; a BESD pair the published file lacks
+gets no row (the build stores it missing, never estimated). The published file's
+(Gene, SNP) pairs are matched by the `.epi` probe id and the `.esi` SNP id. A pair
+published twice among those the file set holds, an `.esi` SNP id one probe reaches
+twice, and an `NrSamples` that is not a whole number from 1 are refused by name and
+nothing is written; the tool never overwrites. Beside the table,
+`<table>.provenance.yaml` records the source URL, sha256 and byte count, the BESD
+members' sha256s, the table's sha256, and the counts: BESD pairs, published rows,
+matched, unmatched (BESD pairs with no published row) and published-only. For
+`full-19250` that is 127,339,354 BESD pairs, 127,341,798 published rows, all
+matched, 2,444 published-only. The `--eaf-reference` is the declared Reference
+Resource `ukb-ancestry-mixture-hg38-uk-eaf`: the "United Kingdom" column of
+`ukb-ancestry-mixture-hg38`, never an hgdp1kgp-hg38 panel (#348).
 
 **The acquisition writer** (`acquire`) subsets the genome-wide file set to a
 release's Selection, because `build-ragged-besd` demands that its file set hold

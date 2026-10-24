@@ -37,8 +37,8 @@ per-pair ``NrSamples`` (12 genes, 85,079 pairs) the relative error of derived N
 is up to 300% for ``|z|`` < 0.001, 0.4% below 0.5, 0.08% below 1 and at most
 0.04% from 1; without the bound 61% of probes took an N above the study's 31,684.
 The cap only absorbs that remaining rounding noise (at most 13 over). A probe with
-no qualifying pair fails the adapter by name. Per-association N is not stored yet
-(opengwasdb#302).
+no qualifying pair fails the adapter by name. The per-association N a Store holds
+is the published ``NrSamples``, joined by ``sample_size_table`` (opengwasdb#302).
 
 A probe the table cannot describe -- a chromosome outside ``1``-``22``, ``X``,
 ``Y``, ``MT``, a repeated probe, a short row -- fails the whole adapter by line
