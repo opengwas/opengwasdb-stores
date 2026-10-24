@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import json
 import os
 import sys
 from pathlib import Path
@@ -312,6 +313,102 @@ def _record(
     return record
 
 
+def _load_existing_record(store_id: str, artifact_root: Path) -> dict | None:
+    """Read the existing se-reencode record, or None when none exists.
+
+    A present but unreadable or non-mapping record is refused: it is recovery
+    evidence, so a wrong record that looks right must not be silently ignored.
+    """
+    record_path = paths.record_path(store_id, RECORD_STEP, root=artifact_root)
+    if not record_path.is_file():
+        return None
+    try:
+        data = json.loads(record_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise ReencodeRefusal(
+            f"cannot read the existing record {record_path}: {exc}"
+        ) from exc
+    if not isinstance(data, dict):
+        raise ReencodeRefusal(
+            f"the existing record {record_path} is not a JSON object; refusing to trust it"
+        )
+    return data
+
+
+def _validate_incomplete_record(existing: dict, store_id: str, revision: str) -> None:
+    """Refuse an incomplete record whose shape, id or revision cannot be trusted."""
+    if existing.get("step") != RECORD_STEP:
+        raise ReencodeRefusal(
+            f"the existing record is not a {RECORD_STEP} record "
+            f"(step={existing.get('step')!r})"
+        )
+    if existing.get("store_id") != store_id:
+        raise ReencodeRefusal(
+            f"the existing record's store_id {existing.get('store_id')!r} does not match {store_id}"
+        )
+    if existing.get("opengwasdb_revision") != revision:
+        raise ReencodeRefusal(
+            f"the existing record's opengwasdb_revision "
+            f"{existing.get('opengwasdb_revision')!r} does not match the resolved runtime {revision}"
+        )
+    if existing.get("complete") is not False:
+        raise ReencodeRefusal(
+            "the existing record is not incomplete (complete is not false); "
+            "refusing to finalize it"
+        )
+    verification = existing.get("verification")
+    if not isinstance(verification, dict) or verification.get("ok") is not False:
+        raise ReencodeRefusal(
+            "the existing record has no failed verification to recover"
+        )
+    if not isinstance(existing.get("start_time"), str) or not existing.get("start_time"):
+        raise ReencodeRefusal("the existing record has no usable start_time to preserve")
+    arrays = existing.get("arrays")
+    if not isinstance(arrays, list) or not arrays:
+        raise ReencodeRefusal("the existing record has no arrays to preserve")
+    for entry in arrays:
+        if not isinstance(entry, dict):
+            raise ReencodeRefusal("an array entry in the existing record is not an object")
+        for key in ("group", "array"):
+            if not isinstance(entry.get(key), str) or not entry.get(key):
+                raise ReencodeRefusal(f"an array entry has no usable {key!r}")
+        for key in ("before_bytes", "after_bytes", "saved_bytes", "chunks"):
+            value = entry.get(key)
+            if isinstance(value, bool) or not isinstance(value, int):
+                raise ReencodeRefusal(f"an array entry has invalid {key!r}: {value!r}")
+        if not isinstance(entry.get("decoded_equality"), bool):
+            raise ReencodeRefusal(
+                f"an array entry has invalid decoded_equality: {entry.get('decoded_equality')!r}"
+            )
+
+
+def _finalize_incomplete_record(
+    existing: dict, store_id: str, artifact_root: Path
+) -> None:
+    """Atomically finalize a verified incomplete record, preserving its evidence.
+
+    The arrays (before/after/saved/chunks), the original start_time and the
+    runtime identity stay as the prior apply wrote them; only `complete`,
+    `verification` and `end_time` are updated to the recovered verdict.
+    """
+    finalized = dict(existing)
+    finalized["complete"] = True
+    finalized["verification"] = {"ok": True, "stage": "replan"}
+    finalized["end_time"] = _utc_now()
+    record_path = paths.record_path(store_id, RECORD_STEP, root=artifact_root)
+    try:
+        run._write_record_atomically(finalized, record_path)
+    except OSError as exc:
+        raise ReencodeRefusal(
+            f"{store_id} is correct but finalizing the incomplete record "
+            f"{record_path} failed: {exc}"
+        ) from exc
+    print(
+        f"se-reencode: {store_id} recovered an incomplete record and finalized it "
+        f"(complete=true, verification ok, arrays preserved)"
+    )
+
+
 def _apply(
     store_id: str,
     artifact_root: Path,
@@ -332,7 +429,28 @@ def _apply(
     end = _utc_now()
 
     if not results:
-        print(f"se-reencode: {store_id} is already correct; nothing to do")
+        existing = _load_existing_record(store_id, artifact_root)
+        if existing is None or existing.get("complete") is True:
+            print(f"se-reencode: {store_id} is already correct; nothing to do")
+            return 0
+        # An incomplete record exists. Trust it only after its shape, id and
+        # revision check out, and only if a fresh plan proves the Store is now
+        # correct, so a no-op never invents or trusts a stale verdict.
+        _validate_incomplete_record(existing, store_id, revision)
+        try:
+            remaining = _core_plan(store_path)
+        except Exception as exc:
+            raise ReencodeRefusal(
+                f"{store_id} changed nothing but could not be re-planned to confirm "
+                f"correctness: {exc}"
+            ) from exc
+        if remaining:
+            raise ReencodeRefusal(
+                f"{store_id} still needs re-encode "
+                f"({', '.join(f'{p.group}/{p.array}' for p in remaining)}) but "
+                "reencode_se_codecs changed nothing; refusing to finalize"
+            )
+        _finalize_incomplete_record(existing, store_id, artifact_root)
         return 0
 
     verification_error: str | None = None

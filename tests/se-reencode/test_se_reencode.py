@@ -137,6 +137,36 @@ class SeReencodeTestCase(unittest.TestCase):
     def snapshot(self, root: Path) -> set[str]:
         return {str(p.relative_to(root)) for p in root.rglob("*")}
 
+    def incomplete_record(self, **overrides) -> dict:
+        """A valid incomplete se-reencode record, for recovery-evidence tests."""
+        record = {
+            "step": "se-reencode",
+            "store_id": STORE_ID,
+            "opengwasdb_revision": runtime.PINNED_OPENGWASDB_REVISION,
+            "opengwasdb_version": "0.3.0",
+            "start_time": "2026-10-24T22:00:00.000000Z",
+            "end_time": "2026-10-24T22:00:05.000000Z",
+            "complete": False,
+            "verification": {"ok": False, "stage": "replan", "error": "replan boom"},
+            "arrays": [
+                {
+                    "group": "data.zarr",
+                    "array": "se",
+                    "before_bytes": 1000,
+                    "after_bytes": 600,
+                    "saved_bytes": 400,
+                    "decoded_equality": True,
+                    "chunks": 7,
+                }
+            ],
+        }
+        record.update(overrides)
+        return record
+
+    def write_record(self, record: dict) -> None:
+        self.record_path().parent.mkdir(parents=True, exist_ok=True)
+        self.record_path().write_text(json.dumps(record), encoding="utf-8")
+
     # --- dry run ----------------------------------------------------------
 
     def test_dry_run_is_read_only_and_reports_the_plan(self) -> None:
@@ -429,6 +459,85 @@ class SeReencodeTestCase(unittest.TestCase):
         self.assertEqual(code, 0, out + err)
         self.assertIn("already correct", out)
         self.assertEqual(self.record_path().read_text(encoding="utf-8"), before)
+
+    def test_noop_finalizes_an_incomplete_record(self) -> None:
+        """A later already-correct run finalizes a prior incomplete record."""
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[result()]), \
+             mock.patch.object(se_reencode, "_core_plan", side_effect=RuntimeError("replan boom")):
+            code, out, err = self.run_main(*self.base_argv())
+        self.assertEqual(code, 1, out + err)
+        self.assertIs(json.loads(self.record_path().read_text(encoding="utf-8"))["complete"], False)
+
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[]), \
+             mock.patch.object(se_reencode, "_core_plan", return_value=[]):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("recovered an incomplete record and finalized it", out)
+        record = json.loads(self.record_path().read_text(encoding="utf-8"))
+        self.assertIs(record["complete"], True)
+        self.assertEqual(record["verification"], {"ok": True, "stage": "replan"})
+
+    def test_finalization_preserves_arrays_and_start_time(self) -> None:
+        """Finalization keeps the prior array evidence and start_time, updating end_time."""
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[result()]), \
+             mock.patch.object(se_reencode, "_core_plan", side_effect=RuntimeError("replan boom")):
+            code, out, err = self.run_main(*self.base_argv())
+        self.assertEqual(code, 1, out + err)
+        incomplete = json.loads(self.record_path().read_text(encoding="utf-8"))
+        original_arrays = incomplete["arrays"]
+        original_start = incomplete["start_time"]
+        original_end = incomplete["end_time"]
+
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[]), \
+             mock.patch.object(se_reencode, "_core_plan", return_value=[]):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 0, out + err)
+        finalized = json.loads(self.record_path().read_text(encoding="utf-8"))
+        self.assertEqual(finalized["arrays"], original_arrays)
+        self.assertEqual(finalized["start_time"], original_start)
+        self.assertNotEqual(finalized["end_time"], original_end)
+        self.assertEqual(finalized["opengwasdb_revision"], runtime.PINNED_OPENGWASDB_REVISION)
+        self.assertEqual(finalized["store_id"], STORE_ID)
+
+    def test_noop_refuses_malformed_incomplete_record(self) -> None:
+        """Malformed recovery evidence is refused, never silently trusted."""
+        record = self.incomplete_record(arrays="not-a-list")
+        self.write_record(record)
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[]), \
+             mock.patch.object(se_reencode, "_core_plan", return_value=[]):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("arrays", err)
+        self.assertEqual(json.loads(self.record_path().read_text(encoding="utf-8")), record)
+
+    def test_noop_refuses_mismatched_incomplete_record(self) -> None:
+        """Recovery evidence naming another Store or revision is refused."""
+        for override, expected in (
+            ({"store_id": "OGS-00091"}, "store_id"),
+            ({"opengwasdb_revision": "deadbeef" * 5}, "opengwasdb_revision"),
+        ):
+            with self.subTest(override=override):
+                record = self.incomplete_record(**override)
+                self.write_record(record)
+                with mock.patch.object(se_reencode, "_core_apply", return_value=[]), \
+                     mock.patch.object(se_reencode, "_core_plan", return_value=[]):
+                    code, out, err = self.run_main(*self.base_argv())
+                record_check()
+                self.assertEqual(code, 1, out + err)
+                self.assertIn(expected, err)
+                self.assertEqual(json.loads(self.record_path().read_text(encoding="utf-8")), record)
+
+    def test_noop_with_no_record_is_ordinary(self) -> None:
+        """A no-op with no record is an ordinary already-correct result, inventing nothing."""
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[]):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("already correct", out)
+        self.assertFalse(self.record_path().exists())
 
     def test_record_write_oserror_reports_store_changed_and_record_failed(self) -> None:
         """An atomic record-write OSError is a uniform refusal and names both facts."""
