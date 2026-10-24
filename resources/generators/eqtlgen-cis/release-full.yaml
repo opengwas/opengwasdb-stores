@@ -12,7 +12,8 @@
 # (--adopt-prefix names the durable location of the writer's output):
 #   python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
 #     --prefix /data/opengwasdb/raw/eqtlgen/full-19250 --tissue whole_blood \
-#     --study-total 31684 --first-author Võsa --publication-pmid 34475573 \
+#     --sample-size-table /data/opengwasdb/raw/eqtlgen/full-19250.sample-size.tsv.gz \
+#     --first-author Võsa --publication-pmid 34475573 \
 #     --gene-symbols resources/generators/eqtlgen-cis/connectors/gene-symbols.tsv \
 #     --out resources/generators/eqtlgen-cis/connectors/eqtlgen-full.source-metadata.tsv
 #   (gene-symbols.tsv, with its lineage in gene-symbols.tsv.meta.yaml, is written by
@@ -50,22 +51,17 @@ notes: >
   construction and the original_sd cell stays blank, as for every
   declared_standardised tier. An estimated SD would only measure
   sqrt(31,684 / pair N): 29% of a 200-probe trial exceeded 1.5, and TNF's 2.04 is
-  an N of about 7,600. Each Analysis's sample_size is the maximum over its pairs
-  of N = 1 / (2p(1-p) se^2) - z^2 (z = b / se, p the .esi frequency), rounded to
-  the nearest integer, over pairs with finite N and |z| >= 1, then capped at the
-  study total of 31,684. The |z| bound is measured: against the published per-pair
-  NrSamples (12 genes, 85,079 pairs) the derived N's relative error is up to 300%
-  for |z| < 0.001, 0.4% at most for |z| 0.1-0.5, 0.08% for 0.5-1 and 0.04% from 1
-  up; unbounded, 61% of probes took an N above 31,684. The cap absorbs what
-  rounding noise remains (5,443 probes above 31,684, by at most 13). 5,456 of the
-  19,250 probes (28%) take the cap: at least one of their pairs was measured in the
-  study's full cohort set (N 31,684); the rest were covered by fewer cohorts
-  (median 28,927, 1st percentile 3,833, minimum 232). sample_size_kind
+  an N of about 7,600. Each Analysis's sample_size is the maximum of its probe's
+  published per-pair N (the NrSamples of the published cis-eQTL file, read from the
+  sample-size table below), so it equals the maximum of the Store's own n plane
+  and is never recovered from the BESD. 5,465 of the 19,250 probes (28%) have a
+  pair at the study total of 31,684, measured in the study's full cohort set; the
+  rest were covered by fewer cohorts (minimum 232). sample_size_kind
   is variant_level. Per-association N is stored: each stored (probe, SNP) pair
   carries eQTLGen's published NrSamples (opengwasdb#302, ADR 0067), joined from the
   published cis-eQTL file by a sample-size table aligned to this file set; a pair
   the published file lacks is missing, never estimated. The Analysis-level
-  sample_size above stays the maximum pair N, the recovered one. The .esi
+  sample_size above is that same maximum, so the two agree. The .esi
   allele frequency is stored per association too, oriented to the effect allele
   and checked once against the UK Biobank "United Kingdom" frequencies
   (ukb-ancestry-mixture-hg38-uk-eaf), never an hgdp1kgp-hg38 panel. SE stays float16
@@ -81,7 +77,7 @@ source_collection:
     source_metadata_table: resources/generators/eqtlgen-cis/connectors/eqtlgen-full.source-metadata.tsv
     acquisition_manifest: resources/generators/eqtlgen-cis/connectors/eqtlgen-full.acquisition-manifest.tsv
   inventory:
-    snapshot_id: eqtlgen-cis-full-2026-10-22d
+    snapshot_id: eqtlgen-cis-full-2026-10-24
     directory: resources/inventories
 
 # Every row of the Source Metadata Table: the 19,250 probes of the .epi.
@@ -125,8 +121,7 @@ defaults:
   # (declared_standardised) instead of estimating a phenotype SD: an estimate would
   # only measure sqrt(study N / pair N). The resolver then reports
   # phenotype_sd scale_already_declared (#300). The Analysis's N is the maximum
-  # over its pairs, derived from the file (see notes), so its kind is
-  # variant_level.
+  # of its pairs' published N (see notes), so its kind is variant_level.
   by_study_design:
     quantitative:
       stored_effect_scale: sd

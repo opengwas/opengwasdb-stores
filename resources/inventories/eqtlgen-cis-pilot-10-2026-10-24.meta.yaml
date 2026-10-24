@@ -1,0 +1,97 @@
+snapshot_id: eqtlgen-cis-pilot-10-2026-10-24
+source_collection_id: eqtlgen-cis
+frozen_at: '2026-10-24T20:18:32Z'
+frozen_by: manifest_generation.freeze
+selection:
+  analyses:
+  - ENSG00000175445
+  - ENSG00000134243
+  - ENSG00000130203
+  - ENSG00000073605
+  - ENSG00000164308
+  - ENSG00000232810
+  - ENSG00000141510
+  - ENSG00000136244
+  - ENSG00000087237
+  - ENSG00000136997
+  expect_rows: 10
+rows: 10
+readiness_counts:
+  ok: 10
+ready_rows: 10
+ready_bytes: 13841760
+study_design_counts:
+  quantitative: 10
+ready_study_design_counts:
+  quantitative: 10
+duplicate_content_groups: []
+inventory_tsv_sha256: ee9c6478dd72b9294c4afab278c5b2868101577361396d6405229d24361c0ac3
+source_metadata_table:
+  frozen:
+    path: eqtlgen-cis-pilot-10-2026-10-24.source-metadata.tsv
+    sha256: 423b1e41cec1d2cbfd47126860932d172500028e14d839bebdfade05345bf796
+    bytes: 1376
+    rows: 10
+  original:
+    path: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.source-metadata.tsv
+    sha256: 423b1e41cec1d2cbfd47126860932d172500028e14d839bebdfade05345bf796
+    bytes: 1376
+    rows: 10
+acquisition_manifest:
+  frozen:
+    path: eqtlgen-cis-pilot-10-2026-10-24.acquisition-manifest.tsv
+    sha256: 9c617f9039b0fcad20d32993fdbc3dcd58e7422193eee88ba4683092ad055a6a
+    bytes: 7271
+    rows: 10
+  original:
+    path: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.tsv
+    sha256: 9c617f9039b0fcad20d32993fdbc3dcd58e7422193eee88ba4683092ad055a6a
+    bytes: 7271
+    rows: 10
+    readiness_counts:
+      ok: 10
+    pass_lineage:
+      path: resources/generators/eqtlgen-cis-pilot/connectors/eqtlgen-pilot-10.acquisition-manifest.meta.yaml
+      sha256: 722693504d7a3cd23c42dc130d872bd306f07c9e913ed8a87b99a54d0c0445b4
+  unselected_entries: 0
+lineage:
+- analysis_id: ENSG00000073605
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+- analysis_id: ENSG00000087237
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+- analysis_id: ENSG00000130203
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+- analysis_id: ENSG00000134243
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+- analysis_id: ENSG00000136244
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+- analysis_id: ENSG00000136997
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+- analysis_id: ENSG00000141510
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+- analysis_id: ENSG00000164308
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+- analysis_id: ENSG00000175445
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88
+- analysis_id: ENSG00000232810
+  original_location: /data/opengwasdb/raw/eqtlgen/eqtlgen-sparse
+  original_sha256: 5c451d4f9cb2d667e6d45ed5bb5b122c0d77bc7f5b6339692de5ade77b89809a
+  reformat_tool: manifest_generation.providers.eqtlgen.subset_besd sha256:37809d872eb515bc1838fbcabe603ea6a93b1e0748160b754825cfd52783ae88

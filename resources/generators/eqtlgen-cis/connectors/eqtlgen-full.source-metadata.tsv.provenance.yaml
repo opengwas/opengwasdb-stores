@@ -1,12 +1,15 @@
 written_by: manifest_generation.providers.eqtlgen.source_metadata_adapter
 prefix: /data/opengwasdb/raw/eqtlgen/full-19250
 tissue: whole_blood
-study_total: 31684
 first_author: Võsa
 publication_pmid: '34475573'
 probes: 19250
 labelled_with_symbol: 19250
 labelled_with_ensembl_id: 0
+sample_size_table:
+  path: /data/opengwasdb/raw/eqtlgen/full-19250.sample-size.tsv.gz
+  rows: 127339354
+  sha256: 959268d40118365793a91a81145f357f9170f54296d510b3abdc5f4aba474cd0
 gene_symbols:
   path: resources/generators/eqtlgen-cis/connectors/gene-symbols.tsv
   rows: 19250
