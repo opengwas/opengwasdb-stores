@@ -62,6 +62,8 @@ from typing import Iterable, Sequence
 
 import yaml
 
+from curation.ontology import normalize_trait_label
+
 ANALYSES_FILENAME: str = "analyses.tsv"
 RELEASE_FILENAME: str = "release.yaml"
 #: The Store Registry: the one home for a Release Bundle (#252, ADR 0022).
@@ -127,17 +129,6 @@ class QueueEntry:
             str(self.occurrence_count),
             ",".join(self.store_families),
         ]
-
-
-def normalize_trait_label(label: str | None) -> str:
-    """Normalise a trait label exactly as the canonical-table lookup does.
-
-    Trim, then lowercase -- the key Manifest Generation's Trait Ontology Mapping
-    builds from a row's `trait_label` (`src/manifest_generation/
-    trait_ontology_mapping.py`). Labels that differ only by case or surrounding
-    whitespace are the same curation candidate.
-    """
-    return (label or "").strip().lower()
 
 
 def resolve_manifest_path(path: Path | str) -> Path:

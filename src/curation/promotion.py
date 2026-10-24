@@ -92,7 +92,11 @@ from typing import Iterable, Mapping, Sequence
 
 from curation.choice import PROPOSAL_COLUMNS, read_shortlists
 from curation.chooser import NONE_SUITABLE, Candidate, ChoiceError
-from curation.ontology import is_curie, normalise_ontology_id
+from curation.ontology import (
+    is_curie,
+    normalise_ontology_id,
+    normalize_trait_label,
+)
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
@@ -296,17 +300,6 @@ def _serialize_probabilities(probabilities: Mapping[str, float]) -> str:
         for ontology_id in sorted(probabilities)
     }
     return json.dumps(ordered, separators=(",", ":"))
-
-
-def normalize_trait_label(label: str | None) -> str:
-    """Normalise a trait label exactly as the pipeline's lookup does.
-
-    Trim, then lowercase -- the key Manifest Generation's Trait Ontology Mapping
-    builds from a row's `trait_label` (`src/manifest_generation/
-    trait_ontology_mapping.py`). Two labels differing only by case or
-    surrounding whitespace are the same curation candidate.
-    """
-    return (label or "").strip().lower()
 
 
 def _parse_float(value: str | None, field_name: str, source: Path) -> float:

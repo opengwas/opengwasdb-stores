@@ -224,6 +224,28 @@ class OntologyTerm:
 
 
 # ---------------------------------------------------------------------------
+# The trait-label key
+# ---------------------------------------------------------------------------
+# The exact key the Canonical Trait Mapping Table is indexed by. Every stage
+# that joins a queue or proposal label to a mapping row -- gap_scan, promotion,
+# coverage, validate_chooser, the mapping report and the round runner -- uses
+# this one rule, so a promoted row is found by the label that asked for it.
+
+
+def normalize_trait_label(label: str | None) -> str:
+    """Normalise a trait label exactly as the canonical-table lookup does.
+
+    Trim, then lowercase -- the key Manifest Generation's Trait Ontology Mapping
+    builds from a row's `trait_label` (`src/manifest_generation/
+    trait_ontology_mapping.py`). Two labels differing only by case or
+    surrounding whitespace are the same curation candidate; anything more (a
+    dash, a bracketed acronym) is a different label, which is why the retrieval
+    rule below is separate and deliberately wider.
+    """
+    return (label or "").strip().lower()
+
+
+# ---------------------------------------------------------------------------
 # Lexical primitives
 # ---------------------------------------------------------------------------
 # These are the *retrieval* normalisation/tokenisation rules the lexical
@@ -236,12 +258,11 @@ _PUNCTUATION_RE = re.compile(r"[\W_]+", re.UNICODE)
 def normalise_label(label: str | None) -> str:
     """Trim, lowercase, strip punctuation, and collapse whitespace.
 
-    Deliberately close to, but wider than, the canonical table's lookup key --
-    trimmed and lower-cased, as `manifest_generation.trait_ontology_mapping`
-    reads a row's `trait_label`. This is a *retrieval* normalisation, so
-    ``"Body-mass index (BMI)"`` and ``"body mass index bmi"`` collapse to the
-    same string and the normalised channel can find terms the exact channel
-    cannot.
+    Deliberately close to, but wider than, :func:`normalize_trait_label`, the
+    exact Canonical Trait Mapping Table key. This is a *retrieval*
+    normalisation, so ``"Body-mass index (BMI)"`` and ``"body mass index bmi"``
+    collapse to the same string and the normalised channel can find terms the
+    exact channel cannot.
     """
     text = (label or "").strip().lower()
     text = _PUNCTUATION_RE.sub(" ", text)
