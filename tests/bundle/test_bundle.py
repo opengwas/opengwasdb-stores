@@ -325,11 +325,12 @@ class TestBundleContract(unittest.TestCase):
     }
     # The runtime whose register wrote each bundle's Validation Record. The
     # #221 batch built the observed Stores, so that record names its runtime.
-    # OGS-00012's completion published a Store of its own, and register wrote
-    # the record for what it published (ADR 0037).
+    # The completions of OGS-00012 and OGS-00014 each published a Store of
+    # their own, and register wrote the record for what it published (ADR 0037).
     MVP_RECORD_RUNTIME = {
-        **dict.fromkeys(("OGS-00013", "OGS-00014", "OGS-00015", "OGS-00016"), "4e922566d7fa4c13a11be3637069da63e48be28c"),
+        **dict.fromkeys(("OGS-00013", "OGS-00015", "OGS-00016"), "4e922566d7fa4c13a11be3637069da63e48be28c"),
         "OGS-00012": "d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c",
+        "OGS-00014": "496bfe9cc9bbc85c60718d62aa4c6d43d83af810",
     }
 
     def assert_mvp_built_record(self, store_id: str, n_analyses: int) -> None:

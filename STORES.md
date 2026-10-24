@@ -18,7 +18,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00011` | eur-hybrid-full | false | hybrid | observed_only (completion pending) | accepted | - | 3,169 | 1,614 | - | - | passed_with_warnings |
 | `OGS-00012` | mvp-phs002453-eur | false | dense | reference_completed | validated | - | 1,669 | 0 | 20,548,967 | 34,296,225,923 | passed |
 | `OGS-00013` | mvp-phs002453-afr | false | dense | observed_only | validated | - | 1,368 | 0 | 36,964,976 | 50,568,087,168 | passed |
-| `OGS-00014` | mvp-phs002453-amr | false | dense | observed_only (completion pending) | validated | - | 1,053 | 0 | 27,860,266 | 29,336,860,098 | passed |
+| `OGS-00014` | mvp-phs002453-amr | false | dense | reference_completed | validated | - | 1,053 | 0 | 30,380,465 | 31,990,629,645 | passed |
 | `OGS-00015` | mvp-phs002453-eas | false | dense | observed_only | validated | - | 241 | 0 | 9,335,909 | 2,249,954,069 | passed |
 | `OGS-00016` | mvp-phs002453-meta-observed-only | false | dense | observed_only | validated | - | 1,691 | 0 | 27,929,380 | 47,228,581,580 | passed |
 | `OGS-00017` | r13-full | false | dense | reference_completed | accepted | - | 2,754 | 0 | - | - | passed |
