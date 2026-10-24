@@ -11,11 +11,6 @@ module owns what every inventory shares:
   has a verified, readable source file" and which mean "not this release's
   member", kept distinct so an unavailable input stays a Source Inventory fact
   and never looks like a selected member;
-- **the GWAS Catalog's pass overlay** -- every EBI download pass writes a
-  status manifest, overlaid earliest first, a later pass winning for every
-  ``analysis_id`` it covers but never regressing a ready one; the GWAS Catalog
-  Acquisition Manifest writer applies it
-  (``providers.gwas_catalog.write_acquisition_manifest``);
 - **preflight** -- the cheap proof, before any association row is read, that the
   frozen snapshot still describes the mirror on disk and belongs to the release
   config's Source Collection and Selection, that its declared Reference
@@ -112,26 +107,6 @@ KNOWN_READINESS_STATUSES: frozenset[str] = frozenset(
     }
 ) | SOURCE_VERIFICATION_STATUSES
 
-#: Acquisition manifest columns this module reads. ``seconds`` is deliberately
-#: not among them: it is per-run download timing, not a release fact, and
-#: carrying it would make the frozen inventory depend on how fast the mirror was.
-ACQUISITION_MANIFEST_COLUMNS: tuple[str, ...] = (
-    "analysis_id",
-    "publication_pmid",
-    "trait",
-    "study_design",
-    "sample_size",
-    "status",
-    "data_url",
-    "yaml_url",
-    "data_file",
-    "yaml_file",
-    "data_bytes",
-    "yaml_bytes",
-    "sha256",
-    "error",
-)
-
 #: Frozen Source Inventory columns, in file order.
 INVENTORY_COLUMNS: tuple[str, ...] = (
     "analysis_id",
@@ -213,19 +188,6 @@ class SourceInventoryRow:
 
 
 @dataclass(frozen=True)
-class AcquisitionPass:
-    """One acquisition pass a freeze overlays, and the role it plays in the merge.
-
-    A release declares its passes as an ordered sequence, earliest first. Order is
-    the whole precedence rule: for an ``analysis_id`` two passes both cover, the
-    later pass wins.
-    """
-
-    role: str
-    path: Path
-
-
-@dataclass(frozen=True)
 class DuplicateContentGroup:
     """Analyses whose source files share one checksum: identical bytes, two records."""
 
@@ -246,7 +208,7 @@ class DuplicateContentGroup:
 # ---------------------------------------------------------------------------
 
 
-def _read_tsv(path: Path, required_columns: Sequence[str], what: str) -> list[dict[str, str]]:
+def read_tsv(path: Path, required_columns: Sequence[str], what: str) -> list[dict[str, str]]:
     if not path.is_file():
         raise InventoryError(f"{what} not found: {path}")
     with path.open(newline="", encoding="utf-8") as fh:
@@ -276,87 +238,6 @@ def duplicate_values(values: Iterable[str]) -> list[str]:
 
 def _duplicate_ids(rows: Iterable[Mapping[str, str]], key: str) -> list[str]:
     return duplicate_values(row[key] for row in rows)
-
-
-def read_acquisition_pass(path: Path) -> list[dict[str, str]]:
-    """Read one acquisition status manifest, failing on duplicate or unknown rows.
-
-    Duplicate ``analysis_id`` inside a single manifest is a defect in that
-    manifest: the merge rule (a later manifest overrides an earlier one) cannot
-    resolve two rows that claim the same identity in the same pass.
-    """
-    rows = _read_tsv(path, ACQUISITION_MANIFEST_COLUMNS, "acquisition manifest")
-    duplicates = _duplicate_ids(rows, "analysis_id")
-    if duplicates:
-        raise InventoryError(
-            f"acquisition manifest {path} has duplicate analysis_id: {', '.join(duplicates)}"
-        )
-    unknown = sorted({row["status"] for row in rows} - KNOWN_READINESS_STATUSES)
-    if unknown:
-        raise InventoryError(
-            f"acquisition manifest {path} has unknown readiness status: {', '.join(unknown)}"
-        )
-    return rows
-
-
-def merge_acquisition_manifests(
-    passes: Sequence[tuple[str, Sequence[Mapping[str, str]]]],
-) -> tuple[list[dict[str, str]], dict[str, int]]:
-    """Overlay ordered acquisition passes; return ``(merged, overrides_by_role)``.
-
-    ``passes`` is ``(role, rows)`` in precedence order, earliest first — the order
-    the release config declares. Each later pass is the later observation of the
-    same upstream file, so it wins for every ``analysis_id`` it covers. Every row
-    a pass overrides is counted against that pass's role, so how much each pass
-    moved the frozen snapshot stays visible in the provenance.
-    """
-    merged: dict[str, dict[str, str]] = {}
-    overrides_by_role: dict[str, int] = {}
-    for role, rows in passes:
-        overridden = 0
-        for row in rows:
-            analysis_id = row["analysis_id"]
-            if analysis_id in merged:
-                overridden += 1
-            merged[analysis_id] = dict(row)
-        overrides_by_role[role] = overrides_by_role.get(role, 0) + overridden
-    return [merged[key] for key in sorted(merged)], overrides_by_role
-
-
-def reject_ready_regressions(
-    passes: Sequence[tuple[str, Sequence[Mapping[str, str]]]],
-    merged: Mapping[str, Mapping[str, str]],
-) -> None:
-    """Fail when a later pass turns a ready Analysis into a non-ready one.
-
-    Overlaying later passes is safe because a later pass is the later observation
-    of the same upstream file — but "later" is not a licence to discard a verified
-    source file. A pass that regressed an already-ready row would silently drop a
-    release member, so this is an error rather than a precedence rule (issue #151).
-    """
-    ready_status: dict[str, str] = {}
-    last_writer: dict[str, str] = {}
-    for role, rows in passes:
-        for row in rows:
-            analysis_id = row["analysis_id"]
-            last_writer[analysis_id] = role
-            if row["status"] in READY_STATUSES:
-                ready_status.setdefault(analysis_id, row["status"])
-    regressions = [
-        (analysis_id, status, merged[analysis_id]["status"], last_writer[analysis_id])
-        for analysis_id, status in sorted(ready_status.items())
-        if merged[analysis_id]["status"] not in READY_STATUSES
-    ]
-    if not regressions:
-        return
-    detail = "; ".join(
-        f"{analysis_id} ({status} -> {merged_status} by {role})"
-        for analysis_id, status, merged_status, role in regressions[:10]
-    )
-    raise InventoryError(
-        f"{len(regressions)} Analysis(es) were ready in an earlier acquisition pass but a later "
-        f"pass recorded them as non-ready: {detail}"
-    )
 
 
 def render_inventory_rows(rows: Iterable[SourceInventoryRow]) -> str:
@@ -422,7 +303,7 @@ def write_inventory(
 
 def read_inventory(path: Path) -> tuple[SourceInventoryRow, ...]:
     """Read a frozen Source Inventory TSV, failing on duplicates or unknown status."""
-    raw = _read_tsv(path, INVENTORY_COLUMNS, "source inventory")
+    raw = read_tsv(path, INVENTORY_COLUMNS, "source inventory")
     duplicates = _duplicate_ids(raw, "analysis_id")
     if duplicates:
         raise InventoryError(
@@ -535,7 +416,6 @@ class ReleaseConfiguration:
     inventory_snapshot_id: str
     inventory_path: Path
     inventory_provenance_path: Path
-    freeze_inputs: tuple[AcquisitionPass, ...]
     candidates_path: Path
     reference_resources: Mapping[str, ReferenceResource]
     required_resource_ids: tuple[str, ...]
@@ -553,58 +433,6 @@ def _require(mapping: Mapping[str, Any], key: str, where: str) -> Any:
     if key not in mapping or mapping[key] is None:
         raise PreflightConfigError(f"{where} is missing required key {key!r}")
     return mapping[key]
-
-
-def parse_freeze_inputs(raw: Any, path: Path) -> tuple[AcquisitionPass, ...]:
-    """Parse the ordered acquisition passes, where list order is the precedence rule.
-
-    The config lists passes earliest first, so the order in the file is the merge
-    order rather than a mapping's incidental key order. A duplicate role would make
-    two passes indistinguishable in the provenance, so it is rejected here.
-    """
-    where = f"{path}:source.inventory.freeze_inputs"
-    if not isinstance(raw, list) or not raw:
-        raise PreflightConfigError(
-            f"{where} must be a non-empty ordered list of {{role, path}} entries, earliest pass first"
-        )
-    passes: list[AcquisitionPass] = []
-    seen: set[str] = set()
-    for index, entry in enumerate(raw):
-        if not isinstance(entry, Mapping):
-            raise PreflightConfigError(f"{where}[{index}] is not a mapping with 'role' and 'path'")
-        role = str(entry.get("role") or "").strip()
-        value = str(entry.get("path") or "").strip()
-        if not role or not value:
-            raise PreflightConfigError(
-                f"{where}[{index}] needs a non-empty 'role' and 'path'"
-            )
-        if role in seen:
-            raise PreflightConfigError(f"{where} declares role {role!r} twice")
-        seen.add(role)
-        passes.append(AcquisitionPass(role=role, path=_external_path(value)))
-    return tuple(passes)
-
-
-def parse_pass_arguments(values: Sequence[str], *, flag: str) -> tuple[AcquisitionPass, ...]:
-    """Parse repeated ``ROLE=PATH`` command-line values into ordered acquisition passes.
-
-    ``flag`` is the option the values came from, so an error names what the
-    operator typed. Order is the precedence rule, exactly as in a config's
-    ``freeze_inputs``; a role given twice is refused.
-    """
-    passes: list[AcquisitionPass] = []
-    seen: set[str] = set()
-    for value in values:
-        role, separator, path_value = value.partition("=")
-        role = role.strip()
-        path_value = path_value.strip()
-        if not separator or not role or not path_value:
-            raise PreflightConfigError(f"{flag} expects ROLE=PATH, got {value!r}")
-        if role in seen:
-            raise PreflightConfigError(f"{flag} declares role {role!r} twice")
-        seen.add(role)
-        passes.append(AcquisitionPass(role=role, path=Path(path_value).expanduser()))
-    return tuple(passes)
 
 
 def load_release_configuration(path: Path, repo_root: Path) -> ReleaseConfiguration:
@@ -629,9 +457,6 @@ def load_release_configuration(path: Path, repo_root: Path) -> ReleaseConfigurat
 
     source = _require(document, "source", str(path))
     inventory_block = _require(source, "inventory", f"{path}:source")
-    freeze_inputs = parse_freeze_inputs(
-        _require(inventory_block, "freeze_inputs", f"{path}:source.inventory"), path
-    )
 
     resources: dict[str, ReferenceResource] = {}
     for entry in _require(document, "reference_resources", str(path)):
@@ -702,7 +527,6 @@ def load_release_configuration(path: Path, repo_root: Path) -> ReleaseConfigurat
         inventory_provenance_path=_repo_path(
             repo_root, str(_require(inventory_block, "provenance_path", f"{path}:source.inventory"))
         ),
-        freeze_inputs=freeze_inputs,
         candidates_path=_repo_path(repo_root, str(_require(source, "candidates", f"{path}:source"))),
         reference_resources=resources,
         required_resource_ids=tuple(dict.fromkeys(required_resource_ids)),
@@ -886,13 +710,12 @@ def preflight(
     provenance the Acquisition Manifest may lack -- a file acquisition
     extracted or reformatted has none of its own -- so a ready row without one
     is a warning, not a failure (#287). A recorded per-Analysis metadata
-    sidecar must still exist, and a ``genome_assembly`` it declares (a
-    GWAS-SSF ``-meta.yaml`` does) must be the release's declared build: the
-    Analysis's ``source_genome_build``, else the release config's default. A
-    sidecar declaring no build, and a row acquisition recorded no sidecar for,
-    are counted, not failed: the Acquisition Manifest makes the sidecar
-    optional. Harmonisation is the GWAS Catalog downloader's gate
-    (``metadata_rejected``), not generic preflight's (#287 review).
+    sidecar must still exist, and the build the Source Metadata Table declares
+    for it (``source_genome_build``) must be the release config's default.
+    Preflight never opens the sidecar: a source's adapter turns what it says
+    into canonical columns (#347). An Analysis declaring no build, and a row
+    acquisition recorded no sidecar for, are counted, not failed: the
+    Acquisition Manifest makes the sidecar optional.
     """
     failures: list[str] = []
     effective_cores = config.cores if cores is None else cores
@@ -948,12 +771,11 @@ def preflight(
     missing: list[str] = []
     size_mismatch: list[str] = []
     metadata_missing: list[str] = []
-    metadata_unreadable: list[str] = []
     metadata_gate_failed: list[str] = []
     metadata_build_undeclared: list[str] = []
     no_metadata_sidecar: list[str] = []
     frozen_table, frozen_manifest = _frozen_connectors(provenance_path, failures)
-    expected_builds = _declared_builds(frozen_table)
+    declared_builds = _declared_builds(frozen_table)
     gate_expected: set[str] = set()
     not_ready_with_present_file: list[str] = []
     for row in rows:
@@ -985,30 +807,21 @@ def preflight(
         if not Path(row.yaml_file).is_file():
             metadata_missing.append(row.analysis_id)
             continue
-        metadata = Path(row.yaml_file)
-        try:
-            document = yaml.safe_load(metadata.read_text(encoding="utf-8", errors="replace"))
-        except yaml.YAMLError as exc:
-            metadata_unreadable.append(f"{row.analysis_id} ({exc.__class__.__name__})")
-            continue
-        if not isinstance(document, dict):
-            metadata_unreadable.append(f"{row.analysis_id} (not a YAML mapping)")
-            continue
-        # The sidecar's build against the release's declared build: the
-        # Analysis's own source_genome_build, else the config's default. A
-        # sidecar declaring none cannot contradict it, and is counted.
-        # Harmonisation is the GWAS Catalog downloader's gate, recorded as the
-        # metadata_rejected status at acquisition (#287 review).
-        assembly = str(document.get("genome_assembly") or "").strip()
-        if not assembly:
+        # The Analysis's declared build (its Source Metadata Table
+        # ``source_genome_build``) against the release's default. Reading the
+        # per-Analysis sidecar to find a build is the source's adapter's job
+        # (#347); here the sidecar need only exist, as the Acquisition Manifest
+        # recorded it. An Analysis declaring no build cannot contradict the
+        # release and is counted. Harmonisation is the GWAS Catalog
+        # downloader's gate, recorded as ``metadata_rejected`` (#287 review).
+        declared = declared_builds.get(row.analysis_id, "")
+        if not declared:
             metadata_build_undeclared.append(row.analysis_id)
             continue
-        expected = expected_builds.get(row.analysis_id) or str(
-            config.defaults.get("source_genome_build") or ""
-        )
-        if assembly != expected:
-            gate_expected.add(expected or "(none declared)")
-            metadata_gate_failed.append(f"{row.analysis_id} (genome_assembly={assembly!r})")
+        expected = str(config.defaults.get("source_genome_build") or "")
+        if expected and declared != expected:
+            gate_expected.add(expected)
+            metadata_gate_failed.append(f"{row.analysis_id} (source_genome_build={declared!r})")
 
     if missing:
         failures.append(
@@ -1024,20 +837,15 @@ def preflight(
             f"{len(metadata_missing)} ready Analysis metadata file(s) are missing: "
             f"{', '.join(metadata_missing[:10])}"
         )
-    if metadata_unreadable:
-        failures.append(
-            f"{len(metadata_unreadable)} ready Analysis metadata file(s) are unreadable: "
-            f"{', '.join(metadata_unreadable[:10])}"
-        )
     if metadata_gate_failed:
-        declared_build = (
+        release_build = (
             f"the release's source_genome_build {next(iter(gate_expected))}"
             if len(gate_expected) == 1
-            else "their source_genome_build"
+            else "the release's source_genome_build"
         )
         failures.append(
-            f"{len(metadata_gate_failed)} ready Analysis metadata file(s) declare a "
-            f"genome_assembly that is not {declared_build}: {', '.join(metadata_gate_failed[:10])}"
+            f"{len(metadata_gate_failed)} ready Analysis/Analyses declare a "
+            f"source_genome_build that is not {release_build}: {', '.join(metadata_gate_failed[:10])}"
         )
 
     # --- region-filtered acquisition ----------------------------------------
@@ -1243,7 +1051,6 @@ def preflight(
             "missing": sorted(missing),
             "size_mismatch": sorted(size_mismatch),
             "metadata_missing": sorted(metadata_missing),
-            "metadata_unreadable": sorted(metadata_unreadable),
             "metadata_gate_failed": sorted(metadata_gate_failed),
             "metadata_build_undeclared": sorted(metadata_build_undeclared),
             "no_metadata_sidecar": sorted(no_metadata_sidecar),
@@ -1376,7 +1183,6 @@ def render_preflight_summary(report: Mapping[str, Any]) -> str:
     )
     metadata_failed_count = (
         len(source_files.get("metadata_missing", []))
-        + len(source_files.get("metadata_unreadable", []))
         + len(source_files.get("metadata_gate_failed", []))
     )
     lines.append(

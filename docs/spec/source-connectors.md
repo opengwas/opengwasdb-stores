@@ -72,7 +72,8 @@ value -- never zero and never a default.
 | `declared_effect_scale` | No | OpenGWASDB `StoredEffectScale`: `sd`, `log_or`, `log_hazard` | An effect scale the source declares. Blank when it declares none: the release's method tier decides. |
 | `sample_size` | No | non-negative decimal | Source total sample size. Becomes the inventory's `sample_size`. |
 | `n_cases`, `n_controls` | No | non-negative decimal | Case and control counts. Refused unless `study_design` is `case-control`: a zero count where counts do not apply is the absence-vs-zero confusion `bundle.check()` refuses (#133). |
-| `source_genome_build` | No | `GRCh37`, `GRCh38` | Genome build of the source coordinates, when the source states it per Analysis, in the spelling every Release Bundle's `source_genome_build` uses. A collection-wide build is the release config's default instead. |
+| `source_genome_build` | No | `GRCh37`, `GRCh38` | Genome build of the source coordinates, when the source states it per Analysis, in the spelling every Release Bundle's `source_genome_build` uses. A collection-wide build is the release config's default instead. Preflight checks it against that default; no shared code reads a per-Analysis sidecar to find a build (#347). |
+| `genotyping_technology` | No | text; `;`-joined, in source order | The genotyping technologies the source records for the Analysis (`Genome-wide genotyping array;Exome genotyping array`), blank when it records none. A fact, not an exemption flag: which technologies are exempt from the MAF floor is release policy (`release_policy.maf_filter_exempt_genotyping_technologies`, [release config](release-config.md)), and a blank column is never an exemption (#176, #347). A technology containing `;` is refused by the adapter that would write it. |
 | `publication_pmid` | No | positive integer | Publication Metadata. Becomes the inventory's `publication_pmid`. |
 | `publication_doi`, `first_author`, `consortium` | No | text | Publication Metadata. |
 | `license` | No | text | Source License, when the source states it per Analysis. A collection-wide licence is the release config's default instead. |
@@ -120,8 +121,23 @@ removed.
 | `n_cases`, `n_controls` | the same for `case-control`; see below for `quantitative` |
 | `PUBMED.ID`, `FIRST.AUTHOR` | `publication_pmid`, `first_author` |
 | `store_key` | `store_key` |
+| the Analysis's `-meta.yaml` `genotyping_technology` | `genotyping_technology` |
+| the Analysis's `-meta.yaml` `genome_assembly` | `source_genome_build` |
 
 Its translations, and only these:
+
+- **The metadata sidecar is read here and nowhere else (#347).** With
+  `--acquisition-manifest`, each Analysis acquisition marked ready that has a
+  `sidecar_location` contributes its sidecar's `genotyping_technology` (a list
+  or one string, `;`-joined in the sidecar's order, blank when it records none)
+  and `genome_assembly` (blank when it declares none). A recorded sidecar that
+  is missing, unparseable, not a YAML mapping or has a malformed field is
+  refused by name: an unreadable sidecar must not read as "no technology",
+  which the MAF exemption treats as not exempt. Without the option both columns
+  are blank. The shared pipeline then reads only the canonical columns:
+  `candidate_workflow` takes the MAF exemption and the `not_maf_filtered`
+  detail's technologies from `genotyping_technology`, and preflight checks
+  `source_genome_build` against the release default, opening no sidecar.
 
 - **Missing values.** `ebi-studies.r` writes with `data.table::fwrite`'s
   default `na = ""`, so an R `NA` is an empty field and an empty string is
@@ -172,6 +188,7 @@ Collection's; a later dataset shares only `providers/dbgap/metadata.py`.
 | `Phenotypic trait type` | `study_design` |
 | `Sample size` | `sample_size`, and `n_cases`/`n_controls` for a case-control study only |
 | the post-split bucket | `store_key`: `dense__pmid-39024449__European`, `__African`, `__Hispanic-or-Latin-American`, `__East-Asian`, `__Multi-ancestry` |
+| the deposit's coordinates | `source_genome_build`: `GRCh38` on every row, so the canonical build check covers this source (#347) |
 
 `META` is deliberately imprecise: the cross-ancestry bucket has no single
 super-population, so its `source_superpopulation` is blank and it never maps
@@ -457,7 +474,7 @@ The GWAS Catalog's writer,
 overlays the EBI downloader's per-pass status manifests -- earliest first; a
 later pass wins for every `analysis_id` it covers and may not regress a ready
 Analysis -- and records each pass's path, sha256, size, row count, readiness
-counts and overrides there. It drops the download manifests' study columns
+counts and overrides there. The pass columns, their parsing, the overlay and the regression check are this writer's alone (#347): no shared module knows the download manifests' shape. It drops the download manifests' study columns
 (intent, the table's job) and per-run `seconds`.
 
 Example (abridged):
@@ -840,9 +857,10 @@ row's `location`, `bytes` and `sha256`. The Acquisition Manifest makes
 `source_url` and the sidecar columns optional, so a ready row without a source
 URL is a preflight warning (its `analyses.tsv` `source_url` is blank), and a
 ready row with no recorded sidecar is counted, not failed. A recorded sidecar
-must still exist, and a build it declares (`genome_assembly`, as a GWAS-SSF
-`-meta.yaml` does) must be the release's: the Analysis's `source_genome_build`,
-else the release config's default. A sidecar declaring no build is counted.
+must still exist, but preflight never opens it: the build is checked from the
+Source Metadata Table's `source_genome_build`, which must be the release
+config's default, and an Analysis declaring no build is counted (#347; a
+source's adapter turns what its sidecar says into the canonical column).
 Harmonisation is not a preflight requirement: the GWAS Catalog downloader gates
 it at acquisition and records a failure as `metadata_rejected`.
 

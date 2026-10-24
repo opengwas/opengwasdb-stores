@@ -62,6 +62,10 @@ OPTIONAL_COLUMNS: tuple[str, ...] = (
     "n_cases",
     "n_controls",
     "source_genome_build",
+    # The genotyping technologies the source records for the Analysis: a fact,
+    # ``;``-joined in source order, blank when unrecorded (#347). Which are
+    # exempt from the MAF floor is release policy, not this column's.
+    "genotyping_technology",
     "publication_pmid",
     "publication_doi",
     "first_author",

@@ -325,9 +325,10 @@ than hand-editing the TSV.
 
 `defaults.maf_threshold` requests a per-Analysis MAF floor in `[0, 0.5]`;
 `0` disables filtering and omitting the key means no MAF filter at all. The
-frozen inventory's `yaml_file` metadata decides the per-Analysis exemption: an
-Analysis is exempt (emitting literal `NaN`) only when its
-`genotyping_technology` list is non-empty and **every** technology appears in
+frozen Source Metadata Table's `genotyping_technology` column (the GWAS Catalog
+adapter writes it from each `-meta.yaml`, #347) decides the per-Analysis
+exemption: an Analysis is exempt (emitting literal `NaN`) only when that list is
+non-empty and **every** technology appears in
 `release_policy.maf_filter_exempt_genotyping_technologies`; missing technology metadata
 is never an exemption. `release-eur-hybrid-full.yaml` sets `maf_threshold: 0.005` and
 exempts `Whole genome sequencing` and `Exome-wide sequencing` (operator
