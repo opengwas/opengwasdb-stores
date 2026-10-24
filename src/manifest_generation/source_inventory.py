@@ -801,19 +801,18 @@ def preflight(
             recorded = row.recorded_bytes
             if recorded is not None and source.stat().st_size != recorded:
                 size_mismatch.append(f"{row.analysis_id} ({source.stat().st_size} != {recorded})")
+        # A recorded sidecar must exist; one that was never recorded is counted.
+        # Neither decides whether the build is checked.
         if not row.yaml_file:
             no_metadata_sidecar.append(row.analysis_id)
-            continue
-        if not Path(row.yaml_file).is_file():
+        elif not Path(row.yaml_file).is_file():
             metadata_missing.append(row.analysis_id)
-            continue
         # The Analysis's declared build (its Source Metadata Table
         # ``source_genome_build``) against the release's default. Reading the
         # per-Analysis sidecar to find a build is the source's adapter's job
-        # (#347); here the sidecar need only exist, as the Acquisition Manifest
-        # recorded it. An Analysis declaring no build cannot contradict the
-        # release and is counted. Harmonisation is the GWAS Catalog
-        # downloader's gate, recorded as ``metadata_rejected`` (#287 review).
+        # (#347); the check runs for every ready Analysis, sidecar or not.
+        # An Analysis declaring no build cannot contradict the release and is counted.
+        # Harmonisation is the GWAS Catalog downloader's gate, recorded as ``metadata_rejected`` (#287 review).
         declared = declared_builds.get(row.analysis_id, "")
         if not declared:
             metadata_build_undeclared.append(row.analysis_id)

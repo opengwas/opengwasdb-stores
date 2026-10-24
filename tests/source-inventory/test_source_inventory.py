@@ -1001,6 +1001,20 @@ class TestPreflightReconciliation(SourceInventoryTestCase):
         self.assertTrue(result.ok, result.failures)
         self.assertEqual(result.report["source_files"]["metadata_gate_failed"], [])
 
+    def test_the_build_check_does_not_depend_on_a_recorded_sidecar(self) -> None:
+        """An Analysis with no sidecar is still checked against the release's build (#347 review)."""
+        def drop_sidecar(row):
+            if row["source_analysis_id"] == "GCST90000004":
+                row.update(sidecar_location="", sidecar_url="", sidecar_bytes="")
+
+        self.rewrite_manifest(drop_sidecar)
+        self.workspace.write_source_metadata_table({"GCST90000004": "GRCh37"})
+        self.workspace.freeze()
+        result = self.workspace.preflight()
+        self.assertFalse(result.ok)
+        self.assertIn("GCST90000004 (source_genome_build='GRCh37')", " ".join(result.failures))
+        self.assertEqual(result.report["source_files"]["no_metadata_sidecar"], ["GCST90000004"])
+
     def test_an_analysis_declaring_no_build_is_counted_not_failed(self) -> None:
         self.workspace.write_source_metadata_table(
             {"GCST90000001": "", "GCST90000003": "", "GCST90000004": ""}
