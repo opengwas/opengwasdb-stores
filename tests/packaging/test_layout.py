@@ -5,12 +5,9 @@ Python lives under `src/` (the packages), `tests/` (the suites), `tools/`
 (scripts) or `workflow/` (the Snakemake wiring and release entry point), and
 nowhere else: not at the repository root, and not as a namespace package such
 as `rogue/module.py`. Only `src/` and `tests/` hold packages. `resources/`
-holds inputs only, so it holds no code, except two R metadata resolvers
-under `resources/generators/lib/metadata_resolvers/` that curation's R-resolver
-round-trip still sources. Each is listed in `LEGACY_R_GENERATORS` with the
-ticket that retires it, and an entry whose file is gone fails, so the list
-only shrinks. `resources/scripts/`, the miscellany this layout replaced, does
-not come back.
+holds inputs only, so it holds no code at all: the last R metadata resolvers
+went with #350, and `resources/scripts/`, the miscellany this layout replaced,
+does not come back.
 
 Run from the repository root:
     python3 tests/packaging/test_layout.py
@@ -18,7 +15,6 @@ Run from the repository root:
 
 from __future__ import annotations
 
-import re
 import subprocess
 import unittest
 from pathlib import Path, PurePosixPath
@@ -32,19 +28,6 @@ PACKAGE_HOMES = ("src/", "tests/")
 # What counts as code: a file with one of these suffixes (compared lower-case),
 # a Snakefile, or anything that starts with a shebang line.
 CODE_SUFFIXES = frozenset({".py", ".r", ".rmd", ".qmd", ".sh", ".smk", ".ipynb", ".js", ".pl"})
-
-# The R code under resources/, and the ticket that retires each. Every
-# generator's R path has retired (epic #282 stage 2); what is left of it is
-# what curation's R-resolver round-trip still sources.
-EPIC_CLEANUP = "#282 (curation's R-resolver round-trip still sources these)"
-LEGACY_R_GENERATORS: dict[str, str] = {
-    # These two lost their generator when ukb-b's R path retired with #289, but
-    # the curation suites (tests/curation/test_promotion.py, test_e2e_pipeline.py)
-    # still drive the R resolver through them to prove a promoted mapping row
-    # round-trips: no ticket yet moves curation off the R resolver.
-    "resources/generators/lib/metadata_resolvers/canonical_trait_table.R": EPIC_CLEANUP,
-    "resources/generators/lib/metadata_resolvers/ontology_contract.R": EPIC_CLEANUP,
-}
 
 
 def tracked_files() -> list[str]:
@@ -127,16 +110,9 @@ class LayoutTest(unittest.TestCase):
     def test_no_python_package_outside_src_and_tests(self) -> None:
         self.assertEqual(packages_outside_homes(self.files), [])
 
-    def test_resources_holds_no_code_but_the_listed_r_files(self) -> None:
+    def test_resources_holds_no_code(self) -> None:
         code = code_under_resources([(r, head_of(r)) for r in self.files if r.startswith("resources/")])
-        unexpected = [relative for relative in code if relative not in LEGACY_R_GENERATORS]
-        self.assertEqual(unexpected, [], "resources/ is inputs only; code belongs in src/, tools/ or docs/reports/")
-
-    def test_every_legacy_r_generator_is_still_there_and_cites_its_ticket(self) -> None:
-        retired = [relative for relative in LEGACY_R_GENERATORS if relative not in self.files]
-        self.assertEqual(retired, [], "retired, so remove from LEGACY_R_GENERATORS")
-        uncited = [relative for relative, ticket in LEGACY_R_GENERATORS.items() if not re.search(r"#\d+", ticket)]
-        self.assertEqual(uncited, [])
+        self.assertEqual(code, [], "resources/ is inputs only; code belongs in src/, tools/ or docs/reports/")
 
     def test_resources_scripts_is_gone(self) -> None:
         self.assertEqual([relative for relative in self.files if relative.startswith("resources/scripts/")], [])
