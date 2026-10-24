@@ -710,35 +710,9 @@ def maf_threshold_emission(
     return declaration.maf_threshold
 
 
-def read_genotyping_technologies(yaml_file: str) -> list[str]:
-    """Read a source metadata YAML's ``genotyping_technology`` list, or ``[]``.
-
-    Missing metadata is not an exemption: a row whose sidecar is absent,
-    unreadable, or carries no technology falls through to the release default.
-    The inventory records the exact YAML path in its ``yaml_file`` column.
-    """
-    if not yaml_file:
-        return []
-    path = Path(yaml_file)
-    if not path.is_file():
-        return []
-    try:
-        document = yaml.safe_load(path.read_text(encoding="utf-8", errors="replace"))
-    except (OSError, yaml.YAMLError):
-        return []
-    if not isinstance(document, Mapping):
-        return []
-    raw = document.get("genotyping_technology")
-    if isinstance(raw, str):
-        values: list[Any] = [raw]
-    elif isinstance(raw, list):
-        values = raw
-    else:
-        return []
-    return [value.strip() for value in values if isinstance(value, str) and value.strip()]
-
-
-def analysis_maf_threshold(row: SourceInventoryRow, config: CandidateConfiguration) -> str:
+def analysis_maf_threshold(
+    row: SourceInventoryRow, config: CandidateConfiguration, metadata: AnalysisMetadata | None
+) -> str:
     """The manifest ``maf_threshold`` for one Analysis: the default or ``NaN``.
 
     An Analysis is exempt when ``release_policy.maf_filter_exempt_analyses`` lists it
@@ -753,7 +727,7 @@ def analysis_maf_threshold(row: SourceInventoryRow, config: CandidateConfigurati
         return "NaN"
     exempt = set(config.maf_filter_exempt_genotyping_technologies)
     if exempt:
-        technologies = read_genotyping_technologies(row.yaml_file)
+        technologies = metadata.genotyping_technologies if metadata else []
         if technologies and all(technology in exempt for technology in technologies):
             return "NaN"
     return config.maf_threshold
@@ -802,6 +776,8 @@ class AnalysisMetadata:
     consortium: str = ""
     license: str = ""
     source_genome_build: str = ""
+    #: ``genotyping_technology``: ``;``-joined in source order, blank when unrecorded.
+    genotyping_technology: str = ""
     #: The target annotation (``ANALYSIS_TARGETS_COLUMNS`` but ``analysis_id``),
     #: blank for an Analysis with no molecular target (#300).
     target_assay_id: str = ""
@@ -827,6 +803,11 @@ class AnalysisMetadata:
     #: config's collection-wide default.
     analysis_group_id: str = ""
     trait_ontology: TraitOntologyMapping | None = None
+
+    @property
+    def genotyping_technologies(self) -> list[str]:
+        """The recorded technologies, in source order; ``[]`` when unrecorded."""
+        return [part.strip() for part in self.genotyping_technology.split(";") if part.strip()]
 
     @property
     def targeted(self) -> bool:
@@ -886,6 +867,7 @@ def read_analysis_metadata(
             consortium=row.get("consortium", ""),
             license=row.get("license", ""),
             source_genome_build=row.get("source_genome_build", ""),
+            genotyping_technology=row.get("genotyping_technology", ""),
             tissue=row.get("tissue", ""),
             context=row.get("context", ""),
             source_probe_id=row.get("source_probe_id", ""),
@@ -1161,7 +1143,7 @@ def derive_resolver_manifest(
                 imputation_score_column=column,
                 imputation_score_kind=kind,
                 imputation_score_provenance=provenance,
-                maf_threshold=analysis_maf_threshold(row, config),
+                maf_threshold=analysis_maf_threshold(row, config, resolved),
                 source_probe_id=resolved.source_probe_id if resolved else "",
             )
         )
@@ -2532,7 +2514,7 @@ def apply_release_policy(
                 exclusion_detail=_not_maf_filtered_detail(
                     declaration_by_id.get(row.analysis_id),
                     records.get(row.analysis_id),
-                    row,
+                    metadata[row.analysis_id],
                 ),
             )
         outcomes.append(outcome)
@@ -2542,20 +2524,20 @@ def apply_release_policy(
 def _not_maf_filtered_detail(
     declaration: ResolverRow | None,
     record: Mapping[str, Any] | None,
-    row: SourceInventoryRow,
+    metadata: AnalysisMetadata,
 ) -> str:
     """The ``not_maf_filtered`` audit detail (issue #203).
 
     Names the requested floor, the resolver's own MAF state, the Analysis's
     genotyping technologies, and the off-reference share of its build-eligible
-    rows, so the exclusion can be judged from the sidecar alone. Absence is
+    rows, so the exclusion can be judged from the Source Metadata Table alone. Absence is
     rendered explicitly (``undeclared``, ``unrecorded``, ``?``), never as a zero
     count or as a declared ``NaN``.
     """
     diagnostics = record_section(record, "diagnostics")
     declared = declaration.maf_threshold if declaration is not None else "undeclared"
     state = str(diagnostics.get("maf_state") or "unrecorded")
-    technologies = "; ".join(read_genotyping_technologies(row.yaml_file)) or "unrecorded"
+    technologies = "; ".join(metadata.genotyping_technologies) or "unrecorded"
     off = diagnostic_count(diagnostics.get("build_eligible_rows_off_variant_reference"))
     eligible = diagnostic_count(diagnostics.get("build_eligible_rows"))
     return (
@@ -3938,7 +3920,6 @@ __all__ = [
     "read_analysis_metadata",
     "trait_sources",
     "map_candidate_trait_ontologies",
-    "read_genotyping_technologies",
     "read_effect_placeholder_exclusions",
     "read_maf_filter_exempt_analyses",
     "read_resolution_receipt",

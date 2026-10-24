@@ -151,10 +151,10 @@ class SourceMetadataAdapterTests(unittest.TestCase):
             if analysis_id != "GCST90000003":
                 self.assertEqual(row["n_cases"], "")
                 self.assertEqual(row["n_controls"], "")
-        # Every row carries the collection-wide publication; the genome build is
-        # the release config's default, so the adapter does not write it.
+        # Every row carries the collection-wide publication and the deposit's
+        # GRCh38, so the canonical build check covers this source (#347).
         self.assertEqual({row["publication_pmid"] for row in table.rows}, {"39024449"})
-        self.assertEqual({row.get("source_genome_build", "") for row in table.rows}, {""})
+        self.assertEqual({row["source_genome_build"] for row in table.rows}, {"GRCh38"})
 
     def test_meta_is_imprecise_without_a_reason_of_its_own(self) -> None:
         self.convert()

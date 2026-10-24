@@ -389,10 +389,13 @@ included with literal `NaN` INFO cells. Older bundles may omit all four columns
 entirely.
 
 The MAF floor is a `defaults.maf_threshold` release decision applied per
-Analysis: an Analysis is exempt (and emits `NaN`) when its source metadata
-YAML's `genotyping_technology` list is non-empty and every technology is in
+Analysis: an Analysis is exempt (and emits `NaN`) when its Source Metadata
+Table row's `genotyping_technology` (`;`-joined, source order) is non-empty and
+every technology is in
 `release_policy.maf_filter_exempt_genotyping_technologies`; missing technology
-metadata is never an exemption. The resolver manifest carries the derived
+metadata is never an exemption. The column is a fact a source's adapter
+writes (the GWAS Catalog's from each `-meta.yaml`); the exemption is the
+release policy over it (#347). The resolver manifest carries the derived
 `maf_threshold` per Analysis and the resolver record's `maf_state` plus its
 fingerprint binding decide the emitted candidate value, exactly as for INFO.
 Manifest Generation's rules validate the column on every row, independently of
@@ -1225,7 +1228,7 @@ snapshot was frozen from:
 | `source.inventory.snapshot_id` | Yes | The snapshot's identity. Must equal the inventory file's stem and the provenance sidecar's `snapshot_id`. |
 | `source.inventory.path` | Yes | `resources/inventories/<snapshot-id>.tsv`. |
 | `source.inventory.provenance_path` | Yes | `resources/inventories/<snapshot-id>.meta.yaml`, the sidecar whose `inventory_tsv_sha256` binds the TSV to the bytes that were frozen. |
-| `source.inventory.freeze_inputs` | Yes | The ordered `{role, path}` acquisition status manifests `freeze` merges. Order is the precedence rule: earliest pass first, and a later pass is authoritative for every `analysis_id` it covers. A later pass may not regress a ready Analysis to a non-ready one. |
+| `source.inventory.freeze_inputs` | Yes (GWAS Catalog's acquisition writer reads it; shared code does not, #347) | The ordered `{role, path}` acquisition status manifests `freeze` merges. Order is the precedence rule: earliest pass first, and a later pass is authoritative for every `analysis_id` it covers. A later pass may not regress a ready Analysis to a non-ready one. |
 
 Which `readiness_status` values count as a usable source is **not** a config
 key: it is owned by `src/manifest_generation/source_inventory.py`
