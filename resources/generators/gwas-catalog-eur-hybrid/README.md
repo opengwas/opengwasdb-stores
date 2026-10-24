@@ -39,17 +39,26 @@ pixi run python3 -m manifest_generation.providers.gwas_catalog.write_acquisition
 
 The connector files every snapshot below was frozen from are kept, read-only,
 beside the download passes in
-`/data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/`: the Source
+`/data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-24/`: the Source
 Metadata Table, the Acquisition Manifest with its pass lineage
 (`.acquisition-manifest.meta.yaml`), and the candidate table the adapter read
-(sha256 `aef4dbe2...`). A later acquisition writes a new dated directory.
+(sha256 `aef4dbe2...`). `2026-10-20/` beside it holds the first set, whose Source
+Metadata Table lacks the sidecar columns below; Chen 2023's and Sun 2018's
+snapshots still cite it. A later acquisition writes a new dated directory.
+
+The `2026-10-24` Source Metadata Table is the same adapter run over the same
+candidate table with `--acquisition-manifest`, so it adds two columns the
+`2026-10-20` one lacks (#347): `source_genome_build` (`GRCh38` on all 4,783
+ready Analyses) and `genotyping_technology` (blank on 175 of them, which record
+none). The Acquisition Manifest and pass lineage are byte-identical copies.
 
 A release config whose `source_collection.connectors` names them freezes its
 Selection with `pixi run inventory-freeze --config <release config>` (or the
 entry point's `freeze` stage) into `resources/inventories/`, and preflights it
 with `pixi run preflight --config <release config>`. The three release configs
 here name only their committed frozen snapshots
-(`gwas-catalog-ssf-eur-hybrid*-2026-10-20`), frozen on 2026-10-20 from the
+(`gwas-catalog-ssf-eur-hybrid*-2026-10-24`), frozen on 2026-10-24 (#347; the
+`2026-10-20` ones stay as history, with identical inventory TSVs) from the
 candidate table the 2026-09-22 snapshot froze against (sha256 `aef4dbe2...`) and
 the three passes it overlaid. The full release's inventory TSV is byte-identical
 to `gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv`. A later acquisition, or a

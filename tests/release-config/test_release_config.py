@@ -706,13 +706,40 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         settings[groups:groups] = ["--reference-build", "GRCh38"]
         self.assertEqual(resolver_settings(config), settings)
 
+    def test_the_gwas_catalog_snapshots_refrozen_for_the_metadata_columns_keep_their_inventories(self) -> None:
+        """#347 re-froze the three snapshots under new ids for two new Source Metadata Table
+        columns. The Source Inventory's columns did not change, so each inventory is the
+        2026-10-20 one byte for byte, and each frozen table carries the sidecar's build."""
+        inventories = REPO_ROOT / "resources/inventories"
+        for prefix in ("", "-pilot-10", "-quant-pilot-10"):
+            with self.subTest(snapshot=prefix or "full"):
+                old = inventories / f"gwas-catalog-ssf-eur-hybrid{prefix}-2026-10-20.tsv"
+                new = inventories / f"gwas-catalog-ssf-eur-hybrid{prefix}-2026-10-24.tsv"
+                self.assertEqual(new.read_bytes(), old.read_bytes())
+                table = inventories / f"gwas-catalog-ssf-eur-hybrid{prefix}-2026-10-24.source-metadata.tsv"
+                with table.open(newline="", encoding="utf-8") as handle:
+                    rows = list(csv.DictReader(handle, delimiter="\t"))
+                with old.open(newline="", encoding="utf-8") as handle:
+                    ready = [
+                        row["analysis_id"]
+                        for row in csv.DictReader(handle, delimiter="\t")
+                        if row["readiness_status"] in {"ok", "already_present"}
+                    ]
+                self.assertIn("genotyping_technology", rows[0])
+                # A ready Analysis's sidecar declares GRCh38; one acquisition has no sidecar for declares nothing.
+                self.assertEqual(
+                    sorted(row["source_analysis_id"] for row in rows if row["source_genome_build"] == "GRCh38"),
+                    sorted(ready),
+                )
+                self.assertEqual({row["source_genome_build"] for row in rows} - {""}, {"GRCh38"})
+
     def test_every_shipped_config_prepares_its_resolver_manifest(self) -> None:
         """The prepare stage, in-process: the pilots share the full release's declarations.
 
-        The full release's whole prepare reads 4,783 metadata sidecars on the
-        mirror (its MAF-exempt technologies), about 6 s, and the OGS-00011
-        regeneration ran it end to end; here it is held to the declarations
-        step, which is what the pilots' sharing changed.
+        The full release's prepare reads only the frozen Source Metadata Table
+        since #347 (its MAF-exempt technologies are a canonical column), and the
+        OGS-00011 regeneration ran it end to end; here the full release is held
+        to the declarations step, which is what the pilots' sharing changed.
         """
         from manifest_generation.candidate_workflow import (
             collection_analysis_ids,
