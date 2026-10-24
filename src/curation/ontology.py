@@ -236,8 +236,9 @@ _PUNCTUATION_RE = re.compile(r"[\W_]+", re.UNICODE)
 def normalise_label(label: str | None) -> str:
     """Trim, lowercase, strip punctuation, and collapse whitespace.
 
-    Deliberately close to, but wider than, the canonical table's
-    ``trimws(tolower(x))`` lookup key: this is a *retrieval* normalisation, so
+    Deliberately close to, but wider than, the canonical table's lookup key --
+    trimmed and lower-cased, as `manifest_generation.trait_ontology_mapping`
+    reads a row's `trait_label`. This is a *retrieval* normalisation, so
     ``"Body-mass index (BMI)"`` and ``"body mass index bmi"`` collapse to the
     same string and the normalised channel can find terms the exact channel
     cannot.

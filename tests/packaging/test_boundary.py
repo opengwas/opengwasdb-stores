@@ -3,9 +3,8 @@
 
 The two workflows meet only at the Release Bundle. Store Release Build is
 `src/ogstores`, `workflow/Snakefile` and `workflow/release.py`; Manifest
-Generation is the `manifest_generation` package (`src/manifest_generation`),
-plus the R metadata resolvers that remain under `resources/generators/`.
-Store Release Build may not import either, or run them by module or by path.
+Generation is the `manifest_generation` package (`src/manifest_generation`).
+Store Release Build may not import it, or run it by module or by path.
 
 Store Release Build also reads nothing from the shared resolution area where
 Analysis Resolution keeps Resolution Records (#284): no path under its root and

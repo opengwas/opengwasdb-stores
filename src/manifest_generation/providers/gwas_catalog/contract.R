@@ -1,13 +1,12 @@
 # Shared output-contract helper for metadata resolvers (see
 # docs/release-metadata-schema.md, "Metadata resolvers"). Every resolver
-# (resolve_gwas_catalog_ssf_metadata(), resolve_opengwas_api_metadata(), ...)
-# returns the same seven-column shape; this builds the `unresolved` case so
-# each resolver doesn't repeat that shape by hand.
+# (resolve_gwas_catalog_ssf_metadata(), ...) returns the same seven-column shape;
+# this builds the `unresolved` case so each resolver doesn't repeat that shape by
+# hand.
 #
 # It lives beside gwas_catalog_ssf.R, the resolver that outlives the legacy R
-# generators (ADR 0038). The legacy FinnGen and OpenGWAS resolvers in
-# resources/generators/lib/metadata_resolvers/ source it from here, by this one
-# path, until #288 and #289 retire them.
+# generators (ADR 0038). The legacy FinnGen, OpenGWAS and trait-table resolvers
+# that sourced it from here are all retired (#288, #289, #350).
 
 suppressPackageStartupMessages(library(data.table))
 

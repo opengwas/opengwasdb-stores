@@ -193,9 +193,10 @@ ukb-b's bespoke path is gone (#289):
   (`tests/opengwas-gwas-vcf-dense`, `tests/metadata-resolvers/opengwas-api`).
 
 `lib/metadata_resolvers/canonical_trait_table.R` and `ontology_contract.R`
-stay: they lost their generator with the R path, but the curation suites
-(`tests/curation/test_promotion.py`, `test_e2e_pipeline.py`) still source them
-to prove a promoted mapping row round-trips through the R resolver.
+went with #350: they lost their generator with the R path, and curation's
+round-trip proof (`tests/curation/test_promotion.py`, `test_e2e_pipeline.py`) no
+longer drives the R resolver -- it maps a promoted row through the pipeline's
+own `manifest_generation.trait_ontology_mapping`.
 
 `config-candidate.yaml` and `config-pilot-10.yaml` stay unchanged as the
 history OGS-00009's and OGS-00008's `generator.commands` cite, and

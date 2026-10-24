@@ -299,12 +299,12 @@ def _serialize_probabilities(probabilities: Mapping[str, float]) -> str:
 
 
 def normalize_trait_label(label: str | None) -> str:
-    """Normalise a trait label exactly as the resolver's lookup does.
+    """Normalise a trait label exactly as the pipeline's lookup does.
 
-    ``trimws(tolower(x))`` in
-    ``resources/generators/lib/metadata_resolvers/canonical_trait_table.R``:
-    strip surrounding whitespace, then lowercase. Two labels differing only by
-    case or surrounding whitespace are the same curation candidate.
+    Trim, then lowercase -- the key Manifest Generation's Trait Ontology Mapping
+    builds from a row's `trait_label` (`src/manifest_generation/
+    trait_ontology_mapping.py`). Two labels differing only by case or
+    surrounding whitespace are the same curation candidate.
     """
     return (label or "").strip().lower()
 

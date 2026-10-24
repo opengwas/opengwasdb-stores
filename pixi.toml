@@ -273,9 +273,11 @@ r-yaml = "*"
 # data.table::fread() shells out to R.utils to read .gz files directly; never
 # library()'d explicitly, so it's easy to miss auditing only `library()` calls.
 "r-r.utils" = "*"
-# Needed by resources/generators/lib/metadata_resolvers/opengwas_api.R's
-# fetch_opengwas_gwasinfo() (issue #49) to call the live OpenGWAS API; the
-# tested resolve_opengwas_api_metadata() itself has no network dependency.
+# No tracked R code calls httr any more: its only caller,
+# resources/generators/lib/metadata_resolvers/opengwas_api.R, retired with the
+# OpenGWAS R path (#289). Kept because tools/env_check.py requires the package
+# and the R environment is not shrinking with #350; dropping it would mean a
+# pixi.lock regeneration for no gain.
 r-httr = "*"
 r-jsonlite = "*"
 r-openssl = "*"
