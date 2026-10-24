@@ -35,6 +35,7 @@ import sys
 from pathlib import Path
 
 import numcodecs.blosc
+import zarr
 from opengwasdb.reencode import plan_se_reencode as _core_plan
 from opengwasdb.reencode import reencode_se_codecs as _core_apply
 
@@ -44,9 +45,9 @@ from ogstores import paths, release, run, runtime
 RECORD_STEP: str = "se-reencode"
 
 #: The issue's host-resource cap: the re-encode runs at most this many workers
-#: wide. The core writes one array at a time through zarr's fused pipeline with
-#: one worker (opengwasdb ADR 0056); the only thread knob a re-encode exposes
-#: is Blosc's internal thread count, so "workers" is applied there.
+#: wide. The one-shot process's Zarr async codec-pipeline width is set to this
+#: value; Blosc's internal threads are pinned single so the width is exactly
+#: `workers` Zarr workers, never `workers` x `workers` threads.
 DEFAULT_WORKERS: int = 16
 MAX_WORKERS: int = 16
 
@@ -97,7 +98,11 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         "--workers",
         type=_workers,
         default=DEFAULT_WORKERS,
-        help=f"Blosc worker threads for the re-encode (1..{MAX_WORKERS}, default {DEFAULT_WORKERS})",
+        help=(
+            f"Zarr codec-pipeline workers for the one-shot re-encode "
+            f"(1..{MAX_WORKERS}, default {DEFAULT_WORKERS}); Blosc threads are "
+            "pinned to 1 to avoid nested oversubscription"
+        ),
     )
     parser.add_argument(
         "--artifact-root",
@@ -166,10 +171,13 @@ def _refuse_markers(store_id: str, artifact_root: Path) -> None:
 
 
 def _resolve_runtime() -> tuple[str, str]:
-    """Resolve and refuse any opengwasdb that is not the tracked, provable pin.
+    """Prove the PATH executable and the in-process distribution are both the pin.
 
-    The record's revision must be the exact core revision that ran, so an
-    unprovable or different identity is refused rather than recorded.
+    The record's revision must be the exact core revision that ran, and the
+    core primitive is imported in-process while the operator could have a
+    different `opengwasdb` on PATH.  Both identities are resolved and must be
+    the immutable pin and each other; an unprovable or different identity is
+    refused before any Store write.
     """
     executable = run.get_opengwasdb_executable()
     if executable == run.UNAVAILABLE:
@@ -177,16 +185,36 @@ def _resolve_runtime() -> tuple[str, str]:
             "no opengwasdb executable was found on PATH. Run through "
             "`pixi run se-reencode` so the pinned runtime is used."
         )
-    revision = run.get_opengwasdb_revision(executable=executable)
+    executable_revision = run.get_opengwasdb_revision(executable=executable)
+    ambient_revision = run.get_opengwasdb_revision()
     version = run.get_opengwasdb_version(executable=executable)
-    if not run.is_exact_commit_hash(revision) or revision != runtime.PINNED_OPENGWASDB_REVISION:
+
+    if not run.is_exact_commit_hash(executable_revision):
         raise ReencodeRefusal(
-            f"the resolved opengwasdb at {executable!r} reports revision {revision!r}, "
+            f"cannot prove the opengwasdb executable revision at {executable!r} "
+            f"(got {executable_revision!r}); an unprovable identity is refused before "
+            "any Store write."
+        )
+    if not run.is_exact_commit_hash(ambient_revision):
+        raise ReencodeRefusal(
+            f"cannot prove the imported opengwasdb distribution revision "
+            f"(got {ambient_revision!r}); an unprovable identity is refused before "
+            "any Store write."
+        )
+    if executable_revision != ambient_revision:
+        raise ReencodeRefusal(
+            f"the opengwasdb executable at {executable!r} reports revision "
+            f"{executable_revision!r} but the imported distribution reports "
+            f"{ambient_revision!r}; they must be the same pinned runtime."
+        )
+    if executable_revision != runtime.PINNED_OPENGWASDB_REVISION:
+        raise ReencodeRefusal(
+            f"the resolved opengwasdb runtime reports revision {executable_revision!r}, "
             f"which is not the tracked pin {runtime.PINNED_OPENGWASDB_REVISION} "
             f"({runtime.OPENGWASDB_GIT_URL}). Run `pixi install` so the pinned runtime "
             "is used; never substitute an executable on PATH."
         )
-    return revision, version
+    return executable_revision, version
 
 
 def _dry_run_report(
@@ -203,7 +231,7 @@ def _dry_run_report(
         f"artifact root: {artifact_root}",
         f"store: {store_path}",
         f"core revision: {revision}",
-        f"workers: {workers}",
+        f"workers: {workers} (Zarr codec-pipeline workers; Blosc single-threaded)",
     ]
     if not plans:
         lines.append("nothing to re-encode; the Store is already correct")
@@ -220,19 +248,42 @@ def _dry_run_report(
     return "\n".join(lines)
 
 
-def _set_run_environment(store_id: str, artifact_root: Path, workers: int) -> None:
-    """Point temp files at the artifact root and cap Blosc at the requested workers."""
+def _apply_worker_config(workers: int) -> None:
+    """Set the one-shot process's Zarr async width and keep Blosc single-threaded.
+
+    zarr-python 3 resolves `codec_pipeline.max_workers` per codec-pipeline
+    operation, so this is the actual async concurrency of the re-encode's
+    chunk encodes/decodes.  Blosc's internal threads are a second, nested
+    level, so they are pinned to one: `--workers` selects the Zarr width,
+    never a multiplication of workers x threads (#326's "at most 16" cap).
+    """
+    zarr.config.set({"codec_pipeline.max_workers": workers})
+    numcodecs.blosc.set_nthreads(1)
+
+
+def _configure_run(store_id: str, artifact_root: Path, workers: int) -> None:
+    """Point temp files at the artifact root and apply the worker cap."""
     tmp = paths.tmp_dir(store_id, root=artifact_root)
     tmp.mkdir(parents=True, exist_ok=True)
     for variable in _TMPDIR_VARIABLES:
         # A dry run never reaches here, so creating the directory is fine.
         os.environ[variable] = str(tmp)
-    numcodecs.blosc.set_nthreads(workers)
+    _apply_worker_config(workers)
 
 
-def _record(results: list, *, store_id: str, revision: str, version: str, start: str, end: str, complete: bool) -> dict:
+def _record(
+    results: list,
+    *,
+    store_id: str,
+    revision: str,
+    version: str,
+    start: str,
+    end: str,
+    complete: bool,
+    verification_error: str | None = None,
+) -> dict:
     """The checked record: this run's per-array change, with the completeness verdict."""
-    return {
+    record = {
         "step": RECORD_STEP,
         "store_id": store_id,
         "opengwasdb_revision": revision,
@@ -240,6 +291,11 @@ def _record(results: list, *, store_id: str, revision: str, version: str, start:
         "start_time": start,
         "end_time": end,
         "complete": complete,
+        "verification": (
+            {"ok": False, "stage": "replan", "error": verification_error}
+            if verification_error is not None
+            else {"ok": True, "stage": "replan"}
+        ),
         "arrays": [
             {
                 "group": result.group,
@@ -253,6 +309,7 @@ def _record(results: list, *, store_id: str, revision: str, version: str, start:
             for result in results
         ],
     }
+    return record
 
 
 def _apply(
@@ -264,7 +321,7 @@ def _apply(
     version: str,
 ) -> int:
     """Run the core primitive and write the checked record, atomically."""
-    _set_run_environment(store_id, artifact_root, workers)
+    _configure_run(store_id, artifact_root, workers)
     start = _utc_now()
     try:
         results = _core_apply(store_path)
@@ -278,12 +335,15 @@ def _apply(
         print(f"se-reencode: {store_id} is already correct; nothing to do")
         return 0
 
+    verification_error: str | None = None
+    complete = False
+    remaining: list | None = None
     try:
         remaining = _core_plan(store_path)
+        complete = not remaining
     except Exception as exc:
-        raise ReencodeRefusal(
-            f"se-reencode of {store_id} applied but could not be re-planned: {exc}"
-        ) from exc
+        verification_error = str(exc)
+
     record = _record(
         results,
         store_id=store_id,
@@ -291,9 +351,29 @@ def _apply(
         version=version,
         start=start,
         end=end,
-        complete=not remaining,
+        complete=complete,
+        verification_error=verification_error,
     )
-    run._write_record_atomically(record, paths.record_path(store_id, RECORD_STEP, root=artifact_root))
+    record_path = paths.record_path(store_id, RECORD_STEP, root=artifact_root)
+    try:
+        run._write_record_atomically(record, record_path)
+    except OSError as exc:
+        print(
+            f"se-reencode: {store_id} was re-encoded ({len(results)} array(s) changed) "
+            f"but writing the record {record_path} failed: {exc}. The Store changed; "
+            "the record failed.",
+            file=sys.stderr,
+        )
+        return 1
+
+    if verification_error is not None:
+        print(
+            f"se-reencode: {store_id} was re-encoded ({len(results)} array(s) changed) "
+            f"and recorded complete=false, but the follow-up plan failed: "
+            f"{verification_error}.",
+            file=sys.stderr,
+        )
+        return 1
 
     lines = [
         f"se-reencode: re-encoded {len(results)} array(s) of {store_id}",
@@ -303,7 +383,7 @@ def _apply(
             f"{result.chunks} chunks"
             for result in results
         ),
-        f"se-reencode: wrote {paths.record_path(store_id, RECORD_STEP, root=artifact_root)}",
+        f"se-reencode: wrote {record_path}",
     ]
     if not remaining:
         lines.append(f"se-reencode: {store_id} is now fully re-encoded")

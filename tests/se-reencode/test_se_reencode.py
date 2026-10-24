@@ -37,6 +37,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
+import numcodecs.blosc
+import zarr
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from ogstores import release, runtime, se_reencode  # noqa: E402
@@ -351,6 +354,171 @@ class SeReencodeTestCase(unittest.TestCase):
         record_check()
         self.assertEqual(code, 1, out + err)
         self.assertIn("no published Store", err)
+
+    def test_symlink_store_is_refused(self) -> None:
+        """The command never re-encodes through a symlink Store path."""
+        store = self.artifacts / STORE_ID / "store.opengwasdb"
+        shutil.rmtree(store)
+        target = self.tmp / "real-store"
+        target.mkdir()
+        store.symlink_to(target, target_is_directory=True)
+        with mock.patch.object(se_reencode, "_core_apply") as core_apply:
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("symlink", err)
+        core_apply.assert_not_called()
+
+    def test_invalid_store_id_format_is_refused(self) -> None:
+        code, out, err = self.run_main(
+            "not-a-store",
+            "--artifact-root", str(self.artifacts),
+            "--registry-root", str(self.registry),
+        )
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("Invalid store_id format", err)
+
+    # --- audit trail: re-plan failure and record-write failure -----------
+
+    def test_replan_failure_writes_incomplete_record_and_exits_nonzero(self) -> None:
+        """A successful apply whose follow-up plan fails is recorded truthfully, then exits 1."""
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[result()]), \
+             mock.patch.object(se_reencode, "_core_plan", side_effect=RuntimeError("replan boom")):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("recorded complete=false", err)
+        self.assertIn("follow-up plan failed", err)
+        record = json.loads(self.record_path().read_text(encoding="utf-8"))
+        self.assertIs(record["complete"], False)
+        self.assertEqual(record["verification"], {"ok": False, "stage": "replan", "error": "replan boom"})
+        self.assertEqual(record["arrays"][0]["array"], "se")
+
+    def test_later_invocation_replaces_an_incomplete_record_after_a_successful_replan(self) -> None:
+        """An incomplete record is replaced by the next successful apply, never left stale."""
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[result()]), \
+             mock.patch.object(se_reencode, "_core_plan", side_effect=RuntimeError("replan boom")):
+            code, out, err = self.run_main(*self.base_argv())
+        self.assertEqual(code, 1, out + err)
+        self.assertIs(json.loads(self.record_path().read_text(encoding="utf-8"))["complete"], False)
+
+        second = result(group="data.zarr", array="se_exception_index", before_bytes=50, after_bytes=40)
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[second]), \
+             mock.patch.object(se_reencode, "_core_plan", return_value=[]):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 0, out + err)
+        record = json.loads(self.record_path().read_text(encoding="utf-8"))
+        self.assertIs(record["complete"], True)
+        self.assertEqual(record["verification"], {"ok": True, "stage": "replan"})
+        self.assertEqual([a["array"] for a in record["arrays"]], ["se_exception_index"])
+
+    def test_complete_record_is_never_rewritten_by_a_noop(self) -> None:
+        """A successful complete record is byte-identical after a later already-correct run."""
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[result()]), \
+             mock.patch.object(se_reencode, "_core_plan", return_value=[]):
+            code, out, err = self.run_main(*self.base_argv())
+        self.assertEqual(code, 0, out + err)
+        self.assertIs(json.loads(self.record_path().read_text(encoding="utf-8"))["complete"], True)
+        before = self.record_path().read_text(encoding="utf-8")
+
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[]):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("already correct", out)
+        self.assertEqual(self.record_path().read_text(encoding="utf-8"), before)
+
+    def test_record_write_oserror_reports_store_changed_and_record_failed(self) -> None:
+        """An atomic record-write OSError is a uniform refusal and names both facts."""
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[result()]), \
+             mock.patch.object(se_reencode, "_core_plan", return_value=[]), \
+             mock.patch.object(se_reencode.run, "_write_record_atomically", side_effect=OSError("disk full")):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("The Store changed", err)
+        self.assertIn("the record failed", err)
+        self.assertFalse(self.record_path().exists())
+        self.assertIsNone(release.lock_holder(STORE_ID, self.artifacts))
+
+    # --- runtime identity -------------------------------------------------
+
+    @contextlib.contextmanager
+    def _runtime_identity(self, executable_rev: str, ambient_rev: str):
+        def fake_revision(executable=None, env=None):
+            return ambient_rev if executable is None else executable_rev
+
+        with mock.patch.object(se_reencode.run, "get_opengwasdb_executable", return_value="/fake/bin/opengwasdb"), \
+             mock.patch.object(se_reencode.run, "get_opengwasdb_revision", side_effect=fake_revision), \
+             mock.patch.object(se_reencode.run, "get_opengwasdb_version", return_value="0.3.0"):
+            yield
+
+    def test_runtime_refuses_when_executable_prefix_differs_from_ambient(self) -> None:
+        with self._runtime_identity("deadbeef" * 5, runtime.PINNED_OPENGWASDB_REVISION):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("must be the same pinned runtime", err)
+
+    def test_runtime_refuses_when_ambient_metadata_differs_from_executable(self) -> None:
+        with self._runtime_identity(runtime.PINNED_OPENGWASDB_REVISION, "deadbeef" * 5):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("must be the same pinned runtime", err)
+
+    def test_runtime_refuses_an_unprovable_executable_revision(self) -> None:
+        with self._runtime_identity("unavailable", runtime.PINNED_OPENGWASDB_REVISION):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("cannot prove the opengwasdb executable revision", err)
+
+    def test_runtime_refuses_an_unprovable_ambient_revision(self) -> None:
+        with self._runtime_identity(runtime.PINNED_OPENGWASDB_REVISION, "unavailable"):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("cannot prove the imported opengwasdb distribution revision", err)
+
+    def test_runtime_refuses_a_revision_other_than_the_pin(self) -> None:
+        with self._runtime_identity("deadbeef" * 5, "deadbeef" * 5):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("not the tracked pin", err)
+
+    # --- worker semantics and TMPDIR --------------------------------------
+
+    def test_workers_set_zarr_concurrency_and_blosc_is_single_threaded(self) -> None:
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[result()]), \
+             mock.patch.object(se_reencode, "_core_plan", return_value=[]):
+            code, out, err = self.run_main(*(self.base_argv() + ["--workers", "5"]))
+        record_check()
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(zarr.config.get("codec_pipeline.max_workers"), 5)
+        self.assertEqual(numcodecs.blosc.get_nthreads(), 1)
+
+    def test_tmpdir_variables_point_at_the_artifact_root(self) -> None:
+        expected = str(self.artifacts / STORE_ID / "tmp")
+        with mock.patch.object(se_reencode, "_core_apply", return_value=[result()]), \
+             mock.patch.object(se_reencode, "_core_plan", return_value=[]):
+            code, out, err = self.run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(os.environ.get("TMPDIR"), expected)
+        self.assertEqual(os.environ.get("TMP"), expected)
+        self.assertEqual(os.environ.get("TEMP"), expected)
+        self.assertTrue((self.artifacts / STORE_ID / "tmp").is_dir())
+
+    def test_dry_run_reports_the_effective_worker_semantics(self) -> None:
+        with mock.patch.object(se_reencode, "_core_plan", return_value=[plan()]):
+            code, out, err = self.run_main(*(self.base_argv() + ["--dry-run", "--workers", "3"]))
+        record_check()
+        self.assertEqual(code, 0, out + err)
+        self.assertIn("workers: 3 (Zarr codec-pipeline workers; Blosc single-threaded)", out)
 
 
 def main() -> None:
