@@ -12,10 +12,11 @@ Every Analysis gets one Trait Ontology Mapping and the method that produced it:
    lookup is offline and its version and sha256 are recorded;
 3. ``unmapped``: otherwise, with the id and label left empty.
 
-The lookup lives in this registry, not OpenGWASDB (ADR 0021). This module
-replaces ``resources/generators/lib/metadata_resolvers/canonical_trait_table.R``
-for the Python pipeline; the R generators keep using that file until they
-retire (epic #282).
+The lookup lives in this registry, not OpenGWASDB (ADR 0021). This module is
+the only Trait Ontology Mapping step: it replaced
+``resources/generators/lib/metadata_resolvers/canonical_trait_table.R`` for the
+pipeline, and #350 deleted that file once curation's round-trip proof ran
+through here instead.
 
 **Normalisation.** A source term is split by the contract's one rule
 (``ogstores.bundle.trait_ontology_id_terms``) and each term becomes a CURIE:
@@ -181,7 +182,7 @@ class TraitOntologyMappingRun:
 
 
 def _normalise_label(label: str) -> str:
-    """The lookup key: trimmed and lower-cased, as the R resolver does."""
+    """The lookup key: trimmed and lower-cased."""
     return label.strip().lower()
 
 

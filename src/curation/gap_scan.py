@@ -17,9 +17,9 @@ What it does
 - Selects only rows whose `trait_ontology_mapping_method` is `unmapped`.
 - Normalises each row's Trait label exactly as the Canonical Trait Mapping
   Table lookup does -- trim, then lowercase
-  (`resources/generators/lib/metadata_resolvers/canonical_trait_table.R`,
-  `.normalise_trait_label`) -- so labels differing only by case or surrounding
-  whitespace collapse into one queue entry.
+  (`manifest_generation.trait_ontology_mapping`, which reads the table) -- so
+  labels differing only by case or surrounding whitespace collapse into one
+  queue entry.
 - Sums the occurrence count across every scanned Manifest and records the
   Store Families the label appeared in.
 - Writes, in descending occurrence order, a three-column TSV to stdout or to
@@ -61,6 +61,8 @@ from pathlib import Path
 from typing import Iterable, Sequence
 
 import yaml
+
+from curation.ontology import normalize_trait_label
 
 ANALYSES_FILENAME: str = "analyses.tsv"
 RELEASE_FILENAME: str = "release.yaml"
@@ -127,16 +129,6 @@ class QueueEntry:
             str(self.occurrence_count),
             ",".join(self.store_families),
         ]
-
-
-def normalize_trait_label(label: str | None) -> str:
-    """Normalise a trait label exactly as the canonical-table lookup does.
-
-    `trimws(tolower(x))` in the R resolver: strip surrounding whitespace, then
-    lowercase. Labels that differ only by case or surrounding whitespace are the
-    same curation candidate.
-    """
-    return (label or "").strip().lower()
 
 
 def resolve_manifest_path(path: Path | str) -> Path:

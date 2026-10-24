@@ -243,7 +243,7 @@ def _shortlist_lookup(
     """Index shortlists by the gap-scan-normalised trait label.
 
     The harvest's labels and the work queue's labels can differ in case and
-    surrounding whitespace; keying on the same ``trimws(tolower(x))``
+    surrounding whitespace; keying on the same trimmed, lower-cased
     normalisation the canonical-table lookup uses makes them meet.
     """
     lookup: dict[str, tuple[str, list[Candidate]]] = {}

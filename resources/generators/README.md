@@ -8,13 +8,13 @@ directory holds its **inputs**:
 ```text
 <generator>/           release configs (release-*.yaml, docs/spec/release-config.md),
                        reviewed tables, generation-*.yaml receipts and README
-lib/metadata_resolvers/    the R metadata resolvers curation's round-trip still sources
 ```
 
 Recorded config paths and receipts resolve here, so these files do not move.
-The two R resolvers are the only code here: `resources/` holds inputs
-(ADR 0038), and `tests/packaging/test_layout.py` lists each R file with the
-ticket that retires it.
+Nothing here is code: `resources/` holds inputs (ADR 0038), and the R metadata
+resolvers that lived under `lib/metadata_resolvers/` were the last of it, deleted
+with #350 once curation's round-trip proof moved onto the pipeline's Python
+Trait Ontology Mapping.
 The code that reads them:
 
 ```text

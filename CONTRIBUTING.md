@@ -244,7 +244,7 @@ else. Code that is neither a workflow's nor a test goes in `tools/`.
 `tests/packaging/test_layout.py` enforces the layout:
 - no Python outside `src/`, `tests/`, `tools/` and `workflow/`;
 - no package outside `src/` and `tests/`;
-- no code under `resources/` but the listed R metadata resolvers.
+- no code at all under `resources/`.
 
 To place a new file:
 1. Something the repository produces goes in `stores/`, or in `docs/` if it
@@ -404,13 +404,13 @@ config paths and receipts resolve here, so they do not move. The code that
 reads them is in `src/manifest_generation/`.
 
 Every source's connectors and release config are on the shared pipeline
-(ADR 0036), so the only code left here is the two R metadata resolvers under
-`lib/metadata_resolvers/` that curation's R-resolver round-trip still sources.
-`tests/packaging/test_layout.py` lists each with the ticket that retires it.
-That is the code's migration, not a collection's: a collection's move onto the
-pipeline is not finished until its full comparison run against the accepted
-bundle is made and every difference explained, and two are still pending --
-FinnGen's (`OGS-00017`) and ukb-b's (`OGS-00009`).
+(ADR 0036), and `resources/` is inputs only: the last two R metadata resolvers
+under `lib/metadata_resolvers/` were the only code left here, and #350 deleted
+them once curation's round-trip proof moved onto the pipeline's Trait Ontology
+Mapping. That is the code's migration, not a collection's: a collection's move
+onto the pipeline is not finished until its full comparison run against the
+accepted bundle is made and every difference explained, and two are still
+pending -- FinnGen's (`OGS-00017`) and ukb-b's (`OGS-00009`).
 
 A generator's only output is a bundle directory. It never builds a Store, and
 it invokes statistics rather than implementing them: if two Store Families
