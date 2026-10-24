@@ -12,7 +12,8 @@
 # (--adopt-prefix names the durable location of the writer's output):
 #   python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
 #     --prefix /data/opengwasdb/raw/eqtlgen/full-19250 --tissue whole_blood \
-#     --study-total 31684 --first-author Võsa --publication-pmid 34475573 \
+#     --sample-size-table /data/opengwasdb/raw/eqtlgen/full-19250.sample-size.tsv.gz \
+#     --first-author Võsa --publication-pmid 34475573 \
 #     --gene-symbols resources/generators/eqtlgen-cis/connectors/gene-symbols.tsv \
 #     --out resources/generators/eqtlgen-cis/connectors/eqtlgen-full.source-metadata.tsv
 #   (gene-symbols.tsv, with its lineage in gene-symbols.tsv.meta.yaml, is written by
@@ -50,18 +51,23 @@ notes: >
   construction and the original_sd cell stays blank, as for every
   declared_standardised tier. An estimated SD would only measure
   sqrt(31,684 / pair N): 29% of a 200-probe trial exceeded 1.5, and TNF's 2.04 is
-  an N of about 7,600. Each Analysis's sample_size is the maximum over its pairs
-  of N = 1 / (2p(1-p) se^2) - z^2 (z = b / se, p the .esi frequency), rounded to
-  the nearest integer, over pairs with finite N and |z| >= 1, then capped at the
-  study total of 31,684. The |z| bound is measured: against the published per-pair
-  NrSamples (12 genes, 85,079 pairs) the derived N's relative error is up to 300%
-  for |z| < 0.001, 0.4% at most for |z| 0.1-0.5, 0.08% for 0.5-1 and 0.04% from 1
-  up; unbounded, 61% of probes took an N above 31,684. The cap absorbs what
-  rounding noise remains (5,443 probes above 31,684, by at most 13). 5,456 of the
-  19,250 probes (28%) take the cap: at least one of their pairs was measured in the
-  study's full cohort set (N 31,684); the rest were covered by fewer cohorts
-  (median 28,927, 1st percentile 3,833, minimum 232). sample_size_kind
-  is variant_level. Per-association N is not stored yet (opengwasdb#302). The study
+  an N of about 7,600. Each Analysis's sample_size is the maximum of its probe's
+  published per-pair N (the NrSamples of the published cis-eQTL file, read from the
+  sample-size table below), so it equals the maximum of the Store's own n plane
+  and is never recovered from the BESD. 5,465 of the 19,250 probes (28%) have a
+  pair at the study total of 31,684, measured in the study's full cohort set; the
+  rest were covered by fewer cohorts (minimum 232). sample_size_kind
+  is variant_level. Per-association N is stored: each stored (probe, SNP) pair
+  carries eQTLGen's published NrSamples (opengwasdb#302, ADR 0067), joined from the
+  published cis-eQTL file by a sample-size table aligned to this file set; a pair
+  the published file lacks is missing, never estimated. The Analysis-level
+  sample_size above is that same maximum, so the two agree. The .esi
+  allele frequency is stored per association too, oriented to the effect allele
+  and checked once against the UK Biobank "United Kingdom" frequencies
+  (ukb-ancestry-mixture-hg38-uk-eaf), never an hgdp1kgp-hg38 panel. The reference
+  is a single table, so no eaf-reference-ancestry is passed: opengwasdb ignores it for
+  a table, and the population is the table's column (United Kingdom). SE stays float16
+  beside the n plane (ADR 0067 section 4). The study
   is Võsa et al., Nature Genetics 2021 (PMID 34475573, DOI 10.1038/s41588-021-00913-z),
   published at https://eqtlgen.org/cis-eqtls.html; each Analysis is labelled with
   eQTLGen's published gene symbol (connectors/gene-symbols.tsv, from the published
@@ -73,7 +79,7 @@ source_collection:
     source_metadata_table: resources/generators/eqtlgen-cis/connectors/eqtlgen-full.source-metadata.tsv
     acquisition_manifest: resources/generators/eqtlgen-cis/connectors/eqtlgen-full.acquisition-manifest.tsv
   inventory:
-    snapshot_id: eqtlgen-cis-full-2026-10-22d
+    snapshot_id: eqtlgen-cis-full-2026-10-24
     directory: resources/inventories
 
 # Every row of the Source Metadata Table: the 19,250 probes of the .epi.
@@ -88,6 +94,20 @@ build:
   command: build-ragged-besd
   options:
     source-build: hg19
+    # Per-association N from eQTLGen's published NrSamples, aligned to the file
+    # set (#302, ADR 0067). Written by
+    #   python3 -m manifest_generation.providers.eqtlgen.sample_size_table \\
+    #     --published <the cis-eQTL file> --source-url <its URL> \\
+    #     --prefix /data/opengwasdb/raw/eqtlgen/full-19250 \\
+    #     --out /data/opengwasdb/raw/eqtlgen/full-19250.sample-size.tsv.gz
+    # with its lineage in <table>.provenance.yaml.
+    sample-size-table: /data/opengwasdb/raw/eqtlgen/full-19250.sample-size.tsv.gz
+    # Store the .esi frequency per association, checked once against the UK
+    # Biobank "United Kingdom" frequencies (ukb-ancestry-mixture-hg38-uk-eaf below).
+    # Never an hgdp1kgp-hg38 panel: its EAF is the other allele's (#348). The table
+    # is one population's column, so there is no --eaf-reference-ancestry.
+    store-esi-eaf: true
+    eaf-reference: /data/opengwasdb/reference/ancestry-mixture/ref_eaf.united-kingdom.hg38.tsv.gz
   post:
     top_hits: false
     overview: false
@@ -96,15 +116,14 @@ defaults:
   # The source's build: eQTLGen's coordinates are hg19, and the resolver lifts
   # them to the reference's GRCh38.
   source_genome_build: GRCh37
-  sample_size_scope: analysis_level
+  sample_size_scope: variant_level
   # eQTLGen's beta and SE are z-standardised with each SNP-gene pair's own N
   # (b = z / sqrt(2p(1-p)(N + z^2)), se = 1 / sqrt(2p(1-p)(N + z^2))), so the
   # effect scale is SD units by construction and the tier declares it
   # (declared_standardised) instead of estimating a phenotype SD: an estimate would
   # only measure sqrt(study N / pair N). The resolver then reports
   # phenotype_sd scale_already_declared (#300). The Analysis's N is the maximum
-  # over its pairs, derived from the file (see notes), so its kind is
-  # variant_level.
+  # of its pairs' published N (see notes), so its kind is variant_level.
   by_study_design:
     quantitative:
       stored_effect_scale: sd
@@ -129,6 +148,14 @@ reference_resources:
     location_kind: external_file
     fine_group_map: /data/opengwasdb/reference/ancestry-mixture/ancestry_groups.tsv
     # Canonical declaration: resources/reference-resources/ukb-ancestry-mixture-hg38/resource.yaml
+  - resource_id: ukb-ancestry-mixture-hg38-uk-eaf
+    kind: reference_af
+    ancestry: EUR
+    genome_build: GRCh38
+    variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+    location: /data/opengwasdb/reference/ancestry-mixture/ref_eaf.united-kingdom.hg38.tsv.gz
+    location_kind: external_file
+    # Canonical declaration: resources/reference-resources/ukb-ancestry-mixture-hg38-uk-eaf/resource.yaml
   - resource_id: liftover-hg19-to-hg38
     kind: liftover_chain
     location: /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz

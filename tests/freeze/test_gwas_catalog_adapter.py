@@ -20,6 +20,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from manifest_generation.acquisition_manifest import ACQUISITION_MANIFEST
+from manifest_generation.connector_tsv import write_connector
 from manifest_generation.providers.gwas_catalog.source_metadata_adapter import (
     AdapterError,
     convert_candidate_table,
@@ -38,10 +40,33 @@ class GwasCatalogAdapterTest(unittest.TestCase):
     def tearDown(self) -> None:
         self._tmp.cleanup()
 
-    def convert(self, source: Path = FIXTURE):
+    def convert(self, source: Path = FIXTURE, acquisition_manifest: Path | None = None):
         out = self.tmp / "source-metadata.tsv"
-        convert_candidate_table(source, out)
+        convert_candidate_table(source, out, acquisition_manifest=acquisition_manifest)
         return load_source_metadata_table(out)
+
+    def sidecar(self, analysis_id: str, text: str) -> Path:
+        path = self.tmp / f"{analysis_id}.h.tsv.gz-meta.yaml"
+        path.write_text(text, encoding="utf-8")
+        return path
+
+    def acquisition_manifest(self, sidecars: dict[str, Path], *, not_ready: tuple[str, ...] = ()) -> Path:
+        """An Acquisition Manifest recording each sidecar, ready unless named in ``not_ready``."""
+        columns = ("source_analysis_id", "status", "location", "bytes", "sha256", "sidecar_location")
+        rows = [
+            {
+                "source_analysis_id": analysis_id,
+                "status": "data_failed" if analysis_id in not_ready else "ok",
+                "location": "" if analysis_id in not_ready else f"/mirror/{analysis_id}.h.tsv.gz",
+                "bytes": "" if analysis_id in not_ready else "10",
+                "sha256": "" if analysis_id in not_ready else "a" * 64,
+                "sidecar_location": str(path),
+            }
+            for analysis_id, path in sidecars.items()
+        ]
+        out = self.tmp / "acquisition-manifest.tsv"
+        write_connector(out, ACQUISITION_MANIFEST, columns, rows)
+        return out
 
     def test_fixture_exercises_its_edge_cases(self) -> None:
         text = FIXTURE.read_text(encoding="utf-8")
@@ -83,11 +108,71 @@ class GwasCatalogAdapterTest(unittest.TestCase):
             },
         )
 
-    def test_collection_wide_values_are_left_to_the_release_config(self) -> None:
-        """Genome build and licence are not per-Analysis source facts here; #287's config supplies them."""
+    def test_the_licence_is_left_to_the_release_config(self) -> None:
+        """The terms of use are not a per-Analysis source fact here; #287's config supplies them."""
+        self.assertNotIn("license", self.convert().columns)
+
+    def test_without_an_acquisition_manifest_the_sidecar_facts_are_absent(self) -> None:
         table = self.convert()
-        self.assertNotIn("source_genome_build", table.columns)
-        self.assertNotIn("license", table.columns)
+        self.assertEqual({row["genotyping_technology"] for row in table.rows}, {""})
+        self.assertEqual({row["source_genome_build"] for row in table.rows}, {""})
+
+    def test_a_ready_analysis_takes_its_technology_and_build_from_its_sidecar(self) -> None:
+        """Literal values: technologies ``;``-joined in the sidecar's order, the build as declared (#347)."""
+        sidecars = {
+            "GCST000028": self.sidecar(
+                "GCST000028",
+                "gwas_id: GCST000028\ngenome_assembly: GRCh38\n"
+                "genotyping_technology:\n- Genome-wide genotyping array\n- Exome genotyping array\n",
+            ),
+            "GCST001526": self.sidecar(
+                "GCST001526", "genome_assembly: GRCh38\ngenotyping_technology: Whole genome sequencing\n"
+            ),
+            "GCST90006908": self.sidecar("GCST90006908", "genome_assembly: GRCh38\n"),
+            # Acquisition did not produce this file, so its sidecar is not read.
+            "GCST90011771": self.sidecar("GCST90011771", "genome_assembly: [not read\n"),
+        }
+        table = self.convert(acquisition_manifest=self.acquisition_manifest(sidecars, not_ready=("GCST90011771",)))
+        got = {
+            analysis_id: (table.row(analysis_id)["genotyping_technology"], table.row(analysis_id)["source_genome_build"])
+            for analysis_id in table.analysis_ids
+        }
+        self.assertEqual(
+            got,
+            {
+                "GCST000028": ("Genome-wide genotyping array;Exome genotyping array", "GRCh38"),
+                "GCST001526": ("Whole genome sequencing", "GRCh38"),
+                "GCST90006908": ("", "GRCh38"),
+                "GCST90038595": ("", ""),
+                "GCST90501976": ("", ""),
+                "GCST90727297": ("", ""),
+                "GCST90011771": ("", ""),
+            },
+        )
+
+    def test_an_unreadable_sidecar_is_refused_by_name(self) -> None:
+        """An unreadable sidecar must not read as 'no technology', which the MAF exemption treats as not exempt."""
+        cases = {
+            "unparseable": "genome_assembly: [GRCh38\n",
+            "not a mapping": "- GRCh38\n",
+            "technology of the wrong type": "genotyping_technology: {a: b}\n",
+            "technology containing the separator": "genotyping_technology: ['Array; exome']\n",
+        }
+        for label, text in cases.items():
+            with self.subTest(label):
+                path = self.sidecar("GCST000028", text)
+                with self.assertRaises(AdapterError) as caught:
+                    self.convert(acquisition_manifest=self.acquisition_manifest({"GCST000028": path}))
+                self.assertIn("GCST000028", str(caught.exception))
+                self.assertIn(str(path), str(caught.exception))
+                self.assertFalse((self.tmp / "source-metadata.tsv").exists())
+
+    def test_a_recorded_sidecar_that_is_missing_is_refused_by_name(self) -> None:
+        absent = self.tmp / "GCST000028.h.tsv.gz-meta.yaml"
+        with self.assertRaises(AdapterError) as caught:
+            self.convert(acquisition_manifest=self.acquisition_manifest({"GCST000028": absent}))
+        self.assertIn("GCST000028", str(caught.exception))
+        self.assertIn("unreadable", str(caught.exception))
 
     def test_quantitative_case_counts_are_absent_not_zero(self) -> None:
         """ebi-studies.r writes 0/0 for a quantitative study; zero would claim a count (#133)."""
@@ -171,6 +256,15 @@ class GwasCatalogAdapterTest(unittest.TestCase):
         out = self.tmp / "cli.tsv"
         self.assertEqual(main(["--candidates", str(FIXTURE), "--out", str(out)]), 0)
         self.assertEqual(len(load_source_metadata_table(out).rows), 7)
+
+    def test_the_command_reads_sidecars_through_the_acquisition_manifest(self) -> None:
+        manifest = self.acquisition_manifest(
+            {"GCST000028": self.sidecar("GCST000028", "genotyping_technology: [Exome sequencing]\n")}
+        )
+        out = self.tmp / "cli.tsv"
+        code = main(["--candidates", str(FIXTURE), "--acquisition-manifest", str(manifest), "--out", str(out)])
+        self.assertEqual(code, 0)
+        self.assertEqual(load_source_metadata_table(out).row("GCST000028")["genotyping_technology"], "Exome sequencing")
 
 
 if __name__ == "__main__":

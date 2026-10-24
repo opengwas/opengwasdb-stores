@@ -55,11 +55,9 @@ Covered:
   file lives outside `src/`, `tests/`, `tools/` and `workflow/`, which
   catches a root module or a namespace package such as `rogue/module.py`, and
   only `src/` and `tests/` hold packages. Nothing under `resources/` is code
-  (by suffix, a Snakefile, or a shebang line) except two R metadata resolvers
-  curation's R-resolver round-trip still sources, each listed in
-  `LEGACY_R_GENERATORS` with the ticket that retires it; a listed file that is
-  gone fails, so the list only shrinks.
-  `resources/scripts/` stays gone. A positive control pins each scanner.
+  (by suffix, a Snakefile, or a shebang line): the last two R metadata resolvers
+  went with #350, so the rule needs no allow-list. `resources/scripts/` stays
+  gone. A positive control pins each scanner.
 - `test_tool_paths.py` (#317): every moved script that derives the repository
   root from `__file__` resolves its defaults inside this checkout. It runs
   `check_allele_orientation.py --plan-only`, the site build with stand-in

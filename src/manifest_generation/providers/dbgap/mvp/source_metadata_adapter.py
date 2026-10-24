@@ -27,9 +27,13 @@ What it translates, and only this:
 - **Case counts apply only to case-control Analyses.** A quantitative study's
   mapping writes ``0``/``0``; a zero count is not an absence, so the adapter
   writes blank (#133).
-- **Collection-wide facts are the release config's.** The GRCh38 build, the
-  licence and the DOI are not per-Analysis facts in the deposit, so they are
-  not written; the release config's ``defaults`` supply them.
+- **The genome build is written per Analysis** (:data:`SOURCE_GENOME_BUILD`):
+  the deposit's coordinates are GRCh38, and the acquisition's ``-meta.yaml``
+  says so. Writing it keeps the canonical build check over this source (#347);
+  preflight no longer reads the sidecar.
+- **The other collection-wide facts are the release config's.** The licence
+  and the DOI are not per-Analysis facts in the deposit, so they are not
+  written; the release config's ``defaults`` supply them.
 
 Usage:
     python3 -m manifest_generation.providers.dbgap.mvp.source_metadata_adapter \\
@@ -68,6 +72,9 @@ from manifest_generation.source_metadata_table import (
 
 #: The publication the Source Collection is.
 PUBMED_ID: str = "39024449"
+
+#: The deposit's genome build: every MVP summary-statistic file is GRCh38.
+SOURCE_GENOME_BUILD: str = "GRCh38"
 
 #: The deposit's ancestry buckets, as they appear in a member name.
 ANCESTRIES: tuple[str, ...] = ("AFR", "AMR", "EAS", "EUR", "META")
@@ -117,6 +124,7 @@ OUTPUT_COLUMNS: tuple[str, ...] = (
     "sample_size",
     "n_cases",
     "n_controls",
+    "source_genome_build",
     "publication_pmid",
     "store_key",
 )
@@ -331,6 +339,7 @@ def _convert_row(
         # A count applies only to a case-control study; zero is not absence.
         "n_cases": str(n_cases) if study_design == "case-control" else "",
         "n_controls": str(n_controls) if study_design == "case-control" else "",
+        "source_genome_build": SOURCE_GENOME_BUILD,
         "publication_pmid": PUBMED_ID,
         "store_key": STORE_KEY_BY_ANCESTRY[ancestry],
     }

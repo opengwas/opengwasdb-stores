@@ -33,6 +33,14 @@ a canonical column; `META` is deliberately imprecise and has no single
 super-population. The shared `providers/dbgap/metadata.py` holds the tar/TOC and
 metadata parsing both the acquisition and adapter use.
 
+The connector carries `source_genome_build` (`GRCh38`) on every row (#347), so
+the canonical preflight build check covers this source. The five snapshots
+`dbgap-phs002453-*-2026-10-24` were re-frozen for it; their inventory TSVs are
+byte-identical to the `2026-10-21c` ones, which stay as history. The adapter
+reproduces 6,020 of the 6,022 rows from the acquisition's `mapping.tsv`; the
+two the discrepancy ledger added (`GCST90476298`, `GCST90481129`) are not in
+that file, so their rows were kept and given the adapter's constant build.
+
 ## The five Selections
 
 | Store | Release config | `store_key` | `expect_rows` |

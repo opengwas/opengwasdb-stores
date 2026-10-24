@@ -31,7 +31,7 @@ from manifest_generation.source_metadata_table import load_source_metadata_table
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CONFIG = REPO_ROOT / "resources" / "generators" / "eqtlgen-cis" / "release-full.yaml"
-SNAPSHOT = REPO_ROOT / "resources" / "inventories" / "eqtlgen-cis-full-2026-10-22d"
+SNAPSHOT = REPO_ROOT / "resources" / "inventories" / "eqtlgen-cis-full-2026-10-24"
 PROBES = 19250
 
 
@@ -47,14 +47,15 @@ class FullReleaseTest(unittest.TestCase):
         rows = select(frozen, load_selection(CONFIG))
         self.assertEqual(len(rows), PROBES)
         self.assertEqual(len({row["source_probe_id"] for row in rows}), PROBES)
-        # Each probe's maximum pair N, derived from the BESD (#314): literals, from the
-        # published per-pair NrSamples (TNF's maximum is 14,263; the derived 14,267 is
-        # within the stored values' 0.04% rounding), and the study total as the cap.
+        # Each probe's maximum published pair N (the per-pair table's NrSamples, #282):
+        # literals from the published file (TNF's maximum is 14,263). The study total
+        # is the ceiling, not a cap the adapter applies.
         sizes = {row["source_probe_id"]: int(row["sample_size"]) for row in rows}
-        self.assertEqual(sizes["ENSG00000232810"], 14267)
-        self.assertEqual(sizes["ENSG00000253755"], 5504)
+        self.assertEqual(sizes["ENSG00000232810"], 14263)
+        self.assertEqual(sizes["ENSG00000253755"], 5502)
         self.assertEqual(max(sizes.values()), 31684)
-        self.assertEqual(sum(1 for n in sizes.values() if n == 31684), 5456)
+        self.assertEqual(sum(1 for n in sizes.values() if n == 31684), 5465)
+        self.assertEqual(min(sizes.values()), 232)
         self.assertTrue(all(0 < n <= 31684 for n in sizes.values()))
         self.assertEqual({row["tissue"] for row in rows}, {"whole_blood"})
         # Publication metadata on every row, and eQTLGen's published gene symbol as the label.

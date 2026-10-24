@@ -1,0 +1,31 @@
+resource_id: ukb-ancestry-mixture-hg38-uk-eaf
+label: UK Biobank "United Kingdom" effect-allele frequencies (the EAF reference for BESD Stores)
+kind: reference_af
+ancestry: EUR
+genome_build: GRCh38
+variant_id_convention: "chr:pos:A1:A2 (A1 = min(allele1, allele2))"
+allele_columns:
+  effect: A1 of the alid
+  other: A2 of the alid
+  freq: eaf
+location: /data/opengwasdb/reference/ancestry-mixture/ref_eaf.united-kingdom.hg38.tsv.gz
+location_kind: external_file
+derived_from_resource_id: ukb-ancestry-mixture-hg38
+description: >
+  The "United Kingdom" fine-group column of ukb-ancestry-mixture-hg38 as a
+  two-column table, `alid` and `eaf`, the input `opengwasdb build-ragged-besd
+  --eaf-reference` reads to check an `.esi` frequency's orientation (ADR 0067,
+  opengwasdb#302). The source already orients every fine group's frequency to
+  the alid's canonical A1, so the column is copied unchanged, in the source's
+  row order; a row with no frequency is dropped. It is the owner-chosen
+  reference for the full eQTLGen Store (OGS-00027). It is never replaced by an
+  hgdp1kgp-hg38 panel, whose `EAF` column is the other allele's frequency (#348).
+status: available
+notes: >
+  Built by tools/reference-resources/ukb-ancestry-mixture-hg38-uk-eaf/build_uk_eaf.py,
+  which writes `<location>.meta.yaml` beside the table: the source's sha256
+  (067914e0c21fe2f0d464f8489e7d91bd4eeafdbf71bc0b93e895a2117ddc0925, 494,105,972
+  bytes) and the table's own sha256 (b41d00e6109f7620263e74486b1061a1a88bc88644b1514b0978a641a0b52e88, 5,810,529 rows) and row counts. The table lives outside
+  this repository under the reference root and is never tracked here. It is a
+  single table, so a build passes it as `--eaf-reference` with no
+  `--eaf-reference-ancestry`: the population is chosen here, by the column.

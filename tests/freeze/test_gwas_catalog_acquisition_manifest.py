@@ -22,10 +22,14 @@ import yaml
 
 from manifest_generation.acquisition_manifest import load_acquisition_manifest
 from manifest_generation.providers.gwas_catalog.write_acquisition_manifest import (
+    AcquisitionPass,
     main,
+    parse_freeze_inputs,
+    parse_pass_arguments,
+    read_acquisition_pass,
     write_from_passes,
 )
-from manifest_generation.source_inventory import AcquisitionPass, InventoryError, sha256_file
+from manifest_generation.source_inventory import InventoryError, PreflightConfigError, sha256_file
 
 PASS_HEADER = (
     "analysis_id", "publication_pmid", "trait", "study_design", "sample_size", "status",
@@ -114,6 +118,68 @@ class AcquisitionManifestWriterTest(unittest.TestCase):
             code = main(["--pass", "no-equals-sign", "--out", str(self.out)])
         self.assertEqual(code, 1)
         self.assertIn("--pass expects ROLE=PATH", err.getvalue())
+
+    def test_a_pass_with_a_duplicate_or_unknown_row_is_refused(self) -> None:
+        duplicate = self.write_pass("dup", [ready("GCST1", "a"), ready("GCST1", "b")])
+        with self.assertRaises(InventoryError) as caught:
+            read_acquisition_pass(duplicate)
+        self.assertIn("duplicate analysis_id: GCST1", str(caught.exception))
+        unknown = self.write_pass("unknown", [{**ready("GCST1", "a"), "status": "teleported"}])
+        with self.assertRaises(InventoryError) as caught:
+            read_acquisition_pass(unknown)
+        self.assertIn("unknown readiness status: teleported", str(caught.exception))
+
+
+class FreezeInputsTest(unittest.TestCase):
+    """The ordered ``{role, path}`` passes a config or the command line declares (moved from #151's tests, #347)."""
+
+    CONFIG = Path("config.yaml")
+
+    def test_preserves_the_declared_order(self) -> None:
+        passes = parse_freeze_inputs(
+            [{"role": "rescue", "path": "/m/rescue.tsv"}, {"role": "base", "path": "/m/base.tsv"}],
+            self.CONFIG,
+        )
+        self.assertEqual([entry.role for entry in passes], ["rescue", "base"])
+        self.assertEqual(passes[0].path, Path("/m/rescue.tsv"))
+        self.assertEqual(passes[1].path, Path("/m/base.tsv"))
+
+    def test_rejects_an_empty_pass_list(self) -> None:
+        with self.assertRaises(PreflightConfigError) as caught:
+            parse_freeze_inputs([], self.CONFIG)
+        self.assertIn("non-empty ordered list", str(caught.exception))
+
+    def test_rejects_a_duplicate_role(self) -> None:
+        with self.assertRaises(PreflightConfigError) as caught:
+            parse_freeze_inputs(
+                [{"role": "base", "path": "/m/a.tsv"}, {"role": "base", "path": "/m/b.tsv"}], self.CONFIG
+            )
+        self.assertIn("declares role 'base' twice", str(caught.exception))
+
+    def test_rejects_an_entry_missing_role_or_path(self) -> None:
+        for entry in (
+            {"path": "somewhere.tsv"},
+            {"role": "base"},
+            {"role": "", "path": "somewhere.tsv"},
+            {"role": "base", "path": ""},
+        ):
+            with self.subTest(entry=entry):
+                with self.assertRaises(PreflightConfigError) as caught:
+                    parse_freeze_inputs([entry], self.CONFIG)
+                self.assertIn("non-empty 'role' and 'path'", str(caught.exception))
+
+    def test_rejects_a_non_mapping_entry(self) -> None:
+        with self.assertRaises(PreflightConfigError) as caught:
+            parse_freeze_inputs(["base-manifest.tsv"], self.CONFIG)
+        self.assertIn("is not a mapping", str(caught.exception))
+
+    def test_command_line_passes_keep_their_order_and_refuse_a_repeated_role(self) -> None:
+        passes = parse_pass_arguments(["rescue=/m/r.tsv", "base=/m/b.tsv"], flag="--pass")
+        self.assertEqual([(entry.role, entry.path) for entry in passes],
+                         [("rescue", Path("/m/r.tsv")), ("base", Path("/m/b.tsv"))])
+        with self.assertRaises(PreflightConfigError) as caught:
+            parse_pass_arguments(["base=/m/a.tsv", "base=/m/b.tsv"], flag="--pass")
+        self.assertIn("--pass declares role 'base' twice", str(caught.exception))
 
 
 if __name__ == "__main__":

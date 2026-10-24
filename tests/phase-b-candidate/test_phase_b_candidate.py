@@ -85,7 +85,6 @@ from manifest_generation.candidate_workflow import (  # noqa: E402
     map_candidate_trait_ontologies,
     read_analysis_metadata,
     trait_sources,
-    read_genotyping_technologies,
     read_effect_placeholder_exclusions,
     read_maf_filter_exempt_analyses,
     read_resolution_receipt,
@@ -180,8 +179,8 @@ FROZEN_AT = "2026-09-21T00:00:00Z"
 SOURCE_METADATA_HEADER = (
     "source_analysis_id", "source_trait_label", "source_trait_ontology_id",
     "source_trait_ontology_label", "source_ancestry_label", "source_superpopulation",
-    "study_design", "sample_size", "n_cases", "n_controls", "publication_pmid",
-    "first_author", "store_key",
+    "study_design", "sample_size", "n_cases", "n_controls", "genotyping_technology",
+    "publication_pmid", "first_author", "store_key",
 )
 ACQUISITION_MANIFEST_HEADER = (
     "source_analysis_id", "status", "location", "bytes", "sha256", "source_url",
@@ -238,10 +237,15 @@ def _sha256_bytes(data: bytes) -> str:
 class FixtureBuilder:
     """Build one self-consistent fixture tree in a temporary directory."""
 
-    def __init__(self, root: Path, bodies=None) -> None:
+    def __init__(self, root: Path, bodies=None, *, technologies=None, sidecar_technologies=None) -> None:
         #: Optional ``analysis_id -> bytes`` for the mirror's source files; the
         #: default is a placeholder body only the fake resolver can read.
         self.bodies = bodies
+        #: Optional ``analysis_id -> text`` for the Source Metadata Table's
+        #: ``genotyping_technology`` column, and for what each sidecar says
+        #: (a list in ``;``-less form) -- the two may disagree, to prove which is read (#347).
+        self.technologies = technologies or {}
+        self.sidecar_technologies = sidecar_technologies or {}
         self.root = root
         self.mirror = root / "mirror"
         self.mirror.mkdir(parents=True, exist_ok=True)
@@ -285,9 +289,12 @@ class FixtureBuilder:
                 data_path = self.mirror / f"{analysis_id}.h.tsv.gz"
                 data_path.write_bytes(body)
                 meta_path = self.mirror / f"{analysis_id}.h.tsv.gz-meta.yaml"
-                meta_path.write_text(
-                    META_TEMPLATE.format(analysis_id=analysis_id), encoding="utf-8"
-                )
+                meta_text = META_TEMPLATE.format(analysis_id=analysis_id)
+                if analysis_id in self.sidecar_technologies:
+                    meta_text += yaml.safe_dump(
+                        {"genotyping_technology": self.sidecar_technologies[analysis_id]}
+                    )
+                meta_path.write_text(meta_text, encoding="utf-8")
                 row.update(
                     location=str(data_path),
                     bytes=str(len(body)),
@@ -317,6 +324,7 @@ class FixtureBuilder:
                     "sample_size": sample_size,
                     "n_cases": n_cases,
                     "n_controls": n_controls,
+                    "genotyping_technology": self.technologies.get(analysis_id, ""),
                     "publication_pmid": "12345678",
                     "first_author": "Author A",
                     "store_key": STORE_KEY,
@@ -744,7 +752,7 @@ def _synthetic_inventory_row(
 
 
 def _synthetic_analysis_metadata(
-    *, sample_size: str = "5000", n_cases: str = "", n_controls: str = ""
+    *, sample_size: str = "5000", n_cases: str = "", n_controls: str = "", genotyping_technology: str = ""
 ) -> AnalysisMetadata:
     return AnalysisMetadata(
         analysis_id="GCST90000001",
@@ -756,6 +764,7 @@ def _synthetic_analysis_metadata(
         n_cases=n_cases,
         n_controls=n_controls,
         sample_size=sample_size,
+        genotyping_technology=genotyping_technology,
         trait_ontology=TraitOntologyMapping("", "", TraitOntologyMappingMethod.UNMAPPED),
     )
 
@@ -1070,17 +1079,6 @@ class CandidateWorkflowTests(unittest.TestCase):
         path.write_text(header + rows, encoding="utf-8")
         return path
 
-    def _write_metadata_yaml(self, name: str, technologies: object) -> Path:
-        path = self.fixture.root / name
-        document: dict[str, object] = {
-            "genome_assembly": "GRCh38",
-            "is_harmonised": True,
-        }
-        if technologies is not None:
-            document["genotyping_technology"] = technologies
-        path.write_text(yaml.safe_dump(document), encoding="utf-8")
-        return path
-
     def test_declared_usable_analysis_emits_threshold_and_triple(self) -> None:
         analysis_id = "GCST90000001"
         self._declare_scores([{
@@ -1163,55 +1161,62 @@ class CandidateWorkflowTests(unittest.TestCase):
             ):
                 loaded()
 
-    def test_maf_threshold_is_per_analysis_from_metadata_yaml(self) -> None:
+    def test_maf_threshold_is_per_analysis_from_the_source_metadata_table(self) -> None:
         # Omitted defaults.maf_threshold means no MAF filter at all.
         base = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
         self.assertIsNone(base.maf_threshold)
         self.assertEqual(base.maf_filter_exempt_genotyping_technologies, ())
 
+        # The Source Metadata Table's ``genotyping_technology`` is the fact; each
+        # sidecar says the opposite, so a read of the YAML gives the wrong answer
+        # for every Analysis (#347).
+        wgs, array, exome = "Whole genome sequencing", "Genome-wide genotyping array", "Exome-wide sequencing"
+        fixture = FixtureBuilder(
+            Path(self._tmp.name) / "technologies",
+            technologies={
+                "GCST90000001": wgs,                  # exempt
+                "GCST90000002": array,                # not exempt
+                "GCST90000003": "",                   # unrecorded: never exempt (#176)
+                "GCST90000004": f"{wgs};{exome}",     # every technology exempt
+                "GCST90000005": f"{wgs};{array}",     # one outside the list
+            },
+            sidecar_technologies={
+                "GCST90000001": [array],
+                "GCST90000002": [wgs],
+                "GCST90000003": [wgs],
+                "GCST90000004": [array],
+                "GCST90000005": [wgs],
+            },
+        ).build()
+        self.fixture = fixture
         self._set_maf_threshold(0.005)
-        self._set_maf_exempt(["Whole genome sequencing", "Exome-wide sequencing"])
-        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self._set_maf_exempt([wgs, exome])
+        config = load_candidate_configuration(fixture.config_path, REPO_ROOT)
         self.assertEqual(config.maf_threshold, "0.005")
-        self.assertEqual(
-            config.maf_filter_exempt_genotyping_technologies,
-            ("Whole genome sequencing", "Exome-wide sequencing"),
+        self.assertEqual(config.maf_filter_exempt_genotyping_technologies, (wgs, exome))
+        rows = read_inventory(fixture.inventory_path)
+        metadata = read_analysis_metadata(
+            fixture.provenance_path, (row.analysis_id for row in rows if row.ready)
         )
-        missing = _synthetic_inventory_row()
-        absent_yaml = self.fixture.root / "absent.yaml"
+        self.assertEqual(metadata["GCST90000004"].genotyping_technologies, [wgs, exome])
+        self.assertEqual(metadata["GCST90000003"].genotyping_technologies, [])
+        manifest = {row.analysis_id: row for row in derive_resolver_manifest(rows, config, metadata)}
         self.assertEqual(
-            read_genotyping_technologies(str(absent_yaml)), []
-        )
-        # Missing technology metadata is never an exemption.
-        self.assertEqual(
-            analysis_maf_threshold(replace(missing, yaml_file=str(absent_yaml)), config),
-            "0.005",
-        )
-        exempt_path = self._write_metadata_yaml("wgs.yaml", ["Whole genome sequencing"])
-        self.assertEqual(
-            read_genotyping_technologies(str(exempt_path)), ["Whole genome sequencing"]
-        )
-        exempt = replace(missing, yaml_file=str(exempt_path))
-        # Every technology in the exempt list -> NaN (no MAF filter).
-        self.assertEqual(analysis_maf_threshold(exempt, config), "NaN")
-        # An empty technology list is not "all in the list".
-        empty_path = self._write_metadata_yaml("empty.yaml", [])
-        self.assertEqual(
-            analysis_maf_threshold(replace(missing, yaml_file=str(empty_path)), config),
-            "0.005",
-        )
-        # One technology outside the list -> not exempt.
-        mixed_path = self._write_metadata_yaml(
-            "mixed.yaml", ["Whole genome sequencing", "Genome-wide genotyping array"]
-        )
-        self.assertEqual(
-            analysis_maf_threshold(replace(missing, yaml_file=str(mixed_path)), config),
-            "0.005",
+            {analysis_id: manifest[analysis_id].maf_threshold for analysis_id in sorted(manifest)[:5]},
+            {
+                "GCST90000001": "NaN",
+                "GCST90000002": "0.005",
+                "GCST90000003": "0.005",
+                "GCST90000004": "NaN",
+                "GCST90000005": "0.005",
+            },
         )
         # A no-MAF-filter release ignores exemptions entirely.
         self._set_maf_threshold(None)
-        no_filter = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
-        self.assertEqual(analysis_maf_threshold(exempt, no_filter), "NaN")
+        no_filter = load_candidate_configuration(fixture.config_path, REPO_ROOT)
+        self.assertEqual(
+            analysis_maf_threshold(rows[0], no_filter, metadata[rows[0].analysis_id]), "NaN"
+        )
 
     def test_maf_threshold_emission_is_per_analysis_evidence(self) -> None:
         declared = ResolverRow(
@@ -2778,6 +2783,31 @@ class CandidateWorkflowTests(unittest.TestCase):
         (excluded,) = csv.DictReader(io.StringIO(tables.exclusions_tsv), delimiter="\t")
         self.assertEqual(excluded["category"], "store_composition")
         self.assertEqual(excluded["reason"], "not_maf_filtered")
+
+    def test_the_not_maf_filtered_detail_names_the_recorded_technologies_in_source_order(self) -> None:
+        config = replace(
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT),
+            require_maf_filtered=True,
+            maf_threshold="0.005",
+        )
+        filtered, unfiltered, records, declarations = self._maf_filtered_fixture()
+        outcomes = apply_release_policy(
+            [filtered, unfiltered],
+            config,
+            {
+                row.analysis_id: _synthetic_analysis_metadata(
+                    genotyping_technology="Genome-wide genotyping array;Exome genotyping array"
+                )
+                for row in (filtered, unfiltered)
+            },
+            {record["analysis_id"]: record for record in records},
+            declarations,
+        )
+        (routed,) = [outcome for outcome in outcomes if outcome.exclusion_reason == "not_maf_filtered"]
+        self.assertIn(
+            "genotyping_technology=Genome-wide genotyping array; Exome genotyping array)",
+            routed.exclusion_detail,
+        )
 
     def test_store_composition_keeps_a_stronger_existing_exclusion(self) -> None:
         config = replace(

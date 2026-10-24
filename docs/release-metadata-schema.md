@@ -389,10 +389,13 @@ included with literal `NaN` INFO cells. Older bundles may omit all four columns
 entirely.
 
 The MAF floor is a `defaults.maf_threshold` release decision applied per
-Analysis: an Analysis is exempt (and emits `NaN`) when its source metadata
-YAML's `genotyping_technology` list is non-empty and every technology is in
+Analysis: an Analysis is exempt (and emits `NaN`) when its Source Metadata
+Table row's `genotyping_technology` (`;`-joined, source order) is non-empty and
+every technology is in
 `release_policy.maf_filter_exempt_genotyping_technologies`; missing technology
-metadata is never an exemption. The resolver manifest carries the derived
+metadata is never an exemption. The column is a fact a source's adapter
+writes (the GWAS Catalog's from each `-meta.yaml`); the exemption is the
+release policy over it (#347). The resolver manifest carries the derived
 `maf_threshold` per Analysis and the resolver record's `maf_state` plus its
 fingerprint binding decide the emitted candidate value, exactly as for INFO.
 Manifest Generation's rules validate the column on every row, independently of
@@ -1225,7 +1228,7 @@ snapshot was frozen from:
 | `source.inventory.snapshot_id` | Yes | The snapshot's identity. Must equal the inventory file's stem and the provenance sidecar's `snapshot_id`. |
 | `source.inventory.path` | Yes | `resources/inventories/<snapshot-id>.tsv`. |
 | `source.inventory.provenance_path` | Yes | `resources/inventories/<snapshot-id>.meta.yaml`, the sidecar whose `inventory_tsv_sha256` binds the TSV to the bytes that were frozen. |
-| `source.inventory.freeze_inputs` | Yes | The ordered `{role, path}` acquisition status manifests `freeze` merges. Order is the precedence rule: earliest pass first, and a later pass is authoritative for every `analysis_id` it covers. A later pass may not regress a ready Analysis to a non-ready one. |
+| `source.inventory.freeze_inputs` | Yes (GWAS Catalog's acquisition writer reads it; shared code does not, #347) | The ordered `{role, path}` acquisition status manifests `freeze` merges. Order is the precedence rule: earliest pass first, and a later pass is authoritative for every `analysis_id` it covers. A later pass may not regress a ready Analysis to a non-ready one. |
 
 Which `readiness_status` values count as a usable source is **not** a config
 key: it is owned by `src/manifest_generation/source_inventory.py`
@@ -1266,8 +1269,8 @@ disagree with or omit this metadata (see issue #15's `ieu-a-7` example, where a
 GWAS-VCF `##SAMPLE` header declares `StudyType=Continuous` for a study the
 source API correctly reports as case-control).
 
-Conventionally, resolver modules live under
-`resources/generators/lib/metadata_resolvers/`, one file per Source Collection,
+Conventionally, resolver modules live beside their provider, under
+`src/manifest_generation/providers/<provider>/`, one file per Source Collection,
 named for the resolved field set they share:
 `resolve_<source_collection>_metadata(...)`.
 
@@ -1329,7 +1332,7 @@ These implementations exist:
   method tiers turn `study_design` into
   `stored_effect_scale`/`sample_size_kind`.
 
-### Trait ontology mapping resolver
+### Trait ontology mapping
 
 **Manifest Generation's shared step (#286, ADR 0036 step 5).** The Python
 pipeline maps every Analysis in
@@ -1381,41 +1384,11 @@ The table's identity, the method counts, the count of source terms without a
 label, and the rejected source terms are recorded in `validation.yaml`'s
 `trait_ontology_mapping` block.
 
-**The R generators** still resolve through the R resolver below until they
-retire (epic #282).
-
-A separate resolver family, also under
-`resources/generators/lib/metadata_resolvers/`, resolves Trait Ontology Mapping
-(see `CONTEXT.md`) rather than the effect-scale/sample-size fields above — a
-different output shape. `resources/generators/lib/metadata_resolvers/canonical_trait_table.R`
-(`resolve_trait_ontology_mapping()`) returns:
-
-| Field | Required | Description |
-|---|---:|---|
-| `resolution_status` | Yes | `resolved` or `unresolved`. |
-| `trait_ontology_id` | No | `NA` when `resolution_status = unresolved`. |
-| `trait_ontology_label` | No | `NA` when `resolution_status = unresolved`. |
-| `trait_ontology_mapping_method` | Yes | `source_provided`, `canonical_table_lookup`, or `unmapped`. |
-| `resolution_notes` | No | Free-text reason when `unmapped`. |
-
-Resolution order: (1) if the Source Collection already supplies an ontology
-ID (e.g. GWAS Catalog's `MAPPED_TRAIT_URI`), pass it through as
-`source_provided`; (2) otherwise, exact-match the Analysis's trait label
-against the curated Canonical Trait Mapping Table Reference Resource
-(`resources/reference-resources/canonical-trait-mapping-efo/`) as
-`canonical_table_lookup`; (3) otherwise `unmapped`, leaving
-`trait_ontology_id`/`trait_ontology_label` blank rather than guessing. The
-Canonical Trait Mapping Table keeps its three lookup columns (`trait_label`,
-`trait_ontology_id`, `trait_ontology_label`) first; any further columns are
-provenance for reviewers, and the resolver ignores them. There is
-no gene-authority path: a gene's Ensembl ID is not a Trait Ontology Mapping, so
-a gene-centric Analysis whose source supplies no ontology term stays
-`unmapped`/blank rather than being given a gene id (issue #141). A
-source-provided term is kept even when the ontology has deprecated it, and is
+The lookup lives in this registry rather than in OpenGWASDB
+[ADR 0021](adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md).
+A source-provided term is kept even when the ontology has deprecated it, and is
 recorded as `source_provided`; a plausible-looking invented replacement would be
-worse than the genuine obsolete term. See
-[ADR 0021](adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md) for why
-this lookup lives in this repo rather than OpenGWASDB.
+worse than the genuine obsolete term.
 
 ### Reference Resource declaration
 
