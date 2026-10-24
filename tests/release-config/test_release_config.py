@@ -733,6 +733,33 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                 )
                 self.assertEqual({row["source_genome_build"] for row in rows} - {""}, {"GRCh38"})
 
+    def test_no_shipped_source_silently_loses_the_canonical_build_check(self) -> None:
+        """The documented rule (#347): preflight compares each ready Analysis's declared
+        ``source_genome_build`` with the config's default, so every shipped config names a
+        default, no declaration contradicts it, and a source whose adapter writes the column
+        declares it for *every* ready Analysis, never some. The other sources (FinnGen,
+        eQTLGen, ukb-b, Chen, Sun) declare none, and their collection-wide default is the
+        build, stated in the config."""
+        from manifest_generation.candidate_workflow import load_candidate_configuration
+        from manifest_generation.source_inventory import read_inventory
+
+        writes_the_column = {"dbgap-mvp", "gwas-catalog-eur-hybrid"}
+        for path in shipped_release_configs():
+            with self.subTest(config=f"{path.parent.name}/{path.name}"):
+                config = load_candidate_configuration(path, REPO_ROOT)
+                default = config.defaults.get("source_genome_build")
+                self.assertIn(default, ("GRCh37", "GRCh38"))
+                if not config.base.inventory_provenance_path.is_file():
+                    self.skipTest("snapshot absent")
+                table, _manifest = shipped_frozen_connectors(config.base.inventory_provenance_path)
+                ready = [row.analysis_id for row in read_inventory(config.base.inventory_path) if row.ready]
+                declared = [table.row(analysis_id).get("source_genome_build", "") for analysis_id in ready]
+                self.assertLessEqual({value for value in declared if value}, {default})
+                if path.parent.name in writes_the_column:
+                    self.assertTrue(all(declared), f"{declared.count('')} of {len(ready)} ready Analyses undeclared")
+                else:
+                    self.assertFalse(any(declared))
+
     def test_every_shipped_config_prepares_its_resolver_manifest(self) -> None:
         """The prepare stage, in-process: the pilots share the full release's declarations.
 
