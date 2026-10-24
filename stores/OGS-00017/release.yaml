@@ -57,3 +57,50 @@ notes: |
   the Store it replaces. Every FinnGen Analysis is unassigned, its Source
   Ancestry Label being Finnish and no Assigned Ancestry having been taken, so
   `complete-dense` imputes all 2,754 Analyses against the EUR panel.
+
+  Rebuilt and completed (2026-10-24). One forced `release OGS-00017` from
+  this registry at d7aca92, runtime opengwasdb 0.3.0 at d405de0 (format
+  0.2.0), ran from 2026-10-22 00:00 to 2026-10-24 22:03 UTC, 2 d 22 h 3 m,
+  exit 0, 13 of 13 jobs, so the rebuild and the completion the paragraphs
+  above describe both happened in that one run. `build-dense-vcf` ran from
+  2026-10-22 00:00 to 2026-10-23 07:26 UTC (31.4 h) over the 2,754 Analyses
+  and wrote 21,230,615 variants; top hits, the HM3 Indexed Variant Subset,
+  the overview, validate and register followed, and register published the
+  Observed-Only Store at 2026-10-23 15:48 UTC. `complete-dense` against the
+  UKB EUR LD panel, ukb-hg38-eur-ld at /data/opengwasdb/reference/ld,
+  ancestry EUR at 32 workers, ran from 15:48 to 2026-10-24 13:49 UTC
+  (22.0 h) and imputed 877,888,389 associations; the union variant axis grew
+  from 21,230,615 to 21,549,493 variants, 318,878 of them new panel
+  variants, leaving 5,789,626 off-panel missing cells and 379,268
+  imputation failures. No Analysis in this release has an Assigned
+  Ancestry, every Source Ancestry Label being Finnish, so complete-dense's
+  ancestry filter warned and imputed all 2,754 against the EUR panel, as the
+  owner decided on 2026-10-21. The completion HM3 Indexed Variant Subset,
+  the overview, validate and the Observed-View Check followed, and
+  completion register published the completed Store under the release id
+  OGS-00017-completed at 2026-10-24 22:03 UTC, replacing the Observed-Only
+  Store register had published. The Observed-View Check passed: 3,094,435,710
+  cells compared over 1,124 bands, no band mismatched and every failing
+  counter zero, reported at
+  /data/opengwasdb/stores/OGS-00017/work/observed-view-check.json. A forced
+  run replaces what it finds, so the format-0.1.0 Store whose records named
+  OGS-00016 is archived under
+  /data/opengwasdb/stores/OGS-00017/replaced/20261022T000024Z/ and the
+  Observed-Only 0.2.0 Store under
+  /data/opengwasdb/stores/OGS-00017/replaced/20261024T220316Z/. Every step
+  record of the published Store now names this Store's own paths, so the
+  relocation the renumbering erratum left outstanding is no longer pending.
+  `opengwasdb info` reports OGS-00017, release OGS-00017-completed, format
+  0.2.0 and reference_completed. The Validation Record was copied into this
+  bundle unchanged and reads status passed, no warnings, no errors, 2,754
+  Analyses, 21,549,493 variants, 59,347,303,722 associations and
+  completion_state reference_completed, so the paragraphs above describe
+  what this run did rather than what it would do. The first launch, at
+  23:55 UTC on 2026-10-21, stopped after 24 s having published nothing and
+  restored this bundle's records: the source files the accepted Release
+  Manifest names had been moved that day from
+  /data/opengwasdb/finngen-r13/ to /data/opengwasdb/raw/finngen-r13/. The
+  owner approved a compatibility symlink on 2026-10-22,
+  /data/opengwasdb/finngen-r13 -> raw/finngen-r13, so the 2,754 recorded
+  paths resolve unchanged and the accepted Release Manifest stands as
+  accepted; every one of them resolves, at the size it records.

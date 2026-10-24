@@ -21,7 +21,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00014` | mvp-phs002453-amr | false | dense | reference_completed | validated | - | 1,053 | 0 | 30,380,465 | 31,990,629,645 | passed |
 | `OGS-00015` | mvp-phs002453-eas | false | dense | observed_only | validated | - | 241 | 0 | 9,335,909 | 2,249,954,069 | passed |
 | `OGS-00016` | mvp-phs002453-meta-observed-only | false | dense | observed_only | validated | - | 1,691 | 0 | 27,929,380 | 47,228,581,580 | passed |
-| `OGS-00017` | r13-full | false | dense | reference_completed | accepted | - | 2,754 | 0 | - | - | passed |
+| `OGS-00017` | r13-full | false | dense | reference_completed | accepted | - | 2,754 | 0 | 21,549,493 | 59,347,303,722 | passed |
 | `OGS-00022` | eur-hybrid-pilot-10-completed | true | hybrid | reference_completed | validated | - | 9 | 1 | - | - | passed |
 | `OGS-00023` | eur-hybrid-quant-pilot-10-completed | true | hybrid | reference_completed | validated | - | 10 | 0 | - | - | passed |
 | `OGS-00024` | 2023-chen-full-african | false | ragged | observed_only | built | - | 1,034 | 0 | - | - | passed_with_warnings |
