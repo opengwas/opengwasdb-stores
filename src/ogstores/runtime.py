@@ -76,7 +76,12 @@ from ogstores.plan import plan
 #: JSON, which `register` holds to the release's declaration. The range
 #: `d8896e4..75f0e77` is #298's own commits and its merge; there is no Store
 #: format bump.
-PINNED_OPENGWASDB_REVISION: str = "75f0e77a85bd6b8e55a1f5753922153c7304aef0"
+#: Then to `5fc0766` for the #326 SE re-encode: it carries the reviewed
+#: `opengwasdb.reencode` primitive (`plan_se_reencode` / `reencode_se_codecs`)
+#: and the writer fix that gives every fresh Dense 0.2.0 array a dtype-matched
+#: Blosc `typesize`. The range `75f0e77..5fc0766` is #326's core commits and
+#: merge; there is no Store format bump.
+PINNED_OPENGWASDB_REVISION: str = "5fc07666202d43500d5e48bbc48f1e4c9e34ef0f"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference
