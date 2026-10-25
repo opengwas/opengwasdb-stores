@@ -383,6 +383,18 @@ generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate"
 # the builder, so the task runs in `dev` whichever environment is default.
 catalog = { cmd = "python3 -m analysis_catalog", default-environment = "dev" }
 
+# Read-only Store Audit (stores #372, epic #371). Reconciles a built Hybrid
+# Store Release's shared axis, its Dense Component, the off-panel remainder and
+# the observed occupancy of every axis entry against what the Store records, and
+# proves it changed no store file. It needs `opengwasdb` (the Store it reads, the
+# CSR index it validates and the variant reference it parses), so it lives in
+# the store-build environment. `--output` must be outside the Store; large
+# evidence belongs on deployment data storage, not in Git.
+#
+#   pixi run audit-store reconcile /data/opengwasdb/stores/OGS-00011/store.opengwasdb \
+#     --output /data/opengwasdb/work/.../evidence/372/reconciliation.json
+audit-store = { cmd = "python3 -m ogstores.audit" }
+
 # Lossless SE re-encode for one registered Store Release (#326). The stores
 # lane of opengwas/opengwasdb#326: it resolves the Artifact Root through
 # `ogstores`, takes the release's exclusive lock, refuses a release transaction
