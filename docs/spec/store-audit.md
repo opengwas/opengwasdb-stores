@@ -181,8 +181,8 @@ named in the ticket. Small reviewed reports may be committed.
 `OGS-00011` is the Store epic #371 is about: a rebuilt Observed-Only Hybrid
 Store Release with 3,169 Analyses, built by `opengwasdb` revision
 `496bfe9cc9bbc85c60718d62aa4c6d43d83af810` (recorded in `records/build.json`).
-The audit took 347.4 s wall and 7.1 GiB peak RSS (`resources.max_rss_kb`
-7,494,788) on a 224-core host, read 22,699 files without changing one
+The audit took 334.9 s wall and 7.1 GiB peak RSS (`resources.max_rss_kb`
+7,494,776) on a 224-core host, read 22,699 files without changing one
 (`unchanged.method: size+mtime_ns`), and reconciled:
 
 - 114,514,113 shared-axis variants = 13,415,936 Dense-axis + 101,098,177
