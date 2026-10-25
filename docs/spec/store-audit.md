@@ -469,6 +469,9 @@ silently.
 
 `schema` is `ogstores.audit.reconcile/1`; `audit_version` is separate and
 changes only if the report's meaning does. Adding a field does not bump either.
+`audit_version` `2` (stores #380) is the trace's admission fields changing
+meaning with opengwasdb#331, which the section above states; the reconcile report
+itself is unchanged and takes the version because the three commands share one.
 
 | Field | Contents |
 |---|---|
@@ -706,7 +709,7 @@ frequency (`available == False` implies `maf_drop == False`), so a placeholder
 that, the Store counted the rows it did it to, and the raw files carry the
 tokens. #331 closed it at `7308c6a`: such a row is dropped, so a Store built
 before it holds rows its own declared policy cannot admit -- the disagreement
-stores #380's pin makes visible, and what a rebuild removes. What is *not
+stores #380's pin makes visible, and what a rebuild removes. What is *not*
 established is the split of the 101,098,177 off-panel variants: on this sample
 the placeholder share is 60% of the union-wide stratum with an interval that
 includes 36%, and a material minority is legitimate admission of common variants

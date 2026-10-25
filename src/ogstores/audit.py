@@ -101,7 +101,14 @@ from opengwasdb.variants.axis import (
 
 #: The report's contract version. Bumped when a field changes meaning; the
 #: schema string is what a consumer matches, so adding a field does not bump it.
-AUDIT_VERSION = "1"
+#:
+#: **2** (stores #380): the trace's `admission.disposition` and
+#: `admission.maf` changed meaning with the opengwasdb#331 admission amendment --
+#: `maf_missing` is a row the rule dropped under a `filtered` MAF policy rather
+#: than one it kept unjudged, and `maf` is reported only for a frequency the rule
+#: could read. The reconcile and attribute reports are unchanged in meaning and
+#: carry the same version because the three commands share one schema family.
+AUDIT_VERSION = "2"
 REPORT_SCHEMA = "ogstores.audit.reconcile/1"
 
 #: The engine interface that validated the variant-major index, recorded so a
