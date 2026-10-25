@@ -4578,6 +4578,204 @@ class RealResolverNoAlleleFrequencyTests(unittest.TestCase):
                 self.assertEqual(checks[analysis_id]["assigned_ancestry"], "failed")
 
 
+#: OGS-00011's tracked release config: this suite's admission fixture runs the
+#: MAF settings it declares, not a re-invented floor (stores #380).
+OGS00011_CONFIG: Path = (
+    REPO_ROOT / "resources" / "generators" / "gwas-catalog-eur-hybrid" / "release-eur-hybrid-full.yaml"
+)
+
+
+def _ogs00011_maf_settings() -> dict:
+    """OGS-00011's declared MAF candidate settings, from its tracked release config."""
+    document = yaml.safe_load(OGS00011_CONFIG.read_text())
+    return {
+        "maf_threshold": str(document["defaults"]["maf_threshold"]),
+        "maf_floor": float(document["ancestry_assignment"]["maf_floor"]),
+        "gates": dict(document["ancestry_assignment"]["gates"]),
+    }
+
+
+def _ogs00011_maf_threshold() -> str:
+    return _ogs00011_maf_settings()["maf_threshold"]
+
+
+#: The frequency classes the admission fixture states once each (#380):
+#: `(position, effect_allele_frequency token)`. The panel rows above them are
+#: all `valid_common`, so the arithmetic is this table plus `PANEL_VARIANTS`.
+#: The docstring of `_real_ssf_body_mixed_frequencies` is this table's reading.
+_ADMISSION_ROWS: tuple[tuple[int, str], ...] = (
+    (9000, "0.001"),  # rare, below the 0.005 floor
+    (9001, "0.0049"),  # rare, just below it
+    (9002, "0.0"),  # monomorphic: the reader reports no EAF, so no frequency
+    (9003, "1.0"),  # monomorphic, the other end
+    (9004, ""),  # blank
+    (9005, "NaN"),  # missing spelled as a number
+    (9006, "1.5"),  # out of range
+    (9007, "abc"),  # unparseable
+)
+
+#: Panel variants the admission fixture's source covers. The release's own
+#: ancestry gate is `n_min: 5000` (read from OGS-00011's config below), so the
+#: fixture's panel has to clear it for an Analysis to be included at all -- a
+#: fixture smaller than the gate would test admission on rows no candidate could
+#: ever carry.
+_ADMISSION_PANEL_VARIANTS = 5200
+
+
+def _real_ssf_body_mixed_frequencies(analysis_id: str) -> bytes:
+    """A GWAS-SSF source stating every frequency class once, over a real panel (#380).
+
+    `_ADMISSION_PANEL_VARIANTS` rows carry the panel's own EUR frequency, so the
+    source fits the reference and the Analysis is included; `_ADMISSION_ROWS`
+    then states the two below-floor and six no-frequency cases. A real build
+    reads exactly this file, so the resolver's admission counts are the ones a
+    candidate is built from, and not a fixture's opinion of them.
+    """
+    seed = int(analysis_id[-2:])
+    lines = [
+        "chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\t"
+        "standard_error\teffect_allele_frequency\n"
+    ]
+    for index in range(_ADMISSION_PANEL_VARIANTS):
+        frequency = _panel_frequency(index, 0)
+        beta = 0.01 * (((index * 31 + seed * 17) % 97) - 48)
+        lines.append(f"1\t{1000 + index}\tA\tC\t{beta:.4g}\t0.02\t{frequency:.6g}\n")
+    for position, frequency in _ADMISSION_ROWS:
+        lines.append(f"1\t{position}\tA\tC\t0.01\t0.02\t{frequency}\n")
+    return gzip.compress("".join(lines).encode("utf-8"), mtime=0)
+
+
+def _write_admission_reference(fixture: Fixture) -> None:
+    """The ancestry reference over `_ADMISSION_PANEL_VARIANTS` A/C sites."""
+    reference = fixture.root / "reference"
+    header = ["alid", "chromosome", "position", "effect_allele", "other_allele", "rsid"]
+    rows = ["\t".join([*header, *_PANEL_GROUPS])]
+    for index in range(_ADMISSION_PANEL_VARIANTS):
+        cells = [f"1:{1000 + index}:A:C", "1", str(1000 + index), "A", "C", f"rs{index}"]
+        cells += [f"{_panel_frequency(index, g):.6g}" for g in range(len(_PANEL_GROUPS))]
+        rows.append("\t".join(cells))
+    (reference / "ref_freqs.tsv.gz").write_bytes(
+        gzip.compress(("\n".join(rows) + "\n").encode("utf-8"), mtime=0)
+    )
+    (reference / "ancestry_groups.tsv").write_text(
+        "group\tsuper_pop\n"
+        + "".join(f"{group}\t{_PANEL_SUPERPOPS[group]}\n" for group in _PANEL_GROUPS),
+        encoding="utf-8",
+    )
+
+
+@unittest.skipUnless(REAL_RESOLVER.is_file(), "the pinned opengwasdb resolver is not installed")
+class RealResolverMafAdmissionTests(unittest.TestCase):
+    """The pinned resolver drops rare and monomorphic rows under OGS-00011's floor (#380).
+
+    `tests/audit/test_audit_trace.py` pins the same rule at the Hybrid builder's
+    entry point; this pins it where a candidate is actually resolved, through the
+    real operator entry point and the real `opengwasdb resolve-analyses`, with
+    OGS-00011's own MAF settings: its `defaults.maf_threshold` on every manifest
+    row and its `ancestry_assignment.maf_floor` and gates on the command line.
+    The fixture release config states those settings, so the assertions below
+    also hold it to OGS-00011's tracked config -- a changed release config fails
+    here rather than quietly moving the fixture off what it reasons about.
+    """
+
+    #: One real resolution serves both tests: the second asserts on the bundle
+    #: emitted from those records, which needs no second resolver run.
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls._tmp = tempfile.TemporaryDirectory(prefix="real-resolver-maf-")
+        cls.fixture = FixtureBuilder(
+            Path(cls._tmp.name), bodies=_real_ssf_body_mixed_frequencies
+        ).build()
+        _write_admission_reference(cls.fixture)
+        document = yaml.safe_load(cls.fixture.config_path.read_text())
+        # The floor is OGS-00011's, read from its config rather than restated.
+        document["defaults"]["maf_threshold"] = _ogs00011_maf_threshold()
+        cls.fixture.config_path.write_text(yaml.safe_dump(document, sort_keys=False))
+        resolved = _run_cli(cls.fixture, "--stage", "resolve", resolver=REAL_RESOLVER)
+        if resolved.returncode != 0:
+            raise AssertionError(
+                f"the pinned resolver failed: {resolved.stderr}{resolved.stdout}"
+            )
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls._tmp.cleanup()
+
+    def test_the_run_used_OGS_00011s_candidate_maf_settings(self) -> None:
+        ogs = _ogs00011_maf_settings()
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertEqual(ogs["maf_threshold"], config.maf_threshold)
+        self.assertEqual(ogs["maf_floor"], config.ancestry_block["maf_floor"])
+        self.assertEqual(ogs["gates"], dict(config.ancestry_block["gates"]))
+        # The resolver applied that floor, and fingerprinted it: the evidence a
+        # candidate may emit a MAF cell from at all (`maf_threshold_emission`).
+        resolution_config = json.loads(
+            _kept_record(self.fixture, "GCST90000001").read_text()
+        )["fingerprints"]["resolution_config"]
+        self.assertEqual(resolution_config["maf_threshold"], float(ogs["maf_threshold"]))
+        self.assertEqual(resolution_config["maf_floor"], ogs["maf_floor"])
+        self.assertEqual(resolution_config["gates"]["n_min"], ogs["gates"]["n_min"])
+
+    def test_the_record_counts_every_dropped_class_and_keeps_the_common_rows(self) -> None:
+        for analysis_id, _, _, _, _, _, _ in READY_ANALYSES:
+            record = json.loads(_kept_record(self.fixture, analysis_id).read_text())
+            diagnostics = record["diagnostics"]
+            with self.subTest(analysis_id=analysis_id):
+                self.assertEqual(record["status"], "success", record.get("error"))
+                self.assertEqual(diagnostics["maf_state"], "filtered")
+                self.assertEqual(diagnostics["stop_reason"], "eof")
+                # The panel rows are common and survive; nothing else does.
+                self.assertEqual(
+                    diagnostics["canonical_rows_observed"],
+                    _ADMISSION_PANEL_VARIANTS + len(_ADMISSION_ROWS),
+                )
+                self.assertEqual(
+                    diagnostics["canonical_rows_retained"], _ADMISSION_PANEL_VARIANTS
+                )
+                self.assertEqual(
+                    diagnostics["build_eligible_rows"], _ADMISSION_PANEL_VARIANTS
+                )
+                # Two rare rows are judged by the floor...
+                self.assertEqual(diagnostics["maf_rows_below_threshold"], 2)
+                # ...and six carry no frequency evidence, which a `filtered`
+                # policy drops (opengwasdb#331). The two monomorphic rows are
+                # among them: the reader reports no EAF for exactly 0.0/1.0
+                # (ADR 0036), so what reaches the rule is NaN.
+                self.assertEqual(diagnostics["maf_rows_missing"], 6)
+                # The arithmetic a Store's `provenance.maf` and the receipt are
+                # read from: every observed row is retained or dropped, once.
+                self.assertEqual(
+                    diagnostics["canonical_rows_observed"]
+                    - diagnostics["canonical_rows_retained"],
+                    diagnostics["maf_rows_below_threshold"]
+                    + diagnostics["maf_rows_missing"],
+                )
+
+    def test_the_emitted_candidate_carries_the_floor_on_included_rows(self) -> None:
+        emitted = _run_cli(self.fixture, "--stage", "emit", resolver=REAL_RESOLVER)
+        self.assertEqual(emitted.returncode, 0, emitted.stderr + emitted.stdout)
+        rows = _read_tsv(self.fixture.registry_root / STORE_ID / "analyses.tsv")
+        self.assertEqual(len(rows), len(READY_ANALYSES))
+        # Every selected Analysis carries the floor its own record proved, and
+        # the floor is the one this run applied -- not a restated default.
+        self.assertEqual({row["maf_threshold"] for row in rows}, {_ogs00011_maf_threshold()})
+        included = [row for row in rows if row["exclude_from_build"] == ""]
+        self.assertTrue(included, [row["analysis_id"] for row in rows])
+        for row in included:
+            with self.subTest(analysis_id=row["analysis_id"]):
+                self.assertEqual(row["maf_threshold"], _ogs00011_maf_threshold())
+        # Nothing was excluded because of its frequency: the rows that reached
+        # membership are the ones admission kept, so the floor did its work
+        # before any release policy did.
+        checks = _read_tsv(self.fixture.registry_root / STORE_ID / "sidecars" / "quality_checks.tsv")
+        admission_reasons = {"not_maf_filtered", "no_build_eligible_rows"}
+        self.assertFalse(
+            [row for row in checks if row["exclusion_reason"] in admission_reasons],
+            [(row["analysis_id"], row["exclusion_reason"]) for row in checks],
+        )
+
+
+
 class ResolutionRootTests(unittest.TestCase):
     """Where the shared area lives: a deployment root, resolved like the Artifact Root.
 
