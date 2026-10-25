@@ -101,6 +101,102 @@ def hybrid_provenance(
     }
 
 
+def write_analyses(store: Path, n_analyses: int, *, store_id: str = STORE_ID) -> None:
+    """Write `analyses.tsv`, the release's own membership table.
+
+    `build_hybrid_store` writes it because the audit reconciles the Ragged
+    component's Analysis partition against it: a Store whose membership table
+    is missing or disagrees is a broken release, not a Store without an
+    accounting.
+    """
+    lines = ["analysis_id\tancestry\tbuild\n"]
+    lines += [f"{store_id}-A{i:03d}\tEUR\tGRCh38\n" for i in range(n_analyses)]
+    (store / "analyses.tsv").write_text("".join(lines), encoding="utf-8")
+
+
+def write_build_record(
+    root: Path,
+    *,
+    store_id: str = STORE_ID,
+    revision: str = "fixture0rev",
+) -> Path:
+    """Write `records/build.json` beside the Store, as Store Release Build does.
+
+    It is the only place a Store's exact `opengwasdb` revision is recorded, so
+    an audit that cannot read it cannot say which code wrote the Store.
+    """
+    records = root / store_id / "records"
+    records.mkdir(parents=True, exist_ok=True)
+    path = records / "build.json"
+    path.write_text(
+        json.dumps(
+            {
+                "step": "build",
+                "store_id": store_id,
+                "exit_code": 0,
+                "success": True,
+                "start_time": "2026-01-01T00:00:00Z",
+                "end_time": "2026-01-01T01:00:00Z",
+                "opengwasdb_rev": revision,
+                "argv": ["opengwasdb", "build-hybrid", "store"],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return path
+
+
+def rewrite_position(store: Path, row: int, position: int) -> None:
+    """Overwrite one table row's position column, leaving its ALID intact.
+
+    A controlled contradiction between a row's columns and its canonical
+    identity -- what a mis-written row looks like -- so the audit's sampled
+    ALID/column cross-check has something to catch.
+    """
+    import pysam
+
+    table = store / "variants.tsv.gz"
+    with pysam.BGZFile(str(table), "r") as handle:
+        # pysam's iterator yields each line without its terminator.
+        lines = [line.decode("utf-8").rstrip("\n") for line in handle]
+    seen = -1
+    for index, line in enumerate(lines):
+        if line.startswith("#"):
+            continue
+        seen += 1
+        if seen == row:
+            fields = line.split("\t")
+            fields[1] = str(position)
+            lines[index] = "\t".join(fields)
+            break
+    with pysam.BGZFile(str(table), "w") as handle:
+        for line in lines:
+            handle.write((line + "\n").encode("utf-8"))
+    pysam.tabix_index(
+        str(table), seq_col=0, start_col=1, end_col=1, meta_char="#", zerobased=False, force=True
+    )
+
+
+@contextlib.contextmanager
+def hold_release_lock(root: Path, store_id: str = STORE_ID):
+    """Hold a release's exclusive run lock, as a release entry point does."""
+    import fcntl
+
+    locks = root / ".release-locks"
+    locks.mkdir(exist_ok=True)
+    path = locks / f"{store_id}.lock"
+    fd = os.open(path, os.O_RDWR | os.O_CREAT, 0o644)
+    fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    try:
+        os.pwrite(fd, f"pid {os.getpid()}, started by the audit suite\n".encode(), 0)
+        yield path
+    finally:
+        os.close(fd)
+
+
 def write_manifest(
     store: Path,
     provenance: dict[str, object],
@@ -224,6 +320,8 @@ def build_hybrid_store(
     np.save(dense_dir / "dense_to_shared.npy", np.asarray(mapping, dtype="int32"))
 
     write_ragged(store, counts, n_analyses)
+    write_analyses(store, n_analyses, store_id=store_id)
+    write_build_record(root, store_id=store_id)
     if provenance is None:
         provenance = hybrid_provenance(
             reference,
@@ -651,10 +749,21 @@ class TestReconciledAgainstWhatTheStoreRecords(AuditTestCase):
         code, report = self.reconcile(store, "--skip-reference")
         record_check()
 
-        self.assertEqual(code, 0)
+        # The command may be asked to skip a stage, but it may never then report
+        # closure: `ok` is false, the stage is named as skipped, and the run
+        # exits non-zero.
+        self.assertEqual(code, 1)
+        self.assertFalse(report["ok"])
         self.assertFalse(report["reference"]["available"])
         self.assertTrue(report["reference"]["skipped"])
         self.assertEqual(report["reference"]["n_alids"], None)
+        self.assertIn("skipped_evidence", [e["kind"] for e in report["inconsistencies"]])
+        skipped = [entry["item"] for entry in report["scope"]["not_measured"]]
+        self.assertIn("construction reference partition", skipped)
+        self.assertNotIn(
+            "construction-reference identity and the Dense Component's membership of it",
+            report["scope"]["measured"],
+        )
 
     def test_asking_for_both_a_reference_and_no_reference_is_refused(self) -> None:
         store, reference = self.default_store()
@@ -693,10 +802,16 @@ class TestReconciledAgainstWhatTheStoreRecords(AuditTestCase):
         code, report = self.reconcile(store, "--no-identities")
         record_check()
 
-        self.assertEqual(code, 0)
+        self.assertEqual(code, 1)
+        self.assertFalse(report["ok"])
         self.assertFalse(report["identities"]["scanned"])
         self.assertIsNone(report["reference"]["axis_rows_in_reference"])
         self.assertIsNone(report["reference"]["dense_mapping_not_in_reference"])
+        self.assertIn("skipped_evidence", [e["kind"] for e in report["inconsistencies"]])
+        self.assertIn(
+            "canonical-identity scan of the variant table",
+            [entry["item"] for entry in report["scope"]["not_measured"]],
+        )
 
     def test_a_band_size_of_zero_is_refused_before_any_work(self) -> None:
         store, _ = self.default_store()
@@ -711,10 +826,225 @@ class TestReconciledAgainstWhatTheStoreRecords(AuditTestCase):
         self.assertFalse(target.exists())
 
 
+class TestFailLoudlyOnMissingOrContradictedEvidence(AuditTestCase):
+    """A Store whose own account is unreadable or contradicted never passes.
+
+    Every case here is a Store Release whose artifact looks whole and whose
+    evidence is not: a missing build record, a missing membership table, an
+    incomplete provenance block, an ALID index that contradicts the table, or a
+    row whose columns contradict its own canonical identity. Each must be an
+    `error` (exit 1), because a passing report about one of these is exactly the
+    wrong answer that looks like a right one.
+    """
+
+    def test_a_missing_build_record_is_a_visible_failure(self) -> None:
+        store, _ = self.default_store()
+        (self.tmp / STORE_ID / "records" / "build.json").unlink()
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 1)
+        self.assertFalse(report["ok"])
+        self.assertIn("build_record_unavailable", [e["kind"] for e in report["inconsistencies"]])
+
+    def test_a_corrupt_build_record_is_a_visible_failure(self) -> None:
+        store, _ = self.default_store()
+        (self.tmp / STORE_ID / "records" / "build.json").write_text("{not json", encoding="utf-8")
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 1)
+        self.assertIn("build_record_unreadable", [e["kind"] for e in report["inconsistencies"]])
+
+    def test_a_build_record_without_a_revision_is_a_visible_failure(self) -> None:
+        store, _ = self.default_store()
+        record = self.tmp / STORE_ID / "records" / "build.json"
+        data = json.loads(record.read_text(encoding="utf-8"))
+        data.pop("opengwasdb_rev")
+        record.write_text(json.dumps(data), encoding="utf-8")
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 1)
+        self.assertIn(
+            "build_revision_unrecorded", [e["kind"] for e in report["inconsistencies"]]
+        )
+
+    def test_a_missing_analyses_tsv_is_a_visible_failure(self) -> None:
+        store, _ = self.default_store()
+        (store / "analyses.tsv").unlink()
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 1)
+        self.assertIsNone(report["store"]["analyses_tsv_rows"])
+        self.assertIn("analyses_tsv_unavailable", [e["kind"] for e in report["inconsistencies"]])
+
+    def test_an_unreadable_analyses_tsv_is_a_visible_failure(self) -> None:
+        store, _ = self.default_store()
+        (store / "analyses.tsv").write_bytes(b"analysis_id\n\xff\xfe\n")
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 1)
+        self.assertIn("analyses_tsv_unavailable", [e["kind"] for e in report["inconsistencies"]])
+
+    def test_recorded_counts_the_store_does_not_claim_are_a_visible_failure(self) -> None:
+        variants = axis_variants(5)
+        # A provenance block that records the axis but says nothing about the
+        # Dense Component or the Overflow: the audit has nothing to reconcile
+        # those against, which is a failure of the Store's own evidence.
+        provenance = {
+            "builder": "fixture.hybrid",
+            "variant_reference": str(self.tmp / f"{STORE_ID}-reference-EUR-variants.txt.gz"),
+            "n_variants": 5,
+        }
+        store, _ = build_hybrid_store(
+            self.tmp,
+            variants=variants,
+            counts=[0, 1, 2, 3, 4],
+            dense_rows=[0],
+            provenance=provenance,
+        )
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 1)
+        self.assertIn(
+            "recorded_counts_incomplete", [e["kind"] for e in report["inconsistencies"]]
+        )
+        incomplete = next(
+            e for e in report["inconsistencies"] if e["kind"] == "recorded_counts_incomplete"
+        )
+        self.assertIn("n_panel", incomplete["counts"]["missing"])
+        self.assertIn("n_overflow_associations", incomplete["counts"]["missing"])
+
+    def test_an_unsorted_alid_index_is_a_visible_failure(self) -> None:
+        store, _ = self.default_store()
+        bytes_path = store / "variant_alid_bytes.npy"
+        rows_path = store / "variant_alid_rows.npy"
+        np.save(bytes_path, np.load(bytes_path)[::-1])
+        np.save(rows_path, np.load(rows_path)[::-1])
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 1)
+        self.assertFalse(report["identities"]["alid_index"]["sorted"])
+        self.assertIn("alid_index_not_sorted", [e["kind"] for e in report["inconsistencies"]])
+
+    def test_an_alid_index_that_lost_rows_is_a_visible_failure(self) -> None:
+        store, _ = self.default_store()
+        bytes_path = store / "variant_alid_bytes.npy"
+        rows_path = store / "variant_alid_rows.npy"
+        np.save(bytes_path, np.load(bytes_path)[:-1])
+        np.save(rows_path, np.load(rows_path)[:-1])
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 1)
+        self.assertFalse(report["identities"]["alid_index"]["agrees_with_table"])
+        self.assertIn(
+            "alid_index_disagrees_with_table", [e["kind"] for e in report["inconsistencies"]]
+        )
+
+    def test_a_half_written_alid_index_is_a_visible_failure(self) -> None:
+        store, _ = self.default_store()
+        rows_path = store / "variant_alid_rows.npy"
+        np.save(rows_path, np.load(rows_path)[:-1])
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 1, "a half-written index must not pass as unauditable")
+        self.assertIn("alid_index_half_written", [e["kind"] for e in report["inconsistencies"]])
+
+    def test_a_row_whose_columns_contradict_its_alid_is_a_visible_failure(self) -> None:
+        store, _ = self.default_store()
+        # Row 1 is the first row the sampled cross-check reads; moving its
+        # position leaves the axis ordered and its ALID intact.
+        rewrite_position(store, 0, 105)
+        code, report = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 1)
+        self.assertEqual(report["identities"]["alid_consistency_sample"]["mismatches"], 1)
+        self.assertIn("alid_sample_mismatch", [e["kind"] for e in report["inconsistencies"]])
+
+
+class TestStableReadOnlyView(AuditTestCase):
+    """The Store a report describes is one directory, not a moving target."""
+
+    def test_the_report_records_the_directory_identity(self) -> None:
+        store, _ = self.default_store()
+        _, report = self.reconcile(store)
+        record_check()
+
+        stat = store.stat()
+        view = report["store"]["stable_view"]
+        self.assertEqual(view["dev"], stat.st_dev)
+        self.assertEqual(view["ino"], stat.st_ino)
+        self.assertEqual(view["parent_dev"], store.parent.stat().st_dev)
+        self.assertEqual(view["parent_ino"], store.parent.stat().st_ino)
+        self.assertFalse(view["swapped"])
+        self.assertIsNone(view["release_lock"]["held_by"])
+
+    def test_a_held_release_lock_is_recorded_and_the_view_is_still_verified(self) -> None:
+        store, _ = self.default_store()
+        with hold_release_lock(self.tmp) as lock_path:
+            before = tree_digests(store)
+            code, report = self.reconcile(store)
+            after = tree_digests(store)
+        record_check()
+
+        self.assertEqual(code, 0, "a held lock is a stability finding, not a failed audit")
+        self.assertIsNotNone(report["store"]["stable_view"]["release_lock"]["held_by"])
+        self.assertEqual(report["store"]["stable_view"]["release_lock"]["path"], str(lock_path))
+        self.assertIn("release_lock_held", [e["kind"] for e in report["inconsistencies"]])
+        self.assertFalse(report["store"]["stable_view"]["swapped"])
+        self.assertEqual(before, after, "probing a lock must not change the Store")
+        self.assertTrue(lock_path.is_file(), "the audit reads a lock, never removes it")
+
+
+class TestTheEvidenceFileIsWrittenSafely(AuditTestCase):
+    def test_a_symlink_at_the_output_path_is_replaced_not_followed(self) -> None:
+        store, _ = self.default_store()
+        victim = self.tmp / "victim.txt"
+        victim.write_text("do not truncate me\n", encoding="utf-8")
+        self.evidence.mkdir(parents=True, exist_ok=True)
+        target = self.evidence / "reconciliation.json"
+        target.symlink_to(victim)
+        code, out, err = self.run_audit("reconcile", str(store), "--output", str(target))
+        record_check()
+
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(victim.read_text(encoding="utf-8"), "do not truncate me\n")
+        self.assertFalse(target.is_symlink())
+        self.assertEqual(json.loads(target.read_text(encoding="utf-8"))["schema"], audit.REPORT_SCHEMA)
+
+    def test_no_temporary_file_is_left_beside_the_evidence(self) -> None:
+        store, _ = self.default_store()
+        self.reconcile(store)
+        code, _ = self.reconcile(store, output="second.json")
+        record_check()
+
+        self.assertEqual(code, 0)
+        names = sorted(path.name for path in self.evidence.iterdir())
+        self.assertEqual(names, ["reconciliation.json", "second.json"])
+
+    def test_an_existing_evidence_file_is_replaced_atomically(self) -> None:
+        store, _ = self.default_store()
+        (self.evidence).mkdir(parents=True, exist_ok=True)
+        target = self.evidence / "reconciliation.json"
+        target.write_text("stale\n", encoding="utf-8")
+        code, _ = self.reconcile(store)
+        record_check()
+
+        self.assertEqual(code, 0)
+        self.assertNotIn("stale", target.read_text(encoding="utf-8"))
+
+
 # ---------------------------------------------------------------------------
 # Seam 3: the audit is read-only, and leaves the Store byte-identical
 # ---------------------------------------------------------------------------
-
 
 class TestTheStoreIsUnchanged(AuditTestCase):
     def test_a_full_audit_leaves_every_store_file_byte_identical(self) -> None:
@@ -827,6 +1157,9 @@ def main() -> None:
         TestReconcileReport,
         TestUnobservedAxisEntries,
         TestReconciledAgainstWhatTheStoreRecords,
+        TestFailLoudlyOnMissingOrContradictedEvidence,
+        TestStableReadOnlyView,
+        TestTheEvidenceFileIsWrittenSafely,
         TestTheStoreIsUnchanged,
         TestTheProductionStoreIsUnchanged,
     ):

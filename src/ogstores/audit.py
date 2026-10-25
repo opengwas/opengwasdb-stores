@@ -55,6 +55,7 @@ import json
 import os
 import resource
 import sys
+import tempfile
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -149,6 +150,39 @@ NOT_MEASURED: tuple[dict[str, str], ...] = (
         ),
         "ticket": "#375",
     },
+)
+
+
+#: What each stage measures, keyed by the stage a flag can skip. `scope.measured`
+#: is built from this minus the skipped ones, so a run that skipped a stage never
+#: lists it as measured.
+MEASURED_SCOPE: tuple[tuple[str, str], ...] = (
+    ("axis", "shared-axis / Dense-axis / off-panel counts, reconciled against the Store's own record"),
+    ("occupancy", "observed occupancy per axis partition, from the variant-major CSR offsets"),
+    ("identities", "exact duplicate ALIDs and multiallelic sites in the Store Variant Table"),
+    ("reference", "construction-reference identity and the Dense Component's membership of it"),
+    ("read_only", "read-only proof: no Store file changed"),
+)
+
+#: The stages `--no-identities` and `--skip-reference` switch off. Skipping one
+#: is allowed, but the run then reports `ok: false` and names the stage: an audit
+#: that did not measure a required partition did not close the reconciliation.
+SKIPPABLE_SCOPE: dict[str, str] = {
+    "identities": "canonical-identity scan of the variant table",
+    "reference": "construction reference partition",
+}
+
+#: The provenance keys this audit reconciles against. A key that is absent, or
+#: present and not an integer, is missing evidence: the partition it describes
+#: then has nothing to be reconciled with, which is an `error`, not a pass.
+RECORDED_COUNTS: tuple[str, ...] = (
+    "n_variants",
+    "n_analyses",
+    "n_panel",
+    "n_off_panel",
+    "n_overflow_associations",
+    "ragged_by_variant_n_axis",
+    "ragged_by_variant_n_rows",
 )
 
 
@@ -325,6 +359,24 @@ class _IdentityScan:
     sample_mismatches: int = 0
 
 
+def _close_position_group(
+    scan: _IdentityScan, rows: int, pairs: list[tuple[str, str]] | None, first: tuple[str, str]
+) -> None:
+    """Account for one position's rows once that position's run has ended.
+
+    Called only for a position holding more than one row, which is why the
+    ordinary one-variant-per-position case costs one comparison and no call.
+    """
+    scan.positions_with_multiple_rows += 1
+    members = pairs if pairs is not None else [first]
+    distinct = set(members)
+    scan.duplicate_extra_rows_in_table += rows - len(distinct)
+    alleles = [allele for pair in distinct for allele in pair]
+    if len(alleles) != len(set(alleles)):
+        scan.multiallelic_sites += 1
+        scan.multiallelic_rows += rows
+
+
 def _scan_variant_table(
     table_path: Path,
     *,
@@ -388,14 +440,7 @@ def _scan_variant_table(
 
         if chromosome != group_chromosome or position != group_position:
             if group_rows > 1:
-                scan.positions_with_multiple_rows += 1
-                pairs = group_pairs if group_pairs is not None else [group_first]
-                distinct = set(pairs)
-                scan.duplicate_extra_rows_in_table += group_rows - len(distinct)
-                alleles = [allele for pair in distinct for allele in pair]
-                if len(alleles) != len(set(alleles)):
-                    scan.multiallelic_sites += 1
-                    scan.multiallelic_rows += group_rows
+                _close_position_group(scan, group_rows, group_pairs, group_first)
             group_chromosome = chromosome
             group_position = position
             group_first = (effect, other)
@@ -420,20 +465,14 @@ def _scan_variant_table(
                 scan.sample_mismatches += 1
 
     if group_rows > 1:
-        scan.positions_with_multiple_rows += 1
-        pairs = group_pairs if group_pairs is not None else [group_first]
-        distinct = set(pairs)
-        scan.duplicate_extra_rows_in_table += group_rows - len(distinct)
-        alleles = [allele for pair in distinct for allele in pair]
-        if len(alleles) != len(set(alleles)):
-            scan.multiallelic_sites += 1
-            scan.multiallelic_rows += group_rows
+        _close_position_group(scan, group_rows, group_pairs, group_first)
     return scan
 
 
 @dataclass(frozen=True)
 class _AlidIndexScan:
     entries: int
+    rows_entries: int
     sorted_ok: bool
     duplicate_groups: int
     duplicate_extra_rows: int
@@ -448,22 +487,24 @@ def _scan_alid_index(bytes_path: Path, rows_path: Path, *, block: int = DEFAULT_
     without a dictionary of 114M identities in memory -- but only for the ALIDs
     the index holds, which is why rows wider than the index's fixed width are
     counted separately from the table.
+
+    Every contradiction the index can carry is reported to the caller rather
+    than raised or ignored: an index that is not sorted, one whose two arrays
+    disagree, and one that disagrees with the table's own count of indexable
+    rows are all `error`s in the report, because a silently mis-sorted index is
+    a lookup that answers with another variant's row.
     """
     index = np.load(bytes_path, mmap_mode="r")
     rows = np.load(rows_path, mmap_mode="r")
     entries = int(index.shape[0])
-    if int(rows.shape[0]) != entries:
-        raise AuditError(
-            f"{bytes_path.name} holds {entries} ALIDs but {rows_path.name} holds "
-            f"{int(rows.shape[0])} rows; the search index is half written"
-        )
+    rows_entries = int(rows.shape[0])
     sorted_ok = True
     duplicate_groups = 0
     duplicate_extra_rows = 0
     # Whether the pair that straddles the block boundary (`high - 1`, `high`)
     # is equal, so a run spanning a boundary is one group and not two.
     leading_equal = False
-    for low in range(0, entries, block):
+    for low in range(0, min(entries, rows_entries), block):
         high = min(low + block, entries)
         pairs = np.asarray(index[low : high + 1])
         if pairs.size < 2:
@@ -480,6 +521,7 @@ def _scan_alid_index(bytes_path: Path, rows_path: Path, *, block: int = DEFAULT_
         leading_equal = bool(equal[-1])
     return _AlidIndexScan(
         entries=entries,
+        rows_entries=rows_entries,
         sorted_ok=sorted_ok,
         duplicate_groups=duplicate_groups,
         duplicate_extra_rows=duplicate_extra_rows,
@@ -589,6 +631,12 @@ def _array(group: Any, path: str) -> Any:
     return node
 
 
+def _count(recorded: dict[str, Any], key: str) -> int | None:
+    """A recorded count, or None when the Store did not record one as an integer."""
+    value = recorded.get(key)
+    return value if isinstance(value, int) and not isinstance(value, bool) else None
+
+
 def _recorded(manifest_provenance: dict[str, Any]) -> dict[str, Any]:
     hybrid = manifest_provenance.get("hybrid") or {}
     ragged = manifest_provenance.get("ragged") or {}
@@ -606,26 +654,73 @@ def _recorded(manifest_provenance: dict[str, Any]) -> dict[str, Any]:
 
 
 def _build_revision(store_path: Path) -> dict[str, Any]:
-    """The exact `opengwasdb` revision that wrote this Store, when recorded.
+    """The exact `opengwasdb` revision that wrote this Store, from its build record.
 
     The manifest does not carry it; the Store Release's build record beside it
-    does (`records/build.json`). Absent is recorded as absent -- a revision
-    nobody wrote down is not the revision this audit guessed.
+    does (`records/build.json`). A revision nobody recorded is not the revision
+    this audit guessed (CONTRIBUTING: fail loudly rather than substitute), so a
+    missing record, an unreadable one, and one with no revision are each
+    reported with the `problem` that makes them an `error` in the report.
     """
     record = store_path.parent / "records" / "build.json"
+    facts: dict[str, Any] = {
+        "opengwasdb_rev": None,
+        "path": str(record),
+        "recorded_in": None,
+        "available": False,
+        "problem": None,
+    }
     if not record.is_file():
-        return {"opengwasdb_rev": None, "recorded_in": None}
+        facts["problem"] = "missing"
+        return facts
+    facts["recorded_in"] = str(record)
     try:
         data = json.loads(record.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        return {"opengwasdb_rev": None, "recorded_in": str(record), "unreadable": True}
-    return {
-        "opengwasdb_rev": data.get("opengwasdb_rev"),
-        "recorded_in": str(record),
-        "start_time": data.get("start_time"),
-        "end_time": data.get("end_time"),
-        "argv": data.get("argv"),
+    except (OSError, ValueError) as exc:
+        facts["problem"] = "unreadable"
+        facts["error"] = str(exc)
+        return facts
+    if not isinstance(data, dict):
+        facts["problem"] = "unreadable"
+        facts["error"] = "the build record is not a JSON object"
+        return facts
+    revision = data.get("opengwasdb_rev")
+    facts["available"] = True
+    facts["opengwasdb_rev"] = revision
+    facts["start_time"] = data.get("start_time")
+    facts["end_time"] = data.get("end_time")
+    facts["argv"] = data.get("argv")
+    if not isinstance(revision, str) or not revision.strip():
+        facts["problem"] = "no_revision"
+    return facts
+
+
+def _release_lock(store_path: Path, store_id: str) -> dict[str, Any]:
+    """Whether a live run holds this release's lock, read and never created.
+
+    `ogstores.release.lock_holder` probes the lock with a non-blocking shared
+    `flock`, so a held lock is visible without taking anything and a stale lock
+    file whose holder is gone reads as free. The lock lives outside the Store's
+    own directory (`ogstores.paths.release_lock_path`), so asking about it
+    cannot change a file of the release this audit calls unchanged.
+    """
+    facts: dict[str, Any] = {
+        "store_id": store_id,
+        "path": None,
+        "held_by": None,
+        "checked": False,
     }
+    if len(store_path.parents) < 2:
+        return facts
+    from ogstores import paths as registry_paths
+    from ogstores.release import lock_holder
+
+    root = store_path.parents[1]
+    lock_path = registry_paths.release_lock_path(store_id, root=root)
+    facts["path"] = str(lock_path)
+    facts["checked"] = True
+    facts["held_by"] = lock_holder(store_id, root)
+    return facts
 
 
 def _runtime() -> dict[str, Any]:
@@ -664,6 +759,31 @@ def reconcile(
 
     method = _verify_method(path, verify)
     before = _inventory(path, method)
+    # The directory's identity, before any work: a Reference Completion replaces
+    # a Store under its own id (ADR 0037), so an audit that straddled a swap
+    # would reconcile one Store's arrays with another's tables.
+    start_stat = path.stat()
+    start_parent_stat = path.parent.stat()
+
+    skipped: list[dict[str, str]] = []
+    if skip_reference:
+        skipped.append(
+            {
+                "stage": "reference",
+                "item": SKIPPABLE_SCOPE["reference"],
+                "why": "--skip-reference was given",
+            }
+        )
+    if not scan_identities:
+        skipped.append(
+            {
+                "stage": "identities",
+                "item": SKIPPABLE_SCOPE["identities"],
+                "why": "--no-identities was given",
+            }
+        )
+
+    skipped_stages = {entry["stage"] for entry in skipped}
 
     inconsistencies: list[dict[str, Any]] = [
         {
@@ -681,6 +801,14 @@ def reconcile(
             {"kind": kind, "severity": severity, "detail": detail, "counts": counts}
         )
 
+    for entry in skipped:
+        inconsistency(
+            "skipped_evidence",
+            f"{entry['item']} was skipped ({entry['why']}); this run did not measure "
+            "it and must not be read as an exact, closed reconciliation",
+            stage=entry["stage"],
+        )
+
     store = open_store(path)
     manifest = store.manifest
     if manifest.primary_layout.value != "hybrid":
@@ -691,6 +819,28 @@ def reconcile(
         )
     group = store.arrays(mode="r")
     recorded = _recorded(manifest.provenance)
+    release_lock = _release_lock(path, manifest.store_id)
+    if release_lock["held_by"]:
+        inconsistency(
+            "release_lock_held",
+            f"a run holds this release's lock ({release_lock['held_by']}); the Store "
+            "may be replaced under this audit, so the view is recorded by directory "
+            "identity and verified again at the end rather than assumed stable",
+            severity="finding",
+            store_id=release_lock["store_id"],
+            held_by=release_lock["held_by"],
+        )
+
+    counts = {key: _count(recorded, key) for key in RECORDED_COUNTS}
+    missing_recorded = [key for key, value in counts.items() if value is None]
+    if missing_recorded:
+        inconsistency(
+            "recorded_counts_incomplete",
+            "the Store's provenance does not record "
+            f"{', '.join(missing_recorded)}; those partitions cannot be reconciled "
+            "against anything, so this audit cannot close",
+            missing=missing_recorded,
+        )
 
     # -- the axis, and the Dense Component's membership of it ---------------
     axis_handle = VariantAxis(path)
@@ -760,28 +910,28 @@ def reconcile(
             dense_axis_rows=n_dense_axis,
             mapping_entries=mapping["entries"],
         )
-    if recorded["n_panel"] is not None and int(recorded["n_panel"]) != n_dense:
+    if counts["n_panel"] is not None and counts["n_panel"] != n_dense:
         inconsistency(
             "recorded_panel_disagrees",
-            f"the Store records {recorded['n_panel']} Dense-axis variants but "
+            f"the Store records {counts['n_panel']} Dense-axis variants but "
             f"dense_to_shared.npy places {n_dense}",
-            recorded_n_panel=int(recorded["n_panel"]),
+            recorded_n_panel=counts["n_panel"],
             observed_n_panel=n_dense,
         )
-    if recorded["n_variants"] is not None and int(recorded["n_variants"]) != n_axis:
+    if counts["n_variants"] is not None and counts["n_variants"] != n_axis:
         inconsistency(
             "recorded_axis_length_disagrees",
-            f"the Store records {recorded['n_variants']} shared-axis variants but its "
+            f"the Store records {counts['n_variants']} shared-axis variants but its "
             f"Store Variant Table holds {n_axis}",
-            recorded_n_variants=int(recorded["n_variants"]),
+            recorded_n_variants=counts["n_variants"],
             observed_n_axis=n_axis,
         )
-    if recorded["n_off_panel"] is not None and int(recorded["n_off_panel"]) != n_off_panel:
+    if counts["n_off_panel"] is not None and counts["n_off_panel"] != n_off_panel:
         inconsistency(
             "recorded_off_panel_disagrees",
-            f"the Store records {recorded['n_off_panel']} off-panel variants but its "
+            f"the Store records {counts['n_off_panel']} off-panel variants but its "
             f"axis minus its Dense Component is {n_off_panel}",
-            recorded_n_off_panel=int(recorded["n_off_panel"]),
+            recorded_n_off_panel=counts["n_off_panel"],
             observed_n_off_panel=n_off_panel,
         )
     reconciled = not any(
@@ -826,13 +976,34 @@ def reconcile(
             first=int(ragged_offsets[0]),
         )
     total_associations = int(ragged_offsets[-1])
-    analyses_tsv_rows = _count_rows(path / "analyses.tsv")
-    if recorded["n_analyses"] is not None and int(recorded["n_analyses"]) != n_analyses:
+    analyses_tsv = path / "analyses.tsv"
+    analyses_tsv_rows: int | None = None
+    if not analyses_tsv.is_file():
+        inconsistency(
+            "analyses_tsv_unavailable",
+            f"{analyses_tsv} is absent; the release's membership table is the other "
+            "account of how many Analyses it holds, and this audit cannot check the "
+            "Ragged partition against it",
+            path=str(analyses_tsv),
+            problem="missing",
+        )
+    else:
+        try:
+            analyses_tsv_rows = _count_rows(analyses_tsv)
+        except (OSError, UnicodeDecodeError) as exc:
+            inconsistency(
+                "analyses_tsv_unavailable",
+                f"{analyses_tsv} cannot be read ({exc}); an undecodable membership "
+                "table is missing evidence, not an empty release",
+                path=str(analyses_tsv),
+                problem="unreadable",
+            )
+    if counts["n_analyses"] is not None and counts["n_analyses"] != n_analyses:
         inconsistency(
             "recorded_analysis_count_disagrees",
-            f"the Store records {recorded['n_analyses']} Analyses but its Ragged "
+            f"the Store records {counts['n_analyses']} Analyses but its Ragged "
             f"component is partitioned into {n_analyses}",
-            recorded=int(recorded["n_analyses"]),
+            recorded=counts["n_analyses"],
             observed=n_analyses,
         )
     if analyses_tsv_rows is not None and analyses_tsv_rows != n_analyses:
@@ -893,31 +1064,31 @@ def reconcile(
             variant_major=occupancy["axis"]["associations"],
             analysis_major=total_associations,
         )
-    if recorded["n_overflow_associations"] is not None and int(
-        recorded["n_overflow_associations"]
-    ) != total_associations:
+    if counts["n_overflow_associations"] is not None and (
+        counts["n_overflow_associations"] != total_associations
+    ):
         inconsistency(
             "recorded_overflow_associations_disagree",
-            f"the Store records {recorded['n_overflow_associations']} Overflow "
+            f"the Store records {counts['n_overflow_associations']} Overflow "
             f"associations but its Ragged component holds {total_associations}",
-            recorded=int(recorded["n_overflow_associations"]),
+            recorded=counts["n_overflow_associations"],
             observed=total_associations,
         )
-    if recorded["ragged_by_variant_n_axis"] is not None and int(
-        recorded["ragged_by_variant_n_axis"]
-    ) != by_variant_n_axis:
+    if counts["ragged_by_variant_n_axis"] is not None and (
+        counts["ragged_by_variant_n_axis"] != by_variant_n_axis
+    ):
         inconsistency(
             "recorded_variant_index_span_disagrees",
             f"the Store records a variant-major index over "
-            f"{recorded['ragged_by_variant_n_axis']} variants but it spans "
+            f"{counts['ragged_by_variant_n_axis']} variants but it spans "
             f"{by_variant_n_axis}",
         )
-    if recorded["ragged_by_variant_n_rows"] is not None and int(
-        recorded["ragged_by_variant_n_rows"]
-    ) != by_variant_n_rows:
+    if counts["ragged_by_variant_n_rows"] is not None and (
+        counts["ragged_by_variant_n_rows"] != by_variant_n_rows
+    ):
         inconsistency(
             "recorded_variant_index_rows_disagree",
-            f"the Store records {recorded['ragged_by_variant_n_rows']} variant-major "
+            f"the Store records {counts['ragged_by_variant_n_rows']} variant-major "
             f"rows but the index holds {by_variant_n_rows}",
         )
     dense_with_associations = occupancy["dense"]["associations"]
@@ -956,6 +1127,30 @@ def reconcile(
         )
 
     # -- canonical identity ------------------------------------------------
+    build_revision = _build_revision(path)
+    if build_revision["problem"] == "missing":
+        inconsistency(
+            "build_record_unavailable",
+            f"no build record at {build_revision['path']}; the Store's exact "
+            "opengwasdb revision is then unknown, and a revision nobody recorded is "
+            "not one this audit may infer",
+            path=build_revision["path"],
+        )
+    elif build_revision["problem"] == "unreadable":
+        inconsistency(
+            "build_record_unreadable",
+            f"the build record at {build_revision['path']} is not readable JSON "
+            f"({build_revision.get('error')})",
+            path=build_revision["path"],
+        )
+    elif build_revision["problem"] == "no_revision":
+        inconsistency(
+            "build_revision_unrecorded",
+            f"the build record at {build_revision['path']} names no "
+            "opengwasdb_rev, so which code wrote this Store is unrecorded",
+            path=build_revision["path"],
+        )
+
     identities: dict[str, Any] = {"scanned": False}
     reference_facts: dict[str, Any]
     reference_set: set[str] | None = None
@@ -1037,6 +1232,7 @@ def reconcile(
             "duplicate_alid_rows_within_a_position": scan.duplicate_extra_rows_in_table,
             "alid_index": {
                 "entries": index_scan.entries if index_scan is not None else None,
+                "rows_entries": index_scan.rows_entries if index_scan is not None else None,
                 "sorted": index_scan.sorted_ok if index_scan is not None else None,
                 "table_rows_indexable": scan.indexable_rows,
                 "table_rows_over_index_width": scan.rows - scan.indexable_rows,
@@ -1060,6 +1256,39 @@ def reconcile(
                 "mismatches": scan.sample_mismatches,
             },
         }
+        if index_scan is not None and index_scan.rows_entries != index_scan.entries:
+            inconsistency(
+                "alid_index_half_written",
+                f"variant_alid_bytes.npy holds {index_scan.entries} ALIDs but "
+                f"variant_alid_rows.npy holds {index_scan.rows_entries} rows; the "
+                "search index is half written and resolves nothing reliably",
+                entries=index_scan.entries,
+                rows_entries=index_scan.rows_entries,
+            )
+        if index_scan is not None and not index_scan.sorted_ok:
+            inconsistency(
+                "alid_index_not_sorted",
+                "the ALID search index is not sorted by ALID, so a lookup can answer "
+                "with another variant's row and a duplicate run is not contiguous",
+            )
+        if index_scan is not None and index_scan.entries != scan.indexable_rows:
+            inconsistency(
+                "alid_index_disagrees_with_table",
+                f"the ALID search index holds {index_scan.entries} entries but the "
+                f"variant table holds {scan.indexable_rows} rows whose ALID is narrow "
+                "enough to be indexed; one of the two lost rows",
+                index_entries=index_scan.entries,
+                table_indexable_rows=scan.indexable_rows,
+            )
+        if scan.sample_mismatches:
+            inconsistency(
+                "alid_sample_mismatch",
+                f"{scan.sample_mismatches} of the {scan.sample_checked} sampled rows "
+                "carry an ALID that contradicts their own chromosome, position or "
+                "allele columns, so one identity can name two variants",
+                sampled=scan.sample_checked,
+                mismatches=scan.sample_mismatches,
+            )
         if scan.rows != n_axis:
             inconsistency(
                 "variant_table_row_count_disagrees",
@@ -1153,6 +1382,69 @@ def reconcile(
         ):
             reference_facts[key] = None
 
+    # -- stable view: one directory, not a moving target --------------------
+    release_lock_at_end = _release_lock(path, manifest.store_id)
+    swapped = False
+    vanished = False
+    try:
+        end_stat = path.stat()
+        end_parent_stat = path.parent.stat()
+    except FileNotFoundError:
+        vanished = True
+        swapped = True
+        end_stat = start_stat
+        end_parent_stat = start_parent_stat
+    else:
+        swapped = (start_stat.st_dev, start_stat.st_ino) != (
+            end_stat.st_dev,
+            end_stat.st_ino,
+        ) or (start_parent_stat.st_dev, start_parent_stat.st_ino) != (
+            end_parent_stat.st_dev,
+            end_parent_stat.st_ino,
+        )
+    if vanished:
+        inconsistency(
+            "store_vanished_during_audit",
+            f"{path} no longer exists at the end of the audit; the report describes a "
+            "Store that was replaced while it was being read",
+            path=str(path),
+        )
+    elif swapped:
+        inconsistency(
+            "store_replaced_during_audit",
+            f"the Store directory's identity changed during the audit (device/inode "
+            f"{start_stat.st_dev}/{start_stat.st_ino} -> {end_stat.st_dev}/"
+            f"{end_stat.st_ino}); a Reference Completion replaced it under its own id "
+            "(ADR 0037) and this report spans two Stores",
+            before_device=start_stat.st_dev,
+            before_inode=start_stat.st_ino,
+            after_device=end_stat.st_dev,
+            after_inode=end_stat.st_ino,
+        )
+    if release_lock_at_end["held_by"] and not release_lock["held_by"]:
+        inconsistency(
+            "release_started_during_audit",
+            "a run took this release's lock while the audit was reading it "
+            f"({release_lock_at_end['held_by']}); the Store may be replaced under a "
+            "report that already claimed to describe it",
+            held_by=release_lock_at_end["held_by"],
+        )
+    stable_view = {
+        "dev": start_stat.st_dev,
+        "ino": start_stat.st_ino,
+        "parent_dev": start_parent_stat.st_dev,
+        "parent_ino": start_parent_stat.st_ino,
+        "swapped": swapped,
+        "release_lock": {**release_lock_at_end, "held_by_at_start": release_lock["held_by"]},
+        "note": (
+            "a Release Completion replaces a Store under its own id (ADR 0037), so the "
+            "directory's device and inode are compared before and after, and the "
+            "release lock is probed (read-only) at both ends; a lock held throughout is "
+            "recorded as a finding because a long-lived orchestrator can hold one "
+            "without touching this Store"
+        ),
+    }
+
     # -- read-only proof ----------------------------------------------------
     after = _inventory(path, method)
     unchanged = _compare(before, after)
@@ -1190,7 +1482,8 @@ def reconcile(
             "reference_assembly": manifest.reference_assembly,
             "created_at": manifest.created_at,
             "opened_mode": "r",
-            "build_revision": _build_revision(path),
+            "build_revision": build_revision,
+            "stable_view": stable_view,
             "recorded": recorded,
             "analyses_tsv_rows": analyses_tsv_rows,
         },
@@ -1206,7 +1499,7 @@ def reconcile(
         "occupancy": occupancy,
         "components": {
             "n_analyses": n_analyses,
-            "n_analyses_recorded": recorded["n_analyses"],
+            "n_analyses_recorded": counts["n_analyses"],
             "ragged_offsets_last": total_associations,
             "ragged_variant_index_entries": ragged_variant_index_entries,
             "by_variant_n_axis": by_variant_n_axis,
@@ -1228,22 +1521,29 @@ def reconcile(
             "peak_rss_includes": "the construction reference's ALID set",
         },
         "scope": {
-            "measured": [
-                "shared-axis / Dense-axis / off-panel counts, reconciled against the Store's own record",
-                "observed occupancy per axis partition, from the variant-major CSR offsets",
-                "exact duplicate ALIDs and multiallelic sites in the Store Variant Table",
-                "construction-reference identity and the Dense Component's membership of it",
-                "read-only proof: no Store file changed",
+            "measured": [text for stage, text in MEASURED_SCOPE if stage not in skipped_stages],
+            "not_measured": [
+                *NOT_MEASURED,
+                *[
+                    {
+                        "item": entry["item"],
+                        "why": f"{entry['why']}; this run reports ok: false",
+                        "ticket": "#372",
+                    }
+                    for entry in skipped
+                ],
             ],
-            "not_measured": list(NOT_MEASURED),
+            "skipped": skipped,
         },
     }
 
 
-def _count_rows(path: Path) -> int | None:
-    """Data rows of a headerless-or-headered TSV, or None when it is absent."""
-    if not path.is_file():
-        return None
+def _count_rows(path: Path) -> int:
+    """Data rows of a headerless-or-headered TSV.
+
+    Raises rather than returning 0 for a file it cannot read: a membership table
+    nobody can decode is missing evidence, not an empty release.
+    """
     rows = 0
     with path.open("r", encoding="utf-8") as handle:
         for line in handle:
@@ -1337,6 +1637,8 @@ def _summary(report: dict[str, Any], output: Path) -> str:
     occupancy = report["occupancy"]
     identities = report["identities"]
     duplicates = identities.get("duplicate_alid_extra_rows")
+    skipped_stages = [entry["stage"] for entry in report["scope"]["skipped"]]
+    skipped = f", skipped {', '.join(skipped_stages)}" if skipped_stages else ""
     return (
         f"{report['store']['store_id']}: axis {axis['n_axis']:,} = dense "
         f"{axis['n_dense']:,} + off-panel {axis['n_off_panel']:,} | off-panel "
@@ -1344,9 +1646,44 @@ def _summary(report: dict[str, Any], output: Path) -> str:
         f"{occupancy['off_panel']['observed_variants']:,}, unobserved "
         f"{occupancy['off_panel']['unobserved_variants']:,} | duplicate ALID rows "
         f"{'not measured' if duplicates is None else f'{duplicates:,}'} | errors "
-        f"{report['error_count']}, findings {report['finding_count']}\n"
-        f"evidence: {output}"
+        f"{report['error_count']}, findings {report['finding_count']}"
+        f"{skipped}\n"
+        f"evidence: {output} ({'ok' if report['ok'] else 'NOT OK'})"
     )
+
+
+def _write_report(report: dict[str, Any], output: Path, store_path: Path) -> None:
+    """Write the evidence JSON atomically, through a name nobody can predict.
+
+    The staged file is created by `tempfile.mkstemp` in the output's own
+    directory, so it cannot be an existing file or a symlink a third party
+    planted for this run to truncate (a fixed `output.with_name(".tmp")` can
+    be both), and it is renamed onto the output with `os.replace`, so a reader
+    sees either the previous evidence or the new one and never a half-written
+    file. The staged path is checked against the Store before a byte is written
+    to it: the Store is read-only for this command, wherever the caller asked
+    for its evidence.
+    """
+    output.parent.mkdir(parents=True, exist_ok=True)
+    handle, staged_name = tempfile.mkstemp(
+        dir=output.parent, prefix=f".{output.name}.", suffix=".tmp"
+    )
+    staged = Path(staged_name)
+    try:
+        if _inside(staged, store_path):
+            raise AuditError(
+                f"refusing to write evidence inside the Store ({staged} is under "
+                f"{store_path}); a read-only audit writes nothing there"
+            )
+        with os.fdopen(handle, "w", encoding="utf-8") as stream:
+            stream.write(json.dumps(report, indent=2, sort_keys=True) + "\n")
+            stream.flush()
+            os.fsync(stream.fileno())
+        staged.replace(output)
+        staged = None
+    finally:
+        if staged is not None:
+            staged.unlink(missing_ok=True)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -1383,12 +1720,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     except AuditError as exc:
         print(f"audit: {exc}", file=sys.stderr)
         return 2
-    output.parent.mkdir(parents=True, exist_ok=True)
-    staged = output.with_name(f"{output.name}.tmp")
-    staged.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    staged.replace(output)
+    try:
+        _write_report(report, output, store_path)
+    except AuditError as exc:
+        print(f"audit: {exc}", file=sys.stderr)
+        return 2
     print(_summary(report, output))
-    return 1 if report["error_count"] else 0
+    return 0 if report["ok"] else 1
 
 
 if __name__ == "__main__":

@@ -18,8 +18,8 @@ pixi run audit-store reconcile /data/opengwasdb/stores/OGS-00011/store.opengwasd
 | Option | Meaning |
 |---|---|
 | `--reference PATH` | reconcile the off-panel partition against this construction variant reference instead of the one the Store records |
-| `--skip-reference` | do not reconcile against a reference at all; recorded as `skipped`, never as a pass. Refused together with `--reference` |
-| `--no-identities` | skip the variant-table pass (duplicate ALIDs, multiallelics, reference membership). Recorded as `scanned: false` |
+| `--skip-reference` | do not reconcile against a reference at all. Recorded as `skipped`, removed from `scope.measured`, added to `scope.not_measured`, and the run reports `ok: false` (exit 1). Refused together with `--reference` |
+| `--no-identities` | skip the variant-table pass (duplicate ALIDs, multiallelics, reference membership). Recorded as `scanned: false`, with the same `ok: false` consequence |
 | `--band-variants N` | axis entries one band of the occupancy scan spans (default 4,000,000). The answer does not depend on it |
 | `--verify auto\|sha256\|metadata` | how the Store is proved unchanged: `sha256` every file, `size+mtime_ns` only, or `auto` (sha256 up to 512 MiB) |
 
@@ -27,13 +27,16 @@ Exit codes:
 
 | Code | Meaning |
 |---|---|
-| 0 | reconciled; every disagreement is a `finding` |
-| 1 | reconciled, and the Store's artifact and its own record disagree (`error`) |
-| 2 | the Store cannot be audited at all: no manifest, not a hybrid Store, a required artifact absent, a missing reference, a bad invocation |
+| 0 | reconciled, and `ok` is true: every disagreement is a `finding` |
+| 1 | reconciled, and `ok` is false: an `error` (the Store's artifact and its own record disagree, or evidence the audit requires is missing or contradicts itself), or a stage the caller explicitly skipped |
+| 2 | the Store cannot be audited at all: no manifest, not a hybrid Store, a required artifact absent, a bad invocation |
 
-A `2` is never a report about the Store, and a `1` is never a pass. The command
-exits `2` rather than writing a report that reconciles something other than the
-Store the caller named, and refuses an `--output` inside the Store.
+A `2` is never a report about the Store, and a `1` is never a pass. `ok` is the
+exit code: it is true exactly when no `error`-severity inconsistency was
+recorded, and skipping a stage is one of those -- a run that did not measure a
+required partition must not be read as an exact, closed reconciliation. The
+command exits `2` rather than writing a report that reconciles something other
+than the Store the caller named, and refuses an `--output` inside the Store.
 
 ## Scope
 
@@ -49,6 +52,56 @@ What it does not measure is in the report's `scope.not_measured`, with the
 ticket that owns each: per-Analysis and per-publication attribution, support
 across Analyses, source frequency evidence, and rsid groups. Their absence is
 stated, not left to be inferred from a report that has no field for them.
+
+## Prerequisites, and what makes them an `error`
+
+The Store's own evidence is required, not optional. Each of these is an
+`error`-severity inconsistency, so the run reports `ok: false` and exits 1
+rather than passing with a blank where a fact should be:
+
+| Missing or contradicted | Kind |
+|---|---|
+| `records/build.json` absent | `build_record_unavailable` |
+| `records/build.json` unreadable, or not a JSON object | `build_record_unreadable` |
+| `records/build.json` with no `opengwasdb_rev` | `build_revision_unrecorded` |
+| `analyses.tsv` absent | `analyses_tsv_unavailable` |
+| `analyses.tsv` undecodable | `analyses_tsv_unavailable` |
+| provenance missing any of `n_variants`, `n_analyses`, `n_panel`, `n_off_panel`, `n_overflow_associations`, `ragged.by_variant.n_axis`, `ragged.by_variant.n_rows` | `recorded_counts_incomplete` |
+| any of those counts disagreeing with the artifact | `recorded_*_disagrees` |
+| an ALID search index whose two arrays differ in length | `alid_index_half_written` |
+| an ALID search index that is not sorted | `alid_index_not_sorted` |
+| an ALID search index whose entry count differs from the table's indexable rows | `alid_index_disagrees_with_table` |
+| a sampled row whose ALID contradicts its own chromosome, position or allele columns | `alid_sample_mismatch` |
+| a Dense-axis variant carrying Overflow associations (disjoint partition) | `dense_axis_rows_carry_overflow_associations` |
+| a Store directory replaced or removed during the audit | `store_replaced_during_audit`, `store_vanished_during_audit` |
+| a release lock taken while the audit was reading the Store | `release_started_during_audit` |
+| any file in the Store whose size, mtime or hash changed | `store_modified` |
+| a stage the caller skipped | `skipped_evidence` |
+
+The ALID cross-check is a *Store-level* check and does not replace
+`opengwasdb`'s variant normalisation (ADR 0017): it asks whether a stored row's
+`alid` string agrees with that row's own columns, not whether the identity the
+builder derived from a source row was the right one -- that is the engine's, and
+a change to it is the engine's change (ADR 0023's seam is a command line, and
+this command consumes it). Its sample is every 100,000th row, recorded as
+`identities.alid_consistency_sample` with the stride, so a reader knows the
+check's power rather than inferring a census from it.
+
+## A stable, read-only view
+
+A Reference Completion replaces a Store under its own id (ADR 0037), so the
+thing an audit describes has to be one directory and not two. Two independent
+guards, both recorded in `store.stable_view`:
+
+- the Store directory's device and inode (and its parent's) before and after --
+  a rename swap changes them, and the report then carries
+  `store_replaced_during_audit`;
+- the release lock (`ogstores.release.lock_holder`, a non-blocking shared
+  `flock` on `<artifact-root>/.release-locks/<store_id>.lock`), probed at the
+  start and at the end. A lock held throughout is a `finding`
+  (`release_lock_held`) because a long-lived orchestrator can hold one without
+  touching this Store; a lock *taken* during the audit is an `error`. The probe
+  creates and removes nothing, so asking cannot change the release.
 
 ## What it reconciles
 
@@ -84,17 +137,17 @@ changes only if the report's meaning does. Adding a field does not bump either.
 | Field | Contents |
 |---|---|
 | `argv`, `started_at`, `finished_at`, `wall_seconds`, `runtime` | what ran, when, and against which `opengwasdb`/Python/NumPy; `audit_version` beside them |
-| `store` | path, `manifest_sha256`, id, layout, format version, completion state, `opened_mode: "r"`, `build_revision` (the `opengwasdb` rev from `records/build.json`), `recorded` (every claim reconciled above), `analyses_tsv_rows` |
+| `store` | path, `manifest_sha256`, id, layout, format version, completion state, `opened_mode: "r"`, `build_revision` (the `opengwasdb` rev from `records/build.json`, with the `problem` that made it unusable when it is), `stable_view` (directory identity and release lock), `recorded` (every claim reconciled above), `analyses_tsv_rows` |
 | `reference` | identity of the construction reference, its ALID count, the axis rows in it and absent from it, and whether the Dense Component's row set is exactly that set |
 | `axis` | `n_axis`, `n_dense`, `n_off_panel`, the mapping's own checks (`distinct_entries`, `duplicate_entries`, `strictly_increasing`, `out_of_range`), `reconciled` |
 | `occupancy` | `axis`, `dense` and `off_panel`: associations, observed and unobserved variants, single-association variants, the largest, and for off-panel the first 20 unobserved axis indices; plus a support histogram and the band scan's own checks |
 | `components` | Analyses, association totals, index lengths, and `index_validated_by` -- the engine interface that validated the index, not this module |
-| `identities` | rows, distinct ALIDs, duplicate groups and extra rows (with `duplicate_alid_source`), the search index's agreement with the table, non-canonical rows, multiallelic sites and rows, missing rsids, and the ALID/column cross-check sample |
+| `identities` | rows, distinct ALIDs, duplicate groups and extra rows (with `duplicate_alid_source`), the search index's own lengths, sortedness and agreement with the table, non-canonical rows, multiallelic sites and rows, missing rsids, and the ALID/column cross-check sample |
 | `inconsistencies` | one entry per disagreement: `kind`, `severity` (`error` or `finding`), `detail`, and the counts that justify it |
 | `ok`, `error_count`, `finding_count` | the exit code's own summary |
 | `unchanged` | the read-only proof: `method`, `files`, and `changed`/`added`/`removed` |
 | `resources` | band size, band count, peak RSS (which includes the reference's ALID set), so a rerun can be planned |
-| `scope` | what was measured, and `not_measured` with the ticket that owns each |
+| `scope` | `measured` (the stages this run actually ran), `not_measured` with the ticket that owns each, and `skipped` naming any stage a flag switched off |
 
 `occupancy.dense` is not a finding waiting to happen: a Dense-axis entry carries
 no Ragged Overflow association by the disjoint partition, because its
@@ -104,7 +157,7 @@ not an `error` -- the epic asks how many there are, not whether they are legal.
 
 ## Read-only
 
-Two properties, both checked rather than promised:
+Three properties, all checked rather than promised:
 
 1. The release is opened with `opengwasdb.store.open.open_store` and its arrays
    with `arrays(mode="r")`; every array is loaded `mmap_mode="r"`. Nothing is
@@ -113,6 +166,12 @@ Two properties, both checked rather than promised:
    hashing limit -- is recorded before and after the audit and compared. A
    difference is an `error` (`store_modified`) and exits `1`; the report says
    which method it used, so "unchanged" is a claim with a measurement behind it.
+3. The evidence file is written through `tempfile.mkstemp` in the output's own
+   directory and renamed onto `--output` with `os.replace`. A predictable
+   `.tmp` sibling can pre-exist as a file or a symlink for this run to truncate;
+   an unguessable one cannot. The staged path is checked against the Store
+   before a byte is written, and a symlink already at `--output` is replaced
+   rather than followed.
 
 Large artifacts stay outside Git, under the deployment's evidence directory
 named in the ticket. Small reviewed reports may be committed.
@@ -122,8 +181,8 @@ named in the ticket. Small reviewed reports may be committed.
 `OGS-00011` is the Store epic #371 is about: a rebuilt Observed-Only Hybrid
 Store Release with 3,169 Analyses, built by `opengwasdb` revision
 `496bfe9cc9bbc85c60718d62aa4c6d43d83af810` (recorded in `records/build.json`).
-The audit took 334.7 s wall and 7.3 GiB peak RSS (`resources.max_rss_kb`
-7,489,460) on a 224-core host, read 22,699 files without changing one
+The audit took 347.4 s wall and 7.1 GiB peak RSS (`resources.max_rss_kb`
+7,494,788) on a 224-core host, read 22,699 files without changing one
 (`unchanged.method: size+mtime_ns`), and reconciled:
 
 - 114,514,113 shared-axis variants = 13,415,936 Dense-axis + 101,098,177
@@ -139,6 +198,15 @@ The audit took 334.7 s wall and 7.3 GiB peak RSS (`resources.max_rss_kb`
 - a construction reference of 13,415,936 ALIDs (`sha256
   7c7ab7bd…`) whose members are exactly the Dense Component's rows: 0 missing
   from the axis, 0 Dense-axis rows absent from it.
+
+The run's `store.stable_view` shows why it still judged the view stable while a
+`workflow/release.py OGS-00011 --config force=1` run from another epic held this
+release's lock the whole time. That lock is a `finding` (`release_lock_held`),
+not an `error`: the Store directory's device and inode were identical before and
+after and every file was unchanged, and a swap replaces the directory, which is
+what the identity comparison is for. A release whose lock outlives its run is an
+operational fact about that release; withholding a reconciliation that measured
+the Store twice and found it the same would hide it rather than report it.
 
 The number to carry forward is the occupancy: the off-panel axis is not a tail
 of unused pre-filter identities. Something admitted 101,098,177 distinct
