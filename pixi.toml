@@ -264,7 +264,26 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "5fc07666202d43500d5e48bbc48f1e4c9e34ef0f" }
+#
+# Repinned for #380 to `7308c6a`, the opengwasdb `dev` merge of PR #332 (issue
+# #331), which closes the MAF admission hole the #371 audit found. `admit_rows`
+# now reads a frequency as usable evidence when it is finite and inside
+# `[0, 1]`: exactly `0.0` and `1.0` are frequencies whose MAF is `0`, so a
+# `FILTERED` policy judges and drops them, and every unusable frequency (NaN,
+# non-finite, out of range) is dropped too rather than retained as
+# `maf_missing` -- which is how 192M associations and 101M off-panel variants,
+# 83% of them from five publications reporting `0.0`/blank frequencies on
+# monomorphic rows, entered OGS-00011 through a common-variant filter. The
+# provenance tally `maf_rows_missing` therefore counts rows a `FILTERED` policy
+# *dropped*, not rows it kept unjudged, and this repository's Store Audit reads
+# it that way (#380). The stored-EAF rule is deliberately unchanged: the reader
+# still records no EAF for exactly `0`/`1` (ADR 0036), and such a row now reaches
+# admission as no frequency and is dropped for that reason. The Hybrid
+# checkpoint format moves to 2, so a resumed format-1 run is refused rather than
+# publishing spills written under the old retention rule. Store format stays
+# 0.2.0 and no builder's arguments change. The range `5fc0766..7308c6a` is
+# #331's six commits and its merge; #331 is its only functional change.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "7308c6a4361e92660ab37bdef69f639e7ae785d3" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

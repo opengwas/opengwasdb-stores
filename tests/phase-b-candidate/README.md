@@ -114,6 +114,19 @@ Collection (#284, ADR 0036):
     `opengwasdb resolve-analyses` on a tiny synthetic panel and GWAS-SSF
     sources: a second unchanged run resumes every record and the receipt names
     the same records (skipped when the resolver is not installed).
+21. **The real admission rule** — `RealResolverMafAdmissionTests` (#380) runs
+    the same pinned resolver, through the operator entry point, on a GWAS-SSF
+    source that states every frequency class once (common, rare below the
+    floor, `0.0`, `1.0`, blank, `NaN`, out of range, unparseable), under
+    OGS-00011's own candidate settings read from its tracked release config
+    (`defaults.maf_threshold`, `ancestry_assignment.maf_floor` and its gates).
+    It asserts the record's `canonical_rows_retained`,
+    `maf_rows_below_threshold` and `maf_rows_missing` account for every
+    observed row, the resolver fingerprinted the floor it applied, and the
+    emitted candidate carries that floor on its included rows. At
+    `opengwasdb` `5fc0766` the same fixture retained the six no-frequency rows
+    and counts them `maf_rows_missing`; the assertion fails there, which is what
+    #380 repinned for.
 
 `EntryPointStageTests` cover the one entry point (#287): starting from the
 connector files alone, each stage in turn -- freeze, preflight, prepare,

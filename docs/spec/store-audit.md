@@ -363,8 +363,8 @@ rule do with it? Four steps, in this order, each recorded rather than summarised
 
    | Class | Token | `parse_af` |
    |---|---|---|
-   | `placeholder_zero` | a number equal to `0.0` | `None` (stores #176: a monomorphic site, or a placeholder) |
-   | `placeholder_one` | a number equal to `1.0` | `None` |
+   | `placeholder_zero` | a number equal to `0.0` | `None` (stores #176: a monomorphic site, or a placeholder; dropped by a `filtered` policy, opengwasdb#331) |
+   | `placeholder_one` | a number equal to `1.0` | `None` (likewise) |
    | `missing` | blank, `.`, `NA`, `NaN`, `None`, ... | `None` |
    | `malformed` | unparseable, e.g. `abc` | `None` |
    | `nonfinite` | `inf`/`-inf` | `None` |
@@ -409,22 +409,28 @@ vocabulary, and the tally is asserted to sum to the sample:
 |---|---|
 | `valid_common` | the rule kept the row and its MAF is at or above the threshold |
 | `maf_below_threshold` | the rule dropped the row for its MAF |
-| `maf_missing` | the rule kept the row and it carries no usable frequency -- a placeholder, a blank, a malformed or an out-of-range token. The `frequency.class` beside it says which |
+| `maf_missing` | the row carries no usable frequency -- a placeholder, a blank, a malformed or an out-of-range token. Under a `filtered` MAF policy the rule drops it for that (opengwasdb#331); under `disabled` or `unavailable` it keeps it, unjudged. The `frequency.class` beside it says which token it was |
 | `info_below_threshold` | the rule dropped the row for its declared INFO score |
 | `unlocated_source` | the source file was read but holds no row at this position with this allele pair |
 | `ambiguous_source` | the source file holds more than one row at this position with this allele pair and their frequencies disagree, so the row cannot be replayed as one row |
 | `source_unavailable` | there is no readable source file, so the row cannot be judged |
 
-`maf_missing` is the defect's own bucket: `admit_rows` computes
-`available = isfinite(af) & (af > 0) & (af < 1)` and `maf_drop = available & (maf <
-threshold)`, so a row with no usable frequency has `maf_drop == False` and is
-**kept**. That is the documented, intended reading of stores #176 for a missing
-frequency, and it is also what makes a file-wide `effect_allele_frequency = 0.0`
-placeholder the cheapest possible way to grow a Store's axis: every such row
-bypasses the MAF filter entirely instead of being dropped for a MAF of zero.
+`maf_missing` is the bucket stores #380 repins for. `admit_rows` reads a
+frequency as usable evidence when it is finite and inside `[0, 1]`; a row it
+cannot read is no evidence a common-variant Store may admit, so a `filtered`
+policy **drops** it (opengwasdb#331, first shipped at the pinned `7308c6a`). The
+same rule judges an exact `0.0`/`1.0` as a frequency whose MAF is 0 and drops it
+as below any positive threshold; because the reader still reports no stored EAF
+for one (`parse_af`, ADR 0036), what a real build hands the rule is NaN, so the
+build counts that row `maf_missing` -- dropped for having no frequency. Either
+way the row leaves the Store, where before it stayed and grew the axis: a
+file-wide `effect_allele_frequency = 0.0` placeholder was the cheapest possible
+way to do that.
 
 The trace does not change that rule. It reports what the rule did, with the
-evidence a decision about it needs.
+evidence a decision about it needs, and it reports the disagreement when a Store
+holds a row its own declared policy now drops: that is
+`admission_disagrees_with_store`, an `error`.
 
 ### The trace report
 
@@ -450,18 +456,22 @@ row whose ALID contradicts the sample, a Store cell the trace cannot read, an
 admission the Store contradicts, a stored frequency that disagrees with the
 disposition, a missing or unreadable source file, a source build that differs
 from the Store's, a Store with no recorded build revision, and a manifest policy
-that differs from the Store's recorded one are all `error`s (exit 1). A trace
-whose engine revision differs from the recorded build revision is a `finding`:
-the admission and parsing it replayed are the installed engine's, and the report
-says so instead of substituting silently. A placeholder or invalid frequency that
-was admitted is a `finding` (exit 0) -- that is what the command exists to
-observe, and a `finding` is not a pass on the defect: it is the observation, with
-its counts, that a decision about the admission rule has to be taken against.
+that differs from the Store's recorded one are all `error`s (exit 1). An
+admission the Store contradicts includes a Store built before core #331, which
+holds the placeholder and unreadable-frequency rows that rule now drops: the
+trace reports each of them and exits 1 rather than treating a filtered Store's
+unfiltered rows as an observation. A trace whose engine revision differs from
+the recorded build revision is a `finding`: the admission and parsing it replayed
+are the installed engine's, and the report says so instead of substituting
+silently.
 
 ## The report
 
 `schema` is `ogstores.audit.reconcile/1`; `audit_version` is separate and
 changes only if the report's meaning does. Adding a field does not bump either.
+`audit_version` `2` (stores #380) is the trace's admission fields changing
+meaning with opengwasdb#331, which the section above states; the reconcile report
+itself is unchanged and takes the version because the three commands share one.
 
 | Field | Contents |
 |---|---|
@@ -625,6 +635,13 @@ sample.
 
 ### Trace
 
+*Recorded at `opengwasdb` `5fc0766`, before the #331 admission amendment that
+stores #380 repins to (`7308c6a`). Read every `maf_missing` below as "the rule
+kept it, unjudged", and `associations_missing` as a retained tally: at the
+pinned revision those rows are dropped instead, so a fresh trace of this Store
+reports each one as `admission_disagrees_with_store` and exits 1. The measurements
+are left as recorded; nothing here was recomputed under the new rule.*
+
 `trace` ran on the same Store with the `seed 42` sample, the build manifest
 `/data/opengwasdb/stores/OGS-00011/work/analyses.tsv` and 13 workers: 217.2 s
 wall, 26 source files / 24.6 GB of gzipped harmonised GWAS-SSF read once each,
@@ -686,11 +703,14 @@ wall, 26 source files / 24.6 GB of gzipped harmonised GWAS-SSF read once each,
   the same rule in this engine. Installing the recorded revision and replaying
   under it is not something this command can do at run time.
 
-The mechanism is established: `admit_rows` keeps a row with no usable frequency
-(`available == False` implies `maf_drop == False`), so a placeholder `0.0` is
-admitted where a genuine `0.001` is dropped, the builder does exactly that, the
-Store counts the rows it did it to, and the raw files carry the tokens. What is
-*not* established is the split of the 101,098,177 off-panel variants: on this
-sample the placeholder share is 60% of the union-wide stratum with an interval
-that includes 36%, and a material minority is legitimate admission of common
-variants the EUR panel does not hold, which no admission fix would remove.
+The mechanism is established: at `5fc0766` `admit_rows` kept a row with no usable
+frequency (`available == False` implies `maf_drop == False`), so a placeholder
+`0.0` was admitted where a genuine `0.001` was dropped, the builder did exactly
+that, the Store counted the rows it did it to, and the raw files carry the
+tokens. #331 closed it at `7308c6a`: such a row is dropped, so a Store built
+before it holds rows its own declared policy cannot admit -- the disagreement
+stores #380's pin makes visible, and what a rebuild removes. What is *not*
+established is the split of the 101,098,177 off-panel variants: on this sample
+the placeholder share is 60% of the union-wide stratum with an interval that
+includes 36%, and a material minority is legitimate admission of common variants
+the EUR panel does not hold, which no admission fix would remove.

@@ -81,7 +81,13 @@ from ogstores.plan import plan
 #: and the writer fix that gives every fresh Dense 0.2.0 array a dtype-matched
 #: Blosc `typesize`. The range `75f0e77..5fc0766` is #326's core commits and
 #: merge; there is no Store format bump.
-PINNED_OPENGWASDB_REVISION: str = "5fc07666202d43500d5e48bbc48f1e4c9e34ef0f"
+#: Then to `7308c6a`, the core `dev` merge of PR #332 (core #331), for the MAF
+#: admission fix stores #380 repins for: `admit_rows` judges exactly `0.0`/`1.0`
+#: as MAF 0 and drops them under a `FILTERED` policy, and drops every unusable
+#: frequency instead of retaining it, so `maf_rows_missing` counts dropped rows
+#: and the Hybrid checkpoint format moves to 2. The range `5fc0766..7308c6a` is
+#: #331's six commits and its merge; there is no Store format bump.
+PINNED_OPENGWASDB_REVISION: str = "7308c6a4361e92660ab37bdef69f639e7ae785d3"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference
