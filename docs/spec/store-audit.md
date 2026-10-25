@@ -601,7 +601,7 @@ sample.
 ### Trace
 
 `trace` ran on the same Store with the `seed 42` sample, the build manifest
-`/data/opengwasdb/stores/OGS-00011/work/analyses.tsv` and 13 workers: 213.1 s
+`/data/opengwasdb/stores/OGS-00011/work/analyses.tsv` and 13 workers: 219.0 s
 wall, 26 source files / 24.6 GB of gzipped harmonised GWAS-SSF read once each,
 22,699 Store files unchanged (`size+mtime_ns`). Its evidence is
 `evidence/374/trace.json`.
