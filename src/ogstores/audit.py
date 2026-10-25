@@ -3779,7 +3779,9 @@ def _scan_source_sites(task: tuple[str, list[tuple[str, str, int, str, str]]]) -
                         "source_effect_allele": source_effect,
                         "source_other_allele": source_other,
                     }
-    except (OSError, ValueError) as exc:
+    except (OSError, ValueError, RuntimeError) as exc:
+        # pysam raises its own `SamtoolsError` (a `RuntimeError`) for a file that is
+        # not a BGZF/TSV source; a scan that names the failure beats a traceback.
         facts["error"] = f"{type(exc).__name__}: {exc}"
         return facts
     for (chromosome, position), entries in wanted.items():
@@ -3953,8 +3955,15 @@ def _declared_policies(
     the wrong rows, so a disagreement is an error, not a preference.
     """
     capability = (manifest_row.get("source_reader_capability") or "").strip() or None
-    maf_policy = parse_maf_policy(manifest_row)
-    info_policy = parse_info_score_policy(manifest_row, reader_capability=capability)
+    try:
+        maf_policy = parse_maf_policy(manifest_row)
+        info_policy = parse_info_score_policy(manifest_row, reader_capability=capability)
+    except ValueError as exc:
+        raise AuditError(
+            f"Analysis {analysis_id}: the build manifest's declared MAF/INFO policy cannot "
+            f"be read ({exc}), so the admission the build applied to this Analysis cannot be "
+            "replayed"
+        ) from None
     declared = {
         "maf_state": maf_policy.state.value,
         "maf_threshold": maf_policy.maf_threshold,
@@ -4461,8 +4470,6 @@ def trace(
                         else "below_threshold"
                     )
                 chosen_class = token_class
-            elif source is not None and source["available"] and source["assembly_agrees"] is not False:
-                chosen_class = None
             frequency["class"] = chosen_class
             record["frequency"] = frequency
             record["admission"] = None if admission is None else {
