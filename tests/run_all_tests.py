@@ -150,9 +150,12 @@ SUITE_COST: dict[str, float] = {
     "release-config": 9.0,
     # #289's ukb-b suite: one in-process pipeline run per test, like FinnGen's.
     "ukb-b-pipeline/pipeline-end-to-end": 2.0,
-    # #372's audit suite builds a Hybrid Store per test, and each reads it twice
-    # (before/after digests).
-    "audit": 1.0,
+    # #372's and #373's audit suites build a Hybrid Store per test, and each
+    # reads it twice (before/after digests). Two suites in `tests/audit` means
+    # neither can be named after its directory, so both carry the
+    # `<directory>/<file>` label (#373).
+    "audit/audit-reconcile": 1.0,
+    "audit/audit-attribute": 1.0,
 }
 
 # Every suite gets single-threaded BLAS. A process that imports numpy, scipy
