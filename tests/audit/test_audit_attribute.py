@@ -156,10 +156,22 @@ ANALYSES_COLUMNS = (
 )
 
 
-def write_analyses(store: Path, publications: list[tuple[str, str]], *, store_id: str = STORE_ID) -> None:
-    """Write `analyses.tsv` in the shape a real Store Release carries."""
+def write_analyses(
+    store: Path,
+    publications: list[tuple[str, str]],
+    *,
+    store_id: str = STORE_ID,
+    row_order: list[int] | None = None,
+) -> None:
+    """Write `analyses.tsv` in the shape a real Store Release carries.
+
+    `row_order` writes the rows in that order of `analysis_index`, so a suite can
+    prove that metadata is read by `analysis_index` rather than by file order.
+    """
     lines = ["\t".join(ANALYSES_COLUMNS) + "\n"]
-    for index, (pmid, author) in enumerate(publications):
+    order = list(range(len(publications))) if row_order is None else list(row_order)
+    for index in order:
+        pmid, author = publications[index]
         row = {
             "analysis_index": str(index),
             "analysis_id": f"GCST{900000 + index}",
@@ -330,6 +342,7 @@ def build_store(
     publications: list[tuple[str, str]] | None = None,
     dense_rows: list[int] | None = None,
     dense_observed: dict[tuple[int, int], int] | None = None,
+    analysis_row_order: list[int] | None = None,
     store_id: str = STORE_ID,
 ) -> tuple[Path, Path]:
     """Build one Hybrid Store Release plus the construction reference it records."""
@@ -337,6 +350,14 @@ def build_store(
     pairs = list(PAIRS) if pairs is None else list(pairs)
     publications = PUBLICATIONS if publications is None else publications
     dense_rows = DENSE_ROWS if dense_rows is None else dense_rows
+    if dense_observed is None:
+        # Every Analysis holds every panel variant unless the test says
+        # otherwise, so an on-panel control has cells to name.
+        dense_observed = {
+            (row, analysis): 100 + analysis
+            for row in range(len(dense_rows))
+            for analysis in range(len(publications))
+        }
     store = root / store_id / "store.opengwasdb"
     store.mkdir(parents=True)
     write_variant_axis(store, variants, {})
@@ -346,7 +367,7 @@ def build_store(
         store, variants, dense_rows, len(publications), observed=dense_observed, store_id=store_id
     )
     write_ragged(store, pairs, len(variants), len(publications))
-    write_analyses(store, publications, store_id=store_id)
+    write_analyses(store, publications, store_id=store_id, row_order=analysis_row_order)
     write_build_record(root, store_id=store_id)
     write_manifest(
         store,
@@ -659,6 +680,150 @@ class TestAttributionReport(AttributeTestCase):
 
 
 # ---------------------------------------------------------------------------
+# Seam 2: counting is exact when the metadata is not convenient
+# ---------------------------------------------------------------------------
+
+
+class TestDeduplication(AttributeTestCase):
+    """Nothing is counted twice because of how the Store happens to be laid out."""
+
+    def test_interleaved_publications_are_counted_once(self) -> None:
+        # The two Analyses of 1001 (0 and 2) straddle one of 1002 (1), which is
+        # what a publication-ordered traversal exists for: visiting Analyses in
+        # index order lets 1002 stamp v2 between 1001's two Analyses, and 1001's
+        # second Analysis then counts v2 and v3 a second time.
+        publications = [("1001", "A"), ("1002", "B"), ("1001", "A"), ("1002", "B")]
+        pairs = [(2, 0), (2, 1), (2, 2), (3, 0), (3, 2), (4, 1)]
+        store, _ = self.store(publications=publications, pairs=pairs)
+        code, report, _ = self.attribute(store)
+        record_check()
+
+        self.assertEqual(code, 0, json.dumps(report.get("inconsistencies"), indent=1))
+        support = report["support"]
+        # v2 is observed by three Analyses of two publications; v3 by two
+        # Analyses of one; v4 by one.
+        self.assertEqual(support["analyses"], {"1": 1, "2": 1, "3-10": 1, "11-100": 0, "101+": 0})
+        self.assertEqual(support["publications"], {"1": 2, "2": 1, "3-10": 0, "11-100": 0, "101+": 0})
+        record_check()
+
+        publications_table = {
+            row["publication_pmid"]: row
+            for row in report["contributors"]["publications"]["by_distinct_off_panel_variants"]
+        }
+        self.assertEqual(publications_table["1001"]["distinct_off_panel_variants"], 2)
+        self.assertEqual(publications_table["1002"]["distinct_off_panel_variants"], 2)
+        self.assertEqual(publications_table["1001"]["off_panel_associations"], 4)
+        self.assertEqual(publications_table["1002"]["off_panel_associations"], 2)
+        record_check()
+
+        # 1001 is v3's only publication although two Analyses observe it; 1002
+        # is v4's only publication and only 1002's Analysis 1 observes it.
+        self.assertEqual(support["exclusive_to_one_publication_variants"], 2)
+        self.assertEqual(support["exclusive_to_one_publication_multi_analysis_variants"], 1)
+        self.assertEqual(support["shared_across_publications_variants"], 1)
+        self.assertEqual(support["sum_of_publication_exclusive_variants"], 2)
+        record_check()
+
+    def test_a_variant_repeated_by_one_analysis_is_counted_once(self) -> None:
+        # Two rows for one variant in one Analysis: an intra-band repeat, which a
+        # stamp alone cannot catch because both rows read as new.
+        pairs = [(2, 0), (2, 0), (3, 0), (4, 2), (5, 3)]
+        store, _ = self.store(pairs=pairs)
+        code, report, _ = self.attribute(store)
+        record_check()
+
+        self.assertEqual(code, 0, json.dumps(report.get("inconsistencies"), indent=1))
+        self.assertEqual(report["support"]["analyses"], {"1": 4, "2": 0, "3-10": 0, "11-100": 0, "101+": 0})
+        record_check()
+
+        kinds = [entry["kind"] for entry in report["inconsistencies"]]
+        self.assertIn("repeated_variant_rows_in_one_analysis", kinds)
+        repeated = next(
+            entry for entry in report["inconsistencies"] if entry["kind"] == "repeated_variant_rows_in_one_analysis"
+        )
+        self.assertEqual(repeated["counts"]["rows"], 1)
+        self.assertEqual(repeated["severity"], "finding")
+        record_check()
+
+        # The exclusive counts stay apart: two variants, three associations.
+        analysis_zero = next(
+            row
+            for row in report["contributors"]["analyses"]["by_exclusive_variants"]
+            if row["analysis_index"] == 0
+        )
+        self.assertEqual(analysis_zero["exclusive_variants"], 2)
+        self.assertEqual(analysis_zero["exclusive_associations"], 3)
+        self.assertEqual(analysis_zero["distinct_off_panel_variants"], 2)
+        self.assertEqual(analysis_zero["off_panel_associations"], 3)
+        self.assertIn(
+            "single_observer_variants_carry_several_associations", kinds
+        )
+        record_check()
+
+    def test_metadata_is_read_by_analysis_index_not_by_file_order(self) -> None:
+        # The rows are written 2, 0, 3, 1: file order is not `analysis_index`.
+        store, _ = self.store(analysis_row_order=[2, 0, 3, 1])
+        code, report, rows = self.attribute(store)
+        record_check()
+
+        self.assertEqual(code, 0, json.dumps(report.get("inconsistencies"), indent=1))
+        by_index = {
+            row["analysis_index"]: row["publication_pmid"]
+            for row in report["contributors"]["analyses"]["by_distinct_off_panel_variants"]
+        }
+        self.assertEqual(by_index, {0: "1001", 1: "1001", 2: "1002", 3: "1003"})
+        record_check()
+
+        table = (self.evidence / "analyses.tsv").read_text(encoding="utf-8").splitlines()
+        header = table[0].split("\t")
+        records = [dict(zip(header, line.split("\t"))) for line in table[1:]]
+        self.assertEqual([row["analysis_index"] for row in records], ["0", "1", "2", "3"])
+        self.assertEqual([row["publication_pmid"] for row in records], ["1001", "1001", "1002", "1003"])
+        record_check()
+
+        # And the sample agrees: an off-panel row naming Analysis 2 names 1002.
+        named = [row for row in rows if row["analysis_index"] == "2" and row["on_panel"] == "False"]
+        self.assertTrue(named)
+        self.assertTrue(all(row["publication_pmid"] == "1002" for row in named))
+        record_check()
+
+    def test_the_full_contributor_tables_are_written_beside_the_evidence(self) -> None:
+        store, _ = self.store()
+        _, report, _ = self.attribute(store)
+        tables = report["contributors"]["tables"]
+        record_check()
+
+        self.assertEqual(set(tables), {"analyses", "publications"})
+        analyses_table = self.evidence / "analyses.tsv"
+        publications_table = self.evidence / "publications.tsv"
+        self.assertTrue(analyses_table.is_file())
+        self.assertTrue(publications_table.is_file())
+        self.assertEqual(tables["analyses"]["rows"], 4)
+        self.assertEqual(tables["publications"]["rows"], 3)
+        record_check()
+
+        import hashlib
+
+        self.assertEqual(
+            tables["analyses"]["sha256"], hashlib.sha256(analyses_table.read_bytes()).hexdigest()
+        )
+        header = analyses_table.read_text(encoding="utf-8").splitlines()[0].split("\t")
+        self.assertEqual(tuple(header), audit.ANALYSIS_TABLE_COLUMNS)
+        header = publications_table.read_text(encoding="utf-8").splitlines()[0].split("\t")
+        self.assertEqual(tuple(header), audit.PUBLICATION_TABLE_COLUMNS)
+        record_check()
+
+        rows = [
+            dict(zip(audit.ANALYSIS_TABLE_COLUMNS, line.split("\t")))
+            for line in analyses_table.read_text(encoding="utf-8").splitlines()[1:]
+        ]
+        self.assertEqual([row["analysis_index"] for row in rows], ["0", "1", "2", "3"])
+        # Every Analysis is in the full table, not only the ranked leaders.
+        self.assertTrue(all(row["analysis_id"] for row in rows))
+        record_check()
+
+
+# ---------------------------------------------------------------------------
 # Seam 2: the sample is deterministic, stratified and traceable
 # ---------------------------------------------------------------------------
 
@@ -784,7 +949,7 @@ class TestDeterministicSample(AttributeTestCase):
         record_check()
 
         self.assertTrue(report["sample"]["on_panel_controls"]["available"])
-        self.assertEqual(report["sample"]["on_panel_controls"]["unresolved"], 0)
+        self.assertEqual(report["sample"]["on_panel_controls"]["panel_variants_skipped"], 0)
         self.assertTrue(controls)
         self.assertTrue(all(row["on_panel"] == "True" for row in controls))
         named = {(int(row["variant_index"]), row["analysis_index"]) for row in controls if row["analysis_index"]}
@@ -799,6 +964,59 @@ class TestDeterministicSample(AttributeTestCase):
             self.assertIn("dense_row=", row["source_row_lookup_hint"])
             self.assertIn("dense_plane=z", row["source_row_lookup_hint"])
             self.assertIn(f"analysis_index={row['analysis_index']}", row["source_row_lookup_hint"])
+        record_check()
+
+    def test_every_row_names_an_analysis_and_its_id(self) -> None:
+        store, _ = self.store()
+        _, report, rows = self.attribute(store)
+        record_check()
+
+        self.assertTrue(rows)
+        for row in rows:
+            self.assertTrue(row["analysis_id"], row["sample_id"])
+            self.assertTrue(row["analysis_index"], row["sample_id"])
+            self.assertIn(row["analysis_index"], {
+                str(entry["analysis_index"])
+                for entry in report["contributors"]["analyses"]["by_distinct_off_panel_variants"]
+            } | {str(index) for index in range(4)})
+        record_check()
+
+        # on_panel=True and False alike: an on-panel control names a Dense cell.
+        self.assertEqual(
+            {row["on_panel"] for row in rows}, {"True", "False"}
+        )
+        self.assertTrue(all(row["analysis_id"] for row in rows if row["on_panel"] == "True"))
+        record_check()
+
+    def test_the_exclusive_strata_follow_the_exclusive_ranking(self) -> None:
+        # A1 holds the most variants but shares them; A2 holds fewer and nobody
+        # else observes them. The sample asks for exclusive variants, so A2 is
+        # the stratum `--top 1` selects, while `concentration` (who holds the
+        # union) still leads with A1.
+        publications = [("1001", "A"), ("1002", "B"), ("1003", "C")]
+        pairs = [(2, 0), (2, 1), (3, 0), (3, 1), (4, 0), (4, 1), (5, 1), (6, 2), (7, 2)]
+        store, _ = self.store(publications=publications, pairs=pairs)
+        _, report, rows = self.attribute(store, "--top", "1")
+        record_check()
+
+        self.assertEqual(report["sample"]["exclusive_analyses"], [2])
+        strata = {row["stratum"] for row in rows}
+        self.assertIn("exclusive_analysis:2", strata)
+        self.assertNotIn("exclusive_analysis:1", strata)
+        self.assertNotIn("exclusive_analysis:0", strata)
+        record_check()
+
+        self.assertEqual(report["concentration"]["top_analyses"]["contributors"], [[1]])
+        distinct = [
+            row["analysis_index"]
+            for row in report["contributors"]["analyses"]["by_distinct_off_panel_variants"]
+        ]
+        exclusive = [
+            row["analysis_index"]
+            for row in report["contributors"]["analyses"]["by_exclusive_variants"]
+        ]
+        self.assertEqual(distinct[0], 1)
+        self.assertEqual(exclusive[0], 2)
         record_check()
 
     def test_no_sample_output_writes_no_sample(self) -> None:
@@ -837,16 +1055,37 @@ class TestFailLoudly(AttributeTestCase):
         self.assertEqual(entry["counts"]["publication_key"], "pmid:1001")
         record_check()
 
-    def test_an_analysis_with_no_publication_is_an_error(self) -> None:
+    def test_an_analysis_with_no_publication_is_retained_as_an_unknown_group(self) -> None:
         publications = [("1001", "Barnes DR"), ("", "Barnes DR"), ("1002", "Chen J"), ("1003", "Williams AT")]
         store, _ = self.store(publications=publications)
-        code, report, _ = self.attribute(store)
+        code, report, rows = self.attribute(store)
         record_check()
 
-        self.assertEqual(code, 1)
-        self.assertFalse(report["ok"])
-        kinds = [entry["kind"] for entry in report["inconsistencies"]]
-        self.assertIn("publication_metadata_missing", kinds)
+        self.assertEqual(code, 0, json.dumps(report.get("inconsistencies"), indent=1))
+        self.assertTrue(report["ok"])
+        finding = next(
+            entry for entry in report["inconsistencies"] if entry["kind"] == "publication_metadata_unknown"
+        )
+        self.assertEqual(finding["severity"], "finding")
+        self.assertEqual(finding["counts"]["analysis_indices"], [1])
+        record_check()
+
+        # Its own group, never merged into another publication.
+        self.assertEqual(report["contributors"]["n_publications"], 4)
+        self.assertEqual(report["contributors"]["n_unknown_publications"], 1)
+        unknown = [
+            row
+            for row in report["contributors"]["publications"]["by_distinct_off_panel_variants"]
+            if row["publication_key_kind"] == "unknown"
+        ]
+        self.assertEqual(len(unknown), 1)
+        self.assertEqual(unknown[0]["publication_pmid"], None)
+        self.assertEqual(unknown[0]["n_analyses"], 1)
+        record_check()
+
+        # And its sample rows still name an Analysis.
+        self.assertTrue(rows)
+        self.assertTrue(all(row["analysis_id"] for row in rows))
         record_check()
 
     def test_missing_analyses_tsv_cannot_be_attributed(self) -> None:
@@ -916,6 +1155,7 @@ def main() -> None:
     suite = unittest.TestSuite()
     for case in (
         TestAttributionReport,
+        TestDeduplication,
         TestDeterministicSample,
         TestFailLoudly,
     ):

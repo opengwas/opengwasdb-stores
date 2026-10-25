@@ -262,6 +262,38 @@ SAMPLE_COLUMNS: tuple[str, ...] = (
     "n_publications",
 )
 
+#: The full per-Analysis contributor table written beside the evidence JSON.
+ANALYSIS_TABLE_COLUMNS: tuple[str, ...] = (
+    "analysis_index",
+    "analysis_id",
+    "analysis_label",
+    "publication_key",
+    "publication_key_kind",
+    "publication_pmid",
+    "publication_doi",
+    "first_author",
+    "consortium",
+    "off_panel_associations",
+    "distinct_off_panel_variants",
+    "exclusive_variants",
+    "exclusive_associations",
+)
+
+#: The full per-publication contributor table written beside the evidence JSON.
+PUBLICATION_TABLE_COLUMNS: tuple[str, ...] = (
+    "publication_key",
+    "publication_key_kind",
+    "publication_pmid",
+    "publication_doi",
+    "first_author",
+    "n_analyses",
+    "off_panel_associations",
+    "distinct_off_panel_variants",
+    "exclusive_variants",
+    "exclusive_associations",
+    "exclusive_variants_observed_by_several_analyses",
+)
+
 #: The sentinel a `uint16` support plane carries where an Analysis or a
 #: publication code has not been assigned (support 0, or an unreached entry).
 NO_CODE = 0xFFFF
@@ -1700,22 +1732,29 @@ def _allele_class(effect: str, other: str) -> str:
 
 
 def _publication_coding(analyses_path: Path) -> dict[str, Any]:
-    """Code each Analysis's publication, and refuse to guess an ambiguous one.
+    """Code each Analysis's publication, by `analysis_index` and never by row order.
 
     `analyses.tsv` is the Attribute Metadata a Store Release carries, so it is
     the only source for who published an Analysis. A publication is the pmid
-    when the file records one and the DOI when it does not; an Analysis with
-    neither cannot be attributed to a publication at all, and one publication
-    whose Analyses disagree about its DOI or first author is ambiguous. Both are
-    reported rather than resolved by picking a value (CONTRIBUTING: fail loudly
-    rather than substitute).
+    when the file records one, the DOI when it does not, and an Analysis with
+    neither is kept as its own explicitly unknown group -- it is never merged
+    into another publication and never dropped, because a coalesced "unknown"
+    would report two unrelated Analyses as one publication's. One publication
+    whose Analyses disagree about its DOI or first author is ambiguous and is an
+    error rather than a value picked from the disagreement (CONTRIBUTING: fail
+    loudly rather than substitute).
+
+    Every array this returns is indexed by `analysis_index`. A Store whose
+    `analyses.tsv` lists its rows in another order is then still attributed to
+    the Analysis the Ragged partition names, and the file order is never read as
+    an index.
     """
     records = read_analysis_records(analyses_path)
     analyses: list[dict[str, Any]] = []
-    codes: list[int] = []
     publications: list[dict[str, Any]] = []
     by_key: dict[str, int] = {}
     problems: list[dict[str, Any]] = []
+    unknown: list[dict[str, Any]] = []
     for position, record in enumerate(records):
         index = record.analysis_index
         if index is None:
@@ -1725,23 +1764,12 @@ def _publication_coding(analyses_path: Path) -> dict[str, Any]:
         doi = (record.publication_doi or "").strip()
         author = (record.first_author or "").strip()
         if pmid:
-            key = f"pmid:{pmid}"
+            key, key_kind = f"pmid:{pmid}", "pmid"
         elif doi:
-            key = f"doi:{doi}"
+            key, key_kind = f"doi:{doi}", "doi"
         else:
-            key = f"analysis:{record.analysis_id}"
-            problems.append(
-                {
-                    "kind": "publication_metadata_missing",
-                    "severity": "error",
-                    "detail": (
-                        f"Analysis {record.analysis_id} records neither a publication_pmid nor "
-                        "a publication_doi, so its off-panel associations cannot be attributed "
-                        "to a publication"
-                    ),
-                    "counts": {"analysis_index": index, "analysis_id": record.analysis_id},
-                }
-            )
+            key, key_kind = f"unknown:{record.analysis_id}", "unknown"
+            unknown.append({"analysis_index": index, "analysis_id": record.analysis_id})
         code = by_key.get(key)
         if code is None:
             code = len(publications)
@@ -1749,6 +1777,7 @@ def _publication_coding(analyses_path: Path) -> dict[str, Any]:
             publications.append(
                 {
                     "publication_key": key,
+                    "publication_key_kind": key_kind,
                     "publication_pmid": pmid or None,
                     "publication_doi": doi or None,
                     "first_author": author or None,
@@ -1771,10 +1800,30 @@ def _publication_coding(analyses_path: Path) -> dict[str, Any]:
                 "publication_pmid": pmid or None,
                 "publication_doi": doi or None,
                 "first_author": author or None,
+                "consortium": (record.consortium or "").strip() or None,
                 "publication_code": code,
+                "publication_key": key,
             }
         )
-        codes.append(code)
+    if unknown:
+        # Retained, named and counted: an unknown publication is a group this
+        # attribution reports, not one it refuses to answer about.
+        problems.append(
+            {
+                "kind": "publication_metadata_unknown",
+                "severity": "finding",
+                "detail": (
+                    f"{len(unknown)} Analyses record neither a publication_pmid nor a "
+                    "publication_doi; each is retained as its own unknown publication group "
+                    "rather than merged into one"
+                ),
+                "counts": {
+                    "analyses": len(unknown),
+                    "analysis_indices": [entry["analysis_index"] for entry in unknown],
+                    "analysis_ids": [entry["analysis_id"] for entry in unknown],
+                },
+            }
+        )
     for publication in publications:
         dois = publication.pop("_dois")
         authors = publication.pop("_authors")
@@ -1788,7 +1837,10 @@ def _publication_coding(analyses_path: Path) -> dict[str, Any]:
                         f"{publication['publication_key']} is recorded with "
                         f"{len(dois)} different DOIs; one publication cannot be two"
                     ),
-                    "counts": {"publication_key": publication["publication_key"], "dois": sorted(dois)},
+                    "counts": {
+                        "publication_key": publication["publication_key"],
+                        "dois": sorted(dois),
+                    },
                 }
             )
         if len(authors) > 1:
@@ -1808,24 +1860,33 @@ def _publication_coding(analyses_path: Path) -> dict[str, Any]:
             )
         if not publication["first_author"] and authors:
             publication["first_author"] = sorted(authors)[0]
-    ordered = sorted(range(len(analyses)), key=lambda i: analyses[i]["analysis_index"])
-    if [analyses[i]["analysis_index"] for i in ordered] != list(range(len(analyses))):
+    analyses.sort(key=lambda entry: entry["analysis_index"])
+    indices = [entry["analysis_index"] for entry in analyses]
+    if indices != list(range(len(analyses))):
         problems.append(
             {
                 "kind": "analysis_index_disagrees_with_position",
                 "severity": "error",
                 "detail": (
-                    "analyses.tsv does not number its Analyses 0..n-1 in file order, so the "
-                    "Ragged component's Analysis-major partition names no Analysis this table "
-                    "can be read against"
+                    "analyses.tsv does not number its Analyses 0..n-1, so the Ragged "
+                    "component's Analysis-major partition names no Analysis this table can be "
+                    "read against; attribution would name the wrong Analysis"
                 ),
-                "counts": {"analyses_tsv_rows": len(analyses)},
+                "counts": {
+                    "analyses_tsv_rows": len(analyses),
+                    "duplicate_or_missing_indices": len(analyses) - len(set(indices)),
+                },
             }
         )
+    pub_codes = np.full(len(analyses), NO_CODE, dtype="int32")
+    for entry in analyses:
+        if 0 <= entry["analysis_index"] < pub_codes.size:
+            pub_codes[entry["analysis_index"]] = entry["publication_code"]
     return {
         "analyses": analyses,
         "publications": publications,
-        "pub_codes": np.asarray(codes, dtype="int32"),
+        "pub_codes": pub_codes,
+        "unknown_publications": unknown,
         "problems": problems,
     }
 
@@ -1848,11 +1909,19 @@ def _attribution_support(
     2.9B-row body.
 
     Counting is deduplicated by a stamp plane rather than by assuming the rows
-    are ordered, so a Store whose Analysis lists repeat or are unsorted is
-    counted correctly and reported instead of silently double counted. Because
-    Analyses are visited in index order, the first Analysis to stamp an entry is
-    the lowest-indexed one observing it, which is the Analysis a sample row
-    names.
+    are ordered: each block is deduplicated within itself, and a block's entries
+    are compared against the stamp the last Analysis (or publication) left, so a
+    repeated or unsorted variant list is counted once and reported instead of
+    silently double counted.
+
+    Analyses are visited in **publication order**, not index order, and that is
+    load-bearing rather than tidy: the publication stamp means "already counted
+    for this publication", so a publication's Analyses have to be contiguous. In
+    index order an Analysis of publication B can stamp an entry between two
+    Analyses of publication A, and A's second Analysis then counts that entry a
+    second time. Publications are visited by code and Analyses ascending within
+    one, so the first Analysis to stamp an entry is a named, deterministic
+    observing Analysis -- the one a sample row is attributed to.
     """
     n_analyses = int(ragged_offsets.size) - 1
     n_publications = int(pub_codes.max()) + 1 if pub_codes.size else 0
@@ -1873,10 +1942,11 @@ def _attribution_support(
         "n_analyses": n_analyses,
         "n_publications": n_publications,
     }
-    for index in range(n_analyses):
+    order = np.argsort(pub_codes[:n_analyses], kind="stable")
+    for index in (int(value) for value in order):
         low = int(ragged_offsets[index])
         high = int(ragged_offsets[index + 1])
-        publication = int(pub_codes[index]) if index < pub_codes.size else 0
+        publication = int(pub_codes[index])
         per_publication_associations[publication] += high - low
         ordered = True
         previous_last: int | None = None
@@ -1887,6 +1957,12 @@ def _attribution_support(
             facts["association_rows"] += int(block.size)
             if block.size > 1 and not bool(np.all(block[1:] > block[:-1])):
                 ordered = False
+                # Deduplicated inside the block before the stamp is consulted:
+                # two rows for one variant inside one band are two stamps that
+                # both read as new, and the entry would be counted twice.
+                unique = np.unique(block)
+                facts["repeated_variant_rows"] += int(block.size - unique.size)
+                block = unique
             if previous_last is not None and block.size and int(block[0]) <= previous_last:
                 ordered = False
             if block.size:
@@ -1942,6 +2018,7 @@ def _attribution_counters(
     from a sample.
     """
     per_analysis_exclusive = np.zeros(max(n_analyses, 1), dtype="int64")
+    per_analysis_exclusive_associations = np.zeros(max(n_analyses, 1), dtype="int64")
     per_publication_exclusive = np.zeros(max(n_publications, 1), dtype="int64")
     per_publication_exclusive_associations = np.zeros(max(n_publications, 1), dtype="int64")
     per_publication_exclusive_multi = np.zeros(max(n_publications, 1), dtype="int64")
@@ -2007,9 +2084,19 @@ def _attribution_counters(
             codes = np.asarray(observer[low:high])[single_analysis].astype("int64")
             unknown = int(np.count_nonzero(codes >= n_analyses))
             totals["unattributed_single_observer_variants"] += unknown
+            known_analyses = codes < n_analyses
             per_analysis_exclusive += np.bincount(
-                codes[codes < n_analyses], minlength=max(n_analyses, 1)
+                codes[known_analyses], minlength=max(n_analyses, 1)
             )
+            # Associations counted, not inferred from the variant count: they
+            # are the same number unless a Store lists one variant twice for one
+            # Analysis, in which case the exclusive variant count is still right
+            # and the association count keeps the duplicate.
+            per_analysis_exclusive_associations += np.bincount(
+                codes[known_analyses],
+                weights=counts[single_analysis][known_analyses].astype("float64"),
+                minlength=max(n_analyses, 1),
+            ).astype("int64")
 
         single_publication = observed & (band_pub_support == 1)
         totals["exclusive_to_one_publication_variants"] += int(np.count_nonzero(single_publication))
@@ -2041,6 +2128,7 @@ def _attribution_counters(
     return {
         "totals": totals,
         "per_analysis_exclusive": per_analysis_exclusive,
+        "per_analysis_exclusive_associations": per_analysis_exclusive_associations,
         "per_publication_exclusive": per_publication_exclusive,
         "per_publication_exclusive_associations": per_publication_exclusive_associations,
         "per_publication_exclusive_multi_analysis": per_publication_exclusive_multi,
@@ -2242,6 +2330,7 @@ def _on_panel_controls(
     rows: Sequence[dict[str, Any]],
     control_analyses: Sequence[int],
     pub_codes: np.ndarray,
+    analyses_by_index: dict[int, dict[str, Any]],
     *,
     limit: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -2253,47 +2342,60 @@ def _on_panel_controls(
     one cell per (panel variant, Analysis), read here a row at a time. Naming
     them makes the control comparable with the off-panel sample -- the same
     Analyses, a variant the panel holds -- instead of a bare variant list.
+
+    Every row this returns names an Analysis, because a row no trace can
+    attribute is not a starting point: the contributors of interest are named
+    where they hold the cell, and where none of them does, the lowest-indexed
+    Analysis holding it is named instead and counted as a fallback. A panel
+    variant no Analysis holds at all is skipped and counted, never emitted with
+    a blank where its owner should be.
     """
-    facts: dict[str, Any] = {"available": dense_z is not None, "unresolved": 0, "rows": 0}
+    facts: dict[str, Any] = {
+        "available": dense_z is not None,
+        "rows": 0,
+        "panel_variants": len(rows),
+        "panel_variants_skipped": 0,
+        "rows_naming_a_fallback_analysis": 0,
+    }
     controls: list[dict[str, Any]] = []
     if dense_z is None:
-        for row in rows:
-            controls.append({**row, "analysis_index": None, "source_row_lookup_hint": "dense_plane=absent"})
-        facts["rows"] = len(controls)
+        # Without the plane the cells cannot be read, and inventing an Analysis
+        # for a panel variant would be exactly the wrong answer that looks like
+        # a right one. The report says the plane was unavailable.
+        facts["panel_variants_skipped"] = len(rows)
         return controls, facts
     mapping = np.asarray(dense_to_shared)
     for row in rows:
         variant = int(row["variant_index"])
         dense_row = int(np.searchsorted(mapping, variant))
         if dense_row >= mapping.size or int(mapping[dense_row]) != variant:
-            facts["unresolved"] += 1
-            controls.append({**row, "analysis_index": None, "source_row_lookup_hint": "dense_row=absent"})
+            facts["panel_variants_skipped"] += 1
             continue
         plane = np.asarray(dense_z[dense_row, :])
         observed = np.flatnonzero(plane != Z_MISSING).astype("int64")
+        if not observed.size:
+            facts["panel_variants_skipped"] += 1
+            continue
         observed_set = set(int(value) for value in observed)
         observed_publications = int(
             np.unique(pub_codes[observed[observed < pub_codes.size]]).size
-        ) if observed.size else 0
-        row["n_analyses"] = int(observed.size)
-        row["n_publications"] = observed_publications
-        named = [analysis for analysis in control_analyses if analysis in observed_set][:limit]
-        if not named:
-            controls.append(
-                {
-                    **row,
-                    "analysis_index": None,
-                    "source_row_lookup_hint": (
-                        f"dense_row={dense_row};dense_plane=z;analyses_observed={observed.size}"
-                    ),
-                }
-            )
-            continue
-        for analysis in named:
+        )
+        named = [analysis for analysis in control_analyses if analysis in observed_set]
+        fallback = not named
+        if fallback:
+            # The cell is held, so the control is still a cell: name the
+            # lowest-indexed Analysis that holds it rather than nothing.
+            named = [int(observed[0])]
+            facts["rows_naming_a_fallback_analysis"] += len(named)
+        for analysis in named[:limit]:
+            entry = analyses_by_index.get(int(analysis)) or {}
             controls.append(
                 {
                     **row,
                     "analysis_index": int(analysis),
+                    "analysis_id": entry.get("analysis_id"),
+                    "n_analyses": int(observed.size),
+                    "n_publications": observed_publications,
                     "source_row_lookup_hint": (
                         f"dense_row={dense_row};dense_plane=z;analysis_index={int(analysis)}"
                     ),
@@ -2303,12 +2405,18 @@ def _on_panel_controls(
     return controls, facts
 
 
-def _write_tsv(rows: Sequence[dict[str, Any]], output: Path, store_path: Path) -> str:
-    """Write the sample TSV atomically and return the sha256 of what was written.
+def _write_tsv(
+    rows: Sequence[dict[str, Any]],
+    output: Path,
+    store_path: Path,
+    *,
+    columns: Sequence[str] = SAMPLE_COLUMNS,
+) -> str:
+    """Write one evidence TSV atomically and return the sha256 of what was written.
 
     Same discipline as the evidence JSON: an unguessable staged name in the
     output's own directory, checked against the Store before a byte is written,
-    renamed onto the output so a reader never sees half a sample.
+    renamed onto the output so a reader never sees half a table.
     """
     output.parent.mkdir(parents=True, exist_ok=True)
     handle, staged_name = tempfile.mkstemp(dir=output.parent, prefix=f".{output.name}.", suffix=".tmp")
@@ -2320,10 +2428,12 @@ def _write_tsv(rows: Sequence[dict[str, Any]], output: Path, store_path: Path) -
                 "a read-only audit writes nothing there"
             )
         with os.fdopen(handle, "w", encoding="utf-8", newline="") as stream:
-            stream.write("\t".join(SAMPLE_COLUMNS) + "\n")
+            stream.write("\t".join(columns) + "\n")
             for row in rows:
                 stream.write(
-                    "\t".join("" if row.get(column) is None else str(row[column]) for column in SAMPLE_COLUMNS)
+                    "\t".join(
+                        "" if row.get(column) is None else str(row[column]) for column in columns
+                    )
                     + "\n"
                 )
             stream.flush()
@@ -2443,6 +2553,7 @@ def _contributor_tables(
     per_analysis_associations: np.ndarray,
     per_analysis_distinct: np.ndarray,
     per_analysis_exclusive: np.ndarray,
+    per_analysis_exclusive_associations: np.ndarray,
     per_publication_associations: np.ndarray,
     per_publication_distinct: np.ndarray,
     per_publication_exclusive: np.ndarray,
@@ -2462,18 +2573,23 @@ def _contributor_tables(
             "analysis_index": index,
             "analysis_id": entry["analysis_id"],
             "analysis_label": entry["analysis_label"],
+            "publication_key": entry["publication_key"],
+            "publication_key_kind": publications[entry["publication_code"]]["publication_key_kind"],
             "publication_pmid": entry["publication_pmid"],
+            "publication_doi": entry["publication_doi"],
             "first_author": entry["first_author"],
+            "consortium": entry["consortium"],
             "off_panel_associations": int(per_analysis_associations[index]),
             "distinct_off_panel_variants": int(per_analysis_distinct[index]),
             "exclusive_variants": int(per_analysis_exclusive[index]),
-            "exclusive_associations": int(per_analysis_exclusive[index]),
+            "exclusive_associations": int(per_analysis_exclusive_associations[index]),
         }
 
     def publication_row(code: int) -> dict[str, Any]:
         entry = publications[code]
         return {
             "publication_key": entry["publication_key"],
+            "publication_key_kind": entry["publication_key_kind"],
             "publication_pmid": entry["publication_pmid"],
             "publication_doi": entry["publication_doi"],
             "first_author": entry["first_author"],
@@ -2487,7 +2603,11 @@ def _contributor_tables(
             ),
         }
 
+    every_analysis = [analysis_row(index) for index in sorted(analysis_by_index)]
+    every_publication = [publication_row(code) for code in publication_indices]
     return {
+        "full_analyses": every_analysis,
+        "full_publications": every_publication,
         "analyses": {
             "by_exclusive_variants": [
                 analysis_row(index)
@@ -2523,6 +2643,7 @@ def attribute(
     store_path: str | Path,
     *,
     sample_output: str | Path | None = None,
+    tables_dir: str | Path | None = None,
     seed: int = DEFAULT_ATTRIBUTION_SEED,
     top: int = DEFAULT_ATTRIBUTION_TOP,
     sample_per_stratum: int = DEFAULT_SAMPLE_PER_STRATUM,
@@ -2640,6 +2761,12 @@ def attribute(
             f"publication coding covers {pub_codes.size} of the {n_analyses} Analyses the Ragged "
             "component holds; attribution cannot name a publication for the rest"
         )
+    if bool((pub_codes < 0).any()) or bool((pub_codes >= len(publications)).any()):
+        raise AuditError(
+            "analyses.tsv does not number its Analyses 0..n-1, so its publication codes cannot "
+            "be read against the Ragged component's Analysis-major partition; naming a "
+            "publication for those rows would be a guess"
+        )
 
     by_variant_offsets = _array(group, "ragged/by_variant/offsets")
     if array_length(by_variant_offsets) != n_axis + 1:
@@ -2716,8 +2843,10 @@ def attribute(
         inconsistency(
             "single_observer_variants_carry_several_associations",
             f"{totals['single_observer_variants_not_carrying_one_association']} variants observed "
-            "by exactly one Analysis carry more than one association, so support and association "
-            "counts are not the one-to-one relation attribution assumes",
+            "by exactly one Analysis carry more than one association, so an exclusive variant "
+            "count and an exclusive association count are not the same number here; the counts "
+            "are kept apart rather than one standing in for the other",
+            severity="finding",
             variants=totals["single_observer_variants_not_carrying_one_association"],
         )
     for key in (
@@ -2790,6 +2919,7 @@ def attribute(
         per_analysis_associations,
         per_analysis_distinct,
         per_analysis_exclusive,
+        counters["per_analysis_exclusive_associations"],
         scan["per_publication_associations"],
         scan["per_publication_distinct"],
         per_publication_exclusive,
@@ -2798,9 +2928,38 @@ def attribute(
         limit=DEFAULT_ATTRIBUTION_RANKING,
     )
 
+    # -- the full contributor tables ---------------------------------------
+    full_analyses = tables.pop("full_analyses")
+    full_publications = tables.pop("full_publications")
+    tables["note"] = (
+        "the rankings below are the leaders; the full per-Analysis and per-publication "
+        "tables are written beside the evidence JSON"
+    )
+    tables["tables"] = {}
+    if tables_dir is not None:
+        for name, rows_for_table, columns in (
+            ("analyses", full_analyses, ANALYSIS_TABLE_COLUMNS),
+            ("publications", full_publications, PUBLICATION_TABLE_COLUMNS),
+        ):
+            table_path = Path(tables_dir) / f"{name}.tsv"
+            digest = _write_tsv(rows_for_table, table_path, path, columns=columns)
+            tables["tables"][name] = {
+                "path": str(table_path),
+                "sha256": digest,
+                "rows": len(rows_for_table),
+                "columns": list(columns),
+            }
+
     # -- how much of the union the leaders explain --------------------------
+    # Two rankings, two questions. `concentration` asks who holds the union, so
+    # it ranks by distinct off-panel variants; the sample asks whose exclusive
+    # variants to trace, so it ranks by exclusive variants -- a wide contributor
+    # that shares everything it holds is not the same contributor as one whose
+    # variants nobody else observes.
     top_analyses = [row["analysis_index"] for row in tables["analyses"]["by_distinct_off_panel_variants"][:top]]
     top_publications = [row["publication_key"] for row in tables["publications"]["by_distinct_off_panel_variants"][:top]]
+    exclusive_analyses = [row["analysis_index"] for row in tables["analyses"]["by_exclusive_variants"][:top]]
+    exclusive_publications = [row["publication_key"] for row in tables["publications"]["by_exclusive_variants"][:top]]
     publication_analyses = {
         entry["publication_key"]: sorted(entry["analysis_indices"]) for entry in publications
     }
@@ -2843,9 +3002,9 @@ def attribute(
     sample_facts: dict[str, Any] = {"written": False}
     sample_rows: list[dict[str, Any]] = []
     if sample_path is not None:
-        candidate_analyses = top_analyses
+        candidate_analyses = exclusive_analyses
         publication_code = {entry["publication_key"]: code for code, entry in enumerate(publications)}
-        candidate_publications = [(publication_code[key], key) for key in top_publications]
+        candidate_publications = [(publication_code[key], key) for key in exclusive_publications]
         candidates = _choose_trace_candidates(
             scan["support"],
             scan["pub_support"],
@@ -2907,6 +3066,11 @@ def attribute(
                         "rsid": candidate["rsid"],
                         "on_panel": on_panel,
                         "analysis_index": observation,
+                        "analysis_id": (
+                            analysis_by_index[observation]["analysis_id"]
+                            if observation is not None
+                            else None
+                        ),
                         "n_analyses": int(support_planes[variant]),
                         "n_publications": int(pub_support_planes[variant]),
                         "publication_pmid": (
@@ -2952,7 +3116,7 @@ def attribute(
         # then whoever else the sample named. A control on an Analysis the
         # sample is not about would compare nothing with nothing.
         control_order: list[int] = []
-        for index in top_analyses:
+        for index in exclusive_analyses:
             control_order.append(int(index))
         for code, _label in candidate_publications:
             control_order.extend(
@@ -2992,14 +3156,23 @@ def attribute(
             ],
             control_analyses,
             pub_codes,
+            analysis_by_index,
             limit=DEFAULT_ON_PANEL_ANALYSES,
         )
         for row in controls:
             analysis_index = row.get("analysis_index")
-            row["publication_pmid"] = (
-                analysis_by_index[analysis_index]["publication_pmid"]
-                if analysis_index in analysis_by_index
-                else None
+            entry = analysis_by_index.get(analysis_index) if analysis_index is not None else None
+            row["analysis_id"] = entry["analysis_id"] if entry else None
+            row["publication_pmid"] = entry["publication_pmid"] if entry else None
+        unlabelled = [
+            row for row in (*off_panel_picked, *controls) if not row.get("analysis_id")
+        ]
+        if unlabelled:
+            inconsistency(
+                "sample_row_without_an_analysis",
+                f"{len(unlabelled)} sample rows name no Analysis; a row a trace cannot attribute "
+                "is not a starting point",
+                rows=len(unlabelled),
             )
         sample_rows = off_panel_picked + controls
         for position, row in enumerate(
@@ -3029,6 +3202,12 @@ def attribute(
             "pool_per_stratum": int(sample_per_stratum) * SAMPLE_POOL_MULTIPLIER,
             "rows_by_stratum": dict(sorted(counts_by_stratum.items())),
             "selection": "seeded SplitMix64 hash of the axis index, smallest first, one allele class at a time",
+            "strata_source": (
+                "the leading contributors by exclusive variants, so an exclusive stratum is the "
+                "one whose variants nobody else observes"
+            ),
+            "exclusive_analyses": [int(index) for index in exclusive_analyses],
+            "exclusive_publications": list(exclusive_publications),
             "analysis_major_rows_read": trace_rows_read,
             "on_panel_controls": control_facts,
             "control_analyses": control_analyses,
@@ -3170,7 +3349,14 @@ def attribute(
         "contributors": {
             "n_analyses": n_analyses,
             "n_publications": len(publications),
-            "publication_key": "publication_pmid, or publication_doi where no pmid is recorded",
+            "publication_key": (
+                "publication_pmid, or publication_doi where no pmid is recorded; an Analysis with "
+                "neither is its own explicitly unknown group (key_kind `unknown`), never merged "
+                "with another"
+            ),
+            "n_unknown_publications": sum(
+                1 for entry in publications if entry["publication_key_kind"] == "unknown"
+            ),
             **tables,
         },
         "concentration": concentration,
@@ -3490,6 +3676,7 @@ def _main_attribute(args: argparse.Namespace, store_path: Path, output: Path, ar
         report = attribute(
             store_path,
             sample_output=sample_output,
+            tables_dir=output.parent,
             seed=args.seed,
             top=args.top,
             sample_per_stratum=args.sample_per_stratum,

@@ -183,19 +183,38 @@ Four questions, each answered exactly, from the Store's own arrays:
 The support plane is two `uint16` arrays over the axis (distinct Analyses,
 distinct publications) plus their two observer planes and two deduplication
 stamps -- 1.4 GB on OGS-00011's 114,514,113-entry axis, and the scan never holds
-the 2.9B-row body: one band of `ragged/variant_index` at a time. Counting is
-deduplicated by stamp rather than by assuming an Analysis's variant list is
-ordered, so a Store whose lists repeat is counted once and says so
-(`repeated_variant_rows_in_one_analysis`, `analysis_variant_lists_not_increasing`,
-both `finding`s); `single_observer_variants_carry_several_associations` is an
-`error` because attribution assumes -- and checks -- that one observer means one
-association.
+the 2.9B-row body: one band of `ragged/variant_index` at a time.
+
+Two details are load-bearing rather than tidy, and the suite pins each:
+
+- **Analyses are visited in publication order**, not index order, and each
+  block is deduplicated within itself before the stamps are consulted. A stamp
+  means "already counted for this publication", so a publication's Analyses must
+  be contiguous: in index order an Analysis of publication B can stamp an entry
+  between two Analyses of publication A, and A's second Analysis then counts it
+  twice. And two rows for one variant inside one band are two stamps that both
+  read as new, so the block is `np.unique`d first.
+- Consequences are reported rather than hidden. `repeated_variant_rows_in_one_analysis`
+  and `analysis_variant_lists_not_increasing` are `finding`s, and
+  `single_observer_variants_carry_several_associations` is a `finding` too: an
+  exclusive *variant* count and an exclusive *association* count are kept apart
+  and both reported, so a Store that repeats a row cannot make one stand in for
+  the other.
 
 A publication is `analyses.tsv`'s `publication_pmid`, or its `publication_doi`
-when no pmid is recorded. One publication recorded with two DOIs or two first
-authors (`publication_metadata_ambiguous`) and an Analysis with neither
-(`publication_metadata_missing`) are `error`s: attribution that guessed between
-two publications would be a wrong answer that looks like a right one.
+when no pmid is recorded. An Analysis with neither is retained as its own
+explicitly unknown group (`publication_key_kind: "unknown"`, key
+`unknown:<analysis_id>`, reported by the `publication_metadata_unknown`
+`finding`): unknowns are neither dropped nor coalesced, because one merged
+"unknown" would report two unrelated Analyses as one publication's. One
+publication recorded with two DOIs or two first authors
+(`publication_metadata_ambiguous`) is an `error`: attribution that guessed
+between two publications would be a wrong answer that looks like a right one.
+
+All metadata is indexed by `analysis_index`, never by `analyses.tsv` row order,
+and the file's own numbering is checked against the axis
+(`analysis_index_disagrees_with_position`, an `error`, and a `2` when the
+numbering cannot be read against the Ragged partition at all).
 
 `concentration` is the epic's question about attribution rather than a sum. Each
 leading contributor's variant list is unioned exactly in one boolean plane over
@@ -226,7 +245,7 @@ census, and the sample exists only to name rows.
 | Column | Meaning |
 |---|---|
 | `sample_id` | `S00000`-style id, assigned after sorting by stratum, variant and Analysis |
-| `analysis_id`, `analysis_index`, `publication_pmid` | the Analysis the row is attributed to, and its publication |
+| `analysis_id`, `analysis_index`, `publication_pmid` | the Analysis the row is attributed to, and its publication. Every row names one: a row a trace cannot attribute is not a starting point |
 | `alid`, `rsid` | the variant's canonical identity and its rsid (empty when the table records none) |
 | `stratum` | which question selected the row (below) |
 | `on_panel` | `True` for a Dense-axis control, `False` for an off-panel row |
@@ -238,8 +257,8 @@ The strata are the ticket's questions:
 
 | Stratum | Rows drawn from |
 |---|---|
-| `exclusive_analysis:<analysis_index>` | entries observed by exactly that Analysis, for the leading exclusive contributors |
-| `exclusive_publication:<publication_key>` | entries observed by several Analyses of exactly that publication, for the leading exclusive publications |
+| `exclusive_analysis:<analysis_index>` | entries observed by exactly that Analysis, for the leading contributors **by exclusive variants** |
+| `exclusive_publication:<publication_key>` | entries observed by several Analyses of exactly that publication, for the leading publications **by exclusive variants** |
 | `shared_multi_publication` | entries observed by two or more publications |
 | `random_off_panel` | the whole attributed union |
 | `on_panel_control` | Dense-axis entries |
@@ -261,14 +280,25 @@ range was not ordered and was scanned instead, and `analysis_major_row=absent`
 (with `sample_trace_row_absent`, an `error`) says the variant is not in the
 Analyses its own support plane names.
 
+**Exclusive strata come from the exclusive ranking.** `concentration` asks who
+holds the union and ranks by distinct variants; the sample asks whose exclusive
+variants to trace and ranks by exclusive variants. A contributor that holds a
+lot and shares all of it is not the same contributor as one whose variants
+nobody else observes, and `sample.exclusive_analyses` /
+`sample.exclusive_publications` state which ranking the strata used.
+
 **On-panel controls.** The Dense Component and the Ragged Overflow partition the
 axis, so an on-panel variant carries no Overflow association and has no row to
 be attributed from. Its Analyses are `dense/z`'s cells instead -- one per (panel
 variant, Analysis) -- read a row at a time and named for the Analyses the sample
 is about: the leading exclusive contributors, then the publication strata's
-Analyses. Their hint is `dense_row=<r>;dense_plane=z;analysis_index=<a>`, which
-is the cell itself, and `sample.on_panel_controls` records whether the plane was
-available at all (`dense_plane=absent` when it is not).
+Analyses, and, where none of those holds the cell, the lowest-indexed Analysis
+that does (`rows_naming_a_fallback_analysis` counts them). Their hint is
+`dense_row=<r>;dense_plane=z;analysis_index=<a>`, which is the cell itself. A
+panel variant no Analysis holds is skipped and counted
+(`panel_variants_skipped`), and where the plane itself is unavailable
+(`available: false`) the controls are skipped rather than emitted with a blank
+where an Analysis should be.
 
 ## The report
 
@@ -306,7 +336,7 @@ not an `error` -- the epic asks how many there are, not whether they are legal.
 | `axis` | `n_axis`, `n_dense`, `n_off_panel`, and the association rows the Ragged body yielded |
 | `census` | the recorded `n_off_panel`, the axis complement, the attributed union, whether they agree, and the association count |
 | `support` | the Analyses and publications histograms, the exclusive counts, and the arithmetic check that the per-contributor sums are the same quantities |
-| `contributors` | the Analysis and publication rankings by exclusive variants, associations and distinct variants, each with its metadata |
+| `contributors` | the Analysis and publication rankings by exclusive variants, associations and distinct variants, each with its metadata; the full per-Analysis and per-publication tables are written beside the evidence JSON as `analyses.tsv` and `publications.tsv`, with their `sha256` and row counts recorded in `contributors.tables` |
 | `concentration` | the leading contributors' exact union and share at prefixes 1, 2, 5, 10 and the last |
 | `allele_classes`, `chromosomes` | the union's shape |
 | `sample` | path, `sha256`, rows, columns, seed, rows by stratum, allele classes, the trace rows read, and the on-panel controls |
