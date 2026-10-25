@@ -178,7 +178,7 @@ Four questions, each answered exactly, from the Store's own arrays:
 | how many distinct Analyses observe each off-panel entry | each Analysis's row range of `ragged/variant_index`, streamed in bands | `support.analyses`, bucketed 1, 2, 3-10, 11-100, 101+ |
 | how many distinct publications observe it | the same rows, coded to publications through `analyses.tsv` | `support.publications` |
 | is it observed by exactly one Analysis, or by Analyses of exactly one publication | the same two planes | `support.exclusive_to_one_analysis_variants`, `support.exclusive_to_one_publication_variants`, and `..._multi_analysis_variants` for the publication-only case that several Analyses share |
-| whose it is, how much each holds, and how much of the union the leaders explain | the planes per axis band, then exact unions of the leading contributors' own variant lists | `contributors.analyses`, `contributors.publications`, `concentration` |
+| whose it is, how much each holds, and how much of the union the leaders explain | the planes per axis band, then exact unions of the leading contributors' own variant lists | `contributors.analyses`, `contributors.publications`, `concentration`; the full tables are `evidence/373/analyses.tsv` and `evidence/373/publications.tsv` |
 
 The support plane is two `uint16` arrays over the axis (distinct Analyses,
 distinct publications) plus their two observer planes and two deduplication
@@ -417,8 +417,14 @@ writing nothing into the Store. Its evidence is
   publication. 34,439,008 (34.1%) span two or more publications.
 - **Support is not a long tail.** Across Analyses: 29.5% observed by exactly 1,
   32.8% by 2, 34.3% by 3-100 and 4.6% by 101+. Across publications: 65.9% by 1,
-  8.6% by 2, 21.9% by 3-100 and 1.1% by 101+. The union is dominated by a few
-  very wide contributors rather than assembled from single observations.
+  8.7% by 2, 24.3% by 3-100 and 1.1% by 101+. The union is dominated by a few
+  very wide contributors rather than assembled from single observations. (The
+  first run of this measurement, before the review's publication-deduplication
+  fix, put 8,706,658 variants at 2 publications, 13,666,971 at 11-100 and
+  1,124,859 at 101+; visiting Analyses in index order let one publication's
+  stamp sit between two Analyses of another, and 378,865 variants were counted a
+  bucket or more higher than they belong. The count with exactly one publication
+  was unaffected, which is why only the 2+ buckets moved.)
 - **Two Barnes DR Analyses are half of it.** Analysis 2398 (`GCST90455660`,
   PMID 41266372) holds 44,591,168 variants (44.1% of the union) and 8,848,991
   of them exclusively; 2397 (`GCST90455659`) holds 43,642,474. Their union is
@@ -433,12 +439,25 @@ writing nothing into the Store. Its evidence is
 
 The attribution answers "who", which is what makes #374's question askable: the
 contributors are few, named, and their rows are reachable through the sample's
-`source_row_lookup_hint`. That run's sample (`seed 42`) holds 259 rows: 20 per
-exclusive-Analysis and exclusive-publication stratum, 20 off-panel background
-rows, 20 shared-across-publications rows, and 59 on-panel control cells naming
-Analyses 2398, 2397, 1688, 311 and 313. It is 191 SNPs and 68 indels and no
-`complex` row: complex variants are 6,799 of the union (0.007%), so a
-160-candidate pool holds one only by luck, and `sample.allele_classes` makes
-that absence visible instead of leaving a reader to assume the class was
-sampled. Every off-panel hint was read back during the run and again
-independently afterwards: 259 of 259 rows resolve to the row they name.
+`source_row_lookup_hint`. That run's sample (`seed 42`) holds 278 rows: 20 for
+each of the five leaders by exclusive variants (Analyses 2398, 2397, 1688, 3069
+and 194), 20 for each of the five leaders by exclusive variants among
+publications (PMIDs 41266372, 37872160, 34059833, 41233554, 41792138), 20
+off-panel background rows, 20 shared-across-publications rows, and 58 on-panel
+control cells for the Analyses 2398, 2397, 1688, 3069 and 194. It is 220 SNPs
+and 58 indels and no `complex` row: complex variants are 6,799 of the union
+(0.007%), so a 160-candidate pool holds one only by luck, and
+`sample.allele_classes` makes that absence visible instead of leaving a reader to
+assume the class was sampled. Every hint was read back during the run and again
+independently afterwards: 278 of 278 rows resolve to the row they name, and every
+row's `analysis_id` and `publication_pmid` match `analyses.tsv` at that
+`analysis_index`.
+
+Two facts the controls surfaced. Three of the 20 sampled panel variants are held
+by no Analysis at all -- their `dense/z` row is entirely `Z_MISSING` -- so they
+are skipped and counted (`panel_variants_skipped`) rather than emitted with a
+blank owner, and a 40-row spot check found 3 of 40 Dense rows in that state
+(about 7.5% of the 13.4M panel variants). Five control rows name the
+lowest-indexed Analysis holding the cell because none of the sample's
+contributors does. Both are properties of the Store's panel, not of this
+sample.
