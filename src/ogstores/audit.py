@@ -3993,10 +3993,25 @@ def _declared_policies(
     }
 
 
+def _dense_row_of(mapping: np.ndarray, variant_index: int | None) -> int | None:
+    """The Dense row a shared axis entry occupies, or None for an off-panel entry.
+
+    `dense_to_shared` is ascending (the Dense Component's rows are the panel's
+    ALIDs in axis order), so membership is one `searchsorted` rather than a
+    13.4M-entry dictionary.
+    """
+    if variant_index is None:
+        return None
+    found = int(np.searchsorted(mapping, int(variant_index)))
+    if found >= mapping.size or int(mapping[found]) != int(variant_index):
+        return None
+    return found
+
+
 def _store_store_facts(
     axis: VariantAxis,
     ragged_group: Any,
-    dense_mask_lookup: Any,
+    dense_mapping: np.ndarray | None,
     row: dict[str, Any],
     eaf_encoding: Any,
 ) -> dict[str, Any]:
@@ -4019,7 +4034,7 @@ def _store_store_facts(
         "effect_allele": None,
         "other_allele": None,
         "plane": None,
-        "dense_row": dense_mask_lookup.get(variant_index) if dense_mask_lookup else None,
+        "dense_row": _dense_row_of(dense_mapping, variant_index) if dense_mapping is not None else None,
         "on_panel": None,
         "n_associations_at_variant": None,
         "associations_for_analysis": None,
@@ -4343,10 +4358,7 @@ def trace(
             dense_arrays = dense_store.arrays(mode="r")
         except (AuditError, KeyError, OSError):
             dense_arrays = None
-    mapping = np.asarray(dense_to_shared)
-    dense_row_of: dict[int, int] = {}
-    for dense_row, shared in enumerate(mapping):
-        dense_row_of[int(shared)] = int(dense_row)
+    dense_mapping = np.asarray(dense_to_shared)
 
     rows: list[dict[str, Any]] = []
     try:
@@ -4473,7 +4485,7 @@ def trace(
             store_facts = _store_store_facts(
                 axis,
                 ragged_group,
-                dense_row_of,
+                dense_mapping,
                 row,
                 eaf_encoding,
             )
@@ -4505,7 +4517,7 @@ def trace(
                 "stored_frequency_absent": store_facts["eaf_absent"],
                 "stored_frequency_agrees": None,
             }
-            if admission is not None and store_facts["located"]:
+            if admission is not None and store_facts["z_present"] is not None:
                 held = bool(store_facts["z_present"])
                 kept = bool(admission["keep"])
                 agreement["admission_matches_store"] = held == kept
