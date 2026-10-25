@@ -63,6 +63,7 @@ import hashlib
 import json
 import math
 import os
+import platform
 import re
 import resource
 import sys
@@ -3473,6 +3474,7 @@ TRACE_DISPOSITIONS: tuple[str, ...] = (
     "maf_missing",
     "info_below_threshold",
     "unlocated_source",
+    "ambiguous_source",
     "source_unavailable",
 )
 
@@ -3670,18 +3672,30 @@ def _resolve_source_file(
     return None, "absent"
 
 
-def _scan_source_sites(task: tuple[str, list[tuple[str, str, int, str, str]]]) -> dict[str, Any]:
+def _scan_source_sites(
+    task: tuple[str, list[tuple[str, str, int, str, str]], list[str]]
+) -> dict[str, Any]:
     """Locate every requested site in one source file, in a single pass.
 
     Runs in a worker process, so it takes and returns plain data. The pass reads
     the gzip stream once -- the same cost however many rows the sample draws from
     the file -- and only splits the lines whose *position* token matches one it
     was asked for, which is what keeps a 99M-row, 2.5 GB harmonised file to about
-    a minute. Every matched line at a requested position is kept, not just the
-    first, because a multiallelic site holds several rows and choosing one by
-    first-seen order would be a silent guess about identity.
+    a minute.
+
+    `extra_columns` are the Analysis's declared score columns (its
+    `imputation_score_column`): they are not GWAS-SSF's fixed vocabulary, so the
+    scan has to be told about them or the declared INFO filter would be replayed
+    against a token nobody read.
+
+    Every row at a requested position whose allele pair is the sample's is kept,
+    not just the first. A multiallelic site holds several rows and two rows can
+    carry the same alleles with different frequencies; the candidates are
+    returned whole and their frequencies compared here, so an ambiguous row is
+    flagged rather than resolved by first-seen order (CONTRIBUTING: never
+    silently substitute).
     """
-    path, targets = task
+    path, targets, extra_columns = task
     wanted: dict[tuple[str, int], list[tuple[str, str, str]]] = {}
     for sample_id, chromosome, position, a1, a2 in targets:
         wanted.setdefault((_chromosome_key(chromosome), int(position)), []).append(
@@ -3693,6 +3707,7 @@ def _scan_source_sites(task: tuple[str, list[tuple[str, str, int, str, str]]]) -
         "lines_scanned": 0,
         "rows_matched": 0,
         "header": [],
+        "extra_columns": list(extra_columns),
         "sites": {},
         "error": None,
     }
@@ -3718,17 +3733,16 @@ def _scan_source_sites(task: tuple[str, list[tuple[str, str, int, str, str]]]) -
                         "be located in it"
                     )
                     return facts
-            effects = [
-                index.get("effect_allele"),
-                index.get("allele1"),
-            ]
+            effects = [index.get("effect_allele"), index.get("allele1")]
             others = [index.get("other_allele"), index.get("allele2")]
             effect_index = next((value for value in effects if value is not None), None)
             other_index = next((value for value in others if value is not None), None)
             token_indices = {
-                name: index[name] for name in TRACE_TOKEN_COLUMNS if name in index
+                name: index[name]
+                for name in (*TRACE_TOKEN_COLUMNS, *extra_columns)
+                if name in index
             }
-            located: dict[str, dict[str, Any]] = {}
+            found: dict[str, list[dict[str, Any]]] = {}
             candidates: dict[tuple[str, int], int] = {}
             mismatch: dict[tuple[str, int], int] = {}
             for line in handle:
@@ -3738,7 +3752,9 @@ def _scan_source_sites(task: tuple[str, list[tuple[str, str, int, str, str]]]) -
                 fields = line.rstrip(b"\r\n").split(b"\t")
                 if len(fields) < 2:
                     continue
-                chromosome = _chromosome_key(fields[index["chromosome"]].decode("utf-8", "replace"))
+                chromosome = _chromosome_key(
+                    fields[index["chromosome"]].decode("utf-8", "replace")
+                )
                 try:
                     position = int(fields[index["base_pair_location"]])
                 except ValueError:
@@ -3768,17 +3784,16 @@ def _scan_source_sites(task: tuple[str, list[tuple[str, str, int, str, str]]]) -
                     if orientation == "mismatch":
                         mismatch[site] = mismatch.get(site, 0) + 1
                         continue
-                    if sample_id in located:
-                        continue
-                    located[sample_id] = {
-                        "located": True,
-                        "line_number": facts["lines_scanned"] + 1,
-                        "data_row": facts["lines_scanned"],
-                        "orientation": orientation,
-                        "tokens": tokens,
-                        "source_effect_allele": source_effect,
-                        "source_other_allele": source_other,
-                    }
+                    found.setdefault(sample_id, []).append(
+                        {
+                            "line_number": facts["lines_scanned"] + 1,
+                            "data_row": facts["lines_scanned"],
+                            "orientation": orientation,
+                            "tokens": tokens,
+                            "source_effect_allele": source_effect,
+                            "source_other_allele": source_other,
+                        }
+                    )
     except (OSError, ValueError, RuntimeError) as exc:
         # pysam raises its own `SamtoolsError` (a `RuntimeError`) for a file that is
         # not a BGZF/TSV source; a scan that names the failure beats a traceback.
@@ -3787,16 +3802,45 @@ def _scan_source_sites(task: tuple[str, list[tuple[str, str, int, str, str]]]) -
     for (chromosome, position), entries in wanted.items():
         site = (chromosome, position)
         for sample_id, _a1, _a2 in entries:
-            entry = located.get(sample_id)
-            if entry is None:
+            matched = found.get(sample_id, [])
+            if not matched:
                 facts["sites"][sample_id] = {
                     "located": False,
                     "raw_rows_at_position": candidates.get(site, 0),
                     "allele_mismatch_rows": mismatch.get(site, 0),
+                    "candidates": [],
                 }
                 continue
-            entry["raw_rows_at_position"] = candidates.get(site, 0)
-            entry["allele_mismatch_rows"] = mismatch.get(site, 0)
+            # The candidates describe the same site and allele pair, so their
+            # frequencies are directly comparable once oriented to the canonical
+            # effect allele. Two rows that agree are one frequency reported twice;
+            # two that disagree are an ambiguity this scan must not resolve.
+            distinct: dict[str, dict[str, Any]] = {}
+            for candidate in matched:
+                orientation = candidate["orientation"]
+                token = candidate["tokens"].get("effect_allele_frequency")
+                klass = _frequency_class(token)["class"]
+                parsed = parse_af(token)
+                canonical = None if parsed is None else (
+                    1.0 - parsed if orientation == "flipped" else parsed
+                )
+                distinct.setdefault(
+                    f"{klass}|{canonical!r}", {"class": klass, "canonical_af": canonical}
+                )
+            entry = dict(matched[0])
+            entry.update(
+                {
+                    "located": True,
+                    "candidate_rows": len(matched),
+                    "candidates": matched,
+                    "frequency_agreement": len(distinct) == 1,
+                    "distinct_frequencies": [
+                        distinct[key] for key in sorted(distinct)
+                    ],
+                    "raw_rows_at_position": candidates.get(site, 0),
+                    "allele_mismatch_rows": mismatch.get(site, 0),
+                }
+            )
             facts["sites"][sample_id] = entry
     return facts
 
@@ -3944,6 +3988,58 @@ def _recorded_admissions(manifest_provenance: dict[str, Any]) -> dict[str, dict[
     return recorded
 
 
+def _runtime_revision() -> dict[str, Any]:
+    """The `opengwasdb` this process actually executes, and how that is known.
+
+    The epic's acceptance asks the trace to replay the *build's* revision rather
+    than silently substitute current code. This module cannot install a historical
+    wheel at run time, so it records both revisions and their agreement instead of
+    pretending they are one: the installed distribution's own `direct_url.json`
+    carries the Git commit it was built from, and `records/build.json` beside the
+    Store carries the commit that wrote it. A difference is a `finding` with the
+    admission the trace therefore replays, never a silent substitution.
+    """
+    facts: dict[str, Any] = {
+        "opengwasdb_version": None,
+        "opengwasdb_rev": None,
+        "recorded_by": None,
+        "vcs_url": None,
+        "python": platform.python_version(),
+        "problem": None,
+    }
+    try:
+        import importlib.metadata as metadata
+
+        distribution = metadata.distribution("opengwasdb")
+    except Exception as exc:  # pragma: no cover - a broken install is loud elsewhere
+        facts["problem"] = f"the installed opengwasdb distribution cannot be read ({exc})"
+        return facts
+    facts["opengwasdb_version"] = distribution.version
+    try:
+        text = distribution.read_text("direct_url.json")
+    except (OSError, ValueError):  # pragma: no cover - read_text does not raise for absence
+        text = None
+    if not text:
+        facts["problem"] = (
+            "the installed distribution records no direct_url.json, so the commit it was built "
+            "from is unknown"
+        )
+        return facts
+    try:
+        data = json.loads(text)
+    except ValueError:
+        facts["problem"] = "the installed distribution's direct_url.json is not JSON"
+        return facts
+    vcs = data.get("vcs_info") or {}
+    facts["vcs_url"] = data.get("url")
+    facts["opengwasdb_rev"] = vcs.get("commit_id")
+    facts["recorded_by"] = "direct_url.json"
+    if not isinstance(facts["opengwasdb_rev"], str) or not facts["opengwasdb_rev"].strip():
+        facts["opengwasdb_rev"] = None
+        facts["problem"] = "the installed distribution records no VCS commit"
+    return facts
+
+
 def _declared_policies(
     manifest_row: dict[str, str], recorded: dict[str, Any], analysis_id: str
 ) -> dict[str, Any]:
@@ -3993,6 +4089,17 @@ def _declared_policies(
             disagreements.append(
                 f"info_score_state manifest {declared['info_score_state']} vs store {recorded_info}"
             )
+    # The *threshold* is compared too, not just the state: two FILTERED policies at
+    # 0.8 and 0.9 agree on their state and disagree on which rows they keep, and a
+    # replay under the wrong number would drop or keep the wrong rows silently.
+    recorded_info_threshold = recorded.get("info_score_threshold")
+    declared_info_threshold = declared["info_score_threshold"]
+    if recorded_info_threshold is not None and declared_info_threshold is not None:
+        if float(recorded_info_threshold) != float(declared_info_threshold):
+            disagreements.append(
+                "info_score_threshold manifest "
+                f"{declared_info_threshold} vs store {recorded_info_threshold}"
+            )
     return {
         "maf_policy": maf_policy,
         "info_policy": info_policy,
@@ -4017,20 +4124,49 @@ def _dense_row_of(mapping: np.ndarray, variant_index: int | None) -> int | None:
     return found
 
 
+def _stored_frequency_facts(code: Any, eaf_encoding: Any) -> dict[str, Any]:
+    """One stored frequency cell, as the plane's own code and its sentinel meaning.
+
+    `int8_residual` reserves `EAF_ABSENT` and `EAF_EXCEPTION`; a `float16` plane
+    spells absence as NaN and has no exception code. Decoding a residual to a
+    float needs the whole exception table and is lossy, so it is not done: the
+    sentinel answers the only question a boundary decision can safely ask of the
+    stored value -- is there a frequency here at all.
+    """
+    if eaf_encoding.is_residual:
+        value = int(code)
+        return {
+            "eaf_code": value,
+            "eaf_absent": value == EAF_ABSENT,
+            "eaf_exception": value == EAF_EXCEPTION,
+        }
+    number = float(code)
+    return {
+        "eaf_code": number,
+        "eaf_absent": not math.isfinite(number),
+        "eaf_exception": False,
+    }
+
+
 def _store_store_facts(
     axis: VariantAxis,
     ragged_group: Any,
     dense_mapping: np.ndarray | None,
     row: dict[str, Any],
     eaf_encoding: Any,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], str | None]:
     """The Store's own side of one sampled row: identity, presence, stored codes.
 
     Identity is the Store Variant Table row at the sample's `variant_index`; an
     on-panel variant has no Ragged Overflow row and its cell is read from the
     Dense Component instead. Presence is the encoding's own sentinel: a `z` code
-    of `Z_MISSING` is an absent association, and `eaf`'s `EAF_ABSENT` is a missing
+    of `Z_MISSING` is an absent association, and `eaf`'s absent code is a missing
     frequency -- the two facts the trace compares a raw row's disposition with.
+
+    A cell the Store *does not hold* is `z_present: False`, a definite answer. A
+    plane that cannot be read at all is a `problem`, not a silent `None`: an audit
+    that cannot read the cell it sampled must say so, never report `ok` without
+    having looked (CONTRIBUTING: absence is not a value).
     """
     variant_index = row["variant_index"]
     facts: dict[str, Any] = {
@@ -4053,12 +4189,13 @@ def _store_store_facts(
         "eaf_code": None,
         "eaf_absent": None,
         "eaf_exception": None,
+        "problem": None,
     }
     if variant_index is None:
-        return facts
+        return facts, None
     record = axis.by_index(int(variant_index))
     if record is None:
-        return facts
+        return facts, "the Store Variant Table has no row at this variant index"
     facts.update(
         {
             "located": True,
@@ -4072,35 +4209,36 @@ def _store_store_facts(
             "on_panel": facts["dense_row"] is not None,
         }
     )
-    if facts["plane"] == "dense" or ragged_group is None:
-        return facts
-    pair = np.asarray(ragged_group["offsets"][int(variant_index) : int(variant_index) + 2])
-    start = int(pair[0])
-    end = int(pair[1])
-    facts["n_associations_at_variant"] = end - start
-    if end <= start:
-        return facts
-    analyses = np.asarray(ragged_group["analysis_index"][start:end])
-    matches = np.flatnonzero(analyses == int(row["analysis_index"]))
-    facts["associations_for_analysis"] = int(matches.size)
-    if not matches.size:
-        return facts
-    at = start + int(matches[0])
-    facts["z_code"] = int(np.asarray(ragged_group["z"][at])[()])
-    facts["z_present"] = facts["z_code"] != Z_MISSING
-    facts["se_code"] = float(np.asarray(ragged_group["se"][at])[()])
-    eaf_code = np.asarray(ragged_group["eaf"][at])[()]
-    if eaf_encoding.is_residual:
-        code = int(eaf_code)
-        facts["eaf_code"] = code
-        facts["eaf_absent"] = code == EAF_ABSENT
-        facts["eaf_exception"] = code == EAF_EXCEPTION
-    else:
-        value = float(eaf_code)
-        facts["eaf_code"] = value
-        facts["eaf_absent"] = not math.isfinite(value)
-        facts["eaf_exception"] = False
-    return facts
+    if facts["plane"] == "dense":
+        return facts, None
+    if ragged_group is None:
+        return facts, "the Store's data.zarr holds no ragged/by_variant group"
+    try:
+        pair = np.asarray(
+            ragged_group["offsets"][int(variant_index) : int(variant_index) + 2]
+        )
+        start, end = int(pair[0]), int(pair[1])
+        facts["n_associations_at_variant"] = end - start
+        if end <= start:
+            # The Store holds no association for this variant at all: a definite
+            # "not held", not an unreadable cell.
+            facts["z_present"] = False
+            return facts, None
+        analyses = np.asarray(ragged_group["analysis_index"][start:end])
+        matches = np.flatnonzero(analyses == int(row["analysis_index"]))
+        facts["associations_for_analysis"] = int(matches.size)
+        if not matches.size:
+            facts["z_present"] = False
+            return facts, None
+        at = start + int(matches[0])
+        z_code = int(np.asarray(ragged_group["z"][at])[()])
+        facts["z_code"] = z_code
+        facts["z_present"] = z_code != Z_MISSING
+        facts["se_code"] = float(np.asarray(ragged_group["se"][at])[()])
+        facts.update(_stored_frequency_facts(np.asarray(ragged_group["eaf"][at])[()], eaf_encoding))
+    except (KeyError, IndexError, TypeError, ValueError, OSError) as exc:
+        return facts, f"the Store's ragged/by_variant arrays cannot be read ({type(exc).__name__}: {exc})"
+    return facts, None
 
 
 def _dense_store_fact(
@@ -4108,26 +4246,23 @@ def _dense_store_fact(
     dense_row: int,
     analysis_index: int,
     eaf_encoding: Any,
-) -> dict[str, Any]:
+) -> tuple[dict[str, Any], str | None]:
     """The Dense Component's side of one on-panel sampled row."""
-    z_code = int(np.asarray(dense_arrays["z"][dense_row, analysis_index])[()])
-    eaf_cell = np.asarray(dense_arrays["eaf"][dense_row, analysis_index])[()]
-    fact: dict[str, Any] = {
-        "z_code": z_code,
-        "z_present": z_code != Z_MISSING,
-        "se_code": float(np.asarray(dense_arrays["se"][dense_row, analysis_index])[()]),
-    }
-    if eaf_encoding.is_residual:
-        code = int(eaf_cell)
+    try:
+        z_code = int(np.asarray(dense_arrays["z"][dense_row, analysis_index])[()])
+        fact: dict[str, Any] = {
+            "z_code": z_code,
+            "z_present": z_code != Z_MISSING,
+            "se_code": float(np.asarray(dense_arrays["se"][dense_row, analysis_index])[()]),
+        }
         fact.update(
-            {"eaf_code": code, "eaf_absent": code == EAF_ABSENT, "eaf_exception": code == EAF_EXCEPTION}
+            _stored_frequency_facts(
+                np.asarray(dense_arrays["eaf"][dense_row, analysis_index])[()], eaf_encoding
+            )
         )
-    else:
-        value = float(eaf_cell)
-        fact.update(
-            {"eaf_code": value, "eaf_absent": not math.isfinite(value), "eaf_exception": False}
-        )
-    return fact
+    except (KeyError, IndexError, TypeError, ValueError, OSError) as exc:
+        return {}, f"the Store's dense/data.zarr planes cannot be read ({type(exc).__name__}: {exc})"
+    return fact, None
 
 
 def _tally(rows: Sequence[dict[str, Any]], predicate: Any = None) -> dict[str, Any]:
@@ -4215,6 +4350,45 @@ def trace(
     recorded_admissions = _recorded_admissions(manifest.provenance)
     eaf_encoding = manifest.encoding.eaf
     reference_assembly = manifest.reference_assembly
+
+    # -- which engine this replay actually is --------------------------------
+    runtime = _runtime_revision()
+    build_record = _build_revision(path)
+    replay_agrees = None
+    if build_record["problem"] is not None:
+        inconsistency(
+            "build_revision_unrecorded"
+            if build_record["problem"] in ("missing", "no_revision")
+            else "build_revision_unreadable",
+            f"{build_record['path']} does not name the opengwasdb revision that wrote this "
+            f"Store ({build_record['problem']}"
+            + (f": {build_record['error']}" if build_record.get("error") else "")
+            + "); the trace cannot say which revision's admission semantics it replayed",
+            path=build_record["path"],
+        )
+    if runtime["problem"] is not None:
+        inconsistency(
+            "replay_engine_unrecorded",
+            f"the installed opengwasdb cannot name its own revision ({runtime['problem']}); "
+            "the trace records the version it ran and cannot verify it against the build",
+            severity="finding",
+            opengwasdb_version=runtime["opengwasdb_version"],
+        )
+    if runtime["opengwasdb_rev"] and build_record["opengwasdb_rev"]:
+        replay_agrees = runtime["opengwasdb_rev"] == build_record["opengwasdb_rev"]
+        if not replay_agrees:
+            inconsistency(
+                "replay_revision_differs",
+                "the trace replays the installed opengwasdb "
+                f"{runtime['opengwasdb_rev']}"
+                + (f" (version {runtime['opengwasdb_version']})" if runtime["opengwasdb_version"] else "")
+                + f", but the Store was built by {build_record['opengwasdb_rev']}. Row parsing "
+                "and admission are therefore the installed revision's semantics, not "
+                "necessarily the build's; the reproducer pins the same rule in this engine",
+                severity="finding",
+                installed=runtime["opengwasdb_rev"],
+                build_recorded=build_record["opengwasdb_rev"],
+            )
 
     with (path / "analyses.tsv").open(newline="", encoding="utf-8") as handle:
         store_analyses = list(csv.DictReader(handle, delimiter="\t"))
@@ -4313,7 +4487,7 @@ def trace(
         source_files[analysis_id] = source
 
     # -- one pass per source file, in parallel --------------------------------
-    tasks: dict[str, tuple[str, list[tuple[str, str, int, str, str]]]] = {}
+    tasks: dict[str, tuple[str, list[tuple[str, str, int, str, str]], list[str]]] = {}
     for row in sample_rows:
         source = source_files.get(row["analysis_id"])
         if source is None or not source["available"]:
@@ -4321,7 +4495,10 @@ def trace(
         if source["assembly_agrees"] is False:
             continue
         parsed = row["parsed_alid"]
-        tasks.setdefault(source["path"], (source["path"], []))[1].append(
+        policy = policies.get(row["analysis_id"]) or {}
+        declared_column = (policy.get("declared") or {}).get("imputation_score_column")
+        extra_columns = [declared_column] if declared_column else []
+        tasks.setdefault(source["path"], (source["path"], [], extra_columns))[1].append(
             (
                 row["sample_id"],
                 parsed.chromosome,
@@ -4409,16 +4586,21 @@ def trace(
                 "line_number": None if not located else located.get("line_number"),
                 "data_row": None if not located else located.get("data_row"),
                 "orientation": None if not located else located.get("orientation"),
+                "candidate_rows": None if not located else located.get("candidate_rows"),
+                "frequency_agreement": None if not located else located.get("frequency_agreement"),
+                "distinct_frequencies": None if not located else located.get("distinct_frequencies"),
+                "candidates": None if not located else located.get("candidates"),
                 "raw_rows_at_position": None if not located else located.get("raw_rows_at_position"),
                 "allele_mismatch_rows": None if not located else located.get("allele_mismatch_rows"),
                 "columns": None,
                 "tokens": None if not located else located.get("tokens"),
             }
             if scan is not None and scan.get("header"):
+                recorded_columns = (*TRACE_TOKEN_COLUMNS, *(scan.get("extra_columns") or ()))
                 location["columns"] = {
                     name: position
                     for position, name in enumerate(scan["header"])
-                    if name in TRACE_TOKEN_COLUMNS
+                    if name in recorded_columns
                 }
             record["location"] = location
 
@@ -4432,7 +4614,11 @@ def trace(
                 "reader_treats_as_missing": None,
                 "canonical_af": None,
             }
-            if location["located"]:
+            # Two rows at one site with the same alleles and different frequencies
+            # cannot be replayed as one row: the report keeps every candidate and
+            # the row's admission is left unreplayed rather than guessed.
+            ambiguous = bool(location["located"]) and location["frequency_agreement"] is False
+            if location["located"] and not ambiguous:
                 tokens = location["tokens"] or {}
                 info_token = None
                 if policy is not None:
@@ -4460,14 +4646,18 @@ def trace(
                         policy["maf_policy"],
                         policy["info_policy"],
                     )
-                # A numeric frequency the policy judged is reported as the class the
-                # policy's own threshold made of it, not by re-deriving the threshold.
+                # A numeric frequency is reported as the class the MAF threshold made
+                # of it. It must not be read off the disposition: a row INFO dropped
+                # carries a perfectly usable frequency, and calling that
+                # `below_threshold` would blame the MAF filter for another rule.
                 token_class = frequency["class"]
                 if token_class == "numeric":
+                    maf = None if admission is None else admission["maf"]
+                    threshold = None if policy is None else policy["declared"]["maf_threshold"]
                     token_class = (
-                        "valid_common"
-                        if admission is not None and admission["disposition"] == "valid_common"
-                        else "below_threshold"
+                        "below_threshold"
+                        if maf is not None and threshold is not None and maf < float(threshold)
+                        else "valid_common"
                     )
                 chosen_class = token_class
             frequency["class"] = chosen_class
@@ -4489,25 +4679,32 @@ def trace(
             }
 
             # -- the Store's identity and stored codes for this row -------------
-            store_facts = _store_store_facts(
+            store_facts, store_problem = _store_store_facts(
                 axis,
                 ragged_group,
                 dense_mapping,
                 row,
                 eaf_encoding,
             )
-            if store_facts["plane"] == "dense" and dense_arrays is not None:
-                dense_fact = _dense_store_fact(
-                    dense_arrays,
-                    int(store_facts["dense_row"]),
-                    int(row["analysis_index"]),
-                    eaf_encoding,
-                )
-                store_facts.update(dense_fact)
+            if store_facts["plane"] == "dense" and store_problem is None:
+                if dense_arrays is None:
+                    store_problem = "the Store's Dense Component cannot be opened"
+                else:
+                    dense_fact, store_problem = _dense_store_fact(
+                        dense_arrays,
+                        int(store_facts["dense_row"]),
+                        int(row["analysis_index"]),
+                        eaf_encoding,
+                    )
+                    store_facts.update(dense_fact)
+            if store_problem is not None:
+                store_facts["problem"] = store_problem
             record["store"] = store_facts
 
             # -- the disposition, and whether the Store agrees with it ----------
-            if admission is None:
+            if ambiguous:
+                disposition = "ambiguous_source"
+            elif admission is None:
                 if source is None or not source["available"]:
                     disposition = "source_unavailable"
                 elif policy is None:
@@ -4561,6 +4758,22 @@ def trace(
                 f"Store's Dense Component {'holds' if store_facts['on_panel'] else 'does not hold'} it",
                 sample_id=record["sample_id"],
             )
+        if store_facts.get("problem") is not None:
+            inconsistency(
+                "store_cell_unreadable",
+                f"sample row {record['sample_id']} ({record['analysis_id']}, {record['alid']}): "
+                f"{store_facts['problem']}; the trace cannot compare its admission with a cell "
+                "it did not read",
+                sample_id=record["sample_id"],
+            )
+        elif record["variant_index"] is not None and not store_facts["located"]:
+            inconsistency(
+                "store_identity_unreadable",
+                f"sample row {record['sample_id']} names variant {record['variant_index']}, "
+                "which the Store Variant Table does not hold; the row's Store identity cannot "
+                "be confirmed",
+                sample_id=record["sample_id"],
+            )
         agreement = record["agreement"]
         if agreement["admission_matches_store"] is False:
             inconsistency(
@@ -4577,6 +4790,21 @@ def trace(
                 f"{record['trace_disposition']} but the stored frequency code says "
                 f"{'absent' if agreement['stored_frequency_absent'] else 'present'}",
                 sample_id=record["sample_id"],
+            )
+        if record["trace_disposition"] == "ambiguous_source":
+            inconsistency(
+                "source_row_ambiguous",
+                f"sample row {record['sample_id']} ({record['analysis_id']}, {record['alid']}) "
+                f"matches {location['candidate_rows']} raw rows at its position and allele pair "
+                "whose frequencies disagree ("
+                + ", ".join(
+                    f"{entry['class']}={entry['canonical_af']!r}"
+                    for entry in location["distinct_frequencies"]
+                )
+                + "); the row's admission cannot be replayed as one row",
+                sample_id=record["sample_id"],
+                candidate_rows=location["candidate_rows"],
+                line_numbers=[candidate["line_number"] for candidate in location["candidates"]],
             )
         if record["trace_disposition"] == "unlocated_source":
             inconsistency(
@@ -4653,6 +4881,17 @@ def trace(
             },
             "verify": method,
         },
+        "replay": {
+            "engine": runtime,
+            "build_recorded": build_record,
+            "agrees": replay_agrees,
+            "admission_rule": "opengwasdb.build.row_admission.admit_rows",
+            "frequency_parser": "opengwasdb.stats.parse_af",
+            "policies_parsed_by": [
+                "opengwasdb.model.maf_policy.parse_maf_policy",
+                "opengwasdb.model.info_score_policy.parse_info_score_policy",
+            ],
+        },
         "sample": {
             "path": str(sample),
             "sha256": _sha256(sample),
@@ -4666,8 +4905,8 @@ def trace(
         },
         "scope": {
             "measured": [
-                "the raw source row behind every sampled row, located by chromosome, position and allele pair",
-                "the declared source columns and the raw tokens of each located row",
+                "the raw source row behind every sampled row, located by chromosome, position and allele pair, with every matching candidate row retained",
+                "the declared source columns (including a declared imputation_score_column) and the raw tokens of each located row",
                 "the frequency opengwasdb.stats.parse_af reads from the row's effect_allele_frequency",
                 "the admission opengwasdb.build.row_admission.admit_rows gives the row under the Analysis's declared MAF and INFO policies",
                 "whether the Store holds the association, and its stored z/eaf codes",
@@ -4748,6 +4987,8 @@ def _trace_summary(
         )
         by_publication.append(tally)
     located = sum(1 for row in rows if row["location"]["located"])
+    ambiguous = sum(1 for row in rows if row["trace_disposition"] == "ambiguous_source")
+    classified = located - ambiguous
     placeholders = sum(
         1
         for row in rows
@@ -4765,8 +5006,10 @@ def _trace_summary(
             "rows": len(rows),
             "rows_located": located,
             "rows_unlocated": len(rows) - located,
+            "rows_ambiguous": ambiguous,
+            "rows_with_frequency_class": classified,
             "dispositions_close": sum(overall["dispositions"].values()) == len(rows),
-            "frequency_classes_close": sum(overall["source_frequency_classes"].values()) == located,
+            "frequency_classes_close": sum(overall["source_frequency_classes"].values()) == classified,
             "off_panel_rows": off_panel["rows"],
             "on_panel_control_rows": controls["rows"],
         },
@@ -4777,6 +5020,9 @@ def _trace_summary(
             "rows": placeholders,
             "off_panel_rows": placeholder_off_panel,
             "fraction_of_located": None if not located else round(placeholders / located, 6),
+            "fraction_of_classified": None
+            if not classified
+            else round(placeholders / classified, 6),
             "fraction_of_off_panel": None
             if not off_panel["rows"]
             else round(placeholder_off_panel / off_panel["rows"], 6),
@@ -5016,6 +5262,14 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _same_path(left: Path, right: Path) -> bool:
+    """Whether two names resolve to the same file, whether or not it exists yet."""
+    try:
+        return Path(os.path.realpath(left)) == Path(os.path.realpath(right))
+    except OSError:  # pragma: no cover - realpath does not raise for a missing tail
+        return False
+
+
 def _inside(path: Path, root: Path) -> bool:
     try:
         resolved = Path(os.path.realpath(path))
@@ -5183,6 +5437,13 @@ def _main_trace(
                 file=sys.stderr,
             )
             return 2
+        if _same_path(output, source):
+            print(
+                f"audit: refusing to write evidence over the {named} ({output} is the same "
+                "file); a trace reads its inputs and never replaces them",
+                file=sys.stderr,
+            )
+            return 2
     try:
         report = trace(
             store_path,
@@ -5194,6 +5455,15 @@ def _main_trace(
             verify=args.verify,
             argv=argv,
         )
+        for entry in report["scope"]["sources"]:
+            source_path = entry.get("path")
+            if source_path and _same_path(output, Path(source_path)):
+                print(
+                    f"audit: refusing to write evidence over a raw source file ({output} is "
+                    f"{source_path}); the sources a trace reads are never written to",
+                    file=sys.stderr,
+                )
+                return 2
         _write_report(report, output, store_path)
     except AuditError as exc:
         print(f"audit: {exc}", file=sys.stderr)

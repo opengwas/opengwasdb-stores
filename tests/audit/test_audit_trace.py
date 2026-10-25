@@ -20,15 +20,20 @@ row     effect/other  eaf        source frequency class   admission        in St
 1:2000  T/C           0.001      below_threshold          maf_below        no
 1:3000  A/G           0.5        valid_common             valid_common     yes
 1:4000  C/T           0.0049     below_threshold          maf_below        no
-1:5000  G/T           0.005      valid_common             valid_common     yes (boundary)
+1:5000  G/T           0.005      valid_common             valid_common     yes (lower boundary)
 1:6000  T/A           1.0        placeholder_one          maf_missing      yes
 1:7000  A/C           (blank)    missing                  maf_missing      yes
 1:8000  C/G           1.5        out_of_range             maf_missing      yes
 1:10000 A/T           abc        malformed                maf_missing      yes
+1:11000 A/G           0.995      valid_common             valid_common     yes (upper boundary)
+1:12000 C/T           0.9951     below_threshold          maf_below        no
+1:13000 G/T           inf        nonfinite                maf_missing      yes
+1:14000 A/C           NaN        missing                  maf_missing      yes
 ```
 
-so the admitted rows are 8 (10 observed, 2 below the 0.005 threshold) and 5 of
-them carry no usable frequency. The `1:6000` row is the flipped-orientation
+so the admitted rows are 11 (14 observed, 3 below the 0.005 threshold) and 7 of
+them carry no usable frequency. Both MAF boundaries are inclusive: 0.005 and
+0.995 pass, 0.0049 and 0.9951 do not. The `1:6000` row is the flipped-orientation
 case (its raw effect allele is `T`, the canonical A1 is `A`, so the builder
 stores `1 - 1.0` -- still nothing), and the `1:1` row is the on-panel control
 whose cell lives in the Dense Component.
@@ -98,6 +103,12 @@ SOURCE_ROWS = (
     ("1", "7000", "A", "C", "", "rs7"),
     ("1", "8000", "C", "G", "1.5", "rs8"),
     ("1", "10000", "A", "T", "abc", "rs9"),
+    # The upper boundary is symmetric with the lower one, and a non-finite token
+    # is a fifth way to report no frequency.
+    ("1", "11000", "A", "G", "0.995", "rs10"),
+    ("1", "12000", "C", "T", "0.9951", "rs11"),
+    ("1", "13000", "G", "T", "inf", "rs12"),
+    ("1", "14000", "A", "C", "NaN", "rs13"),
 )
 
 #: The variant reference: one panel variant, with the source key the reader
@@ -135,6 +146,10 @@ SAMPLE_ROWS = (
     ("S07", "1:7000:A:C", "exclusive_analysis:0"),
     ("S08", "1:8000:C:G", "exclusive_analysis:0"),
     ("S09", "1:10000:A:T", "exclusive_analysis:0"),
+    ("S10", "1:11000:A:G", "exclusive_analysis:0"),
+    ("S11", "1:12000:C:T", "exclusive_analysis:0"),
+    ("S12", "1:13000:G:T", "exclusive_analysis:0"),
+    ("S13", "1:14000:A:C", "exclusive_analysis:0"),
 )
 
 #: The dispositions the trace must assign, by sample id. See the module docstring.
@@ -149,6 +164,10 @@ EXPECTED_DISPOSITIONS = {
     "S07": "maf_missing",
     "S08": "maf_missing",
     "S09": "maf_missing",
+    "S10": "valid_common",
+    "S11": "maf_below_threshold",
+    "S12": "maf_missing",
+    "S13": "maf_missing",
 }
 
 #: The source-frequency class each sample row's raw token carries.
@@ -163,13 +182,17 @@ EXPECTED_CLASSES = {
     "S07": "missing",
     "S08": "out_of_range",
     "S09": "malformed",
+    "S10": "valid_common",
+    "S11": "below_threshold",
+    "S12": "nonfinite",
+    "S13": "missing",
 }
 
 
-def write_source(path: Path) -> None:
+def write_source(path: Path, rows=SOURCE_ROWS) -> None:
     with gzip.open(path, "wt", encoding="utf-8") as handle:
         handle.write("\t".join(SOURCE_COLUMNS) + "\n")
-        for chromosome, position, effect, other, eaf, rsid in SOURCE_ROWS:
+        for chromosome, position, effect, other, eaf, rsid in rows:
             handle.write(
                 "\t".join(
                     (
@@ -189,7 +212,25 @@ def write_source(path: Path) -> None:
             )
 
 
-def write_manifest(path: Path, source: Path, *, maf: str = "0.005", info: str = "NaN") -> None:
+#: The declaration triple a numeric `info_score_threshold` requires (stores #175):
+#: a column name, its kind, and independent provider evidence for it.
+INFO_DECLARATION = {
+    "imputation_score_column": "INFO",
+    "imputation_score_kind": "imputation_info",
+    "imputation_score_provenance": "fixture:provider",
+}
+
+
+def write_manifest(
+    path: Path,
+    source: Path,
+    *,
+    maf: str = "0.005",
+    info: str = "NaN",
+    extra: dict[str, str] | None = None,
+) -> None:
+    extra = extra or {}
+    columns = (*MANIFEST_COLUMNS, *extra)
     rows = [
         (
             ANALYSIS_ID,
@@ -203,10 +244,11 @@ def write_manifest(path: Path, source: Path, *, maf: str = "0.005", info: str = 
             maf,
             info,
             PUBLICATION_PMID,
+            *(extra[name] for name in extra),
         )
     ]
     with path.open("w", encoding="utf-8", newline="") as handle:
-        handle.write("\t".join(MANIFEST_COLUMNS) + "\n")
+        handle.write("\t".join(columns) + "\n")
         for row in rows:
             handle.write("\t".join(row) + "\n")
 
@@ -293,8 +335,8 @@ class Fixture:
         self.evidence = root / "evidence"
         self.evidence.mkdir()
 
-    def build(self, *, maf: str = "0.005", info: str = "NaN") -> "Fixture":
-        write_source(self.source)
+    def build(self, *, maf: str = "0.005", info: str = "NaN", source_rows=SOURCE_ROWS) -> "Fixture":
+        write_source(self.source, source_rows)
         write_manifest(self.manifest, self.source, maf=maf, info=info)
         self.panel.write_text("\n".join(PANEL_LINES) + "\n", encoding="utf-8")
         build_hybrid_from_vcf_manifest(
@@ -305,12 +347,97 @@ class Fixture:
             release_id=STORE_ID,
             n_workers=1,
         )
+        self.write_build_record()
         write_sample(self.sample, self.store)
         return self
+
+    def write_build_record(self) -> None:
+        """The Store Release's own build record, which the CLI build writes beside it.
+
+        The trace reads it to compare its engine's revision with the revision that
+        wrote the Store; an in-process build does not write one, so the fixture
+        states the revision the engine in this environment reports.
+        """
+        runtime = audit._runtime_revision()
+        records = self.root / "records"
+        records.mkdir(exist_ok=True)
+        (records / "build.json").write_text(
+            json.dumps(
+                {
+                    "step": "build",
+                    "store_id": STORE_ID,
+                    "exit_code": 0,
+                    "success": True,
+                    "argv": ["opengwasdb", "build-hybrid", str(self.manifest), str(self.store)],
+                    "opengwasdb_rev": runtime["opengwasdb_rev"] or "fixture000",
+                    "opengwasdb_version": runtime["opengwasdb_version"],
+                }
+            ),
+            encoding="utf-8",
+        )
 
 
 def build_fixture(root: Path, **kwargs: object) -> Fixture:
     return Fixture(root).build(**kwargs)  # type: ignore[arg-type]
+
+
+def build_info_fixture(root: Path) -> Fixture:
+    """A Store whose Analysis declares a numeric INFO filter over a source `INFO` column.
+
+    Three rows: an admitted panel row (INFO 0.95), a row with a perfectly usable
+    frequency that only the declared INFO score drops (AF 0.4, INFO 0.5), and a
+    placeholder row that INFO passes (AF 0.0, INFO 0.9). The middle row is the
+    case a fixed column list would silently mis-read: its score column is not in
+    GWAS-SSF's vocabulary, and without it the row looks unscoreable and is kept.
+    """
+    fixture = Fixture(root)
+    rows = (
+        ("1", "1", "G", "A", "0.4", "rs0", "0.95"),
+        ("1", "1000", "G", "A", "0.4", "rs1", "0.5"),
+        ("1", "2000", "T", "C", "0.0", "rs2", "0.9"),
+    )
+    with gzip.open(fixture.source, "wt", encoding="utf-8") as handle:
+        handle.write("\t".join((*SOURCE_COLUMNS, "INFO")) + "\n")
+        for chromosome, position, effect, other, eaf, rsid, info in rows:
+            handle.write(
+                "\t".join(
+                    (
+                        chromosome,
+                        position,
+                        effect,
+                        other,
+                        eaf,
+                        "0.05",
+                        "0.05",
+                        "1e-4",
+                        rsid,
+                        f"{chromosome}:{position}:{effect}:{other}",
+                        info,
+                    )
+                )
+                + "\n"
+            )
+    write_manifest(fixture.manifest, fixture.source, info="0.8", extra=INFO_DECLARATION)
+    fixture.panel.write_text("\n".join(PANEL_LINES) + "\n", encoding="utf-8")
+    build_hybrid_from_vcf_manifest(
+        fixture.manifest,
+        fixture.store,
+        variant_reference=fixture.panel,
+        store_id=STORE_ID,
+        release_id=STORE_ID,
+        n_workers=1,
+    )
+    fixture.write_build_record()
+    write_sample(
+        fixture.sample,
+        fixture.store,
+        (
+            ("T00", "1:1:A:G", "on_panel_control"),
+            ("T01", "1:1000:A:G", "exclusive_analysis:0"),
+            ("T02", "1:2000:C:T", "exclusive_analysis:0"),
+        ),
+    )
+    return fixture
 
 
 def tree_digests(root: Path) -> dict[str, tuple[int, int, str]]:
@@ -458,6 +585,42 @@ class TestBuilderAdmissionDefect(TraceTestCase):
             self.assertIn(alid, indices)
         record_check()
 
+    def test_the_upper_maf_boundary_is_inclusive_and_just_above_is_dropped(self) -> None:
+        indices = store_variants(self.fixture.store)
+        # af = 0.995 has MAF exactly 0.005 and passes; 0.9951 has MAF 0.0049 and
+        # does not. The filter is symmetric about 0.5, so the same equality rule
+        # decides both ends.
+        self.assertIn("1:11000:A:G", indices)
+        self.assertNotIn("1:12000:C:T", indices)
+        record_check()
+        _, report = self.trace(output="upper-boundary.json")
+        rows = self.by_id(report)
+        self.assertEqual(rows["S10"]["trace_disposition"], "valid_common")
+        self.assertAlmostEqual(rows["S10"]["admission"]["maf"], 0.005, places=9)
+        self.assertFalse(rows["S10"]["store"]["eaf_absent"])
+        record_check()
+        self.assertEqual(rows["S11"]["trace_disposition"], "maf_below_threshold")
+        self.assertAlmostEqual(rows["S11"]["admission"]["maf"], 0.0049, places=9)
+        record_check()
+
+    def test_a_non_finite_frequency_is_admitted_as_maf_missing(self) -> None:
+        indices = store_variants(self.fixture.store)
+        # `inf` is not a frequency any rule can judge, and a literal `NaN` is the
+        # blank case spelled as a number: both are retained, neither is refused.
+        self.assertIn("1:13000:G:T", indices)
+        self.assertIn("1:14000:A:C", indices)
+        record_check()
+        _, report = self.trace(output="nonfinite.json")
+        rows = self.by_id(report)
+        self.assertEqual(rows["S12"]["frequency"]["class"], "nonfinite")
+        self.assertIsNone(rows["S12"]["frequency"]["parsed_af"])
+        self.assertEqual(rows["S12"]["trace_disposition"], "maf_missing")
+        self.assertTrue(rows["S12"]["store"]["eaf_absent"])
+        record_check()
+        self.assertEqual(rows["S13"]["frequency"]["class"], "missing")
+        self.assertEqual(rows["S13"]["trace_disposition"], "maf_missing")
+        record_check()
+
 
 # ---------------------------------------------------------------------------
 # Seam 2: the trace report itself
@@ -518,11 +681,12 @@ class TestTraceReport(TraceTestCase):
         self.assertEqual(
             report["summary"]["overall"]["dispositions"],
             {
-                "valid_common": 3,
-                "maf_below_threshold": 2,
-                "maf_missing": 5,
+                "valid_common": 4,
+                "maf_below_threshold": 3,
+                "maf_missing": 7,
                 "info_below_threshold": 0,
                 "unlocated_source": 0,
+                "ambiguous_source": 0,
                 "source_unavailable": 0,
             },
         )
@@ -619,21 +783,21 @@ class TestTraceReport(TraceTestCase):
         _, report = self.trace()
         analysis = report["summary"]["by_analysis"][0]
         record_check()
-        # Hand-counted from the fixture table in the module docstring: 10 rows
-        # observed, 2 dropped below the threshold, 8 admitted, 5 of them with no
+        # Hand-counted from the fixture table in the module docstring: 14 rows
+        # observed, 3 dropped below the threshold, 11 admitted, 7 of them with no
         # usable frequency.
         self.assertEqual(
             analysis["store_recorded"],
             {
-                "associations_observed": 10,
-                "associations_retained": 8,
-                "associations_missing": 5,
-                "associations_below_threshold": 2,
+                "associations_observed": 14,
+                "associations_retained": 11,
+                "associations_missing": 7,
+                "associations_below_threshold": 3,
             },
         )
         record_check()
         self.assertEqual(analysis["rows"], len(SAMPLE_ROWS))
-        self.assertEqual(analysis["dispositions"]["maf_missing"], 5)
+        self.assertEqual(analysis["dispositions"]["maf_missing"], 7)
         self.assertEqual(analysis["source_frequency_classes"]["placeholder_zero"], 1)
         self.assertEqual(analysis["source_frequency_classes"]["placeholder_one"], 1)
         self.assertEqual(analysis["source_frequency_classes"]["out_of_range"], 1)
@@ -641,7 +805,7 @@ class TestTraceReport(TraceTestCase):
         placeholder = report["summary"]["placeholder_frequency"]
         self.assertEqual(placeholder["rows"], 2)  # 0.0 and 1.0
         self.assertEqual(placeholder["off_panel_rows"], 2)
-        self.assertAlmostEqual(placeholder["fraction_of_off_panel"], 2 / 9, places=6)
+        self.assertAlmostEqual(placeholder["fraction_of_off_panel"], 2 / 13, places=6)
         record_check()
 
     def test_a_limited_run_traces_only_the_rows_it_read(self) -> None:
@@ -756,6 +920,243 @@ class TestTraceFailLoudly(TraceTestCase):
         self.assertIn("store_identity_disagrees_with_sample", kinds)
         self.assertIn("admission_disagrees_with_store", kinds)
         record_check()
+
+    def test_the_output_cannot_replace_an_input(self) -> None:
+        import hashlib
+
+        def digest(path: Path) -> str:
+            return hashlib.sha256(path.read_bytes()).hexdigest()
+
+        sample_before = digest(self.fixture.sample)
+        manifest_before = digest(self.fixture.manifest)
+        source_before = digest(self.fixture.source)
+        for named, target in (
+            ("sample", self.fixture.sample),
+            ("build manifest", self.fixture.manifest),
+            ("raw source", self.fixture.source),
+        ):
+            code, _, err = self.run_audit(
+                "trace",
+                str(self.fixture.store),
+                "--sample",
+                str(self.fixture.sample),
+                "--manifest",
+                str(self.fixture.manifest),
+                "--output",
+                str(target),
+            )
+            record_check()
+            self.assertEqual(code, 2, named)
+            self.assertIn("refusing to write evidence", err)
+        self.assertEqual(digest(self.fixture.sample), sample_before)
+        self.assertEqual(digest(self.fixture.manifest), manifest_before)
+        self.assertEqual(digest(self.fixture.source), source_before)
+        record_check()
+
+    def test_the_runtime_engine_revision_is_recorded_and_compared(self) -> None:
+        _, report = self.trace(output="replay.json")
+        replay = report["replay"]
+        record_check()
+        self.assertTrue(replay["engine"]["opengwasdb_version"])
+        self.assertEqual(replay["build_recorded"]["path"], str(self.fixture.root / "records" / "build.json"))
+        self.assertTrue(replay["build_recorded"]["available"])
+        self.assertIs(replay["agrees"], True)
+        record_check()
+        kinds = {entry["kind"] for entry in report["inconsistencies"]}
+        self.assertNotIn("replay_revision_differs", kinds)
+        self.assertNotIn("build_revision_unrecorded", kinds)
+        record_check()
+
+    def test_a_recorded_revision_that_differs_is_a_finding_not_an_error(self) -> None:
+        record = self.fixture.root / "records" / "build.json"
+        original = record.read_text(encoding="utf-8")
+        try:
+            data = json.loads(original)
+            data["opengwasdb_rev"] = "0" * 40
+            record.write_text(json.dumps(data), encoding="utf-8")
+            code, report = self.trace(output="revision-differs.json")
+            record_check()
+            self.assertEqual(code, 0)
+            self.assertIs(report["replay"]["agrees"], False)
+            kinds = {entry["kind"] for entry in report["inconsistencies"]}
+            self.assertIn("replay_revision_differs", kinds)
+            record_check()
+        finally:
+            record.write_text(original, encoding="utf-8")
+
+    def test_a_missing_build_record_is_an_error(self) -> None:
+        root = Path(tempfile.mkdtemp(prefix="ogstores_audit_trace_norecord_"))
+        try:
+            fixture = build_fixture(root)
+            (fixture.root / "records" / "build.json").unlink()
+            target = fixture.evidence / "no-record.json"
+            code, out, err = self.run_audit(
+                "trace",
+                str(fixture.store),
+                "--sample",
+                str(fixture.sample),
+                "--manifest",
+                str(fixture.manifest),
+                "--output",
+                str(target),
+                "--workers",
+                "1",
+            )
+            report = json.loads(target.read_text(encoding="utf-8"))
+            record_check()
+            self.assertEqual(code, 1, out + err)
+            self.assertEqual(report["replay"]["build_recorded"]["problem"], "missing")
+            kinds = {entry["kind"] for entry in report["inconsistencies"]}
+            self.assertIn("build_revision_unrecorded", kinds)
+            record_check()
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_an_ambiguous_source_row_keeps_its_candidates_and_is_an_error(self) -> None:
+        # Two rows at one position with one allele pair and different frequencies:
+        # the trace must not choose one by first-seen order.
+        root = Path(tempfile.mkdtemp(prefix="ogstores_audit_trace_ambiguous_"))
+        try:
+            fixture = build_fixture(
+                root, source_rows=(*SOURCE_ROWS, ("1", "3000", "A", "G", "0.9", "rs3b"))
+            )
+            target = fixture.evidence / "ambiguous.json"
+            code, out, err = self.run_audit(
+                "trace",
+                str(fixture.store),
+                "--sample",
+                str(fixture.sample),
+                "--manifest",
+                str(fixture.manifest),
+                "--output",
+                str(target),
+                "--workers",
+                "1",
+            )
+            report = json.loads(target.read_text(encoding="utf-8"))
+            row = next(entry for entry in report["rows"] if entry["sample_id"] == "S03")
+            record_check()
+            self.assertEqual(code, 1, out + err)
+            self.assertEqual(row["trace_disposition"], "ambiguous_source")
+            self.assertEqual(row["location"]["candidate_rows"], 2)
+            self.assertFalse(row["location"]["frequency_agreement"])
+            self.assertEqual(len(row["location"]["candidates"]), 2)
+            self.assertEqual(
+                sorted(entry["canonical_af"] for entry in row["location"]["distinct_frequencies"]),
+                [0.5, 0.9],
+            )
+            record_check()
+            kinds = {entry["kind"] for entry in report["inconsistencies"]}
+            self.assertIn("source_row_ambiguous", kinds)
+            self.assertEqual(report["summary"]["denominators"]["rows_ambiguous"], 1)
+            record_check()
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_a_declared_info_column_is_read_and_its_threshold_applied(self) -> None:
+        root = Path(tempfile.mkdtemp(prefix="ogstores_audit_trace_info_"))
+        try:
+            fixture = build_info_fixture(root)
+            target = fixture.evidence / "info.json"
+            code, out, err = self.run_audit(
+                "trace",
+                str(fixture.store),
+                "--sample",
+                str(fixture.sample),
+                "--manifest",
+                str(fixture.manifest),
+                "--output",
+                str(target),
+                "--workers",
+                "1",
+            )
+            report = json.loads(target.read_text(encoding="utf-8"))
+            rows = {row["sample_id"]: row for row in report["rows"]}
+            record_check()
+            self.assertEqual(code, 0, out + err)
+            # The declared column is not GWAS-SSF's: the scan must be told about it,
+            # or the row reads as unscored and is kept.
+            self.assertIn("INFO", rows["T01"]["location"]["columns"])
+            self.assertEqual(rows["T01"]["location"]["tokens"]["INFO"], "0.5")
+            record_check()
+            self.assertEqual(rows["T01"]["admission"]["info_policy"], {"state": "filtered", "threshold": 0.8})
+            self.assertEqual(rows["T01"]["admission"]["info_score"]["token"], "0.5")
+            self.assertEqual(rows["T01"]["trace_disposition"], "info_below_threshold")
+            self.assertFalse(rows["T01"]["admission"]["keep"])
+            record_check()
+            # Its frequency is 0.4: usable, and above the MAF threshold. The class
+            # must not be read off the disposition, or the MAF rule would be blamed
+            # for the INFO rule's decision.
+            self.assertEqual(rows["T01"]["frequency"]["class"], "valid_common")
+            self.assertAlmostEqual(rows["T01"]["admission"]["maf"], 0.4)
+            record_check()
+            self.assertEqual(rows["T00"]["trace_disposition"], "valid_common")
+            self.assertEqual(rows["T02"]["trace_disposition"], "maf_missing")
+            record_check()
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_an_info_policy_threshold_that_differs_from_the_store_is_an_error(self) -> None:
+        # The state alone is not the policy: 0.8 and 0.9 are both `filtered` and
+        # keep different rows.
+        root = Path(tempfile.mkdtemp(prefix="ogstores_audit_trace_info_threshold_"))
+        try:
+            fixture = build_info_fixture(root)
+            other = fixture.evidence / "other-threshold.tsv"
+            write_manifest(other, fixture.source, info="0.9", extra=INFO_DECLARATION)
+            target = fixture.evidence / "info-threshold.json"
+            code, out, err = self.run_audit(
+                "trace",
+                str(fixture.store),
+                "--sample",
+                str(fixture.sample),
+                "--manifest",
+                str(other),
+                "--output",
+                str(target),
+                "--workers",
+                "1",
+            )
+            report = json.loads(target.read_text(encoding="utf-8"))
+            record_check()
+            self.assertEqual(code, 1, out + err)
+            kinds = {entry["kind"] for entry in report["inconsistencies"]}
+            self.assertIn("declared_policy_disagrees_with_store", kinds)
+            details = " ".join(entry["detail"] for entry in report["inconsistencies"])
+            self.assertIn("info_score_threshold", details)
+            record_check()
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    def test_a_store_cell_that_cannot_be_read_is_an_error(self) -> None:
+        # An audit that cannot read the cell it sampled must say so, never report
+        # `ok` without having looked.
+        root = Path(tempfile.mkdtemp(prefix="ogstores_audit_trace_unreadable_"))
+        try:
+            fixture = build_fixture(root)
+            shutil.rmtree(fixture.store / "data.zarr" / "ragged" / "by_variant" / "z")
+            target = fixture.evidence / "unreadable.json"
+            code, out, err = self.run_audit(
+                "trace",
+                str(fixture.store),
+                "--sample",
+                str(fixture.sample),
+                "--manifest",
+                str(fixture.manifest),
+                "--output",
+                str(target),
+                "--workers",
+                "1",
+            )
+            report = json.loads(target.read_text(encoding="utf-8"))
+            record_check()
+            self.assertEqual(code, 1, out + err)
+            self.assertFalse(report["ok"])
+            kinds = {entry["kind"] for entry in report["inconsistencies"]}
+            self.assertIn("store_cell_unreadable", kinds)
+            record_check()
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
 
     def test_the_store_is_unchanged_by_a_trace(self) -> None:
         before = tree_digests(self.fixture.store)
