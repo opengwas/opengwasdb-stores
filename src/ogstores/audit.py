@@ -3542,9 +3542,12 @@ def _frequency_class(token: str | None) -> dict[str, Any]:
     says "no usable frequency" from a frequency the MAF policy judged: a
     placeholder `0.0`, a placeholder `1.0`, a blank, an unparseable token, a
     non-finite one and an out-of-range one all reach the admission rule as the
-    same NaN, and reporting them as one tally would hide which of them the defect
-    is. What the *reader* does with the token is not decided here: `parse_af`
-    answers that, and the admission replay calls it.
+    same NaN, and reporting them as one tally would hide which of them the sample
+    is made of. What the *reader* does with the token is not decided here:
+    `parse_af` answers that, and the admission replay calls it. Nor does this
+    classification decide the disposition: a `filtered` MAF policy drops a
+    placeholder and an unusable token alike, but for different reasons -- a
+    judged MAF of 0 against no comparison at all.
     """
     if token is None:
         return {"class": "missing", "token": None, "value": None, "column": "absent"}
@@ -3859,7 +3862,11 @@ def _replay_admission(
     with the source frequency the reader parsed (NaN where it parsed none) and the
     declared INFO score the reader parsed from the declared column. Nothing here
     re-derives the rule; the MAF is computed alongside only to *report* the value
-    the rule compared.
+    the rule compared, and only a frequency the rule can read at all (finite, in
+    `[0, 1]`) has one. A placeholder `0.0`/`1.0` arrives here as the reader's
+    absence rather than as the number (ADR 0036), so it is reported with no MAF
+    like a blank; an out-of-range value is reported with none because no
+    threshold was ever compared against it (opengwasdb#331).
     """
     score = parse_imputation_score(info_token, declared=info_declared)
     scores = np.array([np.nan if score.value is None else score.value], dtype="float64")
@@ -3868,13 +3875,19 @@ def _replay_admission(
     admission = admit_rows(scores, statuses, frequencies, info_policy, maf_policy)
     keep = bool(admission.keep[0])
     counts = admission.counts
-    available = af is not None
-    maf = None if not available else min(af, 1.0 - af)
-    if not keep:
-        disposition = (
-            "info_below_threshold" if counts.info.below_threshold else "maf_below_threshold"
-        )
-    elif not available:
+    usable = af is not None and math.isfinite(af) and 0.0 <= af <= 1.0
+    maf = min(af, 1.0 - af) if usable else None
+    # The rule drops a row for exactly three reasons, and the disposition names
+    # which one it was. A `filtered` MAF policy drops the rows it cannot judge as
+    # well as those below its threshold (opengwasdb#331), so `maf_missing` here
+    # means "dropped for carrying no usable frequency" -- and under `disabled`
+    # or `unavailable` the same class means the rule kept it unjudged. The
+    # frequency class beside it says which token it was.
+    if counts.info.below_threshold:
+        disposition = "info_below_threshold"
+    elif counts.maf_below_threshold:
+        disposition = "maf_below_threshold"
+    elif not usable:
         disposition = "maf_missing"
     else:
         disposition = "valid_common"
@@ -3958,10 +3971,11 @@ def _recorded_admissions(manifest_provenance: dict[str, Any]) -> dict[str, dict[
     """The per-Analysis admission counts and policies the Store itself records.
 
     These are the denominators a sample represents: `associations_missing` is the
-    rows the build retained with no usable frequency, and
-    `associations_below_threshold` the rows it dropped for one. They are quoted,
-    never recomputed -- a sample cannot count a whole file and the report must not
-    pretend it did.
+    rows the build's `filtered` MAF policy dropped for having no usable frequency
+    (opengwasdb#331 made `maf_rows_missing` count dropped rows, not retained ones),
+    and `associations_below_threshold` the rows it dropped for a MAF below the
+    threshold. They are quoted, never recomputed -- a sample cannot count a whole
+    file and the report must not pretend it did.
     """
     maf = {
         entry.get("analysis_id"): entry
@@ -4816,38 +4830,14 @@ def trace(
                 allele_mismatch_rows=location["allele_mismatch_rows"],
             )
 
-    placeholder_rows = [
-        record for record in rows if record["frequency"]["class"] in ("placeholder_zero", "placeholder_one")
-    ]
-    if placeholder_rows:
-        inconsistency(
-            "placeholder_frequency_admitted",
-            "sampled rows whose source reports a placeholder frequency (exactly 0.0 or 1.0) were "
-            "retained and counted `maf_missing`: the MAF rule only judges a frequency strictly "
-            "inside (0, 1), so a placeholder bypasses the threshold instead of being judged by it",
-            severity="finding",
-            placeholder_zero=sum(
-                1 for record in placeholder_rows if record["frequency"]["class"] == "placeholder_zero"
-            ),
-            placeholder_one=sum(
-                1 for record in placeholder_rows if record["frequency"]["class"] == "placeholder_one"
-            ),
-            rows=len(placeholder_rows),
-        )
-    invalid_rows = [
-        record
-        for record in rows
-        if record["frequency"]["class"] in ("malformed", "nonfinite", "out_of_range")
-    ]
-    if invalid_rows:
-        inconsistency(
-            "invalid_frequency_admitted",
-            "sampled rows whose source frequency is unparseable, non-finite or outside [0, 1] were "
-            "retained and counted `maf_missing` rather than refused: the reader parses them as "
-            "absent and the admission rule keeps a row with no usable frequency",
-            severity="finding",
-            rows=len(invalid_rows),
-        )
+    # A Store that holds a row its own declared policy drops is already an
+    # `admission_disagrees_with_store` error on that row, and the sample's
+    # placeholder and invalid-frequency tallies are in `summary`. There is no
+    # separate finding here: after opengwasdb#331 a `filtered` policy drops a
+    # placeholder (`0.0`/`1.0`) and an unreadable frequency alike, so "the rule
+    # admitted a placeholder" is no longer an observation the trace can make of a
+    # Store built under the corrected rule -- it is a disagreement, and it is an
+    # error.
 
     after = _inventory(path, method)
     unchanged = _compare(before, after)

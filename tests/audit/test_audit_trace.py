@@ -9,34 +9,43 @@ frequency it parsed from each of them, and the admission decision it made.
 The fixture is not a hand-written Store: it is a real format-0.2.0 Hybrid Store
 Release built through OpenGWASDB's own builder (`build_hybrid_from_vcf_manifest`)
 from a ten-row GWAS-SSF file, one Analysis and one panel variant. That is the
-point of this suite -- the defect the ticket exists for is a property of the
-*builder*, so a reproducer that hand-built the Store could not show it. The
-source file's rows state every frequency class at once:
+point of this suite -- the admission decision the ticket is about is a property
+of the *builder*, so a reproducer that hand-built the Store could not show it.
+The source file's rows state every frequency class at once:
 
 ```text
 row     effect/other  eaf        source frequency class   admission        in Store
 1:1     G/A           0.4        valid_common             valid_common     yes (panel)
-1:1000  G/A           0.0        placeholder_zero         maf_missing      yes
+1:1000  G/A           0.0        placeholder_zero         maf_missing      no
 1:2000  T/C           0.001      below_threshold          maf_below        no
 1:3000  A/G           0.5        valid_common             valid_common     yes
 1:4000  C/T           0.0049     below_threshold          maf_below        no
 1:5000  G/T           0.005      valid_common             valid_common     yes (lower boundary)
-1:6000  T/A           1.0        placeholder_one          maf_missing      yes
-1:7000  A/C           (blank)    missing                  maf_missing      yes
-1:8000  C/G           1.5        out_of_range             maf_missing      yes
-1:10000 A/T           abc        malformed                maf_missing      yes
+1:6000  T/A           1.0        placeholder_one          maf_missing      no
+1:7000  A/C           (blank)    missing                  maf_missing      no
+1:8000  C/G           1.5        out_of_range             maf_missing      no
+1:10000 A/T           abc        malformed                maf_missing      no
 1:11000 A/G           0.995      valid_common             valid_common     yes (upper boundary)
 1:12000 C/T           0.9951     below_threshold          maf_below        no
-1:13000 G/T           inf        nonfinite                maf_missing      yes
-1:14000 A/C           NaN        missing                  maf_missing      yes
+1:13000 G/T           inf        nonfinite                maf_missing      no
+1:14000 A/C           NaN        missing                  maf_missing      no
 ```
 
-so the admitted rows are 11 (14 observed, 3 below the 0.005 threshold) and 7 of
-them carry no usable frequency. Both MAF boundaries are inclusive: 0.005 and
+so under the pinned rule (`opengwasdb` `7308c6a`, core #331) the admitted rows
+are 4: 14 observed, 3 dropped below the 0.005 threshold and 7 dropped for
+carrying no usable frequency. Both MAF boundaries are inclusive: 0.005 and
 0.995 pass, 0.0049 and 0.9951 do not. The `1:6000` row is the flipped-orientation
 case (its raw effect allele is `T`, the canonical A1 is `A`, so the builder
-stores `1 - 1.0` -- still nothing), and the `1:1` row is the on-panel control
-whose cell lives in the Dense Component.
+reads `1 - 1.0` -- nothing on either count), and the `1:1` row is the on-panel
+control whose cell lives in the Dense Component.
+
+The two placeholder rows are the fix's own case. `admit_rows` judges an exact
+`0.0`/`1.0` as a frequency whose MAF is 0 and drops it as below any positive
+threshold when it is handed the number; the *reader* reports no stored EAF for
+one (`parse_af`, ADR 0036), so what reaches the rule in a real build is NaN and
+the build counts the row `maf_missing` -- dropped, under the corrected rule, for
+having no frequency rather than kept unjudged as it was before core #331. Either
+way the row leaves the Store, which is what #380 repins for.
 """
 
 from __future__ import annotations
@@ -132,9 +141,11 @@ MANIFEST_COLUMNS = (
     "publication_pmid",
 )
 
-#: The sample #373 would emit for this Store: every off-panel admitted variant
-#: plus the two the MAF filter dropped (which #373 could not have sampled, and
-#: which the trace therefore names without a `variant_index`), plus the panel row.
+#: The sample #373 would emit for this Store, extended with the rows the MAF
+#: filter drops: every source row is named so each frequency class is traced once.
+#: A dropped row has no `variant_index` in the Store (it has no association), which
+#: a sample drawn from the Store alone could not contain, and the report says so
+#: rather than inventing one. `1:1:A:G` is the panel row.
 SAMPLE_ROWS = (
     ("S00", "1:1:A:G", "on_panel_control"),
     ("S01", "1:1000:A:G", "exclusive_analysis:0"),
@@ -508,44 +519,52 @@ class TraceTestCase(unittest.TestCase):
 # ---------------------------------------------------------------------------
 
 
-class TestBuilderAdmissionDefect(TraceTestCase):
-    """The defect the ticket exists for, minimised to the two rows that show it.
+class TestBuilderAdmissionRule(TraceTestCase):
+    """The corrected rule, at the real builder entry point.
 
-    A source row whose `effect_allele_frequency` is exactly `0.0` is admitted,
-    and a source row whose frequency is `0.001` is dropped, by the same 0.005
-    MAF policy. Nothing about the two rows differs except the value the reader
-    parses from the frequency column -- `parse_af` maps `0.0` to *missing*, so
-    the row never reaches the MAF comparison at all.
+    A source row whose `effect_allele_frequency` is exactly `0.0` used to be
+    admitted while a row whose frequency is `0.001` was dropped by the same 0.005
+    MAF policy, because `parse_af` maps `0.0` to *missing* and the old rule kept a
+    row it could not measure. At `opengwasdb` `7308c6a` (core #331) a frequency
+    the rule cannot read is no evidence a common-variant Store may admit, so both
+    rows are dropped -- the low one for its MAF, the placeholder one for having no
+    frequency at all.
     """
 
-    def test_the_builder_admits_a_zero_frequency_row_it_drops_a_low_one_for(self) -> None:
+    def test_the_builder_drops_a_zero_frequency_row_and_a_low_one_alike(self) -> None:
         indices = store_variants(self.fixture.store)
         record_check()
 
         # The low frequency is judged by the policy and dropped.
         self.assertNotIn("1:2000:C:T", indices)
         record_check()
-        # Exactly zero is not a frequency the reader has an opinion about, so the
-        # row is retained as `maf_missing`.
-        self.assertIn("1:1000:A:G", indices)
+        # Exactly zero is a frequency the reader reports as absent, so the rule has
+        # nothing to judge and drops the row for that reason instead.
+        self.assertNotIn("1:1000:A:G", indices)
         record_check()
 
-        variants, analyses, codes = ragged_eaf_codes(self.fixture.store)
-        admitted = np.flatnonzero(
-            (analyses == 0) & (variants == indices["1:1000:A:G"])
+        # What is admitted is the two genuine common rows and the two boundaries.
+        self.assertEqual(
+            sorted(indices),
+            sorted(["1:1:A:G", "1:3000:A:G", "1:5000:G:T", "1:11000:A:G"]),
         )
+        record_check()
+
+        # And an admitted off-panel row still carries the frequency it was judged
+        # by, so the drops above are the filter's doing and not a lost column.
+        variants, analyses, codes = ragged_eaf_codes(self.fixture.store)
+        admitted = np.flatnonzero((analyses == 0) & (variants == indices["1:3000:A:G"]))
         self.assertEqual(admitted.size, 1)
         record_check()
-        code = codes[admitted[0]]
-        self.assertTrue(
-            is_absent(code),
-            f"the admitted placeholder row carries stored eaf {code!r}, not the absent code",
+        self.assertFalse(
+            is_absent(codes[admitted[0]]),
+            f"the admitted 0.5 row carries eaf {codes[admitted[0]]!r}, the absent code",
         )
         record_check()
 
     def test_the_row_admission_rule_replays_the_two_cases_directly(self) -> None:
         # The reader's own parse is what turns the zero into "no frequency"; the
-        # admission rule then has nothing to judge and keeps the row.
+        # admission rule then drops a row it has no frequency for.
         self.assertIsNone(parse_af("0.0"))
         self.assertEqual(parse_af("0.001"), 0.001)
         record_check()
@@ -564,10 +583,24 @@ class TestBuilderAdmissionDefect(TraceTestCase):
             maf,
         )
         record_check()
-        self.assertEqual(admission.keep.tolist(), [False, True])
+        self.assertEqual(admission.keep.tolist(), [False, False])
         self.assertEqual(admission.counts.maf_below_threshold, 1)
         self.assertEqual(admission.counts.maf_missing, 1)
-        self.assertEqual(admission.counts.admitted, 1)
+        self.assertEqual(admission.counts.admitted, 0)
+        record_check()
+        # Given the number rather than the reader's absence, the zero is judged
+        # and dropped as below any positive threshold (core #331).
+        judged = admit_rows(
+            np.array([np.nan], dtype="float64"),
+            np.array(["undeclared"], dtype=object),
+            np.array([0.0], dtype="float64"),
+            info,
+            maf,
+        )
+        record_check()
+        self.assertEqual(judged.keep.tolist(), [False])
+        self.assertEqual(judged.counts.maf_below_threshold, 1)
+        self.assertEqual(judged.counts.maf_missing, 0)
         record_check()
 
     def test_the_maf_boundary_is_exclusive_below_and_inclusive_at_it(self) -> None:
@@ -576,13 +609,13 @@ class TestBuilderAdmissionDefect(TraceTestCase):
         self.assertNotIn("1:4000:C:T", indices)  # 0.0049 does not
         record_check()
 
-    def test_a_placeholder_one_and_an_out_of_range_frequency_are_admitted_too(self) -> None:
+    def test_a_placeholder_one_and_an_out_of_range_frequency_are_dropped_too(self) -> None:
         indices = store_variants(self.fixture.store)
-        # Exactly 1.0, 1.5 and an unparseable token are all admitted as
-        # `maf_missing`: the reader parses each as absent and the rule keeps a
-        # row with no usable frequency, never refusing it.
+        # Exactly 1.0, 1.5 and an unparseable token are all dropped: the reader
+        # parses each as absent, and a `filtered` policy admits no row whose MAF it
+        # cannot read (core #331).
         for alid in ("1:6000:A:T", "1:8000:C:G", "1:10000:A:T"):
-            self.assertIn(alid, indices)
+            self.assertNotIn(alid, indices)
         record_check()
 
     def test_the_upper_maf_boundary_is_inclusive_and_just_above_is_dropped(self) -> None:
@@ -603,22 +636,24 @@ class TestBuilderAdmissionDefect(TraceTestCase):
         self.assertAlmostEqual(rows["S11"]["admission"]["maf"], 0.0049, places=9)
         record_check()
 
-    def test_a_non_finite_frequency_is_admitted_as_maf_missing(self) -> None:
+    def test_a_non_finite_frequency_is_dropped_as_maf_missing(self) -> None:
         indices = store_variants(self.fixture.store)
         # `inf` is not a frequency any rule can judge, and a literal `NaN` is the
-        # blank case spelled as a number: both are retained, neither is refused.
-        self.assertIn("1:13000:G:T", indices)
-        self.assertIn("1:14000:A:C", indices)
+        # blank case spelled as a number: neither is admitted.
+        self.assertNotIn("1:13000:G:T", indices)
+        self.assertNotIn("1:14000:A:C", indices)
         record_check()
         _, report = self.trace(output="nonfinite.json")
         rows = self.by_id(report)
         self.assertEqual(rows["S12"]["frequency"]["class"], "nonfinite")
         self.assertIsNone(rows["S12"]["frequency"]["parsed_af"])
         self.assertEqual(rows["S12"]["trace_disposition"], "maf_missing")
-        self.assertTrue(rows["S12"]["store"]["eaf_absent"])
+        self.assertFalse(rows["S12"]["admission"]["keep"])
+        self.assertIsNone(rows["S12"]["admission"]["maf"])
         record_check()
         self.assertEqual(rows["S13"]["frequency"]["class"], "missing")
         self.assertEqual(rows["S13"]["trace_disposition"], "maf_missing")
+        self.assertFalse(rows["S13"]["admission"]["keep"])
         record_check()
 
 
@@ -692,7 +727,7 @@ class TestTraceReport(TraceTestCase):
         )
         record_check()
 
-    def test_the_zero_frequency_row_is_traced_to_its_raw_tokens_and_admitted(self) -> None:
+    def test_the_zero_frequency_row_is_traced_to_its_raw_tokens_and_dropped(self) -> None:
         _, report = self.trace()
         row = self.by_id(report)["S01"]
         record_check()
@@ -709,18 +744,23 @@ class TestTraceReport(TraceTestCase):
         self.assertEqual(row["source"]["resolved_by"], "source_file")
         self.assertEqual(row["source"]["size_bytes"], self.fixture.source.stat().st_size)
         record_check()
+        self.assertEqual(row["frequency"]["class"], "placeholder_zero")
         self.assertIsNone(row["frequency"]["parsed_af"])
         self.assertTrue(row["frequency"]["reader_treats_as_missing"])
         record_check()
-        self.assertTrue(row["admission"]["keep"])
+        self.assertFalse(row["admission"]["keep"])
         self.assertEqual(row["admission"]["disposition"], "maf_missing")
+        self.assertIsNone(row["admission"]["maf"])
         self.assertEqual(row["admission"]["maf_policy"], {"state": "filtered", "threshold": 0.005})
         self.assertEqual(row["admission"]["counts"]["maf_missing"], 1)
+        self.assertEqual(row["admission"]["counts"]["maf_below_threshold"], 0)
         record_check()
-        self.assertTrue(row["store"]["z_present"])
-        self.assertTrue(row["store"]["eaf_absent"])
-        self.assertTrue(row["agreement"]["admission_matches_store"])
-        self.assertTrue(row["agreement"]["stored_frequency_agrees"])
+        # Dropped rows name no `variant_index`, so there is no Store cell to read
+        # and no agreement to claim: the trace says so rather than inventing one.
+        self.assertIsNone(row["variant_index"])
+        self.assertFalse(row["store"]["located"])
+        self.assertIsNone(row["store"]["z_present"])
+        self.assertIsNone(row["agreement"]["admission_matches_store"])
         record_check()
 
     def test_a_below_threshold_row_is_traced_and_the_store_holds_no_association(self) -> None:
@@ -784,13 +824,14 @@ class TestTraceReport(TraceTestCase):
         analysis = report["summary"]["by_analysis"][0]
         record_check()
         # Hand-counted from the fixture table in the module docstring: 14 rows
-        # observed, 3 dropped below the threshold, 11 admitted, 7 of them with no
-        # usable frequency.
+        # observed, 3 dropped below the threshold, 7 dropped for no usable
+        # frequency, and 4 admitted. `associations_missing` counts dropped rows
+        # under a `filtered` policy since core #331 -- it is not a retained tally.
         self.assertEqual(
             analysis["store_recorded"],
             {
                 "associations_observed": 14,
-                "associations_retained": 11,
+                "associations_retained": 4,
                 "associations_missing": 7,
                 "associations_below_threshold": 3,
             },
@@ -909,8 +950,9 @@ class TestTraceFailLoudly(TraceTestCase):
         indices = store_variants(self.fixture.store)
         sample.write_text(
             "sample_id\tanalysis_id\tanalysis_index\talid\tvariant_index\tstratum\n"
-            # The 0.001 row's ALID, pointed at the admitted placeholder's row.
-            f"Y00\t{ANALYSIS_ID}\t0\t1:2000:C:T\t{indices['1:1000:A:G']}\texclusive_analysis:0\n",
+            # The 0.001 row's ALID, pointed at the admitted 0.5 row: the Store holds
+            # an association there, and the replay of this row drops it.
+            f"Y00\t{ANALYSIS_ID}\t0\t1:2000:C:T\t{indices['1:5000:G:T']}\texclusive_analysis:0\n",
             encoding="utf-8",
         )
         code, report = self.trace(sample=sample, output="wrong-identity.json")
@@ -1174,7 +1216,7 @@ class TestTraceFailLoudly(TraceTestCase):
 
 def main() -> None:
     suite = unittest.TestSuite()
-    for case in (TestBuilderAdmissionDefect, TestTraceReport, TestTraceFailLoudly):
+    for case in (TestBuilderAdmissionRule, TestTraceReport, TestTraceFailLoudly):
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(case))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
