@@ -131,12 +131,18 @@ SUPPORT_BUCKETS: tuple[tuple[str, int, int | None], ...] = (
 NOT_MEASURED: tuple[dict[str, str], ...] = (
     {
         "item": "per-Analysis and per-publication attribution of off-panel associations",
-        "why": "this slice reconciles the axis, not its contributors (stores #373)",
+        "why": (
+            "this slice reconciles the axis, not its contributors; the "
+            "`ogstores.audit attribute` command measures them (stores #373)"
+        ),
         "ticket": "#373",
     },
     {
         "item": "association-level support counts across Analyses",
-        "why": "support is reported here per variant, from the CSR offsets only",
+        "why": (
+            "support is reported here per variant, from the CSR offsets only; "
+            "`ogstores.audit attribute` counts distinct observers (stores #373)"
+        ),
         "ticket": "#373",
     },
     {
