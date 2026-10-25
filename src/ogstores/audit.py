@@ -64,8 +64,10 @@ from typing import Any, Sequence
 
 import numpy as np
 
+from opengwasdb.encoding.plan import Z_MISSING
 from opengwasdb.layouts.hybrid.layout import dense_component_path, dense_to_shared_path
 from opengwasdb.layouts.ragged.by_variant import ByVariantReader
+from opengwasdb.model.analyses import read_analysis_records
 from opengwasdb.store.arrays import array_length
 from opengwasdb.store.open import open_store
 from opengwasdb.variants import iter_variant_records, read_variant_reference
@@ -183,6 +185,105 @@ RECORDED_COUNTS: tuple[str, ...] = (
     "n_overflow_associations",
     "ragged_by_variant_n_axis",
     "ragged_by_variant_n_rows",
+)
+
+
+#: Axis entries one band of the attribution counters and sample scans spans.
+#: The scan only ever holds one band of `int64` offsets plus one band of
+#: `uint16` support planes, so the answer is independent of it.
+DEFAULT_ATTRIBUTION_BAND_VARIANTS = 8_000_000
+
+#: Association rows one band of the support scan spans. The ragged body is 2.9B
+#: rows on OGS-00011, so one band is 16M `int32` indices (64 MB) rather than the
+#: whole plane (11.6 GB).
+DEFAULT_ATTRIBUTION_BAND_ROWS = 16_000_000
+
+#: The pinned seed the sample's choices are derived from. `--seed` changes it,
+#: and every other answer in the report is seed-independent.
+DEFAULT_ATTRIBUTION_SEED = 42
+
+#: Contributors the sample draws from, and the number of rows each stratum
+#: keeps. `--top` and `--sample-per-stratum` change them.
+DEFAULT_ATTRIBUTION_TOP = 5
+DEFAULT_SAMPLE_PER_STRATUM = 20
+
+#: Contributors listed in the report's ranking tables, whether or not they are
+#: sampled. A ranking is evidence; the sample is a tracing aid.
+DEFAULT_ATTRIBUTION_RANKING = 20
+
+#: Candidates one stratum holds before the sample picks from them. The pool is
+#: larger than the sample so that each allele class can be represented even
+#: when it is rare among a stratum's candidates.
+SAMPLE_POOL_MULTIPLIER = 8
+
+#: Analyses named on each on-panel control row, from the Analyses the off-panel
+#: sample already names. The Dense Component holds one cell per (panel variant,
+#: Analysis), so the control names a cell rather than a stratum.
+DEFAULT_ON_PANEL_ANALYSES = 5
+
+#: Distinct-Analyses (and distinct-publications) support buckets, per off-panel
+#: variant. `--band-variants` does not change them.
+ATTRIBUTION_SUPPORT_BUCKETS: tuple[str, ...] = ("1", "2", "3-10", "11-100", "101+")
+
+#: `np.digitize` bins for `ATTRIBUTION_SUPPORT_BUCKETS`: a support of 1 lands in
+#: bucket 0, 2 in bucket 1, 3-10 in 2, 11-100 in 3, 101+ in 4.
+ATTRIBUTION_SUPPORT_EDGES: tuple[int, ...] = (2, 3, 11, 101)
+
+#: Allele classes the off-panel axis is broken down by. `snp` is one base
+#: against one base, `indel` one length against another, and `complex` two
+#: equal-length alleles longer than one base (a multi-nucleotide substitution).
+ALLELE_CLASSES: tuple[str, ...] = ("snp", "indel", "complex")
+
+#: The attribute command's evidence schema. Adding a field does not bump it.
+ATTRIBUTION_REPORT_SCHEMA = "ogstores.audit.attribute/1"
+
+#: The sample TSV's columns, in order. The first nine are the contract #374
+#: reads; the rest are context a raw-row trace uses without a second query.
+SAMPLE_COLUMNS: tuple[str, ...] = (
+    "sample_id",
+    "analysis_id",
+    "analysis_index",
+    "alid",
+    "rsid",
+    "stratum",
+    "on_panel",
+    "publication_pmid",
+    "source_row_lookup_hint",
+    "allele_class",
+    "chromosome",
+    "variant_index",
+    "n_analyses",
+    "n_publications",
+)
+
+#: The sentinel a `uint16` support plane carries where an Analysis or a
+#: publication code has not been assigned (support 0, or an unreached entry).
+NO_CODE = 0xFFFF
+
+#: What this slice does not measure, with the ticket that owns each.
+ATTRIBUTION_NOT_MEASURED: tuple[dict[str, str], ...] = (
+    {
+        "item": "source frequency evidence (raw EAF against the 0.005-0.995 interval)",
+        "why": ("attribution names the contributors; whether an association was admitted "
+                "needs its source row, not the Store (stores #374)"),
+        "ticket": "#374",
+    },
+    {
+        "item": "duplicate rsid groups naming several ALIDs",
+        "why": (
+            "needs a global 114M-key index; the Store's rsid index is sorted by rsid "
+            "but its rows are not grouped, so a group is not a contiguous run"
+        ),
+        "ticket": "#375",
+    },
+    {
+        "item": "the admission mechanism itself (why these variants were kept)",
+        "why": (
+            "attribution measures who contributed the off-panel union, not which "
+            "threshold or filter admitted it (stores #374)"
+        ),
+        "ticket": "#374",
+    },
 )
 
 
@@ -1554,6 +1655,1518 @@ def _count_rows(path: Path) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Attribution: which Analyses and publications the off-panel union belongs to
+# ---------------------------------------------------------------------------
+
+
+def _mix64(values: np.ndarray, seed: int) -> np.ndarray:
+    """A deterministic 64-bit hash of each variant index, mixed with `seed`.
+
+    Sampling has to be reproducible from `--seed` alone, so a candidate's rank
+    is a hash of its own axis index -- never of iteration order, band size or
+    anything read from the clock. SplitMix64's finaliser is used because it
+    spreads consecutive indices uniformly without carrying state.
+    """
+    x = np.ascontiguousarray(values).astype(np.uint64)
+    x += np.uint64((int(seed) * 0x9E3779B97F4A7C15) & 0xFFFFFFFFFFFFFFFF)
+    x ^= x >> np.uint64(30)
+    x *= np.uint64(0xBF58476D1CE4E5B9)
+    x ^= x >> np.uint64(27)
+    x *= np.uint64(0x94D049BB133111EB)
+    x ^= x >> np.uint64(31)
+    return x
+
+
+def _allele_class(effect: str, other: str) -> str:
+    """Classify one Store Variant Table row's allele pair.
+
+    A variant whose two alleles are one base each is a SNP; two alleles of
+    different lengths are an indel; two equal-length alleles longer than one
+    base are a complex (multi-nucleotide) substitution. Whether the *site* is
+    multiallelic is a property of the position's row group, not of the row, and
+    is counted separately so the two facts cannot be confused.
+    """
+    if len(effect) == 1 and len(other) == 1:
+        return "snp"
+    if len(effect) != len(other):
+        return "indel"
+    return "complex"
+
+
+def _publication_coding(analyses_path: Path) -> dict[str, Any]:
+    """Code each Analysis's publication, and refuse to guess an ambiguous one.
+
+    `analyses.tsv` is the Attribute Metadata a Store Release carries, so it is
+    the only source for who published an Analysis. A publication is the pmid
+    when the file records one and the DOI when it does not; an Analysis with
+    neither cannot be attributed to a publication at all, and one publication
+    whose Analyses disagree about its DOI or first author is ambiguous. Both are
+    reported rather than resolved by picking a value (CONTRIBUTING: fail loudly
+    rather than substitute).
+    """
+    records = read_analysis_records(analyses_path)
+    analyses: list[dict[str, Any]] = []
+    codes: list[int] = []
+    publications: list[dict[str, Any]] = []
+    by_key: dict[str, int] = {}
+    problems: list[dict[str, Any]] = []
+    for position, record in enumerate(records):
+        index = record.analysis_index
+        if index is None:
+            index = position
+        index = int(index)
+        pmid = (record.publication_pmid or "").strip()
+        doi = (record.publication_doi or "").strip()
+        author = (record.first_author or "").strip()
+        if pmid:
+            key = f"pmid:{pmid}"
+        elif doi:
+            key = f"doi:{doi}"
+        else:
+            key = f"analysis:{record.analysis_id}"
+            problems.append(
+                {
+                    "kind": "publication_metadata_missing",
+                    "severity": "error",
+                    "detail": (
+                        f"Analysis {record.analysis_id} records neither a publication_pmid nor "
+                        "a publication_doi, so its off-panel associations cannot be attributed "
+                        "to a publication"
+                    ),
+                    "counts": {"analysis_index": index, "analysis_id": record.analysis_id},
+                }
+            )
+        code = by_key.get(key)
+        if code is None:
+            code = len(publications)
+            by_key[key] = code
+            publications.append(
+                {
+                    "publication_key": key,
+                    "publication_pmid": pmid or None,
+                    "publication_doi": doi or None,
+                    "first_author": author or None,
+                    "analysis_indices": [],
+                    "_dois": set(),
+                    "_authors": set(),
+                }
+            )
+        publication = publications[code]
+        publication["analysis_indices"].append(index)
+        if doi:
+            publication["_dois"].add(doi)
+        if author:
+            publication["_authors"].add(author)
+        analyses.append(
+            {
+                "analysis_index": index,
+                "analysis_id": record.analysis_id,
+                "analysis_label": record.analysis_label,
+                "publication_pmid": pmid or None,
+                "publication_doi": doi or None,
+                "first_author": author or None,
+                "publication_code": code,
+            }
+        )
+        codes.append(code)
+    for publication in publications:
+        dois = publication.pop("_dois")
+        authors = publication.pop("_authors")
+        publication["n_analyses"] = len(publication["analysis_indices"])
+        if len(dois) > 1:
+            problems.append(
+                {
+                    "kind": "publication_metadata_ambiguous",
+                    "severity": "error",
+                    "detail": (
+                        f"{publication['publication_key']} is recorded with "
+                        f"{len(dois)} different DOIs; one publication cannot be two"
+                    ),
+                    "counts": {"publication_key": publication["publication_key"], "dois": sorted(dois)},
+                }
+            )
+        if len(authors) > 1:
+            problems.append(
+                {
+                    "kind": "publication_metadata_ambiguous",
+                    "severity": "error",
+                    "detail": (
+                        f"{publication['publication_key']} is recorded with "
+                        f"{len(authors)} different first authors across its Analyses"
+                    ),
+                    "counts": {
+                        "publication_key": publication["publication_key"],
+                        "first_authors": sorted(authors),
+                    },
+                }
+            )
+        if not publication["first_author"] and authors:
+            publication["first_author"] = sorted(authors)[0]
+    ordered = sorted(range(len(analyses)), key=lambda i: analyses[i]["analysis_index"])
+    if [analyses[i]["analysis_index"] for i in ordered] != list(range(len(analyses))):
+        problems.append(
+            {
+                "kind": "analysis_index_disagrees_with_position",
+                "severity": "error",
+                "detail": (
+                    "analyses.tsv does not number its Analyses 0..n-1 in file order, so the "
+                    "Ragged component's Analysis-major partition names no Analysis this table "
+                    "can be read against"
+                ),
+                "counts": {"analyses_tsv_rows": len(analyses)},
+            }
+        )
+    return {
+        "analyses": analyses,
+        "publications": publications,
+        "pub_codes": np.asarray(codes, dtype="int32"),
+        "problems": problems,
+    }
+
+
+def _attribution_support(
+    variant_index: Any,
+    ragged_offsets: np.ndarray,
+    pub_codes: np.ndarray,
+    *,
+    n_axis: int,
+    band_rows: int,
+) -> dict[str, Any]:
+    """Fill the per-axis support planes from the Analysis-major association rows.
+
+    For every off-panel axis entry this answers two questions exactly: how many
+    distinct Analyses observe it, and how many distinct publications do. The
+    answer is built by streaming each Analysis's variant list -- which is
+    `ragged/variant_index` over that Analysis's row range -- in bands, so the
+    working set is one band of indices plus the planes themselves, never the
+    2.9B-row body.
+
+    Counting is deduplicated by a stamp plane rather than by assuming the rows
+    are ordered, so a Store whose Analysis lists repeat or are unsorted is
+    counted correctly and reported instead of silently double counted. Because
+    Analyses are visited in index order, the first Analysis to stamp an entry is
+    the lowest-indexed one observing it, which is the Analysis a sample row
+    names.
+    """
+    n_analyses = int(ragged_offsets.size) - 1
+    n_publications = int(pub_codes.max()) + 1 if pub_codes.size else 0
+    support = np.zeros(n_axis, dtype="uint16")
+    observer = np.full(n_axis, NO_CODE, dtype="uint16")
+    pub_support = np.zeros(n_axis, dtype="uint16")
+    pub_observer = np.full(n_axis, NO_CODE, dtype="uint16")
+    seen_analysis = np.full(n_axis, NO_CODE, dtype="uint16")
+    seen_publication = np.full(n_axis, NO_CODE, dtype="uint16")
+    per_analysis_distinct = np.zeros(n_analyses, dtype="int64")
+    per_publication_distinct = np.zeros(max(n_publications, 1), dtype="int64")
+    per_publication_associations = np.zeros(max(n_publications, 1), dtype="int64")
+    facts: dict[str, Any] = {
+        "association_rows": 0,
+        "repeated_variant_rows": 0,
+        "analyses_not_strictly_increasing": 0,
+        "bands_read": 0,
+        "n_analyses": n_analyses,
+        "n_publications": n_publications,
+    }
+    for index in range(n_analyses):
+        low = int(ragged_offsets[index])
+        high = int(ragged_offsets[index + 1])
+        publication = int(pub_codes[index]) if index < pub_codes.size else 0
+        per_publication_associations[publication] += high - low
+        ordered = True
+        previous_last: int | None = None
+        for block_low in range(low, high, band_rows):
+            block_high = min(block_low + band_rows, high)
+            block = np.asarray(variant_index[block_low:block_high], dtype="int64")
+            facts["bands_read"] += 1
+            facts["association_rows"] += int(block.size)
+            if block.size > 1 and not bool(np.all(block[1:] > block[:-1])):
+                ordered = False
+            if previous_last is not None and block.size and int(block[0]) <= previous_last:
+                ordered = False
+            if block.size:
+                previous_last = int(block[-1])
+            fresh = block[seen_analysis[block] != index]
+            if fresh.size != block.size:
+                facts["repeated_variant_rows"] += int(block.size - fresh.size)
+            seen_analysis[fresh] = index
+            per_analysis_distinct[index] += int(fresh.size)
+            first_observer = support[fresh] == 0
+            observer[fresh[first_observer]] = index
+            support[fresh] += 1
+            fresh_publication = fresh[seen_publication[fresh] != publication]
+            seen_publication[fresh_publication] = publication
+            per_publication_distinct[publication] += int(fresh_publication.size)
+            first_publisher = pub_support[fresh_publication] == 0
+            pub_observer[fresh_publication[first_publisher]] = publication
+            pub_support[fresh_publication] += 1
+        if not ordered:
+            facts["analyses_not_strictly_increasing"] += 1
+    del seen_analysis
+    del seen_publication
+    return {
+        "support": support,
+        "observer": observer,
+        "pub_support": pub_support,
+        "pub_observer": pub_observer,
+        "per_analysis_distinct": per_analysis_distinct,
+        "per_publication_distinct": per_publication_distinct,
+        "per_publication_associations": per_publication_associations,
+        "facts": facts,
+    }
+
+
+def _attribution_counters(
+    by_variant_offsets: Any,
+    support: np.ndarray,
+    observer: np.ndarray,
+    pub_support: np.ndarray,
+    pub_observer: np.ndarray,
+    dense_mask: np.ndarray,
+    *,
+    n_axis: int,
+    n_analyses: int,
+    n_publications: int,
+    band_variants: int,
+) -> dict[str, Any]:
+    """Turn the per-axis support planes into per-contributor counts.
+
+    One band of the axis at a time: the association count per entry from
+    `by_variant/offsets`, then the exclusive and support-distribution counts
+    from the support planes. Every count here is exact; nothing is estimated
+    from a sample.
+    """
+    per_analysis_exclusive = np.zeros(max(n_analyses, 1), dtype="int64")
+    per_publication_exclusive = np.zeros(max(n_publications, 1), dtype="int64")
+    per_publication_exclusive_associations = np.zeros(max(n_publications, 1), dtype="int64")
+    per_publication_exclusive_multi = np.zeros(max(n_publications, 1), dtype="int64")
+    histogram_analyses = np.zeros(len(ATTRIBUTION_SUPPORT_BUCKETS), dtype="int64")
+    histogram_publications = np.zeros(len(ATTRIBUTION_SUPPORT_BUCKETS), dtype="int64")
+    totals = {
+        "off_panel_axis_entries": 0,
+        "dense_axis_entries": 0,
+        "off_panel_associations": 0,
+        "dense_associations": 0,
+        "observed_off_panel_variants": 0,
+        "unobserved_off_panel_variants": 0,
+        "observed_dense_variants": 0,
+        "exclusive_to_one_analysis_variants": 0,
+        "exclusive_to_one_publication_variants": 0,
+        "exclusive_to_one_publication_multi_analysis_variants": 0,
+        "shared_across_publications_variants": 0,
+        "single_observer_variants_not_carrying_one_association": 0,
+        "unattributed_single_observer_variants": 0,
+        "unattributed_single_publication_variants": 0,
+        "bands": 0,
+    }
+    for low in range(0, n_axis, band_variants):
+        high = min(low + band_variants, n_axis)
+        block = np.asarray(by_variant_offsets[low : high + 1], dtype="int64")
+        if block.size != high - low + 1:
+            raise AuditError(
+                f"by_variant/offsets yielded {block.size} entries for variant band "
+                f"[{low}, {high}); the axis the attribution reads is not the axis it declared"
+            )
+        counts = np.diff(block)
+        totals["bands"] += 1
+        dense = np.asarray(dense_mask[low:high], dtype=bool)
+        off_panel = ~dense
+        band_support = np.asarray(support[low:high])
+        band_pub_support = np.asarray(pub_support[low:high])
+        totals["dense_axis_entries"] += int(np.count_nonzero(dense))
+        totals["off_panel_axis_entries"] += int(np.count_nonzero(off_panel))
+        totals["dense_associations"] += int(counts[dense].sum())
+        totals["off_panel_associations"] += int(counts[off_panel].sum())
+        observed = off_panel & (band_support > 0)
+        totals["observed_off_panel_variants"] += int(np.count_nonzero(observed))
+        totals["unobserved_off_panel_variants"] += int(np.count_nonzero(off_panel & (band_support == 0)))
+        totals["observed_dense_variants"] += int(np.count_nonzero(dense & (band_support > 0)))
+        if observed.any():
+            histogram_analyses += np.bincount(
+                np.digitize(band_support[observed], ATTRIBUTION_SUPPORT_EDGES),
+                minlength=len(ATTRIBUTION_SUPPORT_BUCKETS),
+            )
+        observed_publications = off_panel & (band_pub_support > 0)
+        if observed_publications.any():
+            histogram_publications += np.bincount(
+                np.digitize(band_pub_support[observed_publications], ATTRIBUTION_SUPPORT_EDGES),
+                minlength=len(ATTRIBUTION_SUPPORT_BUCKETS),
+            )
+
+        single_analysis = observed & (band_support == 1)
+        totals["exclusive_to_one_analysis_variants"] += int(np.count_nonzero(single_analysis))
+        totals["single_observer_variants_not_carrying_one_association"] += int(
+            np.count_nonzero(single_analysis & (counts != 1))
+        )
+        if single_analysis.any():
+            codes = np.asarray(observer[low:high])[single_analysis].astype("int64")
+            unknown = int(np.count_nonzero(codes >= n_analyses))
+            totals["unattributed_single_observer_variants"] += unknown
+            per_analysis_exclusive += np.bincount(
+                codes[codes < n_analyses], minlength=max(n_analyses, 1)
+            )
+
+        single_publication = observed & (band_pub_support == 1)
+        totals["exclusive_to_one_publication_variants"] += int(np.count_nonzero(single_publication))
+        if single_publication.any():
+            codes = np.asarray(pub_observer[low:high])[single_publication].astype("int64")
+            unknown = int(np.count_nonzero(codes >= n_publications))
+            totals["unattributed_single_publication_variants"] += unknown
+            known = codes < n_publications
+            per_publication_exclusive += np.bincount(
+                codes[known], minlength=max(n_publications, 1)
+            )
+            per_publication_exclusive_associations += np.bincount(
+                codes[known],
+                weights=counts[single_publication][known].astype("float64"),
+                minlength=max(n_publications, 1),
+            ).astype("int64")
+        multi_analysis = single_publication & (band_support > 1)
+        totals["exclusive_to_one_publication_multi_analysis_variants"] += int(
+            np.count_nonzero(multi_analysis)
+        )
+        if multi_analysis.any():
+            codes = np.asarray(pub_observer[low:high])[multi_analysis].astype("int64")
+            per_publication_exclusive_multi += np.bincount(
+                codes[codes < n_publications], minlength=max(n_publications, 1)
+            )
+        totals["shared_across_publications_variants"] += int(
+            np.count_nonzero(observed & (band_pub_support >= 2))
+        )
+    return {
+        "totals": totals,
+        "per_analysis_exclusive": per_analysis_exclusive,
+        "per_publication_exclusive": per_publication_exclusive,
+        "per_publication_exclusive_associations": per_publication_exclusive_associations,
+        "per_publication_exclusive_multi_analysis": per_publication_exclusive_multi,
+        "histogram_analyses": {
+            label: int(value)
+            for label, value in zip(ATTRIBUTION_SUPPORT_BUCKETS, histogram_analyses)
+        },
+        "histogram_publications": {
+            label: int(value)
+            for label, value in zip(ATTRIBUTION_SUPPORT_BUCKETS, histogram_publications)
+        },
+    }
+
+
+def _merge_candidates(pool: list[tuple[int, int]], hashes: np.ndarray, indices: np.ndarray, limit: int) -> None:
+    """Add one band's candidates to a pool, keeping its `limit` best hashes."""
+    if not indices.size:
+        return
+    block = hashes[indices]
+    if indices.size > limit:
+        keep = np.argpartition(block, limit - 1)[:limit]
+        block = block[keep]
+        indices = indices[keep]
+    pool.extend(zip(block.tolist(), indices.tolist()))
+    if len(pool) > limit:
+        pool.sort()
+        del pool[limit:]
+
+
+def _choose_trace_candidates(
+    support: np.ndarray,
+    pub_support: np.ndarray,
+    observer: np.ndarray,
+    pub_observer: np.ndarray,
+    dense_mask: np.ndarray,
+    *,
+    n_axis: int,
+    analyses: Sequence[int],
+    publications: Sequence[tuple[int, str]],
+    per_stratum: int,
+    seed: int,
+    band_variants: int,
+) -> dict[str, list[tuple[int, int]]]:
+    """Pick each stratum's best-hashed axis entries, one band of the axis at a time.
+
+    A stratum is a question the ticket names: the largest exclusive
+    contributors, the single-publication versus multi-publication split, the
+    random off-panel background, and the on-panel control. Rank is the seeded
+    hash of the axis index, so the answer is a property of `--seed` and the
+    Store, not of the band size, the iteration order or the machine.
+    """
+    pool_size = max(per_stratum * SAMPLE_POOL_MULTIPLIER, per_stratum)
+    candidates: dict[str, list[tuple[int, int]]] = {}
+
+    def pool(name: str) -> list[tuple[int, int]]:
+        return candidates.setdefault(name, [])
+
+    for low in range(0, n_axis, band_variants):
+        high = min(low + band_variants, n_axis)
+        indices = np.arange(low, high, dtype="int64")
+        hashes = _mix64(indices, seed)
+        dense = np.asarray(dense_mask[low:high], dtype=bool)
+        band_support = np.asarray(support[low:high])
+        band_observer = np.asarray(observer[low:high])
+        off_panel = ~dense
+        observed = off_panel & (band_support > 0)
+        _merge_candidates(
+            pool("random_off_panel"), hashes, np.flatnonzero(observed), pool_size
+        )
+        _merge_candidates(
+            pool("on_panel_control"), hashes, np.flatnonzero(dense), pool_size
+        )
+        _merge_candidates(
+            pool("shared_multi_publication"),
+            hashes,
+            np.flatnonzero(observed & (np.asarray(pub_support[low:high]) >= 2)),
+            pool_size,
+        )
+        single_analysis = observed & (band_support == 1)
+        if single_analysis.any():
+            for analysis in analyses:
+                name = f"exclusive_analysis:{int(analysis)}"
+                _merge_candidates(
+                    pool(name),
+                    hashes,
+                    np.flatnonzero(single_analysis & (band_observer == analysis)),
+                    pool_size,
+                )
+        single_publication = observed & (np.asarray(pub_support[low:high]) == 1) & (band_support > 1)
+        if single_publication.any():
+            band_pub_observer = np.asarray(pub_observer[low:high])
+            for code, label in publications:
+                name = f"exclusive_publication:{label}"
+                _merge_candidates(
+                    pool(name),
+                    hashes,
+                    np.flatnonzero(single_publication & (band_pub_observer == code)),
+                    pool_size,
+                )
+    return candidates
+
+
+def _stratified_pick(
+    candidates: Sequence[dict[str, Any]], per_stratum: int
+) -> list[dict[str, Any]]:
+    """Take `per_stratum` of them, round-robin over the allele classes.
+
+    The pool is ranked by hash, so taking the same allele class first would fill
+    a stratum with SNPs whenever SNPs are common. Round-robin makes a rare class
+    reach the sample while leaving the per-class choice hash-ranked, which is
+    what makes an indel trace possible at all.
+    """
+    buckets: dict[str, list[dict[str, Any]]] = {name: [] for name in ALLELE_CLASSES}
+    for candidate in candidates:
+        buckets.setdefault(candidate["allele_class"], []).append(candidate)
+    taken: list[dict[str, Any]] = []
+    while len(taken) < per_stratum:
+        progressed = False
+        for name in ALLELE_CLASSES:
+            if len(taken) >= per_stratum:
+                break
+            bucket = buckets.get(name) or []
+            if bucket:
+                taken.append(bucket.pop(0))
+                progressed = True
+        if not progressed:
+            break
+    return taken
+
+
+def _trace_rows(
+    variant_index: Any,
+    ragged_offsets: np.ndarray,
+    wanted: dict[int, set[int]],
+) -> tuple[dict[tuple[int, int], dict[str, Any]], int]:
+    """Locate each sample row's Analysis-major row, exactly.
+
+    The sample is for raw-row tracing (#374), so a hint that needs a scan of a
+    44M-row Analysis is worth less than the row itself. `ragged/variant_index`
+    within one Analysis is ordered in every Store measured so far, which makes
+    the row a binary search; when it is not, the block is scanned and the hint
+    says so. Either way the row is read back and checked, and a variant the
+    Analysis's own row range does not hold is reported as absent rather than
+    guessed at.
+    """
+    located: dict[tuple[int, int], dict[str, Any]] = {}
+    rows_read = 0
+    for analysis in sorted(wanted):
+        low = int(ragged_offsets[analysis])
+        high = int(ragged_offsets[analysis + 1])
+        block = np.asarray(variant_index[low:high])
+        rows_read += int(block.size)
+        ordered = block.size < 2 or bool(np.all(block[1:] > block[:-1]))
+        for variant in sorted(wanted[analysis]):
+            if ordered:
+                position = int(np.searchsorted(block, variant))
+                found = position if position < block.size and int(block[position]) == variant else None
+                mode = "binary_search"
+            else:
+                hits = np.flatnonzero(block == variant)
+                found = int(hits[0]) if hits.size else None
+                mode = "scan"
+            located[(analysis, variant)] = {
+                "analysis_major_row": None if found is None else low + found,
+                "analysis_major_range": [low, high],
+                "analysis_rows_ordered": ordered,
+                "mode": mode,
+                "verified": found is not None,
+            }
+    return located, rows_read
+
+
+def _on_panel_controls(
+    dense_z: Any,
+    dense_to_shared: np.ndarray,
+    rows: Sequence[dict[str, Any]],
+    control_analyses: Sequence[int],
+    *,
+    limit: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Name the Dense Component cells an on-panel control variant occupies.
+
+    The Dense Component and the Ragged Overflow partition the axis, so an
+    on-panel variant carries no Overflow association and has no Analysis to be
+    attributed to from the ragged body. Its Analyses are in `dense/z` instead:
+    one cell per (panel variant, Analysis), read here a row at a time. Naming
+    them makes the control comparable with the off-panel sample -- the same
+    Analyses, a variant the panel holds -- instead of a bare variant list.
+    """
+    facts: dict[str, Any] = {"available": dense_z is not None, "unresolved": 0, "rows": 0}
+    controls: list[dict[str, Any]] = []
+    if dense_z is None:
+        for row in rows:
+            controls.append({**row, "analysis_index": None, "source_row_lookup_hint": "dense_plane=absent"})
+        facts["rows"] = len(controls)
+        return controls, facts
+    mapping = np.asarray(dense_to_shared)
+    for row in rows:
+        variant = int(row["variant_index"])
+        dense_row = int(np.searchsorted(mapping, variant))
+        if dense_row >= mapping.size or int(mapping[dense_row]) != variant:
+            facts["unresolved"] += 1
+            controls.append({**row, "analysis_index": None, "source_row_lookup_hint": "dense_row=absent"})
+            continue
+        plane = np.asarray(dense_z[dense_row, :])
+        observed = np.flatnonzero(plane != Z_MISSING)
+        observed_set = set(int(value) for value in observed)
+        named = [analysis for analysis in control_analyses if analysis in observed_set][:limit]
+        if not named:
+            controls.append(
+                {
+                    **row,
+                    "analysis_index": None,
+                    "source_row_lookup_hint": f"dense_row={dense_row};dense_plane=z;analyses_observed={observed.size}",
+                }
+            )
+            continue
+        for analysis in named:
+            controls.append(
+                {
+                    **row,
+                    "analysis_index": int(analysis),
+                    "source_row_lookup_hint": f"dense_row={dense_row};dense_plane=z;analysis_index={int(analysis)}",
+                }
+            )
+    facts["rows"] = len(controls)
+    return controls, facts
+
+
+def _write_tsv(rows: Sequence[dict[str, Any]], output: Path, store_path: Path) -> str:
+    """Write the sample TSV atomically and return the sha256 of what was written.
+
+    Same discipline as the evidence JSON: an unguessable staged name in the
+    output's own directory, checked against the Store before a byte is written,
+    renamed onto the output so a reader never sees half a sample.
+    """
+    output.parent.mkdir(parents=True, exist_ok=True)
+    handle, staged_name = tempfile.mkstemp(dir=output.parent, prefix=f".{output.name}.", suffix=".tmp")
+    staged = Path(staged_name)
+    try:
+        if _inside(staged, store_path):
+            raise AuditError(
+                f"refusing to write a sample inside the Store ({staged} is under {store_path}); "
+                "a read-only audit writes nothing there"
+            )
+        with os.fdopen(handle, "w", encoding="utf-8", newline="") as stream:
+            stream.write("\t".join(SAMPLE_COLUMNS) + "\n")
+            for row in rows:
+                stream.write(
+                    "\t".join("" if row.get(column) is None else str(row[column]) for column in SAMPLE_COLUMNS)
+                    + "\n"
+                )
+            stream.flush()
+            os.fsync(stream.fileno())
+        staged.replace(output)
+        staged = None
+    finally:
+        if staged is not None:
+            staged.unlink(missing_ok=True)
+    return _sha256(output)
+
+
+def _rank(
+    values: Sequence[float], indices: Sequence[int] | np.ndarray, limit: int
+) -> list[int]:
+    """The `limit` largest by value, ties broken by the entity's own index."""
+    order = sorted(
+        range(len(values)), key=lambda i: (-float(values[i]), int(indices[i]))
+    )
+    return [int(indices[i]) for i in order[:limit]]
+
+
+def _union_share(
+    variant_index: Any,
+    ragged_offsets: np.ndarray,
+    lists: Sequence[Sequence[int]],
+    *,
+    n_axis: int,
+    checkpoints: Sequence[int],
+) -> dict[str, Any]:
+    """The exact union of the first `n` contributors' off-panel variant lists.
+
+    A ranking says how much each contributor holds; the epic asks how much of
+    the union the leaders explain, which is not the sum -- two Barnes Analyses
+    share most of their variants. The union is accumulated in one boolean plane
+    over the axis and counted at each checkpoint, so the shares are exact.
+    """
+    mask = np.zeros(n_axis, dtype=bool)
+    counts: dict[str, int] = {}
+    rows_read = 0
+    wanted = set(int(value) for value in checkpoints)
+    for position, analyses in enumerate(lists, start=1):
+        for analysis in analyses:
+            low = int(ragged_offsets[analysis])
+            high = int(ragged_offsets[analysis + 1])
+            block = np.asarray(variant_index[low:high])
+            rows_read += int(block.size)
+            mask[block] = True
+        # The last prefix is always recorded: a Store with fewer contributors
+        # than a checkpoint asked for still has a total to report.
+        if position in wanted or position == len(lists):
+            counts[str(position)] = int(np.count_nonzero(mask))
+    del mask
+    return {"union_variants_by_prefix": counts,
+            "analyses_in_prefix": [list(entry) for entry in lists],
+            "rows_read": rows_read}
+
+
+def _scan_variant_breakdown(table_path: Path, dense_mask: np.ndarray) -> dict[str, Any]:
+    """Chromosome and allele class of the off-panel axis, from one table stream.
+
+    The Store's variant table is position-ordered, so one pass answers both
+    questions and the position grouping is a comparison against the previous
+    row rather than an index. Only off-panel entries are counted: the panel's
+    composition is the Dense Component's question, not this one.
+    """
+    chromosomes: dict[str, dict[str, int]] = {}
+    allele_totals = {name: 0 for name in ALLELE_CLASSES}
+    multi_row_positions = 0
+    rows_at_multi_row_positions = 0
+    off_panel_rows = 0
+    rows = 0
+    group_chromosome: str | None = None
+    group_position: int | None = None
+    group_rows = 0
+    def close_group() -> None:
+        nonlocal multi_row_positions, rows_at_multi_row_positions
+        if group_rows > 1:
+            multi_row_positions += 1
+            rows_at_multi_row_positions += group_rows
+    for record in iter_variant_records(table_path):
+        rows += 1
+        index = record.variant_index
+        if index < 0 or index >= dense_mask.size or dense_mask[index]:
+            group_chromosome = None
+            group_position = None
+            group_rows = 0
+            continue
+        off_panel_rows += 1
+        if record.chromosome == group_chromosome and record.position == group_position:
+            group_rows += 1
+        else:
+            close_group()
+            group_chromosome = record.chromosome
+            group_position = record.position
+            group_rows = 1
+        name = _allele_class(record.effect_allele, record.other_allele)
+        allele_totals[name] += 1
+        per_chromosome = chromosomes.setdefault(
+            record.chromosome, {key: 0 for key in ALLELE_CLASSES}
+        )
+        per_chromosome[name] += 1
+    close_group()
+    return {
+        "rows_read": rows,
+        "off_panel_rows": off_panel_rows,
+        "allele_classes": allele_totals,
+        "chromosomes": {name: dict(sorted(value.items())) for name, value in sorted(chromosomes.items())},
+        "positions_with_multiple_off_panel_rows": multi_row_positions,
+        "rows_at_multi_row_positions": rows_at_multi_row_positions,
+    }
+
+
+def _contributor_tables(
+    analyses: Sequence[dict[str, Any]],
+    publications: Sequence[dict[str, Any]],
+    per_analysis_associations: np.ndarray,
+    per_analysis_distinct: np.ndarray,
+    per_analysis_exclusive: np.ndarray,
+    per_publication_associations: np.ndarray,
+    per_publication_distinct: np.ndarray,
+    per_publication_exclusive: np.ndarray,
+    per_publication_exclusive_associations: np.ndarray,
+    per_publication_exclusive_multi: np.ndarray,
+    *,
+    limit: int,
+) -> dict[str, Any]:
+    """Both rankings, by each measure the ticket asks for."""
+    analysis_indices = [entry["analysis_index"] for entry in analyses]
+    analysis_by_index = {entry["analysis_index"]: entry for entry in analyses}
+    publication_indices = list(range(len(publications)))
+
+    def analysis_row(index: int) -> dict[str, Any]:
+        entry = analysis_by_index[index]
+        return {
+            "analysis_index": index,
+            "analysis_id": entry["analysis_id"],
+            "analysis_label": entry["analysis_label"],
+            "publication_pmid": entry["publication_pmid"],
+            "first_author": entry["first_author"],
+            "off_panel_associations": int(per_analysis_associations[index]),
+            "distinct_off_panel_variants": int(per_analysis_distinct[index]),
+            "exclusive_variants": int(per_analysis_exclusive[index]),
+            "exclusive_associations": int(per_analysis_exclusive[index]),
+        }
+
+    def publication_row(code: int) -> dict[str, Any]:
+        entry = publications[code]
+        return {
+            "publication_key": entry["publication_key"],
+            "publication_pmid": entry["publication_pmid"],
+            "publication_doi": entry["publication_doi"],
+            "first_author": entry["first_author"],
+            "n_analyses": int(entry["n_analyses"]),
+            "off_panel_associations": int(per_publication_associations[code]),
+            "distinct_off_panel_variants": int(per_publication_distinct[code]),
+            "exclusive_variants": int(per_publication_exclusive[code]),
+            "exclusive_associations": int(per_publication_exclusive_associations[code]),
+            "exclusive_variants_observed_by_several_analyses": int(
+                per_publication_exclusive_multi[code]
+            ),
+        }
+
+    return {
+        "analyses": {
+            "by_exclusive_variants": [
+                analysis_row(index)
+                for index in _rank(per_analysis_exclusive, analysis_indices, limit)
+            ],
+            "by_off_panel_associations": [
+                analysis_row(index)
+                for index in _rank(per_analysis_associations, analysis_indices, limit)
+            ],
+            "by_distinct_off_panel_variants": [
+                analysis_row(index)
+                for index in _rank(per_analysis_distinct, analysis_indices, limit)
+            ],
+        },
+        "publications": {
+            "by_exclusive_variants": [
+                publication_row(code)
+                for code in _rank(per_publication_exclusive, publication_indices, limit)
+            ],
+            "by_off_panel_associations": [
+                publication_row(code)
+                for code in _rank(per_publication_associations, publication_indices, limit)
+            ],
+            "by_distinct_off_panel_variants": [
+                publication_row(code)
+                for code in _rank(per_publication_distinct, publication_indices, limit)
+            ],
+        },
+    }
+
+
+def attribute(
+    store_path: str | Path,
+    *,
+    sample_output: str | Path | None = None,
+    seed: int = DEFAULT_ATTRIBUTION_SEED,
+    top: int = DEFAULT_ATTRIBUTION_TOP,
+    sample_per_stratum: int = DEFAULT_SAMPLE_PER_STRATUM,
+    band_variants: int = DEFAULT_ATTRIBUTION_BAND_VARIANTS,
+    band_rows: int = DEFAULT_ATTRIBUTION_BAND_ROWS,
+    verify: str = "auto",
+    argv: Sequence[str] | None = None,
+) -> dict[str, Any]:
+    """Attribute a Hybrid Store Release's off-panel union to its contributors.
+
+    What this answers, exactly: for every off-panel axis entry, which Analyses
+    and which publications observe it; how many of them are observed by one
+    Analysis or one publication and nothing else; how many contributors each
+    entry has; the chromosome and allele class of the union; and whether the
+    attributed union is the census the Store records. A seeded sample names rows
+    a raw-row trace can start from (#374).
+
+    Nothing here admits, filters or repairs, and nothing is written inside the
+    Store: the support planes are read-only views of `ragged/` and `by_variant/`,
+    and the only files written are the evidence JSON and the sample TSV.
+    """
+    started = time.time()
+    started_at = _now()
+    path = Path(store_path)
+    if not (path / "manifest.json").is_file():
+        raise AuditError(f"{path} holds no manifest.json; it is not a Store Release")
+    sample_path = None if sample_output is None else Path(sample_output)
+
+    method = _verify_method(path, verify)
+    before = _inventory(path, method)
+    start_stat = path.stat()
+
+    inconsistencies: list[dict[str, Any]] = [
+        {
+            "kind": "scope_not_measured",
+            "severity": "finding",
+            "detail": entry["item"],
+            "ticket": entry["ticket"],
+            "counts": {"why": entry["why"]},
+        }
+        for entry in ATTRIBUTION_NOT_MEASURED
+    ]
+
+    def inconsistency(kind: str, detail: str, *, severity: str = "error", **counts: Any) -> None:
+        inconsistencies.append(
+            {"kind": kind, "severity": severity, "detail": detail, "counts": counts}
+        )
+
+    store = open_store(path)
+    manifest = store.manifest
+    if manifest.primary_layout.value != "hybrid":
+        raise AuditError(
+            f"{path} is a {manifest.primary_layout.value} Store Release; attribution answers "
+            "who contributed a Hybrid Store's Ragged Overflow, and a Store without one has "
+            "nothing here to attribute"
+        )
+    group = store.arrays(mode="r")
+    recorded = _recorded(manifest.provenance)
+    release_lock = _release_lock(path, manifest.store_id)
+    if release_lock["held_by"]:
+        inconsistency(
+            "release_lock_held",
+            f"a run holds this release's lock ({release_lock['held_by']}); the Store may be "
+            "replaced under this audit",
+            severity="finding",
+            store_id=release_lock["store_id"],
+            held_by=release_lock["held_by"],
+        )
+
+    axis_handle = VariantAxis(path)
+    try:
+        n_axis = axis_handle.n_variants
+    finally:
+        pass
+    dense_to_shared = np.load(dense_to_shared_path(path), mmap_mode="r")
+    dense_mask = np.zeros(n_axis, dtype=bool)
+    mapped = np.asarray(dense_to_shared)
+    mapped = mapped[(mapped >= 0) & (mapped < n_axis)]
+    dense_mask[mapped] = True
+    n_dense = int(np.count_nonzero(dense_mask))
+    n_off_panel = n_axis - n_dense
+    del mapped
+
+    ragged_offsets = np.asarray(_array(group, "ragged/offsets")[:], dtype="int64")
+    if ragged_offsets.size < 2:
+        raise AuditError(f"{path} holds a Ragged Overflow with no Analysis offsets")
+    n_analyses = int(ragged_offsets.size) - 1
+    total_analyses_associations = int(ragged_offsets[-1])
+
+    analyses_tsv = path / "analyses.tsv"
+    if not analyses_tsv.is_file():
+        raise AuditError(
+            f"{analyses_tsv} is absent; without the release's own membership table nothing can "
+            "be attributed to an Analysis or a publication"
+        )
+    try:
+        coding = _publication_coding(analyses_tsv)
+    except (OSError, UnicodeDecodeError) as exc:
+        raise AuditError(f"{analyses_tsv} cannot be read ({exc}); attribution needs it") from None
+    analyses = coding["analyses"]
+    publications = coding["publications"]
+    pub_codes = coding["pub_codes"]
+    for entry in coding["problems"]:
+        inconsistency(entry["kind"], entry["detail"], severity=entry["severity"], **entry["counts"])
+    if len(analyses) != n_analyses:
+        inconsistency(
+            "analyses_tsv_disagrees_with_component",
+            f"analyses.tsv holds {len(analyses)} Analyses but the Ragged component is "
+            f"partitioned into {n_analyses}; attribution would name the wrong Analysis",
+            analyses_tsv_rows=len(analyses),
+            component_analyses=n_analyses,
+        )
+    if int(pub_codes.size) != n_analyses:
+        raise AuditError(
+            f"publication coding covers {pub_codes.size} of the {n_analyses} Analyses the Ragged "
+            "component holds; attribution cannot name a publication for the rest"
+        )
+
+    by_variant_offsets = _array(group, "ragged/by_variant/offsets")
+    if array_length(by_variant_offsets) != n_axis + 1:
+        raise AuditError(
+            f"ragged/by_variant/offsets holds {array_length(by_variant_offsets)} entries, not the "
+            f"{n_axis + 1} a {n_axis}-variant axis needs"
+        )
+
+    # -- who observes what --------------------------------------------------
+    scan = _attribution_support(
+        _array(group, "ragged/variant_index"),
+        ragged_offsets,
+        pub_codes,
+        n_axis=n_axis,
+        band_rows=band_rows,
+    )
+    facts = scan["facts"]
+    if facts["association_rows"] != total_analyses_associations:
+        inconsistency(
+            "association_rows_disagree",
+            f"the Ragged body yielded {facts['association_rows']} association rows but its "
+            f"own offsets end at {total_analyses_associations}",
+            rows_read=facts["association_rows"],
+            offsets_last=total_analyses_associations,
+        )
+    if facts["analyses_not_strictly_increasing"]:
+        inconsistency(
+            "analysis_variant_lists_not_increasing",
+            f"{facts['analyses_not_strictly_increasing']} Analysis variant lists in "
+            "ragged/variant_index are not strictly increasing; counts here are deduplicated "
+            "arithmetic rather than a sorted-run shortcut",
+            severity="finding",
+            analyses=facts["analyses_not_strictly_increasing"],
+        )
+    if facts["repeated_variant_rows"]:
+        inconsistency(
+            "repeated_variant_rows_in_one_analysis",
+            f"{facts['repeated_variant_rows']} rows repeat a variant already listed by the same "
+            "Analysis; support counts it once and the stored association count keeps it twice",
+            severity="finding",
+            rows=facts["repeated_variant_rows"],
+        )
+
+    counters = _attribution_counters(
+        by_variant_offsets,
+        scan["support"],
+        scan["observer"],
+        scan["pub_support"],
+        scan["pub_observer"],
+        dense_mask,
+        n_axis=n_axis,
+        n_analyses=n_analyses,
+        n_publications=len(publications),
+        band_variants=band_variants,
+    )
+    totals = counters["totals"]
+    if totals["dense_associations"]:
+        inconsistency(
+            "dense_axis_rows_carry_overflow_associations",
+            f"{totals['observed_dense_variants']} Dense-axis variants carry "
+            f"{totals['dense_associations']} Overflow associations; the Dense Component and the "
+            "Ragged Overflow must partition the axis",
+            dense_axis_associations=totals["dense_associations"],
+        )
+    if totals["off_panel_associations"] != total_analyses_associations:
+        inconsistency(
+            "off_panel_associations_disagree",
+            f"the off-panel partition carries {totals['off_panel_associations']} associations but "
+            f"the Analysis-major component holds {total_analyses_associations}",
+            off_panel=totals["off_panel_associations"],
+            component=total_analyses_associations,
+        )
+    if totals["single_observer_variants_not_carrying_one_association"]:
+        inconsistency(
+            "single_observer_variants_carry_several_associations",
+            f"{totals['single_observer_variants_not_carrying_one_association']} variants observed "
+            "by exactly one Analysis carry more than one association, so support and association "
+            "counts are not the one-to-one relation attribution assumes",
+            variants=totals["single_observer_variants_not_carrying_one_association"],
+        )
+    for key in (
+        "unattributed_single_observer_variants",
+        "unattributed_single_publication_variants",
+    ):
+        if totals[key]:
+            inconsistency(
+                "support_without_an_observer",
+                f"{totals[key]} entries have a support of one but no recorded observer; the "
+                "support plane and the observer plane disagree",
+                entries=totals[key],
+            )
+    census_recorded = _count(recorded, "n_off_panel")
+    census_observed = totals["observed_off_panel_variants"]
+    if census_recorded is not None and census_recorded != n_off_panel:
+        inconsistency(
+            "recorded_off_panel_disagrees",
+            f"the Store records {census_recorded} off-panel variants but its axis minus its Dense "
+            f"Component is {n_off_panel}",
+            recorded_n_off_panel=census_recorded,
+            observed_n_off_panel=n_off_panel,
+        )
+    if totals["unobserved_off_panel_variants"]:
+        inconsistency(
+            "unobserved_off_panel_entries",
+            f"{totals['unobserved_off_panel_variants']} off-panel axis entries are observed by no "
+            "Analysis, so they belong to no contributor and to no raw row",
+            severity="finding",
+            unobserved=totals["unobserved_off_panel_variants"],
+            n_off_panel=n_off_panel,
+        )
+
+    per_analysis_associations = np.diff(ragged_offsets)
+    per_analysis_exclusive = counters["per_analysis_exclusive"]
+    per_analysis_distinct = scan["per_analysis_distinct"]
+    per_publication_exclusive = counters["per_publication_exclusive"]
+    exclusive_analysis_sum = int(per_analysis_exclusive.sum())
+    exclusive_publication_sum = int(per_publication_exclusive.sum())
+    if exclusive_analysis_sum != totals["exclusive_to_one_analysis_variants"]:
+        inconsistency(
+            "exclusive_analysis_attribution_residual",
+            f"the per-Analysis exclusive counts add up to {exclusive_analysis_sum} but "
+            f"{totals['exclusive_to_one_analysis_variants']} variants have one observer",
+            per_analysis=exclusive_analysis_sum,
+            observed=totals["exclusive_to_one_analysis_variants"],
+        )
+    if exclusive_publication_sum != totals["exclusive_to_one_publication_variants"]:
+        inconsistency(
+            "exclusive_publication_attribution_residual",
+            f"the per-publication exclusive counts add up to {exclusive_publication_sum} but "
+            f"{totals['exclusive_to_one_publication_variants']} variants have one publication",
+            per_publication=exclusive_publication_sum,
+            observed=totals["exclusive_to_one_publication_variants"],
+        )
+    if not (exclusive_analysis_sum <= census_observed <= totals["off_panel_associations"]):
+        inconsistency(
+            "attribution_arithmetic_violated",
+            "the exclusivity arithmetic does not hold: exclusive variants must not exceed the "
+            "attributed union, which must not exceed the association count",
+            exclusive_analysis=exclusive_analysis_sum,
+            union=census_observed,
+            associations=totals["off_panel_associations"],
+        )
+
+    # -- rankings -----------------------------------------------------------
+    tables = _contributor_tables(
+        analyses,
+        publications,
+        per_analysis_associations,
+        per_analysis_distinct,
+        per_analysis_exclusive,
+        scan["per_publication_associations"],
+        scan["per_publication_distinct"],
+        per_publication_exclusive,
+        counters["per_publication_exclusive_associations"],
+        counters["per_publication_exclusive_multi_analysis"],
+        limit=DEFAULT_ATTRIBUTION_RANKING,
+    )
+
+    # -- how much of the union the leaders explain --------------------------
+    top_analyses = [row["analysis_index"] for row in tables["analyses"]["by_distinct_off_panel_variants"][:top]]
+    top_publications = [row["publication_key"] for row in tables["publications"]["by_distinct_off_panel_variants"][:top]]
+    publication_analyses = {
+        entry["publication_key"]: sorted(entry["analysis_indices"]) for entry in publications
+    }
+    checkpoints = tuple(sorted({1, 2, 5, 10, top}))
+    variant_index_array = _array(group, "ragged/variant_index")
+    analysis_union = _union_share(
+        variant_index_array,
+        ragged_offsets,
+        [[index] for index in top_analyses],
+        n_axis=n_axis,
+        checkpoints=checkpoints,
+    )
+    publication_union = _union_share(
+        variant_index_array,
+        ragged_offsets,
+        [publication_analyses[key] for key in top_publications],
+        n_axis=n_axis,
+        checkpoints=checkpoints,
+    )
+
+    def shares(union: dict[str, Any]) -> dict[str, Any]:
+        out = {
+            "contributors": union["analyses_in_prefix"],
+            "union_variants_by_prefix": union["union_variants_by_prefix"],
+            "share_of_union_by_prefix": {
+                key: (round(value / census_observed, 6) if census_observed else None)
+                for key, value in union["union_variants_by_prefix"].items()
+            },
+            "rows_read": union["rows_read"],
+        }
+        return out
+
+    concentration = {
+        "top_analyses": shares(analysis_union),
+        "top_publications": shares(publication_union),
+        "numerator": "distinct off-panel variants of the prefix's union, not the sum of theirs",
+    }
+
+    # -- the sample ---------------------------------------------------------
+    sample_facts: dict[str, Any] = {"written": False}
+    sample_rows: list[dict[str, Any]] = []
+    if sample_path is not None:
+        candidate_analyses = top_analyses
+        publication_code = {entry["publication_key"]: code for code, entry in enumerate(publications)}
+        candidate_publications = [(publication_code[key], key) for key in top_publications]
+        candidates = _choose_trace_candidates(
+            scan["support"],
+            scan["pub_support"],
+            scan["observer"],
+            scan["pub_observer"],
+            dense_mask,
+            n_axis=n_axis,
+            analyses=candidate_analyses,
+            publications=candidate_publications,
+            per_stratum=sample_per_stratum,
+            seed=seed,
+            band_variants=band_variants,
+        )
+        wanted = sorted({variant for entries in candidates.values() for _, variant in entries})
+        try:
+            records = axis_handle.by_indices(wanted)
+        except ValueError as exc:
+            raise AuditError(f"the Store Variant Table cannot resolve a sampled row ({exc})") from None
+        missing = [index for index in wanted if index not in records]
+        if missing:
+            inconsistency(
+                "sample_variant_unresolvable",
+                f"{len(missing)} sampled axis entries have no Store Variant Table row",
+                entries=len(missing),
+                examples=missing[:EXAMPLE_LIMIT],
+            )
+        support_planes = scan["support"]
+        pub_support_planes = scan["pub_support"]
+        publication_by_code = {code: entry for code, entry in enumerate(publications)}
+        analysis_by_index = {entry["analysis_index"]: entry for entry in analyses}
+        picked: list[dict[str, Any]] = []
+        for stratum in sorted(candidates):
+            prepared = []
+            for candidate_hash, variant in sorted(candidates[stratum]):
+                record = records.get(variant)
+                if record is None:
+                    continue
+                prepared.append(
+                    {
+                        "hash": candidate_hash,
+                        "variant_index": int(variant),
+                        "chromosome": record.chromosome,
+                        "allele_class": _allele_class(record.effect_allele, record.other_allele),
+                        "alid": record.alid,
+                        "rsid": record.rsid,
+                    }
+                )
+            for candidate in _stratified_pick(prepared, sample_per_stratum):
+                variant = candidate["variant_index"]
+                on_panel = bool(dense_mask[variant])
+                observation = None if on_panel else int(scan["observer"][variant])
+                picked.append(
+                    {
+                        "stratum": stratum,
+                        "variant_index": variant,
+                        "chromosome": candidate["chromosome"],
+                        "allele_class": candidate["allele_class"],
+                        "alid": candidate["alid"],
+                        "rsid": candidate["rsid"],
+                        "on_panel": on_panel,
+                        "analysis_index": observation,
+                        "n_analyses": int(support_planes[variant]),
+                        "n_publications": int(pub_support_planes[variant]),
+                        "publication_pmid": (
+                            analysis_by_index[observation]["publication_pmid"]
+                            if observation is not None
+                            else None
+                        ),
+                    }
+                )
+        del records
+        off_panel_picked = [row for row in picked if not row["on_panel"]]
+        wanted_rows: dict[int, set[int]] = {}
+        for row in off_panel_picked:
+            wanted_rows.setdefault(int(row["analysis_index"]), set()).add(int(row["variant_index"]))
+        located, trace_rows_read = _trace_rows(variant_index_array, ragged_offsets, wanted_rows)
+        for row in off_panel_picked:
+            hint = located.get((int(row["analysis_index"]), int(row["variant_index"])))
+            if hint is None or hint["analysis_major_row"] is None:
+                row["source_row_lookup_hint"] = "analysis_major_row=absent"
+                continue
+            row["source_row_lookup_hint"] = (
+                f"analysis_major_row={hint['analysis_major_row']}"
+                f";analysis_major_range={hint['analysis_major_range'][0]}-{hint['analysis_major_range'][1]}"
+                f";variant_index={row['variant_index']}"
+                f";search={hint['mode']}"
+            )
+        if any(
+            hint["analysis_major_row"] is None for hint in located.values()
+        ):
+            inconsistency(
+                "sample_trace_row_absent",
+                "a sampled variant is not in the Analysis its own support plane names, so no raw "
+                "row can be traced to it",
+                entries=sum(1 for hint in located.values() if hint["analysis_major_row"] is None),
+            )
+        on_panel_picked = [row for row in picked if row["on_panel"]]
+        # The Analyses the control compares against: everyone the off-panel
+        # sample names, plus the Analyses behind the publication strata it drew
+        # from. A control on an Analysis the sample never mentions would compare
+        # nothing with nothing.
+        control_set = {
+            int(row["analysis_index"]) for row in off_panel_picked if row["analysis_index"] is not None
+        }
+        for code, _label in candidate_publications:
+            control_set.update(int(index) for index in publications[code]["analysis_indices"])
+        control_analyses = sorted(control_set)[:DEFAULT_ON_PANEL_ANALYSES]
+        dense_z = None
+        try:
+            dense_store = open_store(dense_component_path(path))
+            dense_arrays = dense_store.arrays(mode="r")
+            dense_z = dense_arrays["z"] if "z" in dense_arrays else None
+        except (AuditError, KeyError, OSError):
+            dense_z = None
+        controls, control_facts = _on_panel_controls(
+            dense_z,
+            dense_to_shared,
+            [
+                {
+                    "stratum": row["stratum"],
+                    "variant_index": row["variant_index"],
+                    "chromosome": row["chromosome"],
+                    "allele_class": row["allele_class"],
+                    "alid": row["alid"],
+                    "rsid": row["rsid"],
+                    "on_panel": True,
+                    "n_analyses": row["n_analyses"],
+                    "n_publications": row["n_publications"],
+                }
+                for row in on_panel_picked
+            ],
+            control_analyses,
+            limit=DEFAULT_ON_PANEL_ANALYSES,
+        )
+        for row in controls:
+            analysis_index = row.get("analysis_index")
+            row["publication_pmid"] = (
+                analysis_by_index[analysis_index]["publication_pmid"]
+                if analysis_index in analysis_by_index
+                else None
+            )
+        sample_rows = off_panel_picked + controls
+        for position, row in enumerate(
+            sorted(
+                sample_rows,
+                key=lambda entry: (
+                    entry["stratum"],
+                    int(entry["variant_index"]),
+                    -1 if entry.get("analysis_index") is None else int(entry["analysis_index"]),
+                ),
+            )
+        ):
+            row["sample_id"] = f"S{position:05d}"
+        sample_rows.sort(key=lambda entry: entry["sample_id"])
+        digest = _write_tsv(sample_rows, sample_path, path)
+        counts_by_stratum: dict[str, int] = {}
+        for row in sample_rows:
+            counts_by_stratum[row["stratum"]] = counts_by_stratum.get(row["stratum"], 0) + 1
+        sample_facts = {
+            "written": True,
+            "path": str(sample_path),
+            "sha256": digest,
+            "rows": len(sample_rows),
+            "columns": list(SAMPLE_COLUMNS),
+            "seed": int(seed),
+            "sample_per_stratum": int(sample_per_stratum),
+            "pool_per_stratum": int(sample_per_stratum) * SAMPLE_POOL_MULTIPLIER,
+            "rows_by_stratum": dict(sorted(counts_by_stratum.items())),
+            "selection": "seeded SplitMix64 hash of the axis index, smallest first, one allele class at a time",
+            "analysis_major_rows_read": trace_rows_read,
+            "on_panel_controls": control_facts,
+            "control_analyses": control_analyses,
+            "allele_classes": {
+                name: sum(1 for row in sample_rows if row["allele_class"] == name)
+                for name in ALLELE_CLASSES
+            },
+        }
+
+    # -- the shape of the union --------------------------------------------
+    breakdown = _scan_variant_breakdown(variant_table_path(path), dense_mask)
+
+    # -- stable, read-only view ---------------------------------------------
+    release_lock_at_end = _release_lock(path, manifest.store_id)
+    try:
+        end_stat = path.stat()
+    except FileNotFoundError:
+        inconsistency(
+            "store_vanished_during_audit",
+            f"{path} no longer exists at the end of the audit",
+            path=str(path),
+        )
+        end_stat = start_stat
+    if (start_stat.st_dev, start_stat.st_ino) != (end_stat.st_dev, end_stat.st_ino):
+        inconsistency(
+            "store_replaced_during_audit",
+            "the Store directory's identity changed during the attribution",
+            before_device=start_stat.st_dev,
+            after_device=end_stat.st_dev,
+        )
+    if release_lock_at_end["held_by"] and not release_lock["held_by"]:
+        inconsistency(
+            "release_started_during_audit",
+            f"a run took this release's lock while attribution was reading it "
+            f"({release_lock_at_end['held_by']})",
+            held_by=release_lock_at_end["held_by"],
+        )
+    after = _inventory(path, method)
+    unchanged = _compare(before, after)
+    unchanged["method"] = method
+    if unchanged["changed"] or unchanged["added"] or unchanged["removed"]:
+        inconsistency(
+            "store_modified",
+            "the Store changed while it was being attributed: "
+            f"{len(unchanged['changed'])} file(s) differ, {len(unchanged['added'])} appeared and "
+            f"{len(unchanged['removed'])} disappeared",
+            changed=unchanged["changed"],
+            added=unchanged["added"],
+            removed=unchanged["removed"],
+        )
+
+    measured = [
+        "per-Analysis and per-publication attribution of the off-panel union, from the Ragged body",
+        "distinct-Analyses and distinct-publications support per off-panel variant",
+        "exclusive variants per Analysis and per publication",
+        "chromosome and allele class of the off-panel axis",
+        "read-only proof: no Store file changed",
+    ]
+    if sample_path is not None:
+        measured.append("seeded stratified sample for raw-row tracing")
+    epoch = _now()
+    errors = [entry for entry in inconsistencies if entry["severity"] == "error"]
+    finished = time.time()
+    return {
+        "schema": ATTRIBUTION_REPORT_SCHEMA,
+        "audit_version": AUDIT_VERSION,
+        "argv": list(argv) if argv is not None else sys.argv[1:],
+        "started_at": started_at,
+        "finished_at": epoch,
+        "wall_seconds": round(finished - started, 3),
+        "runtime": _runtime(),
+        "store": {
+            "path": str(path),
+            "manifest_sha256": _sha256(path / "manifest.json"),
+            "store_id": manifest.store_id,
+            "release_id": manifest.release_id,
+            "format_version": manifest.format_version,
+            "primary_layout": manifest.primary_layout.value,
+            "completion_state": manifest.completion_state.value,
+            "association_coverage": manifest.association_coverage.value,
+            "opened_mode": "r",
+            "recorded": recorded,
+            "analyses_tsv_rows": len(analyses),
+            "stable_view": {
+                "dev": start_stat.st_dev,
+                "ino": start_stat.st_ino,
+                "swapped": (start_stat.st_dev, start_stat.st_ino)
+                != (end_stat.st_dev, end_stat.st_ino),
+                "release_lock": {**release_lock_at_end, "held_by_at_start": release_lock["held_by"]},
+            },
+        },
+        "axis": {
+            "n_axis": n_axis,
+            "n_dense": n_dense,
+            "n_off_panel": n_off_panel,
+            "association_rows": total_analyses_associations,
+        },
+        "census": {
+            "note": (
+                "the attributed union is the number of off-panel axis entries at least one "
+                "Analysis observes; it is reconciled against the Dense Component's complement "
+                "and the count the Store records"
+            ),
+            "off_panel_variants_recorded": census_recorded,
+            "off_panel_variants": n_off_panel,
+            "attributed_union_variants": census_observed,
+            "unobserved_off_panel_variants": totals["unobserved_off_panel_variants"],
+            "agrees": None if census_recorded is None else census_recorded == census_observed,
+            "associations": totals["off_panel_associations"],
+            "association_rows_read": facts["association_rows"],
+        },
+        "support": {
+            "note": (
+                "each off-panel variant counted once per distinct observing Analysis "
+                "(and once per distinct publication), from the Ragged body itself"
+            ),
+            "analyses": counters["histogram_analyses"],
+            "publications": counters["histogram_publications"],
+            "buckets": list(ATTRIBUTION_SUPPORT_BUCKETS),
+            "exclusive_to_one_analysis_variants": totals["exclusive_to_one_analysis_variants"],
+            "exclusive_to_one_publication_variants": totals["exclusive_to_one_publication_variants"],
+            "exclusive_to_one_publication_multi_analysis_variants": totals[
+                "exclusive_to_one_publication_multi_analysis_variants"
+            ],
+            "shared_across_publications_variants": totals["shared_across_publications_variants"],
+            "sum_of_analysis_exclusive_variants": exclusive_analysis_sum,
+            "sum_of_publication_exclusive_variants": exclusive_publication_sum,
+        },
+        "allele_classes": {
+            **breakdown["allele_classes"],
+            "multiallelic_positions": breakdown["positions_with_multiple_off_panel_rows"],
+            "rows_at_multiallelic_positions": breakdown["rows_at_multi_row_positions"],
+            "definition": (
+                "snp: one base against one base; indel: alleles of different lengths; "
+                "complex: two equal-length alleles longer than one base"
+            ),
+        },
+        "chromosomes": breakdown["chromosomes"],
+        "contributors": {
+            "n_analyses": n_analyses,
+            "n_publications": len(publications),
+            "publication_key": "publication_pmid, or publication_doi where no pmid is recorded",
+            **tables,
+        },
+        "concentration": concentration,
+        "sample": sample_facts,
+        "inconsistencies": inconsistencies,
+        "ok": not errors,
+        "error_count": len(errors),
+        "finding_count": len(inconsistencies) - len(errors),
+        "unchanged": unchanged,
+        "resources": {
+            "band_variants": band_variants,
+            "band_rows": band_rows,
+            "axis_bands": counters["totals"]["bands"],
+            "support_bands_read": facts["bands_read"],
+            "max_rss_kb": int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss),
+            "peak_rss_includes": (
+                "one uint16 support plane per axis entry for Analyses and for publications, their "
+                "observer planes, and the deduplication stamps"
+            ),
+            "variant_table_rows_read": breakdown["rows_read"],
+        },
+        "scope": {
+            "measured": measured,
+            "not_measured": list(ATTRIBUTION_NOT_MEASURED),
+            "skipped": [] if sample_path is not None else ["seeded sample for raw-row tracing"],
+        },
+    }
+
+
+def _attribution_summary(report: dict[str, Any], output: Path) -> str:
+    census = report["census"]
+    support = report["support"]
+    sample = report["sample"]
+    sample_text = (
+        f", sample {sample['rows']} rows -> {sample['path']}" if sample.get("written") else ""
+    )
+    return (
+        f"{report['store']['store_id']}: off-panel {report['axis']['n_off_panel']:,} variants / "
+        f"{census['associations']:,} associations | attributed union "
+        f"{census['attributed_union_variants']:,} ({'agrees' if census['agrees'] else 'DISAGREES'} "
+        f"with the recorded census) | exclusive to one Analysis "
+        f"{support['exclusive_to_one_analysis_variants']:,}, one publication "
+        f"{support['exclusive_to_one_publication_variants']:,} | errors {report['error_count']}, "
+        f"findings {report['finding_count']}{sample_text}\n"
+        f"evidence: {output} ({'ok' if report['ok'] else 'NOT OK'})"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Command line
 # ---------------------------------------------------------------------------
 
@@ -1567,6 +3180,79 @@ def _parser() -> argparse.ArgumentParser:
         ),
     )
     commands = parser.add_subparsers(dest="command", required=True)
+    attribute_parser = commands.add_parser(
+        "attribute",
+        help="attribute the off-panel union to its Analyses and publications",
+        description=(
+            "Attribute one Hybrid Store Release's off-panel union to the Analyses and "
+            "publications that observe it, with exclusive variants, support across "
+            "contributors, chromosome and allele class, and a seeded stratified sample "
+            "for raw-row tracing. Exit 0 when every disagreement is a finding, 1 when the "
+            "Store's artifact and its record disagree, 2 when the Store cannot be audited."
+        ),
+    )
+    attribute_parser.add_argument(
+        "store", help="path to a Store Release directory (store.opengwasdb)"
+    )
+    attribute_parser.add_argument(
+        "--output", required=True, help="evidence JSON to write; must be outside the Store"
+    )
+    attribute_parser.add_argument(
+        "--sample-output",
+        default=None,
+        help=(
+            "seeded stratified sample TSV to write for downstream raw-row tracing; must be "
+            "outside the Store. Omitted, the run writes no sample and says so"
+        ),
+    )
+    attribute_parser.add_argument(
+        "--seed",
+        type=int,
+        default=DEFAULT_ATTRIBUTION_SEED,
+        help=f"seed the sample's choices derive from (default {DEFAULT_ATTRIBUTION_SEED})",
+    )
+    attribute_parser.add_argument(
+        "--top",
+        type=int,
+        default=DEFAULT_ATTRIBUTION_TOP,
+        help=(
+            "leading contributors the sample draws exclusive variants from and whose union "
+            f"share is measured (default {DEFAULT_ATTRIBUTION_TOP})"
+        ),
+    )
+    attribute_parser.add_argument(
+        "--sample-per-stratum",
+        type=int,
+        default=DEFAULT_SAMPLE_PER_STRATUM,
+        help=f"rows each sample stratum keeps (default {DEFAULT_SAMPLE_PER_STRATUM})",
+    )
+    attribute_parser.add_argument(
+        "--band-variants",
+        type=int,
+        default=DEFAULT_ATTRIBUTION_BAND_VARIANTS,
+        help=(
+            "axis entries one band of the attribution and sample scans spans "
+            f"(default {DEFAULT_ATTRIBUTION_BAND_VARIANTS}); the answer does not depend on it"
+        ),
+    )
+    attribute_parser.add_argument(
+        "--band-rows",
+        type=int,
+        default=DEFAULT_ATTRIBUTION_BAND_ROWS,
+        help=(
+            "association rows one band of the support scan spans "
+            f"(default {DEFAULT_ATTRIBUTION_BAND_ROWS}); the answer does not depend on it"
+        ),
+    )
+    attribute_parser.add_argument(
+        "--verify",
+        choices=("auto", "sha256", "metadata"),
+        default="auto",
+        help=(
+            "how to prove the Store did not change: sha256 every file, compare size and "
+            f"mtime only, or auto (sha256 up to {HASH_VERIFY_LIMIT_BYTES} bytes)"
+        ),
+    )
     reconcile = commands.add_parser(
         "reconcile",
         help="reconcile one Hybrid Store Release and write the evidence JSON",
@@ -1693,7 +3379,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         # argparse exits 2 on a bad invocation and 0 on --help; a caller that
         # embedded this command gets the code rather than a SystemExit.
         return int(exc.code or 0)
-    if args.command != "reconcile":  # pragma: no cover - argparse refuses anything else
+    if args.command not in {"reconcile", "attribute"}:  # pragma: no cover - argparse refuses
         raise SystemExit(2)
     store_path = Path(args.store)
     output = Path(args.output)
@@ -1707,6 +3393,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             file=sys.stderr,
         )
         return 2
+    if args.command == "attribute":
+        return _main_attribute(args, store_path, output, argv)
     try:
         report = reconcile(
             store_path,
@@ -1726,6 +3414,42 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"audit: {exc}", file=sys.stderr)
         return 2
     print(_summary(report, output))
+    return 0 if report["ok"] else 1
+
+
+def _main_attribute(args: argparse.Namespace, store_path: Path, output: Path, argv: Sequence[str] | None) -> int:
+    """Run `attribute`, writing its evidence and its sample."""
+    sample_output = None if args.sample_output is None else Path(args.sample_output)
+    if args.band_rows < 1:
+        print("audit: --band-rows must be at least 1", file=sys.stderr)
+        return 2
+    if args.top < 1 or args.sample_per_stratum < 1:
+        print("audit: --top and --sample-per-stratum must be at least 1", file=sys.stderr)
+        return 2
+    if sample_output is not None and _inside(sample_output, store_path):
+        print(
+            f"audit: refusing to write a sample inside the Store ({sample_output} is under "
+            f"{store_path}); a read-only audit writes nothing there",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        report = attribute(
+            store_path,
+            sample_output=sample_output,
+            seed=args.seed,
+            top=args.top,
+            sample_per_stratum=args.sample_per_stratum,
+            band_variants=args.band_variants,
+            band_rows=args.band_rows,
+            verify=args.verify,
+            argv=argv,
+        )
+        _write_report(report, output, store_path)
+    except AuditError as exc:
+        print(f"audit: {exc}", file=sys.stderr)
+        return 2
+    print(_attribution_summary(report, output))
     return 0 if report["ok"] else 1
 
 
