@@ -2049,12 +2049,27 @@ def _attribution_counters(
     }
 
 
-def _merge_candidates(pool: list[tuple[int, int]], hashes: np.ndarray, indices: np.ndarray, limit: int) -> None:
-    """Add one band's candidates to a pool, keeping its `limit` best hashes."""
-    if not indices.size:
+def _merge_candidates(
+    pool: list[tuple[int, int]],
+    hashes: np.ndarray,
+    positions: np.ndarray,
+    limit: int,
+    *,
+    offset: int = 0,
+) -> None:
+    """Add one band's candidates to a pool, keeping its `limit` best hashes.
+
+    `positions` are indexes into the band's own arrays; the pool stores axis
+    indices, so `offset` (the band's first axis entry) is added before anything
+    is kept. Without it a candidate chosen in the second band would be recorded
+    as the first band's entry, which is the one bug this pass can hide for a
+    whole run.
+    """
+    if not positions.size:
         return
-    block = hashes[indices]
-    if indices.size > limit:
+    block = hashes[positions]
+    indices = positions + offset
+    if positions.size > limit:
         keep = np.argpartition(block, limit - 1)[:limit]
         block = block[keep]
         indices = indices[keep]
@@ -2101,17 +2116,23 @@ def _choose_trace_candidates(
         band_observer = np.asarray(observer[low:high])
         off_panel = ~dense
         observed = off_panel & (band_support > 0)
+
+        def positions(mask: np.ndarray) -> np.ndarray:
+            """A band mask's entries, as indexes into the band's own arrays."""
+            return np.flatnonzero(mask)
+
         _merge_candidates(
-            pool("random_off_panel"), hashes, np.flatnonzero(observed), pool_size
+            pool("random_off_panel"), hashes, positions(observed), pool_size, offset=low
         )
         _merge_candidates(
-            pool("on_panel_control"), hashes, np.flatnonzero(dense), pool_size
+            pool("on_panel_control"), hashes, positions(dense), pool_size, offset=low
         )
         _merge_candidates(
             pool("shared_multi_publication"),
             hashes,
-            np.flatnonzero(observed & (np.asarray(pub_support[low:high]) >= 2)),
+            positions(observed & (np.asarray(pub_support[low:high]) >= 2)),
             pool_size,
+            offset=low,
         )
         single_analysis = observed & (band_support == 1)
         if single_analysis.any():
@@ -2120,8 +2141,9 @@ def _choose_trace_candidates(
                 _merge_candidates(
                     pool(name),
                     hashes,
-                    np.flatnonzero(single_analysis & (band_observer == analysis)),
+                    positions(single_analysis & (band_observer == analysis)),
                     pool_size,
+                    offset=low,
                 )
         single_publication = observed & (np.asarray(pub_support[low:high]) == 1) & (band_support > 1)
         if single_publication.any():
@@ -2131,8 +2153,9 @@ def _choose_trace_candidates(
                 _merge_candidates(
                     pool(name),
                     hashes,
-                    np.flatnonzero(single_publication & (band_pub_observer == code)),
+                    positions(single_publication & (band_pub_observer == code)),
                     pool_size,
+                    offset=low,
                 )
     return candidates
 
@@ -2212,6 +2235,7 @@ def _on_panel_controls(
     dense_to_shared: np.ndarray,
     rows: Sequence[dict[str, Any]],
     control_analyses: Sequence[int],
+    pub_codes: np.ndarray,
     *,
     limit: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
@@ -2240,15 +2264,22 @@ def _on_panel_controls(
             controls.append({**row, "analysis_index": None, "source_row_lookup_hint": "dense_row=absent"})
             continue
         plane = np.asarray(dense_z[dense_row, :])
-        observed = np.flatnonzero(plane != Z_MISSING)
+        observed = np.flatnonzero(plane != Z_MISSING).astype("int64")
         observed_set = set(int(value) for value in observed)
+        observed_publications = int(
+            np.unique(pub_codes[observed[observed < pub_codes.size]]).size
+        ) if observed.size else 0
+        row["n_analyses"] = int(observed.size)
+        row["n_publications"] = observed_publications
         named = [analysis for analysis in control_analyses if analysis in observed_set][:limit]
         if not named:
             controls.append(
                 {
                     **row,
                     "analysis_index": None,
-                    "source_row_lookup_hint": f"dense_row={dense_row};dense_plane=z;analyses_observed={observed.size}",
+                    "source_row_lookup_hint": (
+                        f"dense_row={dense_row};dense_plane=z;analyses_observed={observed.size}"
+                    ),
                 }
             )
             continue
@@ -2257,7 +2288,9 @@ def _on_panel_controls(
                 {
                     **row,
                     "analysis_index": int(analysis),
-                    "source_row_lookup_hint": f"dense_row={dense_row};dense_plane=z;analysis_index={int(analysis)}",
+                    "source_row_lookup_hint": (
+                        f"dense_row={dense_row};dense_plane=z;analysis_index={int(analysis)}"
+                    ),
                 }
             )
     facts["rows"] = len(controls)
@@ -2908,12 +2941,25 @@ def attribute(
         # sample names, plus the Analyses behind the publication strata it drew
         # from. A control on an Analysis the sample never mentions would compare
         # nothing with nothing.
-        control_set = {
-            int(row["analysis_index"]) for row in off_panel_picked if row["analysis_index"] is not None
-        }
+        # Ordered by who matters, not by index: the leading exclusive
+        # contributors first, then the Analyses behind the publication strata,
+        # then whoever else the sample named. A control on an Analysis the
+        # sample is not about would compare nothing with nothing.
+        control_order: list[int] = []
+        for index in top_analyses:
+            control_order.append(int(index))
         for code, _label in candidate_publications:
-            control_set.update(int(index) for index in publications[code]["analysis_indices"])
-        control_analyses = sorted(control_set)[:DEFAULT_ON_PANEL_ANALYSES]
+            control_order.extend(
+                int(index) for index in sorted(publications[code]["analysis_indices"])
+            )
+        for row in off_panel_picked:
+            if row["analysis_index"] is not None:
+                control_order.append(int(row["analysis_index"]))
+        control_analyses: list[int] = []
+        for index in control_order:
+            if index not in control_analyses:
+                control_analyses.append(index)
+        control_analyses = control_analyses[:DEFAULT_ON_PANEL_ANALYSES]
         dense_z = None
         try:
             dense_store = open_store(dense_component_path(path))
@@ -2939,6 +2985,7 @@ def attribute(
                 for row in on_panel_picked
             ],
             control_analyses,
+            pub_codes,
             limit=DEFAULT_ON_PANEL_ANALYSES,
         )
         for row in controls:

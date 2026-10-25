@@ -634,7 +634,9 @@ class TestAttributionReport(AttributeTestCase):
 
     def test_the_band_size_does_not_change_the_answer(self) -> None:
         store, _ = self.store()
-        _, whole, _ = self.attribute(store, "--band-variants", "1000", "--band-rows", "1000", output="whole.json")
+        _, whole, _ = self.attribute(
+            store, "--band-variants", "1000", "--band-rows", "1000", output="whole.json", sample="whole.tsv"
+        )
         _, bands, _ = self.attribute(
             store, "--band-variants", "1", "--band-rows", "1", output="bands.json", sample="bands.tsv"
         )
@@ -644,6 +646,15 @@ class TestAttributionReport(AttributeTestCase):
         self.assertEqual(whole["support"], bands["support"])
         self.assertEqual(whole["contributors"], bands["contributors"])
         self.assertEqual(whole["chromosomes"], bands["chromosomes"])
+        record_check()
+
+        # One entry per band means a candidate selected in the third band is
+        # chosen at axis index 2, not at position 0 of its band: the sample is a
+        # property of the Store and the seed, and a band is an implementation
+        # detail of reading it.
+        self.assertEqual(
+            (self.evidence / "whole.tsv").read_bytes(), (self.evidence / "bands.tsv").read_bytes()
+        )
         record_check()
 
 
