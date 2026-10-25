@@ -16,11 +16,16 @@ Two commands share one module and one read-only discipline:
 - `attribute` (#373) attributes the off-panel union to the **Analyses and
   publications** that observe it, and pins a seeded sample for the raw-row trace
   (#374).
+- `trace` (#374) follows that sample back to the **raw source rows**, the
+  frequency each source reports, and the admission decision the builder made for
+  each of them.
 
-`reconcile` never reads the Ragged body's variant indices and `attribute` never
-reconciles a count it did not measure. A reader who wants "how big is the
-off-panel part" reads `reconcile`; a reader who wants "whose is it" reads
-`attribute`.
+`reconcile` never reads the Ragged body's variant indices, `attribute` never
+reconciles a count it did not measure, and `trace` never decides an admission of
+its own: it replays `opengwasdb.build.row_admission.admit_rows` under the
+Analysis's declared policies and reports what that rule did. A reader who wants
+"how big is the off-panel part" reads `reconcile`; "whose is it" reads
+`attribute`; "why was it admitted" reads `trace`.
 
 ## The command
 
@@ -54,6 +59,24 @@ pixi run audit-store attribute /data/opengwasdb/stores/OGS-00011/store.opengwasd
 | `--sample-per-stratum N` | rows each stratum keeps (default 20). Each stratum holds `8N` candidates before the allele-class round-robin picks |
 | `--band-variants N` | axis entries one band of the attribution and sample scans spans (default 8,000,000). The answer does not depend on it |
 | `--band-rows N` | association rows one band of the support scan spans (default 16,000,000, 64 MB of `int32`). The answer does not depend on it |
+| `--verify auto\|sha256\|metadata` | as `reconcile` |
+
+```text
+python3 -m ogstores.audit trace <store_path> --sample <sample_tsv> \
+  --manifest <build_analyses_tsv> --output <evidence_json>
+pixi run audit-store trace /data/opengwasdb/stores/OGS-00011/store.opengwasdb \
+  --sample /data/opengwasdb/work/epic371/orchestrate/opengwasdb-stores-371/evidence/373/sample.tsv \
+  --manifest /data/opengwasdb/stores/OGS-00011/work/analyses.tsv \
+  --output /data/opengwasdb/work/epic371/orchestrate/opengwasdb-stores-371/evidence/374/trace.json
+```
+
+| Option | Meaning |
+|---|---|
+| `--sample PATH` | the sample TSV `attribute --sample-output` wrote. Must be outside the Store |
+| `--manifest PATH` | the build manifest the Store was built from. Its `source_file`/`source_url` is the only record of which raw file each Analysis was read from, and its `maf_threshold`/`info_score_threshold` columns are the policies replayed. The Store's own `analyses.tsv` is Analytical Metadata and deliberately carries neither |
+| `--raw-root PATH` | where a manifest `source_url` is expected to land locally when its `source_file` is gone (default `/data/opengwasdb/raw/ebi-gwas-catalog`) |
+| `--limit N` | trace at most N sample rows. A limited run reports the rows it read and never pretends to close the sample |
+| `--workers N` | source files scanned in parallel (default `min(8, cores)`). Each file is read exactly once whatever the sample draws from it, so this is files in flight, not a per-row optimisation |
 | `--verify auto\|sha256\|metadata` | as `reconcile` |
 
 Exit codes:
@@ -91,7 +114,8 @@ from a report that has no field for them.
 stops at the Store's edge. It does not read a source file, so it cannot say
 *whether* an association should have been admitted -- only that a given Analysis
 contributed it, and which raw row of that Analysis's source it came from. That
-is #374's question, and the sample below is what makes it askable.
+is #374's question, and the sample below is what makes it askable; `trace`
+answers it, from the source files outwards.
 
 ## Prerequisites, and what makes them an `error`
 
@@ -300,6 +324,118 @@ panel variant no Analysis holds is skipped and counted
 (`available: false`) the controls are skipped rather than emitted with a blank
 where an Analysis should be.
 
+## The trace
+
+`trace` answers one row at a time, for every row of a written sample: which raw
+source row is this, what frequency does it report, and what did the admission
+rule do with it? Four steps, in this order, each recorded rather than summarised:
+
+1. **The source file.** The Analysis's build-manifest row gives `source_file`;
+   when that path is gone, the `source_url` tail is mapped into the mirror under
+   `--raw-root`. The file's size and mtime are recorded, its declared checksum is
+   quoted, and its declared `source_genome_build` must agree with the Store's
+   `reference_assembly` -- a build that needed a lift would need a lift here too,
+   and the trace does not perform one silently.
+2. **The raw row.** Each source file is read once, start to finish, however many
+   sample rows it supplies. A requested site is `(chromosome, position, allele
+   pair)`, and every row at the position whose allele pair is the sample's is
+   kept: a multiallelic site can hold several, and choosing the first-seen one
+   would be a guess about identity. The report records the physical
+   `line_number`, the `data_row`, the source's own column positions for the
+   columns it read, and the raw `effect_allele_frequency`, `beta`,
+   `standard_error`, `p_value` (and `odds_ratio`/`ci_lower`/`ci_upper`/`rsid`
+   when present) tokens verbatim. `orientation` is `same` when the source's
+   effect allele is the canonical A1 (the alphabetically first allele, as
+   `opengwasdb.variants.normalise.orient_to_canonical` defines it) and `flipped`
+   when it is the A2, in which case the frequency the builder stores is `1 - af`.
+3. **The frequency.** The class of the raw token and the value
+   `opengwasdb.stats.parse_af` reads from it. The classes are a closed vocabulary
+   because the four ways a source says "no usable frequency" all reach the rule
+   as the same NaN and must not be reported as one thing:
+
+   | Class | Token | `parse_af` |
+   |---|---|---|
+   | `placeholder_zero` | a number equal to `0.0` | `None` (stores #176: a monomorphic site, or a placeholder) |
+   | `placeholder_one` | a number equal to `1.0` | `None` |
+   | `missing` | blank, `.`, `NA`, `NaN`, `None`, ... | `None` |
+   | `malformed` | unparseable, e.g. `abc` | `None` |
+   | `nonfinite` | `inf`/`-inf` | `None` |
+   | `out_of_range` | a finite number outside `[0, 1]`, e.g. `1.5` | `None` |
+   | `below_threshold` | a number in `(0, 1)` whose MAF is `< maf_threshold` | the number |
+   | `valid_common` | a number in `(0, 1)` whose MAF is `>= maf_threshold` | the number |
+
+   `valid_common` is the intended `0.005 <= MAF <= 0.995` interval at the
+   0.005 policy, with the boundary inclusive on both ends: `af = 0.005` passes
+   and `af = 0.0049` does not (the suite pins it through the real builder).
+4. **The admission.** One call to `opengwasdb.build.row_admission.admit_rows`
+   -- the rule the Hybrid builder itself applies to a column of rows -- over a
+   batch of one, with the parsed frequency (NaN where there is none) and the
+   declared INFO score parsed from the declared imputation-score column. The MAF
+   and INFO policies are parsed from the same manifest columns the build parsed
+   (`parse_maf_policy`, `parse_info_score_policy`) and checked against what the
+   Store recorded under `provenance.maf` and `provenance.info_score`; a manifest
+   that declares a different threshold from the one the Store records is an
+   `error`, never a replayed preference.
+
+The Store's side of the same row is read, not assumed: its identity is the
+Variant Table row at the sample's `variant_index` (cross-checked against the
+sample's ALID), presence is the encoding's own sentinel (`Z_MISSING` for `z`;
+on a Dense-axis control the cell is `dense/z`), and the stored frequency is
+reported as the plane's **stored code** with whether it is the codec's
+`EAF_ABSENT` (`-128` on an `int8_residual` plane, NaN on a `float16` one). It is
+deliberately not decoded: a residual is lossy and an absent code is the only
+answer a boundary question should ever take from it.
+
+**Dispositions.** Every sampled row carries exactly one, from a closed
+vocabulary, and the tally is asserted to sum to the sample:
+
+| Disposition | Meaning |
+|---|---|
+| `valid_common` | the rule kept the row and its MAF is at or above the threshold |
+| `maf_below_threshold` | the rule dropped the row for its MAF |
+| `maf_missing` | the rule kept the row and it carries no usable frequency -- a placeholder, a blank, a malformed or an out-of-range token. The `frequency.class` beside it says which |
+| `info_below_threshold` | the rule dropped the row for its declared INFO score |
+| `unlocated_source` | the source file was read but holds no row at this position with this allele pair |
+| `source_unavailable` | there is no readable source file, so the row cannot be judged |
+
+`maf_missing` is the defect's own bucket: `admit_rows` computes
+`available = isfinite(af) & (af > 0) & (af < 1)` and `maf_drop = available & (maf <
+threshold)`, so a row with no usable frequency has `maf_drop == False` and is
+**kept**. That is the documented, intended reading of stores #176 for a missing
+frequency, and it is also what makes a file-wide `effect_allele_frequency = 0.0`
+placeholder the cheapest possible way to grow a Store's axis: every such row
+bypasses the MAF filter entirely instead of being dropped for a MAF of zero.
+
+The trace does not change that rule. It reports what the rule did, with the
+evidence a decision about it needs.
+
+### The trace report
+
+`schema` is `ogstores.audit.trace/1`. Alongside `argv`, `generated_at`,
+`elapsed_seconds`, `store` (including `eaf_encoding` with its `absent_code` and
+`exception_code`), `inconsistencies`, `ok`, `error_count`, `finding_count` and
+`store_unchanged`, a trace report carries:
+
+| Field | Contents |
+|---|---|
+| `sample` | path, `sha256`, rows |
+| `build_manifest` | path, `sha256`, Analyses listed, `raw_root` |
+| `scope.measured`, `scope.not_measured`, `scope.sources` | what was measured; what was not, with the ticket that owns each (a whole-file frequency census, the stored frequency decoded to a float, a recomputed source checksum, cohort frequency read as population frequency); and every source file read, with its size, mtime, declared build and checksum |
+| `rows` | one entry per sample row: identity and stratum, `source` (path, how it resolved, size, mtime, declared checksum and build), `location` (located, `line_number`, `data_row`, `orientation`, `raw_rows_at_position`, `allele_mismatch_rows`, column positions, raw tokens), `frequency` (token, class, value, `parsed_af`, `reader_treats_as_missing`, `canonical_af`), `admission` (both policies, `keep`, `disposition`, `maf`, the rule's own `counts`, the INFO score it read), `store` (identity, plane, `dense_row`, association count, `z_code`/`z_present`, `se_code`, `eaf_code`/`eaf_absent`/`eaf_exception`), `agreement`, and `trace_disposition` |
+| `summary.denominators` | rows, rows located, rows unlocated, off-panel and control counts, and `dispositions_close`/`frequency_classes_close` -- the arithmetic that says every row was classified and no class was left out |
+| `summary.overall`, `summary.off_panel`, `summary.on_panel_controls` | the disposition and source-frequency-class tallies of each group |
+| `summary.placeholder_frequency` | rows with an exactly `0.0`/`1.0` token, their share of the located rows and of the off-panel rows |
+| `summary.by_stratum`, `summary.by_analysis`, `summary.by_publication` | the same tallies per sample stratum, per Analysis and per publication, with each Analysis's `declared_policy` and the `store_recorded` admission counts quoted beneath it |
+
+A sample row the trace cannot locate, a Store row whose ALID contradicts the
+sample, an admission the Store contradicts, a stored frequency that disagrees
+with the disposition, a missing or unreadable source file, a source build that
+differs from the Store's, and a manifest policy that differs from the Store's
+recorded one are all `error`s (exit 1). A placeholder or invalid frequency that
+was admitted is a `finding` (exit 0) -- that is what the command exists to
+observe, and a `finding` is not a pass on the defect: it is the observation, with
+its counts, that a decision about the admission rule has to be taken against.
+
 ## The report
 
 `schema` is `ogstores.audit.reconcile/1`; `audit_version` is separate and
@@ -461,3 +597,67 @@ blank owner, and a 40-row spot check found 3 of 40 Dense rows in that state
 lowest-indexed Analysis holding the cell because none of the sample's
 contributors does. Both are properties of the Store's panel, not of this
 sample.
+
+### Trace
+
+`trace` ran on the same Store with the `seed 42` sample, the build manifest
+`/data/opengwasdb/stores/OGS-00011/work/analyses.tsv` and 13 workers: 213.1 s
+wall, 26 source files / 24.6 GB of gzipped harmonised GWAS-SSF read once each,
+22,699 Store files unchanged (`size+mtime_ns`). Its evidence is
+`evidence/374/trace.json`.
+
+- **278 of 278 sampled rows located**, 0 errors, 0 unlocated. Every located row
+  reproduces: its recorded physical line number holds the raw row whose tokens
+  the report quotes. Spot-checked outside this tool with `zcat | sed -n`: line
+  13599475 of `GCST90296333` is `4 26744568 A T -2.3888 24.2228 0.0 0.9214 ...`
+  and line 523731 of `GCST90455659` is `1 14686671 C CG -1.6035 2.3351 0.0 0.4923`.
+- **Every replay agrees with the Store**: 278 of 278 admissions, and 278 of 278
+  stored-frequency codes. All 190 off-panel `maf_missing` rows carry the plane's
+  `EAF_ABSENT` code (`-128`); all 30 off-panel `valid_common` rows carry a
+  residual; all 58 control cells carry a frequency.
+- **No sampled off-panel row was dropped for its MAF**, because #373 sampled the
+  Store, not the source: 0 of 220 rows are `maf_below_threshold`. What the
+  sample says about *why* each was admitted is the finding:
+
+  | Source frequency class | off-panel rows (of 220) | controls (of 58) |
+  |---|---|---|
+  | `placeholder_zero` (`effect_allele_frequency = 0.0`) | 125 (56.8%, 95% CI 50.2-63.2) | 0 |
+  | `placeholder_one` (`= 1.0`) | 24 (10.9%, CI 7.4-15.7) | 0 |
+  | `missing` (blank/`NA`) | 41 (18.6%, CI 14.0-24.3) | 0 |
+  | `valid_common` | 30 (13.6%, CI 9.7-18.8) | 58 (100%) |
+  | `malformed`, `nonfinite`, `out_of_range`, `below_threshold` | 0 | 0 |
+
+  So **149 of 220 off-panel sample rows (67.7%, CI 61.3-73.6) carry a literal
+  `0.0` or `1.0`** and were retained as `maf_missing`, bypassing the 0.005 MAF
+  filter entirely.
+- **The leading contributors are the clearest cases.** Barnes DR (PMID 41266372):
+  68 of 90 sampled rows are `0.0` (48 of 58 on `GCST90455659`, 20 of 20 in its
+  exclusive stratum), the rest `valid_common`. Williams AT (`GCST90296333`): 24
+  `0.0` and 1 `1.0` of 36. Chen J (PMID 34059833) is the other mechanism: 21 of
+  21 rows are a blank/`NA` frequency, and `GCST90726344` 20 of 20 the same --
+  absent rather than placeholder, and kept by the same branch of the rule.
+- **The controls are the contrast the ticket asks for**: 58 of 58 are
+  `valid_common` with a stored frequency, 0 placeholders. The admitted off-panel
+  rows that do carry a frequency sit just above the filter (minimum MAF 0.0051,
+  median 0.0145) against the controls' median 0.133 -- the signature of a hard
+  cut that did apply wherever a frequency existed.
+- **At population scale the Store attests the same branch.** Its own
+  `provenance.maf` counts 11,018,053,834 rows dropped below the threshold and
+  **192,435,653 rows retained with no usable frequency** (`associations_missing`),
+  of which Barnes DR's two Analyses are 85,980,368. The 190 sampled off-panel
+  rows are that bucket: 149 placeholders and 41 blanks.
+- **The sample is not proportional**, and the one stratum drawn from the whole
+  union says so: `random_off_panel` (20 rows) is 12 placeholders, 8
+  `valid_common` and 0 missing -- 60% (CI 36-81) placeholder, **40% genuinely
+  common off-panel variants**. The exclusive-contributor strata are deliberately
+  contributor-heavy, so 67.7% is the share of the *sampled* rows, not a weighted
+  population share, and no weighted estimate is computed here.
+
+The mechanism is established: `admit_rows` keeps a row with no usable frequency
+(`available == False` implies `maf_drop == False`), so a placeholder `0.0` is
+admitted where a genuine `0.001` is dropped, the builder does exactly that, the
+Store counts the rows it did it to, and the raw files carry the tokens. What is
+*not* established is a weighted split of the 101,098,177 off-panel variants: a
+majority is this bypass, and a material minority (40% of the random stratum) is
+legitimate admission of common variants the EUR panel does not hold, which no
+admission fix would remove.
