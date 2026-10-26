@@ -138,7 +138,7 @@ A release-level admission rule deciding which Analyses may share one Store's var
 _Avoid_: routing rule, panel policy
 
 **Store Release**:
-A versioned, validated OpenGWASDB analytical asset that Store Release Build produces from an accepted Release Bundle and material Build Recipe choices. Each published Store is immutable. A reference-completed Store Release is published twice under one id: its completed Store replaces its Observed-Only Store (ADR 0037).
+A versioned, validated OpenGWASDB analytical asset that Store Release Build produces from an accepted Release Bundle and material Build Recipe choices. Each published Store is immutable. A reference-completed Store Release is published twice under one id: its completed Store replaces its Observed-Only Store (ADR 0037). Before the project's first release, issue #326 authorises one re-encode, in place, of a published format-0.2.0 Dense Store's `se` and `se_exception_index` Blosc codecs: a physical-representation-only change (the `typesize` moves to the stored dtype's item size) that is proven decoded-equal across the full array and recorded in a checked `records/se-reencode.json`. It sets no precedent after release.
 _Avoid_: database, live store
 
 **Trial Store Release**:

@@ -166,6 +166,16 @@ releases:
     host_registration: 'host records/register.json from 2026-09-20'
     host_evidence_ref: 'origin/feat/ogs-00009-build-evidence@bf4446d'
     hm3_present: false
+    errata:
+      - >-
+        The rebuilt OGS-00009-completed Store (2026-10-23, #312) has eight
+        build-collision rows, each the target of two hg19 sources: 8 rows x
+        2,514 Analyses = 20,112 cells, 16,818 of them observed. Each holds one
+        source's statistics, and in 7 of the 8 the rsid names the other source.
+        Five predate opengwasdb#288 and three arrived with its strand-aware
+        lift (opengwasdb#325). Recorded in the bundle's release.yaml notes; to
+        be fixed at the next rebuild. The other fields of this entry still
+        describe the earlier 2,024-Analysis artifact and are not updated here.
     blockers:
       - >-
         The published 2,024-Analysis artifact is incomplete. Since #312 the

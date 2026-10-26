@@ -264,7 +264,7 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "75f0e77a85bd6b8e55a1f5753922153c7304aef0" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "5fc07666202d43500d5e48bbc48f1e4c9e34ef0f" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
@@ -384,6 +384,17 @@ generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate"
 # It also renders the summary report (#325), which needs Quarto and R beside
 # the builder, so the task runs in `dev` whichever environment is default.
 catalog = { cmd = "python3 -m analysis_catalog", default-environment = "dev" }
+
+# Lossless SE re-encode for one registered Store Release (#326). The stores
+# lane of opengwas/opengwasdb#326: it resolves the Artifact Root through
+# `ogstores`, takes the release's exclusive lock, refuses a release transaction
+# or completion in progress, and then calls the pinned core primitive
+# (`opengwasdb.reencode`) and writes `records/se-reencode.json`. It is
+# idempotent and its `--dry-run` is strictly read-only.
+#
+#   pixi run se-reencode OGS-00009 [--dry-run] [--workers 16]
+#   pixi run se-reencode OGS-00009 --artifact-root /path --registry-root stores
+se-reencode = { cmd = "python3 -m ogstores.se_reencode" }
 
 [feature.python.tasks]
 # Manifest Generation: freeze the Source Inventory a release config selects,

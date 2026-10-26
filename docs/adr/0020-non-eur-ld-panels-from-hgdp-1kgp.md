@@ -90,3 +90,43 @@ Parameters, recorded per panel rather than fixed by this decision:
 - Because completion quality now varies by panel provenance as well as by data
   quality, per-Analysis completion-quality summaries are the only reliable way to
   compare Analyses across ancestries.
+
+## Amendment (stores#241): an AMR panel, under its own variant QC
+
+The decision above left Analyses assigned AMR observed-only, because AMR had
+no block definitions. stores#241 measured an AMR calibration panel, and on
+2026-10-22 the owner adopted a genome-wide one as the best AMR reference
+available until a better one exists. It is declared as `hgdp1kgp-hg38-amr-ld`
+rather than added to `hgdp1kgp-hg38-ld`, because three of its parameters
+differ from the AFR/EAS/SAS panels'.
+
+- **Members.** The 345 high-quality 1kGP Phase 3 AMR samples: CLM, MXL, PEL and
+  PUR. HGDP's American populations are excluded. They are small, bottlenecked,
+  indigenous samples, not the admixed populations AMR-assigned Analyses come
+  from. Pooling them would be a separate decision. As with ASW and ACB above,
+  the panel's LD is that of the populations it is built from.
+- **Block layout.** The EUR blocks, relabelled AMR, as in the EUR calibration
+  control. LD is still estimated from AMR genotypes only. The pilot found more
+  weak LD crossing EUR boundaries in AMR than in EUR. Imputation across an edge
+  and AMR-derived boundaries remain untested.
+- **Variant inclusion: MAF ≥ 0.01, not MAC ≥ 50.** At n = 345 the MAC ≥ 50
+  floor above would be a 7.2% MAF filter, discarding about half the variants
+  the pilot retained. The MAF floor is measured over called individuals, so it
+  admits sparsely called sites. The panel therefore also requires at least 80%
+  of members called, and FILTER PASS.
+- **One record per ALID.** gnomAD splits multi-allelic sites, so an insertion
+  and a deletion at one position can share a canonical ALID (stores#348). Of
+  the records that pass every filter, the one with the higher MAF is kept, and
+  each block row records its source REF and ALT. The constructor now applies
+  this to every panel it builds. The shipped AFR/EAS/SAS panels predate it and
+  are tracked in stores#348.
+
+The asymmetry this ADR accepts is widest here. At 345 individuals every block
+is capped at rank 344. In genotype-held-out calibration, masked z-scores were
+recovered with median r 0.85–0.92 outside the MHC, against 0.98–0.99 in-sample.
+That is not comparable with the EUR control's real-GWAS 0.963 at n = 771. AMR
+completion quality is therefore lower than for any other ancestry, for reasons
+of panel construction, and the per-Analysis completion-quality summaries are
+the measure of it.
+
+MID and NAF still have no panel and remain observed-only.

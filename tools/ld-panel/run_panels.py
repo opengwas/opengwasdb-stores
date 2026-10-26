@@ -18,6 +18,16 @@ def valid(base: Path) -> bool:
     except (OSError, ValueError, KeyError): return False
 
 
+def built_floor(base: Path) -> tuple[object, ...]:
+    """The variant-inclusion rules a block was built under: (MAC, MAF, missingness)
+    floor, ALID-collision rule, and whether its table names source records.
+    Blocks predating #241 carry only a MAC floor."""
+    p = json.loads(base.with_suffix(".provenance.json").read_text())
+    with base.with_suffix(".tsv").open() as fh: header = fh.readline().rstrip("\n").split("\t")
+    return (p.get("mac_threshold"), p.get("maf_threshold"), p.get("max_missing_rate"),
+            p.get("alid_collision_rule"), "REF" in header and "ALT" in header)
+
+
 def build(job: tuple[str, ...]) -> tuple[str, int, str]:
     label, *cmd = job
     result = subprocess.run(cmd, capture_output=True, text=True)
@@ -31,27 +41,40 @@ def main() -> int:
     ap.add_argument("--reference-root", type=Path, required=True)
     ap.add_argument("--regions", type=Path, required=True); ap.add_argument("--members", type=Path, required=True)
     ap.add_argument("--ancestries", nargs="+", default=["AFR", "EAS", "SAS"])
-    ap.add_argument("--jobs", type=int, default=DEFAULT_JOBS); ap.add_argument("--mac", type=int, default=50)
+    ap.add_argument("--jobs", type=int, default=DEFAULT_JOBS)
+    floor = ap.add_mutually_exclusive_group()
+    floor.add_argument("--mac", type=int, default=50)
+    floor.add_argument("--maf", type=float, help="MAF floor over called individuals; replaces --mac")
+    ap.add_argument("--max-missing", type=float, help="Drop variants with a larger share of individuals uncalled")
     ap.add_argument("--cumvar", type=float, default=.99); ap.add_argument("--min-k", type=int, default=250)
     ap.add_argument("--force", action="store_true", help="Rebuild blocks with valid existing outputs")
     args = ap.parse_args()
     if args.jobs < 1: ap.error("--jobs must be >= 1")
     script = Path(__file__).with_name("construct_block.py")
-    jobs = []
+    floor = (((None, args.maf) if args.maf is not None else (args.mac, None))
+             + (args.max_missing, "keep_highest_maf", True))  # what construct_block.py now builds
+    jobs, stale = [], []
     with args.regions.open() as fh:
         for row in csv.DictReader(fh, delimiter="\t"):
             anc = row["ancestry"]
             if anc not in args.ancestries: continue
             base = args.reference_root / anc / row["chr"] / f'{row["start"]}-{row["end"]}'
-            if valid(base) and not args.force: continue
+            if valid(base) and not args.force:
+                if built_floor(base) != floor: stale.append(f"{anc}/{row['chr']}/{base.name}")
+                continue
             keep = args.members / f"{anc}.keep"
             ancestry_root = args.genotype_root / anc
             source = (ancestry_root if ancestry_root.is_dir() else args.genotype_root) / f'chr{row["chr"]}'
             cmd = (sys.executable, str(script), "--pfile", str(source),
                    "--keep", str(keep), "--chrom", row["chr"], "--start", row["start"],
-                   "--end", row["end"], "--out", str(base), "--mac", str(args.mac),
+                   "--end", row["end"], "--out", str(base),
+                   *(("--maf", str(args.maf)) if args.maf is not None else ("--mac", str(args.mac))),
+                   *(("--max-missing", str(args.max_missing)) if args.max_missing is not None else ()),
                    "--cumvar", str(args.cumvar), "--min-k", str(args.min_k))
             jobs.append((f"{anc}/{row['chr']}/{base.name}", *cmd))
+    if stale:
+        ap.error(f"{len(stale)} built block(s) have a different variant floor (e.g. {stale[0]}); "
+                 "rebuild them with --force or use another --reference-root")
     failures = args.reference_root / "failures.tsv"
     failures.parent.mkdir(parents=True, exist_ok=True)
     with failures.open("a") as log, ProcessPoolExecutor(max_workers=min(args.jobs, len(jobs)) or 1) as pool:

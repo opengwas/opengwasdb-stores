@@ -7,13 +7,22 @@ from pathlib import Path
 
 VCF = "gnomad.genomes.v3.1.2.hgdp_tgp.chr{}.vcf.bgz"
 
-def conversion_command(plink2: Path, vcf: Path, keep: Path, out: Path, mac: int,
-                       threads: int = 8, memory_mb: int = 32768) -> list[str]:
-    return [str(plink2), "--vcf", str(vcf), "--keep", str(keep), "--nonfounders", "--mac", str(mac),
+def conversion_command(plink2: Path, vcf: Path, keep: Path, out: Path, mac: int | None,
+                       threads: int = 8, memory_mb: int = 32768, pass_only: bool = False) -> list[str]:
+    """PLINK 2 conversion; ``mac=None`` keeps every biallelic site for a later floor, and
+    ``pass_only`` drops records whose VCF FILTER is not PASS (#241)."""
+    return [str(plink2), "--vcf", str(vcf), "--keep", str(keep), "--nonfounders",
+            *(["--mac", str(mac)] if mac is not None else []), *(["--var-filter"] if pass_only else []),
             "--threads", str(threads), "--memory", str(memory_mb),
             "--max-alleles", "2",
             "--set-all-var-ids", "@:#:$r:$a", "--new-id-max-allele-len", "100", "truncate",
             "--make-pgen", "vzs", "pvar-cols=xheader", "--out", str(out)]
+
+
+def region_vcf_command(bcftools: Path, vcf: Path, region: str, samples: Path, out: Path) -> list[str]:
+    """Index-driven extraction of one region and sample subset; absent samples fail."""
+    return [str(bcftools), "view", "--regions", region, "--samples-file", str(samples),
+            "--output-type", "z", "--output", str(out), str(vcf)]
 
 
 def convert_one(plink2: Path, vcf: Path, keep: Path, out: Path, mac: int,
