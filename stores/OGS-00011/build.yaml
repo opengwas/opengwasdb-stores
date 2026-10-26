@@ -9,6 +9,7 @@ build:
     checkpoint: true
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
+    on-rsid-conflict: drop
 post:
   top_hits: false
   overview: true

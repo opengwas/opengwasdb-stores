@@ -87,7 +87,7 @@ from ogstores.plan import plan
 #: frequency instead of retaining it, so `maf_rows_missing` counts dropped rows
 #: and the Hybrid checkpoint format moves to 2. The range `5fc0766..7308c6a` is
 #: #331's six commits and its merge; there is no Store format bump.
-PINNED_OPENGWASDB_REVISION: str = "7308c6a4361e92660ab37bdef69f639e7ae785d3"
+PINNED_OPENGWASDB_REVISION: str = "70340e03d61cc0371fa5373d8406adc48cc11255"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference

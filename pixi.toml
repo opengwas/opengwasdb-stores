@@ -283,7 +283,7 @@ threadpoolctl = ">=3.0"
 # publishing spills written under the old retention rule. Store format stays
 # 0.2.0 and no builder's arguments change. The range `5fc0766..7308c6a` is
 # #331's six commits and its merge; #331 is its only functional change.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "7308c6a4361e92660ab37bdef69f639e7ae785d3" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "70340e03d61cc0371fa5373d8406adc48cc11255" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
