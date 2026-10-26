@@ -37,6 +37,12 @@ notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,5
   value is not reproduced. The owner accepted these source labels (all EUR) for this build, with no AF
   assignment first (#312, 2026-10-21).
 
+  Pre-release SE codec re-encode (2026-10-25, #326): under the one-time exception authorized
+  before the project''s first release, only the `se` and `se_exception_index` Blosc `typesize`
+  values and encoded chunk bytes changed. `records/se-reencode.json` reports full-array decoded
+  equality across 447,689 chunks and 2,810,059,224 bytes saved; the post-run Store validation
+  and observed-view check passed. This physical-representation-only exception sets no precedent
+  after release.
 
   Release Erratum (2026-10-24, opengwas/opengwasdb#325): eight rows of the published Store
   OGS-00009-completed are each the target of two hg19 source variants under the hg19 to hg38 lift.
