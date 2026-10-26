@@ -81,7 +81,19 @@ from ogstores.plan import plan
 #: and the writer fix that gives every fresh Dense 0.2.0 array a dtype-matched
 #: Blosc `typesize`. The range `75f0e77..5fc0766` is #326's core commits and
 #: merge; there is no Store format bump.
-PINNED_OPENGWASDB_REVISION: str = "5fc07666202d43500d5e48bbc48f1e4c9e34ef0f"
+#: Then to `0d59f151`, the core `dev` merge of PR #329, for the OGS-00027
+#: replacement (#282): core #302 (ADR 0067) gives `build-ragged-besd`
+#: `--sample-size-table`, which stores each stored pair's published sample size
+#: in an opt-in `uint32` `n` plane and its by-variant copy, and
+#: `--store-esi-eaf`, which stores the `.esi` frequency per association,
+#: oriented to the effect allele and checked once against `--eaf-reference`. A
+#: Store with an `n` plane keeps `se` in float16, and `validate`, the query seam
+#: and `info` report the plane. The range `5fc0766..0d59f151` is #330's merge of
+#: the #326 branch whose head `5fc0766` this pin already carried, #332's MAF
+#: admission fix, #303 (the Ragged and Hybrid Observed-View Checks,
+#: `build-hybrid --on-rsid-conflict`, `build-indexed-subset --overflow-only`),
+#: #328's benchmark harness and #329; there is no Store format bump.
+PINNED_OPENGWASDB_REVISION: str = "0d59f151c7618933747a59f825deeef6a51de9e1"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference

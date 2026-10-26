@@ -8,7 +8,10 @@ artifact is written.
 It asserts:
 
 - the pin is one immutable revision in `pixi.toml`, `pixi.lock` and
-  `ogstores.runtime.PINNED_OPENGWASDB_REVISION`;
+  `ogstores.runtime.PINNED_OPENGWASDB_REVISION`: every `opengwasdb` reference
+  the lock carries (one per environment, per platform, plus the package entry)
+  names it as both the requested `rev=` and the resolved `#<commit>`, so one
+  stale entry cannot select another runtime for one environment;
 - a missing executable, a known different revision, and a runtime missing any
   subcommand a scheduled plan names are refused;
 - a scheduled Reference-Completed release whose existing parent Store is format
