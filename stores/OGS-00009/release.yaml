@@ -35,4 +35,9 @@ notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,5
   the three rows it had left unresolved. Ancestry is the provider''s own population label (source_fallback),
   not an AF-based assignment; the ukb-b VCFs do carry FORMAT/AF, so the historical source_trusted_no_af
   value is not reproduced. The owner accepted these source labels (all EUR) for this build, with no AF
-  assignment first (#312, 2026-10-21).'
+  assignment first (#312, 2026-10-21). Pre-release SE codec re-encode (2026-10-25, #326): under
+  the one-time exception authorized before the project''s first release, only the `se` and
+  `se_exception_index` Blosc `typesize` values and encoded chunk bytes changed.
+  `records/se-reencode.json` reports full-array decoded equality across 447,689 chunks and
+  2,810,059,224 bytes saved; the post-run Store validation and observed-view check passed.
+  This physical-representation-only exception sets no precedent after release.'

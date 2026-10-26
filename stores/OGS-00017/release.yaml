@@ -46,3 +46,11 @@ notes: |
   history. The published artifact under the artifact root must be relocated to
   `<artifact-root>/OGS-00017/` as a separate operational step; the registry
   publishes where it should live (ADR 0022).
+
+  Pre-release SE codec re-encode (2026-10-26, #326): under the one-time
+  exception authorized before the project's first release, only the `se` and
+  `se_exception_index` Blosc `typesize` values and encoded chunk bytes changed.
+  `records/se-reencode.json` reports full-array decoded equality across 948,250
+  chunks and 6,043,860,902 bytes saved; the post-run Store validation and
+  observed-view check passed. This physical-representation-only exception sets
+  no precedent after release.
