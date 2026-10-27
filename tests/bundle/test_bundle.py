@@ -257,63 +257,48 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertFalse((REPO_ROOT / "stores" / "OGS-00021").exists())
 
-    def test_ogs_00027_is_validated_and_scientifically_accepted(self) -> None:
-        """The owner accepted the full eQTLGen candidate (#314 comment 6345246939).
+    def test_ogs_00027_is_accepted_for_its_pre_release_replacement(self) -> None:
+        """The owner decided to replace OGS-00027 in place before release (#282 comment 6382592883).
 
-        `accepted` is the fixed-input gate for building. The Store was then built
-        and validated at opengwasdb d8896e4, and `register` replaced the
-        candidate record with its own, carrying the acceptance evidence under
-        `acceptance.acceptance` with the commit it came from. The owner then
-        accepted the released Store scientifically (#314 comment 6360207599),
-        so `human_acceptance` is `accepted` and the Release Status moved
-        accepted -> built -> validated.
+        The 22 Oct bundle was accepted, built at opengwasdb d8896e4 and validated.
+        The replacement bundle carries the published per-probe maximum N,
+        `sample_size_scope: variant_level`, the per-pair N plane and the stored
+        `.esi` frequency, and is `accepted` again as the fixed input of its
+        rebuild. `human_acceptance` is `pending` until that Store is built and
+        validated; the Release Status then moves accepted -> built -> validated.
         """
         loaded = bundle.load("OGS-00027", registry_root=REPO_ROOT / "stores")
         record_check()
         self.assertEqual(list(bundle.check(loaded, registry_root=REPO_ROOT / "stores")), [])
         record_check()
-        self.assertEqual(loaded.status, "validated")
+        self.assertEqual(loaded.status, "accepted")
         record_check()
-        self.assertEqual(bundle.validate_status_transition("accepted", "built"), [])
-        record_check()
-        self.assertEqual(bundle.validate_status_transition("built", loaded.status), [])
-        record_check()
-        self.assertEqual(loaded.release["accepted_at"], "2026-10-22T16:00:43Z")
+        self.assertEqual(loaded.release["source_snapshot_id"], "eqtlgen-cis-full-2026-10-24")
         record_check()
         self.assertEqual(loaded.validation["status"], "passed")
-        record_check()
-        self.assertEqual(
-            loaded.validation["validator"]["version"],
-            "opengwasdb@d8896e46677ae9d54f1fc08a974e8c7e41d105cc",
-        )
-        observed = loaded.validation["observed"]
-        record_check()
-        self.assertEqual(
-            (observed["n_analyses"], observed["n_variants"], observed["n_associations"]),
-            (19250, 8927061, 127112772),
-        )
-        carried = loaded.validation["acceptance"]
-        record_check()
-        self.assertEqual(carried["commit"], "2c0396c7280f38b0b9ca1465a5a5ed2a48c995ce")
-        acceptance = carried["acceptance"]
+        acceptance = loaded.validation["acceptance"]
         record_check()
         self.assertEqual(acceptance["status"], "accepted")
+        record_check()
+        self.assertEqual(acceptance["human_acceptance"], "pending")
         record_check()
         self.assertIs(acceptance["membership_accepted"], True)
         record_check()
         self.assertIs(acceptance["membership_frozen"], True)
         record_check()
-        self.assertEqual(acceptance["frozen_at"], "2026-10-22T16:00:43Z")
+        self.assertEqual(acceptance["frozen_at"], loaded.release["accepted_at"])
         record_check()
-        self.assertEqual(acceptance["human_acceptance"], "accepted")
+        self.assertIn("comment 6382592883", acceptance["owner_authorization"])
+        options = loaded.build["build"]["options"]
         record_check()
-        self.assertEqual(acceptance["human_acceptance_date"], "2026-10-23")
-        record_check()
-        self.assertIn("issuecomment-6360207599", acceptance["human_acceptance_authorization"])
-        record_check()
-        self.assertIn("issuecomment-6345246939", acceptance["owner_authorization"])
-        record_check()
-        self.assertEqual(acceptance["owner_authorization_date"], "2026-10-22")
+        self.assertEqual(
+            (options["sample-size-table"], options["store-esi-eaf"], options["eaf-reference"]),
+            (
+                "/data/opengwasdb/raw/eqtlgen/full-19250.sample-size.tsv.gz",
+                True,
+                "/data/opengwasdb/reference/ancestry-mixture/ref_eaf.united-kingdom.hg38.tsv.gz",
+            ),
+        )
         summary = bundle.summarise(loaded)
         record_check()
         self.assertEqual((summary["n_analyses"], summary["n_admitted"], summary["n_excluded"]), (19250, 19250, 0))
