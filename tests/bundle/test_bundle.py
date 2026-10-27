@@ -257,26 +257,45 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertFalse((REPO_ROOT / "stores" / "OGS-00021").exists())
 
-    def test_ogs_00027_is_accepted_for_its_pre_release_replacement(self) -> None:
+    def test_ogs_00027_is_rebuilt_from_its_pre_release_replacement(self) -> None:
         """The owner decided to replace OGS-00027 in place before release (#282 comment 6382592883).
 
-        The 22 Oct bundle was accepted, built at opengwasdb d8896e4 and validated.
         The replacement bundle carries the published per-probe maximum N,
         `sample_size_scope: variant_level`, the per-pair N plane and the stored
-        `.esi` frequency, and is `accepted` again as the fixed input of its
-        rebuild. `human_acceptance` is `pending` until that Store is built and
-        validated; the Release Status then moves accepted -> built -> validated.
+        `.esi` frequency; the owner accepted it as the fixed input of its rebuild
+        (#314 comment 6451854029). The Store was then built and validated at
+        opengwasdb 0d59f151, and `register` replaced the candidate record with
+        its own, carrying the acceptance evidence under `acceptance.acceptance`
+        with the commit it came from. Its Release Status is `built`;
+        `human_acceptance` stays `pending` until the owner accepts the released
+        Store, which moves it to `validated`.
         """
         loaded = bundle.load("OGS-00027", registry_root=REPO_ROOT / "stores")
         record_check()
         self.assertEqual(list(bundle.check(loaded, registry_root=REPO_ROOT / "stores")), [])
         record_check()
-        self.assertEqual(loaded.status, "accepted")
+        self.assertEqual(loaded.status, "built")
+        record_check()
+        self.assertEqual(bundle.validate_status_transition("accepted", loaded.status), [])
         record_check()
         self.assertEqual(loaded.release["source_snapshot_id"], "eqtlgen-cis-full-2026-10-24")
         record_check()
         self.assertEqual(loaded.validation["status"], "passed")
-        acceptance = loaded.validation["acceptance"]
+        record_check()
+        self.assertEqual(
+            loaded.validation["build_environment"]["opengwasdb_commit"],
+            "0d59f151c7618933747a59f825deeef6a51de9e1",
+        )
+        observed = loaded.validation["observed"]
+        record_check()
+        self.assertEqual(
+            (observed["n_analyses"], observed["n_variants"], observed["n_associations"]),
+            (19250, 8927061, 127112772),
+        )
+        carried = loaded.validation["acceptance"]
+        record_check()
+        self.assertEqual(carried["commit"], "8dabe6e5c851ba895c3edd7b90e4f2ad6d9a35c9")
+        acceptance = carried["acceptance"]
         record_check()
         self.assertEqual(acceptance["status"], "accepted")
         record_check()
