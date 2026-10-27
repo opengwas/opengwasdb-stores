@@ -1228,7 +1228,7 @@ snapshot was frozen from:
 | `source.inventory.snapshot_id` | Yes | The snapshot's identity. Must equal the inventory file's stem and the provenance sidecar's `snapshot_id`. |
 | `source.inventory.path` | Yes | `resources/inventories/<snapshot-id>.tsv`. |
 | `source.inventory.provenance_path` | Yes | `resources/inventories/<snapshot-id>.meta.yaml`, the sidecar whose `inventory_tsv_sha256` binds the TSV to the bytes that were frozen. |
-| `source.inventory.freeze_inputs` | Yes (GWAS Catalog's acquisition writer reads it; shared code does not, #347) | The ordered `{role, path}` acquisition status manifests `freeze` merges. Order is the precedence rule: earliest pass first, and a later pass is authoritative for every `analysis_id` it covers. A later pass may not regress a ready Analysis to a non-ready one. |
+| `source.inventory.freeze_inputs` | No (GWAS Catalog only; a pre-#287 key) | The ordered `{role, path}` acquisition status manifests, earliest pass first. Only the GWAS Catalog's `src/manifest_generation/providers/gwas_catalog/write_acquisition_manifest.py` reads it (#347): it overlays the passes into the **Acquisition Manifest** and its pass lineage, before freeze, and `freeze` then reads that manifest like any other source's. No shared module reads this key, and a release config names its connector files under `source_collection.connectors` instead (`docs/spec/release-config.md` maps the pre-#287 keys). Order is the precedence rule: a later pass is authoritative for every `analysis_id` it covers, and it may not regress a ready Analysis to a non-ready one. |
 
 Which `readiness_status` values count as a usable source is **not** a config
 key: it is owned by `src/manifest_generation/source_inventory.py`
