@@ -868,7 +868,7 @@ freezes the config's Selection into `source_collection.inventory.directory`
 and, when the snapshot already exists, writes nothing and refuses one frozen
 for another Source Collection or Selection. The candidate-table freeze this
 replaced is gone (#287); the inventories it wrote stay as history. The ukb-b
-reconciliation goes in #289.
+reconciliation is recorded in `resources/generators/ukb-b/README.md` (#289).
 
 Preflight (`pixi run preflight --config <release config>`) requires a ready
 row's `location`, `bytes` and `sha256`. The Acquisition Manifest makes

@@ -14,7 +14,10 @@ build leaves it missing), and a published pair the BESD lacks is counted and dro
 A pair is keyed by the ``.epi`` probe id and the ``.esi`` SNP id, which the published
 file names ``Gene`` and ``SNP``. A (gene, SNP) published twice among the pairs the
 file set holds, an ``.esi`` SNP id reached twice by one probe, and an ``NrSamples``
-that is not a whole number from 1 are refused by name, and nothing is written.
+that is not a whole number from 1 are refused by name, and nothing is written. The
+file set's two indexes are read with OpenGWASDB's own readers (``read_epi``,
+``iter_esi``), never re-parsed here, so a malformed index row fails by file and line
+instead of silently shifting every later pair.
 
 **Memory.** This is not bounded streaming: it holds every published pair the file set
 could hold (a uint64 key and a uint32 N each) in memory to sort and join them, plus
@@ -40,7 +43,6 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import hashlib
 import os
 import struct
 import sys
@@ -50,9 +52,9 @@ from typing import Sequence
 import numpy as np
 import pandas as pd
 import yaml
-from opengwasdb.layouts.ragged.besd_reader import BESDReader
+from opengwasdb.layouts.ragged.besd_reader import BESDReader, iter_esi, read_epi
 
-from manifest_generation.source_inventory import InventoryError, atomic_write
+from manifest_generation.source_inventory import InventoryError, atomic_write, sha256_file
 
 #: The published file's columns this reads.
 GENE_COLUMN, SNP_COLUMN, N_COLUMN = "Gene", "SNP", "NrSamples"
@@ -115,22 +117,6 @@ def check_besd_layout(besd: Path, n_probes: int) -> None:
         raise SampleSizeTableError(f"{besd}: damaged column offsets: {'; '.join(problems)}")
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for block in iter(lambda: fh.read(1 << 24), b""):
-            digest.update(block)
-    return digest.hexdigest()
-
-
-def _read_epi(path: Path) -> list[str]:
-    return [line.split("\t")[1] for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-
-
-def _read_esi(path: Path) -> list[str]:
-    return [line.split("\t", 2)[1] for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
-
-
 def _published_pairs(published: Path, probes: pd.Index, snps: pd.Index) -> tuple[np.ndarray, np.ndarray, int]:
     """Sorted keys and N of the published pairs the file set could hold, and the row count read."""
     keys: list[np.ndarray] = []
@@ -178,8 +164,8 @@ def build_table(published: Path, prefix: Path, out: Path, *, source_url: str) ->
     for member in [published, *members.values()]:
         if not member.is_file():
             raise SampleSizeTableError(f"not found: {member}")
-    probe_ids = _read_epi(members["epi"])
-    snp_rows = _read_esi(members["esi"])
+    probe_ids = [record.probe_id for record in read_epi(members["epi"])]
+    snp_rows = [record.snp_id for record in iter_esi(members["esi"])]
     check_besd_layout(members["besd"], len(probe_ids))
     probes = pd.Index(probe_ids)
     if not probes.is_unique:
@@ -228,10 +214,10 @@ def build_table(published: Path, prefix: Path, out: Path, *, source_url: str) ->
     lineage = {
         "written_by": __spec__.name if __spec__ else "sample_size_table",
         "source_url": source_url,
-        "source_sha256": _sha256(published),
+        "source_sha256": sha256_file(published),
         "source_bytes": published.stat().st_size,
-        "besd": {suffix: _sha256(path) for suffix, path in members.items()},
-        "table_sha256": _sha256(out),
+        "besd": {suffix: sha256_file(path) for suffix, path in members.items()},
+        "table_sha256": sha256_file(out),
         "table_bytes": out.stat().st_size,
         "counts": counts,
     }

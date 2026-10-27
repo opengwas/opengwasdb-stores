@@ -50,7 +50,6 @@ from __future__ import annotations
 
 import argparse
 import gzip
-import hashlib
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -59,7 +58,7 @@ import pandas as pd
 import yaml
 
 from manifest_generation.connector_tsv import raise_problems, write_connector
-from manifest_generation.source_inventory import InventoryError, atomic_write
+from manifest_generation.source_inventory import InventoryError, atomic_write, sha256_file
 from manifest_generation.source_metadata_table import (
     SOURCE_METADATA_TABLE,
     TARGET_CHROMOSOMES,
@@ -196,12 +195,12 @@ def convert(
                 "sample_size_table": {
                     "path": str(sample_size_table),
                     "rows": table_rows,
-                    "sha256": _sha256(Path(sample_size_table)),
+                    "sha256": sha256_file(Path(sample_size_table)),
                 },
                 "gene_symbols": {
                     "path": str(gene_symbols),
                     "rows": len(symbols),
-                    "sha256": hashlib.sha256(Path(gene_symbols).read_bytes()).hexdigest(),
+                    "sha256": sha256_file(Path(gene_symbols)),
                 },
             },
             sort_keys=False, allow_unicode=True,
@@ -234,14 +233,6 @@ def load_gene_symbols(path: Path) -> dict[str, str]:
             [f"{gene}: conflicting symbols {', '.join(sorted(names))}" for gene, names in sorted(conflicts.items())],
         )
     return seen
-
-
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with open(path, "rb") as fh:
-        for block in iter(lambda: fh.read(1 << 24), b""):
-            digest.update(block)
-    return digest.hexdigest()
 
 
 def probe_maximum_n(table: Path, probes: Sequence[str]) -> tuple[dict[str, int], int]:
