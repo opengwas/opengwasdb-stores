@@ -409,8 +409,14 @@ under `lib/metadata_resolvers/` were the only code left here, and #350 deleted
 them once curation's round-trip proof moved onto the pipeline's Trait Ontology
 Mapping. That is the code's migration, not a collection's: a collection's move
 onto the pipeline is not finished until its full comparison run against the
-accepted bundle is made and every difference explained, and two are still
-pending -- FinnGen's (`OGS-00017`) and ukb-b's (`OGS-00009`).
+accepted bundle is made and every difference explained. Both are made and
+recorded in their generator READMEs: FinnGen's (`OGS-00017`) under
+"Criterion 1: the full comparison" in
+`resources/generators/finngen-r13/README.md` (evidence in
+`/data/opengwasdb/work/288/`), and ukb-b's (`OGS-00009`) under
+"Criterion 1: the full comparison against OGS-00009" in
+`resources/generators/ukb-b/README.md` (evidence in
+`/data/opengwasdb/work/289/`).
 
 A generator's only output is a bundle directory. It never builds a Store, and
 it invokes statistics rather than implementing them: if two Store Families
