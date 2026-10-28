@@ -99,12 +99,24 @@ from ogstores.plan import plan
 #: JSON, which `register` holds to the release's declaration. The range
 #: `d8896e4..75f0e77` is #298's own commits and its merge; there is no Store
 #: format bump.
-#: Then to `2f308cb8`, the core `dev` merge into the same integration branch,
-#: which is the first revision to carry both lines of work at once: the
-#: integration branch's #295, #296, #306 and #324 above, and core `dev`'s #304
-#: and #298. The range `496bfe9..2f308cb` is that merge and #306's ADR
-#: renumbering; no behaviour changed in it beyond the two lines joining.
-PINNED_OPENGWASDB_REVISION: str = "2f308cb8bd866d9549fa8e75d9622bdd7f29bcad"
+#: Then to `5fc0766` for the #326 SE re-encode: it carries the reviewed
+#: `opengwasdb.reencode` primitive (`plan_se_reencode` / `reencode_se_codecs`)
+#: and the writer fix that gives every fresh Dense 0.2.0 array a dtype-matched
+#: Blosc `typesize`. The range `75f0e77..5fc0766` is #326's core commits and
+#: merge; there is no Store format bump.
+#: Then to `0d59f151`, the core `dev` merge of PR #329, for the OGS-00027
+#: replacement (#282): core #302 (ADR 0067) gives `build-ragged-besd`
+#: `--sample-size-table`, which stores each stored pair's published sample size
+#: in an opt-in `uint32` `n` plane and its by-variant copy, and
+#: `--store-esi-eaf`, which stores the `.esi` frequency per association,
+#: oriented to the effect allele and checked once against `--eaf-reference`. A
+#: Store with an `n` plane keeps `se` in float16, and `validate`, the query seam
+#: and `info` report the plane. The range `5fc0766..0d59f151` is #330's merge of
+#: the #326 branch whose head `5fc0766` this pin already carried, #332's MAF
+#: admission fix, #303 (the Ragged and Hybrid Observed-View Checks,
+#: `build-hybrid --on-rsid-conflict`, `build-indexed-subset --overflow-only`),
+#: #328's benchmark harness and #329; there is no Store format bump.
+PINNED_OPENGWASDB_REVISION: str = "0d59f151c7618933747a59f825deeef6a51de9e1"
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference

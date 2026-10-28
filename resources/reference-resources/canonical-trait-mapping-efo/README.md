@@ -8,17 +8,16 @@ Source Collection doesn't supply its own `trait_ontology_id`/
 ## Lookup contract
 
 The first three columns of `mapping.tsv` are the lookup columns and are the
-only ones the resolver reads: `trait_label`, `trait_ontology_id`,
-`trait_ontology_label`. A generator looks up a row's own trait label against
-`trait_label` using an **exact match** on the normalised (trimmed,
+only ones the lookup reads: `trait_label`, `trait_ontology_id`,
+`trait_ontology_label`. Manifest Generation looks up a row's own Source Trait
+Label against `trait_label` using an **exact match** on the normalised (trimmed,
 lowercased) string — no fuzzy or semantic matching. See
-`src/manifest_generation/trait_ontology_mapping.py`, Manifest Generation's
-shared step (#286), and
-`resources/generators/lib/metadata_resolvers/canonical_trait_table.R`, which
-the R generators use until they retire. The shared step refuses a malformed
-row (a blank lookup value, a non-CURIE or gene-shaped term, an authority-name
-label, or a label listed twice) and records this table's `version` and sha256
-with every bundle it maps.
+`src/manifest_generation/trait_ontology_mapping.py`, the shared step (#286), and
+`tests/curation/` for the curation stages that write this table (#350). It is
+the only mapping step; the R resolver this table used to be read by was deleted
+with #350. The shared step refuses a malformed row (a blank lookup value, a
+non-CURIE or gene-shaped term, an authority-name label, or a label listed twice)
+and records this table's `version` and sha256 with every bundle it maps.
 
 `trait_ontology_label` is the human-readable label of the ontology term that
 `trait_ontology_id` identifies — for example `carnitine measurement`
@@ -27,9 +26,9 @@ or identifier-authority name (`EFO`, `MONDO`, `Ensembl`). This is the same
 semantics the committed Release Manifests use (see
 `docs/release-metadata-schema.md`, "Column reference").
 
-A miss is not an error: the resolver returns `trait_ontology_mapping_method =
-unmapped` and leaves `trait_ontology_id`/`trait_ontology_label` blank, per
-this registry's "never silently default" convention for resolvers (see
+A miss is not an error: the mapping is `trait_ontology_mapping_method =
+unmapped` with `trait_ontology_id`/`trait_ontology_label` left blank, per this
+registry's "never silently default" convention for resolvers (see
 `src/manifest_generation/providers/gwas_catalog/contract.R` for the precedent this
 follows).
 
@@ -51,9 +50,10 @@ candidate-generation step:
 
 Provenance columns are **optional**. A hand-curated row may leave every one of
 them empty (or omit them entirely, as the earliest committed rows did) and
-still resolve normally; they exist to carry evidence, not to gate lookup. The
-resolver ignores any column it does not know, so widening this table never
-changes lookup behaviour — it only adds provenance for reviewers.
+still be mapped normally; they exist to carry evidence, not to gate lookup. The
+lookup reads its three columns by name and ignores the ones it does not know, so
+widening this table never changes lookup behaviour — it only adds provenance for
+reviewers.
 
 ## Where the rows come from
 

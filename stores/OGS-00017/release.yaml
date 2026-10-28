@@ -104,3 +104,11 @@ notes: |
   /data/opengwasdb/finngen-r13 -> raw/finngen-r13, so the 2,754 recorded
   paths resolve unchanged and the accepted Release Manifest stands as
   accepted; every one of them resolves, at the size it records.
+
+  Pre-release SE codec re-encode (2026-10-26, #326): under the one-time
+  exception authorized before the project's first release, only the `se` and
+  `se_exception_index` Blosc `typesize` values and encoded chunk bytes changed.
+  `records/se-reencode.json` reports full-array decoded equality across 948,250
+  chunks and 6,043,860,902 bytes saved; the post-run Store validation and
+  observed-view check passed. This physical-representation-only exception sets
+  no precedent after release.

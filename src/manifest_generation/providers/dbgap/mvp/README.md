@@ -190,7 +190,7 @@ the GWAS Catalog counterpart differs it is preserved under `catalog_metadata`.
 **manifest** writes `<out>/manifests/<store-key-slug>-download-manifest.tsv`
 using exactly the columns of the EBI raw-pass manifest
 (`providers/gwas_catalog/download_ebi_gwas_catalog_raw.py`), so a freeze reads it unchanged: the
-fourteen `source_inventory.ACQUISITION_MANIFEST_COLUMNS` plus
+fourteen `providers.gwas_catalog.write_acquisition_manifest.ACQUISITION_MANIFEST_COLUMNS` plus
 `harmonised_status`, `genome_assembly`, `file_type`, `is_harmonised` and
 `seconds`. Converted rows are `status=ok` with `genome_assembly GRCh38`,
 `file_type GWAS-SSF v1.0`, `is_harmonised false` and the sha256 of the data file

@@ -1,40 +1,65 @@
-status: passed_with_warnings
-validated_at: '2026-10-21T22:20:44Z'
+status: passed
+validated_at: '2026-10-23T19:04:59.796463Z'
 validator:
-  name: manifest_generation.providers.ukb_b.generate_candidate
-  version: null
-acceptance:
-  status: accepted
-  human_acceptance: pending
-  membership_accepted: true
-  membership_frozen: true
-  frozen_at: '2026-10-21T22:23:58Z'
-  owner_authorization: 'The owner accepted OGS-00009 for building as emitted (opengwas/opengwasdb-stores#312
-    comment 6327843666, https://github.com/opengwas/opengwasdb-stores/issues/312#issuecomment-6327843666):
-    2,514 Analyses from the frozen inventory ukb-b-restored-2026-10-11; ancestry from source labels, EUR;
-    build-dense-vcf from hg19 at 32 workers on opengwasdb d405de0; complete-dense against ukb-hg38-eur-ld
-    (/data/opengwasdb/reference/ld, EUR) at 32 workers as release OGS-00009-completed, then the observed-view
-    check and the swap.'
-  owner_authorization_date: '2026-10-21'
-  note: 'The exact 2,514-Analysis membership is accepted and frozen as the input manifest for the build.
-    human_acceptance keeps the meaning it has in OGS-00012..16: human scientific acceptance of the released
-    Store, which follows its build and validation; the owner''s acceptance for building is status accepted
-    and owner_authorization. No Store has been built or validated from this bundle.'
-  completion_reference:
-    resource_id: ukb-hg38-eur-ld
-    qualification: qualified
-    activation: active
-    blocked: false
+  name: opengwasdb validate
+  version: opengwasdb@d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c
+build_environment:
+  opengwasdb_version: 0.3.0
+  opengwasdb_commit: d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c
+  python_version: 3.12.15
+  platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: null
+  n_analyses: 2514
+  n_variants: 11191070
+  n_associations: null
+  store_bytes: null
+  build_elapsed_s: 159976.285
+  validate_status: passed
+  completion_state: reference_completed
 checks:
-  schema: passed
-  files: passed
-  reader_smoke_test: not_run
-  ancestry: not_run
-  effect_scale: not_run
-  sd_estimation: not_run
-reports: {}
-warnings:
-- 'ancestry is the provider/source label (source_fallback), not an AF-based assignment; no AF-assigned
-  ancestry records were supplied; checks.ancestry=not_run (run `opengwasdb assign-ancestry` before acceptance/build,
-  #222)'
+  store: passed
+warnings: []
 errors: []
+acceptance:
+  recorded_at: '2026-10-21T22:20:44Z'
+  commit: b8382023a9b9b4b93b8cd5de8e636a0cb3542a23
+  acceptance:
+    status: accepted
+    human_acceptance: pending
+    membership_accepted: true
+    membership_frozen: true
+    frozen_at: '2026-10-21T22:23:58Z'
+    owner_authorization: 'The owner accepted OGS-00009 for building as emitted (opengwas/opengwasdb-stores#312
+      comment 6327843666, https://github.com/opengwas/opengwasdb-stores/issues/312#issuecomment-6327843666):
+      2,514 Analyses from the frozen inventory ukb-b-restored-2026-10-11; ancestry
+      from source labels, EUR; build-dense-vcf from hg19 at 32 workers on opengwasdb
+      d405de0; complete-dense against ukb-hg38-eur-ld (/data/opengwasdb/reference/ld,
+      EUR) at 32 workers as release OGS-00009-completed, then the observed-view check
+      and the swap.'
+    owner_authorization_date: '2026-10-21'
+    note: 'The exact 2,514-Analysis membership is accepted and frozen as the input
+      manifest for the build. human_acceptance keeps the meaning it has in OGS-00012..16:
+      human scientific acceptance of the released Store, which follows its build and
+      validation; the owner''s acceptance for building is status accepted and owner_authorization.
+      No Store has been built or validated from this bundle.'
+    completion_reference:
+      resource_id: ukb-hg38-eur-ld
+      qualification: qualified
+      activation: active
+      blocked: false
+  checks:
+    schema: passed
+    files: passed
+    reader_smoke_test: not_run
+    ancestry: not_run
+    effect_scale: not_run
+    sd_estimation: not_run
+  reports: {}
+  warnings:
+  - 'ancestry is the provider/source label (source_fallback), not an AF-based assignment;
+    no AF-assigned ancestry records were supplied; checks.ancestry=not_run (run `opengwasdb
+    assign-ancestry` before acceptance/build, #222)'
+replaced:
+  archive: /data/opengwasdb/stores/OGS-00009/replaced/20261023T190459Z
+  replaced_at: '2026-10-23T19:04:59.796463Z'

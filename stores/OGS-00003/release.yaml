@@ -48,4 +48,11 @@ notes: 'Quantitative endpoints are ordered by phenocode. For each binary categor
   Corrected to 0.1.0 in validation.yaml. No Store artifact was rebuilt or rewritten
   by this registry metadata correction.
 
+  Release Erratum (2026-10-28, #322): validation.yaml recorded observed.n_associations as 212306150.
+  That is exactly 21,230,615 x 10, n_variants times n_analyses, not a count. `register` multiplied
+  the two axes when a Dense step printed no association count (register.py at 086d56d, removed by
+  #322). The product counts every cell of the dense matrix, observed or not, so it is not the number
+  of observed associations. The value is null until opengwasdb reports an observed count
+  (opengwas/opengwasdb#294). No Store was rebuilt or rewritten by this registry metadata correction.
+
   '

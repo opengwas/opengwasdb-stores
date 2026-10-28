@@ -212,8 +212,9 @@ class AcquisitionManifest:
 def load_acquisition_manifest(path: Path) -> AcquisitionManifest:
     """Load and validate a canonical Acquisition Manifest, refusing it on any problem.
 
-    Not to be confused with ``source_inventory.read_acquisition_pass``, which
-    reads one GWAS Catalog download pass in the downloader's own columns.
+    Not to be confused with the GWAS Catalog writer's ``read_acquisition_pass``
+    (``providers.gwas_catalog.write_acquisition_manifest``), which reads one
+    download pass in the downloader's own columns.
     """
     path = Path(path)
     header, numbered = read_connector(path, ACQUISITION_MANIFEST)

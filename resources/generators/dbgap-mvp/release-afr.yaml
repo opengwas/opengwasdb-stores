@@ -11,7 +11,7 @@ source_collection:
     source_metadata_table: resources/generators/dbgap-mvp/connectors/source-metadata-table.tsv
     acquisition_manifest: resources/generators/dbgap-mvp/connectors/acquisition-manifest.tsv
   inventory:
-    snapshot_id: dbgap-phs002453-afr-2026-10-21c
+    snapshot_id: dbgap-phs002453-afr-2026-10-24
     directory: resources/inventories
 
 selection:

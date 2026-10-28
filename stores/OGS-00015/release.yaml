@@ -72,6 +72,13 @@ notes: |
   build or validation has run." That line is carried over from the accepted
   bundle's earlier record and predates the build. Human scientific acceptance
   remains pending.
+
+  Pre-release SE codec re-encode (2026-10-24, #326): under the one-time
+  exception authorized before the project's first release, only the `se` and
+  `se_exception_index` Blosc `typesize` values and encoded chunk bytes changed.
+  `records/se-reencode.json` reports full-array decoded equality across 37,360
+  chunks and 313,153,203 bytes saved; the post-run Store validation passed.
+  This physical-representation-only exception sets no precedent after release.
 accepted_at: '2026-10-14T01:27:47Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
