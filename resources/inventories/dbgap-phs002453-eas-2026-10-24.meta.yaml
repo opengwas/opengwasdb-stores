@@ -1,0 +1,1735 @@
+snapshot_id: dbgap-phs002453-eas-2026-10-24
+source_collection_id: dbgap-phs002453
+frozen_at: '2026-10-24T10:02:21Z'
+frozen_by: manifest_generation.freeze
+selection:
+  where:
+    store_key: dense__pmid-39024449__East-Asian
+  expect_rows: 241
+rows: 241
+readiness_counts:
+  ok: 241
+ready_rows: 241
+ready_bytes: 63479001396
+study_design_counts:
+  case-control: 148
+  quantitative: 93
+ready_study_design_counts:
+  case-control: 148
+  quantitative: 93
+duplicate_content_groups: []
+inventory_tsv_sha256: 6eb8c2913c09418839ede44d75541783872f64512a768df7ed78737f91fc4e39
+source_metadata_table:
+  frozen:
+    path: dbgap-phs002453-eas-2026-10-24.source-metadata.tsv
+    sha256: 3eb270569fceb8f75d348b55d51a48b6bb09b55b667f674375993bd98dd2d654
+    bytes: 36601
+    rows: 241
+  original:
+    path: resources/generators/dbgap-mvp/connectors/source-metadata-table.tsv
+    sha256: ca3fca0786eb854c557c5ab8ede5719637aebedd156c2a7eb69c24010f236dee
+    bytes: 925219
+    rows: 6022
+acquisition_manifest:
+  frozen:
+    path: dbgap-phs002453-eas-2026-10-24.acquisition-manifest.tsv
+    sha256: 1df16c8c7dd8da89a9d372536410da59031acc412dcb5ebd5138b60198693a09
+    bytes: 252487
+    rows: 241
+  original:
+    path: resources/generators/dbgap-mvp/connectors/acquisition-manifest.tsv
+    sha256: 7b1e24000f7b8c8c906eda48d985e549336d144df290ab8a8f138d24da16e17c
+    bytes: 6367102
+    rows: 6022
+    readiness_counts:
+      ok: 6022
+    pass_lineage: null
+  unselected_entries: 5781
+lineage:
+- analysis_id: GCST90475203
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.CircChol.EAS.GIA.dbGaP.txt.gz
+  original_sha256: fa11556e22db7b646d9ccda45dffb9fd01b888da8c78ce3dcbc055827012ef8e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 282216951
+- analysis_id: GCST90475346
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.HDLC_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0cad3b5997fe813f79e039af5dc5b1c948e930d41af323ea682779edb1b5bf73
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221900011
+- analysis_id: GCST90475350
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.HDLC_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 22516bf1020d93698d75f6f097d43022e93e1690b6214e8e2f74c987b0beade7
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221898123
+- analysis_id: GCST90475354
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.HDLC_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 488031b6ebd3052946a91e3bdbce689cf79d4dc2bdc07734c78e0325ed18b8cd
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221888346
+- analysis_id: GCST90475370
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.Hemoglobin_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 398ecfc10dc88ec53ee96e6a797cf0f3d1e33875f53993c801b4a9c9e263df22
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221877454
+- analysis_id: GCST90475374
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.Hemoglobin_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 51b66971799bc61dde8f671e3cb63c136b5be4e34cffa5dbedc2e86aeff2ff39
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221847844
+- analysis_id: GCST90475378
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.Hemoglobin_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: bbb3663631837890b805bd8c900a9106a998607a5125ef8e7cbca44452863248
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221811655
+- analysis_id: GCST90475410
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.LDLC_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ab0d4dd489eb25079483f25317cfe5f1af5e0f65f2c323aba13d1fbb43befc8e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221772006
+- analysis_id: GCST90475414
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.LDLC_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8b717ad7a47ed77d285fcbefd5f5ca0828f1b87076c8e6d2700a85ead332e089
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221775503
+- analysis_id: GCST90475418
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.LDLC_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: af5b38030b0a6be193a1b89174dec820d2b0f9bf3354c84f0000a07e0ea2be9e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221770941
+- analysis_id: GCST90475440
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.MCH_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b3a9b179a59ee80d905bef9596a92e726e28ed2acf81cdf7863c7e828ca652ed
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221949470
+- analysis_id: GCST90475444
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.MCH_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8cd91447851eff81c12e10ab3cfe054066205a1dff85e7de9948956914ec1668
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221948215
+- analysis_id: GCST90475448
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.MCH_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 32fb0c08f59c93ec9d294bab71e5ce4b3191c1f4d66206f3b3808047c8a38957
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221913644
+- analysis_id: GCST90475452
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.MCHC_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 518cf076e0e51b9038a385fba8619010aaac8eae90d95549441fa8517177cd40
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221877070
+- analysis_id: GCST90475456
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.MCHC_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 6da0bac72a0e9585ede6740c1f3f357c3e058554a2f6444c3a383ece0cf8a5f3
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221875009
+- analysis_id: GCST90475460
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.MCHC_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 15c9ed00a621058288dfadf483b1d14df6aa34a27da9e062014761caf166cbb4
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221856080
+- analysis_id: GCST90475464
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.MCV_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 85fb7aa2f46a6b2284fdda7ae8050fc93cb3d2e50fcd00c86d3ddfa0d54340a6
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221949404
+- analysis_id: GCST90475468
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.MCV_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2443c998fa7b518e9defe320b486514e8322deac9f54d0daa10c53caa8f1d563
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221966904
+- analysis_id: GCST90475472
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.MCV_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b8cdebebef14ad86da2ca57c52c2f2fb6321111c82cb1b19d540f28cb45db64f
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221942265
+- analysis_id: GCST90475729
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_274.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 28f2286003edcd8bcf706ab47ee1b231c0f14d6732fe4a60b56102cd41536225
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284829668
+- analysis_id: GCST90475733
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_274_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 9b61658bb6da875867cd372293cf785576367bd67099d30306df71caf8ae2a4e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284848481
+- analysis_id: GCST90475786
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Hematopoietic.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Hematopoietic/MVP_R4.1000G_AGR.Phe_285.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0581b6a769c197af69d35bc9a059addbc3bedc9bad6fe7f12938c103120eec09
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286092651
+- analysis_id: GCST90476336
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Pulse_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: a99170061dd41e310af0d3bc2d4dfe1fde2fa0947f24e21330605074898d5308
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 222005266
+- analysis_id: GCST90476343
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.RBC_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8d12b7863105724e5aa67b86be315e4a0dbeb7136979fc8bf527dc2ef3e84021
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221893515
+- analysis_id: GCST90476347
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.RBC_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0e93e451df68bb1726cc5f0c9e92433a280f4b6d70f3f141d1e54920b96ab24d
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221832705
+- analysis_id: GCST90476351
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.RBC_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 354884dd8327f6fa78ad569ecb28c8b3e622097c4074e8081627d0d8e24457e0
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221807872
+- analysis_id: GCST90476355
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.RDW_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2caaf40421a11ff8de30cd7f9c6b393b8dbdc2c954f461dc04e7a1c3b38c3340
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221847246
+- analysis_id: GCST90476359
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.RDW_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 412ee82ccd0a0ccd18af72201f2ed3548304ec2b86dc92dc9c19c2be0e83f7a7
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221899799
+- analysis_id: GCST90476363
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.RDW_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 87a28147eb5759c162f4bd18869af8fd3f7eb3d0e27291ff036f7f96da705734
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221866100
+- analysis_id: GCST90476377
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SkMsGout.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8d456840c73c8215ac0e88f0d0640f01a55d23417fe9173a32ffa6904987400f
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283489119
+- analysis_id: GCST90476418
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.TotChol_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: f72590b452afbe4e8a01a1a187c84ca7dee1f235e12d70aa8c2b00f3325f81ea
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221884733
+- analysis_id: GCST90476422
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.TotChol_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: dca50436a690aa5d19a63ba1ed2a37dd329c48a6b48e5fda0d75fd0761c94513
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221874467
+- analysis_id: GCST90476429
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Trig_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: bb3f61b597d28baea324bbd7518758e590fc8f266694dde484fdd08aea27207b
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221927681
+- analysis_id: GCST90476433
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Trig_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 3cd43d4eff16656b16d28ede07605db7680c9e6f79d458b06282bc001f4a7a20
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221941298
+- analysis_id: GCST90476437
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Trig_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 442dc8c00af839da0bd1ca97c4938e082dba63039f812df301b3f297085a085c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221852866
+- analysis_id: GCST90476550
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.A1C_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 6c1fa98d55b96caa4e29fb66b3ac91dd6acf2fe717bdb2c44595deeedf3a863c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221756036
+- analysis_id: GCST90476551
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.A1C_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: da71fe4fe401370f720c7e2c3d4440c7155405ff414867fcea5b6e769cfb23fb
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221783831
+- analysis_id: GCST90476552
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.A1C_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: be55e1fdc4c365a4f078a0ca2707213b4318308a25bc1282cdd7fac3614c0f14
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221767033
+- analysis_id: GCST90476553
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Albumin_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 956b414ccf92eb0b7bb2ef9aa42bf11c2cdcc8c8e5b6fbc6c01e4fe5b1f7c4ba
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221764809
+- analysis_id: GCST90476554
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Albumin_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 7c3425f43230e89fbd34e995cf672407f390c9e5be426aa4c96e300f7bbbce6e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221772940
+- analysis_id: GCST90476555
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Albumin_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 1e6c93435fcce03512b49182c7892ea32bf310a15cabeac615099c88213dad97
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221720123
+- analysis_id: GCST90476556
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.ALT_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 984aa0600e323f95a5e08865493f5cb1bd8f751608813aeb9aac494fe762c3ad
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221861928
+- analysis_id: GCST90476557
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.ALT_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: cb3b13630606cb6a2039d9d8bbfaf47a3305c398c6beae38d91281363dd78192
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221911643
+- analysis_id: GCST90476558
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.ALT_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 835d102f248bd135fec02f04ff4ea22e4b06238d561bbb66d32df6ebed2e486c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221853644
+- analysis_id: GCST90476559
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.AST_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2e908c34e652a39254a25a0d608be369b7589d422b49713c19b71c3b555c6e7a
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221893923
+- analysis_id: GCST90476560
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.AST_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 664cbe5a034382217321ddd641a9d74e22316dfe792c4b3f75fb25cb1a57c931
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221888212
+- analysis_id: GCST90476561
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.AST_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 26214cec8692891d0c295aa7dad711d2abe610e121811fef2ab77c1b3c9b8007
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221795858
+- analysis_id: GCST90476562
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Bicarbonate_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 9e8f712b5c4f5277eaab5c14b129633daac48aa1ee64d199b28eb4e7f6be9026
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221792631
+- analysis_id: GCST90476563
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Bicarbonate_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 1fa4c0b8c8f40cb0adfe1ba458bdfb0e46d7c061961ec44db66ea3cf2d8473c7
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221826212
+- analysis_id: GCST90476565
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Bicarbonate_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ef3d0f8bcdfdb739b2e1c9c91615b811306e7d70b05167cd169207723265b8ec
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221790198
+- analysis_id: GCST90476566
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.BMI_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 7b02cef135087fbbcd52d275bd13c6baf6da39b0b756207086e7a19fbb38bb33
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221906604
+- analysis_id: GCST90476567
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.BMI_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 4f60c1b9cf4f395a5583cf5aa4a5090fdf810a994f6ef1c910c61c7c7aca33d8
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221856929
+- analysis_id: GCST90476568
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.BMI_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 23acb88113eaaaf3fae57f7b7a5fc63f6ca9cfb30219c4cf00580e50b7d800ed
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221833058
+- analysis_id: GCST90476575
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.BUN_BSP_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0fdcbd2a3d290734f6d9430b36bbb920fd22ad1b0178a388937a13b4f295860a
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221802257
+- analysis_id: GCST90476576
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.BUN_BSP_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0ee96a43dde835456881f2ddca3456bcacd17c2f167af34a3b71c5a2cd7c242d
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221816718
+- analysis_id: GCST90476577
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.BUN_BSP_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 1066f03ce1c42fec0eef560ccc2016fa95d839b7adb00da127768be9e1da1485
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221813724
+- analysis_id: GCST90476588
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Chloride_BSP_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 5a0affd5093bb7141dbc79277c98cfa6f3a143fca8bd0cd41164662e98a20b83
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221842377
+- analysis_id: GCST90476590
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Chloride_BSP_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: d044bc2c27e55fa506bf6e964e8f942e9fea9dfb64b8e13086b2b147748cd288
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221829419
+- analysis_id: GCST90476591
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Chloride_BSP_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 4d273b7fd6c6214a734f2accead8b95f3852f1137632b80c35e81c58234fbc41
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221753001
+- analysis_id: GCST90476600
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.CircCholMed.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 9094c95f8ed4d1c93010b07978a69e0e830a35d7522f1804c9edc477277ea31f
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 282302684
+- analysis_id: GCST90476610
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.CircHTN.EAS.GIA.dbGaP.txt.gz
+  original_sha256: f48c823ffd914c218e8c60de66f684a23c59b036fb9fcaadd1c2565ac35888f0
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 282592801
+- analysis_id: GCST90476612
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.CircHTNMed.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 6fd8b16e48daa4a80719cd0a2d9ca842b30ae5f565fd907611a7f23c472c3f8c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 282562132
+- analysis_id: GCST90476636
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Creat_BSP_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b5a04afef3b079fe9b89f52b61f7d0b31c021f0260fdded6ba8c37b576a4bfcc
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221829341
+- analysis_id: GCST90476637
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Creat_BSP_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0e2edbed0144eeee106303b7c97d395e311e0039987fa112e276b6d1e708f157
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221819670
+- analysis_id: GCST90476638
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.Creat_BSP_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: de773eed3aa8c2d7da24f5790c95ba7bd8fed9531327c581b6be2ca5f72ce383
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221834211
+- analysis_id: GCST90476661
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.DadCircChol.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 44b9b62329e623d58f1b9229c604717b26aceb268e20710e4807ce3a7b09efb2
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283770387
+- analysis_id: GCST90476664
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.DadCircHTN.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 7da05adf29875e0c479847a384f06c5b8e5eff27faed37d5ca8bd6b503446c16
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 282602116
+- analysis_id: GCST90476673
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.DadDoDM.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 94522de34b496854fc54c22ca82da1aa50d5db908a279b0e47e7b1aaf252d859
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284036940
+- analysis_id: GCST90476687
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Diastolic_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 074e1c5dfd97f9c2592dbd8ed480376daf15fed074f53237a5c73a167b2f51b2
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221803530
+- analysis_id: GCST90476688
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Diastolic_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 4138bbe11e4d11f2e7357a6f54684b79d36c225a15083464357c3e6e0c6457bd
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221888491
+- analysis_id: GCST90476690
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Diastolic_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ad579147875bce792d934afad6022b306abc7f07bc731d8c984d4ed16fb038d0
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221904330
+- analysis_id: GCST90476693
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.DoApnea.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 1f39677c895ff8eec37002a2bac3abee5cdd4d25100509a10f20d4707579832c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 282722683
+- analysis_id: GCST90476705
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.DoDM.EAS.GIA.dbGaP.txt.gz
+  original_sha256: c42a3e9fcd320c7c19fc9d4d590f6187996a1fe7e280480d9462416051522307
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283006142
+- analysis_id: GCST90476706
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.DoDMMed.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 42e6deac98f7a3d7dd950f967986cc459001d316d0bcc469ab682635cf5f79af
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283012242
+- analysis_id: GCST90476714
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch1/MVP_R4.1000G_AGR.DoSkin.EAS.GIA.dbGaP.txt.gz
+  original_sha256: c07f266ab7b3de56f867efb5629778375e2da1291d7380cca7b4e5942b9512cc
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283964120
+- analysis_id: GCST90476722
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.eGFR_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 826dbabeb140b2cc38fcb445cb61425ed481e8ff43cbd53a15c91d13951e18ed
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221806626
+- analysis_id: GCST90476723
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.eGFR_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 53d2a72c96179060650cf4ec9af5ec7a8ddb5141282326496692e69099edbf5e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221814903
+- analysis_id: GCST90476725
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch1/MVP_R4.1000G_AGR.eGFR_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 503ea8dded4ca6a35adbb66562f9c593853ec2c30cdb50a21d3885fc73a40286
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221815932
+- analysis_id: GCST90476761
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2/MVP_R4.1000G_AGR.GIPolyp.EAS.GIA.dbGaP.txt.gz
+  original_sha256: bc39fdf99499d0abba2516b8f96863ce4e380858645c06625d4b2e1f0672b52c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283911833
+- analysis_id: GCST90476766
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2/MVP_R4.1000G_AGR.GIReflux.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 9fab14042a1bb80eb756f805fcff894f87cc42a5c21595c46372283517d35e9f
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 282982818
+- analysis_id: GCST90476769
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2/MVP_R4.1000G_AGR.GIRefluxMed.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 50b637d44fc3b6f5fa575739f0ee88c7991cea306c8a6e46045fa0399b7fd560
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283862138
+- analysis_id: GCST90476787
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.Glucose_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 22cc355dc97c9d93484fea6927c2b130e69c14ce198184b6aa17987e3ea60a7d
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221834939
+- analysis_id: GCST90476788
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.Glucose_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b89b51e799f883d1c4b639e9c133e7147de5f7d698a1695610cb0bf5ff0d5c75
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221817271
+- analysis_id: GCST90476789
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.Glucose_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2a50ffd186124d9f70b27fdba183ccf3136fc40726b92b49ec3a0321d7c9195c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221789724
+- analysis_id: GCST90476790
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.HCT_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 40f0c1e1b654a2476083f51112b9f94a7255784f56c1971109c638692bd7acad
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221859164
+- analysis_id: GCST90476791
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.HCT_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 791a40b0e2d2ddf6260ff211b8f9bd459b6091b3cbb101f9cba3029ed7a99d88
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221852767
+- analysis_id: GCST90476792
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch2/MVP_R4.1000G_AGR.HCT_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: c2673295b2f9d6952a5379b11d4ccc1b103c137c38d994fcc9e0d21339c00139
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221823216
+- analysis_id: GCST90476796
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Height_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: eacbc2cdd11edc828292bba4f1aca800cb881721189926c00dd630cb347a48ad
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221687009
+- analysis_id: GCST90476797
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Height_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 6da5d92c95d797f4c9403a5727ef80c6a4482fe2e4bbc4e15f076371ca4be030
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221692969
+- analysis_id: GCST90476798
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Height_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 86e2fa9481fcfec5c27f3c8ad01b804eeb9ee117995c6b04eed7c6a2a503f50a
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221721790
+- analysis_id: GCST90476804
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2/MVP_R4.1000G_AGR.HVCat.EAS.GIA.dbGaP.txt.gz
+  original_sha256: dd39ab536f70a9e393a91da8f40445e46863f6960d745b921bfa6a6464991a8a
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283811312
+- analysis_id: GCST90476814
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2/MVP_R4.1000G_AGR.HVHear.EAS.GIA.dbGaP.txt.gz
+  original_sha256: f9ea5b60e5781015764e61551ddae8eb598060dc2f542fc776c1b545381a3553
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283259624
+- analysis_id: GCST90476823
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2/MVP_R4.1000G_AGR.HVTin.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 1e419cfa2b1638d7a9f5dfe6fe4b8d2d46c8555b9f0f3ecf179c462a0d9f65ee
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 282118474
+- analysis_id: GCST90476897
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2/MVP_R4.1000G_AGR.MomCircChol.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 7862fe40ef5d6c9ff221b3671366c02108e6375fb366d46ac5414a0766be8604
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283853026
+- analysis_id: GCST90476900
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2/MVP_R4.1000G_AGR.MomCircHTN.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8c706b8a0b99df855700222f4e7e8918dde979450b533084f9774b13e0d75602
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 282420669
+- analysis_id: GCST90476909
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch2/MVP_R4.1000G_AGR.MomDoDM.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 5df976b0987f0f6ddfd64e2ffc4d48c2615d77a55eef34960daee99e92996f3c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283436367
+- analysis_id: GCST90477088
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Other.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Other/MVP_R4.1000G_AGR.Phe_1005.EAS.GIA.dbGaP.txt.gz
+  original_sha256: c28ce70036394ddb1221bde097541b4274db3f26f9ce337c756279c93a1fa61a
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285226656
+- analysis_id: GCST90477100
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases/MVP_R4.1000G_AGR.Phe_1010_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 57dc7c9d30d54d52231d87df2e8152dae15a972dff3a533624fcd8e11e7647ec
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286917073
+- analysis_id: GCST90477104
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases/MVP_R4.1000G_AGR.Phe_1010_2.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2a451eedf71a6a413af3f147c1ff052d2b3108b70d14fb12ea229d009e17243b
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286137404
+- analysis_id: GCST90477107
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases/MVP_R4.1000G_AGR.Phe_1010_3.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8da8d8d9a42e8e755f85deea35bd3c317c3df83c9af9b8ebe038c3ac6112d02c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283462545
+- analysis_id: GCST90477110
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases/MVP_R4.1000G_AGR.Phe_1010_5.EAS.GIA.dbGaP.txt.gz
+  original_sha256: d90a7b08f17a9ca74363b6f95b86936dd065f33d86524c29b63af8f1454e3a9e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283419202
+- analysis_id: GCST90477117
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_InjuriesPoisonings_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_InjuriesPoisonings_batch1/MVP_R4.1000G_AGR.Phe_1010_7.EAS.GIA.dbGaP.txt.gz
+  original_sha256: d1df3272452debc8da4252b26e990cfd1836d986bbb710e298c60684d4ca7b3d
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285514475
+- analysis_id: GCST90477140
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases/MVP_R4.1000G_AGR.Phe_110.EAS.GIA.dbGaP.txt.gz
+  original_sha256: c89a20adf241e3e49360be0e0eac2138d009a5e65926a1fb69ef45bdf5b5f88b
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285482296
+- analysis_id: GCST90477143
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_InfectiousDiseases/MVP_R4.1000G_AGR.Phe_110_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: db0c40176fd78bf45644a979f95486c82fc0c871afd01d07c67524f396c9a7ba
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285716846
+- analysis_id: GCST90477251
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neoplasms_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neoplasms_batch2/MVP_R4.1000G_AGR.Phe_208.EAS.GIA.dbGaP.txt.gz
+  original_sha256: d6d5818f0bc5443fb581bb9a222930e2e50ce3d5905d7ac49c872b7d2ae5b1d8
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285581867
+- analysis_id: GCST90477310
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch1/MVP_R4.1000G_AGR.Phe_250.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 944a90dd57acf7b730e3a80cb41a1235ae80518563de615591c8a7532c219dac
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283497579
+- analysis_id: GCST90477314
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch1/MVP_R4.1000G_AGR.Phe_250_2.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b6e7e43f2716aceda058e19f56c6ed0b9661eebbac335144b945ceb6c8224e43
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283496697
+- analysis_id: GCST90477320
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch1/MVP_R4.1000G_AGR.Phe_250_4.EAS.GIA.dbGaP.txt.gz
+  original_sha256: fe84b6d3efb090a5facecfd0a47c0eae8584a2816b0b8add4baa3da3e1feff45
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284938866
+- analysis_id: GCST90477322
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch1/MVP_R4.1000G_AGR.Phe_250_41.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 6d7f02a4322d3bc009f6f4c46086b57887b07c678a2cc2bd281867ba3658b090
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285777098
+- analysis_id: GCST90477362
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_261.EAS.GIA.dbGaP.txt.gz
+  original_sha256: db1ad934af39ee5f8a4655c6f90fb904cd9d52a1d1f710dd0c79fa53831bf6fa
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284305925
+- analysis_id: GCST90477364
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_261_4.EAS.GIA.dbGaP.txt.gz
+  original_sha256: e82953b708ffbefe3c06f1bd1a5f1b39594cc1840a0eea3871b4aabdadae6688
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284604263
+- analysis_id: GCST90477383
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_272.EAS.GIA.dbGaP.txt.gz
+  original_sha256: fa51df318ea18927d9a08903b013946415754d58a62dd4dc88d548ff3288d1d2
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283801254
+- analysis_id: GCST90477384
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_272_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ed013052aa3c8eaa5a266be89a58ac9a087f6b000a340137b44e31fc2d76e9d4
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283805793
+- analysis_id: GCST90477385
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_272_11.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 71bc13fa183d9d61b524a37bae5ff2ab81a79320a6e153dfaab34085408a1c7f
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286859364
+- analysis_id: GCST90477386
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_272_13.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 021f45c2a31022c53d4b4e139bcda7d354b4aef9a497cf35c21458d768783185
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285105878
+- analysis_id: GCST90477402
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_276.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0207c9b7019f51a73cfdc92cff8dcff852735578b0c9185d290ff40fcad97165
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286742024
+- analysis_id: GCST90477435
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_278.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 4750f23d0ea88c4fc68cee05fc691b6b2d86eba338a24b4a3a6b1d4452203cdf
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283541303
+- analysis_id: GCST90477436
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_EndocrineMetabolic_batch2/MVP_R4.1000G_AGR.Phe_278_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: a1d7ca0698d40b0ab37292c6a6a19609123e6fa6b0747968bfe71e9e12c890ab
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284016882
+- analysis_id: GCST90477479
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_327.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 3d1a83214c7a5091ef3ecc987ceca27d03ebc9c180e3da10a36531629422b394
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283700155
+- analysis_id: GCST90477484
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_327_3.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 71b0f65f3720733441dc46a9087d7baf1d8e4a0b80c45671fa98a6b8ba65fc65
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283146533
+- analysis_id: GCST90477489
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_327_32.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b4c5630e99afe00077fe6bae2cd04037f78c9599182a95451c88ae1aac618f6d
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283243339
+- analysis_id: GCST90477492
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_327_4.EAS.GIA.dbGaP.txt.gz
+  original_sha256: d64fe5b571a5f44c57b541a8129e660556b027b9b17e4f11d096bc50ad9d8975
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284779379
+- analysis_id: GCST90477525
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_338.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2cae6871692e2e2979f3127f8648d571bcbb79ecce5b362d1a546306d8f8d5ae
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285758208
+- analysis_id: GCST90477531
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_338_2.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 86edacf39c2af6ee688e4dafa93c14bc665f746eac81a3622970a1ce699c4f3f
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286934980
+- analysis_id: GCST90477535
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_339.EAS.GIA.dbGaP.txt.gz
+  original_sha256: c8aab91ef271cb877503df5c40401d317633a22c5c257f8175ed51db40264331
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285259296
+- analysis_id: GCST90477539
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_340.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 3e494bb4d8df113ea084ac757c54817e1b6e88856d4fd508bf49b035f0385e21
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 287183388
+- analysis_id: GCST90477573
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_350.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 3871338c804ddc1765b8ec24dab438789eb53f26efb0661def0ec6a6cd550b4e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286036179
+- analysis_id: GCST90477579
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_350_2.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 89bde1e40b9bb0bee1bd2cfbb39d0a1232b638fedc8878ab178b92ddb95618ff
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286703902
+- analysis_id: GCST90477585
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Neurological.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Neurological/MVP_R4.1000G_AGR.Phe_351.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 82bdb1434be9cb301128512dd016a78bf841187ead421043d27897ae8039a58b
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285644026
+- analysis_id: GCST90477622
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_362.EAS.GIA.dbGaP.txt.gz
+  original_sha256: dd624ed9216d83b2b0bf2d3ba77b695f382d5503f9fe739ca0cb89ce1447541e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285038059
+- analysis_id: GCST90477624
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_362_2.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 52dbf68dbf3d81063f12bba987c4aa3f4fd2a280e655af340c1fc994f214494f
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286856082
+- analysis_id: GCST90477662
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_365.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 1b0d02381bd1b84724e813fee76eef37e57bd80235e90d320e8502e54c89372c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284272773
+- analysis_id: GCST90477663
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_365_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: c0f0f3cf167ed586c1d3376dc0cfdec446839f304dc7193b07addcd9c3edfc00
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284911493
+- analysis_id: GCST90477667
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_366.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2dd124cac371e86f8a1ef2fa5701b9ae677189d8d3fb5aa7bd50a9b5fcfe9fd8
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284690920
+- analysis_id: GCST90477672
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_366_2.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 10ac6f847d56c4ade973d11316d24b60174ef51fdd1ce9326f82b15cba47add9
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284368008
+- analysis_id: GCST90477677
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_367.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 75e00e2df51fe016c774a15e8036e7d98f9c4ea581de6a2783ce48f6ff75fad8
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283564825
+- analysis_id: GCST90477680
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_367_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ae70e00bfcb4a4e9664f625d1e457d81a02a649929a869221e72940039ea1056
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283876285
+- analysis_id: GCST90477682
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_367_2.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 783971f7ef6c1c8b02b7b728fe76f4f54e1b7b91ac1d932e5b5594a089d2a047
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283882342
+- analysis_id: GCST90477686
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_367_4.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 7afc2dd2d7d8f2583fab9b126329a5668be8cb41304d43016d237af998d8c272
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283859739
+- analysis_id: GCST90477689
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_367_8.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 688ae761d2bcd34d8d7da1fe2d1556bac3ff3a02ed8c10d92281586cda8c7b62
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285481746
+- analysis_id: GCST90477694
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch1/MVP_R4.1000G_AGR.Phe_368.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 29fae320486e0262fdfbea9715ee0ca336fa54803370ee07d4cde172b8afe832
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285940092
+- analysis_id: GCST90477732
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_371.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 7b54efd3e923fc24bb5308fb07415db35efd225c22513b68c97be31027c74fdf
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286064523
+- analysis_id: GCST90477755
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_375_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ae2886f56072b51eaa088d3634d88d2c53d92b036026b27441fc0b043e6c42b6
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284753087
+- analysis_id: GCST90477774
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_379.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2723f3bba963c61c66b697cc774e6d97a5cc2fee7d45ab6d3ee8ff109a689f79
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286157354
+- analysis_id: GCST90477780
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_379_2.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 600a58a00e85fe4e5de66d141638eda1e2fc3a60119f080a3780b010c0f4ce36
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286995807
+- analysis_id: GCST90477817
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_386_9.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 41afaedf9372492845b3315196534cf5524470399fabfd88f088b367937e131c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286640722
+- analysis_id: GCST90477822
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_389.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 57cf00eff557e1c334a99b6ddfe54210a6553b2a7ca6b24e0f3fa986fb2ce5fa
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283236497
+- analysis_id: GCST90477825
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_389_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ff5160d6d7f120a14223e7fb42b16e1138d386b45f3ab3afd41ed8a53cf683e0
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284438979
+- analysis_id: GCST90477829
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_SenseOrgans_batch2/MVP_R4.1000G_AGR.Phe_389_4.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 5ce9389acf9f79d8c262a4681f8667bf68557fcd1efba8e8aaf2b2b197025599
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284405884
+- analysis_id: GCST90477848
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1/MVP_R4.1000G_AGR.Phe_401.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2b31a9e15a4b6fb5514d249641e8f7aa89b062e270a059ae2708dd82eb8d1a73
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284208025
+- analysis_id: GCST90477849
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1/MVP_R4.1000G_AGR.Phe_401_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 13f2bf0523f3748a45f1742d9e63c0df8afbc516232e382f922c8fcc2f09cc3e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284192448
+- analysis_id: GCST90477851
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1/MVP_R4.1000G_AGR.Phe_401_2.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 3c839cb54fae88dbec3b00c6b3fd6a535b475dd290455f9ce2e24b2d14fd6a38
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286568436
+- analysis_id: GCST90477861
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1/MVP_R4.1000G_AGR.Phe_411.EAS.GIA.dbGaP.txt.gz
+  original_sha256: f9a9271660d36e48370faea388bb5899a0f37cfe68f005a0366b899015613d1e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285578855
+- analysis_id: GCST90477868
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1/MVP_R4.1000G_AGR.Phe_411_4.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8b2e9323da84187e09f1fd09285ac75f1cb88cfd512dbd5f9cfe87b5701414e4
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285797964
+- analysis_id: GCST90477885
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch1/MVP_R4.1000G_AGR.Phe_418.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2e0c88def62bd8070763efd7eb4c0220c5d688e69cd620414092878a052d5c94
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284603505
+- analysis_id: GCST90477928
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch2/MVP_R4.1000G_AGR.Phe_427.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 575487ae30d4942419bf7f8d4694462216045f7bd921d7d9ec0c5307df82abb1
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285065666
+- analysis_id: GCST90478042
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_CirculatorySystem_batch3/MVP_R4.1000G_AGR.Phe_455.EAS.GIA.dbGaP.txt.gz
+  original_sha256: a7ba0ff8ae01171e93a45ab9da2e697166dbf4304751585e38ef521632201b22
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286511743
+- analysis_id: GCST90478074
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem/MVP_R4.1000G_AGR.Phe_465.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8e160b9abc9f4f56a6bc9278a9cd4508723d022ee75bd4b40b834ad0a7c8f85f
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285078573
+- analysis_id: GCST90478106
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem/MVP_R4.1000G_AGR.Phe_476.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 08ef7c2ab0cc178ca7f9ede5d6860afbd65736ac7314beb4edb379c31b44fabf
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283905263
+- analysis_id: GCST90478132
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem/MVP_R4.1000G_AGR.Phe_495.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0cce3841d74a6693069fde334302a1ad12285f5342f7440b761b0a96ed6bcce1
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286503551
+- analysis_id: GCST90478180
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem/MVP_R4.1000G_AGR.Phe_512.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b816c69de8d3fb7c2bbe932ececa7fc3d3ce8fef8dae879b5cc56e05a4b617e2
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283663119
+- analysis_id: GCST90478189
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem/MVP_R4.1000G_AGR.Phe_512_7.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 80c27fb07a31f2034134a99c37d43f042328ddb0619d577e765e6943bb1c3242
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286635915
+- analysis_id: GCST90478192
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem/MVP_R4.1000G_AGR.Phe_512_8.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 1e1823930ad0f3b53e15397c0b3e0e88275ae59cee00912d5cdf8824bedbacb3
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284956427
+- analysis_id: GCST90478195
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_RespiratorySystem/MVP_R4.1000G_AGR.Phe_512_9.EAS.GIA.dbGaP.txt.gz
+  original_sha256: c3a32ccd609f07b4a17bf16c15c5056118aeb33233d41121e50ecadac4b159e4
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286622876
+- analysis_id: GCST90478230
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1/MVP_R4.1000G_AGR.Phe_521.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 3e40d717081739500f3192165ac11f9a3afdc126c03b9372c63ee5740e498a7d
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283997611
+- analysis_id: GCST90478234
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1/MVP_R4.1000G_AGR.Phe_521_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 9536e8a372badba29c9aea2a0a962bcfc5e36d48d3d0343039d5f831baa20063
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284259114
+- analysis_id: GCST90478250
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1/MVP_R4.1000G_AGR.Phe_523.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 38595e2bc8ed752d4fac97a39435472215d8d8eca54c2f6e51437360bd563194
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284381371
+- analysis_id: GCST90478254
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1/MVP_R4.1000G_AGR.Phe_523_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 5a403fde0d2d1cad49fe4ac4bbd3aeaca9f6f49ee91f783b303722d23910d245
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286907778
+- analysis_id: GCST90478258
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1/MVP_R4.1000G_AGR.Phe_523_3.EAS.GIA.dbGaP.txt.gz
+  original_sha256: a78fed4bad1ea748a91734912d8a1a714f800a430265d009ef8032e7b6989e83
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286011046
+- analysis_id: GCST90478274
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1/MVP_R4.1000G_AGR.Phe_525.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 308ad1896f7c0bf87a32a6efe596b1ca4878ff09fd8b60c87f9056ffe6b8a5d5
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284499791
+- analysis_id: GCST90478278
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1/MVP_R4.1000G_AGR.Phe_525_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0ff19698af919c5f07f1eba135bd5118d6bd1400b006cd71541d7965e28c561c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285741245
+- analysis_id: GCST90478312
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1/MVP_R4.1000G_AGR.Phe_530.EAS.GIA.dbGaP.txt.gz
+  original_sha256: d38421baeac7715341758069e0537b94a7a67433278abf065d7138fc906746ee
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283615307
+- analysis_id: GCST90478315
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1/MVP_R4.1000G_AGR.Phe_530_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 9ac88615a8271579700c6725f3a90270042981ae0648d1a3defe3cfd4ec9121b
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283621006
+- analysis_id: GCST90478318
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch1/MVP_R4.1000G_AGR.Phe_530_11.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 501d90bfc6acee84913528ece8932cc5e3cc8bf9080d3b229e1121c0f3816ad0
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283788925
+- analysis_id: GCST90478413
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch2/MVP_R4.1000G_AGR.Phe_561.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 72c3c013735a38c83a0d1df9367ec7eb37ec75597ef7bc47628609d13971deed
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286948659
+- analysis_id: GCST90478451
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch2/MVP_R4.1000G_AGR.Phe_571.EAS.GIA.dbGaP.txt.gz
+  original_sha256: beb377eab4d544b66a0976559a7d5706cbd0d34ca6479e59fc07d78745b0cbe7
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286979788
+- analysis_id: GCST90478452
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch2/MVP_R4.1000G_AGR.Phe_571_5.EAS.GIA.dbGaP.txt.gz
+  original_sha256: af1637549f263e640bcea54bf33230f9bdf9f66e2996b7d1898c73dfb56afa9d
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 287025633
+- analysis_id: GCST90478463
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch2/MVP_R4.1000G_AGR.Phe_573_7.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 9a85fb7772b89ee4916803309426247d44783dda96f8555f9cd145beafbc0990
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286223937
+- analysis_id: GCST90478489
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DigestiveSystem_batch2/MVP_R4.1000G_AGR.Phe_578.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 237352e92595f332b7627988f60c37684f1642ac3ebecd9bd17063604619f5ec
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286322006
+- analysis_id: GCST90478519
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Genitourinary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Genitourinary_batch1/MVP_R4.1000G_AGR.Phe_585.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 4547b36343e8219b45b4bbe7867f823c6e264ea67743972d89c67c392af17e36
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285638624
+- analysis_id: GCST90478524
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Genitourinary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Genitourinary_batch1/MVP_R4.1000G_AGR.Phe_585_3.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 7065f450febb8186abe5c66fe6808fc65b01ef45689f2d2baad8df4ed11294d7
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286245034
+- analysis_id: GCST90478591
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Genitourinary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Genitourinary_batch1/MVP_R4.1000G_AGR.Phe_599.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 4eee55ca95310c92bf901e9e125d81d7d646d4fd471c0218ac58ef83c110c953
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285803734
+- analysis_id: GCST90478610
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Genitourinary_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Genitourinary_batch1/MVP_R4.1000G_AGR.Phe_600.EAS.GIA.dbGaP.txt.gz
+  original_sha256: d8c8a1c5768089b08e885e831ea3c9f265243db6447dacafc498c6d39d2c3870
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285746153
+- analysis_id: GCST90478642
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Genitourinary_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Genitourinary_batch2/MVP_R4.1000G_AGR.Phe_605.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 44ef35c014f5a5750554f136ec75ec8722f63c63dbf1d4b35c8d57c6f3d67679
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284588422
+- analysis_id: GCST90478772
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DermatologicalSystem.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DermatologicalSystem/MVP_R4.1000G_AGR.Phe_687_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 1ab1d1a62521e8432a67c56bf86cc32d60abc6d87519f324dd6b2cb31cef41c8
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286356112
+- analysis_id: GCST90478838
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DermatologicalSystem.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DermatologicalSystem/MVP_R4.1000G_AGR.Phe_706.EAS.GIA.dbGaP.txt.gz
+  original_sha256: e252dd237f58ea939b73de07b98c16b56ea465a2d6ee64aecec7d7560caa7ad5
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285711399
+- analysis_id: GCST90478890
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1/MVP_R4.1000G_AGR.Phe_721.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0bddae69686b41c5a4adbf3f2d793d5513be341cfdf31c9972ce12c346d081d5
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286137929
+- analysis_id: GCST90478893
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1/MVP_R4.1000G_AGR.Phe_721_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: f834a32e0a49c72dff15da8149a7dcecb384239cdb8d433cfc2fa08c765770e6
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286401563
+- analysis_id: GCST90478900
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1/MVP_R4.1000G_AGR.Phe_722.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8a52b48dbc8e6bdf05354dc8c523bf329109c8f513384ab4e564cf98ebbcebc1
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285710500
+- analysis_id: GCST90478906
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1/MVP_R4.1000G_AGR.Phe_722_6.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 4826dd9c62031117f12f2ddb7c8d3d5b8d2888589fe952074479779fc6493491
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286813122
+- analysis_id: GCST90478930
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1/MVP_R4.1000G_AGR.Phe_726.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ddfbe199d5e877a07315473752c5405d0846d4fdee6ce232381a6f5fe2dbbe6d
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284308620
+- analysis_id: GCST90478934
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1/MVP_R4.1000G_AGR.Phe_726_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b10e8b82f5a2e96f528a0b7ab01684a89ad4e7ad444a10825db90cf173165c0d
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286497226
+- analysis_id: GCST90478945
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1/MVP_R4.1000G_AGR.Phe_727.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 0ba2c4ec2c017fd585a93e6b87550e3a3b569e16dee63321e1ce40a5ad995ad5
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286172781
+- analysis_id: GCST90478961
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch1/MVP_R4.1000G_AGR.Phe_728_7.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 69a223449b07c57b504e2ca98624f9c0a9aa71d18c06fd7aed5a96f11545b94a
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285937328
+- analysis_id: GCST90478978
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2/MVP_R4.1000G_AGR.Phe_735.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 6aa5e71ae5a67e05972b4db00f4e909a3c9d860aa7a8381207144663f913dd53
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286414993
+- analysis_id: GCST90479012
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2/MVP_R4.1000G_AGR.Phe_740.EAS.GIA.dbGaP.txt.gz
+  original_sha256: f3789f3e56de87f5e139c69a8b4695c963def03d09d242c4031bde554e6feb0f
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284288782
+- analysis_id: GCST90479015
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2/MVP_R4.1000G_AGR.Phe_740_1.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 414722c36622e66135d0ec4d39d634876cf8422663613e8f5689b4563c71ee85
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285213953
+- analysis_id: GCST90479018
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2/MVP_R4.1000G_AGR.Phe_740_11.EAS.GIA.dbGaP.txt.gz
+  original_sha256: a91518165f103cf378951775a6008f6765aa2b4a177307b3090d6a96ba922ba5
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286384748
+- analysis_id: GCST90479029
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2/MVP_R4.1000G_AGR.Phe_740_9.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 479d213ae062813482a1a9c47805700cf74925cbbc9ae019b5278d4e2a6f5d80
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285274469
+- analysis_id: GCST90479062
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_MusculoskeletalSystem_batch2/MVP_R4.1000G_AGR.Phe_745.EAS.GIA.dbGaP.txt.gz
+  original_sha256: fc9e5d7421da6c923b7dd140d6408d3005b737c84c38e83c9f2146316301fa8e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283073774
+- analysis_id: GCST90479093
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms/MVP_R4.1000G_AGR.Phe_760.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 00fe4167669d557c25db099ee76257d80416670c67aa9f9b82b77f1ad0d33417
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 282752403
+- analysis_id: GCST90479096
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms/MVP_R4.1000G_AGR.Phe_761.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 136716cb0050fb7f3def229648ac3913f87219ffc270e6889daaa17b528d5f88
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284702076
+- analysis_id: GCST90479099
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms/MVP_R4.1000G_AGR.Phe_763.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8457c5bfe85a04ea43a5ac5a383e871d46d8a064612e3f07bfd8734ff324c9c5
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286809039
+- analysis_id: GCST90479135
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms/MVP_R4.1000G_AGR.Phe_773.EAS.GIA.dbGaP.txt.gz
+  original_sha256: a9c2bef1244f9799cc8f264e58d3e3077f25c5a4e1853f427310452d50e9898e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283963966
+- analysis_id: GCST90479146
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms/MVP_R4.1000G_AGR.Phe_785.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 9294908746959db3eed94d0afcebc9f16aa4712a0924de20399fc5d23ef64f47
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285552294
+- analysis_id: GCST90479174
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_Symptoms/MVP_R4.1000G_AGR.Phe_798.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 47fcd806159502c24cbf8b2796aa5434cfc398ca428101fcb4b6b362ae596c27
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 286966320
+- analysis_id: GCST90479234
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_InjuriesPoisonings_batch1.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_InjuriesPoisonings_batch1/MVP_R4.1000G_AGR.Phe_840.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b49cbf9aa98814509d14d253fc1b3ab48e64ba83c67305cd098da1fda5063722
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 285816654
+- analysis_id: GCST90479305
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.PheCodes_DermatologicalSystem.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.PheCodes_DermatologicalSystem/MVP_R4.1000G_AGR.Phe_939.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 9a561cd8ff31416146493d78f94522fc8483125715ec477d415cf92f7413531d
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284426992
+- analysis_id: GCST90479345
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Platelet_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8901940438a86ca67d49b8dca083795d9c52972e9cb655b4b23918924f24a4b6
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221827064
+- analysis_id: GCST90479346
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Platelet_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b67c49a576ef465cf5731fb93a6f2ad14e19ea09b51fa6f2896ce40b24fb6002
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221892708
+- analysis_id: GCST90479347
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Platelet_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 73723355bda1fb2eb8b75471bdb3dadebc1f40dd6e3614c6a47590459389f7a2
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221874507
+- analysis_id: GCST90479349
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Potas_BSP_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 22ec9182a2336684b02133c32b16b818978ddfa0b7ce3767168f39b0dee92897
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221741033
+- analysis_id: GCST90479350
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Potas_BSP_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 706f90e05a91b0e22ac83b00f2b3f9b392a852aa58d887349ed2a0afa0748792
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221742377
+- analysis_id: GCST90479351
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Potas_BSP_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 94c95fa3c33975f6cc481e17e574c98d0135af4ab6a76fb1ccc3b552da7a412c
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221771065
+- analysis_id: GCST90479355
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Pulse_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 17c096c512f74a188c6d3d99b511041b2ec5d94359cef2b2ff983b8342b586ea
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221874580
+- analysis_id: GCST90479356
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Pulse_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 3fc63a82379b0d21e9af755218380af95347ee8b9df08390ac7c585ff7d96233
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221935796
+- analysis_id: GCST90479375
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SibCircChol.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ec0f30000aead9195e15ec2a08bb9965ef7afdc8786950264b5088fd881dc819
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283902264
+- analysis_id: GCST90479378
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SibCircHTN.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 98f324530de2583d79d613c726b8152f24ae5b08c2513eff8dda7a9558315abc
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283297995
+- analysis_id: GCST90479387
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SibDoDM.EAS.GIA.dbGaP.txt.gz
+  original_sha256: f9870e38a26acbea5b7192be05b31bd0e3f2fa8315de45f89ac73d18ea33b5a1
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284010830
+- analysis_id: GCST90479406
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SkMsGoutMed.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 11ca80b94b0525be55f3ad9e514edd39ff17bb435a1dad2a94e1bbe5864a0584
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 284142220
+- analysis_id: GCST90479418
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SkMsOth.EAS.GIA.dbGaP.txt.gz
+  original_sha256: b1625b016b88aef555732e7d96e165ac69e0b876c383caec465fda219a720f89
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283424048
+- analysis_id: GCST90479422
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SkMsOthArth.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 6cda9ea72155e96beb20a9cea131069715f699ab94d17b36c01400d71fad9336
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 283573127
+- analysis_id: GCST90479438
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SlpExcDy.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2a7e093e9bf325053f9328a7a7ccb5d4896263e4277347e92bc11de98c200c1e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 267468246
+- analysis_id: GCST90479442
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SlpFall.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ab11e99ca232d9218dad91e6c8e718976d4b2fdbf7c15d7f70923e97bdcc4453
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 266653149
+- analysis_id: GCST90479445
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SlpUnsat.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 26dc37bf0246645270be8eeaa1f83309ef453961ab95a78818e53055a9cdef03
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 266753536
+- analysis_id: GCST90479449
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SlpWakeAM.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 25f8a12340f170dc67a2ad4d70768ea7157a0395b10367460e58cf7f52bd58ab
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 266393178
+- analysis_id: GCST90479453
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.SlpWakePM.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 6d92389a11732c64b8787d98d32ea4935dda939cc5db10c0d984f8e627f0a0d1
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 266519911
+- analysis_id: GCST90479456
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Binary_batch3/MVP_R4.1000G_AGR.Smk100.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 2d974f1a25bf2dc564532a9b3fce230462ac249a19b687d37d3c6ba8d105553e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 280777544
+- analysis_id: GCST90479474
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Sodium_BSP_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 45b84e67803df397d4b798cf82268cbfe8de5992bffb2f8430f4e9dd73defafc
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221782249
+- analysis_id: GCST90479476
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Sodium_BSP_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 50efb55a4546e4462f620e937240553df1109dd411cfc70caf969b3a97d12c96
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221805900
+- analysis_id: GCST90479478
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.Sodium_BSP_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 40595f0f06627cbf8b7af35ca802a581f32d8b22ae233e8380e262040315d719
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221817473
+- analysis_id: GCST90479479
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Systolic_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 8854be5774041e167cffa89faf3aa3432af5a68a8310c4cc00ed64512d7c0eb0
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221863184
+- analysis_id: GCST90479480
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Systolic_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 63a26c92f4ff668d6ef8fbbcf3a6005c92679170c0a6accbecbdc9c3a15edb19
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221914588
+- analysis_id: GCST90479482
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Systolic_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: ef822c44749abddef8a45523654cb5b5a75046a6bc0eecb34e7b30b246b95b7e
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221845132
+- analysis_id: GCST90479484
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.TotChol_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 3cd5ba4276528c70dc3e884fadfd58cc9457ab9a85ac8da48d93628bb9fa78c3
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221857231
+- analysis_id: GCST90479494
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.WBC_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: bb95fd1bb169c3cbe4a6da317b8a2acdeaedeeb9541f51e331861676df5e112b
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221868485
+- analysis_id: GCST90479495
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.WBC_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: f4e652489afdacecbf98359e9c8006f5f27794150904d7884fa673fd00bb99cf
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221934390
+- analysis_id: GCST90479496
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Labs_batch3.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Labs_batch3/MVP_R4.1000G_AGR.WBC_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: fb745cbb814ba47350e994626cd3b71050d1a48b022e2e280ebddec0c66c0955
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221901115
+- analysis_id: GCST90479497
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Weight_Max_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 1ce0deebbb7e4210b7fc53a530eb54628b7409fc226536b4386f7da770f60574
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221873838
+- analysis_id: GCST90479498
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Weight_Mean_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 62e11c61352981a142dbbab9d8b5b99fd9b517a0b5c1a70afe1fe83a1fffeacb
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221837449
+- analysis_id: GCST90479499
+  original_location: /data/opengwasdb/raw/dbgap-phs002453/GIA/tars/phs002453.MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative.analysis-PI.MULTI.tar#MVP_R4.1000G_AGR.GIA.Surveys_Vitals_Quantitative/MVP_R4.1000G_AGR.Weight_Min_INT.EAS.GIA.dbGaP.txt.gz
+  original_sha256: 1c7430e209f01cd749a309432df5de4a57b62a7ab912851029df5a554994d9e6
+  reformat_tool: 'manifest_generation.providers.dbgap.mvp.acquire_dbgap_phs002453 sha256:unrecorded (no
+    conversion-time code identity recorded; searched the conversion runs and the metadata-refresh run
+    records; see #290)'
+  original_bytes: 221799332

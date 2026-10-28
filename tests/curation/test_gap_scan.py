@@ -11,7 +11,8 @@ the wrong target.
 Verifies:
 - only `trait_ontology_mapping_method == unmapped` rows are queued;
 - labels differing only by case or surrounding whitespace collapse and their
-  occurrence counts sum, matching the canonical-table `trimws(tolower(x))` rule;
+  occurrence counts sum, matching the canonical-table lookup's trimmed,
+  lower-cased key;
 - Store Families are attributed from the bundle path and from `release.yaml`,
   sorted and comma-separated;
 - the queue is ordered descending by occurrence count with an alphabetical

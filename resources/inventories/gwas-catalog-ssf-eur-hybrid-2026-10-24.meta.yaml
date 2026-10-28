@@ -1,0 +1,69 @@
+snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-10-24
+source_collection_id: gwas-catalog-ssf
+frozen_at: '2026-10-24T09:43:58Z'
+frozen_by: manifest_generation.freeze
+selection:
+  where:
+    store_key: hybrid__European
+rows: 6035
+readiness_counts:
+  already_present: 213
+  data_absent_upstream: 49
+  header_rejected: 98
+  metadata_rejected: 1
+  missing_remote_harmonised_yaml: 1104
+  ok: 4570
+ready_rows: 4783
+ready_bytes: 1889305604793
+study_design_counts:
+  case-control: 1636
+  quantitative: 4399
+ready_study_design_counts:
+  case-control: 1159
+  quantitative: 3624
+duplicate_content_groups:
+- sha256: cd25e71f21e7072bf6d1446b60c293df8eec6cff4c1f40161901c0ca04ae45d4
+  analysis_ids:
+  - GCST90565871
+  - GCST90565872
+  data_bytes: 329444995
+- sha256: 9d21dc27c45ae82cc497c7b8ca013807265caa5c80f977a77e4748e6a17f06b3
+  analysis_ids:
+  - GCST90624704
+  - GCST90624705
+  data_bytes: 388828307
+inventory_tsv_sha256: 341359d27657111585880a194f6c992b8c751f2d3a43af4f27080c0fd0cb06e5
+source_metadata_table:
+  frozen:
+    path: gwas-catalog-ssf-eur-hybrid-2026-10-24.source-metadata.tsv
+    sha256: 1a125fc04ea79db0cea2bcafeee9c9965d4b5bd9f42773849c7cd9aefce8fdb6
+    bytes: 1398278
+    rows: 6035
+  original:
+    path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-24/gwas-catalog-ssf.source-metadata.tsv
+    sha256: 54a0a4d370f1cb1953c37ed2594aca9ba65b44fd1425de6470fa63602aa9c274
+    bytes: 39227086
+    rows: 171274
+acquisition_manifest:
+  frozen:
+    path: gwas-catalog-ssf-eur-hybrid-2026-10-24.acquisition-manifest.tsv
+    sha256: 85240fe8b104f009f17b1d9026df091f8a0da6b9df46563e84300f5376019500
+    bytes: 3106335
+    rows: 6035
+  original:
+    path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-24/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.tsv
+    sha256: 85240fe8b104f009f17b1d9026df091f8a0da6b9df46563e84300f5376019500
+    bytes: 3106335
+    rows: 6035
+    readiness_counts:
+      already_present: 213
+      data_absent_upstream: 49
+      header_rejected: 98
+      metadata_rejected: 1
+      missing_remote_harmonised_yaml: 1104
+      ok: 4570
+    pass_lineage:
+      path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-24/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.meta.yaml
+      sha256: 8a1975735a06b2e30f32474ee73f3ade7eee043c28a1ced940aa7e78142d90e4
+  unselected_entries: 0
+lineage: []

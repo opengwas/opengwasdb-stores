@@ -5,7 +5,7 @@ This suite wires the whole Canonical Trait Mapping Table curation pipeline
 together over fixtures and proves the *round trip*: an unmapped Trait becomes a
 work-queue entry, the work queue becomes a candidate shortlist, the shortlist
 becomes a proposal, the proposal is promoted into a Canonical Trait Mapping
-Table, and the real R resolver then resolves that trait as
+Table, and the pipeline's own Trait Ontology Mapping then maps that trait as
 ``canonical_table_lookup``.
 
 Pipeline under test::
@@ -15,11 +15,11 @@ Pipeline under test::
       -> curation.candidates     (multi-channel shortlist)
       -> curation.choice         (proposal, stub chooser)
       -> curation.promotion      (Canonical Trait Mapping Table row)
-      -> resolve_trait_ontology_mapping()  (R resolver)
+      -> manifest_generation.trait_ontology_mapping  (the mapping step)
 
 Everything is hermetic and network-free: the ontology is a tiny in-memory OBO
-document, the chooser is the fixture-backed stub chooser, and the only
-subprocess is the repository's own R resolver against its own fixture table.
+document, the chooser is the fixture-backed stub chooser, and every stage runs
+in this process -- there is no subprocess at all.
 """
 
 from __future__ import annotations
@@ -27,19 +27,21 @@ from __future__ import annotations
 import contextlib
 import io
 import json
-import shutil
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-
-REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 from curation import candidates, choice, gap_scan, promotion
 from curation.choice import PROPOSAL_COLUMNS
 from curation.gap_scan import OUTPUT_COLUMNS as QUEUE_COLUMNS
 from curation.ontology import build_index_from_obo, write_index
 from curation.promotion import MAPPING_COLUMNS
+from manifest_generation.trait_ontology_mapping import (
+    SourceTrait,
+    TraitOntologyMappingMethod,
+    load_canonical_trait_mapping_table,
+    map_trait_ontology,
+)
 
 RELEASE = "efo/v3.94.0"
 
@@ -79,22 +81,6 @@ location_kind: tracked_file
 description: >
   End-to-end fixture resource.
 status: available
-"""
-
-RESOLVER_SCRIPT = """\
-suppressPackageStartupMessages(library(data.table))
-source("resources/generators/lib/metadata_resolvers/canonical_trait_table.R")
-args <- commandArgs(trailingOnly = TRUE)
-table <- load_canonical_trait_table(args[1])
-r <- resolve_trait_ontology_mapping(
-  trait_label = args[2], source_ontology_id = NA_character_,
-  source_ontology_label = NA_character_, canonical_table = table
-)
-stopifnot(identical(r$resolution_status, "resolved"))
-stopifnot(identical(r$trait_ontology_mapping_method, "canonical_table_lookup"))
-stopifnot(identical(r$trait_ontology_id, args[3]))
-stopifnot(identical(r$trait_ontology_label, args[4]))
-cat("ROUND_TRIP_OK\\n")
 """
 
 
@@ -153,9 +139,11 @@ class EndToEndPipelineTest(unittest.TestCase):
             encoding="utf-8",
         )
 
-        # The Reference Resource promotion writes into.
-        self.resource_dir = self.base / "canonical-trait-mapping-efo"
-        self.resource_dir.mkdir()
+        # The Reference Resource promotion writes into. The pipeline resolves
+        # the declared `location` against this directory's trailing path, so it
+        # is laid out as in the repository: resources/reference-resources/<id>.
+        self.resource_dir = self.base / "resources" / "reference-resources" / "canonical-trait-mapping-efo"
+        self.resource_dir.mkdir(parents=True)
         self.mapping_path = self.resource_dir / "mapping.tsv"
         write_table(self.mapping_path, list(MAPPING_COLUMNS), [])
         (self.resource_dir / "resource.yaml").write_text(
@@ -275,30 +263,15 @@ class EndToEndPipelineTest(unittest.TestCase):
 
     # -- the decisive round trip ----------------------------------------
 
-    def test_round_trip_resolves_through_the_r_resolver(self) -> None:
-        rscript = shutil.which("Rscript")
-        if rscript is None:
-            self.skipTest("Rscript not found on PATH")
-
+    def test_round_trip_maps_through_the_pipeline(self) -> None:
+        """The promoted row is what the mapping step itself finds (#350)."""
         self.run_pipeline()
 
-        script = self.base / "check_resolver.R"
-        script.write_text(RESOLVER_SCRIPT, encoding="utf-8")
-        result = subprocess.run(
-            [
-                rscript,
-                str(script),
-                str(self.mapping_path),
-                TRAIT_LABEL,
-                CORRECT_ID,
-                CORRECT_LABEL,
-            ],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("ROUND_TRIP_OK", result.stdout)
+        table = load_canonical_trait_mapping_table(self.resource_dir)
+        mapping = map_trait_ontology(SourceTrait("GCST1", TRAIT_LABEL, "", ""), table)
+        self.assertIs(mapping.method, TraitOntologyMappingMethod.CANONICAL_TABLE_LOOKUP)
+        self.assertEqual(mapping.trait_ontology_id, CORRECT_ID)
+        self.assertEqual(mapping.trait_ontology_label, CORRECT_LABEL)
 
     def test_round_trip_is_network_free(self) -> None:
         """The pipeline must not require an embedding endpoint or a Jev call."""

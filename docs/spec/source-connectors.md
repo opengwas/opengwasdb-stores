@@ -72,7 +72,8 @@ value -- never zero and never a default.
 | `declared_effect_scale` | No | OpenGWASDB `StoredEffectScale`: `sd`, `log_or`, `log_hazard` | An effect scale the source declares. Blank when it declares none: the release's method tier decides. |
 | `sample_size` | No | non-negative decimal | Source total sample size. Becomes the inventory's `sample_size`. |
 | `n_cases`, `n_controls` | No | non-negative decimal | Case and control counts. Refused unless `study_design` is `case-control`: a zero count where counts do not apply is the absence-vs-zero confusion `bundle.check()` refuses (#133). |
-| `source_genome_build` | No | `GRCh37`, `GRCh38` | Genome build of the source coordinates, when the source states it per Analysis, in the spelling every Release Bundle's `source_genome_build` uses. A collection-wide build is the release config's default instead. |
+| `source_genome_build` | No | `GRCh37`, `GRCh38` | Genome build of the source coordinates, when the source states it per Analysis, in the spelling every Release Bundle's `source_genome_build` uses. A collection-wide build is the release config's default instead. Preflight checks it against that default; no shared code reads a per-Analysis sidecar to find a build (#347). |
+| `genotyping_technology` | No | text; `;`-joined, in source order | The genotyping technologies the source records for the Analysis (`Genome-wide genotyping array;Exome genotyping array`), blank when it records none. A fact, not an exemption flag: which technologies are exempt from the MAF floor is release policy (`release_policy.maf_filter_exempt_genotyping_technologies`, [release config](release-config.md)), and a blank column is never an exemption (#176, #347). A technology containing `;` is refused by the adapter that would write it. |
 | `publication_pmid` | No | positive integer | Publication Metadata. Becomes the inventory's `publication_pmid`. |
 | `publication_doi`, `first_author`, `consortium` | No | text | Publication Metadata. |
 | `license` | No | text | Source License, when the source states it per Analysis. A collection-wide licence is the release config's default instead. |
@@ -120,8 +121,23 @@ removed.
 | `n_cases`, `n_controls` | the same for `case-control`; see below for `quantitative` |
 | `PUBMED.ID`, `FIRST.AUTHOR` | `publication_pmid`, `first_author` |
 | `store_key` | `store_key` |
+| the Analysis's `-meta.yaml` `genotyping_technology` | `genotyping_technology` |
+| the Analysis's `-meta.yaml` `genome_assembly` | `source_genome_build` |
 
 Its translations, and only these:
+
+- **The metadata sidecar is read here and nowhere else (#347).** With
+  `--acquisition-manifest`, each Analysis acquisition marked ready that has a
+  `sidecar_location` contributes its sidecar's `genotyping_technology` (a list
+  or one string, `;`-joined in the sidecar's order, blank when it records none)
+  and `genome_assembly` (blank when it declares none). A recorded sidecar that
+  is missing, unparseable, not a YAML mapping or has a malformed field is
+  refused by name: an unreadable sidecar must not read as "no technology",
+  which the MAF exemption treats as not exempt. Without the option both columns
+  are blank. The shared pipeline then reads only the canonical columns:
+  `candidate_workflow` takes the MAF exemption and the `not_maf_filtered`
+  detail's technologies from `genotyping_technology`, and preflight checks
+  `source_genome_build` against the release default, opening no sidecar.
 
 - **Missing values.** `ebi-studies.r` writes with `data.table::fwrite`'s
   default `na = ""`, so an R `NA` is an empty field and an empty string is
@@ -172,6 +188,7 @@ Collection's; a later dataset shares only `providers/dbgap/metadata.py`.
 | `Phenotypic trait type` | `study_design` |
 | `Sample size` | `sample_size`, and `n_cases`/`n_controls` for a case-control study only |
 | the post-split bucket | `store_key`: `dense__pmid-39024449__European`, `__African`, `__Hispanic-or-Latin-American`, `__East-Asian`, `__Multi-ancestry` |
+| the deposit's coordinates | `source_genome_build`: `GRCh38` on every row, so the canonical build check covers this source (#347) |
 
 `META` is deliberately imprecise: the cross-ancestry bucket has no single
 super-population, so its `source_superpopulation` is blank and it never maps
@@ -457,7 +474,7 @@ The GWAS Catalog's writer,
 overlays the EBI downloader's per-pass status manifests -- earliest first; a
 later pass wins for every `analysis_id` it covers and may not regress a ready
 Analysis -- and records each pass's path, sha256, size, row count, readiness
-counts and overrides there. It drops the download manifests' study columns
+counts and overrides there. The pass columns, their parsing, the overlay and the regression check are this writer's alone (#347): no shared module knows the download manifests' shape. It drops the download manifests' study columns
 (intent, the table's job) and per-run `seconds`.
 
 Example (abridged):
@@ -610,7 +627,7 @@ Table from a BESD file set, one row per probe:
 
 ```sh
 python3 -m manifest_generation.providers.eqtlgen.source_metadata_adapter \
-  --prefix <file set> --tissue whole_blood --study-total 31684 \
+  --prefix <file set> --tissue whole_blood --sample-size-table <per-pair table> \
   --first-author Võsa --publication-pmid 34475573 --gene-symbols <gene-symbols.tsv> \
   --out <source metadata table>
 ```
@@ -620,9 +637,8 @@ Analysis when the Build Recipe passes it no `tissue`, so no Store-identity colum
 is declared. It is never `<probe>::<tissue>`, as OGS-00001 and OGS-00002 named
 theirs: an `analysis_id` never contains `:` (issue #319), and `bundle.check()`
 refuses one that does. `source_probe_id` is the probe,
-`source_trait_label` the `.epi`'s gene column (the probe's own id: the file names
-no symbol), `study_design` is `quantitative`, `tissue` is the operator's statement
-(never a default) and `sample_size` is derived from the file, per probe, as below.
+`source_trait_label` the gene's published symbol (below), `study_design` is `quantitative`, `tissue` is the operator's statement
+(never a default) and `sample_size` is the probe's maximum published N, as below.
 The tissue is recorded in its own column, never in the id, and a blank or padded
 `--tissue` is refused before anything is written.
 The probe is the target: `target_ensembl_gene_id` is the probe,
@@ -651,34 +667,53 @@ lineage; a resume with another URL is refused like any other changed lineage.
 The full release's map has 19,250 of 19,250 probes with a symbol, from the
 2019-12-11 file (3,880,187,026 bytes).
 
-**Sample size** is the probe's maximum pair N. eQTLGen's beta and SE are
-z-standardised with each SNP-gene pair's own N: b = z / sqrt(2p(1-p)(N + z^2)) and
-se = 1 / sqrt(2p(1-p)(N + z^2)). A pair's N is therefore recoverable,
-`N = 1 / (2p(1-p) se^2) - z^2` with z = b / se and p the `.esi` frequency, and the
-adapter writes the maximum over the probe's pairs, rounded to the nearest integer
-(halves up) and capped at `--study-total`.
+**Sample size** is the probe's maximum pair N **as published** (#282): the largest
+`NrSamples` the per-pair table (the sample-size table below, the same file
+`build-ragged-besd --sample-size-table` stores as the `n` plane) holds for the probe.
+The adapter reads only the `.epi` and that table, never the BESD's beta and SE, so an
+Analysis's `sample_size` equals the maximum of its own stored `n` and is an observed
+count, not a recovered one (spec section 8). It no longer takes a study total or caps
+anything: the published maximum is at most the study's 31,684. A probe the table has
+no pair for, and an `n` that is not a whole number from 1, are refused by name; table
+rows of probes the file set does not hold are ignored. The table's path, sha256 and
+row count are recorded in `<table>.provenance.yaml`.
 
-- **Bound.** Only pairs with finite N and `|z| >= 1` count. The formula is
-  ill-conditioned for small z because the stored values are coarse. Against the
-  published per-pair `NrSamples` (the 2019-12-11 cis-eQTL file, 12 genes, 85,079
-  pairs) the relative error of derived N is: up to 300% (median 31%) for `|z|`
-  below 0.001, 3% median and 31% maximum for 0.001-0.01, 0.4% maximum for 0.1-0.5,
-  0.08% for 0.5-1, 0.04% for 1-2, and 0.004% for `|z|` 10 and above. Without the
-  bound 61% of the 19,250 probes took an N above the study's 31,684 (up to
-  126,741), and TNF 30,851 against a published maximum of 14,263.
-- **Cap.** The bounded maximum can still exceed the study total by the rounding
-  noise of the stored values: 5,443 of 19,250 probes exceed 31,684, by at most 13
-  (0.04%). The cap at `--study-total` absorbs that, so no probe claims more samples
-  than the study had. In the full release 5,456 of 19,250 probes (28%) take it: they
-  have at least one pair measured in the study's full cohort set, and the rest are
-  covered by fewer cohorts (median 28,927, minimum 232).
-- A probe with no qualifying pair fails the adapter by name. The adapter refuses a
-damaged offset table before slicing it (first offset not 0, final offset not the
-file's value count, offsets that do not increase, or a probe's beta and SE blocks
-of unequal length), and reads the values through opengwasdb's BESD reader.
+An earlier version recovered N from the BESD, `N = 1 / (2p(1-p) se^2) - z^2`, over pairs
+with `|z| >= 1`, capped at the study total. Against the published maxima of the full
+release that was equal for 5,554 of 19,250 probes, above by at most 13 for 13,645 and
+below by up to 1,402 for 51, so it is retired.
+
 - The Analysis's SD is **declared**, not estimated (the release config below), and
-  the sample size kind is `variant_level`. Per-association N is not stored yet
-  (opengwasdb#302); the formula is how to recover it.
+  the sample size kind is `variant_level`.
+
+**The sample-size table** (`sample_size_table`) turns eQTLGen's published cis-eQTL
+file into `build-ragged-besd --sample-size-table`'s input (opengwasdb#302, ADR
+0067), aligned to a BESD file set:
+
+```sh
+python3 -m manifest_generation.providers.eqtlgen.sample_size_table \
+  --published <cis-eQTL file .txt.gz> --source-url <its URL> \
+  --prefix <file set> --out <file set>.sample-size.tsv.gz
+```
+
+It writes `probe_id`, `snp_id`, `n` for every (probe, SNP) pair the BESD holds that
+the published file also holds, with `n` the published `NrSamples`, probes in `.epi`
+order and pairs in BESD order within a probe; a BESD pair the published file lacks
+gets no row (the build stores it missing, never estimated). The published file's
+(Gene, SNP) pairs are matched by the `.epi` probe id and the `.esi` SNP id. A pair
+published twice among those the file set holds, an `.esi` SNP id one probe reaches
+twice, and an `NrSamples` that is not a whole number from 1 are refused by name and
+nothing is written; the tool never overwrites. Beside the table,
+`<table>.provenance.yaml` records the source URL, sha256 and byte count, the BESD
+members' sha256s, the table's sha256, and the counts: BESD pairs, published rows,
+matched, unmatched (BESD pairs with no published row) and published-only. For
+`full-19250` that is 127,339,354 BESD pairs, 127,341,798 published rows, all
+matched, 2,444 published-only. It is not bounded streaming: it holds every published pair
+the file set could hold in memory to sort and join them, 7.75 GB peak RSS and about 11
+minutes on one core for `full-19250` (budget 10 GB). A damaged `.besd` offset table or
+length is refused before the published file is read. The `--eaf-reference` is the declared Reference
+Resource `ukb-ancestry-mixture-hg38-uk-eaf`: the "United Kingdom" column of
+`ukb-ancestry-mixture-hg38`, never an hgdp1kgp-hg38 panel (#348).
 
 **The acquisition writer** (`acquire`) subsets the genome-wide file set to a
 release's Selection, because `build-ragged-besd` demands that its file set hold
@@ -833,16 +868,17 @@ freezes the config's Selection into `source_collection.inventory.directory`
 and, when the snapshot already exists, writes nothing and refuses one frozen
 for another Source Collection or Selection. The candidate-table freeze this
 replaced is gone (#287); the inventories it wrote stay as history. The ukb-b
-reconciliation goes in #289.
+reconciliation is recorded in `resources/generators/ukb-b/README.md` (#289).
 
 Preflight (`pixi run preflight --config <release config>`) requires a ready
 row's `location`, `bytes` and `sha256`. The Acquisition Manifest makes
 `source_url` and the sidecar columns optional, so a ready row without a source
 URL is a preflight warning (its `analyses.tsv` `source_url` is blank), and a
 ready row with no recorded sidecar is counted, not failed. A recorded sidecar
-must still exist, and a build it declares (`genome_assembly`, as a GWAS-SSF
-`-meta.yaml` does) must be the release's: the Analysis's `source_genome_build`,
-else the release config's default. A sidecar declaring no build is counted.
+must still exist, but preflight never opens it: the build is checked from the
+Source Metadata Table's `source_genome_build`, which must be the release
+config's default, and an Analysis declaring no build is counted (#347; a
+source's adapter turns what its sidecar says into the canonical column).
 Harmonisation is not a preflight requirement: the GWAS Catalog downloader gates
 it at acquisition and records a failure as `metadata_rejected`.
 

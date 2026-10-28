@@ -35,6 +35,7 @@ import io
 import json
 import tempfile
 import unittest
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 
@@ -45,6 +46,8 @@ REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 from manifest_generation.freeze import FreezeError  # noqa: E402
 from manifest_generation.inventory import freeze_release  # noqa: E402
 from manifest_generation.providers.gwas_catalog.write_acquisition_manifest import (  # noqa: E402
+    ACQUISITION_MANIFEST_COLUMNS,
+    AcquisitionPass,
     write_from_passes,
 )
 from manifest_generation.release_config import (  # noqa: E402
@@ -53,11 +56,8 @@ from manifest_generation.release_config import (  # noqa: E402
     load_release_config,
 )
 from manifest_generation.source_inventory import (  # noqa: E402
-    ACQUISITION_MANIFEST_COLUMNS,
     MAX_CORES,
-    AcquisitionPass,
     InventoryError,
-    PreflightConfigError,
     discover_reference_resources,
     load_release_configuration,
     preflight,
@@ -252,6 +252,9 @@ class Workspace:
     def data_path(self, entry: FixtureAnalysis) -> Path:
         return self.mirror / entry.analysis_id / entry.file_name
 
+    def write_source_metadata_table(self, builds: Mapping[str, str] | None = None) -> None:
+        self._write_source_metadata_table(builds)
+
     def yaml_path(self, entry: FixtureAnalysis) -> Path:
         return self.mirror / entry.analysis_id / f"{entry.file_name}-meta.yaml"
 
@@ -269,11 +272,13 @@ class Workspace:
                     template.format(analysis_id=entry.analysis_id), encoding="utf-8"
                 )
 
-    def _write_source_metadata_table(self) -> None:
+    def _write_source_metadata_table(self, builds: Mapping[str, str] | None = None) -> None:
+        """The fixture Source Metadata Table; ``builds`` overrides each Analysis's GRCh38."""
+        builds = builds or {}
         columns = [
             "source_analysis_id", "source_trait_label", "source_ancestry_label",
-            "source_superpopulation", "study_design", "sample_size", "publication_pmid",
-            "store_key",
+            "source_superpopulation", "study_design", "sample_size", "source_genome_build",
+            "publication_pmid", "store_key",
         ]
         lines = ["\t".join(columns)]
         for entry in FIXTURE_ANALYSES:
@@ -286,6 +291,7 @@ class Workspace:
                         "EUR",
                         entry.study_design,
                         entry.sample_size,
+                        builds.get(entry.analysis_id, "GRCh38"),
                         f"1{entry.analysis_id[-1]}",
                         entry.store_key,
                     ]
@@ -606,64 +612,6 @@ class TestFreezeRelease(SourceInventoryTestCase):
         self.assertFalse(self.workspace.freeze(config=config).frozen)
 
 
-class TestFreezeInputConfiguration(SourceInventoryTestCase):
-    """The pre-#287 reader keeps `freeze_inputs` an ordered list (the concordance study's config)."""
-
-    def test_preserves_the_declared_order(self) -> None:
-        def mutate(document):
-            document["source"]["inventory"]["freeze_inputs"] = [
-                {"role": "rescue", "path": str(self.workspace.rescue_manifest_path)},
-                {"role": "base", "path": str(self.workspace.base_manifest_path)},
-            ]
-
-        config = self.workspace.legacy_config(mutate)
-        self.assertEqual([pass_.role for pass_ in config.freeze_inputs], ["rescue", "base"])
-        self.assertEqual(config.freeze_inputs[0].path, self.workspace.rescue_manifest_path)
-        self.assertEqual(config.freeze_inputs[1].path, self.workspace.base_manifest_path)
-
-    def test_rejects_an_empty_pass_list(self) -> None:
-        with self.assertRaises(PreflightConfigError) as caught:
-            self.workspace.legacy_config(
-                lambda document: document["source"]["inventory"].update({"freeze_inputs": []})
-            )
-        self.assertIn("non-empty ordered list", str(caught.exception))
-
-    def test_rejects_a_duplicate_role(self) -> None:
-        def mutate(document):
-            document["source"]["inventory"]["freeze_inputs"] = [
-                {"role": "base", "path": str(self.workspace.base_manifest_path)},
-                {"role": "base", "path": str(self.workspace.retry_manifest_path)},
-            ]
-
-        with self.assertRaises(PreflightConfigError) as caught:
-            self.workspace.legacy_config(mutate)
-        self.assertIn("declares role 'base' twice", str(caught.exception))
-
-    def test_rejects_an_entry_missing_role_or_path(self) -> None:
-        entries = (
-            {"path": "somewhere.tsv"},
-            {"role": "base"},
-            {"role": "", "path": "somewhere.tsv"},
-            {"role": "base", "path": ""},
-        )
-        for entry in entries:
-            with self.subTest(entry=entry):
-                def mutate(document, entry=entry):
-                    document["source"]["inventory"]["freeze_inputs"] = [entry]
-
-                with self.assertRaises(PreflightConfigError) as caught:
-                    self.workspace.legacy_config(mutate)
-                self.assertIn("non-empty 'role' and 'path'", str(caught.exception))
-
-    def test_rejects_a_non_mapping_entry(self) -> None:
-        def mutate(document):
-            document["source"]["inventory"]["freeze_inputs"] = ["base-manifest.tsv"]
-
-        with self.assertRaises(PreflightConfigError) as caught:
-            self.workspace.legacy_config(mutate)
-        self.assertIn("is not a mapping", str(caught.exception))
-
-
 class TestPreflight(SourceInventoryTestCase):
     def setUp(self) -> None:
         super().setUp()
@@ -788,20 +736,6 @@ class TestPreflight(SourceInventoryTestCase):
         self.assertFalse(result.ok)
         self.assertIn("changed size since the freeze", " ".join(result.failures))
         self.assertEqual(len(result.report["source_files"]["size_mismatch"]), 1)
-
-    def test_fails_when_metadata_is_missing_unreadable_or_misdeclared(self) -> None:
-        unreadable = self.workspace.yaml_path(self.workspace.analysis("GCST90000001"))
-        unreadable.write_text("genome_assembly: [GRCh38\n", encoding="utf-8")
-        (self.workspace.yaml_path(self.workspace.analysis("GCST90000004"))).write_text(
-            BAD_METADATA.format(analysis_id="GCST90000004"), encoding="utf-8"
-        )
-        result = self.workspace.preflight()
-        self.assertFalse(result.ok)
-        failures = " ".join(result.failures)
-        self.assertIn("metadata file(s) are unreadable", failures)
-        self.assertIn("not the release's source_genome_build GRCh38", failures)
-        self.assertEqual(result.report["source_files"]["metadata_unreadable"], ["GCST90000001 (ParserError)"])
-        self.assertEqual(len(result.report["source_files"]["metadata_gate_failed"]), 1)
 
     def test_fails_when_metadata_is_absent(self) -> None:
         self.workspace.yaml_path(self.workspace.analysis("GCST90000003")).unlink()
@@ -1037,32 +971,55 @@ class TestPreflightReconciliation(SourceInventoryTestCase):
                 text.format(analysis_id=analysis_id), encoding="utf-8"
             )
 
-    def test_a_sidecar_build_is_checked_against_the_releases_declared_build(self) -> None:
-        """Preflight checks the release's build, not GWAS Catalog's acquisition policy (#287 review)."""
-        self.workspace.freeze()
-        self.rewrite_sidecars(BAD_METADATA)  # genome_assembly: GRCh37
+    def test_a_declared_build_is_checked_against_the_releases_default(self) -> None:
+        """The canonical build check: SMT ``source_genome_build`` vs the release default (#347)."""
+        self.workspace.write_source_metadata_table(
+            {"GCST90000001": "GRCh37", "GCST90000003": "GRCh37", "GCST90000004": "GRCh37"}
+        )
         grch37 = self.workspace.config(
             lambda document: document["defaults"].update(source_genome_build="GRCh37")
         )
+        self.workspace.freeze(config=grch37)
         result = self.workspace.preflight(config=grch37)
         self.assertTrue(result.ok, result.failures)
-        # The same sidecars against a GRCh38 release fail, naming the Analyses.
+        # The same declarations against a GRCh38 release fail, naming the Analyses.
         result = self.workspace.preflight()
         self.assertFalse(result.ok)
         failures = " ".join(result.failures)
-        self.assertIn("GCST90000001 (genome_assembly='GRCh37')", failures)
+        self.assertIn("GCST90000001 (source_genome_build='GRCh37')", failures)
         self.assertIn("not the release's source_genome_build GRCh38", failures)
+        self.assertEqual(len(result.report["source_files"]["metadata_gate_failed"]), 3)
 
-    def test_is_harmonised_is_not_a_preflight_requirement(self) -> None:
-        """Harmonisation is the GWAS Catalog downloader's gate (status metadata_rejected)."""
+    def test_preflight_does_not_read_the_sidecar_yaml(self) -> None:
+        """A recorded sidecar need only exist: unparseable or contradictory YAML changes nothing (#347)."""
         self.workspace.freeze()
-        self.rewrite_sidecars("gwas_id: {analysis_id}\ngenome_assembly: GRCh38\n")
+        self.rewrite_sidecars("genome_assembly: [GRCh37\n")  # unparseable
         result = self.workspace.preflight()
         self.assertTrue(result.ok, result.failures)
+        self.rewrite_sidecars("genome_assembly: GRCh37\n")  # contradicts the SMT's GRCh38
+        result = self.workspace.preflight()
+        self.assertTrue(result.ok, result.failures)
+        self.assertEqual(result.report["source_files"]["metadata_gate_failed"], [])
 
-    def test_a_sidecar_declaring_no_build_is_counted_not_failed(self) -> None:
+    def test_the_build_check_does_not_depend_on_a_recorded_sidecar(self) -> None:
+        """An Analysis with no sidecar is still checked against the release's build (#347 review)."""
+        def drop_sidecar(row):
+            if row["source_analysis_id"] == "GCST90000004":
+                row.update(sidecar_location="", sidecar_url="", sidecar_bytes="")
+
+        self.rewrite_manifest(drop_sidecar)
+        self.workspace.write_source_metadata_table({"GCST90000004": "GRCh37"})
         self.workspace.freeze()
-        self.rewrite_sidecars("trait: something\n")
+        result = self.workspace.preflight()
+        self.assertFalse(result.ok)
+        self.assertIn("GCST90000004 (source_genome_build='GRCh37')", " ".join(result.failures))
+        self.assertEqual(result.report["source_files"]["no_metadata_sidecar"], ["GCST90000004"])
+
+    def test_an_analysis_declaring_no_build_is_counted_not_failed(self) -> None:
+        self.workspace.write_source_metadata_table(
+            {"GCST90000001": "", "GCST90000003": "", "GCST90000004": ""}
+        )
+        self.workspace.freeze()
         result = self.workspace.preflight()
         self.assertTrue(result.ok, result.failures)
         self.assertEqual(
@@ -1226,10 +1183,6 @@ class TestShippedReleaseArtifacts(unittest.TestCase):
         )
         self.assertEqual(config.method_tiers["quantitative"].stored_effect_scale, "sd")
         self.assertEqual(config.method_tiers["case-control"].stored_effect_scale, "log_or")
-        self.assertEqual(
-            [pass_.role for pass_ in config.freeze_inputs],
-            ["base", "retry_transient", "rescue_upstream_harmonised"],
-        )
 
     def test_the_superseded_snapshot_is_still_readable_and_records_the_rescue_delta(self) -> None:
         """The rescue added ready Analyses; it never removed one.

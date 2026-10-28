@@ -1,0 +1,1054 @@
+source_analysis_id	source_trait_label	source_trait_id	source_ancestry_label	source_superpopulation	study_design	sample_size	n_cases	n_controls	source_genome_build	publication_pmid	store_key
+GCST90475089	hemoglobin A1c (HbA1c, maximum, inv-norm transformed)	A1C_Max_INT	Hispanic or Latin American	AMR	quantitative	49229			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475092	hemoglobin A1c (HbA1c, mean, inv-norm transformed)	A1C_Mean_INT	Hispanic or Latin American	AMR	quantitative	49225			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475095	hemoglobin A1c (HbA1c, minimum, inv-norm transformed)	A1C_Min_INT	Hispanic or Latin American	AMR	quantitative	49152			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475107	alanine transaminase (ALT, maximum, inv-norm transformed)	ALT_Max_INT	Hispanic or Latin American	AMR	quantitative	56102			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475110	alanine transaminase (ALT, mean, inv-norm transformed)	ALT_Mean_INT	Hispanic or Latin American	AMR	quantitative	56001			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475113	alanine transaminase (ALT, minimum, inv-norm transformed)	ALT_Min_INT	Hispanic or Latin American	AMR	quantitative	55858			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475116	aspartate aminotransferase (AST, maximum, inv-norm transformed)	AST_Max_INT	Hispanic or Latin American	AMR	quantitative	54332			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475119	aspartate aminotransferase (AST, mean, inv-norm transformed)	AST_Mean_INT	Hispanic or Latin American	AMR	quantitative	54250			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475122	aspartate aminotransferase (AST, minimum, inv-norm transformed)	AST_Min_INT	Hispanic or Latin American	AMR	quantitative	54221			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475098	albumin (maximum, inv-norm transformed)	Albumin_Max_INT	Hispanic or Latin American	AMR	quantitative	53290			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475101	albumin (mean, inv-norm transformed)	Albumin_Mean_INT	Hispanic or Latin American	AMR	quantitative	53287			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475104	albumin (minimum, inv-norm transformed)	Albumin_Min_INT	Hispanic or Latin American	AMR	quantitative	53293			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475160	blood urea nitrogen (BUN, maximum, inv-norm transformed)	BUN_BSP_Max_INT	Hispanic or Latin American	AMR	quantitative	57007			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475163	blood urea nitrogen (BUN, mean, inv-norm transformed)	BUN_BSP_Mean_INT	Hispanic or Latin American	AMR	quantitative	57109			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475166	blood urea nitrogen (BUN, minimum, inv-norm transformed)	BUN_BSP_Min_INT	Hispanic or Latin American	AMR	quantitative	57207			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475125	basophil (absolute count, maximum, inv-norm transformed)	Baso_Abs_Max_INT	Hispanic or Latin American	AMR	quantitative	20384			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475128	basophil (absolute count, mean, inv-norm transformed)	Baso_Abs_Mean_INT	Hispanic or Latin American	AMR	quantitative	20397			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475131	basophil (absolute count, minimum, inv-norm transformed)	Baso_Abs_Min_INT	Hispanic or Latin American	AMR	quantitative	20400			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475134	basophil (fraction, maximum, inv-norm transformed)	Baso_Fra_Max_INT	Hispanic or Latin American	AMR	quantitative	36872			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475137	basophil (fraction, mean, inv-norm transformed)	Baso_Fra_Mean_INT	Hispanic or Latin American	AMR	quantitative	36872			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475140	basophil (fraction, minimum, inv-norm transformed)	Baso_Fra_Min_INT	Hispanic or Latin American	AMR	quantitative	36872			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475143	bicarbonate (maximum, inv-norm transformed)	Bicarbonate_Max_INT	Hispanic or Latin American	AMR	quantitative	54558			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475146	bicarbonate (mean, inv-norm transformed)	Bicarbonate_Mean_INT	Hispanic or Latin American	AMR	quantitative	54571			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476564	bicarbonate (minimum, inv-norm transformed)	Bicarbonate_Min_INT	Hispanic or Latin American	AMR	quantitative	54566			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475171	calcium (maximum, inv-norm transformed)	Calcium_mg_Max_INT	Hispanic or Latin American	AMR	quantitative	26929			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475174	calcium (mean, inv-norm transformed)	Calcium_mg_Mean_INT	Hispanic or Latin American	AMR	quantitative	26932			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475177	calcium (minimum, inv-norm transformed)	Calcium_mg_Min_INT	Hispanic or Latin American	AMR	quantitative	27285			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476587	chloride  (maximum, inv-norm transformed)	Chloride_BSP_Max_INT	Hispanic or Latin American	AMR	quantitative	54560			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476589	chloride  (mean, inv-norm transformed)	Chloride_BSP_Mean_INT	Hispanic or Latin American	AMR	quantitative	54578			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475195	chloride  (minimum, inv-norm transformed)	Chloride_BSP_Min_INT	Hispanic or Latin American	AMR	quantitative	54550			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475224	creatinine (maximum, inv-norm transformed)	Creat_BSP_Max_INT	Hispanic or Latin American	AMR	quantitative	57003			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475227	creatinine (mean, inv-norm transformed)	Creat_BSP_Mean_INT	Hispanic or Latin American	AMR	quantitative	57141			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475230	creatinine (minimum, inv-norm transformed)	Creat_BSP_Min_INT	Hispanic or Latin American	AMR	quantitative	57292			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476726	erythrocyte sedimentation rate (ESR, maximum, inv-norm transformed)	ESR_Max_INT	Hispanic or Latin American	AMR	quantitative	5718			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476727	erythrocyte sedimentation rate (ESR, mean, inv-norm transformed)	ESR_Mean_INT	Hispanic or Latin American	AMR	quantitative	5718			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476728	erythrocyte sedimentation rate (ESR, minimum, inv-norm transformed)	ESR_Min_INT	Hispanic or Latin American	AMR	quantitative	5718			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475286	eosinophil (absolute count, maximum, inv-norm transformed)	Eos_Abs_Max_INT	Hispanic or Latin American	AMR	quantitative	42380			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475289	eosinophil (absolute count, mean, inv-norm transformed)	Eos_Abs_Mean_INT	Hispanic or Latin American	AMR	quantitative	42397			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475292	eosinophil (absolute count, minimum, inv-norm transformed)	Eos_Abs_Min_INT	Hispanic or Latin American	AMR	quantitative	42403			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475295	eosinophil (fraction, maximum, inv-norm transformed)	Eos_Fra_Max_INT	Hispanic or Latin American	AMR	quantitative	47410			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475298	eosinophil (fraction, mean, inv-norm transformed)	Eos_Fra_Mean_INT	Hispanic or Latin American	AMR	quantitative	47410			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475301	eosinophil (fraction, minimum, inv-norm transformed)	Eos_Fra_Min_INT	Hispanic or Latin American	AMR	quantitative	47410			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475278	estimated glomerular filtration rate (eGFR, maximum, inv-norm transformed)	eGFR_Max_INT	Hispanic or Latin American	AMR	quantitative	55242			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475281	estimated glomerular filtration rate (eGFR, mean, inv-norm transformed)	eGFR_Mean_INT	Hispanic or Latin American	AMR	quantitative	55244			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475283	estimated glomerular filtration rate (eGFR, minimum, inv-norm transformed)	eGFR_Min_INT	Hispanic or Latin American	AMR	quantitative	55243			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476732	ferritin (maximum, inv-norm transformed)	Ferritin_Max_INT	Hispanic or Latin American	AMR	quantitative	11787			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475312	ferritin (mean, inv-norm transformed)	Ferritin_Mean_INT	Hispanic or Latin American	AMR	quantitative	11790			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475315	ferritin (minimum, inv-norm transformed)	Ferritin_Min_INT	Hispanic or Latin American	AMR	quantitative	11785			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476782	glucose (finger stick, maximum, inv-norm transformed)	Glucose_FS_Max_INT	Hispanic or Latin American	AMR	quantitative	10805			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476783	glucose (finger stick, mean, inv-norm transformed)	Glucose_FS_Mean_INT	Hispanic or Latin American	AMR	quantitative	10798			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476784	glucose (finger stick, minimum, inv-norm transformed)	Glucose_FS_Min_INT	Hispanic or Latin American	AMR	quantitative	10785			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475327	glucose (fasting status unknown, maximum, inv-norm transformed)	Glucose_Max_INT	Hispanic or Latin American	AMR	quantitative	57272			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475330	glucose (fasting status unknown, mean, inv-norm transformed)	Glucose_Mean_INT	Hispanic or Latin American	AMR	quantitative	57284			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475333	glucose (fasting status unknown, minimum, inv-norm transformed)	Glucose_Min_INT	Hispanic or Latin American	AMR	quantitative	57134			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475336	hematocrit (maximum, inv-norm transformed)	HCT_Max_INT	Hispanic or Latin American	AMR	quantitative	55837			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475339	hematocrit (mean, inv-norm transformed)	HCT_Mean_INT	Hispanic or Latin American	AMR	quantitative	55841			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475342	hematocrit (minimum, inv-norm transformed)	HCT_Min_INT	Hispanic or Latin American	AMR	quantitative	55841			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475345	high density lipoprotein cholesterol (HDLC, maximum, inv-norm transformed)	HDLC_Max_INT	Hispanic or Latin American	AMR	quantitative	54914			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475349	high density lipoprotein cholesterol (HDLC, mean, inv-norm transformed)	HDLC_Mean_INT	Hispanic or Latin American	AMR	quantitative	54914			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475353	high density lipoprotein cholesterol (HDLC, minimm, inv-norm transformed)	HDLC_Min_INT	Hispanic or Latin American	AMR	quantitative	54914			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475369	hemoglobin (maximum, inv-norm transformed)	Hemoglobin_Max_INT	Hispanic or Latin American	AMR	quantitative	55834			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475373	hemoglobin (mean, inv-norm transformed)	Hemoglobin_Mean_INT	Hispanic or Latin American	AMR	quantitative	55838			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475377	hemoglobin (minimum, inv-norm transformed)	Hemoglobin_Min_INT	Hispanic or Latin American	AMR	quantitative	55838			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475388	PT international normalized ratio (INR, maximum, inv-norm transformed)	INR_Max_INT	Hispanic or Latin American	AMR	quantitative	23467			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475391	PT international normalized ratio (INR, mean, inv-norm transformed)	INR_Mean_INT	Hispanic or Latin American	AMR	quantitative	23464			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475394	PT international normalized ratio (INR, minimum, inv-norm transformed)	INR_Min_INT	Hispanic or Latin American	AMR	quantitative	23426			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475397	iron (maximum, inv-norm transformed)	Iron_Max_INT	Hispanic or Latin American	AMR	quantitative	11541			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475400	iron (mean, inv-norm transformed)	Iron_Mean_INT	Hispanic or Latin American	AMR	quantitative	11547			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475403	iron (minimum, inv-norm transformed)	Iron_Min_INT	Hispanic or Latin American	AMR	quantitative	11546			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475409	low density lipoprotein cholesterol (LDLC, maximum, inv-norm transformed)	LDLC_Max_INT	Hispanic or Latin American	AMR	quantitative	54972			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475413	low density lipoprotein cholesterol (LDLC, mean, inv-norm transformed)	LDLC_Mean_INT	Hispanic or Latin American	AMR	quantitative	54980			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475417	low density lipoprotein cholesterol (LDLC, minimum, inv-norm transformed)	LDLC_Min_INT	Hispanic or Latin American	AMR	quantitative	54983			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475421	lymphocyte (absolute count, maximum, inv-norm transformed)	Lymph_Abs_Max_INT	Hispanic or Latin American	AMR	quantitative	36516			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475424	lymphocyte (absolute count, mean, inv-norm transformed)	Lymph_Abs_Mean_INT	Hispanic or Latin American	AMR	quantitative	36536			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475427	lymphocyte (absolute count, minimum, inv-norm transformed)	Lymph_Abs_Min_INT	Hispanic or Latin American	AMR	quantitative	36547			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475430	lymphocyte (fraction, maximum, inv-norm transformed)	Lymph_Fra_Max_INT	Hispanic or Latin American	AMR	quantitative	40768			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475433	lymphocyte (fraction, mean, inv-norm transformed)	Lymph_Fra_Mean_INT	Hispanic or Latin American	AMR	quantitative	40768			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475436	lymphocyte (fraction, minimum, inv-norm transformed)	Lymph_Fra_Min_INT	Hispanic or Latin American	AMR	quantitative	40768			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475451	mean corpuscular hemoglobin concentration (MCHC, maximum, inv-norm transformed)	MCHC_Max_INT	Hispanic or Latin American	AMR	quantitative	55793			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475455	mean corpuscular hemoglobin concentration (MCHC, mean, inv-norm transformed)	MCHC_Mean_INT	Hispanic or Latin American	AMR	quantitative	55797			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475459	mean corpuscular hemoglobin concentration (MCHC, minimum, inv-norm transformed)	MCHC_Min_INT	Hispanic or Latin American	AMR	quantitative	55798			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475439	mean corpuscular hemoglobin (MCH, maximum, inv-norm transformed)	MCH_Max_INT	Hispanic or Latin American	AMR	quantitative	55783			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475443	mean corpuscular hemoglobin (MCH, mean, inv-norm transformed)	MCH_Mean_INT	Hispanic or Latin American	AMR	quantitative	55792			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475447	mean corpuscular hemoglobin (MCH, minimum, inv-norm transformed)	MCH_Min_INT	Hispanic or Latin American	AMR	quantitative	55792			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475463	mean corpuscular volume (MCV, maximum, inv-norm transformed)	MCV_Max_INT	Hispanic or Latin American	AMR	quantitative	55789			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475467	mean corpuscular volume (MCV, mean, inv-norm transformed)	MCV_Mean_INT	Hispanic or Latin American	AMR	quantitative	55793			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475471	mean corpuscular volume (MCV, minimum, inv-norm transformed)	MCV_Min_INT	Hispanic or Latin American	AMR	quantitative	55796			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475515	mean platelet volume (MPV, maximum, inv-norm transformed)	MPV_Max_INT	Hispanic or Latin American	AMR	quantitative	40412			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475518	mean platelet volume (MPV, mean, inv-norm transformed)	MPV_Mean_INT	Hispanic or Latin American	AMR	quantitative	40412			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475521	mean platelet volume (MPV, minimum, inv-norm transformed)	MPV_Min_INT	Hispanic or Latin American	AMR	quantitative	40412			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475475	magnesium (Mg, maximum, inv-norm transformed)	Mg_BSP_Max_INT	Hispanic or Latin American	AMR	quantitative	18785			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475478	magnesium (Mg, mean, inv-norm transformed)	Mg_BSP_Mean_INT	Hispanic or Latin American	AMR	quantitative	18807			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476840	magnesium (Mg, minimum, inv-norm transformed)	Mg_BSP_Min_INT	Hispanic or Latin American	AMR	quantitative	18809			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475497	monocyte (absolute count, maximum, inv-norm transformed)	Mono_Abs_Max_INT	Hispanic or Latin American	AMR	quantitative	37339			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475500	monocyte (absolute count, mean, inv-norm transformed)	Mono_Abs_Mean_INT	Hispanic or Latin American	AMR	quantitative	37364			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475503	monocyte (absolute count, minimum, inv-norm transformed)	Mono_Abs_Min_INT	Hispanic or Latin American	AMR	quantitative	37368			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475506	monocyte (fraction, maximum, inv-norm transformed)	Mono_Fra_Max_INT	Hispanic or Latin American	AMR	quantitative	45327			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475509	monocyte (fraction, mean, inv-norm transformed)	Mono_Fra_Mean_INT	Hispanic or Latin American	AMR	quantitative	45327			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475512	monocyte (fraction, minimum, inv-norm transformed)	Mono_Fra_Min_INT	Hispanic or Latin American	AMR	quantitative	45327			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475524	neutrophil (absolute count, maximum, inv-norm transformed)	Neut_Abs_Max_INT	Hispanic or Latin American	AMR	quantitative	36913			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475527	neutrophil (absolute count, mean, inv-norm transformed)	Neut_Abs_Mean_INT	Hispanic or Latin American	AMR	quantitative	37000			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475530	neutrophil (absolute count, minimum, inv-norm transformed)	Neut_Abs_Min_INT	Hispanic or Latin American	AMR	quantitative	37043			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475533	neutrophil (fraction, maximum, inv-norm transformed)	Neut_Fra_Max_INT	Hispanic or Latin American	AMR	quantitative	38543			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475536	neutrophil (fraction, mean, inv-norm transformed)	Neut_Fra_Mean_INT	Hispanic or Latin American	AMR	quantitative	38542			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475539	neutrophil (fraction, minimum, inv-norm transformed)	Neut_Fra_Min_INT	Hispanic or Latin American	AMR	quantitative	38543			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476314	prostate-specific antigen (PSA, maximum, inv-norm transformed)	PSA_Max_INT	Hispanic or Latin American	AMR	quantitative	29909			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476317	prostate-specific antigen (PSA, mean, inv-norm transformed)	PSA_Mean_INT	Hispanic or Latin American	AMR	quantitative	29917			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476320	prostate-specific antigen (PSA, minimum, inv-norm transformed)	PSA_Min_INT	Hispanic or Latin American	AMR	quantitative	29928			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476323	prothrombin time (PT, maximum, inv-norm transformed)	PT_Max_INT	Hispanic or Latin American	AMR	quantitative	9034			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476326	prothrombin time (PT, mean, inv-norm transformed)	PT_Mean_INT	Hispanic or Latin American	AMR	quantitative	9028			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476329	prothrombin time (PT, minimum, inv-norm transformed)	PT_Min_INT	Hispanic or Latin American	AMR	quantitative	9016			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476294	platelet count (maximum, inv-norm transformed)	Platelet_Max_INT	Hispanic or Latin American	AMR	quantitative	55712			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476297	platelet count (mean, inv-norm transformed)	Platelet_Mean_INT	Hispanic or Latin American	AMR	quantitative	55759			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476300	platelet count (minimum, inv-norm transformed)	Platelet_Min_INT	Hispanic or Latin American	AMR	quantitative	55776			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479348	potassium (maximum, inv-norm transformed)	Potas_BSP_Max_INT	Hispanic or Latin American	AMR	quantitative	57381			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476305	potassium (mean, inv-norm transformed)	Potas_BSP_Mean_INT	Hispanic or Latin American	AMR	quantitative	57434			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476308	potassium (minimum, inv-norm transformed)	Potas_BSP_Min_INT	Hispanic or Latin American	AMR	quantitative	57434			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476342	red blood cell count (RBC, maximum, inv-norm transformed)	RBC_Max_INT	Hispanic or Latin American	AMR	quantitative	55750			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476346	red blood cell count (RBC, mean, inv-norm transformed)	RBC_Mean_INT	Hispanic or Latin American	AMR	quantitative	55750			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476350	red blood cell count (RBC, minimum, inv-norm transformed)	RBC_Min_INT	Hispanic or Latin American	AMR	quantitative	55750			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476354	red cell diameter width (RDW, maximum, inv-norm transformed)	RDW_Max_INT	Hispanic or Latin American	AMR	quantitative	51877			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476358	red cell diameter width (RDW, mean, inv-norm transformed)	RDW_Mean_INT	Hispanic or Latin American	AMR	quantitative	51938			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476362	red cell diameter width (RDW, minimum, inv-norm transformed)	RDW_Min_INT	Hispanic or Latin American	AMR	quantitative	51949			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476391	sodium (maximum, inv-norm transformed)	Sodium_BSP_Max_INT	Hispanic or Latin American	AMR	quantitative	57401			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476393	sodium (mean, inv-norm transformed)	Sodium_BSP_Mean_INT	Hispanic or Latin American	AMR	quantitative	57407			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479477	sodium (minimum, inv-norm transformed)	Sodium_BSP_Min_INT	Hispanic or Latin American	AMR	quantitative	57381			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476440	transferrin saturation (TSAT, maximum, inv-norm transformed)	TSAT_Max_INT	Hispanic or Latin American	AMR	quantitative	7147			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476443	transferrin saturation (TSAT, mean, inv-norm transformed)	TSAT_Mean_INT	Hispanic or Latin American	AMR	quantitative	7146			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476446	transferrin saturation (TSAT, minimum, inv-norm transformed)	TSAT_Min_INT	Hispanic or Latin American	AMR	quantitative	7146			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476417	total cholesterol (maximum, inv-norm transformed)	TotChol_Max_INT	Hispanic or Latin American	AMR	quantitative	54837			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476421	total cholesterol (mean, inv-norm transformed)	TotChol_Mean_INT	Hispanic or Latin American	AMR	quantitative	54876			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476425	total cholesterol (minimum, inv-norm transformed)	TotChol_Min_INT	Hispanic or Latin American	AMR	quantitative	54881			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476408	total creatine kinase (maximum, inv-norm transformed)	TotalCK_Max_INT	Hispanic or Latin American	AMR	quantitative	10630			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476411	total creatine kinase (mean, inv-norm transformed)	TotalCK_Mean_INT	Hispanic or Latin American	AMR	quantitative	10635			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476414	total creatine kinase (minimum, inv-norm transformed)	TotalCK_Min_INT	Hispanic or Latin American	AMR	quantitative	10626			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476428	triglyceride (maximum, inv-norm transformed)	Trig_Max_INT	Hispanic or Latin American	AMR	quantitative	53373			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476432	triglyceride (mean, inv-norm transformed)	Trig_Mean_INT	Hispanic or Latin American	AMR	quantitative	53468			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476436	triglyceride (minimum, inv-norm transformed)	Trig_Min_INT	Hispanic or Latin American	AMR	quantitative	53539			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476449	white blood cell count (WBC, maximum, inv-norm transformed)	WBC_Max_INT	Hispanic or Latin American	AMR	quantitative	49939			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476452	white blood cell count (WBC, mean, inv-norm transformed)	WBC_Mean_INT	Hispanic or Latin American	AMR	quantitative	49978			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476455	white blood cell count (WBC, minimum, inv-norm transformed)	WBC_Min_INT	Hispanic or Latin American	AMR	quantitative	49991			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477836	Heart valve disorders	Phe_395	Hispanic or Latin American	AMR	case-control	57830	2218	55612	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477838	Nonrheumatic mitral valve disorders	Phe_395_1	Hispanic or Latin American	AMR	case-control	58629	789	57840	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477841	Nonrheumatic aortic valve disorders	Phe_395_2	Hispanic or Latin American	AMR	case-control	58933	1358	57575	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477844	Heart valve replaced	Phe_395_6	Hispanic or Latin American	AMR	case-control	59745	649	59096	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477846	Abnormal heart sounds	Phe_396	Hispanic or Latin American	AMR	case-control	58142	1151	56991	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475917	Hypertension	Phe_401	Hispanic or Latin American	AMR	case-control	56679	35766	20913	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475920	Essential hypertension	Phe_401_1	Hispanic or Latin American	AMR	case-control	56685	35551	21134	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477850	Hypertensive heart and/or renal disease	Phe_401_2	Hispanic or Latin American	AMR	case-control	56803	6299	50504	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477852	Hypertensive heart disease	Phe_401_21	Hispanic or Latin American	AMR	case-control	57621	2572	55049	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477854	Hypertensive chronic kidney disease	Phe_401_22	Hispanic or Latin American	AMR	case-control	58151	3724	54427	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477855	Other hypertensive complications	Phe_401_3	Hispanic or Latin American	AMR	case-control	58674	734	57940	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477858	Elevated blood pressure reading without diagnosis of hypertension	Phe_402	Hispanic or Latin American	AMR	case-control	54635	3582	51053	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475928	Ischemic Heart Disease	Phe_411	Hispanic or Latin American	AMR	case-control	55470	11954	43516	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477863	Unstable angina (intermediate coronary syndrome)	Phe_411_1	Hispanic or Latin American	AMR	case-control	58205	1613	56592	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475931	Myocardial infarction	Phe_411_2	Hispanic or Latin American	AMR	case-control	58188	3528	54660	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477866	Angina pectoris	Phe_411_3	Hispanic or Latin American	AMR	case-control	56793	3721	53072	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475934	Coronary atherosclerosis	Phe_411_4	Hispanic or Latin American	AMR	case-control	57087	9892	47195	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475937	Other chronic ischemic heart disease, unspecified	Phe_411_8	Hispanic or Latin American	AMR	case-control	57498	6080	51418	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477871	Other forms of chronic heart disease	Phe_414	Hispanic or Latin American	AMR	case-control	58658	882	57776	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477873	Pulmonary heart disease	Phe_415	Hispanic or Latin American	AMR	case-control	58672	1690	56982	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477874	Acute pulmonary heart disease	Phe_415_1	Hispanic or Latin American	AMR	case-control	59595	757	58838	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477875	Pulmonary embolism and infarction, acute	Phe_415_11	Hispanic or Latin American	AMR	case-control	59613	743	58870	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477876	Chronic pulmonary heart disease	Phe_415_2	Hispanic or Latin American	AMR	case-control	58837	908	57929	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477881	Cardiomegaly	Phe_416	Hispanic or Latin American	AMR	case-control	58021	796	57225	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477884	Nonspecific chest pain	Phe_418	Hispanic or Latin American	AMR	case-control	51303	17212	34091	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477889	Carditis	Phe_420	Hispanic or Latin American	AMR	case-control	58859	723	58136	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477897	Cardiomyopathy	Phe_425	Hispanic or Latin American	AMR	case-control	58819	1730	57089	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477898	Primary/intrinsic cardiomyopathies	Phe_425_1	Hispanic or Latin American	AMR	case-control	58948	1631	57317	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477904	Cardiac conduction disorders	Phe_426	Hispanic or Latin American	AMR	case-control	54607	5358	49249	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477906	Atrioventricular [AV] block	Phe_426_2	Hispanic or Latin American	AMR	case-control	59080	958	58122	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477913	Bundle branch block	Phe_426_3	Hispanic or Latin American	AMR	case-control	58530	977	57553	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477915	Right bundle branch block	Phe_426_31	Hispanic or Latin American	AMR	case-control	59069	536	58533	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477918	Abnormal electrocardiogram [ECG] [EKG]	Phe_426_7	Hispanic or Latin American	AMR	case-control	55254	2765	52489	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477922	Cardiac pacemaker/device in situ	Phe_426_9	Hispanic or Latin American	AMR	case-control	59545	1641	57904	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477924	Cardiac pacemaker in situ	Phe_426_91	Hispanic or Latin American	AMR	case-control	59584	1142	58442	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477926	Cardiac defibrillator in situ	Phe_426_92	Hispanic or Latin American	AMR	case-control	59740	800	58940	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475962	Cardiac dysrhythmias	Phe_427	Hispanic or Latin American	AMR	case-control	52394	12817	39577	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477930	Paroxysmal tachycardia, unspecified	Phe_427_1	Hispanic or Latin American	AMR	case-control	58833	1087	57746	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477933	Paroxysmal supraventricular tachycardia	Phe_427_11	Hispanic or Latin American	AMR	case-control	59310	537	58773	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475965	Atrial fibrillation and flutter	Phe_427_2	Hispanic or Latin American	AMR	case-control	58834	4250	54584	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475968	Atrial fibrillation	Phe_427_21	Hispanic or Latin American	AMR	case-control	58862	4063	54799	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475971	Atrial flutter	Phe_427_22	Hispanic or Latin American	AMR	case-control	59267	1322	57945	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477937	Other specified cardiac dysrhythmias	Phe_427_3	Hispanic or Latin American	AMR	case-control	55449	3271	52178	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477943	Arrhythmia (cardiac) NOS	Phe_427_5	Hispanic or Latin American	AMR	case-control	55402	2664	52738	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477945	Premature beats	Phe_427_6	Hispanic or Latin American	AMR	case-control	58688	532	58156	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477949	Tachycardia NOS	Phe_427_7	Hispanic or Latin American	AMR	case-control	56859	1570	55289	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477951	Palpitations	Phe_427_9	Hispanic or Latin American	AMR	case-control	56928	2512	54416	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477954	Congestive heart failure; nonhypertensive	Phe_428	Hispanic or Latin American	AMR	case-control	57891	4697	53194	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477956	Congestive heart failure (CHF) NOS	Phe_428_1	Hispanic or Latin American	AMR	case-control	58126	3312	54814	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477960	Heart failure with reduced EF [Systolic or combined heart failure]	Phe_428_3	Hispanic or Latin American	AMR	case-control	58841	2652	56189	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477962	Heart failure with preserved EF [Diastolic heart failure]	Phe_428_4	Hispanic or Latin American	AMR	case-control	58836	1573	57263	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477964	Ill-defined descriptions and complications of heart disease	Phe_429	Hispanic or Latin American	AMR	case-control	57227	905	56322	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477973	Intracranial hemorrhage	Phe_430	Hispanic or Latin American	AMR	case-control	59594	588	59006	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477981	Cerebrovascular disease	Phe_433	Hispanic or Latin American	AMR	case-control	56735	6375	50360	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477983	Occlusion and stenosis of precerebral arteries	Phe_433_1	Hispanic or Latin American	AMR	case-control	57928	1614	56314	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477986	Occlusion of cerebral arteries	Phe_433_2	Hispanic or Latin American	AMR	case-control	58815	2309	56506	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477989	Cerebral artery occlusion, with cerebral infarction	Phe_433_21	Hispanic or Latin American	AMR	case-control	58862	2274	56588	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477992	Cerebral ischemia	Phe_433_3	Hispanic or Latin American	AMR	case-control	57998	2998	55000	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477994	Transient cerebral ischemia	Phe_433_31	Hispanic or Latin American	AMR	case-control	58183	2792	55391	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477998	Acute, but ill-defined cerebrovascular disease	Phe_433_6	Hispanic or Latin American	AMR	case-control	59159	1380	57779	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478001	Late effects of cerebrovascular disease	Phe_433_8	Hispanic or Latin American	AMR	case-control	58793	1645	57148	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478004	Atherosclerosis	Phe_440	Hispanic or Latin American	AMR	case-control	57698	1649	56049	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478006	Atherosclerosis of the extremities	Phe_440_2	Hispanic or Latin American	AMR	case-control	58710	1163	57547	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478010	Atherosclerosis of native arteries of the extremities with intermittent claudication	Phe_440_22	Hispanic or Latin American	AMR	case-control	59047	715	58332	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478014	Other aneurysm	Phe_442	Hispanic or Latin American	AMR	case-control	59052	1386	57666	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478016	Aortic aneurysm	Phe_442_1	Hispanic or Latin American	AMR	case-control	59265	1071	58194	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478018	Abdominal aortic aneurysm	Phe_442_11	Hispanic or Latin American	AMR	case-control	59386	729	58657	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478021	Peripheral vascular disease	Phe_443	Hispanic or Latin American	AMR	case-control	57194	3611	53583	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478025	Peripheral vascular disease, unspecified	Phe_443_9	Hispanic or Latin American	AMR	case-control	57307	3360	53947	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476005	Other venous embolism and thrombosis	Phe_452	Hispanic or Latin American	AMR	case-control	58660	2164	56496	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476008	Deep vein thrombosis [DVT]	Phe_452_2	Hispanic or Latin American	AMR	case-control	59236	1241	57995	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478035	Varicose veins	Phe_454	Hispanic or Latin American	AMR	case-control	57877	2155	55722	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478037	Varicose veins of lower extremity	Phe_454_1	Hispanic or Latin American	AMR	case-control	58540	1610	56930	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478039	Varicose veins of lower extremity, symptomtic	Phe_454_11	Hispanic or Latin American	AMR	case-control	59028	893	58135	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478041	Hemorrhoids	Phe_455	Hispanic or Latin American	AMR	case-control	51149	7401	43748	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478044	Chronic venous insufficiency [CVI]	Phe_456	Hispanic or Latin American	AMR	case-control	58180	2121	56059	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478046	Encounter for long-term (current) use of anticoagulants, antithrombotics, aspirin	Phe_457	Hispanic or Latin American	AMR	case-control	58563	514	58049	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478052	Hypotension	Phe_458	Hispanic or Latin American	AMR	case-control	56029	3368	52661	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478055	Orthostatic hypotension	Phe_458_1	Hispanic or Latin American	AMR	case-control	58077	1008	57069	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478060	Hypotension NOS	Phe_458_9	Hispanic or Latin American	AMR	case-control	57019	2051	54968	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478063	Other disorders of circulatory system	Phe_459	Hispanic or Latin American	AMR	case-control	57226	1302	55924	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478067	Circulatory disease NEC	Phe_459_9	Hispanic or Latin American	AMR	case-control	57630	992	56638	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479073	Genitourinary congenital anomalies	Phe_751	Hispanic or Latin American	AMR	case-control	58423	897	57526	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479076	Congenital anomalies of urinary system	Phe_751_2	Hispanic or Latin American	AMR	case-control	59045	674	58371	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479078	Cystic kidney disease	Phe_751_21	Hispanic or Latin American	AMR	case-control	59164	602	58562	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479084	Congenital anomalies of limbs	Phe_755	Hispanic or Latin American	AMR	case-control	57774	1408	56366	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479087	Congenital deformities of feet	Phe_755_1	Hispanic or Latin American	AMR	case-control	57952	1338	56614	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478742	Superficial cellulitis and abscess	Phe_681	Hispanic or Latin American	AMR	case-control	53443	9091	44352	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478744	Cellulitis and abscess of fingers/toes	Phe_681_1	Hispanic or Latin American	AMR	case-control	57611	1278	56333	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478747	Cellulitis and abscess of face/neck	Phe_681_2	Hispanic or Latin American	AMR	case-control	58948	517	58431	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478750	Cellulitis and abscess of arm/hand	Phe_681_3	Hispanic or Latin American	AMR	case-control	58501	839	57662	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478753	Cellulitis and abscess of leg, except foot	Phe_681_5	Hispanic or Latin American	AMR	case-control	57680	2104	55576	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478757	Cellulitis and abscess of trunk	Phe_681_7	Hispanic or Latin American	AMR	case-control	58409	1061	57348	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478760	Other local infections of skin and subcutaneous tissue	Phe_686	Hispanic or Latin American	AMR	case-control	57945	516	57429	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478763	Carbuncle and furuncle	Phe_686_1	Hispanic or Latin American	AMR	case-control	58361	655	57706	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478768	Symptoms affecting skin	Phe_687	Hispanic or Latin American	AMR	case-control	55704	1539	54165	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478771	Rash and other nonspecific skin eruption	Phe_687_1	Hispanic or Latin American	AMR	case-control	51272	5723	45549	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478774	Localized superficial swelling, mass, or lump	Phe_687_2	Hispanic or Latin American	AMR	case-control	56433	1206	55227	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478776	Disturbance of skin sensation	Phe_687_4	Hispanic or Latin American	AMR	case-control	52782	4886	47896	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478779	Disorder of skin and subcutaneous tissue NO	Phe_689	Hispanic or Latin American	AMR	case-control	53965	2491	51474	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478781	Erythematosquamous dermatosis	Phe_690	Hispanic or Latin American	AMR	case-control	57427	2525	54902	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478783	Seborrheic dermatitis	Phe_690_1	Hispanic or Latin American	AMR	case-control	57506	2510	54996	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478786	Dyschromia and Vitiligo	Phe_694	Hispanic or Latin American	AMR	case-control	57116	1756	55360	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478789	Other dyschromia	Phe_694_2	Hispanic or Latin American	AMR	case-control	57249	1334	55915	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478791	Erythematous conditions	Phe_695	Hispanic or Latin American	AMR	case-control	56914	3226	53688	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478792	Rosacea	Phe_695_3	Hispanic or Latin American	AMR	case-control	59295	1070	58225	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478794	Prurigo and Lichen	Phe_695_7	Hispanic or Latin American	AMR	case-control	58588	1193	57395	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478796	Other specified erythematous conditions	Phe_695_8	Hispanic or Latin American	AMR	case-control	58897	518	58379	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476185	Psoriasis and related disorder	Phe_696	Hispanic or Latin American	AMR	case-control	58999	1916	57083	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478800	Psoriasis	Phe_696_4	Hispanic or Latin American	AMR	case-control	59193	1845	57348	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476188	Psoriasis vulgaris	Phe_696_41	Hispanic or Latin American	AMR	case-control	59216	1769	57447	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478802	Pruritus and related conditions	Phe_698	Hispanic or Latin American	AMR	case-control	56759	1769	54990	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478804	Corns and callosities	Phe_700	Hispanic or Latin American	AMR	case-control	57444	3014	54430	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478805	Other hypertrophic and atrophic conditions	Phe_701	Hispanic or Latin American	AMR	case-control	54089	4102	49987	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478807	Keratoderma, acquired	Phe_701_1	Hispanic or Latin American	AMR	case-control	57983	909	57074	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478810	Scar conditions and fibrosis of skin	Phe_701_2	Hispanic or Latin American	AMR	case-control	58464	544	57920	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476201	Degenerative skin conditions and other dermatoses	Phe_702	Hispanic or Latin American	AMR	case-control	54594	5848	48746	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476203	Actinic keratosis	Phe_702_1	Hispanic or Latin American	AMR	case-control	57813	2177	55636	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476205	Seborrheic keratosis	Phe_702_2	Hispanic or Latin American	AMR	case-control	54846	4518	50328	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478814	Diseases of nail, NOS	Phe_703	Hispanic or Latin American	AMR	case-control	56389	4055	52334	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478816	Ingrowing nail	Phe_703_1	Hispanic or Latin American	AMR	case-control	57680	3018	54662	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478818	Diseases of hair and hair follicles	Phe_704	Hispanic or Latin American	AMR	case-control	56649	2612	54037	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478820	Alopecia	Phe_704_1	Hispanic or Latin American	AMR	case-control	59059	848	58211	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478825	Other specified diseases of hair and hair follicles	Phe_704_8	Hispanic or Latin American	AMR	case-control	57498	1456	56042	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478828	Disorders of sweat glands	Phe_705	Hispanic or Latin American	AMR	case-control	58989	584	58405	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478837	Diseases of sebaceous glands	Phe_706	Hispanic or Latin American	AMR	case-control	53865	6917	46948	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478840	Acne	Phe_706_1	Hispanic or Latin American	AMR	case-control	58401	1759	56642	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476212	Sebaceous cyst	Phe_706_2	Hispanic or Latin American	AMR	case-control	56733	3259	53474	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478843	Other specified diseases of sebaceous glands	Phe_706_8	Hispanic or Latin American	AMR	case-control	56698	1815	54883	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478844	Chronic ulcer of skin	Phe_707	Hispanic or Latin American	AMR	case-control	58363	2479	55884	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478846	Decubitus ulcer	Phe_707_1	Hispanic or Latin American	AMR	case-control	59247	771	58476	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478848	Chronic ulcer of leg or foot	Phe_707_2	Hispanic or Latin American	AMR	case-control	58959	1791	57168	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479303	Dermatitis due to solar radiation	Phe_938	Hispanic or Latin American	AMR	case-control	58629	553	58076	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479304	Atopic/contact dermatitis due to other or unspecified	Phe_939	Hispanic or Latin American	AMR	case-control	52244	8084	44160	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479308	Urticaria	Phe_947	Hispanic or Latin American	AMR	case-control	58055	1182	56873	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478223	Disorders of tooth development	Phe_520	Hispanic or Latin American	AMR	case-control	57694	675	57019	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478229	Diseases of hard tissues of teeth	Phe_521	Hispanic or Latin American	AMR	case-control	55282	15087	40195	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478233	Dental caries	Phe_521_1	Hispanic or Latin American	AMR	case-control	55380	14616	40764	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478237	Dental abrasion, erosion and attrition	Phe_521_2	Hispanic or Latin American	AMR	case-control	57460	2021	55439	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478240	Diseases of pulp and periapical tissues	Phe_522	Hispanic or Latin American	AMR	case-control	56672	3734	52938	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478243	Pulpitis and necrosis of tooth pulp	Phe_522_1	Hispanic or Latin American	AMR	case-control	57476	2346	55130	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478246	Periapical abscess	Phe_522_5	Hispanic or Latin American	AMR	case-control	57667	999	56668	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478249	Gingival and periodontal diseases	Phe_523	Hispanic or Latin American	AMR	case-control	55246	12728	42518	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478253	Gingivitis	Phe_523_1	Hispanic or Latin American	AMR	case-control	56375	4723	51652	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478257	Periodontitis (acute or chronic)	Phe_523_3	Hispanic or Latin American	AMR	case-control	56204	7051	49153	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478261	Acute periodontitis	Phe_523_31	Hispanic or Latin American	AMR	case-control	56927	4514	52413	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478264	Chronic periodontitis	Phe_523_32	Hispanic or Latin American	AMR	case-control	57201	4184	53017	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478267	Dentofacial anomalies, including malocclusion	Phe_524	Hispanic or Latin American	AMR	case-control	57847	1340	56507	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478270	Anomalies of tooth position/malocclusion	Phe_524_3	Hispanic or Latin American	AMR	case-control	58723	700	58023	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478273	Other diseases of the teeth and supporting structures	Phe_525	Hispanic or Latin American	AMR	case-control	54958	13657	41301	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478277	Loss of teeth or edentulism	Phe_525_1	Hispanic or Latin American	AMR	case-control	57276	7976	49300	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478281	Atrophy of edentulous alveolar ridge	Phe_525_2	Hispanic or Latin American	AMR	case-control	58894	746	58148	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478284	Diseases of the jaws	Phe_526	Hispanic or Latin American	AMR	case-control	56773	1624	55149	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478287	Temporomandibular joint disorders	Phe_526_4	Hispanic or Latin American	AMR	case-control	57999	1030	56969	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478290	Temporomandibular joint disorder, unspecified	Phe_526_41	Hispanic or Latin American	AMR	case-control	58413	808	57605	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478295	Diseases of the salivary glands	Phe_527	Hispanic or Latin American	AMR	case-control	58012	1388	56624	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478300	Disturbance of salivary secretion	Phe_527_7	Hispanic or Latin American	AMR	case-control	58450	1030	57420	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478303	Diseases of the oral soft tissues, excluding lesions specific for gingiva and tongue	Phe_528	Hispanic or Latin American	AMR	case-control	57152	1271	55881	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478311	Diseases of esophagus	Phe_530	Hispanic or Latin American	AMR	case-control	54406	22011	32395	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478314	Esophagitis, GERD and related diseases	Phe_530_1	Hispanic or Latin American	AMR	case-control	54450	21453	32997	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478317	GERD	Phe_530_11	Hispanic or Latin American	AMR	case-control	54465	20436	34029	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478321	Barrett's esophagus	Phe_530_13	Hispanic or Latin American	AMR	case-control	59458	1027	58431	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478323	Reflux esophagitis	Phe_530_14	Hispanic or Latin American	AMR	case-control	57679	1882	55797	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476049	Esophageal bleeding (varices/hemorrhage)	Phe_530_2	Hispanic or Latin American	AMR	case-control	59338	896	58442	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478330	Heartburn	Phe_530_9	Hispanic or Latin American	AMR	case-control	58092	632	57460	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478333	Peptic ulcer (excl. esophageal)	Phe_531	Hispanic or Latin American	AMR	case-control	58371	1810	56561	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478340	Peptic ulcer, site unspecified	Phe_531_4	Hispanic or Latin American	AMR	case-control	58868	1010	57858	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476053	Dysphagia	Phe_532	Hispanic or Latin American	AMR	case-control	57011	5741	51270	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478345	Gastritis and duodenitis	Phe_535	Hispanic or Latin American	AMR	case-control	54907	3071	51836	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478356	Gastritis and duodenitis, NOS	Phe_535_9	Hispanic or Latin American	AMR	case-control	56685	1354	55331	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478359	Disorders of function of stomach	Phe_536	Hispanic or Latin American	AMR	case-control	57112	2052	55060	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478364	Dyspepsia and other specified disorders of function of stomach	Phe_536_8	Hispanic or Latin American	AMR	case-control	57377	1572	55805	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478367	Other disorders of stomach and duodenum	Phe_537	Hispanic or Latin American	AMR	case-control	58265	814	57451	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478371	Appendiceal conditions	Phe_540	Hispanic or Latin American	AMR	case-control	59681	710	58971	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478373	Appendicitis	Phe_540_1	Hispanic or Latin American	AMR	case-control	59714	682	59032	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478375	Acute appendicitis	Phe_540_11	Hispanic or Latin American	AMR	case-control	59727	601	59126	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478377	Abdominal hernia	Phe_550	Hispanic or Latin American	AMR	case-control	56167	7400	48767	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478379	Inguinal hernia	Phe_550_1	Hispanic or Latin American	AMR	case-control	58583	3160	55423	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478381	Diaphragmatic hernia	Phe_550_2	Hispanic or Latin American	AMR	case-control	57626	1712	55914	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478383	Umbilical hernia	Phe_550_4	Hispanic or Latin American	AMR	case-control	59095	1859	57236	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478385	Ventral hernia	Phe_550_5	Hispanic or Latin American	AMR	case-control	58950	1066	57884	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478387	Incisional hernia	Phe_550_6	Hispanic or Latin American	AMR	case-control	59608	563	59045	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478389	Inflammatory bowel disease and other gasteroenteritis and colitis	Phe_555	Hispanic or Latin American	AMR	case-control	59325	703	58622	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478392	Ulcerative colitis	Phe_555_2	Hispanic or Latin American	AMR	case-control	59421	529	58892	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478399	Noninfectious gastroenteritis	Phe_558	Hispanic or Latin American	AMR	case-control	55849	1969	53880	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478402	Intestinal obstruction without mention of hernia	Phe_560	Hispanic or Latin American	AMR	case-control	58615	1105	57510	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478409	Other intestinal obstruction	Phe_560_4	Hispanic or Latin American	AMR	case-control	59390	693	58697	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478412	Symptoms involving digestive system	Phe_561	Hispanic or Latin American	AMR	case-control	52487	7603	44884	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478415	Diarrhea	Phe_561_1	Hispanic or Latin American	AMR	case-control	53567	5799	47768	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478417	Flatulence	Phe_561_2	Hispanic or Latin American	AMR	case-control	57895	910	56985	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476071	Diverticulosis and diverticulitis	Phe_562	Hispanic or Latin American	AMR	case-control	53912	5978	47934	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476074	Diverticulosis	Phe_562_1	Hispanic or Latin American	AMR	case-control	53948	5110	48838	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478420	Diverticulitis	Phe_562_2	Hispanic or Latin American	AMR	case-control	58520	1338	57182	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478422	Constipation	Phe_563	Hispanic or Latin American	AMR	case-control	54097	5789	48308	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478425	Functional digestive disorders	Phe_564	Hispanic or Latin American	AMR	case-control	56181	3441	52740	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478428	Irritable Bowel Syndrome	Phe_564_1	Hispanic or Latin American	AMR	case-control	58650	1952	56698	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478431	Abnormal findings on exam of gastrointestinal tract/abdominal area	Phe_564_8	Hispanic or Latin American	AMR	case-control	58144	643	57501	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478436	Anal and rectal conditions	Phe_565	Hispanic or Latin American	AMR	case-control	56758	2292	54466	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478439	Anal and rectal polyp	Phe_565_1	Hispanic or Latin American	AMR	case-control	58217	608	57609	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478442	Peritonitis and retroperitoneal infections	Phe_567	Hispanic or Latin American	AMR	case-control	59403	514	58889	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478447	Other disorders of intestine	Phe_569	Hispanic or Latin American	AMR	case-control	58237	611	57626	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476079	Chronic liver disease and cirrhosis	Phe_571	Hispanic or Latin American	AMR	case-control	56755	6334	50421	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476082	Other chronic nonalcoholic liver disease	Phe_571_5	Hispanic or Latin American	AMR	case-control	56817	6136	50681	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476085	Cirrhosis of liver without mention of alcohol	Phe_571_51	Hispanic or Latin American	AMR	case-control	59246	2679	56567	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476087	Liver abscess and sequelae of chronic liver disease	Phe_571_8	Hispanic or Latin American	AMR	case-control	59377	929	58448	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478455	Portal hypertension	Phe_571_81	Hispanic or Latin American	AMR	case-control	59505	547	58958	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478456	Ascites (non malignant)	Phe_572	Hispanic or Latin American	AMR	case-control	59411	705	58706	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478458	Other disorders of liver	Phe_573	Hispanic or Latin American	AMR	case-control	58155	960	57195	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478461	Nonspecific elevation of levels of transaminase or lactic acid dehydrogenase [LDH]	Phe_573_6	Hispanic or Latin American	AMR	case-control	57648	1103	56545	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476095	Abnormal results of function study of liver	Phe_573_7	Hispanic or Latin American	AMR	case-control	55573	6775	48798	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478464	Abnormal serum enzyme levels	Phe_573_9	Hispanic or Latin American	AMR	case-control	57624	944	56680	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478466	Cholelithiasis and cholecystitis	Phe_574	Hispanic or Latin American	AMR	case-control	58539	3311	55228	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478467	Cholelithiasis	Phe_574_1	Hispanic or Latin American	AMR	case-control	58498	2624	55874	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478471	Cholecystitis without cholelithiasis	Phe_574_3	Hispanic or Latin American	AMR	case-control	59164	1092	58072	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478473	Other biliary tract disease	Phe_575	Hispanic or Latin American	AMR	case-control	57998	1419	56579	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478481	Diseases of pancreas	Phe_577	Hispanic or Latin American	AMR	case-control	59030	1605	57425	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478484	Acute pancreatitis	Phe_577_1	Hispanic or Latin American	AMR	case-control	59305	1099	58206	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478488	Gastrointestinal hemorrhage	Phe_578	Hispanic or Latin American	AMR	case-control	54914	7068	47846	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478493	Blood in stool	Phe_578_2	Hispanic or Latin American	AMR	case-control	56085	3004	53081	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478496	Hemorrhage of rectum and anus	Phe_578_8	Hispanic or Latin American	AMR	case-control	56639	2335	54304	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478499	Hemorrhage of gastrointestinal tract	Phe_578_9	Hispanic or Latin American	AMR	case-control	57614	1972	55642	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478502	Other symptoms involving abdomen and pelvis	Phe_579	Hispanic or Latin American	AMR	case-control	58203	831	57372	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478504	Nonspecific abnormal findings in stool contents	Phe_579_8	Hispanic or Latin American	AMR	case-control	57681	759	56922	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475636	Nontoxic nodular goiter	Phe_241	Hispanic or Latin American	AMR	case-control	59367	1420	57947	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477295	Nontoxic uninodular goiter	Phe_241_1	Hispanic or Latin American	AMR	case-control	59378	1180	58198	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477296	Thyrotoxicosis with or without goiter	Phe_242	Hispanic or Latin American	AMR	case-control	59436	735	58701	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475645	Hypothyroidism	Phe_244	Hispanic or Latin American	AMR	case-control	58748	6082	52666	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477301	Secondary hypothyroidism	Phe_244_1	Hispanic or Latin American	AMR	case-control	59733	504	59229	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477302	Acquired hypothyroidism	Phe_244_2	Hispanic or Latin American	AMR	case-control	59288	544	58744	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475651	Hypothyroidism NOS	Phe_244_4	Hispanic or Latin American	AMR	case-control	58787	5823	52964	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477308	Secondary diabetes mellitus	Phe_249	Hispanic or Latin American	AMR	case-control	58365	1018	57347	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475656	Diabetes mellitus	Phe_250	Hispanic or Latin American	AMR	case-control	57564	22361	35203	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475659	Type 1 diabetes	Phe_250_1	Hispanic or Latin American	AMR	case-control	57429	2295	55134	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475665	Type 2 diabetes	Phe_250_2	Hispanic or Latin American	AMR	case-control	57680	22274	35406	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477316	Type 2 diabetes with renal manifestations	Phe_250_22	Hispanic or Latin American	AMR	case-control	58218	3709	54509	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475671	Type 2 diabetes with ophthalmic manifestations	Phe_250_23	Hispanic or Latin American	AMR	case-control	57037	5479	51558	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475674	Type 2 diabetes with neurological manifestations	Phe_250_24	Hispanic or Latin American	AMR	case-control	57556	7320	50236	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477317	Diabetes type 2 with peripheral circulatory	Phe_250_25	Hispanic or Latin American	AMR	case-control	58729	1343	57386	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477318	Insulin pump user	Phe_250_3	Hispanic or Latin American	AMR	case-control	58470	1835	56635	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477319	Abnormal glucose	Phe_250_4	Hispanic or Latin American	AMR	case-control	53609	9711	43898	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477321	Impaired fasting glucose	Phe_250_41	Hispanic or Latin American	AMR	case-control	56515	5563	50952	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477324	Other abnormal glucose	Phe_250_42	Hispanic or Latin American	AMR	case-control	54832	4552	50280	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477326	Polyneuropathy in diabetes	Phe_250_6	Hispanic or Latin American	AMR	case-control	58470	2180	56290	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475687	Diabetic retinopathy	Phe_250_7	Hispanic or Latin American	AMR	case-control	57306	5658	51648	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477327	Hypoglycemia	Phe_251_1	Hispanic or Latin American	AMR	case-control	58548	703	57845	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477330	Disorders of parathyroid gland	Phe_252	Hispanic or Latin American	AMR	case-control	59524	670	58854	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477331	Hyperparathyroidism	Phe_252_1	Hispanic or Latin American	AMR	case-control	59561	617	58944	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477332	Disorders of the pituitary gland and its hypothalamic control	Phe_253	Hispanic or Latin American	AMR	case-control	59214	875	58339	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477339	Disorders of adrenal glands	Phe_255	Hispanic or Latin American	AMR	case-control	59429	537	58892	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477348	Testicular dysfunction	Phe_257	Hispanic or Latin American	AMR	case-control	52476	2691	49785	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477350	Testicular hypofunction	Phe_257_1	Hispanic or Latin American	AMR	case-control	52835	2551	50284	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477354	Protein-calorie malnutrition	Phe_260	Hispanic or Latin American	AMR	case-control	58443	1202	57241	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475698	Vitamin deficiency	Phe_261	Hispanic or Latin American	AMR	case-control	53719	14673	39046	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477363	Vitamin B-complex deficiencies	Phe_261_2	Hispanic or Latin American	AMR	case-control	58545	2161	56384	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475703	Vitamin D deficiency	Phe_261_4	Hispanic or Latin American	AMR	case-control	54105	12790	41315	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477370	Proteinuria	Phe_269	Hispanic or Latin American	AMR	case-control	58406	1983	56423	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477371	Disorders of protein plasma/amino-acid transport and metabolism	Phe_270	Hispanic or Latin American	AMR	case-control	58664	895	57769	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477375	Disorders of plasma protein metabolism	Phe_270_3	Hispanic or Latin American	AMR	case-control	59483	515	58968	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477379	Disorders of carbohydrate transport and metabolism	Phe_271	Hispanic or Latin American	AMR	case-control	57720	2347	55373	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477381	Intestinal disaccharidase deficiencies and disaccharide malabsorption	Phe_271_3	Hispanic or Latin American	AMR	case-control	57769	2307	55462	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475713	Disorders of lipoid metabolism	Phe_272	Hispanic or Latin American	AMR	case-control	55833	39984	15849	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475716	Hyperlipidemia	Phe_272_1	Hispanic or Latin American	AMR	case-control	55840	39936	15904	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475719	Hypercholesterolemia	Phe_272_11	Hispanic or Latin American	AMR	case-control	56088	7166	48922	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475722	Hyperglyceridemia	Phe_272_12	Hispanic or Latin American	AMR	case-control	57785	2957	54828	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475725	Mixed hyperlipidemia	Phe_272_13	Hispanic or Latin American	AMR	case-control	54976	11971	43005	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475728	Gout and other crystal arthrop	Phe_274	Hispanic or Latin American	AMR	case-control	58494	3900	54594	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475732	Gout	Phe_274_1	Hispanic or Latin American	AMR	case-control	58763	3643	55120	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475736	Gouty arthropathy	Phe_274_11	Hispanic or Latin American	AMR	case-control	59079	795	58284	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477391	Disorders of mineral metabolism	Phe_275	Hispanic or Latin American	AMR	case-control	57199	2640	54559	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477392	Disorders of magnesium metabolism	Phe_275_3	Hispanic or Latin American	AMR	case-control	58579	1009	57570	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477394	Disorders of calcium/phosphorus metabolism	Phe_275_5	Hispanic or Latin American	AMR	case-control	58582	1025	57557	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477398	Disorders of phosphorus metabolism	Phe_275_53	Hispanic or Latin American	AMR	case-control	59099	596	58503	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477400	Hypercalcemia	Phe_275_6	Hispanic or Latin American	AMR	case-control	59443	505	58938	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477401	Disorders of fluid, electrolyte, and acid-based balance	Phe_276	Hispanic or Latin American	AMR	case-control	53369	8476	44893	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477404	Electrolyte imbalance	Phe_276_1	Hispanic or Latin American	AMR	case-control	54776	6381	48395	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477408	Hyposmolality and/or hyponatremia	Phe_276_12	Hispanic or Latin American	AMR	case-control	57609	1865	55744	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477410	Hyperpotassemia	Phe_276_13	Hispanic or Latin American	AMR	case-control	57962	2067	55895	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477411	Hypopotassemia	Phe_276_14	Hispanic or Latin American	AMR	case-control	56685	2763	53922	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477412	Acid-base balance disorder	Phe_276_4	Hispanic or Latin American	AMR	case-control	57896	1422	56474	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477415	Acidosis	Phe_276_41	Hispanic or Latin American	AMR	case-control	58130	1230	56900	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477419	Hypovolemia	Phe_276_5	Hispanic or Latin American	AMR	case-control	55468	2463	53005	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477422	Fluid overload	Phe_276_6	Hispanic or Latin American	AMR	case-control	59058	664	58394	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477425	Other disorders of metabolism	Phe_277	Hispanic or Latin American	AMR	case-control	58978	644	58334	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477428	Other disorders of lipoid metabolism	Phe_277_5	Hispanic or Latin American	AMR	case-control	58313	1073	57240	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477432	Dysmetabolic syndrome X	Phe_277_7	Hispanic or Latin American	AMR	case-control	59317	553	58764	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475757	Overweight, obesity and other hyperalimentation	Phe_278	Hispanic or Latin American	AMR	case-control	53484	28266	25218	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475760	Obesity	Phe_278_1	Hispanic or Latin American	AMR	case-control	54309	25279	29030	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475763	Morbid obesity	Phe_278_11	Hispanic or Latin American	AMR	case-control	57136	5871	51265	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478507	Nephritis; nephrosis; renal sclerosis	Phe_580	Hispanic or Latin American	AMR	case-control	59015	1048	57967	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478513	Nephritis and nephropathy without mention of glomerulonephritis	Phe_580_3	Hispanic or Latin American	AMR	case-control	59197	757	58440	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478514	Nephritis and nephropathy in diseases classified elsewhere	Phe_580_31	Hispanic or Latin American	AMR	case-control	59421	520	58901	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478518	Renal failure	Phe_585	Hispanic or Latin American	AMR	case-control	56813	9310	47503	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478520	Acute renal failure	Phe_585_1	Hispanic or Latin American	AMR	case-control	56928	4900	52028	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478522	Renal failure NOS	Phe_585_2	Hispanic or Latin American	AMR	case-control	59055	898	58157	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476121	Chronic renal failure [CKD]	Phe_585_3	Hispanic or Latin American	AMR	case-control	58101	6385	51716	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478525	Renal dialysis	Phe_585_31	Hispanic or Latin American	AMR	case-control	59786	908	58878	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478527	End stage renal disease	Phe_585_32	Hispanic or Latin American	AMR	case-control	59633	1295	58338	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478528	Chronic Kidney Disease, Stage III	Phe_585_33	Hispanic or Latin American	AMR	case-control	58609	4218	54391	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478529	Chronic Kidney Disease, Stage IV	Phe_585_34	Hispanic or Latin American	AMR	case-control	59547	1506	58041	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478530	Chronic kidney disease, Stage I or II	Phe_585_4	Hispanic or Latin American	AMR	case-control	58825	1154	57671	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478533	Other disorders of the kidney and ureters	Phe_586	Hispanic or Latin American	AMR	case-control	56714	2964	53750	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478535	Cyst of kidney, acquired	Phe_586_2	Hispanic or Latin American	AMR	case-control	58547	958	57589	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478539	Disorders resulting from impaired renal function	Phe_588	Hispanic or Latin American	AMR	case-control	59445	1092	58353	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478542	Secondary hyperparathyroidism (of renal origin)	Phe_588_2	Hispanic or Latin American	AMR	case-control	59611	898	58713	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478547	Urinary tract infection	Phe_591	Hispanic or Latin American	AMR	case-control	54759	5852	48907	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478549	Cystitis and urethritis	Phe_592	Hispanic or Latin American	AMR	case-control	57992	735	57257	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478552	Cystitis	Phe_592_1	Hispanic or Latin American	AMR	case-control	58464	564	57900	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478558	Hematuria	Phe_593	Hispanic or Latin American	AMR	case-control	56382	4831	51551	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478560	Gross hematuria	Phe_593_1	Hispanic or Latin American	AMR	case-control	58629	1600	57029	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478563	Microscopic hematuria	Phe_593_2	Hispanic or Latin American	AMR	case-control	57628	3015	54613	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478564	Urinary calculus	Phe_594	Hispanic or Latin American	AMR	case-control	57886	4320	53566	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476144	Calculus of kidney	Phe_594_1	Hispanic or Latin American	AMR	case-control	58018	3639	54379	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478567	Calculus of ureter	Phe_594_3	Hispanic or Latin American	AMR	case-control	59210	1057	58153	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478569	Hydronephrosis	Phe_595	Hispanic or Latin American	AMR	case-control	59039	742	58297	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478572	Other disorders of bladder	Phe_596	Hispanic or Latin American	AMR	case-control	57589	2862	54727	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478577	Functional disorders of bladder	Phe_596_5	Hispanic or Latin American	AMR	case-control	58652	1867	56785	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478584	Abnormal findings on examination of urine	Phe_598	Hispanic or Latin American	AMR	case-control	58092	627	57465	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478587	Other nonspecific findings on examination of urine	Phe_598_9	Hispanic or Latin American	AMR	case-control	58145	595	57550	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478590	Other symptoms/disorders or the urinary system	Phe_599	Hispanic or Latin American	AMR	case-control	52684	9597	43087	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478594	Retention of urine	Phe_599_2	Hispanic or Latin American	AMR	case-control	57499	2521	54978	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478596	Dysuria	Phe_599_3	Hispanic or Latin American	AMR	case-control	56807	1230	55577	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478599	Urinary incontinence	Phe_599_4	Hispanic or Latin American	AMR	case-control	57454	3082	54372	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478600	Frequency of urination and polyuria	Phe_599_5	Hispanic or Latin American	AMR	case-control	55326	3788	51538	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478603	Other symptoms involving urinary system	Phe_599_8	Hispanic or Latin American	AMR	case-control	57798	995	56803	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478606	Other abnormality of urination	Phe_599_9	Hispanic or Latin American	AMR	case-control	57059	1792	55267	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478609	Hyperplasia of prostate	Phe_600	Hispanic or Latin American	AMR	case-control	49994	13777	36217	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478612	Inflammatory diseases of prostate	Phe_601	Hispanic or Latin American	AMR	case-control	50477	3101	47376	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478615	Prostatitis	Phe_601_1	Hispanic or Latin American	AMR	case-control	52235	1323	50912	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478619	Chronic prostatitis	Phe_601_12	Hispanic or Latin American	AMR	case-control	53224	517	52707	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478621	Orchitis and epididymitis	Phe_601_3	Hispanic or Latin American	AMR	case-control	52525	973	51552	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478624	Balanoposthitis	Phe_601_4	Hispanic or Latin American	AMR	case-control	52863	684	52179	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478628	Other disorders of prostate	Phe_602	Hispanic or Latin American	AMR	case-control	52695	834	51861	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478632	Other disorders of testis	Phe_603	Hispanic or Latin American	AMR	case-control	52718	958	51760	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478634	Hydrocele	Phe_603_1	Hispanic or Latin American	AMR	case-control	53002	699	52303	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478636	Disorders of penis	Phe_604	Hispanic or Latin American	AMR	case-control	52584	1685	50899	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478638	Redundant prepuce and phimosis/BXO	Phe_604_1	Hispanic or Latin American	AMR	case-control	53305	1091	52214	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478641	Erectile dysfunction [ED]	Phe_605	Hispanic or Latin American	AMR	case-control	49038	15116	33922	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478644	Other disorders of male genital organs	Phe_608	Hispanic or Latin American	AMR	case-control	51214	1850	49364	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478647	Male infertility and abnormal spermatozoa	Phe_609	Hispanic or Latin American	AMR	case-control	53182	525	52657	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478658	Abnormal findings on mammogram or breast exam	Phe_611	Hispanic or Latin American	AMR	case-control	58835	1249	57586	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478664	Lump or mass in breast	Phe_611_3	Hispanic or Latin American	AMR	case-control	58967	874	58093	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478667	Breast conditions, congenital or relating to hormones	Phe_612	Hispanic or Latin American	AMR	case-control	59329	648	58681	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478669	Hypertrophy of breast (Gynecomastia)	Phe_612_2	Hispanic or Latin American	AMR	case-control	59433	570	58863	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478671	Other nonmalignant breast conditions	Phe_613	Hispanic or Latin American	AMR	case-control	58822	796	58026	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478680	Inflammatory diseases of female pelvic organs	Phe_614	Hispanic or Latin American	AMR	case-control	4976	1238	3738	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478683	Inflammatory disease of cervix, vagina, and vulva	Phe_614_5	Hispanic or Latin American	AMR	case-control	5016	1160	3856	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478686	Vaginitis and vulvovaginitis	Phe_614_52	Hispanic or Latin American	AMR	case-control	5072	946	4126	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478693	Noninflammatory female genital disorders	Phe_619	Hispanic or Latin American	AMR	case-control	5227	716	4511	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478703	Pain and other symptoms associated with female genital organs	Phe_625	Hispanic or Latin American	AMR	case-control	5400	606	4794	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478707	Disorders of menstruation and other abnormal bleeding from female genital tract	Phe_626	Hispanic or Latin American	AMR	case-control	5323	2137	3186	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478710	Irregular menstrual cycle/bleeding	Phe_626_1	Hispanic or Latin American	AMR	case-control	5260	1552	3708	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478715	Excessive or frequent menstruation	Phe_626_12	Hispanic or Latin American	AMR	case-control	5659	592	5067	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478725	Menopausal and postmenopausal disorders	Phe_627	Hispanic or Latin American	AMR	case-control	5470	1257	4213	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478730	Symptomatic menopause	Phe_627_2	Hispanic or Latin American	AMR	case-control	5578	773	4805	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478736	Ovarian cyst	Phe_628	Hispanic or Latin American	AMR	case-control	5625	521	5104	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479160	Abnormal Papanicolaou smear of cervix and cervical HPV	Phe_792	Hispanic or Latin American	AMR	case-control	5542	944	4598	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476275	Elevated prostate specific antigen [PSA]	Phe_796	Hispanic or Latin American	AMR	case-control	52250	5680	46570	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477443	Iron deficiency anemias	Phe_280	Hispanic or Latin American	AMR	case-control	57609	4499	53110	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477444	Iron deficiency anemias, unspecified or notdue to blood loss	Phe_280_1	Hispanic or Latin American	AMR	case-control	57746	4109	53637	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477445	Iron deficiency anemia secondary to blood loss (chronic)	Phe_280_2	Hispanic or Latin American	AMR	case-control	58870	711	58159	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477447	Other deficiency anemia	Phe_281	Hispanic or Latin American	AMR	case-control	58281	1845	56436	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477448	Megaloblastic anemia	Phe_281_1	Hispanic or Latin American	AMR	case-control	58752	1566	57186	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477450	Other vitamin B12 deficiency anemia	Phe_281_12	Hispanic or Latin American	AMR	case-control	58890	1387	57503	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477454	Aplastic anemia	Phe_284	Hispanic or Latin American	AMR	case-control	59446	601	58845	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477455	Pancytopenia	Phe_284_1	Hispanic or Latin American	AMR	case-control	59501	526	58975	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475785	Other anemias	Phe_285	Hispanic or Latin American	AMR	case-control	55252	9427	45825	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477457	Acute posthemorrhagic anemia	Phe_285_1	Hispanic or Latin American	AMR	case-control	58537	617	57920	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477460	Anemia of chronic disease	Phe_285_2	Hispanic or Latin American	AMR	case-control	58486	2140	56346	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477461	Anemia in chronic kidney disease	Phe_285_21	Hispanic or Latin American	AMR	case-control	59284	1419	57865	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475794	Coagulation defects	Phe_286	Hispanic or Latin American	AMR	case-control	58784	1029	57755	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475797	Encounter for long-term (current) use of anticoagulants	Phe_286_2	Hispanic or Latin American	AMR	case-control	59085	2632	56453	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477465	Purpura and other hemorrhagic conditions	Phe_287	Hispanic or Latin American	AMR	case-control	58053	2458	55595	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477466	Thrombocytopenia	Phe_287_3	Hispanic or Latin American	AMR	case-control	58372	2318	56054	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477468	Diseases of white blood cells	Phe_288	Hispanic or Latin American	AMR	case-control	56851	1883	54968	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475813	Decreased white blood cell count	Phe_288_1	Hispanic or Latin American	AMR	case-control	59166	677	58489	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477469	Elevated white blood cell count	Phe_288_2	Hispanic or Latin American	AMR	case-control	57336	1344	55992	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477471	Lymphadenitis	Phe_289_4	Hispanic or Latin American	AMR	case-control	58025	1134	56891	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477007	Intestinal infection	Phe_008	Hispanic or Latin American	AMR	case-control	57259	1169	56090	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477010	Bacterial enteritis	Phe_008_5	Hispanic or Latin American	AMR	case-control	59093	660	58433	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477013	Intestinal infection due to C. difficile	Phe_008_52	Hispanic or Latin American	AMR	case-control	59486	501	58985	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477019	Septicemia	Phe_038	Hispanic or Latin American	AMR	case-control	57956	2669	55287	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477025	Bacteremia	Phe_038_3	Hispanic or Latin American	AMR	case-control	59194	1108	58086	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477028	Bacterial infection NOS	Phe_041	Hispanic or Latin American	AMR	case-control	55298	3820	51478	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477030	Staphylococcus infections	Phe_041_1	Hispanic or Latin American	AMR	case-control	58478	1087	57391	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477033	Methicillin sensitive Staphylococcus aureus	Phe_041_11	Hispanic or Latin American	AMR	case-control	59207	513	58694	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477042	H. pylori	Phe_041_8	Hispanic or Latin American	AMR	case-control	58694	1022	57672	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477046	Herpes zoster	Phe_053	Hispanic or Latin American	AMR	case-control	57876	1421	56455	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477050	Herpes simplex	Phe_054	Hispanic or Latin American	AMR	case-control	58248	1625	56623	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477053	Viral hepatitis	Phe_070	Hispanic or Latin American	AMR	case-control	59002	4141	54861	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477057	Viral hepatitis C	Phe_070_3	Hispanic or Latin American	AMR	case-control	59337	3828	55509	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477061	Hepatitis NOS	Phe_070_9	Hispanic or Latin American	AMR	case-control	59052	514	58538	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477064	Viral warts & HPV	Phe_078	Hispanic or Latin American	AMR	case-control	57247	2723	54524	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477065	Viral infection	Phe_079	Hispanic or Latin American	AMR	case-control	56055	1289	54766	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477068	Postoperative infection	Phe_080	Hispanic or Latin American	AMR	case-control	59093	560	58533	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477073	Sexually transmitted infections (not HIV or hepatitis)	Phe_090	Hispanic or Latin American	AMR	case-control	58429	956	57473	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477099	screening for infectious and parasitic diseases	Phe_1010_1	Hispanic or Latin American	AMR	case-control	53063	4557	48506	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477103	screening for malignant neoplasms	Phe_1010_2	Hispanic or Latin American	AMR	case-control	50299	7410	42889	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477106	screening for other diseases and disorders	Phe_1010_3	Hispanic or Latin American	AMR	case-control	48037	22095	25942	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477109	potential health hazards related to communicable diseases	Phe_1010_5	Hispanic or Latin American	AMR	case-control	48983	31497	17486	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477139	Dermatophytosis / Dermatomycosis	Phe_110	Hispanic or Latin American	AMR	case-control	52560	14214	38346	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477142	Dermatophytosis	Phe_110_1	Hispanic or Latin American	AMR	case-control	52799	13747	39052	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477145	Dermatophytosis of nail	Phe_110_11	Hispanic or Latin American	AMR	case-control	55044	10074	44970	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477147	Athlete's foot	Phe_110_12	Hispanic or Latin American	AMR	case-control	55592	3487	52105	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477149	Dermatophytosis of the body	Phe_110_13	Hispanic or Latin American	AMR	case-control	57455	1103	56352	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477152	Dermatomycoses	Phe_110_2	Hispanic or Latin American	AMR	case-control	58790	609	58181	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477156	Candidiasis	Phe_112	Hispanic or Latin American	AMR	case-control	57738	1028	56710	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477162	Other infectious and parasitic diseases	Phe_136	Hispanic or Latin American	AMR	case-control	58305	631	57674	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477076	Burns	Phe_1000	Hispanic or Latin American	AMR	case-control	58869	550	58319	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477079	Foreign body injury	Phe_1001	Hispanic or Latin American	AMR	case-control	57710	750	56960	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477093	Injury, NOS	Phe_1009	Hispanic or Latin American	AMR	case-control	51598	5304	46294	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477116	Persons with potential health hazards related to socioeconomic, psychosocial, and other circumstances	Phe_1010_7	Hispanic or Latin American	AMR	case-control	56965	52061	4904	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479182	Fracture of lower limb	Phe_800	Hispanic or Latin American	AMR	case-control	59027	1504	57523	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479189	Fracture of tibia and fibula	Phe_800_3	Hispanic or Latin American	AMR	case-control	59459	649	58810	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479193	Fracture of ankle and foot	Phe_801	Hispanic or Latin American	AMR	case-control	58534	2214	56320	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479195	Fracture of foot	Phe_801_1	Hispanic or Latin American	AMR	case-control	59549	777	58772	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479199	Fracture of upper limb	Phe_803	Hispanic or Latin American	AMR	case-control	59134	1752	57382	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479203	Fracture of radius and ulna	Phe_803_2	Hispanic or Latin American	AMR	case-control	59524	1008	58516	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479206	Fracture of hand or wrist	Phe_804	Hispanic or Latin American	AMR	case-control	58660	1722	56938	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479208	Fracture of vertebral column without mention of spinal cord injury	Phe_805	Hispanic or Latin American	AMR	case-control	59414	678	58736	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479211	Fracture of ribs	Phe_807	Hispanic or Latin American	AMR	case-control	58739	738	58001	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479214	Fracture of unspecified bones	Phe_809	Hispanic or Latin American	AMR	case-control	58513	799	57714	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479217	Concussion	Phe_817	Hispanic or Latin American	AMR	case-control	58230	1072	57158	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479222	Skull and face fracture and other intercranial injury	Phe_819	Hispanic or Latin American	AMR	case-control	57559	4379	53180	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479225	Dislocation	Phe_830	Hispanic or Latin American	AMR	case-control	57701	2730	54971	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479228	Internal derangement of knee	Phe_835	Hispanic or Latin American	AMR	case-control	56727	4146	52581	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479230	Traumatic arthropathy	Phe_836	Hispanic or Latin American	AMR	case-control	58605	980	57625	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479233	Sprains and strains	Phe_840	Hispanic or Latin American	AMR	case-control	51397	8860	42537	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479237	Rotator cuff (capsule) sprain	Phe_840_2	Hispanic or Latin American	AMR	case-control	58647	1323	57324	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479240	Joint/ligament sprain	Phe_840_3	Hispanic or Latin American	AMR	case-control	56242	2126	54116	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479243	Sprains and strains of back and neck	Phe_841	Hispanic or Latin American	AMR	case-control	56657	1661	54996	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479246	Other sprains and strains	Phe_842	Hispanic or Latin American	AMR	case-control	57727	544	57183	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479251	Complications of transplants and reattached limbs	Phe_851	Hispanic or Latin American	AMR	case-control	59015	604	58411	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479254	Complications of cardiac/vascular device, implant, and graft	Phe_854	Hispanic or Latin American	AMR	case-control	59148	757	58391	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479257	Complication of internal orthopedic device	Phe_858	Hispanic or Latin American	AMR	case-control	59240	770	58470	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479262	Open wounds of head; neck; and trunk	Phe_870	Hispanic or Latin American	AMR	case-control	56483	1660	54823	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479268	Open wounds of extremities	Phe_871	Hispanic or Latin American	AMR	case-control	55431	2905	52526	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479271	Open wound of finger(s)	Phe_871_2	Hispanic or Latin American	AMR	case-control	58198	565	57633	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479274	Open wound of foot except toe(s) alone	Phe_871_3	Hispanic or Latin American	AMR	case-control	59049	582	58467	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479277	Traumatic amputation	Phe_872	Hispanic or Latin American	AMR	case-control	59627	530	59097	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479287	Injuries to the nervous system	Phe_907	Hispanic or Latin American	AMR	case-control	58800	753	58047	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479294	Superficial injury without mention of infection	Phe_915	Hispanic or Latin American	AMR	case-control	54970	1966	53004	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479297	Contusion	Phe_916	Hispanic or Latin American	AMR	case-control	53351	2954	50397	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479310	Allergies, other	Phe_949	Hispanic or Latin American	AMR	case-control	56857	1748	55109	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479331	Adverse drug events and drug allergies	Phe_979	Hispanic or Latin American	AMR	case-control	57029	1031	55998	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479336	Sepsis and SIRS	Phe_994	Hispanic or Latin American	AMR	case-control	58055	2001	56054	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479340	Sepsis	Phe_994_2	Hispanic or Latin American	AMR	case-control	58139	1821	56318	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478854	Osteomyelitis, periostitis, and other infections involving bone	Phe_710	Hispanic or Latin American	AMR	case-control	59383	1268	58115	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478856	Osteomyelitis	Phe_710_1	Hispanic or Latin American	AMR	case-control	59447	1238	58209	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478858	Acute osteomyelitis	Phe_710_11	Hispanic or Latin American	AMR	case-control	59627	624	59003	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478860	Chronic osteomyelitis	Phe_710_12	Hispanic or Latin American	AMR	case-control	59611	663	58948	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478862	Unspecified osteomyelitis	Phe_710_19	Hispanic or Latin American	AMR	case-control	59527	891	58636	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476226	Rheumatoid arthritis and other inflammatory	Phe_714	Hispanic or Latin American	AMR	case-control	58900	1535	57365	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478870	Rheumatoid arthritis	Phe_714_1	Hispanic or Latin American	AMR	case-control	59371	1166	58205	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478871	Other inflammatory spondylopathies	Phe_715	Hispanic or Latin American	AMR	case-control	58743	1243	57500	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478873	Sacroiliitis NEC	Phe_715_1	Hispanic or Latin American	AMR	case-control	59140	813	58327	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478876	Other arthropathies	Phe_716	Hispanic or Latin American	AMR	case-control	54769	5091	49678	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478882	Arthropathy NOS	Phe_716_9	Hispanic or Latin American	AMR	case-control	55734	3736	51998	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478885	Spinal stenosis	Phe_720	Hispanic or Latin American	AMR	case-control	57035	5082	51953	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478887	Spinal stenosis of lumbar region	Phe_720_1	Hispanic or Latin American	AMR	case-control	57888	3266	54622	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478889	Spondylosis and allied disorders	Phe_721	Hispanic or Latin American	AMR	case-control	54305	7991	46314	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478892	Spondylosis without myelopathy	Phe_721_1	Hispanic or Latin American	AMR	case-control	54407	7436	46971	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478895	Spondylosis with myelopathy	Phe_721_2	Hispanic or Latin American	AMR	case-control	59190	711	58479	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478899	Intervertebral disc disorders	Phe_722	Hispanic or Latin American	AMR	case-control	54451	9553	44898	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478902	Displacement of intervertebral disc	Phe_722_1	Hispanic or Latin American	AMR	case-control	57366	2299	55067	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478905	Degeneration of intervertebral disc	Phe_722_6	Hispanic or Latin American	AMR	case-control	54762	7024	47738	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478910	Postlaminectomy syndrome	Phe_722_8	Hispanic or Latin American	AMR	case-control	59585	643	58942	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478913	Other and unspecified disc disorder	Phe_722_9	Hispanic or Latin American	AMR	case-control	58383	906	57477	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478916	Other disorders of cervical region	Phe_723	Hispanic or Latin American	AMR	case-control	59080	524	58556	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478919	Other and unspecified disorder	Phe_724	Hispanic or Latin American	AMR	case-control	56915	1663	55252	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478924	Other symptoms referable to back	Phe_724_8	Hispanic or Latin American	AMR	case-control	57838	700	57138	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478929	Peripheral enthesopathies and allied syndromes	Phe_726	Hispanic or Latin American	AMR	case-control	51877	14781	37096	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478933	Enthesopathy	Phe_726_1	Hispanic or Latin American	AMR	case-control	53709	6211	47498	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478936	Synoviopathy	Phe_726_2	Hispanic or Latin American	AMR	case-control	58518	858	57660	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478939	Bursitis	Phe_726_3	Hispanic or Latin American	AMR	case-control	57551	1816	55735	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478941	Calcaneal spur; Exostosis NOS	Phe_726_4	Hispanic or Latin American	AMR	case-control	57502	1346	56156	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478944	Other disorders of synovium, tendon, and bursa	Phe_727	Hispanic or Latin American	AMR	case-control	54297	7759	46538	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478947	Synovitis and tenosynovitis	Phe_727_1	Hispanic or Latin American	AMR	case-control	56921	3748	53173	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478949	Bursitis disorders	Phe_727_2	Hispanic or Latin American	AMR	case-control	58344	720	57624	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478952	Ganglion and cyst of synovium, tendon, and bursa	Phe_727_4	Hispanic or Latin American	AMR	case-control	58738	1159	57579	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478956	Rupture of tendon, nontraumatic	Phe_727_6	Hispanic or Latin American	AMR	case-control	58521	1922	56599	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478960	Fasciitis	Phe_728_7	Hispanic or Latin American	AMR	case-control	56114	6075	50039	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478963	Other disorders of soft tissues	Phe_729	Hispanic or Latin American	AMR	case-control	57510	756	56754	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478969	Other disorders of bone and cartilage	Phe_733	Hispanic or Latin American	AMR	case-control	57226	1288	55938	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478977	Acquired foot deformities	Phe_735	Hispanic or Latin American	AMR	case-control	55097	7443	47654	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478980	Flat foot	Phe_735_1	Hispanic or Latin American	AMR	case-control	57616	2320	55296	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478982	Acquired toe deformities	Phe_735_2	Hispanic or Latin American	AMR	case-control	57187	3431	53756	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478984	Hammer toe (acquired)	Phe_735_21	Hispanic or Latin American	AMR	case-control	58486	1669	56817	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478986	Hallux rigidus	Phe_735_23	Hispanic or Latin American	AMR	case-control	59211	766	58445	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478989	Hallux valgus (Bunion)	Phe_735_3	Hispanic or Latin American	AMR	case-control	58201	1975	56226	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478991	Other acquired deformities of limbs	Phe_736	Hispanic or Latin American	AMR	case-control	58075	1490	56585	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478999	Curvature of spine	Phe_737	Hispanic or Latin American	AMR	case-control	58837	518	58319	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479004	Other acquired musculoskeletal deformity	Phe_738	Hispanic or Latin American	AMR	case-control	57980	1458	56522	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479007	Acquired spondylolisthesis	Phe_738_4	Hispanic or Latin American	AMR	case-control	58743	665	58078	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479011	Osteoarthrosis	Phe_740	Hispanic or Latin American	AMR	case-control	53238	20899	32339	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479014	Osteoarthritis, localized	Phe_740_1	Hispanic or Latin American	AMR	case-control	53862	13158	40704	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479017	Osteoarthrosis, localized, primary	Phe_740_11	Hispanic or Latin American	AMR	case-control	54562	8767	45795	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479020	Osteoarthrosis, localized, secondary	Phe_740_12	Hispanic or Latin American	AMR	case-control	58046	1306	56740	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479023	Osteoarthrosis, generalized	Phe_740_2	Hispanic or Latin American	AMR	case-control	57889	1788	56101	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479028	Osteoarthrosis NOS	Phe_740_9	Hispanic or Latin American	AMR	case-control	54233	14501	39732	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479031	Symptoms and disorders of the joints	Phe_741	Hispanic or Latin American	AMR	case-control	53662	5324	48338	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479034	Stiffness of joint	Phe_741_2	Hispanic or Latin American	AMR	case-control	58931	564	58367	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479037	Difficulty in walking	Phe_741_3	Hispanic or Latin American	AMR	case-control	57750	2150	55600	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479040	Joint effusions	Phe_741_4	Hispanic or Latin American	AMR	case-control	57122	1019	56103	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479043	Derangement of joint, non-traumatic	Phe_742	Hispanic or Latin American	AMR	case-control	57280	1578	55702	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479047	Other derangement of joint	Phe_742_9	Hispanic or Latin American	AMR	case-control	57681	1245	56436	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479050	Osteoporosis, osteopenia and pathological fracture	Phe_743	Hispanic or Latin American	AMR	case-control	57590	3280	54310	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479052	Osteoporosis	Phe_743_1	Hispanic or Latin American	AMR	case-control	59101	1580	57521	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479054	Osteoporosis NOS	Phe_743_11	Hispanic or Latin American	AMR	case-control	59109	1558	57551	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479059	Osteopenia or other disorder of bone and cartilage	Phe_743_9	Hispanic or Latin American	AMR	case-control	58399	1613	56786	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479061	Pain in joint	Phe_745	Hispanic or Latin American	AMR	case-control	53166	39903	13263	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477176	Colorectal cancer	Phe_153	Hispanic or Latin American	AMR	case-control	59419	1003	58416	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477178	Colon cancer	Phe_153_2	Hispanic or Latin American	AMR	case-control	59503	870	58633	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477182	Cancer of liver and intrahepatic bile duct	Phe_155	Hispanic or Latin American	AMR	case-control	59746	674	59072	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477184	Malignant neoplasm of liver, primary	Phe_155_1	Hispanic or Latin American	AMR	case-control	59776	630	59146	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477190	Cancer within the respiratory system	Phe_165	Hispanic or Latin American	AMR	case-control	59615	697	58918	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477192	Cancer of bronchus; lung	Phe_165_1	Hispanic or Latin American	AMR	case-control	59666	624	59042	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475574	Skin cancer	Phe_172	Hispanic or Latin American	AMR	case-control	58901	2247	56654	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475576	Melanomas of skin, dx or hx	Phe_172_1	Hispanic or Latin American	AMR	case-control	59360	1032	58328	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475579	Other non-epithelial cancer of skin	Phe_172_2	Hispanic or Latin American	AMR	case-control	59006	1847	57159	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475581	Basal cell carcinoma	Phe_172_21	Hispanic or Latin American	AMR	case-control	59501	768	58733	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475584	Neoplasm of uncertain behavior of skin	Phe_173	Hispanic or Latin American	AMR	case-control	55550	2312	53238	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475589	Cancer of prostate	Phe_185	Hispanic or Latin American	AMR	case-control	53167	3485	49682	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477208	Cancer of urinary organs (incl. kidney and bladder)	Phe_189	Hispanic or Latin American	AMR	case-control	59478	1380	58098	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477209	Cancer of kidney and renal pelvis	Phe_189_1	Hispanic or Latin American	AMR	case-control	59788	790	58998	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477210	Malignant neoplasm of kidney, except pelvis	Phe_189_11	Hispanic or Latin American	AMR	case-control	59807	752	59055	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477212	Cancer of bladder	Phe_189_2	Hispanic or Latin American	AMR	case-control	59593	644	58949	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477214	Malignant neoplasm of bladder	Phe_189_21	Hispanic or Latin American	AMR	case-control	59662	554	59108	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477220	Cancer, suspected or other	Phe_195	Hispanic or Latin American	AMR	case-control	58947	987	57960	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477224	Chemotherapy	Phe_197	Hispanic or Latin American	AMR	case-control	59437	845	58592	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477227	Secondary malignant neoplasm	Phe_198	Hispanic or Latin American	AMR	case-control	59383	1313	58070	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477230	Secondary malignancy of lymph nodes	Phe_198_1	Hispanic or Latin American	AMR	case-control	59664	522	59142	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477241	Neoplasm of uncertain behavior	Phe_199	Hispanic or Latin American	AMR	case-control	57516	1457	56059	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477244	Cancer of other lymphoid, histiocytic tissue	Phe_202	Hispanic or Latin American	AMR	case-control	59689	524	59165	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477250	Benign neoplasm of colon	Phe_208	Hispanic or Latin American	AMR	case-control	53541	12715	40826	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477259	Lipoma	Phe_214	Hispanic or Latin American	AMR	case-control	57820	2094	55726	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477261	Lipoma of skin and subcutaneous tissue	Phe_214_1	Hispanic or Latin American	AMR	case-control	58641	1123	57518	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477265	Benign neoplasm of skin	Phe_216	Hispanic or Latin American	AMR	case-control	54739	2867	51872	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477267	Screening for malignant neopla	Phe_216_1	Hispanic or Latin American	AMR	case-control	58363	632	57731	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477269	Vascular hamartomas and non-neoplastic nevi	Phe_217	Hispanic or Latin American	AMR	case-control	57326	874	56452	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477271	Nevus, non-neoplastic	Phe_217_1	Hispanic or Latin American	AMR	case-control	57387	823	56564	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477273	Benign neoplasm of uterus	Phe_218	Hispanic or Latin American	AMR	case-control	5735	530	5205	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477276	Uterine leiomyoma	Phe_218_1	Hispanic or Latin American	AMR	case-control	5777	519	5258	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477279	Benign neoplasm of male genital organs	Phe_222	Hispanic or Latin American	AMR	case-control	52837	574	52263	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475624	Benign neoplasm of eye	Phe_224	Hispanic or Latin American	AMR	case-control	58987	1294	57693	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475627	Benign neoplasm of eye, uveal	Phe_224_1	Hispanic or Latin American	AMR	case-control	59198	1126	58072	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477288	Benign neoplasm of other endocrine glands and other related structures	Phe_227	Hispanic or Latin American	AMR	case-control	59586	680	58906	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477293	Hemangioma and lymphangioma, any site	Phe_228	Hispanic or Latin American	AMR	case-control	58418	648	57770	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477478	Sleep disorders	Phe_327	Hispanic or Latin American	AMR	case-control	51158	18470	32688	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477483	Sleep apnea	Phe_327_3	Hispanic or Latin American	AMR	case-control	57009	22934	34075	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477488	Obstructive sleep apnea	Phe_327_32	Hispanic or Latin American	AMR	case-control	56814	19148	37666	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477491	Insomnia	Phe_327_4	Hispanic or Latin American	AMR	case-control	53080	12531	40549	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477494	Organic or persistent insomnia	Phe_327_41	Hispanic or Latin American	AMR	case-control	58860	749	58111	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477497	Parasomnia	Phe_327_5	Hispanic or Latin American	AMR	case-control	57738	1503	56235	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477501	Sleep related movement disorders	Phe_327_7	Hispanic or Latin American	AMR	case-control	57623	2129	55494	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475828	Restless legs syndrome	Phe_327_71	Hispanic or Latin American	AMR	case-control	59141	1148	57993	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477508	Parkinson's disease	Phe_332	Hispanic or Latin American	AMR	case-control	59730	678	59052	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477510	Extrapyramidal disease and abnormal movement disorders	Phe_333	Hispanic or Latin American	AMR	case-control	58330	1774	56556	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477512	Essential tremor	Phe_333_1	Hispanic or Latin American	AMR	case-control	59224	920	58304	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477520	Disorders of the autonomic nervous system	Phe_337	Hispanic or Latin American	AMR	case-control	58352	1135	57217	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477522	Peripheral autonomic neuropathy	Phe_337_1	Hispanic or Latin American	AMR	case-control	58462	1020	57442	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477524	Pain	Phe_338	Hispanic or Latin American	AMR	case-control	51491	10515	40976	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477527	Acute pain	Phe_338_1	Hispanic or Latin American	AMR	case-control	54020	3019	51001	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477530	Chronic pain	Phe_338_2	Hispanic or Latin American	AMR	case-control	53671	7692	45979	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477534	Other headache syndromes	Phe_339	Hispanic or Latin American	AMR	case-control	52411	11822	40589	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477538	Migraine	Phe_340	Hispanic or Latin American	AMR	case-control	57538	5907	51631	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477541	Migrain with aura	Phe_340_1	Hispanic or Latin American	AMR	case-control	59034	895	58139	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477546	Other paralytic syndromes	Phe_344	Hispanic or Latin American	AMR	case-control	59334	607	58727	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477549	Epilepsy, recurrent seizures, convulsions	Phe_345	Hispanic or Latin American	AMR	case-control	58503	2353	56150	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477552	Epilepsy	Phe_345_1	Hispanic or Latin American	AMR	case-control	59179	1260	57919	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477558	Convulsions	Phe_345_3	Hispanic or Latin American	AMR	case-control	58797	1628	57169	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477563	Other conditions of brain	Phe_348	Hispanic or Latin American	AMR	case-control	58719	1061	57658	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477566	Encephalopathy, not elsewhere classified	Phe_348_8	Hispanic or Latin American	AMR	case-control	58998	823	58175	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477572	Abnormal movement	Phe_350	Hispanic or Latin American	AMR	case-control	53908	8559	45349	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477575	Abnormal involuntary movements	Phe_350_1	Hispanic or Latin American	AMR	case-control	57473	1814	55659	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477578	Abnormality of gait	Phe_350_2	Hispanic or Latin American	AMR	case-control	55028	6696	48332	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477584	Other peripheral nerve disorders	Phe_351	Hispanic or Latin American	AMR	case-control	54750	10091	44659	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477587	Disorders of other cranial nerves	Phe_352	Hispanic or Latin American	AMR	case-control	58747	1237	57510	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477592	Facial nerve disorders [CN7]	Phe_352_2	Hispanic or Latin American	AMR	case-control	59366	872	58494	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477594	Nerve root and plexus disorders	Phe_353	Hispanic or Latin American	AMR	case-control	58610	814	57796	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477602	Chronic pain syndrome	Phe_355_1	Hispanic or Latin American	AMR	case-control	57667	3488	54179	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477605	Hereditary and idiopathic peripheral neuropathy	Phe_356	Hispanic or Latin American	AMR	case-control	56850	3094	53756	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477607	Inflammatory and toxic neuropathy	Phe_357	Hispanic or Latin American	AMR	case-control	58317	1028	57289	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477082	Symptoms concerning nutrition, metabolism, and development	Phe_1002	Hispanic or Latin American	AMR	case-control	57167	2337	54830	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477084	Other signs and symptoms involving emotional state	Phe_1004	Hispanic or Latin American	AMR	case-control	58583	970	57613	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477087	Other symptoms	Phe_1005	Hispanic or Latin American	AMR	case-control	50215	10590	39625	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477096	Other tests	Phe_1010	Hispanic or Latin American	AMR	case-control	56282	53458	2824	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477113	Persons encountering health services in circumstances related to reproduction	Phe_1010_6	Hispanic or Latin American	AMR	case-control	58900	1764	57136	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477120	Complications of surgical and medical procedures	Phe_1011	Hispanic or Latin American	AMR	case-control	57551	1129	56422	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477124	Asphyxia and hypoxemia	Phe_1013	Hispanic or Latin American	AMR	case-control	58526	1220	57306	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477127	Effects of other external causes	Phe_1015	Hispanic or Latin American	AMR	case-control	54662	3632	51030	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477130	Other ill-defined and unknown causes of morbidity and mortality	Phe_1019	Hispanic or Latin American	AMR	case-control	53768	4377	49391	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477133	Acquired absence of limb	Phe_1089	Hispanic or Latin American	AMR	case-control	59741	646	59095	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477136	Acquired absence of organs	Phe_1090	Hispanic or Latin American	AMR	case-control	58624	886	57738	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477153	Family history	Phe_1100	Hispanic or Latin American	AMR	case-control	57230	1213	56017	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478070	Acute sinusitis	Phe_464	Hispanic or Latin American	AMR	case-control	54320	2871	51449	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478073	Acute upper respiratory infections of multiple or unspecified sites	Phe_465	Hispanic or Latin American	AMR	case-control	48601	11678	36923	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478077	Acute pharyngitis	Phe_465_2	Hispanic or Latin American	AMR	case-control	53877	2722	51155	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478081	Septal Deviations/Turbinate Hypertrophy	Phe_470	Hispanic or Latin American	AMR	case-control	58483	2256	56227	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478084	Chronic pharyngitis and nasopharyngitis	Phe_472	Hispanic or Latin American	AMR	case-control	56621	2673	53948	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478087	Diseases of the larynx and vocal cords	Phe_473	Hispanic or Latin American	AMR	case-control	58603	1898	56705	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478092	Voice disturbance	Phe_473_4	Hispanic or Latin American	AMR	case-control	58863	1539	57324	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478095	Acute and chronic tonsillitis	Phe_474	Hispanic or Latin American	AMR	case-control	58705	792	57913	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478102	Chronic sinusitis	Phe_475	Hispanic or Latin American	AMR	case-control	55311	3941	51370	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478105	Allergic rhinitis	Phe_476	Hispanic or Latin American	AMR	case-control	53097	13719	39378	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478108	Epistaxis or throat hemorrhage	Phe_477	Hispanic or Latin American	AMR	case-control	58557	1241	57316	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478113	Other upper respiratory disease	Phe_479	Hispanic or Latin American	AMR	case-control	55559	2025	53534	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478116	Pneumonia	Phe_480	Hispanic or Latin American	AMR	case-control	56659	4211	52448	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478118	Bacterial pneumonia	Phe_480_1	Hispanic or Latin American	AMR	case-control	58457	986	57471	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478125	Influenza	Phe_481	Hispanic or Latin American	AMR	case-control	57017	746	56271	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478128	Acute bronchitis and bronchiolitis	Phe_483	Hispanic or Latin American	AMR	case-control	52921	4141	48780	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478131	Asthma	Phe_495	Hispanic or Latin American	AMR	case-control	57759	5688	52071	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478136	Asthma with exacerbation	Phe_495_2	Hispanic or Latin American	AMR	case-control	58973	903	58070	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478138	Chronic airway obstruction	Phe_496	Hispanic or Latin American	AMR	case-control	56391	6646	49745	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478139	Emphysema	Phe_496_1	Hispanic or Latin American	AMR	case-control	59225	517	58708	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478141	Chronic bronchitis	Phe_496_2	Hispanic or Latin American	AMR	case-control	58139	1588	56551	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478143	Obstructive chronic bronchitis	Phe_496_21	Hispanic or Latin American	AMR	case-control	58677	1310	57367	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478146	Bronchitis	Phe_497	Hispanic or Latin American	AMR	case-control	54804	2393	52411	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476031	Postinflammatory pulmonary fibrosis	Phe_502	Hispanic or Latin American	AMR	case-control	59437	510	58927	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478162	Pleurisy; pleural effusion	Phe_507	Hispanic or Latin American	AMR	case-control	58238	1403	56835	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478165	Pulmonary collapse; interstitial and compensatory emphysema	Phe_508	Hispanic or Latin American	AMR	case-control	58141	679	57462	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478168	Respiratory failure, insufficiency, arrest	Phe_509	Hispanic or Latin American	AMR	case-control	57950	2901	55049	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478170	Respiratory failure	Phe_509_1	Hispanic or Latin American	AMR	case-control	58555	2247	56308	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478175	Dependence on respirator [Ventilator] or supplemental oxygen	Phe_509_8	Hispanic or Latin American	AMR	case-control	59039	781	58258	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478177	Other diseases of lung	Phe_510	Hispanic or Latin American	AMR	case-control	57878	1433	56445	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478179	Other symptoms of respiratory system	Phe_512	Hispanic or Latin American	AMR	case-control	48534	20097	28437	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478182	Wheezing	Phe_512_1	Hispanic or Latin American	AMR	case-control	58166	513	57653	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478185	Painful respiration	Phe_512_2	Hispanic or Latin American	AMR	case-control	56339	1097	55242	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478188	Shortness of breath	Phe_512_7	Hispanic or Latin American	AMR	case-control	52645	8261	44384	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478191	Cough	Phe_512_8	Hispanic or Latin American	AMR	case-control	50102	9166	40936	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478194	Other dyspnea	Phe_512_9	Hispanic or Latin American	AMR	case-control	51681	7177	44504	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478197	Respiratory abnormalities	Phe_513	Hispanic or Latin American	AMR	case-control	57677	1300	56377	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478205	Abnormal findings examination of lungs	Phe_514	Hispanic or Latin American	AMR	case-control	56578	2908	53670	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478208	Solitary pulmonary nodule	Phe_514_2	Hispanic or Latin American	AMR	case-control	58121	1850	56271	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478210	Abnormal sputum	Phe_516	Hispanic or Latin American	AMR	case-control	59007	513	58494	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478215	Other diseases of respiratory system, not elsewhere classified	Phe_519	Hispanic or Latin American	AMR	case-control	56926	1525	55401	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90478220	Symptoms involving respiratory system and other chest symptoms	Phe_519_9	Hispanic or Latin American	AMR	case-control	58598	521	58077	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477617	Retinal detachments and defects	Phe_361	Hispanic or Latin American	AMR	case-control	58963	1681	57282	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477621	Other retinal disorders	Phe_362	Hispanic or Latin American	AMR	case-control	54804	8808	45996	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475848	Degeneration of macula and posterior pole of retina	Phe_362_2	Hispanic or Latin American	AMR	case-control	57157	4642	52515	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475850	Macular degeneration, dry	Phe_362_21	Hispanic or Latin American	AMR	case-control	59007	1519	57488	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477627	Cystoid macular degeneration of retina	Phe_362_23	Hispanic or Latin American	AMR	case-control	59334	720	58614	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477629	Macular puckering of retina	Phe_362_26	Hispanic or Latin American	AMR	case-control	58550	1880	56670	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477631	Drusen (degenerative) of retina	Phe_362_27	Hispanic or Latin American	AMR	case-control	58767	679	58088	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475856	Macular degeneration (senile) of retina NOS	Phe_362_29	Hispanic or Latin American	AMR	case-control	59212	588	58624	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477634	Other nondiabetic retinopathy	Phe_362_3	Hispanic or Latin American	AMR	case-control	57834	1551	56283	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477639	Retinal vascular changes and abnomalities	Phe_362_4	Hispanic or Latin American	AMR	case-control	58956	1221	57735	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477642	Peripheral retinal degenerations	Phe_362_6	Hispanic or Latin American	AMR	case-control	58715	1204	57511	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477647	Retinal edema	Phe_362_9	Hispanic or Latin American	AMR	case-control	59210	715	58495	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477649	Chorioretinal inflammations, scars, and other disorders of choroid	Phe_363	Hispanic or Latin American	AMR	case-control	58731	947	57784	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477651	Chorioretinal scars	Phe_363_3	Hispanic or Latin American	AMR	case-control	58872	800	58072	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477654	Corneal opacity and other disorders of cornea	Phe_364	Hispanic or Latin American	AMR	case-control	58656	1044	57612	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477656	Corneal opacity	Phe_364_1	Hispanic or Latin American	AMR	case-control	58686	1158	57528	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475867	Glaucoma	Phe_365	Hispanic or Latin American	AMR	case-control	56909	11570	45339	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475870	Open-angle glaucoma	Phe_365_1	Hispanic or Latin American	AMR	case-control	57302	8523	48779	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475873	Primary open angle glaucoma	Phe_365_11	Hispanic or Latin American	AMR	case-control	58928	2857	56071	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477664	Primary angle-closure glaucoma	Phe_365_2	Hispanic or Latin American	AMR	case-control	59265	1066	58199	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477666	Cataract	Phe_366	Hispanic or Latin American	AMR	case-control	54221	23701	30520	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477671	Senile cataract	Phe_366_2	Hispanic or Latin American	AMR	case-control	53795	20660	33135	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477676	Disorders of refraction and accommodation; blindness and low vision	Phe_367	Hispanic or Latin American	AMR	case-control	52135	34537	17598	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477679	Myopia	Phe_367_1	Hispanic or Latin American	AMR	case-control	52116	9317	42799	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477681	Astigmatism	Phe_367_2	Hispanic or Latin American	AMR	case-control	50182	13020	37162	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477685	Presbyopia	Phe_367_4	Hispanic or Latin American	AMR	case-control	51587	24801	26786	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477688	Hypermetropia	Phe_367_8	Hispanic or Latin American	AMR	case-control	52824	8188	44636	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477691	Blindness and low vision	Phe_367_9	Hispanic or Latin American	AMR	case-control	56811	2186	54625	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477693	Visual disturbances	Phe_368	Hispanic or Latin American	AMR	case-control	52619	6526	46093	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477697	Amblyopia	Phe_368_1	Hispanic or Latin American	AMR	case-control	59456	581	58875	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477699	Diplopia and disorders of binocular vision	Phe_368_2	Hispanic or Latin American	AMR	case-control	58659	976	57683	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477704	Visual field defects	Phe_368_4	Hispanic or Latin American	AMR	case-control	58339	1201	57138	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477707	Subjective visual disturbances	Phe_368_9	Hispanic or Latin American	AMR	case-control	56883	1651	55232	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477711	Infection of the eye	Phe_369	Hispanic or Latin American	AMR	case-control	55586	2161	53425	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477716	Conjunctivitis, infectious	Phe_369_5	Hispanic or Latin American	AMR	case-control	55864	1581	54283	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477719	Keratitis	Phe_370	Hispanic or Latin American	AMR	case-control	57313	1702	55611	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477725	Keratoconjunctivitis	Phe_370_3	Hispanic or Latin American	AMR	case-control	58034	1095	56939	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477728	Keratoconjunctivitis sicca	Phe_370_31	Hispanic or Latin American	AMR	case-control	58205	955	57250	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477731	Inflammation of the eye	Phe_371	Hispanic or Latin American	AMR	case-control	53418	5972	47446	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477734	Uveitis, noninfectious or NOS	Phe_371_1	Hispanic or Latin American	AMR	case-control	59499	743	58756	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477736	Conjunctivitis, noninfectious	Phe_371_2	Hispanic or Latin American	AMR	case-control	57478	1653	55825	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477738	Allergic conjunctivitis	Phe_371_21	Hispanic or Latin American	AMR	case-control	57599	1530	56069	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477741	Inflammation of eyelids	Phe_371_3	Hispanic or Latin American	AMR	case-control	54744	3623	51121	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477743	Disorders of conjunctiva	Phe_372	Hispanic or Latin American	AMR	case-control	56508	2676	53832	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475889	Other disorders of eyelids	Phe_374	Hispanic or Latin American	AMR	case-control	57255	3030	54225	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475892	Ptosis of eyelid	Phe_374_3	Hispanic or Latin American	AMR	case-control	59178	1297	57881	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477750	Dermatochalasis	Phe_374_6	Hispanic or Latin American	AMR	case-control	58848	1324	57524	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477754	Dry eyes	Phe_375_1	Hispanic or Latin American	AMR	case-control	52270	11160	41110	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477759	Disorders of optic nerve and visual pathways	Phe_377	Hispanic or Latin American	AMR	case-control	58609	1136	57473	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477761	Optic atrophy	Phe_377_1	Hispanic or Latin American	AMR	case-control	59268	535	58733	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477765	Strabismus and other disorders of binocular eye movements	Phe_378	Hispanic or Latin American	AMR	case-control	58517	1793	56724	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477768	Strabismus (not specified as paralytic)	Phe_378_1	Hispanic or Latin American	AMR	case-control	58882	954	57928	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477773	Other disorders of eye	Phe_379	Hispanic or Latin American	AMR	case-control	54399	6287	48112	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477779	Disorders of vitreous body	Phe_379_2	Hispanic or Latin American	AMR	case-control	55746	4495	51251	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477782	Aphakia and other disorders of lens	Phe_379_3	Hispanic or Latin American	AMR	case-control	58933	869	58064	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477787	Pain, swelling or discharge of eye	Phe_379_9	Hispanic or Latin American	AMR	case-control	57322	620	56702	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477792	Otitis externa	Phe_380_1	Hispanic or Latin American	AMR	case-control	56976	2077	54899	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477794	Impacted cerumen	Phe_380_4	Hispanic or Latin American	AMR	case-control	54963	5046	49917	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477796	Otitis media and Eustachian tube disorders	Phe_381	Hispanic or Latin American	AMR	case-control	55199	3020	52179	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477798	Otitis media	Phe_381_1	Hispanic or Latin American	AMR	case-control	55849	2232	53617	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477800	Suppurative and unspecified otitis media	Phe_381_11	Hispanic or Latin American	AMR	case-control	56474	1551	54923	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477803	Eustachian tube disorders	Phe_381_2	Hispanic or Latin American	AMR	case-control	58556	711	57845	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477805	Otalgia	Phe_382	Hispanic or Latin American	AMR	case-control	56894	1113	55781	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477811	Vertiginous syndromes and other disorders of vestibular system	Phe_386	Hispanic or Latin American	AMR	case-control	57191	2226	54965	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475906	Peripheral or central vertigo	Phe_386_2	Hispanic or Latin American	AMR	case-control	57413	1863	55550	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477816	Dizziness and giddiness (Light-headedness and vertigo)	Phe_386_9	Hispanic or Latin American	AMR	case-control	52931	7560	45371	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477821	Hearing loss	Phe_389	Hispanic or Latin American	AMR	case-control	52348	23888	28460	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477824	Sensorineural hearing loss	Phe_389_1	Hispanic or Latin American	AMR	case-control	53446	17253	36193	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477826	Conductive hearing loss	Phe_389_2	Hispanic or Latin American	AMR	case-control	58922	794	58128	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477828	Tinnitus	Phe_389_4	Hispanic or Latin American	AMR	case-control	51084	10292	40792	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479092	Back pain	Phe_760	Hispanic or Latin American	AMR	case-control	53593	33399	20194	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479095	Cervicalgia	Phe_761	Hispanic or Latin American	AMR	case-control	53954	12248	41706	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479098	Thoracic or lumbosacral neuritis or radiculitis, unspecified	Phe_763	Hispanic or Latin American	AMR	case-control	56365	6255	50110	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479101	Sciatica	Phe_764	Hispanic or Latin American	AMR	case-control	56122	3697	52425	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479104	Cervical radiculitis	Phe_765	Hispanic or Latin American	AMR	case-control	57383	3171	54212	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479107	Neuralgia, neuritis, and radiculitis NOS	Phe_766	Hispanic or Latin American	AMR	case-control	57297	1583	55714	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479110	Nonallopathic lesions NEC	Phe_769	Hispanic or Latin American	AMR	case-control	59316	1733	57583	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479113	Myalgia and myositis unspecified	Phe_770	Hispanic or Latin American	AMR	case-control	56078	4069	52009	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479117	Swelling of limb	Phe_771_1	Hispanic or Latin American	AMR	case-control	56676	1129	55547	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479125	Spasm of muscle	Phe_772_2	Hispanic or Latin American	AMR	case-control	56253	2257	53996	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479128	Muscle weakness	Phe_772_3	Hispanic or Latin American	AMR	case-control	56756	3464	53292	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479134	Pain in limb	Phe_773	Hispanic or Latin American	AMR	case-control	48901	18161	30740	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479137	Symptoms involving nervous and musculoskeletal systems	Phe_781	Hispanic or Latin American	AMR	case-control	57910	826	57084	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476271	Edema	Phe_782_3	Hispanic or Latin American	AMR	case-control	54804	5910	48894	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479142	Fever of unknown origin	Phe_783	Hispanic or Latin American	AMR	case-control	55898	1951	53947	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479145	Abdominal pain	Phe_785	Hispanic or Latin American	AMR	case-control	50744	13848	36896	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479149	Syncope and collapse	Phe_788	Hispanic or Latin American	AMR	case-control	56785	3719	53066	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479151	Nausea and vomiting	Phe_789	Hispanic or Latin American	AMR	case-control	53956	3941	50015	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479156	Other abnormal blood chemistry	Phe_790_6	Hispanic or Latin American	AMR	case-control	54011	3604	50407	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479173	Malaise and fatigue	Phe_798	Hispanic or Latin American	AMR	case-control	52259	7263	44996	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479179	Debility unspecified	Phe_799	Hispanic or Latin American	AMR	case-control	58808	1619	57189	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476583	Other cancer	CaOth	Hispanic or Latin American	AMR	case-control	29314	1338	27976	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475183	Prostate Cancer	CaPros	Hispanic or Latin American	AMR	case-control	26428	1678	24750	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476586	Takes medication for prostate cancer?	CaProsMed	Hispanic or Latin American	AMR	case-control	26428	592	25836	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475188	Skin Cancer	CaSkin	Hispanic or Latin American	AMR	case-control	29314	979	28335	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476592	Coronary Artery / Coronary Heart Disease (including heart attack, angina)	CircCAD	Hispanic or Latin American	AMR	case-control	29314	3107	26207	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476594	Takes medication for coronary artery/ coronary heart disease?	CircCADMed	Hispanic or Latin American	AMR	case-control	29314	2687	26627	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476596	Congestive Heart Failure	CircCHF	Hispanic or Latin American	AMR	case-control	29314	1184	28130	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476598	Takes medication for congestive heart failure?	CircCHFMed	Hispanic or Latin American	AMR	case-control	29314	1122	28192	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475202	High Cholesterol	CircChol	Hispanic or Latin American	AMR	case-control	29314	14887	14427	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475206	Takes medication for high cholesterol?	CircCholMed	Hispanic or Latin American	AMR	case-control	29314	11967	17347	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476601	Blood clot / Pulmonary Embolism / Deep Vein Thrombosis (DVT)	CircClot	Hispanic or Latin American	AMR	case-control	29314	628	28686	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476603	Takes medication for blood clot/ pulmonary embolism/ deep vein thrombosis (DVT)?	CircClotMed	Hispanic or Latin American	AMR	case-control	29314	533	28781	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476609	High blood pressure / hypertension	CircHTN	Hispanic or Latin American	AMR	case-control	29314	16330	12984	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476611	Takes medication for high blood pressure?	CircHTNMed	Hispanic or Latin American	AMR	case-control	29314	14901	14413	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476605	Heart Attack	CircHrtAtk	Hispanic or Latin American	AMR	case-control	29314	2384	26930	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476607	Takes medication for heart attack?	CircHrtAtkMed	Hispanic or Latin American	AMR	case-control	29314	2097	27217	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476613	Other circulatory problem	CircOth	Hispanic or Latin American	AMR	case-control	29314	1929	27385	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476615	Takes medication for circulatory problem?	CircOthMed	Hispanic or Latin American	AMR	case-control	29314	1317	27997	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476617	Peripheral Vascular Disease	CircPVD	Hispanic or Latin American	AMR	case-control	29314	974	28340	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476619	Takes medication for peripheral vascular disease?	CircPVDMed	Hispanic or Latin American	AMR	case-control	29314	793	28521	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476621	Stroke	CircStrk	Hispanic or Latin American	AMR	case-control	29314	1524	27790	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476624	Takes medication for stroke?	CircStrkMed	Hispanic or Latin American	AMR	case-control	29314	1165	28149	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476627	Transient Ischemic Attack (TIA)	CircTIA	Hispanic or Latin American	AMR	case-control	29314	795	28519	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476630	Takes medication for transient ischemic attack (TIA)?	CircTIAMed	Hispanic or Latin American	AMR	case-control	29314	648	28666	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476647	Biological Father:  Cancer, Colon	DadCaColon	Hispanic or Latin American	AMR	case-control	29314	885	28429	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476650	Biological Father:  Cancer, Lung	DadCaLung	Hispanic or Latin American	AMR	case-control	29314	1048	28266	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476652	Biological Father:  Cancer, all others	DadCaOth	Hispanic or Latin American	AMR	case-control	29314	1755	27559	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476655	Biological Father:  Cancer, Prostate	DadCaPros	Hispanic or Latin American	AMR	case-control	29314	1724	27590	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476657	Biological Father:  Cancer, Skin	DadCaSkin	Hispanic or Latin American	AMR	case-control	29314	632	28682	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476658	Biological Father: Coronary Artery / Coronary Heart Disease	DadCircCAD	Hispanic or Latin American	AMR	case-control	29314	4348	24966	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476660	Biological Father: High cholesterol	DadCircChol	Hispanic or Latin American	AMR	case-control	29314	4253	25061	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476663	Biological Father: High blood pressure	DadCircHTN	Hispanic or Latin American	AMR	case-control	29314	6714	22600	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476666	Biological Father: Stroke / Transient Ischemic Attack (TIA)	DadCircStrk	Hispanic or Latin American	AMR	case-control	29314	2492	26822	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476669	Biological Father: Asthma	DadDoAsth	Hispanic or Latin American	AMR	case-control	29314	680	28634	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476672	Biological Father: Diabetes / "Sugar"	DadDoDM	Hispanic or Latin American	AMR	case-control	29314	5043	24271	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476674	Biological Father: Kidney Disease	DadDoKid	Hispanic or Latin American	AMR	case-control	29314	789	28525	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476677	Biological Father: Liver Condition	DadDoLiver	Hispanic or Latin American	AMR	case-control	29314	955	28359	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476679	Biological Father: Chronic Lung Disease including COPD, Emphysema or Bronchitis	DadDoLung	Hispanic or Latin American	AMR	case-control	29314	1280	28034	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476682	Biological Father: Depression	DadMHDep	Hispanic or Latin American	AMR	case-control	29314	1272	28042	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475248	Biological Father: Alzheimer's / Other Dementia	DadNSAlz	Hispanic or Latin American	AMR	case-control	29314	1591	27723	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476692	Sleep apnea	DoApnea	Hispanic or Latin American	AMR	case-control	29314	8570	20744	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476695	Takes medication for Sleep apnea?	DoApneaMed	Hispanic or Latin American	AMR	case-control	29314	2840	26474	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476697	Asthma	DoAsth	Hispanic or Latin American	AMR	case-control	29314	2887	26427	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476699	Takes medication for asthma?	DoAsthMed	Hispanic or Latin American	AMR	case-control	29314	2023	27291	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476701	Enlarged Prostrate (Benign Prostatic Hyperplasia)	DoBPH	Hispanic or Latin American	AMR	case-control	26428	4625	21803	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476703	Takes medication for enlarged prostrate (Benign prostatic hyperplasia)?	DoBPHMed	Hispanic or Latin American	AMR	case-control	26428	2809	23619	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475263	Diabetes / "Sugar"	DoDM	Hispanic or Latin American	AMR	case-control	29314	8910	20404	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475266	Takes medication for Diabetes/sugar?	DoDMMed	Hispanic or Latin American	AMR	case-control	29314	7497	21817	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475269	Liver condition (ex. Cirrhosis)	DoLiver	Hispanic or Latin American	AMR	case-control	29314	1301	28013	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476709	Chronic lung diseases including COPD, Emphysema and Bronchitis	DoLung	Hispanic or Latin American	AMR	case-control	29314	1812	27502	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476711	Takes medication for Chronic lung diseases including COPD, Emphysema and Bronchitis?	DoLungMed	Hispanic or Latin American	AMR	case-control	29314	1213	28101	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476713	Skin condition (ex. Eczema, Psoriasis)	DoSkin	Hispanic or Latin American	AMR	case-control	29314	3028	26286	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476716	Takes medication for Skin condition (ex. Eczema, Psoriasis)?	DoSkinMed	Hispanic or Latin American	AMR	case-control	29314	1700	27614	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476718	Thyroid problems	DoThy	Hispanic or Latin American	AMR	case-control	29314	2618	26696	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476720	Takes medication for Thyroid problems?	DoThyMed	Hispanic or Latin American	AMR	case-control	29314	2018	27296	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476734	Have you ever had a spontaneous miscarriage?	FMscrg	Hispanic or Latin American	AMR	case-control	1454	530	924	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476743	Irritable Bowel Syndrome (IBS)	GIIBS	Hispanic or Latin American	AMR	case-control	29314	1398	27916	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476746	Takes medication for irritable bowel syndrome (IBS)?	GIIBSMed	Hispanic or Latin American	AMR	case-control	29314	615	28699	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476749	Bowel obstruction	GIObst	Hispanic or Latin American	AMR	case-control	29314	794	28520	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476754	Other digestive system problems	GIOth	Hispanic or Latin American	AMR	case-control	29314	1793	27521	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476757	Takes medication for other digestive system problems?	GIOthMed	Hispanic or Latin American	AMR	case-control	29314	815	28499	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476760	Colon Polyps	GIPolyp	Hispanic or Latin American	AMR	case-control	29314	5301	24013	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476765	Acid Reflux/GERD	GIReflux	Hispanic or Latin American	AMR	case-control	29314	8856	20458	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476768	Takes medication for acid reflux/GERD?	GIRefluxMed	Hispanic or Latin American	AMR	case-control	29314	6770	22544	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476773	Peptic Ulcers	GIUlcer	Hispanic or Latin American	AMR	case-control	29314	963	28351	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476776	Takes medication for peptic ulcers?	GIUlcerMed	Hispanic or Latin American	AMR	case-control	29314	510	28804	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476799	Blindness, all causes	HVBlind	Hispanic or Latin American	AMR	case-control	29314	783	28531	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476803	Cataracts	HVCat	Hispanic or Latin American	AMR	case-control	29314	5591	23723	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476806	Takes medication for Cataracts?	HVCatMed	Hispanic or Latin American	AMR	case-control	29314	732	28582	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476809	Glaucoma	HVGlauc	Hispanic or Latin American	AMR	case-control	29314	2207	27107	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476811	Takes medication for Glaucoma?	HVGlaucMed	Hispanic or Latin American	AMR	case-control	29314	1360	27954	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476813	Severe hearing loss or partial deafness in one or both ears	HVHear	Hispanic or Latin American	AMR	case-control	29314	7542	21772	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476816	Takes medication for severe hearing loss or partial deafness in one or both ears?	HVHearMed	Hispanic or Latin American	AMR	case-control	29314	809	28505	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476819	Macular Degeneration	HVMD	Hispanic or Latin American	AMR	case-control	29314	1122	28192	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476822	Tinnitus or ringing in the ears	HVTin	Hispanic or Latin American	AMR	case-control	29314	10122	19192	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476826	Takes medication for tinnitus or ringing in  the ears?	HVTinMed	Hispanic or Latin American	AMR	case-control	29314	746	28568	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476835	Kidney disease without dialysis	KDNoDial	Hispanic or Latin American	AMR	case-control	29314	1437	27877	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476837	Takes medication for kidney disease without dialysis?	KDNoDialMed	Hispanic or Latin American	AMR	case-control	29314	627	28687	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476841	Biological Grandparent (maternal):  Cancer, Breast	MGpCaBrst	Hispanic or Latin American	AMR	case-control	29314	721	28593	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476846	Biological Grandparent (maternal):  Cancer, Lung	MGpCaLung	Hispanic or Latin American	AMR	case-control	29314	576	28738	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476849	Biological Grandparent (maternal):  Cancer, all others	MGpCaOth	Hispanic or Latin American	AMR	case-control	29314	1556	27758	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476855	Biological Grandparent (maternal): Coronary Artery / Coronary Heart Disease	MGpCircCAD	Hispanic or Latin American	AMR	case-control	29314	1738	27576	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476858	Biological Grandparent (maternal): High cholesterol	MGpCircChol	Hispanic or Latin American	AMR	case-control	29314	1378	27936	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476861	Biological Grandparent (maternal): High blood pressure	MGpCircHTN	Hispanic or Latin American	AMR	case-control	29314	2542	26772	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476864	Biological Grandparent (maternal): Stroke / Transient Ischemic Attack (TIA)	MGpCircStrk	Hispanic or Latin American	AMR	case-control	29314	1321	27993	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476869	Biological Grandparent (maternal): Diabetes / "Sugar"	MGpDoDM	Hispanic or Latin American	AMR	case-control	29314	3476	25838	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476874	Biological Grandparent (maternal): Chronic Lung Disease including COPD, Emphysema or Bronchitis	MGpDoLung	Hispanic or Latin American	AMR	case-control	29314	546	28768	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476878	Biological Grandparent (maternal): Depression	MGpMHDep	Hispanic or Latin American	AMR	case-control	29314	693	28621	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476882	Biological Grandparent (maternal): Alzheimer's / Other Dementia	MGpNSAlz	Hispanic or Latin American	AMR	case-control	29314	1680	27634	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476884	Biological Mother:  Cancer, Breast	MomCaBrst	Hispanic or Latin American	AMR	case-control	29314	1917	27397	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476886	Biological Mother:  Cancer, Colon	MomCaColon	Hispanic or Latin American	AMR	case-control	29314	705	28609	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476889	Biological Mother:  Cancer, Lung	MomCaLung	Hispanic or Latin American	AMR	case-control	29314	649	28665	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476891	Biological Mother: Cancer, all others	MomCaOth	Hispanic or Latin American	AMR	case-control	29314	2300	27014	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476894	Biological Mother: Coronary Artery / Coronary Heart Disease	MomCircCAD	Hispanic or Latin American	AMR	case-control	29314	2929	26385	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476896	Biological Mother: High cholesterol	MomCircChol	Hispanic or Latin American	AMR	case-control	29314	4666	24648	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476899	Biological Mother: High blood pressure	MomCircHTN	Hispanic or Latin American	AMR	case-control	29314	8387	20927	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476902	Biological Mother: Stroke / Transient Ischemic Attack (TIA)	MomCircStrk	Hispanic or Latin American	AMR	case-control	29314	2133	27181	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476905	Biological Mother: Asthma	MomDoAsth	Hispanic or Latin American	AMR	case-control	29314	1438	27876	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476908	Biological Mother: Diabetes / "Sugar"	MomDoDM	Hispanic or Latin American	AMR	case-control	29314	7144	22170	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476910	Biological Mother: Kidney Disease	MomDoKid	Hispanic or Latin American	AMR	case-control	29314	929	28385	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475493	Biological Mother: Liver Condition	MomDoLiver	Hispanic or Latin American	AMR	case-control	29314	580	28734	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476915	Biological Mother: Chronic Lung Disease including COPD, Emphysema or Bronchitis	MomDoLung	Hispanic or Latin American	AMR	case-control	29314	1001	28313	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476920	Biological Mother: Depression	MomMHDep	Hispanic or Latin American	AMR	case-control	29314	2993	26321	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475494	Biological Mother: Alzheimer's / Other Dementia	MomNSAlz	Hispanic or Latin American	AMR	case-control	29314	2720	26594	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476924	Are you a twin, triplet, or other multiple birth?	MultiBrth	Hispanic or Latin American	AMR	case-control	28652	591	28061	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476929	Epilepsy / Seizure disorder	NSEpil	Hispanic or Latin American	AMR	case-control	29314	538	28776	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476934	Concussion or loss of consciousness	NSLOC	Hispanic or Latin American	AMR	case-control	29314	2382	26932	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476939	Memory Loss or Impairment	NSMemLoss	Hispanic or Latin American	AMR	case-control	29314	3648	25666	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476941	Takes medication for memory loss or impairment?	NSMemLossMed	Hispanic or Latin American	AMR	case-control	29314	615	28699	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476943	Migraine Headaches	NSMigrn	Hispanic or Latin American	AMR	case-control	29314	3724	25590	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476945	Takes medication for migraine headaches?	NSMigrnMed	Hispanic or Latin American	AMR	case-control	29314	2050	27264	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476949	Other nervous system problem	NSOth	Hispanic or Latin American	AMR	case-control	29314	1726	27588	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476952	Other Headaches	NSOthHd	Hispanic or Latin American	AMR	case-control	29314	3547	25767	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476955	Takes medication for other headaches?	NSOthHdMed	Hispanic or Latin American	AMR	case-control	29314	1573	27741	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476958	Takes medication for other nervous system problems?	NSOthMed	Hispanic or Latin American	AMR	case-control	29314	911	28403	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476963	Spinal Cord Injury	NSSCI	Hispanic or Latin American	AMR	case-control	29314	2325	26989	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476966	Takes medication for spinal cord injury?	NSSCIMed	Hispanic or Latin American	AMR	case-control	29314	1073	28241	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476969	Traumatic Brain Injury (TBI)	NSTBI	Hispanic or Latin American	AMR	case-control	29314	1499	27815	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476980	Biological Grandparent (paternal):  Cancer, all others	PGpCaOth	Hispanic or Latin American	AMR	case-control	29314	1077	28237	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476985	Biological Grandparent (paternal): Coronary Artery / Coronary Heart Disease	PGpCircCAD	Hispanic or Latin American	AMR	case-control	29314	1547	27767	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476987	Biological Grandparent (paternal): High cholesterol	PGpCircChol	Hispanic or Latin American	AMR	case-control	29314	1037	28277	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476990	Biological Grandparent (paternal): High blood pressure	PGpCircHTN	Hispanic or Latin American	AMR	case-control	29314	1825	27489	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476993	Biological Grandparent (paternal): Stroke / Transient Ischemic Attack (TIA)	PGpCircStrk	Hispanic or Latin American	AMR	case-control	29314	1035	28279	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476997	Biological Grandparent (paternal): Diabetes / "Sugar"	PGpDoDM	Hispanic or Latin American	AMR	case-control	29314	2261	27053	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90477005	Biological Grandparent (paternal): Alzheimer's / Other Dementia	PGpNSAlz	Hispanic or Latin American	AMR	case-control	29314	1043	28271	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479360	Biological Sibling:  Cancer, Breast	SibCaBrst	Hispanic or Latin American	AMR	case-control	29314	1439	27875	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479362	Biological Sibling:  Cancer, Colon	SibCaColon	Hispanic or Latin American	AMR	case-control	29314	667	28647	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479365	Biological Sibling:  Cancer, Lung	SibCaLung	Hispanic or Latin American	AMR	case-control	29314	521	28793	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479367	Biological Sibling:  Cancer, all others	SibCaOth	Hispanic or Latin American	AMR	case-control	29314	1845	27469	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479370	Biological Sibling:  Cancer, Prostate	SibCaPros	Hispanic or Latin American	AMR	case-control	29314	726	28588	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479372	Biological Sibling: Coronary Artery / Coronary Heart Disease	SibCircCAD	Hispanic or Latin American	AMR	case-control	29314	1728	27586	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479374	Biological Sibling: High cholesterol	SibCircChol	Hispanic or Latin American	AMR	case-control	29314	3748	25566	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479377	Biological Sibling: High blood pressure	SibCircHTN	Hispanic or Latin American	AMR	case-control	29314	5145	24169	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479381	Biological Sibling: Stroke / Transient Ischemic Attack (TIA)	SibCircStrk	Hispanic or Latin American	AMR	case-control	29314	915	28399	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479384	Biological Sibling: Asthma	SibDoAsth	Hispanic or Latin American	AMR	case-control	29314	2302	27012	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479386	Biological Sibling: Diabetes / "Sugar"	SibDoDM	Hispanic or Latin American	AMR	case-control	29314	5431	23883	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479389	Biological Sibling: Kidney Disease	SibDoKid	Hispanic or Latin American	AMR	case-control	29314	905	28409	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479392	Biological Sibling: Liver Condition	SibDoLiver	Hispanic or Latin American	AMR	case-control	29314	904	28410	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479395	Biological Sibling: Chronic Lung Disease including COPD, Emphysema or Bronchitis	SibDoLung	Hispanic or Latin American	AMR	case-control	29314	745	28569	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479397	Biological Sibling: Bipolar Disorder	SibMHBPD	Hispanic or Latin American	AMR	case-control	29314	969	28345	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479400	Biological Sibling: Depression	SibMHDep	Hispanic or Latin American	AMR	case-control	29314	2466	26848	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476376	Gout	SkMsGout	Hispanic or Latin American	AMR	case-control	29314	2151	27163	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476380	Takes medication for gout?	SkMsGoutMed	Hispanic or Latin American	AMR	case-control	29314	1396	27918	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479407	Ostearthritis	SkMsOA	Hispanic or Latin American	AMR	case-control	29314	3657	25657	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479409	Takes medication for Osteoarthritis?	SkMsOAMed	Hispanic or Latin American	AMR	case-control	29314	2007	27307	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479412	Osteoporosis	SkMsOP	Hispanic or Latin American	AMR	case-control	29314	1029	28285	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479414	Takes medication for osteoporosis?	SkMsOPMed	Hispanic or Latin American	AMR	case-control	29314	671	28643	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479417	Other skeletal/muscular problem	SkMsOth	Hispanic or Latin American	AMR	case-control	29314	6242	23072	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479421	Other Arthritis	SkMsOthArth	Hispanic or Latin American	AMR	case-control	29314	6392	22922	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479425	Takes medication for other arthritis?	SkMsOthArthMed	Hispanic or Latin American	AMR	case-control	29314	2841	26473	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479428	Takes medication for other skeletal/muscular problem?	SkMsOthMed	Hispanic or Latin American	AMR	case-control	29314	3177	26137	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479431	Rheumatoid Arthritis	SkMsRA	Hispanic or Latin American	AMR	case-control	29314	2839	26475	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479434	Takes medication for Rheumatoid Arthritis?	SkMsRAMed	Hispanic or Latin American	AMR	case-control	29314	1609	27705	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479437	Feeling excessively sleepy during the day (does not include regular naps)	SlpExcDy	Hispanic or Latin American	AMR	case-control	19963	5655	14308	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479441	Trouble falling asleep when you first go to bed	SlpFall	Hispanic or Latin American	AMR	case-control	19963	8448	11515	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479444	Feeling unsatisfied or not rested by your night's sleep	SlpUnsat	Hispanic or Latin American	AMR	case-control	19963	9171	10792	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479448	Waking up in the morning earlier than planned or desired	SlpWakeAM	Hispanic or Latin American	AMR	case-control	19963	8459	11504	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479452	Waking up during the night and not easily going back to sleep	SlpWakePM	Hispanic or Latin American	AMR	case-control	19963	9596	10367	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479455	In your lifetime, have you smoked a total of at least 100 cigarettes?	Smk100	Hispanic or Latin American	AMR	case-control	28404	18038	10366	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479461	Smokeless tobacco (Chewing tobacco or snuff)	SmkChewConv	Hispanic or Latin American	AMR	case-control	17251	1897	15354	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479464	Do you currently smoke cigarettes?	SmkCur	Hispanic or Latin American	AMR	case-control	12377	2697	9680	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479467	Do you smoke now?	SmkNowConv	Hispanic or Latin American	AMR	case-control	19139	5112	14027	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479469	Other tobacco products	SmkOthConv	Hispanic or Latin American	AMR	case-control	16413	930	15483	GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475151	body mass index (BMI, maximum, inv-normal transformed)	BMI_Max_INT	Hispanic or Latin American	AMR	quantitative	57796			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475154	body mass index (BMI, mean, inv-normal transformed)	BMI_Mean_INT	Hispanic or Latin American	AMR	quantitative	57793			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475157	body mass index (BMI, minimum, inv-normal transformed)	BMI_Min_INT	Hispanic or Latin American	AMR	quantitative	57794			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475250	diastolic blood pressure (DBP, maximum, inv-normal transformed)	Diastolic_Max_INT	Hispanic or Latin American	AMR	quantitative	57979			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475253	diastolic blood pressure (DBP, mean, inv-normal transformed)	Diastolic_Mean_INT	Hispanic or Latin American	AMR	quantitative	57990			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476689	diastolic blood pressure (DBP, minimum, inv-normal transformed)	Diastolic_Min_INT	Hispanic or Latin American	AMR	quantitative	57991			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475366	What is your height? (cm, inv-normal transformed)	HeightSRCm_INT	Hispanic or Latin American	AMR	quantitative	27055			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475357	height (maximum, inv-normal transformed)	Height_Max_INT	Hispanic or Latin American	AMR	quantitative	57810			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475360	height (mean, inv-normal transformed)	Height_Mean_INT	Hispanic or Latin American	AMR	quantitative	57810			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90475363	height (minimum, inv-normal transformed)	Height_Min_INT	Hispanic or Latin American	AMR	quantitative	57810			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476332	heart rate (HR, maximum, inv-normal transformed)	Pulse_Max_INT	Hispanic or Latin American	AMR	quantitative	57990			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476335	heart rate (HR, mean, inv-normal transformed)	Pulse_Mean_INT	Hispanic or Latin American	AMR	quantitative	57990			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476339	heart rate (HR, minimum, inv-normal transformed)	Pulse_Min_INT	Hispanic or Latin American	AMR	quantitative	57986			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479458	At what age did you start to smoke cigarettes regularly? (inv-normal transformed)	SmkAge_INT	Hispanic or Latin American	AMR	quantitative	11208			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479472	How many years have you or did you smoke cigarettes? (inv-normal transformed)	SmkYrs_INT	Hispanic or Latin American	AMR	quantitative	11563			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476398	systolic blood pressure (SBP, maximum, inv-normal transformed)	Systolic_Max_INT	Hispanic or Latin American	AMR	quantitative	57991			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476401	systolic blood pressure (SBP, mean, inv-normal transformed)	Systolic_Mean_INT	Hispanic or Latin American	AMR	quantitative	57988			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90479481	systolic blood pressure (SBP, minimum, inv-normal transformed)	Systolic_Min_INT	Hispanic or Latin American	AMR	quantitative	57985			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476467	What is your weight? (pounds, inv-normal transformed)	WeightSRLb_INT	Hispanic or Latin American	AMR	quantitative	27471			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476458	weight (maximum, inv-normal transformed)	Weight_Max_INT	Hispanic or Latin American	AMR	quantitative	57954			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476461	weight (mean, inv-normal transformed)	Weight_Mean_INT	Hispanic or Latin American	AMR	quantitative	57954			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American
+GCST90476464	weight (minimum, inv-normal transformed)	Weight_Min_INT	Hispanic or Latin American	AMR	quantitative	57954			GRCh38	39024449	dense__pmid-39024449__Hispanic-or-Latin-American

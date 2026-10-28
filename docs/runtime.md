@@ -9,8 +9,8 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `d8896e46677ae9d54f1fc08a974e8c7e41d105cc`, the core `dev` merge of PR #305; its first parent is PR #293's docs-only merge, its second PR #304's branch head `3929444` |
-| Core merge | opengwas/opengwasdb PR #305 (`build-ragged-besd` drops lift-colliding ESI entries, `validate` requires each Analysis's `variant_index` slice to be strictly increasing, core #304), on top of `dev` with #277, #278, #281, #282, #288 and #291; earlier pins: the `dev` merge of PR #291 `d405de0` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288), PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Revision | `0d59f151c7618933747a59f825deeef6a51de9e1`, the core `dev` merge of PR #329; its first parent is PR #328's merge, its second PR #329's branch head `555e2e6` |
+| Core merge | opengwas/opengwasdb PR #329 (core #302: a BESD Ragged build stores each pair's published sample size, and the `.esi` allele frequency per association on request; ADR 0067), on top of `dev` with #298, #326, #331, #295/#296/#306/#324 and #328; earlier pins: PR #330's branch head `5fc0766` (stores #326), the `dev` merge of PR #298 `75f0e77` (stores #341), the `dev` merge of PR #305 `d8896e4` (stores #314), the `dev` merge of PR #291 `d405de0` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288), PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
@@ -56,6 +56,16 @@ re-run `pixi lock` in the same commit.
   cannot hold one `variant_index` twice in one Analysis's segment. `validate`
   requires each Analysis's `variant_index` slice to be **strictly increasing**,
   on every release, and reports a repeat separately from a decrease.
+- **Per-association sample size, and the `.esi` allele frequency on request**
+  (opengwas/opengwasdb#302, ADR 0067; moved here for the OGS-00027
+  replacement, stores #314 in epic #282). `build-ragged-besd
+  --sample-size-table` stores each stored pair's published sample size in an
+  opt-in `uint32` `n` plane and its by-variant copy, and never estimates one the
+  table omits; `--store-esi-eaf` stores the `.esi` frequency per association,
+  oriented to the effect allele and checked once against `--eaf-reference`. A
+  Store holding an `n` plane keeps `se` in float16, the loader and `validate`
+  refuse an `n` plane beside residual-coded `se`, every Ragged query result then
+  carries `n`, and `info` reports `n=uint32`.
 
 ## The pre-write gate
 

@@ -16,10 +16,12 @@ that it never does so on evidence too weak for a human to have skipped:
 * promoting new rows bumps the Reference Resource's integer ``version``;
 * the only things promotion writes are the Reference Resource directory and the
   review queue file -- no Release Manifest, bundle, or store is touched;
-* promoted rows resolve through the R resolver as ``canonical_table_lookup``.
+* promoted rows resolve through the pipeline's own Trait Ontology Mapping as
+  ``canonical_table_lookup``.
 
 The suite is hermetic: it runs against temporary fixture tables, never the real
-curated data, and invokes the real R resolver only against its own fixture.
+curated data, and proves the round trip with the pipeline's mapping step against
+its own fixture.
 """
 
 from __future__ import annotations
@@ -28,14 +30,13 @@ import contextlib
 import io
 import json
 import shutil
-import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from curation import candidates, promotion
+from curation import candidates, gap_scan, promotion
 from curation.choice import PROPOSAL_COLUMNS
 from curation.chooser import Candidate
 from curation.promotion import (
@@ -67,6 +68,16 @@ from curation.promotion import (
     read_rejections,
     render_mapping,
     run_promotion,
+)
+
+# The pipeline's own Trait Ontology Mapping: the step a promoted row feeds (#350).
+from manifest_generation.trait_ontology_mapping import (
+    CanonicalTraitTerm,
+    SourceTrait,
+    TraitOntologyMapping,
+    TraitOntologyMappingMethod,
+    load_canonical_trait_mapping_table,
+    map_trait_ontology,
 )
 
 RELEASE = "efo/v3.94.0"
@@ -234,7 +245,9 @@ class PromotionTestCase(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.base = Path(self.temp_dir.name)
-        self.resource_dir = self.base / "canonical-trait-mapping-efo"
+        # In the repository's layout, `resources/reference-resources/<resource>`:
+        # the pipeline resolves the declared location against this directory.
+        self.resource_dir = self.base / "resources" / "reference-resources" / "canonical-trait-mapping-efo"
         self.resource_dir.mkdir(parents=True)
         self.mapping_path = self.resource_dir / "mapping.tsv"
         self.resource_yaml_path = self.resource_dir / "resource.yaml"
@@ -1666,39 +1679,29 @@ class TestPromotionCli(PromotionTestCase):
 
 
 # ---------------------------------------------------------------------------
-# Resolver integration
+# The pipeline's Trait Ontology Mapping, over the promoted table
 # ---------------------------------------------------------------------------
 
 
-RESOLVER_SCRIPT = """\
-suppressPackageStartupMessages(library(data.table))
-source("resources/generators/lib/metadata_resolvers/canonical_trait_table.R")
-args <- commandArgs(trailingOnly = TRUE)
-mapping <- args[1]
-label <- args[2]
-expected_id <- args[3]
-expected_label <- args[4]
-table <- load_canonical_trait_table(mapping)
-r <- resolve_trait_ontology_mapping(
-  trait_label = label, source_ontology_id = NA_character_,
-  source_ontology_label = NA_character_, canonical_table = table
-)
-stopifnot(identical(r$resolution_status, "resolved"))
-stopifnot(identical(r$trait_ontology_mapping_method, "canonical_table_lookup"))
-stopifnot(identical(r$trait_ontology_id, expected_id))
-stopifnot(identical(r$trait_ontology_label, expected_label))
-cat("RESOLVER_OK\\n")
-"""
+CANONICAL_TABLE_LOOKUP = TraitOntologyMappingMethod.CANONICAL_TABLE_LOOKUP
+UNMAPPED = TraitOntologyMappingMethod.UNMAPPED
 
 
-class TestResolverIntegration(PromotionTestCase):
-    """Promoted rows resolve through the real R resolver."""
+class TestPipelineMappingRoundTrip(PromotionTestCase):
+    """A promoted row round-trips through the pipeline's own mapping step (#350).
 
-    def test_promoted_row_resolves_as_canonical_table_lookup(self) -> None:
-        rscript = shutil.which("Rscript")
-        if rscript is None:
-            self.skipTest("Rscript not found on PATH")
+    Promotion and Trait Ontology Mapping are the two halves of one loop: the
+    pipeline reads this table for every Analysis whose Source Collection
+    supplies no term, and curation writes it. So the proof that a promoted row
+    is usable is the pipeline's own lookup, not a second implementation of it.
+    """
 
+    def map_label(self, label: str) -> TraitOntologyMapping:
+        """Map one Source Trait Label from a fresh load of the promoted table."""
+        table = load_canonical_trait_mapping_table(self.resource_dir)
+        return map_trait_ontology(SourceTrait("GCST1", label, "", ""), table)
+
+    def test_promoted_row_maps_as_canonical_table_lookup(self) -> None:
         self.write_proposals(
             [
                 proposal_row(
@@ -1716,52 +1719,111 @@ class TestResolverIntegration(PromotionTestCase):
         )
         self.promote()
 
-        script = self.base / "check_resolver.R"
-        script.write_text(RESOLVER_SCRIPT, encoding="utf-8")
-        result = subprocess.run(
-            [
-                rscript,
-                str(script),
-                str(self.mapping_path),
-                "  BODY MASS INDEX  ",
-                "EFO:0004340",
-                "body mass index",
-            ],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
+        mapping = self.map_label("  BODY MASS INDEX  ")
+        self.assertIs(mapping.method, CANONICAL_TABLE_LOOKUP)
+        self.assertEqual(mapping.trait_ontology_id, "EFO:0004340")
+        self.assertEqual(mapping.trait_ontology_label, "body mass index")
+
+    def test_promotion_provenance_is_not_part_of_the_lookup(self) -> None:
+        """The row's reviewer columns are for people; the mapped term is the id and label."""
+        self.write_proposals(
+            [proposal_row("Height", "EFO:1", "body height", 0.99, runner_up_margin=1.0)]
         )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("RESOLVER_OK", result.stdout)
-
-    def test_resolver_ignores_provenance_columns(self) -> None:
-        rscript = shutil.which("Rscript")
-        if rscript is None:
-            self.skipTest("Rscript not found on PATH")
-
-        self.write_proposals([proposal_row("Height", "EFO:1", "body height", 0.99, runner_up_margin=1.0)])
         self.promote()
-        script = self.base / "check_columns.R"
-        script.write_text(
-            "suppressPackageStartupMessages(library(data.table))\n"
-            'source("resources/generators/lib/metadata_resolvers/canonical_trait_table.R")\n'
-            "args <- commandArgs(trailingOnly = TRUE)\n"
-            "table <- load_canonical_trait_table(args[1])\n"
-            'stopifnot("review_status" %in% names(table))\n'
-            "r <- resolve_trait_ontology_mapping(args[2], NA_character_, NA_character_, table)\n"
-            'stopifnot(identical(r$trait_ontology_mapping_method, "canonical_table_lookup"))\n'
-            'cat("COLUMNS_OK\\n")\n',
-            encoding="utf-8",
-        )
-        result = subprocess.run(
-            [rscript, str(script), str(self.mapping_path), "height"],
-            cwd=REPO_ROOT,
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertIn("COLUMNS_OK", result.stdout)
 
+        header, _ = parse_tsv(self.mapping_path.read_text(encoding="utf-8"))
+        self.assertIn("review_status", header)
+        table = load_canonical_trait_mapping_table(self.resource_dir)
+        self.assertEqual(table.entries["height"], CanonicalTraitTerm("EFO:1", "body height"))
+        mapping = map_trait_ontology(SourceTrait("GCST1", "height", "", ""), table)
+        self.assertIs(mapping.method, CANONICAL_TABLE_LOOKUP)
+        self.assertEqual(mapping.trait_ontology_id, "EFO:1")
+        self.assertEqual(mapping.trait_ontology_label, "body height")
+
+    def test_a_second_round_never_writes_a_label_twice(self) -> None:
+        """Promotion keeps the first row for a label, so the load cannot fail (#350).
+
+        The retired R resolver took the first match for a label listed twice; the
+        pipeline's loader refuses the table instead. Promotion must therefore
+        never write the second row: the first one already answers for the label.
+        """
+        self.write_proposals(
+            [proposal_row("Body mass index", "EFO:0004340", "body mass index", 0.99, runner_up_margin=1.0)]
+        )
+        self.promote()
+        self.write_proposals(
+            [proposal_row("  body mass index  ", "EFO:9999999", "a second term", 0.99, runner_up_margin=1.0)]
+        )
+        self.promote()
+
+        self.assertEqual(len(self.mapping_rows()), 1)
+        mapping = self.map_label("Body mass index")
+        self.assertIs(mapping.method, CANONICAL_TABLE_LOOKUP)
+        self.assertEqual(mapping.trait_ontology_id, "EFO:0004340")
+
+
+class TestTraitLabelNormalisation(PromotionTestCase):
+    """Curation keys a label exactly as the pipeline's lookup does (#350).
+
+    The work queue, the proposal and the mapping table row are joined by the
+    normalised label. While both sides agree, a promoted row is found; the
+    moment they do not, promotion silently writes rows an Analysis never
+    reaches. So the rule is asserted rather than assumed equal. Unlike R's
+    `trimws()`, both strip a no-break space, and neither collapses the inner
+    whitespace of a label -- those are two different labels.
+    """
+
+    SAME_LABEL = (
+        "body mass index",
+        "Body mass index",
+        "  BODY MASS INDEX  ",
+        "\tbody mass index\n",
+        "\u00a0body mass index\u00a0",
+    )
+    OTHER_LABEL = ("body  mass index", "body-mass index", "body mass indices")
+
+    def lookup_key(self) -> str:
+        """The key the pipeline's loader stored the promoted row under."""
+        table = load_canonical_trait_mapping_table(self.resource_dir)
+        self.assertEqual(len(table.entries), 1)
+        (key,) = table.entries
+        return key
+
+    def test_the_curation_normalisers_agree_with_the_pipeline_lookup_key(self) -> None:
+        self.write_proposals(
+            [proposal_row("Body mass index", "EFO:0004340", "body mass index", 0.99, runner_up_margin=1.0)]
+        )
+        self.promote()
+        key = self.lookup_key()
+        self.assertEqual(key, "body mass index")
+
+        for variant in self.SAME_LABEL:
+            with self.subTest(variant=variant):
+                self.assertEqual(promotion.normalize_trait_label(variant), key)
+                self.assertEqual(gap_scan.normalize_trait_label(variant), key)
+
+        for variant in self.OTHER_LABEL:
+            with self.subTest(variant=variant):
+                self.assertNotEqual(promotion.normalize_trait_label(variant), key)
+                self.assertNotEqual(gap_scan.normalize_trait_label(variant), key)
+
+    def test_a_variant_label_finds_the_promoted_row(self) -> None:
+        """What the agreement buys: a queue label written differently still maps."""
+        self.write_proposals(
+            [proposal_row("Body mass index", "EFO:0004340", "body mass index", 0.99, runner_up_margin=1.0)]
+        )
+        self.promote()
+        table = load_canonical_trait_mapping_table(self.resource_dir)
+
+        for variant in self.SAME_LABEL:
+            with self.subTest(variant=variant):
+                mapping = map_trait_ontology(SourceTrait("GCST1", variant, "", ""), table)
+                self.assertIs(mapping.method, CANONICAL_TABLE_LOOKUP)
+                self.assertEqual(mapping.trait_ontology_id, "EFO:0004340")
+        for variant in self.OTHER_LABEL:
+            with self.subTest(variant=variant):
+                mapping = map_trait_ontology(SourceTrait("GCST1", variant, "", ""), table)
+                self.assertIs(mapping.method, UNMAPPED)
 
 if __name__ == "__main__":
     unittest.main()

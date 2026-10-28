@@ -32,8 +32,7 @@ src/               all importable Python
   curation/          trait-mapping curation
 workflow/          Snakemake wiring, and the release entry point
 resources/         inputs only: reference-resources/, annotations/, inventories/,
-                   generators/ (release configs, reviewed tables, receipts, and the
-                   legacy R generators until stage 2 retires them)
+                   generators/ (release configs, reviewed tables and receipts)
 tools/             repository tooling that is neither a package nor an input
 tests/             the suites, and run_all_tests.py
 docs/              adr/, spec/, reports/ (report sources), and the rendered site
@@ -76,8 +75,11 @@ Three rules keep it true:
     at the repository root, and none hides elsewhere as a namespace package
     such as `rogue/module.py`.
   - Only `src/` and `tests/` hold packages.
-  - Nothing under `resources/` is code, except the legacy R generators, each
-    listed with the ticket that retires it.
+  - Nothing under `resources/` is code. *Clarified by #350:* the exception for
+    the legacy R generators retired with them, the last two being the metadata
+    resolvers curation's round-trip proof drove. The allow-list is gone, so the
+    rule is now the code's and not the list's: `resources/` holds no code at
+    all.
   - `resources/scripts/` does not come back.
 
 ## Considered options

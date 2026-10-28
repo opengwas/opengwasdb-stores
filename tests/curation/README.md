@@ -25,8 +25,8 @@ curation pipeline (issue #161):
   reliability curve, stratified reporting, caveats, cost tracking, and
   abstention handling (issue #168);
 - `test_e2e_pipeline.py` — the full pipeline round trip from `analyses.tsv` to
-  a promoted Canonical Trait Mapping Table row and the real R resolver
-  (issue #168);
+  a promoted Canonical Trait Mapping Table row and back through Manifest
+  Generation's own Trait Ontology Mapping (issue #168, #350);
 - `test_coverage.py` — the round coverage report and the end-to-end round
   runner: before/after unmapped rates per Store Family in Analyses resolved,
   rows added kept distinct, review queue size, no-candidate labels left
@@ -56,9 +56,9 @@ a wrong Store Family attribution sends the review to the wrong place.
 
 1. **Selection**: only `unmapped` rows are queued; `source_provided` and
    `canonical_table_lookup` rows are excluded.
-2. **Normalisation**: labels are trimmed then lowercased, exactly the R
-   resolver's `trimws(tolower(x))`; case/whitespace variants collapse and their
-   occurrence counts sum.
+2. **Normalisation**: labels are trimmed then lowercased, exactly the key
+   Manifest Generation's Trait Ontology Mapping builds; case/whitespace variants
+   collapse and their occurrence counts sum.
 3. **Attribution**: `store_families` is derived from a sibling `release.yaml`
    (`store_family_id`/`family`), else from the Store Release id of the
    `stores/<store-id>/` bundle the Manifest sits in (the one home for a Release
@@ -325,14 +325,15 @@ promotion bumps the Reference Resource's integer `version`.
 7. **Strict boundaries**: the only files promotion writes are the Reference
    Resource directory's `mapping.tsv`/`resource.yaml` and the review queue
    file; no Release Manifest, bundle, or store is modified.
-8. **Resolver**: promoted rows resolve through
-   `resolve_trait_ontology_mapping()` as `canonical_table_lookup`.
+8. **Round trip**: promoted rows map through
+   `manifest_generation.trait_ontology_mapping` as `canonical_table_lookup`;
+   promotion never writes a label twice, and its labels normalise exactly as
+   the pipeline normalises them.
 9. **CLI surface**: the command reads the proposals table, applies the
    thresholds and any curator decisions, and writes the two outputs.
 
-The suite is hermetic: it runs against temporary fixture tables and invokes
-the real R resolver only against its own fixture, so it never touches the real
-curated data.
+The suite is hermetic: it runs against temporary fixture tables and loads them
+with the pipeline's own mapping step, so it never touches the real curated data.
 
 ## Jev chooser, validation, and end-to-end suite (`curation.jev_chooser`,
 `curation.validate_chooser`, issue #168)
@@ -404,14 +405,12 @@ denominator and the reliability curve.
     suite.
 12. **End-to-end round trip**: `analyses.tsv` -> `gap_scan` -> `candidates` ->
     `choice` (stub) -> `promotion` produces a Canonical Trait Mapping Table row
-    that the real R `resolve_trait_ontology_mapping()` resolves with
-    `resolution_status = "resolved"`,
-    `trait_ontology_mapping_method = "canonical_table_lookup"`, and the correct
-    ontology id and label.
+    that Manifest Generation's Trait Ontology Mapping then maps as
+    `canonical_table_lookup`, with the correct ontology id and label.
 
 All three suites are hermetic: tiny in-memory OBO/index fixtures, the fixture
-choosers, and (for the round trip) the repository's own R resolver against its
-own temporary table. Nothing opens a socket.
+choosers, and (for the round trip) the pipeline's mapping step against its own
+temporary table. Nothing opens a socket.
 
 ## Coverage and round-runner suite (`curation.coverage`,
 `curation.curation_round`, issue #170)

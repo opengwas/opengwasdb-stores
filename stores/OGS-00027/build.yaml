@@ -5,6 +5,9 @@ build:
   command: build-ragged-besd
   options:
     source-build: hg19
+    sample-size-table: /data/opengwasdb/raw/eqtlgen/full-19250.sample-size.tsv.gz
+    store-esi-eaf: true
+    eaf-reference: /data/opengwasdb/reference/ancestry-mixture/ref_eaf.united-kingdom.hg38.tsv.gz
 post:
   top_hits: false
   overview: false

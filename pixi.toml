@@ -249,6 +249,21 @@ threadpoolctl = ">=3.0"
 # format stays 0.2.0, and the pinned runtime reads a legacy `full` in an
 # existing Store's `manifest.json` as `gwas`.
 #
+# Repinned for #282 to `0d59f151`, the opengwasdb `dev` merge of PR #329, which
+# carries core #302 (ADR 0067): `build-ragged-besd` takes `--sample-size-table`
+# and stores each stored pair's sample size in an opt-in `uint32` `n` plane and
+# its by-variant copy (a pair the table omits is missing, never estimated from
+# `se`), and `--store-esi-eaf` stores the `.esi` frequency per association,
+# oriented to the effect allele and checked once against `--eaf-reference`. A
+# Store holding an `n` plane keeps `se` in float16, and `validate`, the query
+# seam and `info` report the plane. That is the runtime the OGS-00027
+# replacement is built on. The pin already carried #326's SE re-encode primitive
+# as its branch head `5fc0766`; the range `5fc0766..0d59f151` is #330's merge of
+# that branch, #332's MAF admission fix (#331), #303 (#295/#296/#306/#324: the
+# Ragged and Hybrid Observed-View Checks, `build-hybrid --on-rsid-conflict` and
+# `build-indexed-subset --overflow-only`), #328's OGS-00009/OGS-00010 benchmark
+# harness and #329. None of them moves the Store format: it stays 0.2.0.
+#
 # Because these capabilities ship in the tracked pin, the ordinary
 # `pixi run release` invocation resolves a capable runtime from this
 # environment with no ad-hoc `PATH` overlay (the HM3 proof's temporary
@@ -264,7 +279,7 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "5fc07666202d43500d5e48bbc48f1e4c9e34ef0f" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "0d59f151c7618933747a59f825deeef6a51de9e1" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
@@ -273,9 +288,11 @@ r-yaml = "*"
 # data.table::fread() shells out to R.utils to read .gz files directly; never
 # library()'d explicitly, so it's easy to miss auditing only `library()` calls.
 "r-r.utils" = "*"
-# Needed by resources/generators/lib/metadata_resolvers/opengwas_api.R's
-# fetch_opengwas_gwasinfo() (issue #49) to call the live OpenGWAS API; the
-# tested resolve_opengwas_api_metadata() itself has no network dependency.
+# No tracked R code calls httr any more: its only caller,
+# resources/generators/lib/metadata_resolvers/opengwas_api.R, retired with the
+# OpenGWAS R path (#289). Kept because tools/env_check.py requires the package
+# and the R environment is not shrinking with #350; dropping it would mean a
+# pixi.lock regeneration for no gain.
 r-httr = "*"
 r-jsonlite = "*"
 r-openssl = "*"
