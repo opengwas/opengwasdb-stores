@@ -104,4 +104,12 @@ notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,5
   (none excluded); info reports format 0.2.0, dense layout, reference_completed, and association
   coverage gwas. No fresh full validate was run: on a Store this size it takes hours, and the
   completion''s own validate record is the evidence. The owner approved marking it validated on
-  2026-10-28.'
+  2026-10-28.
+
+  Release Erratum (2026-10-28, #322): validation.yaml recorded observed.n_associations as 28134349980.
+  That is exactly 2,514 x 11,191,070, n_analyses times n_variants, not a count. `register` multiplied
+  the two axes when a Dense step printed no association count (register.py at 086d56d, removed by
+  #322), and complete-dense printed no n_associations. The product counts the imputed cells and the
+  2,764,792,625 off-panel cells completion left missing, so it is not the number of observed
+  associations. The value is null until opengwasdb reports an observed count
+  (opengwas/opengwasdb#294). No Store was rebuilt or rewritten by this registry metadata correction.'

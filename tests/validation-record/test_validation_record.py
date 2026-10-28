@@ -150,7 +150,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "format_version": "0.1.0",
         "n_analyses": 10,
         "n_variants": 21230615,
-        "n_associations": 212306150,
+        "n_associations": None,
         "store_bytes": None,
         "build_elapsed_s": 1730.458,
         "validate_status": "passed",
