@@ -2,7 +2,7 @@ store_id: OGS-00009
 label: ukb-b-full
 association_coverage: gwas
 access_posture: public
-status: accepted
+status: built
 derived_from: null
 created_at: '2026-10-21T22:20:44Z'
 accepted_at: '2026-10-21T22:23:58Z'
@@ -88,4 +88,8 @@ notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,5
   opengwas/opengwasdb#288; three (7:74988062:G:T, 7:75044656:A:C, 7:101668260:A:G) arrived with
   #288''s strand-aware lift. The cause and fix are tracked in opengwas/opengwasdb#325; the detail
   is in the build_collisions section of the opengwasdb benchmark JSON. Decision (owner): document
-  now, fix at the next rebuild. The published Store is not rewritten by this note.'
+  now, fix at the next rebuild. The published Store is not rewritten by this note.
+
+  2026-10-23: built. The Store was built observed-only and completed against the UKB EUR LD panel
+  (ukb-hg38-eur-ld) under this id; completion was registered on 2026-10-23 at opengwasdb d405de0 and
+  the published Store is /data/opengwasdb/stores/OGS-00009/store.opengwasdb.'
