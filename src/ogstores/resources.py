@@ -14,7 +14,9 @@ Variant Subsets. It does two things, both before any expensive work:
   reason, rather than failing hours into a build.
 
 * **Maintained input.** A declaration names a `resource_id`; this resolves
-  `resources/reference-resources/<resource_id>/resource.yaml` and requires the
+  `resources/reference-resources/<resource_id>/resource.yaml` in the
+  repository that holds the release's registry, beside its `stores/` (stores
+  #333), and requires the
   declaration's `reference_assembly`, `variant_list` and optional `checksum` to
   agree with it, then hashes the list and checks its declared sha256, byte size
   and row count. The exhaustive canonical-ALID and duplicate check remains the
@@ -243,7 +245,13 @@ def verify_indexed_subsets_for_releases(
     `scheduled` is the Snakemake dry run's `[(artifact_root, store_id)]`. A run
     with no declared subset returns immediately, so a no-declaration release is
     never gated on the runtime version (stores #209).
+
+    A bundle's `resource_id` names a maintained resource of the repository that
+    holds the bundle, so `repo_root` defaults to `registry_root`'s parent, not
+    to the checkout whose code runs (stores #333).
     """
+    if repo_root is None:
+        repo_root = Path(registry_root).absolute().parent
     declarations_by_store: list[tuple[str, list[IndexedSubsetDeclaration]]] = []
     for _root, store_id in scheduled:
         loaded = bundle_module.load(store_id, registry_root=registry_root)

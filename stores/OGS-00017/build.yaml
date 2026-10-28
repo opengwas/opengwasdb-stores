@@ -1,11 +1,17 @@
 store_id: OGS-00017
 layout: dense
-completion_state: observed_only
+completion_state: reference_completed
 build:
   command: build-dense-vcf
   options:
     source-reader-capability: opengwasdb.finngen-r13
     source-assembly: hg38
+    n-workers: 32
+complete:
+  command: complete-dense
+  options:
+    ld-panel: /data/opengwasdb/reference/ld
+    ancestry: EUR
     n-workers: 32
 post:
   top_hits: yes

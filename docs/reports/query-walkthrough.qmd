@@ -604,11 +604,17 @@ commands use **only** that nested Dense Component:
 Two consequences of "Dense Component only" are worth stating:
 
 - a requested canonical ALID present in the Hybrid shared union table but
-  absent from the Dense Component belongs **only to the Ragged Overflow**: the
-  build **fails loudly and names it** (`… belong only to the shared/overflow
-  axis of Hybrid release … and cannot be indexed by its Dense Component's
-  Indexed Variant Subset …`) rather than counting it absent and dropping it,
-  because that would return a plausible, incomplete index;
+  absent from the Dense Component belongs **only to the Ragged Overflow**: by
+  default the build **fails loudly and names it** (`… belong only to the
+  shared/overflow axis of Hybrid release … and cannot be indexed by its Dense
+  Component's Indexed Variant Subset …`) rather than counting it absent and
+  dropping it, because that would return a plausible, incomplete index.
+  `--overflow-only skip` leaves those ALIDs out instead and records them:
+  `overflow_only_count` (the number skipped, `0` when none) and
+  `overflow_only_sample` (the first 20 in variant-list order) are written to
+  the subset's metadata beside the absent count and reported in the build's
+  summary, so the counts add up as `requested = resolved + absent +
+  overflow-only` (opengwas/opengwasdb#324);
 - an ALID absent from the shared union table as well is genuinely absent from
   the release, and keeps the ordinary counted-and-recorded-absent semantics.
 

@@ -494,5 +494,77 @@ class TestManifestPaths(unittest.TestCase):
         )
 
 
+class TestBuildManifestIsCurrent(unittest.TestCase):
+    """`build_manifest_is_current` compares content only, and writes nothing (#339)."""
+
+    EXCLUDE = "exclude_from_build"
+    COLUMNS = ["analysis_id", "analysis_index", EXCLUDE, "inclusion_reason"]
+
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.source = self.dir / "source" / "analyses.tsv"
+        self.source.parent.mkdir()
+        write_tsv(
+            self.source,
+            self.COLUMNS,
+            [
+                {"analysis_id": "a", "analysis_index": "0"},
+                {"analysis_id": "b", "analysis_index": "1", self.EXCLUDE: "true", "inclusion_reason": "bad EAF"},
+                {"analysis_id": "c", "analysis_index": "2"},
+            ],
+        )
+        self.manifest = self.dir / "work" / "analyses.tsv"
+        self.sidecar = self.dir / "work" / "analyses.exclusions.json"
+        materialise_build_manifest(self.source, self.manifest, self.sidecar)
+
+    def tearDown(self) -> None:
+        self.tmp.cleanup()
+
+    def current(self, source: Path | None = None) -> bool:
+        return manifest.build_manifest_is_current(source or self.source, self.manifest, self.sidecar)
+
+    def test_what_materialising_wrote_is_current_and_nothing_is_rewritten(self) -> None:
+        before = (self.manifest.stat().st_mtime_ns, self.sidecar.stat().st_mtime_ns)
+        self.assertTrue(self.current())
+        self.assertEqual((self.manifest.stat().st_mtime_ns, self.sidecar.stat().st_mtime_ns), before)
+
+    def test_a_source_moved_elsewhere_with_the_same_content_is_current(self) -> None:
+        moved = self.dir / "other-checkout" / "analyses.tsv"
+        moved.parent.mkdir()
+        moved.write_bytes(self.source.read_bytes())
+        self.assertTrue(self.current(moved))
+
+    def test_a_changed_cell_row_or_exclusion_reason_is_not_current(self) -> None:
+        original = self.source.read_text(encoding="utf-8")
+        for old, new in (("bad EAF", "other reason"), ("a\t0", "z\t0"), ("\ttrue\t", "\t\t")):
+            with self.subTest(old=old):
+                self.source.write_text(original.replace(old, new), encoding="utf-8")
+                self.assertFalse(self.current())
+        self.source.write_text(original + "d\t3\t\t\n", encoding="utf-8")
+        self.assertFalse(self.current())
+
+    def test_a_manifest_with_other_line_endings_is_not_current(self) -> None:
+        self.manifest.write_bytes(self.manifest.read_bytes().replace(b"\n", b"\r\n"))
+        self.assertFalse(self.current())
+
+    def test_a_quoted_cell_holding_a_newline_is_current_against_its_own_materialisation(self) -> None:
+        write_tsv(
+            self.source,
+            self.COLUMNS,
+            [{"analysis_id": "a", "analysis_index": "0", "inclusion_reason": '"two\nlines"'}],
+        )
+        materialise_build_manifest(self.source, self.manifest, self.sidecar)
+        self.assertIn(b"two\nlines", self.manifest.read_bytes())
+        self.assertTrue(self.current())
+
+    def test_a_missing_output_or_a_source_that_cannot_be_materialised_is_not_current(self) -> None:
+        self.assertFalse(self.current(self.dir / "absent.tsv"))
+        self.source.write_text("analysis_id\n", encoding="utf-8")
+        self.assertFalse(self.current())
+        self.sidecar.unlink()
+        self.assertFalse(manifest.build_manifest_is_current(self.source, self.manifest, self.sidecar))
+
+
 if __name__ == "__main__":
     unittest.main()

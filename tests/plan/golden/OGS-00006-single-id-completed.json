@@ -1,0 +1,117 @@
+[
+  {
+    "name": "build",
+    "argv": [
+      "opengwasdb",
+      "build-ragged-ssf",
+      "/data/opengwasdb/stores/OGS-00006/work/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00006/source",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "--store-id",
+      "OGS-00006",
+      "--release-id",
+      "OGS-00006",
+      "--association-coverage",
+      "signals_only",
+      "--stored-effect-scale",
+      "sd"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00006/work/analyses.tsv"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "top-hits",
+    "argv": [
+      "opengwasdb",
+      "build-ragged-top-hits",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "validate",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "--format",
+      "json"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": []
+  },
+  {
+    "name": "complete",
+    "phase": "completion",
+    "published_store_arg": 2,
+    "argv": [
+      "opengwasdb",
+      "complete-ragged",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "--release-id",
+      "OGS-00006-completed",
+      "--ld-panel",
+      "/data/opengwasdb/reference/hgdp1kgp-hg38/panel",
+      "--ancestry",
+      "EUR"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "completion-validate",
+    "phase": "completion",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "--format",
+      "json"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": []
+  },
+  {
+    "name": "completion-observed-view-check",
+    "phase": "completion",
+    "published_store_arg": 2,
+    "argv": [
+      "opengwasdb",
+      "check-observed-view",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "--seed",
+      "20261021",
+      "--n-random",
+      "1000",
+      "--ld-panel",
+      "/data/opengwasdb/reference/hgdp1kgp-hg38/panel",
+      "--ancestry",
+      "EUR",
+      "--output",
+      "/data/opengwasdb/stores/OGS-00006/work/observed-view-check.json"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": []
+  }
+]

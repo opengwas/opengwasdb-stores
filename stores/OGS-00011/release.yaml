@@ -79,4 +79,42 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
 
 
   Review: 148 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
-  (#203); see sidecars/exclusions.tsv'
+  (#203); see sidecars/exclusions.tsv
+
+
+  Completion under its own id (2026-10-22). The bundle now declares completion_state: reference_completed
+  and, after its build phase, a complete block: complete-hybrid against the UKB EUR LD panel, ukb-hg38-eur-ld
+  at /data/opengwasdb/reference/ld, for ancestry EUR at 24 workers. The owner decided this on 2026-10-21.
+  It is the one amendment ADR 0037 Decision 1 allows an accepted bundle, and its "Clarified by #305" section
+  says only how that rule is enforced: the build phase still plans exactly the argv that wrote the published
+  Store, with unchanged membership, so completing this Store schedules no rebuild. Every built Analysis
+  carries Assigned Ancestry EUR: 3,169 of the bundle''s rows are build members and all of them are EUR, so
+  completion imputes all 3,169 and the panel vocabulary matches the Analyses exactly. This Store''s Dense axis
+  is the gnomAD v4 EUR common-variant reference, not the UKB panel, so completion extends it: an Overflow
+  observation at a variant the panel adds to the Dense axis crosses into the Dense Component as an observed
+  cell and leaves the Overflow (opengwas/opengwasdb#99). Release Status is unchanged.
+
+
+  Release Erratum (issue #225, 2026-10-22): this Store could not be rebuilt from the accepted Build
+  Recipe. build-hybrid at the stores pin d405de0 refuses a routing key its sources name with two
+  different rsids, and 99,577 case-folded routing keys here are named that way: 105 Analyses, every one
+  an upper-case Source against a lower-case one, over the 79.0 M keys that carry a lower-case spelling
+  (0.13%). On the owner decision of 2026-10-22 the recipe gains on-rsid-conflict: drop, so a variant
+  whose sources disagree stores no rsid, and the build reports how many variants that leaves unnamed
+  (opengwas/opengwasdb#306). The counts are carried into the Validation Record of the build that
+  replaces this Store. Membership, the completion block and every other build option are unchanged; the
+  build phase no longer plans the argv that wrote the published Store, and differs from it only in the
+  flag this erratum adds. Release Status is unchanged until that rebuild publishes.
+
+  Release Erratum (issue #225, 2026-10-23): the forced rebuild of 2026-10-22 then built the
+  Store and its build step passed, but the HM3 Indexed Variant Subset refused it: 17,151 of the
+  1,206,903 HM3 ALIDs the subset requested were present only on the Hybrid''s shared/Overflow
+  axis, which the subset''s Dense Component cannot index (opengwas/opengwasdb#271, #324). On the
+  owner decision of 2026-10-23 the hm3 declaration gains overflow-only: skip, so those ALIDs
+  stay out of the subset and it records how many it left out
+  (opengwas/opengwasdb#324). That count is a measurement of the subset build, so it lives in
+  the indexed-subset step''s record rather than in the Validation Record, which register
+  assembles from the build''s. Membership, the build step, the completion block and every other
+  build option are unchanged: a subset is a derived acceleration artifact, so its declaration
+  is the only part of the recipe that moves. Release Status is unchanged until the rebuild
+  publishes.'

@@ -23,8 +23,12 @@ Test suite for the committed Validation Records (issue #135), governed by
    `pixi run release OGS-00005 --config force=1`. Its record is `register`'s own
    output, pinned the same way, and it names the `replaced/<UTC>/` archive of the
    release it replaced.
+   **OGS-00006 is re-registered.** Issue #332 rebuilt it the same way at format
+   0.2.0, because the format-0.1.0 Store published in September carries no
+   variant-centric index for `validate` to check (issue #344 covers the other
+   Stores in that position). Its record is pinned the same way.
 4. **Absence is recorded, not invented.** The migrated records (OGS-00004,
-   OGS-00006, OGS-00007) record every measurement they do not have as `null`. The only value carried is the release-level
+   OGS-00007) record every measurement they do not have as `null`. The only value carried is the release-level
    verdict, as `observed.validate_status`, because it is already recorded as the
    record's own `status`. Measurements that exist in `sidecars/build_report.tsv`
    are deliberately not promoted: `register` never reads that report, and it
@@ -36,9 +40,10 @@ Test suite for the committed Validation Records (issue #135), governed by
    such as `"1.0"` names a retired pre-reset encoding, never these Stores'.
 7. **Only documented observed keys.** `observed` carries every register key,
    and beyond them only the keys `register` writes when they apply, each with a
-   documented value: `variant_reference` (`provided` or `extracted`, issue #148)
-   and `resumed` (`true`). OGS-00005's recipe names a variant reference, so its
-   record carries `variant_reference: provided`.
+   documented value: `variant_reference` (`provided` or `extracted`, issue #148),
+   `resumed` (`true`), and the `rsid_conflicts` counts a Hybrid build reports
+   (`policy`, `n_keys`, `n_variants`; issue #225). OGS-00005's recipe names a
+   variant reference, so its record carries `variant_reference: provided`.
 8. **The published Store's completion state** (issue #307, ADR 0037):
    `observed.completion_state` is `observed_only` for a build phase and
    `reference_completed` for a completion phase or a two-id child: the phase

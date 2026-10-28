@@ -1,26 +1,39 @@
-status: not_run
+status: passed
+validated_at: '2026-10-23T13:56:13.510282Z'
 validator:
-  name: resources/generators/dbgap-mvp/generate_candidate.py
-acceptance:
-  status: accepted
-  human_acceptance: pending
-  membership_accepted: true
-  membership_frozen: true
-  frozen_at: '2026-10-14T08:39:04Z'
-  owner_authorization: 'Owner approved the MVP bundle integration and the dev builds (opengwas/opengwasdb-stores#221
-    comment 6156153525; #232 comment 6156153173). The parent''s exact 1669-Analysis record binding and
-    staged-artifact review qualify this input manifest for authorized dev construction.'
-  owner_authorization_date: '2026-10-13'
-  source_evidence_scope: capped_pilot_diagnostic
-  note: 'The exact 1,669-Analysis EUR membership is accepted and frozen as the input manifest for owner-authorized
-    dev construction. Every row carries the authority mapping source_ancestry_label EUR. This is not full-source
-    SCI qualification or publication acceptance: human scientific acceptance remains pending and no Store
-    has been built or validated.'
-  partition_total: 1669
-warnings:
-- Input accepted and frozen for owner-authorized dev construction; human scientific acceptance remains
-  pending.
-- No Store build or validation has run.
-- 'Evidence: the Analytical Metadata is a capped diagnostic (capped_pilot_diagnostic), not whole-source
-  SCI qualification.'
+  name: opengwasdb validate
+  version: opengwasdb@d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c
+build_environment:
+  opengwasdb_version: 0.3.0
+  opengwasdb_commit: d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c
+  python_version: 3.12.15
+  platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: null
+  n_analyses: 1669
+  n_variants: 20548967
+  n_associations: null
+  store_bytes: null
+  build_elapsed_s: 553263.649
+  validate_status: passed
+  completion_state: reference_completed
+checks:
+  store: passed
+warnings: []
 errors: []
+acceptance:
+  recorded_at: null
+  commit: 9c9b92bc4ffd112de30ab661924079140ecd45aa
+  checks: null
+  warnings:
+  - Input accepted and frozen for owner-authorized dev construction; human scientific
+    acceptance remains pending.
+  - No Store build or validation has run.
+  - 'Evidence: the Analytical Metadata is a capped diagnostic (capped_pilot_diagnostic),
+    not whole-source SCI qualification.'
+  reports: null
+  reference_overlap: null
+  store_composition: null
+replaced:
+  archive: /data/opengwasdb/stores/OGS-00012/replaced/20261023T135613Z
+  replaced_at: '2026-10-23T13:56:13.510282Z'

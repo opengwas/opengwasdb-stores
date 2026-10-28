@@ -1,14 +1,21 @@
 store_id: OGS-00011
 layout: hybrid
-completion_state: observed_only
+completion_state: reference_completed
 build:
   command: build-hybrid
   options:
     variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
     n-workers: 24
     checkpoint: true
+    on-rsid-conflict: drop
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
+complete:
+  command: complete-hybrid
+  options:
+    ld-panel: /data/opengwasdb/reference/ld
+    ancestry: EUR
+    n-workers: 24
 post:
   top_hits: false
   overview: true
@@ -18,3 +25,5 @@ indexed_subsets:
     variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
     reference_assembly: GRCh38
     checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+    options:
+      overflow-only: skip

@@ -1,28 +1,43 @@
 status: passed
-validated_at: '2026-09-28T13:03:04Z'
+validated_at: '2026-10-24T22:03:16.549481Z'
 validator:
-  name: resources/generators/lib/source-formats/finngen-r13-dense/acquire.py
-  version: ~
+  name: opengwasdb validate
+  version: opengwasdb@d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c
 build_environment:
-  repo_commit: 524755be5214d65bf48866fe24731b8f93247b5f
   opengwasdb_version: 0.3.0
-  opengwasdb_commit: 99bd904b0e3d6a00be9556fc2bcc2e3eb663b335
-  pixi_lock_sha256: a9b02f63b79d91b3ee0fcd3800f511ab5579211d8323ceb092c8865ae63e7d41
-  pixi_environment: default
-  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
-  python_version: 3.11.15
+  opengwasdb_commit: d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c
+  python_version: 3.12.15
+  platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: null
+  n_analyses: 2754
+  n_variants: 21549493
+  n_associations: null
+  store_bytes: null
+  build_elapsed_s: 252143.658
+  validate_status: passed
+  completion_state: reference_completed
 checks:
-  schema: passed
-  files: passed
-  reader_smoke_test: not_run
-  ancestry: not_run
-  effect_scale: not_run
-  sd_estimation: not_run
-  selection: passed
-  metadata_resolution: passed
-reports:
-  selection: sidecars/selection.tsv
-  metadata_resolution: sidecars/derivations.tsv
-  downloads: sidecars/downloads.tsv
+  store: passed
 warnings: []
 errors: []
+acceptance:
+  recorded_at: '2026-09-28T13:03:04Z'
+  commit: ee4017d1002a2dfd6fcd0ed9f71962440154a5cf
+  checks:
+    schema: passed
+    files: passed
+    reader_smoke_test: not_run
+    ancestry: not_run
+    effect_scale: not_run
+    sd_estimation: not_run
+    selection: passed
+    metadata_resolution: passed
+  reports:
+    selection: sidecars/selection.tsv
+    metadata_resolution: sidecars/derivations.tsv
+    downloads: sidecars/downloads.tsv
+  warnings: []
+replaced:
+  archive: /data/opengwasdb/stores/OGS-00017/replaced/20261024T220316Z
+  replaced_at: '2026-10-24T22:03:16.549481Z'

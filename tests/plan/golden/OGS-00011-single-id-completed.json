@@ -1,0 +1,181 @@
+[
+  {
+    "name": "build",
+    "argv": [
+      "opengwasdb",
+      "build-hybrid",
+      "/data/opengwasdb/stores/OGS-00011/work/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "--store-id",
+      "OGS-00011",
+      "--release-id",
+      "OGS-00011",
+      "--variant-reference",
+      "/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz",
+      "--n-workers",
+      "24",
+      "--checkpoint",
+      "--on-rsid-conflict",
+      "drop",
+      "--source-reader-capability",
+      "opengwasdb.gwas-ssf",
+      "--source-assembly",
+      "hg38"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/work/analyses.tsv"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "indexed-subset-hm3",
+    "argv": [
+      "opengwasdb",
+      "build-indexed-subset",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "hm3",
+      "--variant-list",
+      "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+      "--reference-assembly",
+      "GRCh38",
+      "--overflow-only",
+      "skip"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "overview",
+    "argv": [
+      "opengwasdb",
+      "regenerate-overview",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "validate",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "--format",
+      "json"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "outputs": []
+  },
+  {
+    "name": "complete",
+    "phase": "completion",
+    "published_store_arg": 2,
+    "argv": [
+      "opengwasdb",
+      "complete-hybrid",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "--release-id",
+      "OGS-00011-completed",
+      "--ld-panel",
+      "/data/opengwasdb/reference/ld",
+      "--ancestry",
+      "EUR",
+      "--n-workers",
+      "24"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "completion-indexed-subset-hm3",
+    "phase": "completion",
+    "argv": [
+      "opengwasdb",
+      "build-indexed-subset",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "hm3",
+      "--variant-list",
+      "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt",
+      "--reference-assembly",
+      "GRCh38",
+      "--overflow-only",
+      "skip"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "/data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "completion-overview",
+    "phase": "completion",
+    "argv": [
+      "opengwasdb",
+      "regenerate-overview",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ]
+  },
+  {
+    "name": "completion-validate",
+    "phase": "completion",
+    "argv": [
+      "opengwasdb",
+      "validate",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "--format",
+      "json"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "outputs": []
+  },
+  {
+    "name": "completion-observed-view-check",
+    "phase": "completion",
+    "published_store_arg": 2,
+    "argv": [
+      "opengwasdb",
+      "check-observed-view",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "--seed",
+      "20261021",
+      "--n-random",
+      "1000",
+      "--output",
+      "/data/opengwasdb/stores/OGS-00011/work/observed-view-check.json"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+    ],
+    "outputs": []
+  }
+]
