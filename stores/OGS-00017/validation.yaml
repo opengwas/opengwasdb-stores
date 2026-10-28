@@ -12,7 +12,7 @@ observed:
   format_version: null
   n_analyses: 2754
   n_variants: 21549493
-  n_associations: 59347303722
+  n_associations: null
   store_bytes: null
   build_elapsed_s: 252143.658
   validate_status: passed

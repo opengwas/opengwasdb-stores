@@ -79,6 +79,13 @@ notes: |
   `records/se-reencode.json` reports full-array decoded equality across 37,360
   chunks and 313,153,203 bytes saved; the post-run Store validation passed.
   This physical-representation-only exception sets no precedent after release.
+
+  Release Erratum (2026-10-28, #383): validation.yaml recorded observed.n_associations as 2249954069.
+  That is exactly 241 x 9335909, n_analyses times n_variants, not a count. `register` multiplied
+  the two axes when a Dense step printed no association count (the pre-#322 fallback, removed by
+  #322); this Store was registered before that change reached this branch. The product counts matrix cells, and this Store is observed-only, so many of those cells are empty; it is not the number of observed associations.
+  The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
+  was rebuilt or rewritten by this registry metadata correction.
 accepted_at: '2026-10-14T01:27:47Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z

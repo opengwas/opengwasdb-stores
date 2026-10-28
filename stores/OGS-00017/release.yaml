@@ -112,3 +112,10 @@ notes: |
   chunks and 6,043,860,902 bytes saved; the post-run Store validation and
   observed-view check passed. This physical-representation-only exception sets
   no precedent after release.
+
+  Release Erratum (2026-10-28, #383): validation.yaml recorded observed.n_associations as 59347303722.
+  That is exactly 2754 x 21549493, n_analyses times n_variants, not a count. `register` multiplied
+  the two axes when a Dense step printed no association count (the pre-#322 fallback, removed by
+  #322); this Store was registered before that change reached this branch. The product counts matrix cells, which here include the imputed cells and the off-panel cells completion left missing, so it is not the number of observed associations.
+  The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
+  was rebuilt or rewritten by this registry metadata correction.
