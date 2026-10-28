@@ -2,7 +2,7 @@ store_id: OGS-00009
 label: ukb-b-full
 association_coverage: gwas
 access_posture: public
-status: built
+status: validated
 derived_from: null
 created_at: '2026-10-21T22:20:44Z'
 accepted_at: '2026-10-21T22:23:58Z'
@@ -92,4 +92,16 @@ notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,5
 
   2026-10-23: built. The Store was built observed-only and completed against the UKB EUR LD panel
   (ukb-hg38-eur-ld) under this id; completion was registered on 2026-10-23 at opengwasdb d405de0 and
-  the published Store is /data/opengwasdb/stores/OGS-00009/store.opengwasdb.'
+  the published Store is /data/opengwasdb/stores/OGS-00009/store.opengwasdb.
+
+  Read-only verification of the published Store (#332, 2026-10-28): the Validation Record says passed
+  at opengwasdb@d405de0 with 2,514 Analyses, 11,191,070 variants and 28,134,349,980 associations,
+  matching register''s completion-register record (same revision and timestamp) and completion-validate
+  record (ok, no errors or warnings, run at the same revision); d405de0 is the record''s own, historical
+  revision. The Store was opened and read with opengwasdb 5fc0766, opengwasdb-stores dev''s pin at the
+  time: the completion''s observed-view check record passed with 2,514 Analyses identical between parent
+  and child; the Store opens and its 2,514 Analysis IDs equal the bundle''s 2,514 admitted rows as sets
+  (none excluded); info reports format 0.2.0, dense layout, reference_completed, and association
+  coverage gwas. No fresh full validate was run: on a Store this size it takes hours, and the
+  completion''s own validate record is the evidence. The owner approved marking it validated on
+  2026-10-28.'
