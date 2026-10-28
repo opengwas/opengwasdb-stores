@@ -266,17 +266,17 @@ class TestBundleContract(unittest.TestCase):
         (#314 comment 6451854029). The Store was then built and validated at
         opengwasdb 0d59f151, and `register` replaced the candidate record with
         its own, carrying the acceptance evidence under `acceptance.acceptance`
-        with the commit it came from. Its Release Status is `built`;
-        `human_acceptance` stays `pending` until the owner accepts the released
-        Store, which moves it to `validated`.
+        with the commit it came from. The owner scientifically accepted that
+        released Store (#314 comment 6478111346), so its Release Status is
+        `validated` and `human_acceptance` is `accepted`.
         """
         loaded = bundle.load("OGS-00027", registry_root=REPO_ROOT / "stores")
         record_check()
         self.assertEqual(list(bundle.check(loaded, registry_root=REPO_ROOT / "stores")), [])
         record_check()
-        self.assertEqual(loaded.status, "built")
+        self.assertEqual(loaded.status, "validated")
         record_check()
-        self.assertEqual(bundle.validate_status_transition("accepted", loaded.status), [])
+        self.assertEqual(bundle.validate_status_transition("built", loaded.status), [])
         record_check()
         self.assertEqual(loaded.release["source_snapshot_id"], "eqtlgen-cis-full-2026-10-24")
         record_check()
@@ -299,7 +299,11 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertEqual(acceptance["status"], "accepted")
         record_check()
-        self.assertEqual(acceptance["human_acceptance"], "pending")
+        self.assertEqual(acceptance["human_acceptance"], "accepted")
+        record_check()
+        self.assertEqual(acceptance["human_acceptance_date"], "2026-10-28")
+        record_check()
+        self.assertIn("comment-6478111346", acceptance["human_acceptance_authorization"])
         record_check()
         self.assertIs(acceptance["membership_accepted"], True)
         record_check()
