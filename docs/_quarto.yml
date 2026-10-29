@@ -67,8 +67,11 @@ website:
           contents: "benchmark-output/*.md"
         - section: "This site"
           # site.md is staged as site.qmd: Quarto renders a Mermaid cell only in
-          # a .qmd. A page that gains or loses a diagram changes this entry.
-          contents: "site.qmd"
+          # a .qmd. A list, not a bare string: a one-name `contents` under a
+          # `section` is dropped without a word. A page that gains or loses a
+          # diagram changes this entry.
+          contents:
+            - "site.qmd"
     - id: engine
       title: "Engine docs"
       contents:
