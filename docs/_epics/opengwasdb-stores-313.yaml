@@ -1,0 +1,304 @@
+repo: opengwasdb-stores
+number: 313
+title: Analysis catalog across all Stores
+status: active
+workstream: Interface
+started: 2026-10-21
+finished: null
+summary: 'Epic #313 adds the Analysis Catalog: a versioned SQLite listing of every Analysis in every validated
+  Store, built by `pixi run catalog` from the registry''s Release Bundles. Its first phase (PR #328) added
+  the catalog package, search and counts, the summary report, and the trial and superseded_by fields of
+  the Release Bundle. Its second phase (PR #353) gave Association Coverage one vocabulary declared in
+  the Release Bundle, marked OGS-00027 validated, and published the catalog; version 1b3a155d449bb84a
+  lists 9 Stores and 31,940 Analyses. The epic stays active because OGS-00011 is not validated, so the
+  catalog does not list it.'
+prs:
+- opengwasdb-stores#328
+- opengwasdb#323
+- opengwasdb-stores#353
+- opengwasdb-stores#363
+- opengwasdb-stores#384
+versions: []
+tickets:
+- key: opengwasdb-stores#319
+  title: analysis_id never contains ':'; eQTLGen IDs become bare probe IDs
+  pr: null
+  merge: 7832deb
+- key: opengwasdb-stores#320
+  title: 'ADR and glossary: the Analysis Catalog'
+  pr: null
+  merge: f6b429d
+- key: opengwasdb-stores#321
+  title: Release Bundles record trial and superseded_by
+  pr: null
+  merge: 032bd3e
+- key: opengwasdb-stores#322
+  title: Validation Records carry Association Coverage, reference assembly and a true association count
+  pr: null
+  merge: 86c936f
+- key: opengwasdb-stores#323
+  title: 'pixi run catalog: a versioned Analysis Catalog of every served Store'
+  pr: null
+  merge: a347e48
+- key: opengwasdb-stores#324
+  title: Analysis Catalog search, counts, paging indexes and placeholder rows
+  pr: null
+  merge: 47e81a7
+- key: opengwasdb-stores#325
+  title: Analysis Catalog summary report, rendered on every rebuild
+  pr: null
+  merge: d8ef921
+- key: opengwasdb-stores#326
+  title: Bring the API-ready Stores to validated, or record what each waits on
+  pr: null
+  merge: 7ade36b
+- key: null
+  title: Final whole-branch review fixes (scale, one serving policy, indexes, wording)
+  pr: null
+  merge: bb8d079
+- key: opengwasdb#298
+  title: opengwasdb#298 Association Coverage is a build input (sibling repo)
+  pr: opengwasdb#323
+  merge: 75f0e77
+- key: opengwasdb-stores#352
+  title: Mark OGS-00027 (full eQTLGen) validated
+  pr: null
+  merge: 279d6d0
+- key: null
+  title: '#341 part B: re-pin past opengwasdb#298; builder receives declared coverage; register refuses
+    a mismatch'
+  pr: null
+  merge: a84ecfb
+- key: null
+  title: Publish the first Analysis Catalog to /data/opengwasdb/stores/catalog (operation)
+  pr: null
+  merge: null
+- key: null
+  title: '#341 part A: one coverage vocabulary declared in release.yaml; catalog reads it'
+  pr: null
+  merge: faa6d2b
+- key: opengwasdb-stores#359
+  title: Edit Association Coverage in the published Stores' manifests (operation)
+  pr: null
+  merge: null
+- key: null
+  title: Final whole-branch review of phase 2 against dev
+  pr: null
+  merge: 7cddc0a
+- key: opengwasdb-stores#362
+  title: 'Analysis Catalog: SD effects with a variant-level sample size are continuous'
+  pr: opengwasdb-stores#363
+  merge: 7c0071e
+- key: null
+  title: 'OGS-00009 validated (the OGS-00009 part of #332)'
+  pr: opengwasdb-stores#384
+  merge: null
+- key: null
+  title: 'Finish PR #337 (#232): merge dev, #383 erratum, mark ready'
+  pr: opengwasdb-stores#337
+  merge: 61e4d02
+decisions:
+- date: 2026-10-21
+  text: 'Integration branch cut from dev (CONTRIBUTING), not stacked on PR #299. #299 (epic #282) is ready
+    for review and overlaps bundle.py, test_bundle.py, CONTEXT.md, release-metadata-schema.md, pixi.toml
+    and check_bundles'' location; when it lands on dev, dev is merged into this branch by a merger lane.'
+  link: null
+- date: 2026-10-21
+  text: 'Analysis Catalog code is its own top-level package, src/analysis_catalog/ (the epic: ''its own
+    package... can later move to the API''s repository''); it may import the Release Bundle contract from
+    ogstores, and nothing in ogstores imports it.'
+  link: null
+- date: 2026-10-21
+  text: register takes association_coverage, reference_assembly and n_associations from the build/complete
+    stdout JSON it already parses, else null; no new info step (it would add a workflow step and re-trigger
+    published releases). The opengwasdb issue asks the Dense/Hybrid builders and complete-dense to print
+    all three under those keys.
+  link: null
+- date: 2026-10-21
+  text: dev (#327 test-suite speed-up) merged into the integration branch at 000a893 before any lane started.
+  link: null
+- date: 2026-10-21
+  text: 'eQTLGen: the Release Manifest carries tissue=whole_blood; the built Store''s own tissue column
+    stays blank. Filling it needs an --analyses overlay, which changes the Build Recipe (a new Store Release)
+    and still cannot stop _overlay_ontology''s ENSEMBL: fallback.'
+  link: null
+- date: 2026-10-21
+  text: Placeholder rows go to every superseded or withdrawn release that is not trial or embargoed. The
+    epic's 'after having been validated' cannot be read from bundles (release.yaml keeps only the current
+    status); a placeholder for a never-served id only names its successor.
+  link: null
+- date: 2026-10-21
+  text: dev (#329 CI optimisation of the test runner) merged into the integration branch at 2e08c02, at
+    the user's request; baseline re-measured there.
+  link: null
+- date: 2026-10-21
+  text: 'stores.tsv does not gain association_coverage / reference_assembly columns: the catalog reads
+    validation.yaml directly, and widening the generated master list serves no other consumer.'
+  link: null
+- date: 2026-10-21
+  text: 'UKB-B: OGS-00010, OGS-00030 and OGS-00031 will be deleted; OGS-00009 (2.5k traits, reference-completed,
+    single-id) is the final UKB-B Store, built in a separate epic. #326 records UKB-B as waiting on that
+    epic; OGS-00010 is not validated.'
+  link: null
+- date: 2026-10-21
+  text: OGS-00006 is re-registered from its existing build records and moved to validated in this PR;
+    coverage and assembly stay null until opengwasdb#294 lands, and the summary shows them as unknown.
+  link: null
+- date: 2026-10-21
+  text: 'OGS-00006 cannot be validated as published: at the pinned opengwasdb (023774a) validate rejects
+    its 0.1.0 Ragged component (no by_variant, opengwasdb ADR 0060). It stays built; #326 records that
+    it waits on #197/#218 (0.2.0 conversion), then opengwasdb#294. Supersedes the earlier ''validate now''
+    decision.'
+  link: null
+- date: 2026-10-21
+  text: The catalog's stores table holds listed and placeholder Store Releases only; excluded (trial,
+    embargoed, candidate/accepted/built) and refused Stores appear only in selection. ADR 0039's 'one
+    row per registered Store Release' corrected. The version hashes every file of every registered Release
+    Bundle plus the builder's source.
+  link: null
+- date: 2026-10-21
+  text: 'Literal NaN in info_score_threshold and maf_threshold is read as NULL: release-metadata-schema.md
+    documents it as the absence marker (''unavailable'', ''no MAF filter''). Found by forcing all 17 real
+    bundles to validated in a scratch copy: OGS-00011 would otherwise be refused. NaN in any other numeric
+    column still refuses the Store.'
+  link: null
+- date: 2026-10-21
+  text: 'OGS-00022 and OGS-00023 (added by #299: completed siblings of trial releases OGS-00004/00005,
+    status validated) are Trial Store Releases and get trial: true at the dev merge, so the catalog excludes
+    them.'
+  link: null
+- date: 2026-10-21
+  text: 'Analysis type: binary when sample_size_kind is case_control or stored_effect_scale is log_or;
+    continuous when sd with total; NULL when blank. UKB-B''s 1,463 case/control traits stored in SD units
+    are binary.'
+  link: null
+- date: 2026-10-21
+  text: The catalog's ancestry dimension uses Assigned Ancestry when set, 'META' when it is empty and
+    source_ancestry_label is exactly 'META' (MVP META, OGS-00016), and unassigned otherwise. The Assigned
+    Ancestry vocabulary is unchanged.
+  link: null
+- date: 2026-10-21
+  text: 'dev with PR #299 (epic #282) merged into the integration branch at bc10e3a by a merger lane:
+    4 textual conflicts (STORES.md, stores.tsv regenerated; pyproject.toml; bundle.py keeps #299''s _check_analyses
+    rewrite with #319''s guard), OGS-00022/23 marked trial; 22/22 bundles, 99/99 suites.'
+  link: null
+- date: 2026-10-21
+  text: 'The catalog records label_from_source when analysis_label falls back to source_label, and the
+    summary reports ''no curated label'' alongside ''no label at all''. Story 24''s metadata gap is otherwise
+    invisible: every real Analysis falls back.'
+  link: null
+- date: 2026-10-21
+  text: pixi run catalog runs in the dev environment (task default-environment) with the environment's
+    own Quarto; no separate catalog environment.
+  link: null
+- date: 2026-10-21
+  text: 'Refines the #320 placeholder decision: a superseded/withdrawn release gets placeholder rows only
+    when its Validation Record is passed/passed_with_warnings with n_analyses; otherwise it is excluded
+    as ''retired before validation'' (it was never served).'
+  link: null
+- date: 2026-10-21
+  text: The catalog version is a hash of inputs only (every registered bundle file, the builder source,
+    the summary template), computed before any row work, so a no-op skips row processing; rows stream
+    into SQLite per Store.
+  link: null
+- date: 2026-10-22
+  text: 'Corrects the earlier ''hash inputs only'' ruling: the version also hashes the ogstores package
+    source, the installed opengwasdb version, and the sorted registered store ids, because decisions depend
+    on check() and the reader. Published files are fsynced before the version rename and the current swap.'
+  link: null
+- date: 2026-10-22
+  text: 'Association Coverage vocabulary: gwas (replaces full_gwas and opengwasdb''s full), cis_and_signals
+    (replaces cis_plus_signals), signals_only, plus cis for cis-only Stores such as eQTLGen. Coverage
+    is declared in the Release Bundle and passed to the builder; the catalog reads the declared value.'
+  link: null
+- date: 2026-10-22
+  text: 'Phase 2: complete #341 (incl. opengwasdb#298 in a sibling lane), validate OGS-00027 (#352), publish
+    the first catalog. Owner approved: run pixi run catalog from a dedicated clean checkout of origin/dev
+    at /data/opengwasdb/work/catalog/checkout, writing /data/opengwasdb/stores/catalog/, once PR #337
+    (#232) and this run''s PR are on dev.'
+  link: null
+- date: 2026-10-23
+  text: Stores passes the declared coverage from release.yaml into the build argv in plan(); it does not
+    add association-coverage to build.yaml, which would change Build Recipes and create new Store Releases
+    (ADR 0004).
+  link: null
+- date: 2026-10-23
+  text: No Store format bump. Pre-release, the code moves to the wanted vocabulary and existing Stores'
+    metadata is edited in place (#359), then checked for readability. The full->gwas read alias stays
+    as a transition guard until no published Store says full.
+  link: null
+- date: 2026-10-23
+  text: 'dev''s PR #360 also validated OGS-00027 (owner acceptance on #314). The merge into PR #353 keeps
+    #360''s note and #352''s read-only verification evidence, relabelled as verification.'
+  link: null
+- date: 2026-10-23
+  text: 'Amendment check: a recorded Ragged build argv lacking --association-coverage matches a plan differing
+    only by the declaration-derived --association-coverage <release.yaml value> pair; a recorded different
+    value is still refused. Qualifies ADR 0037''s exact-argv rule (recorded in ADR 0040). Follows the
+    owner''s in-place metadata decision: the flag declares what the old builder hard-coded; Store data
+    is unchanged.'
+  link: null
+- date: 2026-10-23
+  text: 'Outcome type: an SD-scale effect is continuous whatever the sample size kind other than case_control
+    (total or variant_level); full eQTLGen''s 19,250 (sd, variant_level) Analyses become continuous.'
+  link: null
+- date: 2026-10-23
+  text: 'Owner: build and publish the catalog now from origin/dev (pre-release; early versions can be
+    deleted), rather than waiting for #337. Published c549c2b9f0109ba2.'
+  link: null
+- date: 2026-10-28
+  text: 'Owner approved running #359 now: every opengwasdb pin in use (stores dev 75f0e77, #232 2f308cb,
+    #381 70340e0) includes #298. 13 manifests edited; OGS-00011 swept after #381''s validate.'
+  link: null
+- date: 2026-10-28
+  text: 'Owner approved making OGS-00009''s validated edit (the OGS-00009 part of #332) in this run, as
+    #352 did for OGS-00027.'
+  link: null
+- date: 2026-10-28
+  text: 'Owner asked this session to finish PR #337 (#232''s session unreachable): merge dev into orch/232-store-releases
+    (pin opengwasdb 0d59f15, which contains #232''s 2f308cb), correct #383''s six records, mark #337 ready.'
+  link: null
+- date: 2026-10-28
+  text: 'catalog 1b3a155d449bb84a published from dev 49d8099 after PR #337; OGS-00027 rows changed because
+    #282 (PR #365) replaced and revalidated it with per-association N (sample_size 30907 analysis_level
+    -> 30895 variant_level for ENSG00000000419)'
+  link: null
+test_time:
+  baseline:
+    commit: e6e829d
+    wall_s: 158.4
+    suites: null
+  final:
+    commit: a84ecfb
+    wall_s: 162.05
+    suites: null
+yardstick:
+  before: null
+  after: null
+catalog:
+  before: null
+  after: 1b3a155d449bb84a
+followups:
+- key: opengwasdb#294
+  text: opengwas/opengwasdb#294 builders/completion (and validate, for published Stores) print n_associations,
+    association_coverage, reference_assembly
+- key: opengwasdb#298
+  text: 'opengwas/opengwasdb#298 Association Coverage is a build input: gwas, cis, cis_and_signals, signals_only
+    (full renamed gwas)'
+- key: opengwasdb-stores#341
+  text: 'opengwas/opengwasdb-stores#341 one Association Coverage vocabulary, declared in the Release Bundle
+    and passed to the builder (sub-issue of #313; blocked by opengwasdb#298 for the builder part)'
+- key: null
+  text: docs/query-walkthrough.html (committed render) still says `full`; re-render when the GWAS Catalog
+    raw data is available (#341 part A)
+- key: null
+  text: 'TestWorkflowCompletingAStoreBuiltBefore304 fails when tests/workflow is run in place (shared
+    .snakemake): #292 changed rule step, so the code trigger fires on ff204b6 metadata; CI is green (private
+    .snakemake). Its claim needs revisiting (#305).'
+- key: null
+  text: 'stores test runs are not hermetic: ~/.local user site-packages (click 8.4.0, typer 0.25.1) shadow
+    the pixi env (typer 0.27.1) because the test task does not set PYTHONNOUSERSITE=1, unlike opengwasdb.
+    A plan test passed locally and failed in CI for this reason (fixed d2b4f21).'
+- key: opengwasdb-stores#383
+  text: 'opengwas/opengwasdb-stores#383: six Validation Records on #232 branch (OGS-00012-17) record n_variants
+    x n_analyses as n_associations; correct before or with PR #337'
