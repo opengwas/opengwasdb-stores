@@ -13,6 +13,16 @@ docs/reports/*_files/
 docs/reports/*_cache/
 docs/reports/.quarto/
 
+# The site build (#388, src/project_site/). Quarto's cache beside the project,
+# the engine's docs staged at the revision pixi.lock pins, and the glossary page
+# staged from CONTEXT.md: all regenerated on every render, none of them authored
+docs/. The rendered site itself goes under /data/opengwasdb/work/site/, outside
+# the repository.
+docs/.quarto/
+docs/_site/
+docs/opengwasdb/
+docs/glossary.md
+
 # Large downloaded summary statistics used by mvp-imputation-filters.qmd.
 resources/data/mvp-example/
 
