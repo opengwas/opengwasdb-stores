@@ -7,7 +7,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 53,
        "repository": {
@@ -34,7 +38,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 54,
        "repository": {
@@ -46,7 +54,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 55,
        "repository": {
@@ -58,7 +70,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 56,
        "repository": {
@@ -70,7 +86,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 57,
        "repository": {
@@ -80,7 +100,11 @@
        "title": "The overview renderer should take data, not a path",
        "url": "https://github.com/opengwas/opengwasdb/issues/57"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "NQ",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -91,7 +115,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 283,
        "repository": {
@@ -103,7 +131,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 284,
        "repository": {
@@ -115,7 +147,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 285,
        "repository": {
@@ -127,7 +163,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 286,
        "repository": {
@@ -139,7 +179,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 287,
        "repository": {
@@ -151,7 +195,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 288,
        "repository": {
@@ -171,7 +219,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 289,
        "repository": {
@@ -183,7 +235,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 290,
        "repository": {
@@ -195,7 +251,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 291,
        "repository": {
@@ -207,7 +267,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 292,
        "repository": {
@@ -219,7 +283,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 300,
        "repository": {
@@ -231,7 +299,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 281,
        "repository": {
@@ -243,7 +315,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 282,
        "repository": {
@@ -255,7 +331,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 317,
        "repository": {
@@ -275,19 +355,27 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 252,
        "repository": {
         "nameWithOwner": "opengwas/opengwasdb-stores"
        },
        "state": "CLOSED",
-       "title": "Retire the two old bundle directories: one home for Release Bundles",
+       "title": "Retire families/ and .rebuild133/: one home for Release Bundles",
        "url": "https://github.com/opengwas/opengwasdb-stores/issues/252"
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 340,
        "repository": {
@@ -299,7 +387,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 285,
        "repository": {
@@ -311,7 +403,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 287,
        "repository": {
@@ -323,7 +419,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 347,
        "repository": {
@@ -335,7 +435,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 350,
        "repository": {
@@ -347,7 +451,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 302,
        "repository": {
@@ -357,7 +465,11 @@
        "title": "Store per-association sample size (and BESD allele frequency) in Ragged Stores",
        "url": "https://github.com/opengwas/opengwasdb/issues/302"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "MjE",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -368,7 +480,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 152,
        "repository": {
@@ -380,7 +496,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 257,
        "repository": {
@@ -392,7 +512,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 258,
        "repository": {
@@ -404,7 +528,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 260,
        "repository": {
@@ -416,7 +544,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 261,
        "repository": {
@@ -428,7 +560,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 325,
        "repository": {
@@ -438,7 +574,11 @@
        "title": "build-dense-vcf: two hg19 variants lifting to one hg38 ALID are silently merged (3 rows in rebuilt OGS-00009)",
        "url": "https://github.com/opengwas/opengwasdb/issues/325"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "Ng",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -449,7 +589,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 238,
        "repository": {
@@ -459,7 +603,11 @@
        "title": "Support a Rho Matrix on Hybrid stores, estimated from the Dense Component",
        "url": "https://github.com/opengwas/opengwasdb/issues/238"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "MQ",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -470,7 +618,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 160,
        "repository": {
@@ -482,7 +634,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 204,
        "repository": {
@@ -492,7 +648,11 @@
        "title": "Sequencing Store for the 148 MAF-unfiltered Analyses routed out of OGS-00011 (#203)",
        "url": "https://github.com/opengwas/opengwasdb-stores/issues/204"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "Mg",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -503,7 +663,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 308,
        "repository": {
@@ -515,7 +679,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 309,
        "repository": {
@@ -527,7 +695,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 310,
        "repository": {
@@ -539,7 +711,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 311,
        "repository": {
@@ -551,7 +727,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 312,
        "repository": {
@@ -563,7 +743,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 313,
        "repository": {
@@ -583,7 +767,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 314,
        "repository": {
@@ -603,7 +791,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 315,
        "repository": {
@@ -615,7 +807,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 316,
        "repository": {
@@ -635,7 +831,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 317,
        "repository": {
@@ -655,7 +855,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 318,
        "repository": {
@@ -675,7 +879,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 319,
        "repository": {
@@ -687,7 +895,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 320,
        "repository": {
@@ -707,7 +919,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 321,
        "repository": {
@@ -727,7 +943,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 357,
        "repository": {
@@ -747,7 +967,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 358,
        "repository": {
@@ -816,7 +1040,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "OA",
+         "hasNextPage": false
+        }
        },
        "number": 322,
        "repository": {
@@ -826,7 +1054,11 @@
        "title": "Re-measure OGS-00009 end to end and record the second-language decision",
        "url": "https://github.com/opengwas/opengwasdb/issues/322"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "MTc",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -837,7 +1069,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 367,
        "repository": {
@@ -849,7 +1085,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 368,
        "repository": {
@@ -861,7 +1101,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 361,
        "repository": {
@@ -871,7 +1115,11 @@
        "title": "Test runs are not hermetic: ~/.local user site-packages shadow the pixi environment",
        "url": "https://github.com/opengwas/opengwasdb-stores/issues/361"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "Mw",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -882,7 +1130,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 372,
        "repository": {
@@ -902,7 +1154,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 373,
        "repository": {
@@ -922,7 +1178,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 374,
        "repository": {
@@ -942,7 +1202,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 375,
        "repository": {
@@ -962,7 +1226,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 376,
        "repository": {
@@ -996,7 +1264,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mw",
+         "hasNextPage": false
+        }
        },
        "number": 377,
        "repository": {
@@ -1016,7 +1288,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 378,
        "repository": {
@@ -1028,7 +1304,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 380,
        "repository": {
@@ -1048,7 +1328,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 381,
        "repository": {
@@ -1058,7 +1342,11 @@
        "title": "Rebuild OGS-00011 and validate the common-variant off-panel axis",
        "url": "https://github.com/opengwas/opengwasdb-stores/issues/381"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "OQ",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -1069,7 +1357,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 333,
        "repository": {
@@ -1081,7 +1373,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 386,
        "repository": {
@@ -1101,7 +1397,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 387,
        "repository": {
@@ -1113,7 +1413,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 388,
        "repository": {
@@ -1125,7 +1429,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 389,
        "repository": {
@@ -1137,7 +1445,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 390,
        "repository": {
@@ -1171,7 +1483,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mw",
+         "hasNextPage": false
+        }
        },
        "number": 391,
        "repository": {
@@ -1212,7 +1528,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "NA",
+         "hasNextPage": false
+        }
        },
        "number": 1,
        "repository": {
@@ -1222,7 +1542,11 @@
        "title": "orchestrate and board feed the project site, and follow the move to main",
        "url": "https://github.com/opengwas/agent-skills/issues/1"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "OA",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -1233,7 +1557,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 303,
        "repository": {
@@ -1245,7 +1573,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 289,
        "repository": {
@@ -1265,7 +1597,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 304,
        "repository": {
@@ -1285,7 +1621,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 305,
        "repository": {
@@ -1312,7 +1652,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 306,
        "repository": {
@@ -1332,7 +1676,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 307,
        "repository": {
@@ -1352,7 +1700,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 308,
        "repository": {
@@ -1372,7 +1724,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 309,
        "repository": {
@@ -1384,7 +1740,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 295,
        "repository": {
@@ -1404,7 +1764,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 333,
        "repository": {
@@ -1416,7 +1780,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 296,
        "repository": {
@@ -1436,7 +1804,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 336,
        "repository": {
@@ -1448,7 +1820,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 316,
        "repository": {
@@ -1460,7 +1836,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 318,
        "repository": {
@@ -1472,7 +1852,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 301,
        "repository": {
@@ -1484,7 +1868,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 327,
        "repository": {
@@ -1494,7 +1882,11 @@
        "title": "Completed Store manifests record a constant ld_panel_id (eur-hg38-gpm), not the panel actually used",
        "url": "https://github.com/opengwas/opengwasdb/issues/327"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "MTY",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -1505,7 +1897,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 217,
        "repository": {
@@ -1517,7 +1913,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 218,
        "repository": {
@@ -1529,7 +1929,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 219,
        "repository": {
@@ -1541,7 +1945,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 220,
        "repository": {
@@ -1561,7 +1969,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 221,
        "repository": {
@@ -1588,7 +2000,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 222,
        "repository": {
@@ -1600,7 +2016,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 223,
        "repository": {
@@ -1627,7 +2047,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 224,
        "repository": {
@@ -1654,7 +2078,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 225,
        "repository": {
@@ -1681,7 +2109,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 226,
        "repository": {
@@ -1708,7 +2140,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 227,
        "repository": {
@@ -1742,7 +2178,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mw",
+         "hasNextPage": false
+        }
        },
        "number": 228,
        "repository": {
@@ -1769,7 +2209,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 229,
        "repository": {
@@ -1803,7 +2247,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mw",
+         "hasNextPage": false
+        }
        },
        "number": 230,
        "repository": {
@@ -1886,7 +2334,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MTA",
+         "hasNextPage": false
+        }
        },
        "number": 231,
        "repository": {
@@ -1906,7 +2358,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 331,
        "repository": {
@@ -1933,7 +2389,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 332,
        "repository": {
@@ -1967,7 +2427,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mw",
+         "hasNextPage": false
+        }
        },
        "number": 334,
        "repository": {
@@ -1979,7 +2443,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 339,
        "repository": {
@@ -1991,7 +2459,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 335,
        "repository": {
@@ -2003,7 +2475,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 241,
        "repository": {
@@ -2015,7 +2491,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 197,
        "repository": {
@@ -2027,7 +2507,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 199,
        "repository": {
@@ -2039,7 +2523,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 344,
        "repository": {
@@ -2051,7 +2539,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 348,
        "repository": {
@@ -2063,7 +2555,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 383,
        "repository": {
@@ -2073,7 +2569,11 @@
        "title": "Six Validation Records on #232's branch record matrix cells as n_associations (the pre-#322 fallback)",
        "url": "https://github.com/opengwas/opengwasdb-stores/issues/383"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "MjY",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -2084,7 +2584,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 319,
        "repository": {
@@ -2096,7 +2600,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 320,
        "repository": {
@@ -2108,7 +2616,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 321,
        "repository": {
@@ -2120,7 +2632,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 322,
        "repository": {
@@ -2140,7 +2656,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 323,
        "repository": {
@@ -2160,7 +2680,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 324,
        "repository": {
@@ -2180,7 +2704,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 325,
        "repository": {
@@ -2207,7 +2735,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 326,
        "repository": {
@@ -2227,7 +2759,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 341,
        "repository": {
@@ -2239,7 +2775,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 352,
        "repository": {
@@ -2259,7 +2799,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 359,
        "repository": {
@@ -2271,7 +2815,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 362,
        "repository": {
@@ -2281,7 +2829,11 @@
        "title": "Analysis Catalog: SD effects with a variant-level sample size are continuous",
        "url": "https://github.com/opengwas/opengwasdb-stores/issues/362"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "MTI",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -2292,7 +2844,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 290,
        "repository": {
@@ -2304,7 +2860,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 294,
        "repository": {
@@ -2316,7 +2876,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 297,
        "repository": {
@@ -2328,7 +2892,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 298,
        "repository": {
@@ -2340,7 +2908,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 181,
        "repository": {
@@ -2350,7 +2922,11 @@
        "title": "Allow builders to record a human-readable Store label in manifest provenance",
        "url": "https://github.com/opengwas/opengwasdb/issues/181"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "NQ",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -2376,7 +2952,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 251,
        "repository": {
@@ -2388,7 +2968,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 253,
        "repository": {
@@ -2400,7 +2984,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 254,
        "repository": {
@@ -2420,7 +3008,11 @@
           },
           "state": "CLOSED"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 255,
        "repository": {
@@ -2447,7 +3039,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 256,
        "repository": {
@@ -2474,7 +3070,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
        },
        "number": 258,
        "repository": {
@@ -2494,7 +3094,11 @@
           },
           "state": "OPEN"
          }
-        ]
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
        },
        "number": 364,
        "repository": {
@@ -2504,7 +3108,11 @@
        "title": "Resume a failed forced release from the failed step instead of discarding a completed build",
        "url": "https://github.com/opengwas/opengwasdb-stores/issues/364"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "Nw",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -2515,7 +3123,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 206,
        "repository": {
@@ -2527,7 +3139,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 208,
        "repository": {
@@ -2539,7 +3155,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 209,
        "repository": {
@@ -2551,7 +3171,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 210,
        "repository": {
@@ -2563,7 +3187,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 211,
        "repository": {
@@ -2575,7 +3203,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 212,
        "repository": {
@@ -2587,7 +3219,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 213,
        "repository": {
@@ -2597,7 +3233,11 @@
        "title": "Run real-data HM3 pipeline proof",
        "url": "https://github.com/opengwas/opengwasdb-stores/issues/213"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "Nw",
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -2605,7 +3245,11 @@
    "issue": {
     "number": 161,
     "subIssues": {
-     "nodes": []
+     "nodes": [],
+     "pageInfo": {
+      "endCursor": null,
+      "hasNextPage": false
+     }
     }
    }
   },
@@ -2616,7 +3260,11 @@
      "nodes": [
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 201,
        "repository": {
@@ -2628,7 +3276,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 202,
        "repository": {
@@ -2640,7 +3292,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 203,
        "repository": {
@@ -2652,7 +3308,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 204,
        "repository": {
@@ -2664,7 +3324,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 205,
        "repository": {
@@ -2676,7 +3340,11 @@
       },
       {
        "blockedBy": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
        },
        "number": 206,
        "repository": {
@@ -2686,7 +3354,11 @@
        "title": "Compress the staged fill arrays with a fast codec, or prove it isn't worth it",
        "url": "https://github.com/opengwas/opengwasdb/issues/206"
       }
-     ]
+     ],
+     "pageInfo": {
+      "endCursor": "Ng",
+      "hasNextPage": false
+     }
     }
    }
   }
@@ -3905,7 +4577,7 @@
             "field": {
              "name": "Next"
             },
-            "text": "0/8 merged on PR #392 \u00b7 implementing odb333, #388, #389, #390 \u00b7 waiting #387 \u00b7 3 blocked"
+            "text": "0/8 merged on PR #392 \u00b7 fixing #390 \u00b7 in review #389 \u00b7 implementing odb333, #388 \u00b7 waiting #387 \u00b7 3 blocked"
            }
           ]
          }

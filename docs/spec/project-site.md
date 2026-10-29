@@ -117,7 +117,11 @@ The board collector has its own GraphQL query (`project_site.collect.board`);
 this repository does not import the board skill. It reads project 1 of the
 `opengwas` organisation, every page of it, and then every epic's sub-issues and
 their blocked-by edges (`subIssues` and `blockedBy` in the GraphQL API) in one
-aliased query. The issue bodies of everything but Milestones are dropped.
+aliased query, and follows every further page of both relationships (`subIssues`
+and `blockedBy` each return `pageInfo`). The issue bodies of everything but
+Milestones are dropped. A relationship that still has a page unread when the
+response is parsed is an error, so the file is `available: false` rather than a
+short list marked complete.
 
 | Key | Content |
 |---|---|
@@ -266,9 +270,3 @@ The backfilled records are #313 (active, because OGS-00011 is not validated),
 A run still in flight is not a record: its epic has no `finished` date to
 write and its state is still changing. The orchestrator writes the record when
 the epic finishes (opengwas/agent-skills#1).
-
-One title names the two retired bundle directories, which
-`tests/migration/test_families_retired.py` refuses in any tracked file outside
-its historical fields. The recorded board response and #282's record give
-#252's title as "Retire the two old bundle directories" for that reason;
-nothing else in the fixture is edited.

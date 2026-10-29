@@ -84,7 +84,7 @@ tickets:
   pr: null
   merge: 107199a
 - key: opengwasdb-stores#252
-  title: Retire the two old bundle directories
+  title: Retire families/ and .rebuild133/
   pr: null
   merge: 6b21b49
 - key: null

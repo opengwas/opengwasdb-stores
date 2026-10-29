@@ -324,6 +324,82 @@ def write_catalog_version(
     return directory
 
 
+def repo_of(name: str = "opengwasdb-stores") -> dict:
+    return {"nameWithOwner": f"opengwas/{name}"}
+
+
+def child(number: int, blocked: list[tuple[int, bool]] | None = None, *, more: str | None = None) -> dict:
+    """A sub-issue node; `more` is the cursor of a second page of its blockedBy edges."""
+    nodes = [{"number": n, "state": "OPEN", "repository": repo_of()} for n, _ in (blocked or [])]
+    return {
+        "number": number, "title": f"T{number}", "url": f"https://x/{number}", "state": "OPEN",
+        "repository": repo_of(),
+        "blockedBy": {"pageInfo": {"hasNextPage": more is not None, "endCursor": more}, "nodes": nodes},
+    }
+
+
+def paged(nodes: list[dict], more: str | None = None) -> dict:
+    return {"pageInfo": {"hasNextPage": more is not None, "endCursor": more}, "nodes": nodes}
+
+
+class PagingGh:
+    """A `gh` runner over a two-page project: the epic's sub-issues, and one sub-issue's blockers, each in two pages."""
+
+    def __init__(self) -> None:
+        self.queries: list[dict] = []
+
+    def __call__(self, args: list[str], stdin: str | None = None) -> str:
+        request = json.loads(stdin)
+        variables = request["variables"]
+        self.queries.append(variables)
+        after = variables.get("after")
+        if "projectV2" in request["query"]:
+            epic = {
+                "__typename": "Issue", "number": 7, "title": "Epic: paged", "url": "https://x/7", "state": "OPEN",
+                "repository": repo_of(), "issueType": {"name": "Epic"}, "labels": {"nodes": []},
+                "subIssuesSummary": {"total": 3, "completed": 0}, "closedAt": None, "parent": None,
+            }
+            node = {"content": epic, "fieldValues": {"nodes": []}}
+            return json.dumps({"data": {"organization": {"projectV2": {"items": {
+                "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": [node]}}}}})
+        if "e0:" in request["query"]:  # the aliased first look at every epic
+            first = child(10, [(1, False)], more="b1")
+            return json.dumps({"data": {"e0": {"issue": {"number": 7, "subIssues": paged([first, child(11)], "s1")}}}})
+        if "subIssues" in request["query"]:
+            assert after == "s1" and variables["number"] == 7, variables
+            return json.dumps({"data": {"repository": {"issue": {"subIssues": paged([child(12)])}}}})
+        assert after == "b1" and variables["number"] == 10, variables
+        blockers = [{"number": 2, "state": "CLOSED", "repository": repo_of()}]
+        return json.dumps({"data": {"repository": {"issue": {"blockedBy": paged(blockers)}}}})
+
+
+class TestBoardPagination(unittest.TestCase):
+    def test_every_page_of_sub_issues_and_blockers_is_read(self) -> None:
+        gh = PagingGh()
+        result = board.collect(gh)
+        children = result["epics"][0]["children"]
+        self.assertEqual([c["key"] for c in children], ["opengwasdb-stores#10", "opengwasdb-stores#11", "opengwasdb-stores#12"])
+        self.assertEqual(
+            children[0]["blocked_by"],
+            [{"key": "opengwasdb-stores#1", "state": "OPEN"}, {"key": "opengwasdb-stores#2", "state": "CLOSED"}],
+        )
+        self.assertEqual([q.get("after") for q in gh.queries][-2:], ["s1", "b1"])
+
+    def test_a_truncated_relationship_is_never_returned_as_complete(self) -> None:
+        raw = json.loads((FIXTURES / "board-graphql.json").read_text())
+        alias = next(iter(raw["children"]))
+        raw["children"][alias]["issue"]["subIssues"]["pageInfo"] = {"hasNextPage": True, "endCursor": "x"}
+        with self.assertRaisesRegex(common.CollectError, "sub-issues.*more pages"):
+            board.parse(raw)
+        raw = json.loads((FIXTURES / "board-graphql.json").read_text())
+        with_edges = next(
+            c for a in raw["children"].values() for c in a["issue"]["subIssues"]["nodes"] if c["blockedBy"]["nodes"]
+        )
+        with_edges["blockedBy"]["pageInfo"] = {"hasNextPage": True, "endCursor": "x"}
+        with self.assertRaisesRegex(common.CollectError, "blocked-by.*more pages"):
+            board.parse(raw)
+
+
 class TestCatalogHistoryCollector(unittest.TestCase):
     def setUp(self) -> None:
         self.tmp = tempfile.TemporaryDirectory()

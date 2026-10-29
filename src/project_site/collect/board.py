@@ -11,7 +11,7 @@ import json
 import re
 from typing import Any
 
-from project_site.collect.common import GhRunner
+from project_site.collect.common import CollectError, GhRunner
 
 OWNER = "opengwas"
 PROJECT_NUMBER = 1
@@ -50,7 +50,24 @@ query($owner: String!, $number: Int!, $after: String) {
 CHILD_FIELDS = """
   number title url state
   repository { nameWithOwner }
-  blockedBy(first: 50) { nodes { number state repository { nameWithOwner } } }
+  blockedBy(first: 50) { pageInfo { hasNextPage endCursor } nodes { number state repository { nameWithOwner } } }
+"""
+
+# The same two relationships, one page at a time, for what the first look cut off.
+SUB_ISSUES_QUERY = """
+query($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) { issue(number: $number) {
+    subIssues(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { %s } }
+  } }
+}
+""" % CHILD_FIELDS
+
+BLOCKED_BY_QUERY = """
+query($owner: String!, $name: String!, $number: Int!, $after: String) {
+  repository(owner: $owner, name: $name) { issue(number: $number) {
+    blockedBy(first: 50, after: $after) { pageInfo { hasNextPage endCursor } nodes { number state repository { nameWithOwner } } }
+  } }
+}
 """
 
 
@@ -82,7 +99,7 @@ def children_query(epics: list[dict[str, Any]]) -> str:
         owner, name = epic["repository"]["nameWithOwner"].split("/")
         blocks.append(
             f'e{i}: repository(owner: "{owner}", name: "{name}") '
-            f'{{ issue(number: {epic["number"]}) {{ number subIssues(first: 100) {{ nodes {{ {CHILD_FIELDS} }} }} }} }}'
+            f'{{ issue(number: {epic["number"]}) {{ number subIssues(first: 100) {{ pageInfo {{ hasNextPage endCursor }} nodes {{ {CHILD_FIELDS} }} }} }} }}'
         )
     return "query {\n" + "\n".join(blocks) + "\n}"
 
@@ -118,7 +135,27 @@ def fetch(gh: GhRunner) -> dict[str, Any]:
         if node["content"].get("__typename") == "Issue" and is_epic(node["content"])
     ]
     children = _graphql(gh, children_query(epics))["data"] if epics else {}
+    for i, epic in enumerate(epics):
+        _finish_pages(gh, epic["repository"], epic["number"], children[f"e{i}"]["issue"]["subIssues"])
     return {"project": pages, "epics": [issue_key(e["repository"], e["number"]) for e in epics], "children": children}
+
+
+def _finish_pages(gh: GhRunner, repository: dict[str, Any], number: int, sub_issues: dict[str, Any]) -> None:
+    """Read every further page of an epic's sub-issues, then of each sub-issue's blockers, in place."""
+    owner, name = repository["nameWithOwner"].split("/")
+    while sub_issues["pageInfo"]["hasNextPage"]:
+        more = _graphql(gh, SUB_ISSUES_QUERY, owner=owner, name=name, number=number,
+                        after=sub_issues["pageInfo"]["endCursor"])["data"]["repository"]["issue"]["subIssues"]
+        sub_issues["nodes"].extend(more["nodes"])
+        sub_issues["pageInfo"] = more["pageInfo"]
+    for sub in sub_issues["nodes"]:
+        edges = sub["blockedBy"]
+        sub_owner, sub_name = sub["repository"]["nameWithOwner"].split("/")
+        while edges["pageInfo"]["hasNextPage"]:
+            more = _graphql(gh, BLOCKED_BY_QUERY, owner=sub_owner, name=sub_name, number=sub["number"],
+                            after=edges["pageInfo"]["endCursor"])["data"]["repository"]["issue"]["blockedBy"]
+            edges["nodes"].extend(more["nodes"])
+            edges["pageInfo"] = more["pageInfo"]
 
 
 BOX = re.compile(r"\s*- \[( |x|X)\] (.*)")
@@ -172,6 +209,13 @@ def _item(content: dict[str, Any], fields: dict[str, str | None]) -> dict[str, A
 def parse(raw: dict[str, Any]) -> dict[str, Any]:
     """The board file's payload from the responses `fetch` recorded."""
     epic_keys = raw["epics"]
+    for i, key in enumerate(epic_keys):
+        subs = raw["children"][f"e{i}"]["issue"]["subIssues"]
+        if subs["pageInfo"]["hasNextPage"]:
+            raise CollectError(f"{key}: sub-issues have more pages than were read")
+        for c in subs["nodes"]:
+            if c["blockedBy"]["pageInfo"]["hasNextPage"]:
+                raise CollectError(f"{key}: blocked-by edges of {issue_key(c['repository'], c['number'])} have more pages than were read")
     children = {
         key: [
             {
