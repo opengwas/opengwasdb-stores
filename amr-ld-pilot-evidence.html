@@ -1257,6 +1257,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./spec/project-site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Project site data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./spec/qc-panel-concordance-preregistration.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span></a>
   </div>
@@ -1277,6 +1283,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./spec/yardstick.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The yardstick</span></a>
   </div>
 </li>
       </ul>
@@ -1568,6 +1580,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./spec/project-site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Project site data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./spec/qc-panel-concordance-preregistration.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span></a>
   </div>
@@ -1588,6 +1606,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./spec/yardstick.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The yardstick</span></a>
   </div>
 </li>
       </ul>
@@ -2353,7 +2377,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="genome-wide-build-2026-10-22" class="level2">
 <h2 class="anchored" data-anchor-id="genome-wide-build-2026-10-22">Genome-wide build (2026-10-22)</h2>
-<p>The owner approved the build. It is declared as <a href="https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/resources/reference-resources/hgdp1kgp-hg38-amr-ld/resource.yaml"><code>hgdp1kgp-hg38-amr-ld</code></a> and ADR 0020 is amended.</p>
+<p>The owner approved the build. It is declared as <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/reference-resources/hgdp1kgp-hg38-amr-ld/resource.yaml"><code>hgdp1kgp-hg38-amr-ld</code></a> and ADR 0020 is amended.</p>
 <p><strong>Run:</strong> - Root: <code>/data/opengwasdb/reference/hgdp1kgp-hg38-amr/</code>; the panel is in <code>panel/AMR/&lt;chr&gt;/&lt;start&gt;-&lt;end&gt;.*</code>. - Built by <code>tools/ld-panel/build_amr_panel.py</code> at revision <code>2b84680</code>. - Ran from 2026-10-22T18:32:14Z to 22:16:58Z. All 1,387 steps exited 0. - Full receipt: <code>runs/20261022T183214Z/receipt.json</code>. Compact copies: <a href="data/amr-ld-panel-build-summary.json"><code>data/amr-ld-panel-build-summary.json</code></a> and the per-block <a href="data/amr-ld-panel-build-blocks.tsv"><code>data/amr-ld-panel-build-blocks.tsv</code></a>. - A chr22-only smoke build first found that, with one record kept per ALID, looking up a row’s genotypes by ALID could take the other record. Block tables now carry the source REF/ALT, and lookups use them (commit <code>2b84680</code>).</p>
 <table class="caption-top table">
 <colgroup>

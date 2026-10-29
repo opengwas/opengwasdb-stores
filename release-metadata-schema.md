@@ -381,7 +381,7 @@ requested `info_score_threshold`, or literal `NaN` when unmapped. Finalisation
 copies the requested floor and the exact triple into the candidate
 `analyses.tsv` only for an Analysis whose resolver record carries the post-INFO
 state and at least one usable score (see the family
-[README](https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/resources/generators/gwas-catalog-eur-hybrid/README.md) for the
+[README](https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/generators/gwas-catalog-eur-hybrid/README.md) for the
 emission rule); every other Analysis emits literal `NaN` and empty triple
 cells. A declared Analysis with no usable score is retained: core no longer
 reports it as a controlled failure, the registry does not refuse it, and it is
@@ -1227,7 +1227,7 @@ release metadata are documented here.
 
 Phase B selects release membership from a **frozen Source Inventory** rather
 than from a glob over an acquisition mirror (issue #151). That directory's
-[README](https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/resources/inventories/README.md) is the authority on the inventory's
+[README](https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/inventories/README.md) is the authority on the inventory's
 columns, its readiness vocabulary and the freeze/preflight commands. A generator
 config names the snapshot it selects from and the acquisition output that
 snapshot was frozen from:
@@ -1458,7 +1458,7 @@ release needs an `opengwasdb` providing `build-indexed-subset`, the release
 entry point probes for it and refuses a missing capability before any write; the
 repository's pinned current-format runtime provides it (stores#218). See
 `src/ogstores/resources.py`, `src/ogstores/runtime.py` and
-[the release runtime](https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/runtime.md).
+[the release runtime](https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/runtime.md).
 
 ### Quality Check configuration
 

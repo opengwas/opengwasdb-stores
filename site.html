@@ -260,14 +260,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>The mirror of <code>docs/</code> the render reads (<code>$OPENGWASDB_SITE_ROOT</code> moves the work root).</td>
 </tr>
 <tr class="odd">
+<td><code>/data/opengwasdb/work/site/&lt;checkout&gt;/_preview</code></td>
+<td>The synced copy <code>site-preview</code> serves; Quarto renders inside it.</td>
+</tr>
+<tr class="even">
 <td><code>/data/opengwasdb/work/site/opengwasdb.git</code></td>
 <td>The bare clone the engine’s docs are staged from (<code>$OPENGWASDB_SITE_ENGINE_CLONE</code> overrides it).</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>docs/opengwasdb/</code></td>
 <td>The engine’s docs staged at the pinned revision. Git-ignored, regenerated on every render.</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>docs/glossary.md</code></td>
 <td><code>CONTEXT.md</code>, staged as the glossary page. Git-ignored, regenerated.</td>
 </tr>

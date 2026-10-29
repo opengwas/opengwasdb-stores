@@ -38,7 +38,7 @@ The comparison assumes the following workflow contract:
 These constraints extend, rather than replace, the repository's existing
 model. The current [pipeline-stage vocabulary](release-metadata-schema.md#pipeline-stages)
 already names `discover`, `select`, `derive`, `emit`, and `accept`; the
-[external-artifact contract](https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/README.md#external-artifacts) already places
+[external-artifact contract](https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/README.md#external-artifacts) already places
 large products below `/data/opengwasdb/<store-family-id>/releases/<family-release-id>/`;
 and [ADR 0012](adr/0012-manifest-generators-own-orchestration-only.md) keeps
 reusable reading, normalisation, and Store building in OpenGWASDB. The
@@ -200,7 +200,7 @@ that a process which modifies its input files cannot be resumed and calls that
 behaviour an anti-pattern
 ([Nextflow modified-input warning](https://docs.seqera.io/nextflow/cache-and-resume#modified-inputs)).
 Current release notes describe rho matrices built in place—for example, the
-[FinnGen completed Release Build Recipe](https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/families/finngen-r13/releases/r13-pilot-20-completed/build.yaml).
+[FinnGen completed Release Build Recipe](https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/families/finngen-r13/releases/r13-pilot-20-completed/build.yaml).
 A Nextflow implementation would therefore have to choose and prove one of two
 patterns:
 

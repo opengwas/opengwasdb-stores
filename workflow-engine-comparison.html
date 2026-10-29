@@ -1222,6 +1222,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./spec/project-site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Project site data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./spec/qc-panel-concordance-preregistration.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span></a>
   </div>
@@ -1242,6 +1248,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="./spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./spec/yardstick.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The yardstick</span></a>
   </div>
 </li>
       </ul>
@@ -1533,6 +1545,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./spec/project-site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Project site data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./spec/qc-panel-concordance-preregistration.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span></a>
   </div>
@@ -1553,6 +1571,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="./spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./spec/yardstick.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The yardstick</span></a>
   </div>
 </li>
       </ul>
@@ -1643,7 +1667,7 @@ ul.task-list li input[type="checkbox"] {
 <li>Python, R, OpenGWASDB, and native tools continue to be supplied through the repository’s locked Pixi workspace; and</li>
 <li>large source, work, log, and Store files remain below <code>/data/opengwasdb</code>, while Git contains metadata and small reports.</li>
 </ul>
-<p>These constraints extend, rather than replace, the repository’s existing model. The current <a href="./release-metadata-schema.html#pipeline-stages">pipeline-stage vocabulary</a> already names <code>discover</code>, <code>select</code>, <code>derive</code>, <code>emit</code>, and <code>accept</code>; the <a href="https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/README.md#external-artifacts">external-artifact contract</a> already places large products below <code>/data/opengwasdb/&lt;store-family-id&gt;/releases/&lt;family-release-id&gt;/</code>; and <a href="./adr/0012-manifest-generators-own-orchestration-only.html">ADR 0012</a> keeps reusable reading, normalisation, and Store building in OpenGWASDB. The orchestrator should therefore call a single release-build interface across layouts rather than encode the per-layout dispatch and adapters criticised in <a href="https://github.com/opengwas/opengwasdb-stores/issues/82">The release seam to opengwasdb has no interface: builder.entrypoint is inert, the Builder Manifest adapter is copy-pasted and lossy, and the bundle format has no owner module</a>.</p>
+<p>These constraints extend, rather than replace, the repository’s existing model. The current <a href="./release-metadata-schema.html#pipeline-stages">pipeline-stage vocabulary</a> already names <code>discover</code>, <code>select</code>, <code>derive</code>, <code>emit</code>, and <code>accept</code>; the <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/README.md#external-artifacts">external-artifact contract</a> already places large products below <code>/data/opengwasdb/&lt;store-family-id&gt;/releases/&lt;family-release-id&gt;/</code>; and <a href="./adr/0012-manifest-generators-own-orchestration-only.html">ADR 0012</a> keeps reusable reading, normalisation, and Store building in OpenGWASDB. The orchestrator should therefore call a single release-build interface across layouts rather than encode the per-layout dispatch and adapters criticised in <a href="https://github.com/opengwas/opengwasdb-stores/issues/82">The release seam to opengwasdb has no interface: builder.entrypoint is inert, the Builder Manifest adapter is copy-pasted and lossy, and the bundle format has no owner module</a>.</p>
 </section>
 <section id="comparison-at-a-glance" class="level2">
 <h2 class="anchored" data-anchor-id="comparison-at-a-glance">Comparison at a glance</h2>
@@ -1755,7 +1779,7 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="trade-offs-and-unresolved-fit-questions-1" class="level3">
 <h3 class="anchored" data-anchor-id="trade-offs-and-unresolved-fit-questions-1">Trade-offs and unresolved fit questions</h3>
-<p>The biggest fit question is the Store’s lifecycle. Nextflow explicitly warns that a process which modifies its input files cannot be resumed and calls that behaviour an anti-pattern (<a href="https://docs.seqera.io/nextflow/cache-and-resume#modified-inputs">Nextflow modified-input warning</a>). Current release notes describe rho matrices built in place—for example, the <a href="https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/families/finngen-r13/releases/r13-pilot-20-completed/build.yaml">FinnGen completed Release Build Recipe</a>. A Nextflow implementation would therefore have to choose and prove one of two patterns:</p>
+<p>The biggest fit question is the Store’s lifecycle. Nextflow explicitly warns that a process which modifies its input files cannot be resumed and calls that behaviour an anti-pattern (<a href="https://docs.seqera.io/nextflow/cache-and-resume#modified-inputs">Nextflow modified-input warning</a>). Current release notes describe rho matrices built in place—for example, the <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/families/finngen-r13/releases/r13-pilot-20-completed/build.yaml">FinnGen completed Release Build Recipe</a>. A Nextflow implementation would therefore have to choose and prove one of two patterns:</p>
 <ol type="1">
 <li>Keep the Store within one task-owned work directory through every in-place phase, then publish it only after final validation. This respects the cache model but makes one coarse, potentially many-hour task unless each phase can hand a new immutable Store directory to the next.</li>
 <li>Let processes update a stable external Store path and emit validated marker files which Nextflow tracks. This preserves phase granularity but moves correctness outside Nextflow’s normal input/output cache model; the adapter must detect partial mutation and establish idempotent recovery.</li>

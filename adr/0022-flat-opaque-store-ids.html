@@ -1222,6 +1222,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../spec/project-site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Project site data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../spec/qc-panel-concordance-preregistration.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span></a>
   </div>
@@ -1242,6 +1248,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../spec/yardstick.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The yardstick</span></a>
   </div>
 </li>
       </ul>
@@ -1533,6 +1545,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../spec/project-site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Project site data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../spec/qc-panel-concordance-preregistration.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span></a>
   </div>
@@ -1553,6 +1571,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../spec/yardstick.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The yardstick</span></a>
   </div>
 </li>
       </ul>
@@ -1615,7 +1639,7 @@ ul.task-list li input[type="checkbox"] {
 <li>a matching physical directory rename (<code>git mv</code>), with the <code>store_id</code> updated;</li>
 <li>association/index artifacts left byte-identical, and an evidence record.</li>
 </ul>
-<p>The first case moved FinnGen from <code>OGS-00016</code> to <code>OGS-00017</code> so the MVP META observed-only Store could take <code>OGS-00016</code> ahead of it (owner decision 2026-10-13, “reorder the IDs”); see <a href="https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/ogs-00016-to-ogs-00017-migration.md"><code>docs/ogs-00016-to-ogs-00017-migration.md</code></a>. The <code>migration</code> block is provenance for the renumbering only; <code>store_uri</code> remains a pure function of the identifier (ADR 0030).</p>
+<p>The first case moved FinnGen from <code>OGS-00016</code> to <code>OGS-00017</code> so the MVP META observed-only Store could take <code>OGS-00016</code> ahead of it (owner decision 2026-10-13, “reorder the IDs”); see <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/ogs-00016-to-ogs-00017-migration.md"><code>docs/ogs-00016-to-ogs-00017-migration.md</code></a>. The <code>migration</code> block is provenance for the renumbering only; <code>store_uri</code> remains a pure function of the identifier (ADR 0030).</p>
 <p>Rejected alternatives:</p>
 <ul>
 <li><strong>Silent reassignment, or a directory rename alone.</strong> Rejected: the identifier is a join key across the registry, the artifact root and core-owned provenance; a rename without the recorded mapping, erratum and evidence is the silent rewrite this ADR forbids.</li>

@@ -19,10 +19,10 @@ Completion; a convenient EUR panel is not an acceptable silent substitute*.
 The registry currently declares no AMR panel. Two facts make that a blocker
 rather than an opt-out:
 
-- [`resources/reference-resources/hgdp1kgp-hg38-ld/resource.yaml`](https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/resources/reference-resources/hgdp1kgp-hg38-ld/resource.yaml)
+- [`resources/reference-resources/hgdp1kgp-hg38-ld/resource.yaml`](https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/reference-resources/hgdp1kgp-hg38-ld/resource.yaml)
   declares `ancestry: [AFR, EAS, SAS]`; its description says Analyses assigned
   AMR/MID/NAF "remain observed-only" until a panel exists.
-- [`resources/reference-resources/hgdp1kgp-hg38-ld/populations_to_superpop.tsv`](https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/resources/reference-resources/hgdp1kgp-hg38-ld/populations_to_superpop.tsv)
+- [`resources/reference-resources/hgdp1kgp-hg38-ld/populations_to_superpop.tsv`](https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/reference-resources/hgdp1kgp-hg38-ld/populations_to_superpop.tsv)
   maps `CLM`, `MXL`, `PEL`, `PUR` (1kGP Admixed American) and `Pima`, `Maya`,
   `Karitiana`, `Surui`, `Colombian` (HGDP American) to `excluded` / `no_AMR_panel`,
   and `ld_regions_hg38.tsv` (host:
@@ -80,7 +80,7 @@ built from all 3,202 would include 698 non-independent individuals.
 ### 2.3 gnomAD v3.1.2 HGDP + 1kGP subset (cached candidate)
 
 The registry already acquires this joint GRCh38 genome-wide callset
-([`acquire_hgdp1kgp.py`](https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/tools/ld-panel/acquire_hgdp1kgp.py),
+([`acquire_hgdp1kgp.py`](https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/tools/ld-panel/acquire_hgdp1kgp.py),
 gnomAD v3.1.2). The primary description of the subset's sample QC and
 relatedness handling is **Koenig et al. 2024**, *Genome Research* 34(5):796–809
 (DOI 10.1101/gr.278378.123; PMID 38749656; PMC11216312). Their pipeline reduces

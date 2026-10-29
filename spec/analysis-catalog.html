@@ -68,7 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../">
-<link href="../spec/qc-panel-concordance-preregistration.html" rel="next">
+<link href="../spec/project-site.html" rel="next">
 <link href="../opengwasdb/spec/store-format.html" rel="prev">
 <script src="../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -1257,6 +1257,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../spec/project-site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Project site data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../spec/qc-panel-concordance-preregistration.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span></a>
   </div>
@@ -1277,6 +1283,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../spec/yardstick.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The yardstick</span></a>
   </div>
 </li>
       </ul>
@@ -1568,6 +1580,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../spec/project-site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Project site data</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../spec/qc-panel-concordance-preregistration.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span></a>
   </div>
@@ -1588,6 +1606,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../spec/yardstick.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The yardstick</span></a>
   </div>
 </li>
       </ul>
@@ -1641,7 +1665,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="analysis-catalog" class="level1">
 <h1>Analysis Catalog</h1>
-<p>The specification of <code>pixi run catalog</code> (#323, epic #313). The decisions behind it are <a href="../adr/0039-analysis-catalog.html">ADR 0039</a>; the words are <a href="https://github.com/opengwas/opengwasdb-stores/blob/0d00d8648b1def84fd60e4dc2e0adcd699c71933/CONTEXT.md">CONTEXT.md</a>’s. This file is the contract: the command, the serving decisions, the tables, and the files a rebuild writes.</p>
+<p>The specification of <code>pixi run catalog</code> (#323, epic #313). The decisions behind it are <a href="../adr/0039-analysis-catalog.html">ADR 0039</a>; the words are <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/CONTEXT.md">CONTEXT.md</a>’s. This file is the contract: the command, the serving decisions, the tables, and the files a rebuild writes.</p>
 <p>The catalog is the package <code>src/analysis_catalog/</code>. It imports only <code>ogstores.bundle</code> and <code>ogstores.paths</code> from <code>ogstores</code>, and nothing in <code>ogstores</code> or <code>manifest_generation</code> imports it (<code>tests/packaging/test_boundary.py</code>). It reads Release Bundles and never opens a Store (ADR 0023).</p>
 <section id="the-command" class="level2">
 <h2 class="anchored" data-anchor-id="the-command">The command</h2>
@@ -2222,8 +2246,8 @@ Decisions are not hashed: they are a function of those inputs, so the version is
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../spec/qc-panel-concordance-preregistration.html" class="pagination-link" aria-label="Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy">
-        <span class="nav-page-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../spec/project-site.html" class="pagination-link" aria-label="Project site data">
+        <span class="nav-page-text">Project site data</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>
