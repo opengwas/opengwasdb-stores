@@ -35,6 +35,16 @@ def _changes(path: Path) -> dict[str, int] | None:
     return dict(Counter(line.split("\t")[1] for line in lines if line))
 
 
+def _selection(db: sqlite3.Connection) -> list[dict[str, Any]]:
+    """Every Store Release's decision and reason, as the version's `selection` table holds them."""
+    return [
+        {"store_id": store_id, "decision": decision, "reason": reason}
+        for store_id, decision, reason in db.execute(
+            "SELECT store_id, decision, reason FROM selection ORDER BY store_id"
+        )
+    ]
+
+
 def _version(directory: Path, current: str | None) -> dict[str, Any]:
     database = directory / "catalog.sqlite"
     if not database.is_file():
@@ -47,6 +57,9 @@ def _version(directory: Path, current: str | None) -> dict[str, Any]:
             for d, v, n in db.execute("SELECT dimension, value, n_analyses FROM counts ORDER BY rowid")
         ]
         analyses, stores = db.execute("SELECT count(*), count(DISTINCT store_id) FROM listed_analyses").fetchone()
+        # The decisions are read for the version `current` names, which is the one
+        # the site's Store pages show; a historical version's are not needed (#391).
+        selection = _selection(db) if directory.name == current else None
     finally:
         db.close()
     return {
@@ -56,6 +69,7 @@ def _version(directory: Path, current: str | None) -> dict[str, Any]:
         "counts": counts,
         "totals": {"analyses": analyses, "stores": stores},
         "changes": _changes(directory / "changes.tsv"),
+        "selection": selection,
     }
 
 
