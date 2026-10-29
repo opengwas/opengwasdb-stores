@@ -61,6 +61,16 @@ def staging_dir(repo: Path) -> Path:
     return work_root() / checkout_name(repo) / "_stage"
 
 
+def preview_dir(repo: Path) -> Path:
+    """The tree the live preview serves: the mirror, synced file by file.
+
+    `quarto preview` renders into `_site/` inside the tree it serves, so the
+    preview serves a synced copy. Re-staging then never removes a file the
+    preview is writing, which is what a rebuild of the mirror itself would do.
+    """
+    return work_root() / checkout_name(repo) / "_preview"
+
+
 def engine_clone() -> Path:
     return Path(os.environ.get(CLONE_ENV) or (WORK_ROOT / "opengwasdb.git"))
 

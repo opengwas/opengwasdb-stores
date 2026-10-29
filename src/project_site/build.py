@@ -14,6 +14,7 @@ made, so the engine section describes the runtime the registry imports.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 import threading
@@ -267,6 +268,10 @@ def report_summary(report: BuildReport) -> str:
 # rendered by `pixi run docs` rather than by the site.
 WATCH_IGNORE = ("reports/", "opengwasdb/", "glossary.md", ".quarto/", "_site/")
 
+# Inside the served tree: `quarto preview`'s own output and cache. A sync must
+# never copy into them or delete them.
+SERVED_OWN = ("_site", ".quarto")
+
 
 def _snapshot(repo: Path) -> dict[str, int]:
     docs = repo / "docs"
@@ -281,34 +286,77 @@ def _snapshot(repo: Path) -> dict[str, int]:
     return stamps
 
 
-def _restage_on_change(repo: Path, stop: "threading.Event") -> None:
-    """Keep the mirror current while the preview serves it: a source edit is re-staged."""
+def _sync_tree(source: Path, served: Path) -> int:
+    """Make `served` match `source` file by file, atomically; return how many changed.
+
+    Quarto watches `served` and re-renders what changed. A file is replaced with
+    a rename, so a read never sees half of one, and only a changed file is
+    written: an untouched page keeps its timestamp and is not re-rendered.
+    """
+    changed = 0
+    wanted: set[str] = set()
+    for path in source.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(source)
+        if relative.parts and relative.parts[0] in SERVED_OWN:
+            continue
+        data = path.read_bytes()
+        wanted.add(relative.as_posix())
+        target = served / relative
+        if target.is_file() and target.read_bytes() == data:
+            continue
+        target.parent.mkdir(parents=True, exist_ok=True)
+        temporary = target.with_name(f".{target.name}.staging")
+        temporary.write_bytes(data)
+        os.replace(temporary, target)
+        changed += 1
+    for path in served.rglob("*"):
+        if not path.is_file():
+            continue
+        relative = path.relative_to(served)
+        if relative.parts and relative.parts[0] in SERVED_OWN:
+            continue
+        if relative.as_posix() not in wanted:
+            path.unlink()
+            changed += 1
+    return changed
+
+
+def _restage_on_change(repo: Path, served: Path, stop: "threading.Event") -> None:
+    """Keep the served tree current while the preview runs: a source edit is re-staged."""
     previous = _snapshot(repo)
     while not stop.wait(1.0):
         current = _snapshot(repo)
         if current == previous:
             continue
         previous = current
+        stop.wait(1.0)  # let a save settle before staging it
         try:
-            rewrite(stage_everything(repo))
-            print("restaged the docs mirror")
+            stage = stage_everything(repo)
+            rewrite(stage)
+            _sync_tree(stage.mirror, served)
+            print("restaged the docs mirror", flush=True)
         except Exception as error:  # a half-written file is not a reason to stop the preview
             print(f"re-stage failed: {error}", file=sys.stderr)
 
 
 def preview(repo: Path | None = None) -> int:
-    """Stage, then serve the staging tree with Quarto's live-reloading preview.
+    """Stage, then serve a synced copy of the staging tree with live reload.
 
-    Quarto watches the staging tree, and a thread watches the sources and
+    Quarto watches the served tree, and a thread watches the sources and
     re-stages on change, so editing `docs/` re-renders the page you are looking
     at without restarting the command.
     """
     repo = Path(repo).resolve() if repo is not None else paths.repo_root()
-    rewrite(stage_everything(repo))
+    stage = stage_everything(repo)
+    rewrite(stage)
+    served = paths.preview_dir(repo)
+    _sync_tree(stage.mirror, served)
     stop = threading.Event()
-    watcher = threading.Thread(target=_restage_on_change, args=(repo, stop), daemon=True)
+    watcher = threading.Thread(target=_restage_on_change, args=(repo, served, stop), daemon=True)
     watcher.start()
-    process = subprocess.Popen(["quarto", "preview", str(paths.staging_dir(repo))])
+    process = subprocess.Popen(["quarto", "preview", str(served)])
     try:
         process.wait()
     except KeyboardInterrupt:

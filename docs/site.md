@@ -26,6 +26,7 @@ output would make parallel pull requests conflict.
 | --- | --- |
 | `/data/opengwasdb/work/site/<checkout>/_site` | The rendered site (`$OPENGWASDB_SITE_OUT` overrides it). |
 | `/data/opengwasdb/work/site/<checkout>/_stage` | The mirror of `docs/` the render reads (`$OPENGWASDB_SITE_ROOT` moves the work root). |
+| `/data/opengwasdb/work/site/<checkout>/_preview` | The synced copy `site-preview` serves; Quarto renders inside it. |
 | `/data/opengwasdb/work/site/opengwasdb.git` | The bare clone the engine's docs are staged from (`$OPENGWASDB_SITE_ENGINE_CLONE` overrides it). |
 | `docs/opengwasdb/` | The engine's docs staged at the pinned revision. Git-ignored, regenerated on every render. |
 | `docs/glossary.md` | `CONTEXT.md`, staged as the glossary page. Git-ignored, regenerated. |
