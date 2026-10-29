@@ -27,15 +27,20 @@ project:
   # git-ignored and never enter a checkout.
   pre-render:
     - "./pre-render.sh"
+  # What the site copies beside the pages it renders, and nothing else. Written
+  # out rather than `**/*.json` because the directory the pages read their data
+  # from (`_data/`, #389) is not for publication: it holds the collector's own
+  # fields, host paths among them (#391 review).
   resources:
     - "**/*.md"
     - "**/*.html"
-    - "**/*.json"
-    - "**/*.tsv"
-    - "**/*.csv"
-    - "**/*.dot"
-    - "**/*.svg"
-    - "**/*.yaml"
+    - "benchmark-output/*.json"
+    - "data/*.json"
+    - "data/*.tsv"
+    - "data/*.csv"
+    - "diagrams/*.dot"
+    - "diagrams/*.svg"
+    - "*.yaml"
     - ".nojekyll"
 
 website:

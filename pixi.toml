@@ -524,7 +524,7 @@ docs = { cmd = "bash tools/build-site.sh" }
 #
 #   pixi run site                     # render; the served-path check fails a drop
 #   pixi run site-preview             # stage, then Quarto's live-reloading preview
-#   pixi run site-publish --dry-run   # render origin/dev and commit gh-pages, no push
+#   pixi run site-publish --dry-run   # render origin/main and commit gh-pages, no push
 #
 # The output is `/data/opengwasdb/work/site/<checkout>/_site`, never under /home
 # or /tmp (src/project_site/paths.py).

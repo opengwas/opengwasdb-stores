@@ -16,13 +16,32 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 from project_site import build
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# What the published site serves besides the pages Quarto renders, as
+# `docs/_quarto.yml` must keep copying them (`origin/main`'s docs/ holds these).
+SERVED_RESOURCES = (
+    "data/trait-mapping-summary.json",
+    "data/trait-mapping-validation-ogs00011.tsv",
+    "data/eur-panel-imputation-summary.csv",
+    "benchmark-output/opengwasdb_hm3_release_benchmark.json",
+    "diagrams/store-release-workflow.dot",
+    "diagrams/store-release-workflow.svg",
+    "readiness-evidence.yaml",
+    "adr/0039-analysis-catalog.md",
+    ".nojekyll",
+)
 
 
 def git(repo: Path, *args: str) -> str:
@@ -106,6 +125,25 @@ class PreviewWatchTest(unittest.TestCase):
         # Make the mtime move even on a coarse filesystem clock.
         stat = path.stat()
         os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+
+
+class ServedResourcesTest(unittest.TestCase):
+    """The site copies what it serves, and not the data its pages read (#391 review, item 12)."""
+
+    def setUp(self) -> None:
+        self.config = yaml.safe_load((REPO_ROOT / "docs" / "_quarto.yml").read_text(encoding="utf-8"))
+        self.patterns = self.config["project"]["resources"]
+
+    def test_the_collected_data_is_not_copied_into_the_site(self) -> None:
+        self.assertNotIn("**/*.json", self.patterns)
+        self.assertFalse([pattern for pattern in self.patterns if "_data" in pattern], self.patterns)
+
+    def test_every_path_the_site_serves_today_is_still_copied(self) -> None:
+        for path in SERVED_RESOURCES:
+            self.assertTrue(
+                any(fnmatch.fnmatch(path, pattern) for pattern in self.patterns),
+                f"{path} is served today and no resource pattern copies it",
+            )
 
 
 class SyncTreeModeTest(unittest.TestCase):
