@@ -22,7 +22,7 @@ import unittest
 from pathlib import Path
 
 from project_site import records
-from project_site.collect import board, catalog
+from project_site.collect import board, catalog, common, releases
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -362,6 +362,55 @@ class TestCatalogHistoryCollector(unittest.TestCase):
         empty = Path(self.tmp.name) / "empty"
         empty.mkdir()
         self.assertEqual(catalog.collect(empty), {"root": str(empty), "current": None, "versions": []})
+
+
+class FakeGh:
+    """A `gh` runner that answers each `gh api <endpoint> ... --jq .[]` from a table, or fails."""
+
+    def __init__(self, answers: dict[str, list[dict] | Exception]) -> None:
+        self.answers = answers
+        self.calls: list[list[str]] = []
+
+    def __call__(self, args: list[str], stdin: str | None = None) -> str:
+        self.calls.append(args)
+        answer = self.answers[args[1]]
+        if isinstance(answer, Exception):
+            raise answer
+        return "".join(json.dumps(row) + "\n" for row in answer)
+
+
+class TestReleasesCollector(unittest.TestCase):
+    def test_both_repositories_tags_and_releases_are_listed(self) -> None:
+        gh = FakeGh({
+            "repos/opengwas/opengwasdb/tags": [
+                {"name": "v0.2.0", "commit": {"sha": "0123456789abcdef0123456789abcdef01234567"}},
+            ],
+            "repos/opengwas/opengwasdb/releases": [
+                {"tag_name": "v0.2.0", "name": "0.2.0", "published_at": "2026-09-01T10:00:00Z",
+                 "draft": False, "prerelease": False, "html_url": "https://github.com/opengwas/opengwasdb/releases/tag/v0.2.0",
+                 "body": "ignored"},
+            ],
+            "repos/opengwas/opengwasdb-stores/tags": [],
+            "repos/opengwas/opengwasdb-stores/releases": [],
+        })
+        self.assertEqual(
+            releases.collect(gh),
+            {"repos": [
+                {"repo": "opengwasdb",
+                 "tags": [{"name": "v0.2.0", "commit": "0123456789abcdef0123456789abcdef01234567"}],
+                 "releases": [{"tag": "v0.2.0", "name": "0.2.0", "published_at": "2026-09-01T10:00:00Z",
+                               "draft": False, "prerelease": False,
+                               "url": "https://github.com/opengwas/opengwasdb/releases/tag/v0.2.0"}]},
+                {"repo": "opengwasdb-stores", "tags": [], "releases": []},
+            ]},
+        )
+
+    def test_no_tags_and_no_releases_is_not_an_error(self) -> None:
+        gh = FakeGh({f"repos/opengwas/{r}/{k}": [] for r in ("opengwasdb", "opengwasdb-stores") for k in ("tags", "releases")})
+        result = common.collect_source("releases", lambda: releases.collect(gh))
+        self.assertTrue(result["available"])
+        self.assertIsNone(result["error"])
+        self.assertEqual([(r["tags"], r["releases"]) for r in result["repos"]], [([], []), ([], [])])
 
 
 if __name__ == "__main__":

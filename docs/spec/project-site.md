@@ -160,3 +160,18 @@ A root that does not exist is an error; a root with no versions is `versions: []
 each dimension, and `NULL` is a category, so a dimension's rows sum to the
 total only when none is missing. `totals.analyses` comes from SQL on the
 listed Analyses, never from summing dimension rows.
+
+### Releases (`releases.json`)
+
+Both repositories' tags and GitHub Releases, from `gh api repos/opengwas/<repo>/tags`
+and `.../releases`.
+
+| Key | Content |
+|---|---|
+| `repos` | `opengwasdb`, then `opengwasdb-stores` |
+| `repos[].tags` | `name` and the tagged `commit` |
+| `repos[].releases` | `tag`, `name`, `published_at`, `draft`, `prerelease`, `url` |
+
+A repository with no Release has `releases: []` and the file is still
+`available: true`. A tag is not a Release: until #386 each repository's
+Releases are empty, and `opengwasdb` has one tag, `v0.2.0`.
