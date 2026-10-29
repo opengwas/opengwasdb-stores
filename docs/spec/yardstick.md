@@ -7,7 +7,11 @@ harnesses; the yardstick is the single workload this repository re-runs.
 Run it with `pixi run yardstick`. It writes
 `docs/_yardstick/<UTC start, YYYYMMDDTHHMMSSZ>-<opengwasdb version>.json`. It
 is read-only on the Artifact Root: Stores are opened for reading, and the
-fixture build and worker files go under `$TMPDIR`.
+fixture build and worker files go to a scratch directory under
+`$YARDSTICK_TMPDIR`, else `$TMPDIR`, else `/data/opengwasdb/work/yardstick-tmp`
+-- never the host's `/tmp`, because everything this project writes goes under
+`/data/opengwasdb` (CONTRIBUTING, Worktrees). A run removes the scratch
+directory it made.
 
 ## Workload
 

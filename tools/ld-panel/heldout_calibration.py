@@ -12,7 +12,7 @@ bound. Only reference genotypes are read; no GWAS association data is.
 """
 from __future__ import annotations
 
-import argparse, csv, json, tempfile
+import argparse, csv, json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,6 +20,7 @@ import numpy as np
 
 from construct_block import _plink_extract, construct_block, standardised_ea_dosages
 from find_underresolved_blocks import components_needed
+from scratch import scratch_dir
 
 
 def split_individuals(populations: list[str], *, test_fraction: float, seed: int) -> np.ndarray:
@@ -135,7 +136,7 @@ def main() -> int:
         population_of = {r["sample"]: r["population"] for r in csv.DictReader(fh, delimiter="\t")}
     source = SimpleNamespace(plink2=args.plink2, pfile=args.pfile, bfile=None, chrom=args.chrom,
                              start=args.start, end=args.end, keep=args.keep)
-    with tempfile.TemporaryDirectory(prefix="ld-calibrate-") as tmp:
+    with scratch_dir("ld-calibrate-") as tmp:
         genotypes, variants, ids = _plink_extract(source, Path(tmp))
     result = calibrate_block(genotypes, variants, [population_of[i] for i in ids],
                              maf_threshold=args.maf, max_missing_rate=args.max_missing,

@@ -647,6 +647,43 @@ def fixture_workload(**extra: object) -> dict:
     }
 
 
+class ScratchRootTest(unittest.TestCase):
+    """A run's scratch lives under `/data`, never under the host's `/tmp` (#390 review, item 4)."""
+
+    def test_the_configured_roots_are_read_in_order(self) -> None:
+        with mock.patch.dict(os.environ, {"YARDSTICK_TMPDIR": "/data/opengwasdb/work/yt", "TMPDIR": "/var/tmp/t"}, clear=True):
+            self.assertEqual(runner.scratch_root(), Path("/data/opengwasdb/work/yt"))
+        with mock.patch.dict(os.environ, {"TMPDIR": "/var/tmp/t"}, clear=True):
+            self.assertEqual(runner.scratch_root(), Path("/var/tmp/t"))
+        with mock.patch.dict(os.environ, {"YARDSTICK_TMPDIR": "  ", "TMPDIR": ""}, clear=True):
+            self.assertEqual(runner.scratch_root(), runner.DEFAULT_SCRATCH_ROOT)
+
+    def test_with_nothing_configured_the_default_is_under_data(self) -> None:
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertEqual(runner.scratch_root(), Path("/data/opengwasdb/work/yardstick-tmp"))
+        self.assertNotEqual(runner.DEFAULT_SCRATCH_ROOT, Path(tempfile.gettempdir()))
+
+    def test_a_run_with_no_scratch_makes_it_under_the_root_and_removes_it(self) -> None:
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
+            root = Path(tmp)
+            store = root / "store.opengwasdb"
+            store.mkdir()
+            (store / "index.sqlite").write_bytes(b"abc")
+            seen: list[Path] = []
+
+            def worker(mode, store_path, entry, workload, scratch, **kwargs):
+                seen.append(Path(scratch))
+                return stub_worker([])(mode, store_path, entry, workload, scratch, **kwargs)
+
+            with mock.patch.object(runner, "scratch_root", return_value=root / "scratch"), \
+                    mock.patch.object(runner, "_worker", worker):
+                runner.run(fixture_workload(), store_paths={"OGS-00099": store})
+
+            self.assertTrue(seen, "the run measured a Store")
+            self.assertEqual(seen[0].parent, root / "scratch")
+            self.assertEqual(list((root / "scratch").iterdir()), [], "a run removes the scratch it made")
+
+
 class RunnerOnFixtureStoreTest(unittest.TestCase):
     """The one real build, and the one real end-to-end run."""
 

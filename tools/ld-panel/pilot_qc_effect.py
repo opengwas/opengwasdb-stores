@@ -46,11 +46,11 @@ import csv
 import json
 import statistics
 import subprocess
-import tempfile
 from collections import defaultdict
 from pathlib import Path
 
 from construct_block import canonical_alid
+from scratch import scratch_dir
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
@@ -196,7 +196,7 @@ def main() -> int:
     gaps: list[float] = []
     versions = subprocess.run([args.plink2, "--version"], capture_output=True, text=True, check=True).stdout
     result["plink2"] = {"version": versions.splitlines()[0], "command": args.plink2}
-    with tempfile.TemporaryDirectory(prefix="amr-pilot-qc-") as tmp:
+    with scratch_dir("amr-pilot-qc-") as tmp:
         for block in blocks:
             chrom, start, end = block["chr"], int(block["start"]), int(block["end"])
             table = args.pilot / "vcf" / f"{chrom}_{start}-{end}.records.tsv"

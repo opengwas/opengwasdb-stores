@@ -51,6 +51,7 @@ import json
 import os
 import subprocess
 import sys
+import tempfile
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
@@ -70,6 +71,29 @@ DEFAULT_SUBSET_NAME = "hm3"
 DEFAULT_OUTPUT = Path("docs/benchmark-output/opengwasdb_hm3_release_benchmark.json")
 DEFAULT_REPORT = Path("docs/benchmark-output/opengwasdb_hm3_release_benchmark.md")
 DEFAULT_ANCHORS = Path("tools/benchmarks/release-benchmark-anchors.yaml")
+
+#: Where the per-Store harness artifacts go when `--work-dir` names nothing.
+#: `tempfile` would pick the host's `/tmp`, and everything this project writes
+#: lives under `/data/opengwasdb` (CONTRIBUTING, Worktrees), so the default is
+#: there and `HM3_BENCHMARK_TMPDIR`, else `$TMPDIR`, moves it (#390).
+SCRATCH_ROOT_ENV = "HM3_BENCHMARK_TMPDIR"
+DEFAULT_SCRATCH_ROOT = Path("/data/opengwasdb/work/hm3-benchmark-tmp")
+
+
+def scratch_root() -> Path:
+    """`$HM3_BENCHMARK_TMPDIR`, else `$TMPDIR`, else the `/data` default -- never the host's `/tmp`."""
+    for name in (SCRATCH_ROOT_ENV, "TMPDIR"):
+        configured = os.environ.get(name)
+        if configured and configured.strip():
+            return Path(configured)
+    return DEFAULT_SCRATCH_ROOT
+
+
+def scratch_dir(prefix: str) -> tempfile.TemporaryDirectory[str]:
+    """A scratch directory under `scratch_root`, created and removed by the caller's `with`."""
+    root = scratch_root()
+    root.mkdir(parents=True, exist_ok=True)
+    return tempfile.TemporaryDirectory(prefix=prefix, dir=root)
 
 #: The four core HM3 statuses. These never fail the run.
 CORE_HM3_STATUSES: frozenset[str] = frozenset(
@@ -756,14 +780,13 @@ def _parser() -> argparse.ArgumentParser:
         "--work-dir",
         type=Path,
         default=None,
-        help="scratch dir for per-Store harness artifacts (default: a temp dir)",
+        help="scratch dir for per-Store harness artifacts (default: under /data/opengwasdb/work)",
     )
     return parser
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
-    import tempfile
 
     try:
         core = load_core(args.opengwasdb_checkout)
@@ -785,7 +808,7 @@ def main(argv: list[str] | None = None) -> int:
         if missing:
             raise SystemExit(f"unknown Store id(s): {', '.join(missing)}")
 
-    with tempfile.TemporaryDirectory(prefix="hm3-release-benchmark-") as tmp:
+    with scratch_dir("hm3-release-benchmark-") as tmp:
         work_dir = Path(args.work_dir) if args.work_dir else Path(tmp)
         report = build_report(
             core,
