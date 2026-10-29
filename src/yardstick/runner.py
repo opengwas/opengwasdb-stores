@@ -46,6 +46,32 @@ def pinned_revision(lock: Path | None = None) -> str:
     return found.pop()
 
 
+def _git_output(*args: str) -> str:
+    """Run git in this checkout, refusing to guess when it fails."""
+    completed = subprocess.run(
+        ["git", *args], cwd=workload_spec.REPO_ROOT, capture_output=True, text=True
+    )
+    if completed.returncode != 0:
+        raise RuntimeError(f"`git {' '.join(args)}` failed: {completed.stderr.strip()}")
+    return completed.stdout
+
+
+def ogstores_identity() -> dict[str, Any]:
+    """The `ogstores` this run ran: its version, the commit, and whether it was dirty.
+
+    An editable install's version is frozen at the commit it was built from
+    (#386), so the version alone can name code that did not run. The commit
+    cannot, and `dirty` says whether even the commit is the whole story: a run
+    on an uncommitted tree is not reproducible, and a reader must be able to see
+    that rather than infer it from a local version segment.
+    """
+    return {
+        "version": importlib.metadata.version("ogstores"),
+        "commit": _git_output("rev-parse", "HEAD").strip(),
+        "dirty": bool(_git_output("status", "--porcelain").strip()),
+    }
+
+
 WORKER_MODULE = "yardstick.worker"
 INDEX = "index.sqlite"
 
@@ -185,7 +211,7 @@ def run(
             "workload_id": workload["workload_id"],
             "workload_sha256": workload_spec.sha256(workload_path) if workload_path.is_file() else "",
             "opengwasdb": {"version": importlib.metadata.version("opengwasdb"), "revision": pinned_revision()},
-            "ogstores": {"version": importlib.metadata.version("ogstores")},
+            "ogstores": ogstores_identity(),
             "host": {"name": socket.gethostname(), "cpu_count": os.cpu_count() or 1},
             "load_average": {"before": load_before, "after": list(os.getloadavg())},
             "started_utc": start_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),

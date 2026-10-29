@@ -9,10 +9,11 @@ a version with nothing to say. A pull request adds
 in one.
 
 A **source change** here is a change under `src/`, `workflow/`, `tools/`,
-`resources/` or `stores/`: the code, the wiring, the inputs every Release
-Bundle is generated from, and the bundles themselves. `docs/` alone is not one
--- a report, a specification or an ADR changes no Store, no generator and no
-tool.
+`resources/` or `stores/`, or to `pixi.toml`, `pixi.lock` or `pyproject.toml`:
+the code, the wiring, the inputs every Release Bundle is generated from, the
+bundles themselves, and the three files that decide what a build resolves and
+installs -- a dependency re-pin changes every build. `docs/` alone is not one --
+a report, a specification or an ADR changes no Store, no generator and no tool.
 
 Two things are checked, in this order:
 
@@ -51,9 +52,13 @@ FRAGMENT_TYPES = ("breaking", "added", "changed", "fixed", "internal")
 FRAGMENT_PATTERN = re.compile(
     r"^(?P<slug>.+)\.(?P<kind>" + "|".join(FRAGMENT_TYPES) + r")\.md$"
 )
-#: What counts as a source change: the code, the wiring, the inputs, and the
-#: bundles. `docs/` is deliberately absent (see the module docstring).
-WATCHED = ("src/", "workflow/", "tools/", "resources/", "stores/")
+#: What counts as a source change: the code, the wiring, the inputs, the
+#: bundles, and the three files that decide what a build resolves and installs.
+#: `docs/` is deliberately absent (see the module docstring).
+WATCHED = (
+    "src/", "workflow/", "tools/", "resources/", "stores/",
+    "pixi.toml", "pixi.lock", "pyproject.toml",
+)
 SKIP_LABEL = "no-changelog"
 
 

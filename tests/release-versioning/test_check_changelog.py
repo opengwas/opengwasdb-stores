@@ -84,15 +84,20 @@ class ChangelogCheckTest(unittest.TestCase):
 
 
 class FragmentsDirectoryTest(unittest.TestCase):
-    def test_the_watched_directories_are_this_repositorys_sources(self) -> None:
+    def test_the_watched_paths_are_this_repositorys_sources(self) -> None:
         """What counts as a source change, stated once and checked below.
 
         `docs/` is deliberately absent: a report, a specification or an ADR
         changes no Store, no generator and no tool, and the site's own pages
-        live under `docs/` too. Anything that *does* change what a build is
-        lives in one of these five.
+        live under `docs/` too. `pixi.toml`, `pixi.lock` and `pyproject.toml`
+        are present because a dependency re-pin changes what every build
+        resolves and installs, which a reader of the release notes needs to
+        know.
         """
-        self.assertEqual(changelog.WATCHED, ("src/", "workflow/", "tools/", "resources/", "stores/"))
+        self.assertEqual(changelog.WATCHED, (
+            "src/", "workflow/", "tools/", "resources/", "stores/",
+            "pixi.toml", "pixi.lock", "pyproject.toml",
+        ))
         self.assertEqual(
             changelog.FRAGMENT_TYPES, ("breaking", "added", "changed", "fixed", "internal")
         )
@@ -165,12 +170,21 @@ class RefusedTest(ChangelogCheckTest):
         self.assertIn("no-changelog", err)
         self.assertIn("changelog.d/README.md", err)
 
-    def test_every_watched_directory_needs_a_fragment(self) -> None:
-        """The five directories, each on its own: none is watched by accident."""
-        for directory in changelog.WATCHED:
-            with self.subTest(directory=directory):
-                self.write(f"{directory}386-probe.txt", "a source change\n")
-                self.commit(f"change {directory}")
+    def test_every_source_needs_a_fragment(self) -> None:
+        """One path per watched entry: none is watched by accident.
+
+        Each case starts again from `main`, because the check reads the whole
+        diff against the merge base: a file added by an earlier case would
+        excuse the one under test.
+        """
+        for path in (
+            "src/pkg.py", "workflow/rule.smk", "tools/tool.py", "resources/panel.tsv",
+            "stores/OGS-00001/release.yaml", "pixi.toml", "pixi.lock", "pyproject.toml",
+        ):
+            with self.subTest(path=path):
+                git(self.repo, "reset", "-q", "--hard", "main")
+                self.write(path, "a source change\n")
+                self.commit(f"change {path}")
                 self.assertEqual(self.check()[0], 1)
 
     def test_editing_a_document_outside_the_watched_directories_is_not_enough(self) -> None:
