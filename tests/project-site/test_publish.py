@@ -81,16 +81,12 @@ class PublishDryRunTest(unittest.TestCase):
         )
         # The render read the ref's own checkout, not the developer's working tree.
         self.assertEqual(self.rendered_commit, source)
-        # The transient checkout is gone; the gh-pages worktree is kept for the next run.
-        worktrees = [
-            Path(line.split(" ", 1)[1])
-            for line in git(self.repo, "worktree", "list", "--porcelain").splitlines()
-            if line.startswith("worktree ")
-        ]
-        self.assertNotIn(self.work / "checkout-publish", worktrees)
-        self.assertIn(self.work / "checkout-gh-pages", worktrees)
+        # Every scratch directory this run made is gone again, and it made none
+        # it did not own.
+        self.assertEqual(self.worktrees(), [self.repo])
+        self.assertEqual(self.leftovers(), [])
 
-    def test_a_second_run_updates_the_existing_gh_pages_worktree(self) -> None:
+    def test_a_second_run_publishes_again_on_top_of_the_branch(self) -> None:
         publish(repo=self.repo, ref="origin/dev", remote="origin", dry_run=True, render=self.render, work_root=self.work)
         first = git(self.repo, "rev-parse", "gh-pages")
 
@@ -99,10 +95,12 @@ class PublishDryRunTest(unittest.TestCase):
         )
 
         self.assertNotEqual(result.gh_pages_commit, first)
+        self.assertEqual(git(self.repo, "rev-parse", "gh-pages~1"), first)
         self.assertEqual(
             sorted(git(self.repo, "ls-tree", "-r", "--name-only", "gh-pages").splitlines()),
             [".nojekyll", "index.html"],
         )
+        self.assertEqual(self.worktrees(), [self.repo])
 
     def test_a_ref_that_is_not_on_the_remote_is_refused(self) -> None:
         with self.assertRaises(PublishRefused):
@@ -115,11 +113,31 @@ class PublishDryRunTest(unittest.TestCase):
                 work_root=self.work,
             )
 
-    def test_a_dirty_gh_pages_worktree_is_refused(self) -> None:
-        publish(repo=self.repo, ref="origin/dev", remote="origin", dry_run=True, render=self.render, work_root=self.work)
-        (self.work / "checkout-gh-pages" / "index.html").write_text("edited\n", encoding="utf-8")
+    def test_a_pre_existing_directory_at_a_scratch_path_survives_untouched(self) -> None:
+        # The old implementation used fixed scratch paths and deleted whatever it
+        # found there. Whatever sits at such a path is not this run's to remove.
+        old_scratch = self.work / "checkout-publish"
+        old_scratch.mkdir(parents=True)
+        (old_scratch / "important.txt").write_text("mine\n", encoding="utf-8")
+        old_published = self.work / "checkout-gh-pages"
+        old_published.mkdir()
+        (old_published / "keep.txt").write_text("also mine\n", encoding="utf-8")
 
-        with self.assertRaises(PublishRefused):
+        publish(repo=self.repo, ref="origin/dev", remote="origin", dry_run=True, render=self.render, work_root=self.work)
+
+        self.assertEqual((old_scratch / "important.txt").read_text(encoding="utf-8"), "mine\n")
+        self.assertEqual((old_published / "keep.txt").read_text(encoding="utf-8"), "also mine\n")
+        self.assertEqual(sorted(path.name for path in old_scratch.iterdir()), ["important.txt"])
+        self.assertEqual(sorted(path.name for path in old_published.iterdir()), ["keep.txt"])
+
+    def test_a_gh_pages_worktree_this_run_does_not_own_is_refused(self) -> None:
+        # Someone else is holding gh-pages, and has unsaved edits in it.
+        publish(repo=self.repo, ref="origin/dev", remote="origin", dry_run=True, render=self.render, work_root=self.work)
+        git(self.repo, "worktree", "add", "--quiet", str(self.root / "theirs"), "gh-pages")
+        theirs = self.root / "theirs" / "index.html"
+        theirs.write_text("edited elsewhere\n", encoding="utf-8")
+
+        with self.assertRaises(PublishRefused) as refusal:
             publish(
                 repo=self.repo,
                 ref="origin/dev",
@@ -128,6 +146,21 @@ class PublishDryRunTest(unittest.TestCase):
                 render=self.render,
                 work_root=self.work,
             )
+
+        self.assertIn(str(self.root / "theirs"), str(refusal.exception))
+        self.assertEqual(theirs.read_text(encoding="utf-8"), "edited elsewhere\n")
+
+    def worktrees(self) -> list[Path]:
+        return [
+            Path(line.split(" ", 1)[1]).resolve()
+            for line in git(self.repo, "worktree", "list", "--porcelain").splitlines()
+            if line.startswith("worktree ")
+        ]
+
+    def leftovers(self) -> list[Path]:
+        if not self.work.exists():
+            return []
+        return sorted(path for path in self.work.iterdir() if path.is_dir())
 
 
 if __name__ == "__main__":
