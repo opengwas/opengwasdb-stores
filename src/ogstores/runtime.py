@@ -39,6 +39,7 @@ See docs/runtime.md, docs/spec/store-release-workflow.md and ADR 0034.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -116,7 +117,45 @@ from ogstores.plan import plan
 #: admission fix, #303 (the Ragged and Hybrid Observed-View Checks,
 #: `build-hybrid --on-rsid-conflict`, `build-indexed-subset --overflow-only`),
 #: #328's benchmark harness and #329; there is no Store format bump.
-PINNED_OPENGWASDB_REVISION: str = "0d59f151c7618933747a59f825deeef6a51de9e1"
+#:
+#: Repinned for #387 from `0d59f151` to the release tag `v0.3.0`, which resolves
+#: to `bc22e84`, the opengwasdb `main` merge of PR #335 (release tooling: the
+#: version from tags, a changelog). `v0.3.0` is the first release opengwasdb's
+#: release workflow published; before it, `v0.2.0` was tagged by hand. From #335
+#: the installed version comes from the tag rather than the static `0.3.0` the
+#: previous pin carried; it is still `0.3.0`. The range `0d59f151..bc22e84` adds
+#: only versioning: the engine's behaviour does not change, and the Store format
+#: stays 0.2.0.
+PINNED_OPENGWASDB_REVISION: str = "bc22e8476c4378af582477f09b56af01e3f5f065"
+
+#: The release tag the pinned revision is asked for by. `pixi.toml` names this
+#: tag rather than the commit, so the installed version names the release it was
+#: built from; the tests hold the tag, the resolved commit above and
+#: `pixi.lock` together.
+PINNED_OPENGWASDB_TAG: str = "v0.3.0"
+
+#: One lock reference to the engine pin: the exact repository URL, the request
+#: (`tag=v0.3.0` since #387, `rev=<commit>` before it) and the commit the solve
+#: resolved as the fragment. It must end at the 40 hex characters -- a 41st hex
+#: digit, or any other letter or digit continuing the token, is a different
+#: reference -- and the host is exact.
+_LOCK_PIN_REFERENCE = re.compile(
+    r"git\+https://github\.com/opengwas/opengwasdb\?"
+    r"[^\s#]+"  # the request: `tag=`/`rev=`, at least one character
+    r"#([0-9a-f]{40})(?![0-9A-Za-z])"
+)
+
+
+def lock_pin_revisions(lock: Path) -> set[str]:
+    """The opengwasdb commits `lock` carries, one per reference it pins.
+
+    A reference is the exact repository URL, its request and the resolved
+    commit as the fragment, as `_LOCK_PIN_REFERENCE` defines it, so another
+    host, a longer hash and anything else continuing the token are not pin
+    references. The caller decides what nothing and what several mean, so each
+    lock reader keeps its own error and message.
+    """
+    return set(_LOCK_PIN_REFERENCE.findall(lock.read_text(encoding="utf-8")))
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference
@@ -412,7 +451,8 @@ def verify_runtime_for_releases(
     if not run.is_exact_commit_hash(revision) or revision != PINNED_OPENGWASDB_REVISION:
         raise RuntimeRevisionError(
             f"the resolved opengwasdb at {resolved!r} reports revision {revision!r}, which "
-            f"is not the tracked pin {PINNED_OPENGWASDB_REVISION} ({OPENGWASDB_GIT_URL}). A "
+            f"is not the tracked pin {PINNED_OPENGWASDB_REVISION} (tag "
+            f"{PINNED_OPENGWASDB_TAG} of {OPENGWASDB_GIT_URL}). A "
             "supported release run must use the pinned runtime and must be able to prove "
             "its identity from the executable's own metadata; do not substitute an "
             "executable on PATH. Run `pixi install`/`pixi run release` so the tracked lock "
@@ -517,6 +557,7 @@ __all__ = [
     "INFO_COMMAND",
     "OPENGWASDB_GIT_URL",
     "PINNED_OPENGWASDB_REVISION",
+    "PINNED_OPENGWASDB_TAG",
     "REQUIRED_FORMAT_VERSION",
     "RuntimeCapabilityError",
     "RuntimeGuardError",
@@ -526,6 +567,7 @@ __all__ = [
     "VERIFIED_RUNTIME_ENV",
     "commands_for_scheduled_steps",
     "completion_parents_for_release",
+    "lock_pin_revisions",
     "normalize_scheduled",
     "required_commands_for_release",
     "verify_runtime_for_releases",

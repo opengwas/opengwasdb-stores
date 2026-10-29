@@ -46,7 +46,8 @@ threadpoolctl = ">=3.0"
 
 [feature.store-build.pypi-dependencies]
 # Immutable pin (issue #41): a released version should replace this Git pin
-# once one exists. Do not float this to a branch. pysam is left off the conda
+# once one exists; that is what #387 did, pinning the release tag `v0.3.0`.
+# Pin a release tag, never a branch or a raw commit. pysam is left off the conda
 # dependency list on purpose: opengwasdb's own PyPI dependency on it collides
 # (conda + PyPI wheel installing the same compiled extension into the same
 # environment) if pysam is also pinned via conda, so it is left for pip/uv to
@@ -308,7 +309,18 @@ threadpoolctl = ">=3.0"
 # docs/runtime.md. Upgrading the runtime does not convert or requalify any
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "0d59f151c7618933747a59f825deeef6a51de9e1" }
+#
+# Repinned for #387 to the release tag `v0.3.0`
+# (`bc22e8476c4378af582477f09b56af01e3f5f065`, the opengwasdb `main` merge of PR
+# #335), the first release opengwasdb's release workflow published (the earlier
+# `v0.2.0` was tagged by hand). opengwasdb now tags every merge to `main` and
+# takes its version from that tag; before #335 `pyproject.toml` held
+# `version = "0.3.0"` statically. The installed version is still `0.3.0`, but it
+# now comes from the tag, and a checkout past one reports a development
+# version. The range `0d59f151..bc22e84` is #335's release tooling -- the
+# version from tags and a changelog -- and its merge; the engine's behaviour
+# does not change, and the Store format stays 0.2.0.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", tag = "v0.3.0" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

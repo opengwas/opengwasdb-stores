@@ -4,11 +4,11 @@
 Covers the contract `ogstores.runtime.verify_runtime_for_releases` adds to
 `pixi run release` (and, as defence in depth, the Snakefile `onstart`):
 
-* the tracked pin is explicit and the same revision in `pixi.toml`,
-  `pixi.lock`, and `ogstores.runtime.PINNED_OPENGWASDB_REVISION`; every
-  `opengwasdb` reference the lock carries names it twice, as the requested
-  `rev=` and the resolved `#<commit>`, and it fails closed on an unknown or
-  non-exact revision;
+* the tracked pin is one release tag in `pixi.toml` and one immutable revision
+  in `pixi.lock` and `ogstores.runtime.PINNED_OPENGWASDB_REVISION` (the tag is
+  `PINNED_OPENGWASDB_TAG`); every `opengwasdb` reference the lock carries
+  requests that tag and resolves that commit as its `#<commit>`, and it fails
+  closed on an unknown or non-exact revision;
 * the version and revision come from the executable that will run, not from
   the ambient interpreter;
 * only the subcommands the *scheduled steps* need are probed, each once per
@@ -48,19 +48,18 @@ def record_check() -> None:
     n_checks += 1
 
 
-def _pin_from_pixi_toml(toml_path: Path) -> str:
+def _pin_spec_from_pixi_toml(toml_path: Path) -> dict:
     document = tomllib.loads(toml_path.read_text(encoding="utf-8"))
     pypi = document["feature"]["store-build"]["pypi-dependencies"]
-    spec = pypi["opengwasdb"]
-    return spec["rev"]
+    return pypi["opengwasdb"]
 
 
-#: The one shape a lock reference to the pin may take: the request (`rev=`) and
-#: the commit the solve resolved (`#`) are both the exact revision, with no
-#: other URL parts that could select something else.
+#: The one shape a lock reference to the pin may take: the request (the release
+#: tag, since #387) and the commit the solve resolved (`#`), with no other URL
+#: parts that could select something else.
 _LOCK_REFERENCE = re.compile(
     r"\Agit\+https://github\.com/opengwas/opengwasdb"
-    r"\?rev=(?P<requested>[0-9a-f]{40})#(?P<resolved>[0-9a-f]{40})\Z"
+    r"\?tag=(?P<requested>v[0-9]+\.[0-9]+\.[0-9]+)#(?P<resolved>[0-9a-f]{40})\Z"
 )
 
 
@@ -223,21 +222,25 @@ class RuntimeGuardTestCase(unittest.TestCase):
 
     # --- pin & identity ---------------------------------------------------
 
-    def test_pin_is_explicit_and_consistent(self) -> None:
-        """The tracked pin is one immutable revision in toml and module."""
-        toml_pin = _pin_from_pixi_toml(REPO_ROOT / "pixi.toml")
+    def test_pin_is_one_release_tag_and_one_revision(self) -> None:
+        """The tracked pin is one release tag, and one immutable revision for it."""
+        spec = _pin_spec_from_pixi_toml(REPO_ROOT / "pixi.toml")
         record_check()
-        self.assertEqual(toml_pin, runtime.PINNED_OPENGWASDB_REVISION)
-        self.assertEqual(len(toml_pin), 40)
+        self.assertEqual(set(spec), {"git", "tag"}, "the pin names a tag, not a rev or branch")
+        self.assertEqual(spec["git"], runtime.OPENGWASDB_GIT_URL)
+        self.assertEqual(spec["tag"], runtime.PINNED_OPENGWASDB_TAG)
+        self.assertRegex(runtime.PINNED_OPENGWASDB_TAG, r"^v[0-9]+\.[0-9]+\.[0-9]+$")
+        self.assertEqual(len(runtime.PINNED_OPENGWASDB_REVISION), 40)
 
     def test_every_lock_reference_requests_and_resolves_the_pin(self) -> None:
         """One stale lock entry selects another runtime, so every one must be the pin.
 
-        A lock reference carries the request (`rev=`) and the commit the solve
-        resolved (`#`). Either alone is not enough: `rev=` with a different
-        fragment installs something else, and a fragment alone cannot be checked
-        against `pixi.toml`. Every environment that depends on the `store-build`
-        feature, and the lock's single package entry, must name the pin twice.
+        A lock reference carries the request (the release tag) and the commit
+        the solve resolved (`#`). Either alone is not enough: `tag=` with a
+        different fragment installs something else, and a fragment alone cannot
+        be checked against `pixi.toml`. Every environment that depends on the
+        `store-build` feature, and the lock's single package entry, must name
+        both.
         """
         expected = _environments_carrying_the_pin(REPO_ROOT / "pixi.toml")
         record_check()
@@ -263,7 +266,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
                 self.assertEqual(
                     (match["requested"], match["resolved"]),
                     (
-                        runtime.PINNED_OPENGWASDB_REVISION,
+                        runtime.PINNED_OPENGWASDB_TAG,
                         runtime.PINNED_OPENGWASDB_REVISION,
                     ),
                     where,

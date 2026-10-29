@@ -633,6 +633,18 @@ For a Release Bundle or generated report, also run the repository's applicable
 schema and validation commands and inspect the resulting evidence. A successful
 process exit is not proof that a scientifically valid Store was produced.
 
+### Bumping the `opengwasdb` pin
+
+- Pin a release **tag**, never a commit or a branch (`tag = "v0.3.0"` in
+  `pixi.toml`): opengwasdb tags every merge to `main`, so an install records
+  the release it was built from rather than a development version.
+- Relock with `pixi update opengwasdb`, and check that only opengwasdb's
+  entries in `pixi.lock` changed.
+- Update `PINNED_OPENGWASDB_TAG` and `PINNED_OPENGWASDB_REVISION` in
+  `src/ogstores/runtime.py` and the table in `docs/runtime.md` in the same
+  commit, naming the tag's commit and what the range adds.
+- Add a `changed` changelog fragment, then run the full suite.
+
 ## Commits and pull requests
 
 A commit message explains why the change exists, records relevant measurements

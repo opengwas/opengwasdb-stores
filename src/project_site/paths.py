@@ -9,9 +9,10 @@ can keep its scratch tree apart from a developer's.
 from __future__ import annotations
 
 import os
-import re
 import subprocess
 from pathlib import Path
+
+from ogstores.runtime import lock_pin_revisions
 
 # The two repositories the site shows: this registry, and the engine whose docs
 # it stages at the pinned revision.
@@ -28,8 +29,6 @@ CLONE_ENV = "OPENGWASDB_SITE_ENGINE_CLONE"
 # The ref `site-publish` renders: every merge lands on `main`, and each is a
 # version (#386), so that is what the site publishes; `--ref` names another.
 DEFAULT_PUBLISH_REF = "origin/main"
-
-_PIN = re.compile(r"git\+https://github\.com/opengwas/opengwasdb\?rev=([0-9a-f]{40})")
 
 
 def repo_root() -> Path:
@@ -78,7 +77,7 @@ def engine_clone() -> Path:
 
 def pinned_opengwasdb_revision(lock: Path) -> str:
     """The opengwasdb commit `pixi.lock` pins; the site documents that runtime."""
-    revisions = set(_PIN.findall(lock.read_text(encoding="utf-8")))
+    revisions = lock_pin_revisions(lock)
     if len(revisions) != 1:
         raise ValueError(f"{lock} pins {len(revisions)} opengwasdb revisions, expected 1: {sorted(revisions)}")
     return revisions.pop()
