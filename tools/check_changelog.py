@@ -91,10 +91,20 @@ def added_fragments(base_ref: str) -> list[str]:
     Every added file there counts, whatever its extension: a note named
     `386-a.fixed.markdown` would otherwise be ignored in silence and the merge
     would publish a version without it. `README.md` is the one file that is not
-    a fragment. Files not committed yet count too, so a local run before the
-    first commit of a fragment does not fail a pull request that is fine.
+    a fragment. Committed, staged and untracked all count: the author runs this
+    check in every one of those states, and a fragment that exists but is
+    refused is the kind of false alarm that teaches people to reach for the
+    `no-changelog` label.
     """
+    merge_base = _git("merge-base", base_ref, "HEAD").strip()
     added = set(added_files(base_ref))
+    added.update(
+        path
+        for path in _git(
+            "diff", "--cached", "--diff-filter=A", "--name-only", merge_base
+        ).splitlines()
+        if path
+    )
     added.update(
         path
         for path in _git("ls-files", "--others", "--exclude-standard").splitlines()

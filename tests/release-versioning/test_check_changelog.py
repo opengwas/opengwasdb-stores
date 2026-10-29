@@ -142,6 +142,39 @@ class AcceptedTest(ChangelogCheckTest):
 
         self.assertEqual(self.check()[0], 0)
 
+    def test_a_fragment_staged_but_not_committed_still_counts(self) -> None:
+        """`git add` is not a commit: the author runs the check in both states.
+
+        A staged fragment is neither in `HEAD` nor untracked, so a check that
+        reads only those two misses it -- and refusing a fragment that exists is
+        the kind of false alarm that teaches people to reach for the
+        `no-changelog` label.
+        """
+        self.write(SOURCE, "VALUE = 2\n")
+        self.commit("change")
+        self.write(FRAGMENT)
+        git(self.repo, "add", FRAGMENT)
+
+        status, out, err = self.check()
+        self.assertEqual(status, 0, err)
+        self.assertIn("changelog.d/", out)
+
+    def test_a_broken_fragment_staged_but_not_committed_is_refused(self) -> None:
+        """The staged scan reads the fragment, it does not only count it.
+
+        Asserting on the message matters: a check that never saw the staged
+        fragment would refuse this change for having *no* fragment, which is a
+        different -- and wrong -- reason.
+        """
+        self.write(SOURCE, "VALUE = 2\n")
+        self.commit("change")
+        self.write("changelog.d/386-a.security.md")
+        git(self.repo, "add", "changelog.d/386-a.security.md")
+
+        status, _, err = self.check()
+        self.assertEqual(status, 1)
+        self.assertIn("386-a.security.md", err)
+
     def test_a_change_outside_the_watched_directories_needs_no_fragment(self) -> None:
         self.write("docs/spec/store-release-workflow.md", "a better specification\n")
         self.commit("docs")
