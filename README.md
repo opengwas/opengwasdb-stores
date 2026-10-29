@@ -10,6 +10,11 @@ See [`CONTRIBUTING.md`](CONTRIBUTING.md) for the development workflow and
 [`docs/spec/store-release-workflow.md`](docs/spec/store-release-workflow.md) for
 the proposed fixed-input Store Release pipeline.
 
+Every merge to `main` is a version: CI tags it `vX.Y.Z`, and its release notes
+are the `changelog.d/` fragments that merge added (see CONTRIBUTING "Every merge
+to `main` is a version"). The package's version comes from that tag, so
+`importlib.metadata.version("ogstores")` names the release a checkout is at.
+
 ## Software Environment
 
 All Python, R, Quarto, and native tooling (PLINK2, bcftools) is managed by
@@ -87,11 +92,14 @@ resources/               inputs only
   inventories/             frozen Source Inventories
   generators/              release configs, reviewed tables, generation receipts
 tools/                   repository tooling: ld-panel/, benchmarks/,
-                         reference-resources/, the env check, the site build, spikes
+                         reference-resources/, the env check, the site build,
+                         the release and the changelog check, spikes
 tests/                   the suites, and run_all_tests.py behind `pixi run test`
 docs/                    adr/ decisions, spec/ specifications, reports/ report
                          sources, and the rendered site
-.github/workflows/       CI: the suites, bundle-check, the index and the docs smoke test
+changelog.d/             one fragment per change: the next version's notes
+.github/workflows/       CI: the suites, bundle-check, the index, the docs smoke
+                         test and the changelog check; the release of every merge
 CONTEXT.md               project language
 ```
 

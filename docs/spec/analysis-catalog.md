@@ -25,10 +25,13 @@ pixi run catalog [--registry stores] [--artifact-root PATH]
   repository with uncommitted or untracked changes, because the commit it
   records would then be false. A registry that is not a git repository (a test
   fixture) records a `NULL` commit.
-- Run it on the host after a merge to `dev`, from a dedicated clean checkout of
-  `origin/dev`, not a shared working checkout (ADR 0039). It prints each
-  registered Store Release's decision, the version, and whether it published,
-  moved `current`, or was a no-op.
+- Run it on the host after a merge to `main`, from a dedicated clean checkout of
+  `origin/main`, not a shared working checkout. It prints each registered Store
+  Release's decision, the version, and whether it published, moved `current`, or
+  was a no-op. **This supersedes ADR 0039's Trigger**, which names `origin/dev`:
+  every merge lands on `main` (opengwas/opengwasdb-stores#386), so `dev` will
+  not exist. The rest of the ADR stands, and it is left unedited because it is
+  the record of what was decided when `dev` was the integration branch.
 
 ## Decisions
 
