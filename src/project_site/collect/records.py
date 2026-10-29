@@ -2,7 +2,7 @@
 
 An invalid file is reported by name and never stops the others. The yardstick
 results are #390's: they are read through the validator that spec defines,
-which is passed in; with none, a result is only checked to be a JSON object.
+`yardstick.result.validate`, unless another is passed in.
 An absent or empty directory is not an error.
 """
 
@@ -14,10 +14,20 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ogstores import paths
+from yardstick import result as yardstick_result
 
 from project_site import records
 
 Validator = Callable[[dict[str, Any]], list[str]]
+
+
+def yardstick_errors(document: dict[str, Any]) -> list[str]:
+    """`yardstick.result.validate`, as a list of errors."""
+    try:
+        yardstick_result.validate(document)
+    except yardstick_result.ResultError as exc:
+        return [str(exc)]
+    return []
 
 
 def default_epics_dir() -> Path:
@@ -51,7 +61,7 @@ def _yardstick(directory: Path, validator: Validator | None) -> dict[str, Any]:
         if not isinstance(document, dict):
             errors = ["a result must be a JSON object"]
         else:
-            errors = validator(document) if validator else []
+            errors = (validator or yardstick_errors)(document)
         if errors:
             invalid[path.name] = errors
         else:
