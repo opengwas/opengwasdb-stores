@@ -3,23 +3,28 @@
 
 Every merge to `main` is tagged `vX.Y.Z` (`.github/workflows/release.yml`), and
 `setuptools-scm` turns that tag into the distribution's version at build time.
-Two things follow, and each is pinned here:
+Three things follow, and each is pinned here:
 
 * **`pyproject.toml` takes the version from the tag.** It has no static
   `version`, it declares `[tool.setuptools_scm]` with the same fallback
   opengwasdb uses, and `setuptools-scm` is a build requirement.
-* **The rule produces the versions this repository depends on.** A tag on
+* **The tag rule produces the versions this repository depends on.** A tag on
   `HEAD` is the version; a commit past the tag, and a repository with no tag at
   all (which is this one's state until the cutover), are development versions;
   a build with no git metadata says `0.0.0+unknown`; and a tag without the `v`
   prefix is not a version, so a stray tag cannot become one.
+* **`git describe` is restricted to `v*`.** `tag_regex` decides what can be
+  *parsed*, not what describe *selects*, so the glob is configured as well and
+  the restriction is shown to matter against an unfiltered command.
 
 The mapping is exercised in a throwaway repository under `$TMPDIR` that holds a
 copy of this checkout's own `pyproject.toml`, so the config under test is the
 real one, and `setuptools_scm.get_version` is the call the build backend makes.
-What that deliberately does not cover is pip's isolated build environment; the
-last test reads the version this checkout's *installed* distribution reports,
-which is the end of the same path.
+
+What none of it can check is *this environment's* answer: an editable install
+records the version at the commit it was installed from, so a cached or stale
+one answers for an older tree. `.github/workflows/ci.yml` checks that step
+instead, right after pixi has built the package from the tagged checkout.
 
 Run from the repository root:
     python3 tests/release-versioning/test_version.py
@@ -27,8 +32,8 @@ Run from the repository root:
 
 from __future__ import annotations
 
-import importlib.metadata
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -69,6 +74,10 @@ def scm_config() -> dict:
     return pyproject()["tool"]["setuptools_scm"]
 
 
+def describe_command() -> list[str]:
+    return list(scm_config()["git_describe_command"])
+
+
 def build_version(root: Path, **overrides: object) -> str:
     """The version a build of `root` would report, from this repo's own config.
 
@@ -81,20 +90,27 @@ def build_version(root: Path, **overrides: object) -> str:
     return setuptools_scm.get_version(root=str(root), **{**scm_config(), **overrides})
 
 
-class ThrowawayRepositoryTest(unittest.TestCase):
-    """A repository that holds nothing but this checkout's `pyproject.toml`."""
-
+class TemporaryDirectoryTest(unittest.TestCase):
     def setUp(self) -> None:
         self.root = Path(tempfile.mkdtemp(prefix="release-versioning-")).resolve()
         self.addCleanup(shutil.rmtree, self.root, ignore_errors=True)
 
-    def repository(self, *, git_init: bool = True) -> Path:
+    def repository(self, *, git_init: bool = True, tag: str | None = None,
+                   past: bool = False, stray: str | None = None) -> Path:
+        """A repository holding nothing but this checkout's `pyproject.toml`."""
         repo = self.root / "repo"
         repo.mkdir()
         shutil.copy(REPO_ROOT / "pyproject.toml", repo / "pyproject.toml")
-        if git_init:
-            git(repo, "init", "-q", "-b", "main")
-            self.commit(repo, "base")
+        if not git_init:
+            return repo
+        git(repo, "init", "-q", "-b", "main")
+        self.commit(repo, "base")
+        if tag is not None:
+            git(repo, "tag", "-a", tag, "-m", f"Release {tag}")
+        if past:
+            self.commit(repo, "one past the tag")
+        if stray is not None:
+            git(repo, "tag", "-a", stray, "-m", "a tag nobody should push")
         return repo
 
     def commit(self, repo: Path, message: str) -> str:
@@ -129,19 +145,25 @@ class PyprojectTest(unittest.TestCase):
         """Only `vX.Y.Z` is a version, so a stray tag cannot become one."""
         self.assertEqual(scm_config()["tag_regex"], r"^v(?P<version>.*)$")
 
+    def test_git_describe_is_restricted_to_release_tags(self) -> None:
+        """Parsing `v*` is not enough: `git describe` must not *select* another.
 
-class VersionFromTagTest(ThrowawayRepositoryTest):
+        A stray `99.0.0` tag on `HEAD` made the build die with "Can't parse
+        version from tag '99.0.0'" instead of using the newest `v*` tag:
+        `tag_regex` restricts parsing only, and describe's default glob accepts
+        it. The configured command is what decides, so it is run below.
+        """
+        command = describe_command()
+        self.assertIn("--match", command)
+        self.assertEqual(command[command.index("--match") + 1], "v*")
+
+
+class VersionFromTagTest(TemporaryDirectoryTest):
     def test_a_tag_on_head_is_the_version(self) -> None:
-        repo = self.repository()
-        git(repo, "tag", "-a", "v9.9.9", "-m", "release")
-        self.assertEqual(build_version(repo), "9.9.9")
+        self.assertEqual(build_version(self.repository(tag="v9.9.9")), "9.9.9")
 
     def test_a_commit_past_the_tag_is_a_development_version(self) -> None:
-        repo = self.repository()
-        git(repo, "tag", "-a", "v9.9.9", "-m", "release")
-        self.commit(repo, "one past the tag")
-
-        reported = Version(build_version(repo))
+        reported = Version(build_version(self.repository(tag="v9.9.9", past=True)))
         self.assertTrue(reported.is_devrelease, reported)
         self.assertGreater(reported, Version("9.9.9"))
         self.assertEqual(reported.release, (9, 9, 10), "the bump setuptools-scm guesses past a release")
@@ -163,51 +185,58 @@ class VersionFromTagTest(ThrowawayRepositoryTest):
         self.assertEqual(build_version(self.repository(git_init=False)), FALLBACK_VERSION)
 
     def test_a_tag_without_the_v_prefix_is_not_a_version(self) -> None:
-        repo = self.repository()
-        git(repo, "tag", "-a", "9.9.9", "-m", "a tag nobody should push")
-
-        try:
-            with warnings.catch_warnings():
-                # `setuptools-scm` warns about the tag it cannot read; the
-                # assertion below is this test's own statement of that.
-                warnings.simplefilter("ignore")
-                reported = Version(build_version(repo))
-        except (LookupError, AssertionError, ValueError):
-            # `setuptools-scm` refuses a tag it cannot parse. A refusal is the
-            # point; which exception it raises is its business.
-            return
+        reported = self.version_of(self.repository(stray="9.9.9"))
         self.assertTrue(reported.is_devrelease, f"{reported} came from a tag that is not a version")
 
+    def test_the_configured_describe_ignores_a_stray_tag(self) -> None:
+        """A commit carrying both `v0.2.0` and a stray `99.0.0` describes as the release."""
+        repo = self.repository(tag="v0.2.0", past=True, stray="99.0.0")
 
-class InstalledDistributionTest(unittest.TestCase):
-    def test_the_installed_distribution_reports_a_version_from_the_tag(self) -> None:
-        """The end of the same path: what `importlib.metadata` says here.
+        described = subprocess.run(
+            describe_command(), cwd=repo, env=GIT_ENV, capture_output=True, text=True, check=True
+        ).stdout.strip()
 
-        The environment was installed from this checkout, so its version is the
-        one `setuptools-scm` computed then. A tag on `HEAD` must be that
-        version; past the tag it must be a development version above the tag.
-        A stale editable environment reports an older development version, so
-        the message says to reinstall rather than blaming the rule.
-        """
-        reported = Version(importlib.metadata.version("ogstores"))
-        tags = subprocess.run(
-            ["git", "describe", "--tags", "--abbrev=0", "--match", "v*"],
-            cwd=REPO_ROOT, env=GIT_ENV, capture_output=True, text=True,
-        )
-        if tags.returncode != 0:
-            # No `v*` tag exists yet: this repository's state until the cutover.
-            self.assertTrue(reported.is_devrelease, f"no tag exists, so {reported} cannot be a release")
-            self.assertEqual(reported.release, (0, 1), reported)
-            return
+        self.assertTrue(described.startswith("v0.2.0-1-g"), described)
+        self.assertNotIn("99.0.0", described)
 
-        tag = tags.stdout.strip()
-        tagged = Version(tag.removeprefix("v"))
-        head = git(REPO_ROOT, "rev-parse", "HEAD")
-        if head == git(REPO_ROOT, "rev-parse", f"{tag}^{{commit}}"):
-            self.assertEqual(reported, tagged, f"HEAD is {tag} but the installed metadata says {reported}; run `pixi install`")
-        else:
-            self.assertGreater(reported, tagged, f"the last tag is {tag} but the installed metadata says {reported}; run `pixi install`")
-            self.assertTrue(reported.is_devrelease, reported)
+    def test_without_its_match_the_command_would_take_the_stray_tag(self) -> None:
+        """The negative that makes the test above mean something."""
+        repo = self.repository(tag="v0.2.0", past=True, stray="99.0.0")
+        unfiltered = [argument for argument in describe_command() if argument not in {"--match", "v*"}]
+
+        described = subprocess.run(
+            unfiltered, cwd=repo, env=GIT_ENV, capture_output=True, text=True, check=True
+        ).stdout.strip()
+
+        self.assertTrue(described.startswith("99.0.0-0-g"), described)
+
+    def test_the_stray_tag_does_not_reach_the_version(self) -> None:
+        """With both tags present, the build reports the release lineage, not the stray."""
+        reported = Version(build_version(self.repository(tag="v0.2.0", past=True, stray="99.0.0")))
+        self.assertTrue(reported.is_devrelease, reported)
+        self.assertEqual(reported.release, (0, 2, 1))
+
+    def test_the_tag_on_head_parses_to_its_version(self) -> None:
+        """A tag on `HEAD` is the version, through the configured regex."""
+        repo = self.repository(tag="v0.2.0")
+        exact = git(repo, "describe", "--tags", "--exact-match", "v0.2.0")
+
+        match = re.compile(str(scm_config()["tag_regex"])).match(exact)
+
+        self.assertIsNotNone(match)
+        self.assertEqual(match["version"], "0.2.0")
+
+    @staticmethod
+    def version_of(repo: Path) -> Version:
+        try:
+            with warnings.catch_warnings():
+                # `setuptools-scm` warns about a tag it cannot read; the
+                # assertion is this test's own statement of that.
+                warnings.simplefilter("ignore")
+                return Version(build_version(repo))
+        except (LookupError, AssertionError, ValueError):
+            # A refusal is the point; which exception it raises is its business.
+            return Version("0.0.0+refused")
 
 
 if __name__ == "__main__":

@@ -46,6 +46,42 @@ jobs:
       - name: Report resolved tool/package versions
         run: pixi run --environment dev env-check
 
+      # The version is built from the tag, and only a real install shows it: a
+      # checkout without git metadata reports the `0.0.0+unknown` fallback, and
+      # a tagless one builds a development version. The suite cannot assert this,
+      # because its answer depends on whether the *environment* was rebuilt since
+      # the last commit -- `pixi install` does not refresh an editable install's
+      # metadata -- so it is checked here, where pixi has just built the package
+      # from this checkout and `fetch-depth: 0` has brought the tags.
+      - name: The installed version comes from the tags
+        run: |
+          pixi run --environment dev python - <<'PY'
+          import subprocess
+          import sys
+          from importlib.metadata import version
+
+          from packaging.version import Version
+
+          reported = Version(version("ogstores"))
+          tags = subprocess.run(
+              ["git", "tag", "--list", "v*"], capture_output=True, text=True, check=True
+          ).stdout.split()
+          if not tags:
+              # Until the cutover no `v*` tag exists, so a development version is
+              # the right answer -- and it must say so, not look like a release.
+              if not reported.is_devrelease:
+                  sys.exit(f"no v* tag exists, so the installed {reported} cannot be a release")
+              print(f"installed version {reported}; there is no v* tag yet")
+          else:
+              newest = max(tags, key=lambda tag: Version(tag[1:]))
+              if reported < Version(newest[1:]):
+                  sys.exit(
+                      f"the installed version {reported} is older than the newest tag "
+                      f"{newest}; the environment was not built from this checkout"
+                  )
+              print(f"installed version {reported}, newest tag {newest}")
+          PY
+
       - name: Run the lightweight test suites, except the release-stack ones
         run: pixi run --environment dev test --skip-release-stack
 

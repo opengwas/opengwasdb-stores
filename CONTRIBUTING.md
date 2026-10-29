@@ -40,8 +40,19 @@ package's version comes from that tag through `setuptools-scm`
 (`[tool.setuptools_scm]` in `pyproject.toml`), so a release checkout reports its
 own release number and a checkout past it reports a development version such as
 `0.1.1.dev4+g1a2b3c4`. Nothing is committed back to `main`: the tag is the
-version. A run that finds `HEAD` already tagged stops, so a re-run or a
-hand-made tag cannot release a commit twice.
+version.
+
+**A release run reconciles, it does not just react.** GitHub keeps one pending
+run per concurrency group and discards the rest, so three quick merges cannot be
+trusted to produce three runs. Each run therefore publishes every first-parent
+commit after the newest `v*` tag that has no tag yet, and any tagged commit whose
+GitHub Release was never created, oldest first. Publication is two steps — push
+the tag, create the Release — and each is skipped when it is already done, so a
+run that dies halfway is finished by the next push or by re-running the
+workflow. A tag is never moved: if one exists on another commit, the run stops
+and says so. A burst is a handful of merges; a run that finds more than 20 owed
+stops instead of publishing them, because a whole merged branch is not a burst —
+at the cutover the merge commit is tagged before it is pushed.
 
 Each version's release notes are the **changelog fragments** that pull request
 added, so a pull request that changes what this repository is adds one under
@@ -63,24 +74,27 @@ strongest bump. Below `1.0.0` the minor number carries breaking changes:
 | `internal` | the change is real but invisible to an operator or a reader | patch |
 
 With no previous tag the same rule applies from `0.0.0`, so the first feature
-release is `0.1.0`. Reproduce what a merge would release by asking the script
-against the last tag:
-
-```sh
-pixi run -e dev python3 tools/release.py --previous-tag v0.1.0 \
-    --fragment changelog.d/<slug>.<type>.md
-```
-
-The check that a fragment was added is CI's `changelog` job, and it runs the
-same script locally:
+release is `0.1.0`. The check that a fragment was added is CI's `changelog` job,
+and it runs the same script locally:
 
 ```sh
 pixi run -e dev python3 tools/check_changelog.py --base-ref origin/main
 ```
 
+Two read-only questions about a release, both answered without touching
+anything. `plan` lists every merge `main` is owed a version for, and what each
+still needs; `next` answers for one merge by hand:
+
+```sh
+pixi run -e dev python3 tools/release.py plan --repository opengwas/opengwasdb-stores
+pixi run -e dev python3 tools/release.py next --previous-tag v0.1.0 \
+    --fragment changelog.d/<slug>.<type>.md
+```
+
 A development version in an editable install is frozen at the commit it was
 installed from, so `pixi install` (or `pixi reinstall --locked -e dev`) is what
-refreshes it.
+refreshes it — CI checks the installed version against the tags for exactly
+this reason.
 
 ## Worktrees
 

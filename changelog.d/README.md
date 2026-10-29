@@ -64,7 +64,9 @@ picks the strongest bump:
 
 `.github/workflows/release.yml` runs that script on the merge to `main`, tags
 the merge commit `vX.Y.Z` and publishes a GitHub Release whose notes are the
-fragments, with a link to the pull request. It never commits to `main`.
+fragments, with a link to the pull request. It never commits to `main`, and it
+publishes every merge that is still owed a version rather than only the one it
+was triggered by, so a lost run cannot lose a version.
 
 ## Until the cutover
 
