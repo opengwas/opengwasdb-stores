@@ -39,6 +39,7 @@ from pathlib import Path
 
 from script_modules import load_script
 
+changelog = load_script("check_changelog")
 release = load_script("release")
 
 REPO = "opengwas/opengwasdb-stores"
@@ -56,6 +57,32 @@ def git(cwd: Path, *args: str) -> str:
     if result.returncode != 0:
         raise AssertionError(f"git {' '.join(args)} in {cwd}: {result.stderr}")
     return result.stdout.strip()
+
+
+class FragmentContractTest(unittest.TestCase):
+    """One fragment contract, read by two scripts that must not drift (#386).
+
+    `tools/check_changelog.py` refuses a fragment `tools/release.py` could not
+    classify, and the release then classifies it -- so both define the fragment
+    types and the file-name pattern. They stay standalone scripts, mirroring the
+    sibling `opengwasdb` repository's, and this holds the two copies to the same
+    contract.
+    """
+
+    def test_the_ci_gate_and_the_release_read_the_same_fragment_types(self) -> None:
+        self.assertEqual(changelog.FRAGMENT_TYPES, release.FRAGMENT_TYPES)
+        self.assertEqual(tuple(release.HEADINGS), release.FRAGMENT_TYPES)
+
+    def test_the_ci_gate_and_the_release_accept_the_same_file_names(self) -> None:
+        self.assertEqual(changelog.FRAGMENT_PATTERN.pattern, release.FRAGMENT_PATTERN.pattern)
+        for kind in release.FRAGMENT_TYPES:
+            with self.subTest(kind=kind):
+                self.assertIsNotNone(changelog.FRAGMENT_PATTERN.match(f"386-a-change.{kind}.md"))
+                self.assertIsNotNone(release.FRAGMENT_PATTERN.match(f"386-a-change.{kind}.md"))
+        for name in ("386-a-change.markdown", "386-a-change.md", "386-a-change.txt.md", "386-a-change.ADDED.md"):
+            with self.subTest(name=name):
+                self.assertIsNone(changelog.FRAGMENT_PATTERN.match(name))
+                self.assertIsNone(release.FRAGMENT_PATTERN.match(name))
 
 
 class TemporaryDirectoryTest(unittest.TestCase):
