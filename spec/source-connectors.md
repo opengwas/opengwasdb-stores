@@ -19,7 +19,7 @@ the Column Map -- is [Reading the source files](#reading-the-source-files) (#292
 | Connector file shape (reader, writer, errors) | `src/manifest_generation/connector_tsv.py` |
 | Selection | `src/manifest_generation/selection.py` |
 | Freeze and the frozen Source Inventory | `src/manifest_generation/freeze.py` |
-| Inventory columns and readiness vocabulary | `src/manifest_generation/source_inventory.py`, documented in [`resources/inventories/README.md`](https://github.com/opengwas/opengwasdb-stores/blob/fa20d069e1de554ff4addf5c2057682fb94a9882/resources/inventories/README.md) |
+| Inventory columns and readiness vocabulary | `src/manifest_generation/source_inventory.py`, documented in [`resources/inventories/README.md`](https://github.com/opengwas/opengwasdb-stores/blob/099d109a3e8d224e21e0a11994f45dc80893de46/resources/inventories/README.md) |
 
 ## Reading the source files
 

@@ -2,7 +2,7 @@
 
 The specification of `pixi run catalog` (#323, epic #313). The decisions behind
 it are [ADR 0039](../adr/0039-analysis-catalog.md); the words are
-[CONTEXT.md](https://github.com/opengwas/opengwasdb-stores/blob/fa20d069e1de554ff4addf5c2057682fb94a9882/CONTEXT.md)'s. This file is the contract: the command, the
+[CONTEXT.md](https://github.com/opengwas/opengwasdb-stores/blob/099d109a3e8d224e21e0a11994f45dc80893de46/CONTEXT.md)'s. This file is the contract: the command, the
 serving decisions, the tables, and the files a rebuild writes.
 
 The catalog is the package `src/analysis_catalog/`. It imports only
@@ -25,10 +25,13 @@ pixi run catalog [--registry stores] [--artifact-root PATH]
   repository with uncommitted or untracked changes, because the commit it
   records would then be false. A registry that is not a git repository (a test
   fixture) records a `NULL` commit.
-- Run it on the host after a merge to `dev`, from a dedicated clean checkout of
-  `origin/dev`, not a shared working checkout (ADR 0039). It prints each
-  registered Store Release's decision, the version, and whether it published,
-  moved `current`, or was a no-op.
+- Run it on the host after a merge to `main`, from a dedicated clean checkout of
+  `origin/main`, not a shared working checkout. It prints each registered Store
+  Release's decision, the version, and whether it published, moved `current`, or
+  was a no-op. **This supersedes ADR 0039's Trigger**, which names `origin/dev`:
+  every merge lands on `main` (opengwas/opengwasdb-stores#386), so `dev` will
+  not exist. The rest of the ADR stands, and it is left unedited because it is
+  the record of what was decided when `dev` was the integration branch.
 
 ## Decisions
 

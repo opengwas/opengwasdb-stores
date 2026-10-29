@@ -102,6 +102,18 @@ ul.task-list li input[type="checkbox"] {
 <span class="menu-text">Stores</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="../epics.html"> 
+<span class="menu-text">Epics</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../trends.html"> 
+<span class="menu-text">Trends</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../changelog.html"> 
+<span class="menu-text">Changelog</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
   </li>  
@@ -1656,7 +1668,7 @@ ul.task-list li input[type="checkbox"] {
 <li>a matching physical directory rename (<code>git mv</code>), with the <code>store_id</code> updated;</li>
 <li>association/index artifacts left byte-identical, and an evidence record.</li>
 </ul>
-<p>The first case moved FinnGen from <code>OGS-00016</code> to <code>OGS-00017</code> so the MVP META observed-only Store could take <code>OGS-00016</code> ahead of it (owner decision 2026-10-13, “reorder the IDs”); see <a href="https://github.com/opengwas/opengwasdb-stores/blob/fa20d069e1de554ff4addf5c2057682fb94a9882/ogs-00016-to-ogs-00017-migration.md"><code>docs/ogs-00016-to-ogs-00017-migration.md</code></a>. The <code>migration</code> block is provenance for the renumbering only; <code>store_uri</code> remains a pure function of the identifier (ADR 0030).</p>
+<p>The first case moved FinnGen from <code>OGS-00016</code> to <code>OGS-00017</code> so the MVP META observed-only Store could take <code>OGS-00016</code> ahead of it (owner decision 2026-10-13, “reorder the IDs”); see <a href="https://github.com/opengwas/opengwasdb-stores/blob/099d109a3e8d224e21e0a11994f45dc80893de46/ogs-00016-to-ogs-00017-migration.md"><code>docs/ogs-00016-to-ogs-00017-migration.md</code></a>. The <code>migration</code> block is provenance for the renumbering only; <code>store_uri</code> remains a pure function of the identifier (ADR 0030).</p>
 <p>Rejected alternatives:</p>
 <ul>
 <li><strong>Silent reassignment, or a directory rename alone.</strong> Rejected: the identifier is a join key across the registry, the artifact root and core-owned provenance; a rename without the recorded mapping, erratum and evidence is the silent rewrite this ADR forbids.</li>

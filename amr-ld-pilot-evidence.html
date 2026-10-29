@@ -137,6 +137,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span class="menu-text">Stores</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="./epics.html"> 
+<span class="menu-text">Epics</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./trends.html"> 
+<span class="menu-text">Trends</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./changelog.html"> 
+<span class="menu-text">Changelog</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="./reports.html"> 
 <span class="menu-text">Reports</span></a>
   </li>  
@@ -2394,7 +2406,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="genome-wide-build-2026-10-22" class="level2">
 <h2 class="anchored" data-anchor-id="genome-wide-build-2026-10-22">Genome-wide build (2026-10-22)</h2>
-<p>The owner approved the build. It is declared as <a href="https://github.com/opengwas/opengwasdb-stores/blob/fa20d069e1de554ff4addf5c2057682fb94a9882/resources/reference-resources/hgdp1kgp-hg38-amr-ld/resource.yaml"><code>hgdp1kgp-hg38-amr-ld</code></a> and ADR 0020 is amended.</p>
+<p>The owner approved the build. It is declared as <a href="https://github.com/opengwas/opengwasdb-stores/blob/099d109a3e8d224e21e0a11994f45dc80893de46/resources/reference-resources/hgdp1kgp-hg38-amr-ld/resource.yaml"><code>hgdp1kgp-hg38-amr-ld</code></a> and ADR 0020 is amended.</p>
 <p><strong>Run:</strong> - Root: <code>/data/opengwasdb/reference/hgdp1kgp-hg38-amr/</code>; the panel is in <code>panel/AMR/&lt;chr&gt;/&lt;start&gt;-&lt;end&gt;.*</code>. - Built by <code>tools/ld-panel/build_amr_panel.py</code> at revision <code>2b84680</code>. - Ran from 2026-10-22T18:32:14Z to 22:16:58Z. All 1,387 steps exited 0. - Full receipt: <code>runs/20261022T183214Z/receipt.json</code>. Compact copies: <a href="data/amr-ld-panel-build-summary.json"><code>data/amr-ld-panel-build-summary.json</code></a> and the per-block <a href="data/amr-ld-panel-build-blocks.tsv"><code>data/amr-ld-panel-build-blocks.tsv</code></a>. - A chr22-only smoke build first found that, with one record kept per ALID, looking up a row’s genotypes by ALID could take the other record. Block tables now carry the source REF/ALT, and lookups use them (commit <code>2b84680</code>).</p>
 <table class="caption-top table">
 <colgroup>

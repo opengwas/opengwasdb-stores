@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Epic: Manifest Generation as one pipeline fed by source connectors – OpenGWASDB</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../">
+<script src="../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../site_libs/quarto-html/popper.min.js"></script>
+<script src="../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../site_libs/bootstrap/bootstrap-b46a788e9dbe025090d634cacd4b6238.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+<script src="../site_libs/quarto-diagram/mermaid.min.js"></script>
+<script src="../site_libs/quarto-diagram/mermaid-init.js"></script>
+<link href="../site_libs/quarto-diagram/mermaid.css" rel="stylesheet">
+
+
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../index.html">
+    <span class="navbar-title">OpenGWASDB</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../index.html"> 
+<span class="menu-text">Overview</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../stores.html"> 
+<span class="menu-text">Stores</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../epics.html"> 
+<span class="menu-text">Epics</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../trends.html"> 
+<span class="menu-text">Trends</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../changelog.html"> 
+<span class="menu-text">Changelog</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../reports.html"> 
+<span class="menu-text">Reports</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../reference.html"> 
+<span class="menu-text">Registry</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../opengwasdb/index.html"> 
+<span class="menu-text">Engine</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/opengwas/opengwasdb-stores"> <i class="bi bi-github" role="img" aria-label="opengwasdb-stores on GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#purpose" id="toc-purpose" class="nav-link active" data-scroll-target="#purpose">Purpose</a></li>
+  <li><a href="#where-it-stands" id="toc-where-it-stands" class="nav-link" data-scroll-target="#where-it-stands">Where it stands</a></li>
+  <li><a href="#tickets" id="toc-tickets" class="nav-link" data-scroll-target="#tickets">Tickets</a></li>
+  <li><a href="#decisions" id="toc-decisions" class="nav-link" data-scroll-target="#decisions">Decisions</a></li>
+  <li><a href="#versions-shipped" id="toc-versions-shipped" class="nav-link" data-scroll-target="#versions-shipped">Versions shipped</a></li>
+  <li><a href="#before-and-after" id="toc-before-and-after" class="nav-link" data-scroll-target="#before-and-after">Before and after</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Epic: Manifest Generation as one pipeline fed by source connectors</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- generated by src/project_site/pages.py (#391): edit that module, not this page -->
+<section id="purpose" class="level2">
+<h2 class="anchored" data-anchor-id="purpose">Purpose</h2>
+<p>Design: ADR 0036 (#281).</p>
+<p>Epic #282 moved Manifest Generation onto one shared pipeline fed by per-source connectors (ADR 0036). It merged in three stages: PR #299 on 21 October, PR #342 on 22 October and PR #365 on 28 October. Stage 3 moved GWAS Catalog metadata interpretation into its connectors, took Canonical Trait Mapping curation off the last two R ontology helpers, and added a per-association sample size plane so that OGS-00027 stores its own N. OGS-00027 was rebuilt with that plane and marked validated.</p>
+</section>
+<section id="where-it-stands" class="level2">
+<h2 class="anchored" data-anchor-id="where-it-stands">Where it stands</h2>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Field</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Issue</td>
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/282">opengwasdb-stores#282 on GitHub</a></td>
+</tr>
+<tr class="even">
+<td>State</td>
+<td>OPEN</td>
+</tr>
+<tr class="odd">
+<td>Status</td>
+<td>Active</td>
+</tr>
+<tr class="even">
+<td>Workstream</td>
+<td>Build architecture</td>
+</tr>
+<tr class="odd">
+<td>Priority</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td>Sub-issues</td>
+<td>19 of 21 completed</td>
+</tr>
+<tr class="odd">
+<td>Next</td>
+<td>5/5 merged on PR #365 · Stage 3 complete; PR #365 ready for your review and merge</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="tickets" class="level2">
+<h2 class="anchored" data-anchor-id="tickets">Tickets</h2>
+<div class="cell" data-layout-align="default">
+<div class="cell-output-display">
+<div>
+<p></p><figure class="figure"><p></p>
+<div>
+<pre class="mermaid mermaid-js">flowchart LR
+  classDef open fill:#fff8e1,stroke:#8d6e00,color:#000
+  classDef closed fill:#e6f4ea,stroke:#2e6b2e,color:#000
+  n0["opengwasdb-stores#35;283 — Freeze from a Source Metadata Table and an Acquisition Manifest, by Selection"]:::closed
+  n1["opengwasdb-stores#35;284 — Resolution Records kept per Source Collection and reused across Selections"]:::closed
+  n2["opengwasdb-stores#35;285 — Quality Checks: one framework for exclusions and warnings"]:::closed
+  n3["opengwasdb-stores#35;286 — Trait Ontology Mapping as a shared pipeline step"]:::closed
+  n4["opengwasdb-stores#35;287 — One release config and one entry point; GWAS Catalog end to end"]:::closed
+  n5["opengwasdb-stores#35;288 — FinnGen onto the pipeline"]:::closed
+  n6["opengwasdb-stores#35;289 — ukb-b onto the pipeline"]:::closed
+  n7["opengwasdb-stores#35;290 — dbGaP MVP onto the pipeline"]:::closed
+  n8["opengwasdb-stores#35;291 — eQTLGen onto the pipeline; its generator stops building Stores"]:::closed
+  n9["opengwasdb-stores#35;292 — The Release Bundle carries the Column Map"]:::closed
+  n10["opengwasdb-stores#35;300 — Region-filtered ragged releases (Chen 2023, Sun 2018) on the shared pipeline; retire the R gwas-ssf generators"]:::closed
+  n11["opengwasdb#35;281 — Generic tabular reader driven by a Column Map"]:::closed
+  n12["opengwasdb#35;282 — Resolve BESD Analyses"]:::closed
+  n13["opengwasdb-stores#35;317 — Repository layout: one home per kind of thing (src/, resources/ inputs only, tools/, docs/reports/)"]:::closed
+  n14["opengwasdb-stores#35;252 — Retire families/ and .rebuild133/: one home for Release Bundles"]:::closed
+  n15["opengwasdb-stores#35;340 — Pipeline emits a reference-completed bundle (ADR 0037)"]:::closed
+  n16["opengwasdb#35;285 — Move gwas-ssf and finngen-r13 capabilities onto their built-in Column Maps after a real-data parity run"]:::open
+  n17["opengwasdb#35;287 — trait_ontology_id: allow a #quot;, #quot;-joined CURIE list for multi-term source mappings, and define matching on it"]:::open
+  n18["opengwasdb-stores#35;347 — Move GWAS Catalog metadata interpretation out of shared pipeline code (ADR 0036)"]:::closed
+  n19["opengwasdb-stores#35;350 — Move Canonical Trait Mapping curation off the last two R ontology helpers"]:::closed
+  n20["opengwasdb#35;302 — Store per-association sample size (and BESD allele frequency) in Ragged Stores"]:::closed
+  x1["opengwasdb-stores#35;248"]:::closed
+  n15 --&gt; n6
+  x1 --&gt; n14
+</pre>
+</div>
+<p></p></figure><p></p>
+</div>
+</div>
+</div>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Ticket</th>
+<th>State</th>
+<th>Merge commit</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/283">Freeze from a Source Metadata Table and an Acquisition Manifest, by Selection</a> (<code>opengwasdb-stores#283</code>)</td>
+<td>CLOSED</td>
+<td>e71f07b</td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/284">Resolution Records kept per Source Collection and reused across Selections</a> (<code>opengwasdb-stores#284</code>)</td>
+<td>CLOSED</td>
+<td>632d11f</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/285">Quality Checks: one framework for exclusions and warnings</a> (<code>opengwasdb-stores#285</code>)</td>
+<td>CLOSED</td>
+<td>c0eaeaf</td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/286">Trait Ontology Mapping as a shared pipeline step</a> (<code>opengwasdb-stores#286</code>)</td>
+<td>CLOSED</td>
+<td>632d11f</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/287">One release config and one entry point; GWAS Catalog end to end</a> (<code>opengwasdb-stores#287</code>)</td>
+<td>CLOSED</td>
+<td>839f42a</td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/288">FinnGen onto the pipeline</a> (<code>opengwasdb-stores#288</code>)</td>
+<td>CLOSED</td>
+<td>abd1e78</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/289">ukb-b onto the pipeline</a> (<code>opengwasdb-stores#289</code>)</td>
+<td>CLOSED</td>
+<td>85bb26c</td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/290">dbGaP MVP onto the pipeline</a> (<code>opengwasdb-stores#290</code>)</td>
+<td>CLOSED</td>
+<td>50e9d88</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/291">eQTLGen onto the pipeline; its generator stops building Stores</a> (<code>opengwasdb-stores#291</code>)</td>
+<td>CLOSED</td>
+<td>9ddeb37</td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/292">The Release Bundle carries the Column Map</a> (<code>opengwasdb-stores#292</code>)</td>
+<td>CLOSED</td>
+<td>d91836f</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/300">Region-filtered ragged releases (Chen 2023, Sun 2018) on the shared pipeline; retire the R gwas-ssf generators</a> (<code>opengwasdb-stores#300</code>)</td>
+<td>CLOSED</td>
+<td>2804fc7</td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/281">Generic tabular reader driven by a Column Map</a> (<code>opengwasdb#281</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/282">Resolve BESD Analyses</a> (<code>opengwasdb#282</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/317">Repository layout: one home per kind of thing (src/, resources/ inputs only, tools/, docs/reports/)</a> (<code>opengwasdb-stores#317</code>)</td>
+<td>CLOSED</td>
+<td>107199a</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/252">Retire families/ and .rebuild133/: one home for Release Bundles</a> (<code>opengwasdb-stores#252</code>)</td>
+<td>CLOSED</td>
+<td>6b21b49</td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/340">Pipeline emits a reference-completed bundle (ADR 0037)</a> (<code>opengwasdb-stores#340</code>)</td>
+<td>CLOSED</td>
+<td>08bff96</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/285">Move gwas-ssf and finngen-r13 capabilities onto their built-in Column Maps after a real-data parity run</a> (<code>opengwasdb#285</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/287">trait_ontology_id: allow a “,”-joined CURIE list for multi-term source mappings, and define matching on it</a> (<code>opengwasdb#287</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/347">Move GWAS Catalog metadata interpretation out of shared pipeline code (ADR 0036)</a> (<code>opengwasdb-stores#347</code>)</td>
+<td>CLOSED</td>
+<td>0fd60e1</td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/350">Move Canonical Trait Mapping curation off the last two R ontology helpers</a> (<code>opengwasdb-stores#350</code>)</td>
+<td>CLOSED</td>
+<td>0d71ada</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/302">Store per-association sample size (and BESD allele frequency) in Ragged Stores</a> (<code>opengwasdb#302</code>)</td>
+<td>CLOSED</td>
+<td>0d59f15</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="decisions" class="level2">
+<h2 class="anchored" data-anchor-id="decisions">Decisions</h2>
+<ul>
+<li><strong>2026-10-19</strong> — Base dev per CONTRIBUTING. Preserve primary checkout, existing worktrees and PRs. Integrate reviewed checkpoints only into the epic branch; never merge PR to dev.</li>
+<li><strong>2026-10-20</strong> — Adopted the stalled 19 Oct run; host I/O healthy again. Removed its broken #292 checkout and #284 adopt-branch (both run-owned, superseded).</li>
+<li><strong>2026-10-20</strong> — Merged #286 and #292-part-1 into the integration branch; only conflict was bundle.__all__ (kept both sides’ names).</li>
+<li><strong>2026-10-20</strong> — Started opengwasdb#284 now as a sibling-repo prerequisite: it blocks #291 and nothing blocks it.</li>
+<li><strong>2026-10-21</strong> — PRs #296, #297, #298 closed as superseded by #299 (user approved).</li>
+<li><strong>2026-10-21</strong> — Split: Chen/Sun ragged releases and R deletion move to #300.</li>
+<li><strong>2026-10-21</strong> — Acquisition filters to the region policy (download, filter, delete original), keeping QC-panel regions; resolution measures the filtered file.</li>
+<li><strong>2026-10-21</strong> — Region filter is built stores-side first, moved upstream later.</li>
+<li><strong>2026-10-21</strong> — Stage-level stale-receipt test not added: CandidateWorkflowTests already fail on it (mutation M3); avoids +3 s while the suite is over budget.</li>
+<li><strong>2026-10-21</strong> — No-AF evidence = record’s missing-frequency count under a MAF request; Sun-style configs set maf_threshold: 0. Unconditional upstream reporting deferred until needed.</li>
+<li><strong>2026-10-21</strong> — Source moves regenerate comparison-only into a temporary registry; accepted bundles never replaced (ADR 0036).</li>
+<li><strong>2026-10-21</strong> — Reuse MVP Resolution Records (resolved with pinned 4e92256) by seeding the Resolution Area; FinnGen (#288) resolves fresh, capped at 32 cores.</li>
+<li><strong>2026-10-21</strong> — Finnish -&gt; EUR added to source_label_map (#288 owns it); META listed as imprecise (#290 owns it).</li>
+<li><strong>2026-10-21</strong> — Dense/Hybrid must carry lift orientation (P1 wrong signs); the allele-check/provenance contract is scoped to BESD (YAGNI).</li>
+<li><strong>2026-10-21</strong> — Claude Code trust accepted for this run’s worktrees.</li>
+<li><strong>2026-10-21</strong> — Stop tuning at 29 s; no ticket for other slow suites until needed.</li>
+<li><strong>2026-10-21</strong> — Keep the R FinnGen generator until the pipeline can resolve FinnGen (after pin bump); delete with AC1.</li>
+<li><strong>2026-10-21</strong> — Preserve committed identity: optional SMT analysis_id and analysis_group_id columns (finngen-r13-&lt;phenocode&gt;, manifest category).</li>
+<li><strong>2026-10-21</strong> — Not now (YAGNI): artifact orientation column, Hybrid-fold orientation, Dense/Hybrid reference check. Single-pass Hybrid off-reference lift refuses loudly instead.</li>
+<li><strong>2026-10-21</strong> — META (multi-ancestry Selection): Assigned Ancestry never assigned, fit recorded in sidecar, no exclusion.</li>
+<li><strong>2026-10-21</strong> — AMR: unassigned Analyses may be kept as a recorded warning via a release-config opt-in; a measured different super-population still excludes.</li>
+<li><strong>2026-10-21</strong> — No 7.5 h re-resolution of MVP for the comparison; next real MVP release re-resolves.</li>
+<li><strong>2026-10-21</strong> — Deferred: Sun QC-panel acquisition (next Sun release), 80 multi-span Sun targets (before a full Sun release). Connector files move to /data like #287.</li>
+<li><strong>2026-10-21</strong> — Reversed my deferral: Sun’s shipped inputs must keep QC-panel rows now (ADR 0036); filtered into a permanent dir, raw originals untouched.</li>
+<li><strong>2026-10-22</strong> — Two-stage landing: #299 closes out after #290 (pipeline, GWAS Catalog, MVP, Chen/Sun, FinnGen connectors, Column Map contract, test cost). #288 AC1, #291, #292 part 2 and #289 follow on a second integration branch after #222 lands and the pin is bumped.</li>
+<li><strong>2026-10-21</strong> — Repository layout moves land in #299 (src/ all Python incl.&nbsp;curation; resources/ inputs only; tools/; docs/reports/), with an ADR.</li>
+<li><strong>2026-10-21</strong> — #252 triage accepted as proposed; migrated bundles keep historical status; lands in #299.</li>
+<li><strong>2026-10-21</strong> — Retire FinnGen r13-pilot-20-completed (parent changed); migrate five to OGS-00022–26; errata applied; ukb-b provenance path edited in place (ADR 0038 exception).</li>
+<li><strong>2026-10-21</strong> — #308 MVP generator change stays deleted with #290; one-id/refusal intent already holds in the pipeline (unknown keys refused); OGS-00018–21 retirement recorded in MVP README; pipeline reference-completed emission deferred to a drafted follow-up (no active reference today).</li>
+<li><strong>2026-10-21</strong> — Pin 023774a (from #311) adopted; resolve passes –reference-build from the Ancestry Reference Panel resource.yaml genome_build and each Analysis source_genome_build (table, else config default); never –source-build (opengwasdb#277: builds are never guessed).</li>
+<li><strong>2026-10-21</strong> — Column Map tripwire fixed now as it prescribes (import BUILTIN_COLUMN_MAPS from opengwasdb, verify built-in sha256); rest of #292 part 2 stays stage 2.</li>
+<li><strong>2026-10-21</strong> — User asked to merge dev #327 (test runner rewrite) before continuing; runner keeps #299 location tests/run_all_tests.py; runner exempt from the sys.path rule (it emulates script execution).</li>
+<li><strong>2026-10-22</strong> — File the drafted reference-completed emission follow-up as #340, a #282 sub-issue blocking #289 (OGS-00009 is single-id reference-completed under #312).</li>
+<li><strong>2026-10-22</strong> — #292 part 2 also owns –chain-file: hg19-&gt;hg38 chain as a declared Reference Resource (liftover-hg19-to-hg38), named by the release config; digest covers its sha256. No register check against Store provenance.column_map (not reported by opengwasdb info; not in AC). Walkthrough docs go in spec/source-connectors.md.</li>
+<li><strong>2026-10-22</strong> — Port the completion logic from the ukb-b generator into a shared module; a config declaring reference_completed must carry a completion block and emits reference_completed only when the reference is qualified+active; observed_only + block refused.</li>
+<li><strong>2026-10-22</strong> — Criterion 2 scoped to providers/eqtlgen; required metadata from config defaults + resolver measurements (stop if ADR 0029 tiers do not settle it); TNF SD/N measured and reported, no new Quality Check.</li>
+<li><strong>2026-10-22</strong> — Metadata from provider JSONs (API token expired); inventory integrity checks become non-ready rows in the ukb-b acquisition writer; full 2,514 resolve gated by orchestrator after the 10-Analysis probe (host load, OGS-00009 build).</li>
+<li><strong>2026-10-22</strong> — declared status is the Reference Resource declaration’s own status (read, recorded; no config field, no agreement veto; missing status refused when used). A reference not both qualified and active is never opened and its LD panel is not required in preflight. complete-dense-only is port scope, not an Observed-View Check limit.</li>
+<li><strong>2026-10-22</strong> — Authorise candidate_workflow._decide to read the tier sample_size_kind so the 1,846 case-control ukb-b Analyses keep n_cases/n_controls; within #289, behaviour-preserving for existing releases (prove with their e2e tests).</li>
+<li><strong>2026-10-22</strong> — After #291 merges, build #314 through the pipeline: full eQTLGen cis release under a new OGS id; user acceptance before the build.</li>
+<li><strong>2026-10-22</strong> — During the Veeam backup every disk volume is snapshotted; test runs use TMPDIR on /dev/shm (RAM, 504 GB) via logs/run-suites-shm.sh; heavy /data jobs wait.</li>
+<li><strong>2026-10-22</strong> — Acquire the BESD writer’s full 19,250-probe set (equivalent: 20 unreferenced SNPs dropped, index renumbered) with the original’s sha256 lineage, as the pilot subset does; trial from /dev/shm; durable location to be chosen by the user (likely /data/opengwasdb/raw/eqtlgen/full-19250.*). OGS-00027 is the id.</li>
+<li><strong>2026-10-22</strong> — build-hybrid-from-catalogue: deferred (no recipe composes it; not a planner command); recorded on #292.</li>
+<li><strong>2026-10-22</strong> — ADR 0036 boundary leftovers from stage 1 go to follow-up #347; stage 2 lands without them.</li>
+<li><strong>2026-10-22</strong> — Full re-indexed eQTLGen BESD lives at /data/opengwasdb/raw/eqtlgen/full-19250.* (new files only). Before the full run, diagnose per-pair N: derive N = 1/(2p(1-p)se^2) - z^2 from BESD and compare with eQTLGen published NrSamples.</li>
+<li><strong>2026-10-22</strong> — eQTLGen SD declared standardised (SD = 1): betas are z-standardised with per-pair N; also for the OGS-00001 pilot config.</li>
+<li><strong>2026-10-22</strong> — Per-Analysis sample_size = maximum pair N derived from BESD (N = 1/(2p(1-p)se^2) - z^2; matches published NrSamples r 0.991-1.000), kind variant_level. Build now; per-association N later via opengwas/opengwasdb#302, then rebuild.</li>
+<li><strong>2026-10-22</strong> — Max-N convention applied as max over pairs with finite N and |z|&gt;=1 (derived N error &lt;=0.04% there vs up to 31% for |z|&lt;0.001), rounded, capped at study total 31,684; original_sd blank under declared_standardised.</li>
+<li><strong>2026-10-22</strong> — Add an optional release-config trial key rendered into release.yaml (#321), set on pilot/probe configs, so a pipeline re-emit of OGS-00001 keeps trial: true. No pipeline-wide blank-tissue refusal.</li>
+<li><strong>2026-10-22</strong> — Candidate provenance must not name /dev/shm: copy work root + resolution area to /data/opengwasdb/work/314 and re-emit (no re-resolve); commit stores/OGS-00027 as a candidate on the #314 branch for review and acceptance.</li>
+<li><strong>2026-10-22</strong> — Fill OGS-00027 publication metadata (first_author Vosa, PMID 34475573, source_url eqtlgen.org) and gene-symbol Analysis Labels through the eQTLGen adapter (connector-level; no shared schema change); analysis_id stays the bare Ensembl id.</li>
+<li><strong>2026-10-22</strong> — Owner accepted OGS-00027 for building (issue #314 comment 6345246939).</li>
+<li><strong>2026-10-23</strong> — Owner accepted the released OGS-00027 scientifically; recorded as accepted-&gt;built-&gt;validated with human_acceptance: accepted (PR #360).</li>
+<li><strong>2026-10-24</strong> — Stage 3 runs #347, #350 and opengwasdb#302 (a #282 sub-issue no other epic owns), with the OGS-00027 rebuild as #302’s gated consumer.</li>
+<li><strong>2026-10-24</strong> — N source for eQTLGen is the published per-pair NrSamples (not the formula); Ragged only; .esi EAF stored with orientation evidence; ADR 0067.</li>
+<li><strong>2026-10-24</strong> — Replace OGS-00027 in place once #302 lands (pre-release, no erratum); build gate still applies.</li>
+<li><strong>2026-10-24</strong> — Accept the OGS-00011 equivalence run through a shim around the a0656c0 resolver (base and head through the same shim isolates #347); a later real OGS-00011 regeneration needs a resolver at/after #277 with records re-made.</li>
+<li><strong>2026-10-24</strong> — Keep float16 SE for Stores with a per-association n plane (owner); .esi EAF is opt-in (orchestrator, ADR 0036 consistency); EAF reference for eQTLGen is the UKB ancestry-mixture UK column.</li>
+<li><strong>2026-10-24</strong> — hgdp1kgp-hg38 LD panel EAF holds the OA frequency (r=-0.981 vs UKB on 46,003 variants); LD unaffected; trial completions OGS-00002/22/23 used the panel; belongs with the panel rebuild in #348.</li>
+<li><strong>2026-10-24</strong> — All five HGDP+1kGP panels (EUR, AFR, EAS, SAS, AMR) store the OA frequency as EAF; evidence posted on #348 (comment 6388411383). Impact: OGS-00002 eaf_reference inverted; OGS-00022/23 have no Store artifact; LD and imputed SE unaffected.</li>
+<li><strong>2026-10-24</strong> — Owner: when the panel EAF is fixed, re-run OGS-00002 completion (replace in place) and re-check all Stores for use of the incorrect EAF; added to #348 acceptance.</li>
+<li><strong>2026-10-24</strong> — OGS-00027 Analysis sample_size becomes the maximum published NrSamples over the probe’s pairs (owner’s max convention, now exact); formula/|z|/cap logic removed.</li>
+<li><strong>2026-10-27</strong> — INCIDENT: on 2026-10-24 an unquoted heredoc in an orchestrator state update executed the backticked forced release of OGS-00027 from the integration checkout (opengwasdb 75f0e77). Accepted 22 Oct Store preserved in replaced/20261024T205555Z; accidental record kept out of git (incident-20261024/).</li>
+<li><strong>2026-10-27</strong> — Owner: rebuild OGS-00027 now (Phase B, N plane); keep the most recent previous version for comparison, delete it after the new build and comparison.</li>
+<li><strong>2026-10-27</strong> — Owner accepted the OGS-00027 replacement bundle and approved the forced rebuild (#314 comment 6451854029).</li>
+<li><strong>2026-10-27</strong> — Final review: fix docs row, sha256 dup, .epi/.esi reader dup, CONTRIBUTING stale line; accept normalize_trait_label dup, concordance_sampling defaults, OGS-00027 note wording (appended at validation).</li>
+</ul>
+</section>
+<section id="versions-shipped" class="level2">
+<h2 class="anchored" data-anchor-id="versions-shipped">Versions shipped</h2>
+<p>No version has shipped from this epic yet: a record’s <code>versions</code> fills once each repository tags every merge to <code>main</code> (#386).</p>
+</section>
+<section id="before-and-after" class="level2">
+<h2 class="anchored" data-anchor-id="before-and-after">Before and after</h2>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>What</th>
+<th>Before</th>
+<th>After</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Catalog Analyses</td>
+<td><em>not reported</em></td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td>Catalog Stores</td>
+<td><em>not reported</em></td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td>Test time (wall)</td>
+<td>160.3 s at <code>9898f6b</code></td>
+<td>151.5 s at <code>cbd9770</code> (-5.5% on the baseline)</td>
+</tr>
+<tr class="even">
+<td>Yardstick</td>
+<td><em>not reported</em></td>
+<td><em>not reported</em></td>
+</tr>
+</tbody>
+</table>
+
+
+</section>
+
+<a onclick="window.scrollTo(0, 0); return false;" role="button" id="quarto-back-to-top"><i class="bi bi-arrow-up"></i> Back to top</a></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/blog\.opengwas\.io\/opengwasdb-stores\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>OpenGWASDB · rendered from the commit that names it</p>
+</div>   
+    <div class="nav-footer-center">
+      &nbsp;
+    </div>
+    <div class="nav-footer-right">
+<p><a href="https://github.com/opengwas/opengwasdb-stores/issues">Report a problem</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

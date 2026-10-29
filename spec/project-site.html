@@ -137,6 +137,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span class="menu-text">Stores</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="../epics.html"> 
+<span class="menu-text">Epics</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../trends.html"> 
+<span class="menu-text">Trends</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../changelog.html"> 
+<span class="menu-text">Changelog</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
   </li>  
@@ -1839,7 +1851,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A source that fails (<code>gh</code> offline, a catalog root that does not exist) writes <code>available: false</code> with its error and no other key, and never stops the other collectors. An <strong>empty</strong> source is not a failure: no Releases yet is <code>available: true</code> with empty lists. A page reads <code>available</code> before it reads anything else.</p>
 <section id="board-board.json" class="level3">
 <h3 class="anchored" data-anchor-id="board-board.json">Board (<code>board.json</code>)</h3>
-<p>The board collector has its own GraphQL query (<code>project_site.collect.board</code>); this repository does not import the board skill. It reads project 1 of the <code>opengwas</code> organisation, every page of it, and then every epic’s sub-issues and their blocked-by edges (<code>subIssues</code> and <code>blockedBy</code> in the GraphQL API) in one aliased query, and follows every further page of both relationships (<code>subIssues</code> and <code>blockedBy</code> each return <code>pageInfo</code>). The issue bodies of everything but Milestones are dropped. A relationship that still has a page unread when the response is parsed is an error, so the file is <code>available: false</code> rather than a short list marked complete.</p>
+<p>The board collector has its own GraphQL query (<code>project_site.collect.board</code>); this repository does not import the board skill. It reads project 1 of the <code>opengwas</code> organisation, every page of it, and then every epic’s sub-issues and their blocked-by edges (<code>subIssues</code> and <code>blockedBy</code> in the GraphQL API) in one aliased query, and follows every further page of both relationships (<code>subIssues</code> and <code>blockedBy</code> each return <code>pageInfo</code>). An issue’s body is read for two things, and dropped otherwise: a Milestone’s checklist lines, and an Epic’s <code>purpose</code>, the first non-empty paragraph of the body that is prose – not a heading, a fence, a table, a quote, or a list of bullets and boxes – cut at a sentence (or, failing a sentence, at a word and an ellipsis) to at most 600 characters. A relationship that still has a page unread when the response is parsed is an error, so the file is <code>available: false</code> rather than a short list marked complete.</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
@@ -1854,21 +1866,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>epics</code></td>
-<td>one row per Epic: <code>key</code> (<code>repo#n</code>), <code>title</code>, <code>url</code>, <code>state</code> (the issue’s, <code>OPEN</code> or <code>CLOSED</code>), <code>status</code>, <code>workstream</code>, <code>next</code>, <code>priority</code>, <code>sub_issues</code> (<code>{total, completed}</code>), and <code>children</code></td>
+<td>one row per Epic: <code>key</code> (<code>repo#n</code>), <code>title</code>, <code>url</code>, <code>state</code> (the issue’s, <code>OPEN</code> or <code>CLOSED</code>), <code>status</code>, <code>workstream</code>, <code>next</code>, <code>priority</code>, <code>sub_issues</code> (<code>{total, completed}</code>), <code>purpose</code>, and <code>children</code></td>
 </tr>
 <tr class="even">
+<td><code>epics[].purpose</code></td>
+<td>the epic’s own first prose paragraph, cut as above, or <code>null</code> when its body has none</td>
+</tr>
+<tr class="odd">
 <td><code>epics[].children</code></td>
 <td>the epic’s sub-issues: <code>key</code>, <code>title</code>, <code>url</code>, <code>state</code>, and <code>blocked_by</code>, a list of <code>{key, state}</code></td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>milestones</code></td>
 <td>one row per Milestone, with the same fields as an epic (no <code>children</code>) and <code>lines</code></td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>milestones[].lines</code></td>
 <td>each <code>- [ ]</code> or <code>- [x]</code> line of the body, in order: <code>checked</code>, <code>text</code>, and <code>refs</code> (<code>repo#n</code> keys)</td>
 </tr>
-<tr class="odd">
+<tr class="even">
 <td><code>items</code></td>
 <td>every other project item, with the epic’s fields</td>
 </tr>
@@ -1923,6 +1939,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tr class="odd">
 <td><code>versions[].changes</code></td>
 <td><code>changes.tsv</code>’s rows tallied by change (<code>{added: n, ...}</code>), or <code>null</code> for a version without the file</td>
+</tr>
+<tr class="even">
+<td><code>versions[].selection</code></td>
+<td>the <code>selection</code> table’s rows in <code>store_id</code> order – <code>store_id</code>, <code>decision</code> (<code>listed</code>, <code>excluded</code>, <code>refused</code> or <code>placeholder</code>) and <code>reason</code> – for the version <code>current</code> names; <code>null</code> for every other version, whose decisions the site does not show</td>
 </tr>
 </tbody>
 </table>

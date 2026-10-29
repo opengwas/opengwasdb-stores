@@ -137,6 +137,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span class="menu-text">Stores</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="../epics.html"> 
+<span class="menu-text">Epics</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../trends.html"> 
+<span class="menu-text">Trends</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../changelog.html"> 
+<span class="menu-text">Changelog</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
   </li>  
@@ -1682,7 +1694,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="analysis-catalog" class="level1">
 <h1>Analysis Catalog</h1>
-<p>The specification of <code>pixi run catalog</code> (#323, epic #313). The decisions behind it are <a href="../adr/0039-analysis-catalog.html">ADR 0039</a>; the words are <a href="https://github.com/opengwas/opengwasdb-stores/blob/fa20d069e1de554ff4addf5c2057682fb94a9882/CONTEXT.md">CONTEXT.md</a>’s. This file is the contract: the command, the serving decisions, the tables, and the files a rebuild writes.</p>
+<p>The specification of <code>pixi run catalog</code> (#323, epic #313). The decisions behind it are <a href="../adr/0039-analysis-catalog.html">ADR 0039</a>; the words are <a href="https://github.com/opengwas/opengwasdb-stores/blob/099d109a3e8d224e21e0a11994f45dc80893de46/CONTEXT.md">CONTEXT.md</a>’s. This file is the contract: the command, the serving decisions, the tables, and the files a rebuild writes.</p>
 <p>The catalog is the package <code>src/analysis_catalog/</code>. It imports only <code>ogstores.bundle</code> and <code>ogstores.paths</code> from <code>ogstores</code>, and nothing in <code>ogstores</code> or <code>manifest_generation</code> imports it (<code>tests/packaging/test_boundary.py</code>). It reads Release Bundles and never opens a Store (ADR 0023).</p>
 <section id="the-command" class="level2">
 <h2 class="anchored" data-anchor-id="the-command">The command</h2>
@@ -1691,7 +1703,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><code>--registry</code> is the directory of Release Bundles; it defaults to <code>stores/</code> of the checkout.</li>
 <li>The Artifact Root resolves as <code>ogstores.paths.artifact_root</code> does: <code>--artifact-root</code>, then <code>OPENGWASDB_ARTIFACT_ROOT</code>, then <code>ogstores.yaml</code>.</li>
 <li>It refuses to build, and writes nothing, when the registry is a git repository with uncommitted or untracked changes, because the commit it records would then be false. A registry that is not a git repository (a test fixture) records a <code>NULL</code> commit.</li>
-<li>Run it on the host after a merge to <code>dev</code>, from a dedicated clean checkout of <code>origin/dev</code>, not a shared working checkout (ADR 0039). It prints each registered Store Release’s decision, the version, and whether it published, moved <code>current</code>, or was a no-op.</li>
+<li>Run it on the host after a merge to <code>main</code>, from a dedicated clean checkout of <code>origin/main</code>, not a shared working checkout. It prints each registered Store Release’s decision, the version, and whether it published, moved <code>current</code>, or was a no-op. <strong>This supersedes ADR 0039’s Trigger</strong>, which names <code>origin/dev</code>: every merge lands on <code>main</code> (opengwas/opengwasdb-stores#386), so <code>dev</code> will not exist. The rest of the ADR stands, and it is left unedited because it is the record of what was decided when <code>dev</code> was the integration branch.</li>
 </ul>
 </section>
 <section id="decisions" class="level2">

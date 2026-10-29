@@ -102,6 +102,18 @@ ul.task-list li input[type="checkbox"] {
 <span class="menu-text">Stores</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="../epics.html"> 
+<span class="menu-text">Epics</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../trends.html"> 
+<span class="menu-text">Trends</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../changelog.html"> 
+<span class="menu-text">Changelog</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
   </li>  
@@ -1751,7 +1763,7 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="method" class="level2">
 <h2 class="anchored" data-anchor-id="method">Method</h2>
-<p>Each Store runs in its own fresh process; its peak RSS in another. A timed measure reads once (<code>first_read_ms</code>, kept apart), then <code>reps</code> warm times; the median and p95 are over the warm reads. <code>repetitions.default</code> is 5 and <code>analysis_full</code> is 3. A run is flagged <code>veeam_window: true</code>, never dropped, if any part of it fell between 00:00 and 11:00 local time (the nightly Veeam snapshot throttles disk I/O). Each worker and the fixture build are given the run’s remaining 600 s budget as a timeout; one that overruns is killed with its whole process group (each runs in its own session: SIGTERM, a one-second grace, then SIGKILL, and it is reaped before the run goes on) and its measures are <code>unavailable</code> (“timeout after N s”). The result is still written, and a run over budget exits 2. “Over budget” is decided on the unrounded elapsed time and carried as <code>over_budget</code>; <code>duration_s</code> is rounded for display.</p>
+<p>Each Store runs in its own fresh process; its peak RSS in another. A timed measure reads once (<code>first_read_ms</code>, kept apart), then <code>reps</code> warm times; the median and p95 are over the warm reads. The <code>ogstores</code> identity carries the commit as well as the version: an editable install reports the version it was built from, which is not necessarily the code that ran (#386), and <code>dirty</code> marks a run on an uncommitted tree as one that cannot be reproduced. <code>repetitions.default</code> is 5 and <code>analysis_full</code> is 3. A run is flagged <code>veeam_window: true</code>, never dropped, if any part of it fell between 00:00 and 11:00 local time (the nightly Veeam snapshot throttles disk I/O). Each worker and the fixture build are given the run’s remaining 600 s budget as a timeout; one that overruns is killed with its whole process group (each runs in its own session: SIGTERM, a one-second grace, then SIGKILL, and it is reaped before the run goes on) and its measures are <code>unavailable</code> (“timeout after N s”). The result is still written, and a run over budget exits 2. “Over budget” is decided on the unrounded elapsed time and carried as <code>over_budget</code>; <code>duration_s</code> is rounded for display.</p>
 </section>
 <section id="result-schema-version-1" class="level2">
 <h2 class="anchored" data-anchor-id="result-schema-version-1">Result schema, version 1</h2>
@@ -1782,7 +1794,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td><code>ogstores</code></td>
-<td><code>version</code></td>
+<td><code>version</code>; <code>commit</code>: the 40-hex <code>HEAD</code> of the checkout that ran, because an editable install’s version can be stale; <code>dirty</code>: whether that tree had uncommitted changes</td>
 </tr>
 <tr class="odd">
 <td><code>host</code></td>

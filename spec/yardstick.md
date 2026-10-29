@@ -64,7 +64,11 @@ in opengwasdb's tests and are not importable from here.
 
 Each Store runs in its own fresh process; its peak RSS in another. A timed
 measure reads once (`first_read_ms`, kept apart), then `reps` warm times; the
-median and p95 are over the warm reads. `repetitions.default` is 5 and
+median and p95 are over the warm reads. The `ogstores` identity carries the commit as well as the version: an editable
+install reports the version it was built from, which is not necessarily the code
+that ran (#386), and `dirty` marks a run on an uncommitted tree as one that
+cannot be reproduced.
+`repetitions.default` is 5 and
 `analysis_full` is 3. A run is flagged `veeam_window: true`, never dropped, if
 any part of it fell between 00:00 and 11:00 local time (the nightly Veeam
 snapshot throttles disk I/O). Each worker and the fixture build
@@ -82,7 +86,7 @@ a new version.
 | `schema` | `1` |
 | `workload_id`, `workload_sha256` | the workload that ran |
 | `opengwasdb` | `version`, and `revision`: the 40-hex rev `pixi.lock` pins |
-| `ogstores` | `version` |
+| `ogstores` | `version`; `commit`: the 40-hex `HEAD` of the checkout that ran, because an editable install's version can be stale; `dirty`: whether that tree had uncommitted changes |
 | `host` | `name`, `cpu_count` |
 | `load_average` | `before` and `after`, each exactly three non-negative numbers: the 1, 5 and 15 minute averages |
 | `started_utc`, `ended_utc` | `YYYY-MM-DDTHH:MM:SSZ` |

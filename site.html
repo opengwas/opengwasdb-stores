@@ -139,6 +139,18 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <span class="menu-text">Stores</span></a>
   </li>  
   <li class="nav-item">
+    <a class="nav-link" href="./epics.html"> 
+<span class="menu-text">Epics</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./trends.html"> 
+<span class="menu-text">Trends</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./changelog.html"> 
+<span class="menu-text">Changelog</span></a>
+  </li>  
+  <li class="nav-item">
     <a class="nav-link" href="./reports.html"> 
 <span class="menu-text">Reports</span></a>
   </li>  
@@ -1665,6 +1677,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#the-commands" id="toc-the-commands" class="nav-link active" data-scroll-target="#the-commands">The commands</a></li>
   <li><a href="#where-a-render-puts-things" id="toc-where-a-render-puts-things" class="nav-link" data-scroll-target="#where-a-render-puts-things">Where a render puts things</a></li>
   <li><a href="#publishing" id="toc-publishing" class="nav-link" data-scroll-target="#publishing">Publishing</a></li>
+  <li><a href="#the-data-pages" id="toc-the-data-pages" class="nav-link" data-scroll-target="#the-data-pages">The data pages</a></li>
   <li><a href="#going-live" id="toc-going-live" class="nav-link" data-scroll-target="#going-live">Going live</a></li>
   <li><a href="#adding-a-page" id="toc-adding-a-page" class="nav-link" data-scroll-target="#adding-a-page">Adding a page</a></li>
   <li><a href="#checking-a-change" id="toc-checking-a-change" class="nav-link" data-scroll-target="#checking-a-change">Checking a change</a></li>
@@ -1706,15 +1719,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>pixi run site</code></td>
-<td>Stage both repositories’ docs, render the site, and check every served path.</td>
+<td>Collect the site’s data, stage both repositories’ docs, render, and check every served path.</td>
 </tr>
 <tr class="even">
 <td><code>pixi run site-preview</code></td>
-<td>The same staging, then Quarto’s live-reloading preview on <a href="http://localhost:4200" class="uri">http://localhost:4200</a>.</td>
+<td>The same staging, then Quarto’s live-reloading preview (on <a href="http://localhost:4200" class="uri">http://localhost:4200</a>, or the next free port).</td>
 </tr>
 <tr class="odd">
 <td><code>pixi run site-publish --dry-run</code></td>
-<td>Render a clean checkout of <code>origin/dev</code> and commit it to <code>gh-pages</code> <strong>without pushing</strong>.</td>
+<td>Render a clean checkout of <code>origin/main</code> and commit it to <code>gh-pages</code> <strong>without pushing</strong>.</td>
 </tr>
 <tr class="even">
 <td><code>pixi run site-publish</code></td>
@@ -1748,7 +1761,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="even">
 <td><code>/data/opengwasdb/work/site/&lt;checkout&gt;/_stage</code></td>
-<td>The mirror of <code>docs/</code> the render reads (<code>$OPENGWASDB_SITE_ROOT</code> moves the work root).</td>
+<td>The mirror of <code>docs/</code> the render reads, with the collected data and the generated pages in it (<code>$OPENGWASDB_SITE_ROOT</code> moves the work root).</td>
 </tr>
 <tr class="odd">
 <td><code>/data/opengwasdb/work/site/&lt;checkout&gt;/_preview</code></td>
@@ -1790,7 +1803,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </div>
 </div>
 </div>
-<p>The default ref is <code>origin/dev</code> until the cutover, after which it becomes <code>origin/main</code>.</p>
+<p>The default ref is <code>origin/main</code>: every merge lands there and is a version (#386). Before the cutover, name <code>--ref origin/dev</code> explicitly.</p>
+</section>
+<section id="the-data-pages" class="level2">
+<h2 class="anchored" data-anchor-id="the-data-pages">The data pages</h2>
+<p>Five pages are generated from the site’s own data rather than written by hand: the <a href="./index.html">Overview</a>, <a href="./stores.html">Stores</a>, <a href="./epics.html">Epics</a>, <a href="./trends.html">Trends</a> and <a href="./changelog.html">Changelog</a>, with one page per epic and one per registered Store beside them (<a href="https://github.com/opengwas/opengwasdb-stores/blob/099d109a3e8d224e21e0a11994f45dc80893de46/src/project_site/pages.py"><code>src/project_site/pages.py</code></a>, #391).</p>
+<ul>
+<li><code>pixi run site</code> and <code>site-publish</code> <strong>collect the data themselves</strong> before the render, into the render’s own <code>_stage/_data</code>, from the <code>stores/</code> and <code>docs/_epics/</code> of the checkout being rendered. <code>$OPENGWASDB_SITE_DATA</code> names a directory collected already, and then nothing is collected.</li>
+<li><code>docs/_quarto.yml</code> names <code>docs/pre-render.sh</code> as the project’s <code>pre-render</code> hook. Quarto runs it inside the mirror before rendering, so the generator writes the pages where the render reads them and never into the checkout. The commit being rendered reaches it as <code>$OPENGWASDB_SITE_COMMIT</code>, which is what a generated link to a file outside <code>docs/</code> names.</li>
+<li>The five section pages are committed as short stubs that say they are generated: their published paths stay (<code>index.html</code>, <code>stores.html</code>), and a render replaces them. The per-epic and per-Store pages are git-ignored (<code>docs/epics/</code>, <code>docs/stores/</code>).</li>
+<li>A page never fails because a source is missing: it shows a notice naming the source, its error and when it was collected. <code>docs/spec/project-site.md</code> is the contract between the data and the pages.</li>
+</ul>
 </section>
 <section id="going-live" class="level2">
 <h2 class="anchored" data-anchor-id="going-live">Going live</h2>
@@ -1808,6 +1831,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Link to a sibling with its relative path (<code>../spec/release-config.md</code>). Link to anything outside <code>docs/</code> with the relative path you would use on GitHub — the build rewrites it to that file on GitHub at the commit being rendered. A link the build rewrites is reported if the commit does not have the target.</li>
 <li><strong>Never move or rename a page that is already published.</strong> A reader’s link would break. If a page must move, keep the old path as an <code>aliases</code> entry in the new page’s YAML front matter; Quarto then writes a redirect page there, which the served-path check counts as an alias rather than a missing path.</li>
 <li>Historical reports are not rendered: their source <code>.qmd</code> lives in <code>docs/reports/</code>, and <code>pixi run docs</code> renders it and copies the self-contained HTML to the root name the site serves. Do not add <code>.qmd</code> files to <code>docs/</code> outside <code>reports/</code> unless the page really must execute code at render time.</li>
+<li>A page that is computed from the site’s data is not written by hand: add it to <code>src/project_site/pages.py</code> (<code>SECTION_PAGES</code> for a section, or one of the per-epic and per-Store writers) and commit a stub with its published path at <code>docs/</code>, as the five data pages above do. Do not edit a generated page — a render replaces it. A page holding a chart is written as a <code>{=html}</code> block, not an inline SVG in a table cell: Pandoc drops an SVG’s children there.</li>
 </ol>
 </section>
 <section id="checking-a-change" class="level2">

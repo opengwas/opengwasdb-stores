@@ -11,9 +11,9 @@ host where the data lives, and published from the `gh-pages` branch at
 
 | Command | What it does |
 | --- | --- |
-| `pixi run site` | Stage both repositories' docs, render the site, and check every served path. |
-| `pixi run site-preview` | The same staging, then Quarto's live-reloading preview on <http://localhost:4200>. |
-| `pixi run site-publish --dry-run` | Render a clean checkout of `origin/dev` and commit it to `gh-pages` **without pushing**. |
+| `pixi run site` | Collect the site's data, stage both repositories' docs, render, and check every served path. |
+| `pixi run site-preview` | The same staging, then Quarto's live-reloading preview (on <http://localhost:4200>, or the next free port). |
+| `pixi run site-publish --dry-run` | Render a clean checkout of `origin/main` and commit it to `gh-pages` **without pushing**. |
 | `pixi run site-publish` | The same, then push `gh-pages`. The owner runs this. |
 | `pixi run docs` | Refresh a report: render its `.qmd` and copy the HTML to the name the site serves. |
 
@@ -25,7 +25,7 @@ output would make parallel pull requests conflict.
 | Path | What |
 | --- | --- |
 | `/data/opengwasdb/work/site/<checkout>/_site` | The rendered site (`$OPENGWASDB_SITE_OUT` overrides it). |
-| `/data/opengwasdb/work/site/<checkout>/_stage` | The mirror of `docs/` the render reads (`$OPENGWASDB_SITE_ROOT` moves the work root). |
+| `/data/opengwasdb/work/site/<checkout>/_stage` | The mirror of `docs/` the render reads, with the collected data and the generated pages in it (`$OPENGWASDB_SITE_ROOT` moves the work root). |
 | `/data/opengwasdb/work/site/<checkout>/_preview` | The synced copy `site-preview` serves; Quarto renders inside it. |
 | `/data/opengwasdb/work/site/opengwasdb.git` | The bare clone the engine's docs are staged from (`$OPENGWASDB_SITE_ENGINE_CLONE` overrides it). |
 
@@ -65,8 +65,33 @@ flowchart TD
   I -- no --> K["commit to gh-pages and push"]
 ```
 
-The default ref is `origin/dev` until the cutover, after which it becomes
-`origin/main`.
+The default ref is `origin/main`: every merge lands there and is a version
+(#386). Before the cutover, name `--ref origin/dev` explicitly.
+
+## The data pages
+
+Five pages are generated from the site's own data rather than written by hand:
+the [Overview](index.qmd), [Stores](stores.qmd), [Epics](epics.qmd),
+[Trends](trends.qmd) and [Changelog](changelog.qmd), with one page per epic and
+one per registered Store beside them
+([`src/project_site/pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/099d109a3e8d224e21e0a11994f45dc80893de46/src/project_site/pages.py), #391).
+
+- `pixi run site` and `site-publish` **collect the data themselves** before the
+  render, into the render's own `_stage/_data`, from the `stores/` and
+  `docs/_epics/` of the checkout being rendered. `$OPENGWASDB_SITE_DATA` names a
+  directory collected already, and then nothing is collected.
+- `docs/_quarto.yml` names `docs/pre-render.sh` as the project's `pre-render`
+  hook. Quarto runs it inside the mirror before rendering, so the generator
+  writes the pages where the render reads them and never into the checkout. The
+  commit being rendered reaches it as `$OPENGWASDB_SITE_COMMIT`, which is what a
+  generated link to a file outside `docs/` names.
+- The five section pages are committed as short stubs that say they are
+  generated: their published paths stay (`index.html`, `stores.html`), and a
+  render replaces them. The per-epic and per-Store pages are git-ignored
+  (`docs/epics/`, `docs/stores/`).
+- A page never fails because a source is missing: it shows a notice naming the
+  source, its error and when it was collected. `docs/spec/project-site.md` is
+  the contract between the data and the pages.
 
 ## Going live
 
@@ -106,6 +131,12 @@ It sets Pages to build from the `gh-pages` branch at `/`, which is where
    `docs/reports/`, and `pixi run docs` renders it and copies the self-contained
    HTML to the root name the site serves. Do not add `.qmd` files to `docs/`
    outside `reports/` unless the page really must execute code at render time.
+7. A page that is computed from the site's data is not written by hand: add it
+   to `src/project_site/pages.py` (`SECTION_PAGES` for a section, or one of the
+   per-epic and per-Store writers) and commit a stub with its published path at
+   `docs/`, as the five data pages above do. Do not edit a generated page — a
+   render replaces it. A page holding a chart is written as a `{=html}` block,
+   not an inline SVG in a table cell: Pandoc drops an SVG's children there.
 
 ## Checking a change
 
