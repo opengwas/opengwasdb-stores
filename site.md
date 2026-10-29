@@ -74,7 +74,7 @@ Five pages are generated from the site's own data rather than written by hand:
 the [Overview](index.qmd), [Stores](stores.qmd), [Epics](epics.qmd),
 [Trends](trends.qmd) and [Changelog](changelog.qmd), with one page per epic and
 one per registered Store beside them
-([`src/project_site/pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/099d109a3e8d224e21e0a11994f45dc80893de46/src/project_site/pages.py), #391).
+([`src/project_site/pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/68ad3718bd9046c56faf95c30c5e0974e99f389c/src/project_site/pages.py), #391).
 
 - `pixi run site` and `site-publish` **collect the data themselves** before the
   render, into the render's own `_stage/_data`, from the `stores/` and

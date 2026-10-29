@@ -41,7 +41,7 @@ owner-authorized renumbering** is permitted when it is recorded end to end:
 The first case moved FinnGen from `OGS-00016` to `OGS-00017` so the MVP META
 observed-only Store could take `OGS-00016` ahead of it (owner decision
 2026-10-13, "reorder the IDs"); see
-[`docs/ogs-00016-to-ogs-00017-migration.md`](https://github.com/opengwas/opengwasdb-stores/blob/099d109a3e8d224e21e0a11994f45dc80893de46/ogs-00016-to-ogs-00017-migration.md).
+[`docs/ogs-00016-to-ogs-00017-migration.md`](https://github.com/opengwas/opengwasdb-stores/blob/68ad3718bd9046c56faf95c30c5e0974e99f389c/ogs-00016-to-ogs-00017-migration.md).
 The `migration` block is provenance for the renumbering only; `store_uri`
 remains a pure function of the identifier (ADR 0030).
 

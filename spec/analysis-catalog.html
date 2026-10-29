@@ -1694,7 +1694,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="analysis-catalog" class="level1">
 <h1>Analysis Catalog</h1>
-<p>The specification of <code>pixi run catalog</code> (#323, epic #313). The decisions behind it are <a href="../adr/0039-analysis-catalog.html">ADR 0039</a>; the words are <a href="https://github.com/opengwas/opengwasdb-stores/blob/099d109a3e8d224e21e0a11994f45dc80893de46/CONTEXT.md">CONTEXT.md</a>’s. This file is the contract: the command, the serving decisions, the tables, and the files a rebuild writes.</p>
+<p>The specification of <code>pixi run catalog</code> (#323, epic #313). The decisions behind it are <a href="../adr/0039-analysis-catalog.html">ADR 0039</a>; the words are <a href="https://github.com/opengwas/opengwasdb-stores/blob/68ad3718bd9046c56faf95c30c5e0974e99f389c/CONTEXT.md">CONTEXT.md</a>’s. This file is the contract: the command, the serving decisions, the tables, and the files a rebuild writes.</p>
 <p>The catalog is the package <code>src/analysis_catalog/</code>. It imports only <code>ogstores.bundle</code> and <code>ogstores.paths</code> from <code>ogstores</code>, and nothing in <code>ogstores</code> or <code>manifest_generation</code> imports it (<code>tests/packaging/test_boundary.py</code>). It reads Release Bundles and never opens a Store (ADR 0023).</p>
 <section id="the-command" class="level2">
 <h2 class="anchored" data-anchor-id="the-command">The command</h2>
