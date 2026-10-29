@@ -41,7 +41,28 @@ Verifies the central contracts of ADR 0022, ADR 0023, and ADR 0024:
    observed-only or two-id releases are not checked; an unforced rebuild of an
    amended release's build phase is still refused; and a forced run of a
    completed single-id release rebuilds both phases.
-15. Association Coverage is a build input (#341): a Ragged release is built and
+15. Moving a published release to another Artifact Root (#331):
+   `tools/relocate_store.py` leaves the release up to date at the new root,
+   with only its records' path fields moved and their mtimes kept, and its next
+   register passes; the same release moved by a plain rename is refused at
+   that register, as drift naming the old root.
+16. A Hybrid release completes its own Store too (#333): one entry-point run
+   builds and publishes the Observed-Only Hybrid Store, completes it, moving an
+   Overflow association into the Dense Component, passes the Observed-View
+   Check across both components and publishes the completed Store at its path,
+   its HM3 Indexed Variant Subset and overview built again on it;
+   a perturbed crossover fails the check, naming it, and the Observed-Only Store
+   stays published; and a published Observed-Only Hybrid release whose bundle
+   gains a `complete-hybrid` block runs only its completion phase.
+17. A Ragged release completes its own Store too (#336): one entry-point run
+   builds and publishes the Observed-Only Ragged Store from a GWAS-SSF source,
+   completes it, passes the Ragged Observed-View Check, given the LD panel
+   and ancestry the bundle completes against, and publishes the completed
+   Store at its path; a perturbed observed Z fails the check, naming it, and
+   the Observed-Only Store stays published; a published Observed-Only Ragged
+   release whose bundle gains a `complete-ragged` block runs only its
+   completion phase; and a forced run rebuilds and completes it in one run.
+18. Association Coverage is a build input (#341): a Ragged release is built and
     published at the coverage its `release.yaml` declares, which `plan()` puts
     into the build argv, `opengwasdb info` reports back from the Store, and the
     Validation Record records; a Ragged Store published before the flag existed
@@ -76,6 +97,7 @@ import threading
 import time
 import tomllib
 import unittest
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from unittest import mock
 from typing import Any
@@ -84,11 +106,20 @@ import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
-from ogstores import amendment, bundle, manifest, paths, register, release, resources, run
+from ogstores import (
+    amendment,
+    bundle,
+    manifest,
+    paths,
+    register,
+    release,
+    resources,
+    run,
+)
 from ogstores.plan import plan
 
-# The single-id completion gate the amendment scenario patches for a Ragged
-# release, which epic #232's #336 owns in production code.
+# The flag the planner adds to a Ragged build for its declared Association
+# Coverage (#341), which the pre-#341 amendment scenario reads.
 import ogstores.plan as plan_module
 
 # The completed child is asserted on through opengwasdb's published query
@@ -233,7 +264,7 @@ def create_signal_fixture_vcf(path: Path) -> Path:
     return path
 
 
-def create_signal_ld_panel(panel_root: Path) -> Path:
+def create_signal_ld_panel(panel_root: Path, *, indexes: Sequence[int] | None = None) -> Path:
     """Write the fixture LD reference panel over `SIGNAL_POSITIONS` (#303).
 
     One block in the flat layout opengwasdb's completion reads
@@ -245,23 +276,31 @@ def create_signal_ld_panel(panel_root: Path) -> Path:
     written -- an eigendecomposition-only panel is the production shape
     (opengwasdb ADR 0031).
 
+    `indexes` narrows the block to those positions of `SIGNAL_POSITIONS`
+    (#333); by default it covers all twelve.
+
     Copy of the recipe in opengwasdb's `tests/test_dense_completion.py`
     (`write_signal_panel`); those tests are not packaged, so it is copied rather
     than imported.
     """
     import numpy as np
 
+    covered = [
+        (position, alid)
+        for i, (position, alid) in enumerate(zip(SIGNAL_POSITIONS, SIGNAL_ALID, strict=True))
+        if indexes is None or i in indexes
+    ]
     block_dir = panel_root / "EUR" / "1"
     block_dir.mkdir(parents=True, exist_ok=True)
-    block = "100000-1200000"
+    block = f"{covered[0][0]}-{covered[-1][0]}"
 
     tsv_lines = ["CHR\tSNP\tOA\tEA\tEAF\tBP"]
-    for position, alid in zip(SIGNAL_POSITIONS, SIGNAL_ALID, strict=True):
+    for position, alid in covered:
         chrom, _pos, a1, a2 = alid.split(":")
         tsv_lines.append(f"{chrom}\t{alid}\t{a2}\t{a1}\t0.3\t{position}")
     (block_dir / f"{block}.tsv").write_text("\n".join(tsv_lines) + "\n", encoding="utf-8")
 
-    index = np.arange(len(SIGNAL_POSITIONS))
+    index = np.arange(len(covered))
     ld = 0.9 ** np.abs(index[:, None] - index[None, :])
     values, vectors = np.linalg.eigh(ld)
     np.savez_compressed(
@@ -349,7 +388,25 @@ def create_completed_child_bundle(
     return child_dir
 
 
-def amend_to_complete_own_store(stores_dir: Path, store_id: str, *, ld_panel: Path) -> Path:
+def revise_registry_analyses(stores_dir: Path, store_id: str) -> None:
+    """Change a trait's name in the bundle's analyses.tsv: the content a rebuild is scheduled for (#339).
+
+    A bundle file that is merely newer than the release's records no longer
+    schedules a rebuild, so a test of a forced or refused rebuild changes
+    what the bundle says, as a revised release does.
+    """
+    analyses_p = stores_dir / store_id / "analyses.tsv"
+    lines = analyses_p.read_text(encoding="utf-8").splitlines()
+    column = lines[0].split("\t").index("trait_name")
+    row = lines[1].split("\t")
+    row[column] += " (revised)"
+    lines[1] = "\t".join(row)
+    analyses_p.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def amend_to_complete_own_store(
+    stores_dir: Path, store_id: str, *, ld_panel: Path, command: str = "complete-dense"
+) -> Path:
     """Give an Observed-Only fixture bundle a `complete` block: one id, published twice (ADR 0037).
 
     The bundle keeps its `build` block and `post` and gains what a single-id
@@ -357,7 +414,8 @@ def amend_to_complete_own_store(stores_dir: Path, store_id: str, *, ld_panel: Pa
     and a `complete` block, with no `derived_from`. That is also the one
     amendment ADR 0037 allows an accepted bundle, so the same helper serves
     the later completion of a Store built earlier (#305). The `complete`
-    options are `create_completed_child_bundle`'s.
+    options are `create_completed_child_bundle`'s; `command` is the bundle's
+    layout's completion command (#333).
     """
     import yaml
 
@@ -365,7 +423,7 @@ def amend_to_complete_own_store(stores_dir: Path, store_id: str, *, ld_panel: Pa
     build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
     build_yaml["completion_state"] = "reference_completed"
     build_yaml["complete"] = {
-        "command": "complete-dense",
+        "command": command,
         "options": {"ld-panel": str(ld_panel), "ancestry": "EUR", "min-cor": 0.0},
     }
     build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
@@ -537,6 +595,34 @@ def run_release(
     )
 
 
+def declare_variant_list_resource(stores_dir: Path, resource_id: str, variant_list: Path) -> Path:
+    """Maintain `variant_list` as a Reference Resource of the repository that holds `stores_dir` (#333).
+
+    The entry point builds an Indexed Variant Subset only from a variant list
+    that a maintained resource of the registry's repository declares:
+    `resources/reference-resources/<resource_id>/resource.yaml` beside the
+    registry. A fixture registry's repository is its parent directory, so the
+    declaration goes there. Returns its path.
+    """
+    import hashlib
+
+    import yaml
+
+    content = variant_list.read_bytes()
+    declaration = {
+        "resource_id": resource_id,
+        "kind": "variant_list",
+        "genome_build": "GRCh38",
+        "location": str(variant_list),
+        "row_count": sum(1 for line in content.decode("utf-8").splitlines() if line.strip()),
+        "checksums": {"alid_sha256": hashlib.sha256(content).hexdigest(), "alid_bytes": len(content)},
+    }
+    declaration_p = stores_dir.parent / "resources" / "reference-resources" / resource_id / "resource.yaml"
+    declaration_p.parent.mkdir(parents=True)
+    declaration_p.write_text(yaml.safe_dump(declaration), encoding="utf-8")
+    return declaration_p
+
+
 class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
     """Verify ADR 0023 constraints statically on workflow/Snakefile."""
 
@@ -687,14 +773,59 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
                 )
 
 
+_DENSE_RELEASE: dict[str, Any] | None = None
+
+
+def dense_release_template() -> dict[str, Any]:
+    """The one fixture-scale Dense release this process builds, with a single snakemake target.
+
+    Returns `store_id`, the built `stores` and `artifacts` directories, the
+    snakemake `build_result`, and the `TemporaryDirectory` that holds them
+    (kept here so the template outlives every test that copies it). A test
+    that changes the release copies it first; the template is never written
+    again. The end-to-end tests and the relocation tests (#331) share it, so a
+    process that runs both builds it once.
+    """
+    global _DENSE_RELEASE
+    if _DENSE_RELEASE is not None:
+        return _DENSE_RELEASE
+
+    store_id = "OGS-00099"
+    temp_dir = tempfile.TemporaryDirectory()
+    root = Path(temp_dir.name)
+    stores = root / "stores"
+    stores.mkdir()
+    artifacts = root / "artifacts"
+    artifacts.mkdir()
+
+    create_dense_fixture_store(
+        stores,
+        store_id=store_id,
+        artifact_root=artifacts,
+        post_top_hits=True,
+        post_overview=True,
+        post_validate=True,
+    )
+    build_result = run_snakemake([store_id], registry_root=stores, artifact_root=artifacts)
+
+    _DENSE_RELEASE = {
+        "temp_dir": temp_dir,
+        "stores": stores,
+        "artifacts": artifacts,
+        "build_result": build_result,
+        "store_id": store_id,
+    }
+    return _DENSE_RELEASE
+
+
 class TestWorkflowEndToEndAndResumption(unittest.TestCase):
     """End-to-end execution, idempotency, and resumption over one fixture-scale Dense build.
 
     The workflow specification budgets *one* fixture-scale end-to-end run
     ("Fixture-scale end-to-end runs stay, as one smoke test"). That run happens
-    once here, in `setUpClass`, and the tests that need a completed Store copy
-    its result rather than rebuilding. Rebuilding per test cost 68s to assert
-    three different things about the same built Store.
+    once per process (`dense_release_template`), and the tests that need a
+    completed Store copy its result rather than rebuilding. Rebuilding per test
+    cost 68s to assert three different things about the same built Store.
 
     `test_interrupted_step_resumes_without_restarting` deliberately keeps its
     own partial build: it needs a Store interrupted mid-way, and deriving that
@@ -705,31 +836,11 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls) -> None:
-        """Build the one fixture-scale Store this class shares, with a single snakemake target."""
-        cls._class_tmp = tempfile.TemporaryDirectory()
-        root = Path(cls._class_tmp.name)
-        cls.template_stores = root / "stores"
-        cls.template_stores.mkdir()
-        cls.template_artifacts = root / "artifacts"
-        cls.template_artifacts.mkdir()
-
-        create_dense_fixture_store(
-            cls.template_stores,
-            store_id=cls.STORE_ID,
-            artifact_root=cls.template_artifacts,
-            post_top_hits=True,
-            post_overview=True,
-            post_validate=True,
-        )
-        cls.build_result = run_snakemake(
-            [cls.STORE_ID],
-            registry_root=cls.template_stores,
-            artifact_root=cls.template_artifacts,
-        )
-
-    @classmethod
-    def tearDownClass(cls) -> None:
-        cls._class_tmp.cleanup()
+        """Take the one fixture-scale Store this process builds."""
+        template = dense_release_template()
+        cls.template_stores = template["stores"]
+        cls.template_artifacts = template["artifacts"]
+        cls.build_result = template["build_result"]
 
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -873,8 +984,8 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
     def test_rebuilding_a_published_release_is_refused_before_any_job_writes(self) -> None:
         """A run that would rebuild a published release refuses before any job runs (#195).
 
-        A fresh checkout gives every bundle file a newer mtime than the records
-        beside its published Store, so Snakemake schedules the whole chain
+        A bundle revised after its Store was published (or one whose records
+        are older than its inputs) makes Snakemake schedule the whole chain
         again. Before #195 that run rebuilt into `.partial`, rewrote the
         release's `work/` and `records/`, and only then failed at publication
         with `StoreExistsError`: the Store survived, its evidence did not.
@@ -889,7 +1000,9 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
             return {str(p): (p.stat().st_mtime_ns, p.read_bytes()) for p in files}
 
         # Age the published release by a day, keeping its files' relative
-        # order, so the bundle is newer than its records as after a checkout.
+        # order, so the bundle is newer than its records, and revise the bundle
+        # as a changed release would: a newer file alone schedules nothing (#339).
+        revise_registry_analyses(self.stores_dir, store_id)
         day_ns = 86_400 * 10**9
         for p in store_dir.rglob("*"):
             if p.is_file():
@@ -916,7 +1029,11 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertFalse(paths.partial_store_path(store_id, root=self.artifact_root).exists())
 
     def age_published_release(self, store_id: str) -> None:
-        """Make the bundle newer than the published release's files, as a fresh checkout does."""
+        """Make the bundle newer than the published release's files and revise its analyses.tsv.
+
+        A newer bundle alone is a fresh checkout, which schedules nothing (#339).
+        """
+        revise_registry_analyses(self.stores_dir, store_id)
         day_ns = 86_400 * 10**9
         for p in paths.store_dir(store_id, root=self.artifact_root).rglob("*"):
             if p.is_file():
@@ -932,6 +1049,144 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
 
     def records_of(self, records_dir: Path) -> dict[str, tuple[int, bytes]]:
         return {p.name: (p.stat().st_mtime_ns, p.read_bytes()) for p in sorted(records_dir.iterdir())}
+
+    def rewrite_registry_analyses(self, store_id: str, *, extra_row: bool = False) -> Path:
+        """Write the bundle's analyses.tsv again, as a fresh checkout does: a newer mtime, the same bytes unless `extra_row`."""
+        analyses_p = self.stores_dir / store_id / "analyses.tsv"
+        text = analyses_p.read_text(encoding="utf-8")
+        if extra_row:
+            first_row = text.splitlines()[1].split("\t")
+            first_row[0] = "extra-analysis"
+            text += "\t".join(first_row) + "\n"
+        later = time.time_ns()
+        analyses_p.write_text(text, encoding="utf-8")
+        os.utime(analyses_p, ns=(later, later))
+        return analyses_p
+
+    def test_a_registry_file_rewritten_with_the_same_content_schedules_nothing(self) -> None:
+        """A newer analyses.tsv with the content the work/ copy came from is no change (#339)."""
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        self.rewrite_registry_analyses(store_id)
+        records_dir = paths.records_dir(store_id, root=self.artifact_root)
+        before = self.records_of(records_dir)
+        work_before = self.records_of(paths.store_dir(store_id, root=self.artifact_root) / "work")
+
+        dry = run_release([store_id, "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertEqual(scheduled_targets(dry.stdout), [], dry.stdout)
+
+        res = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertEqual(self.records_of(records_dir), before)
+        self.assertEqual(
+            self.records_of(paths.store_dir(store_id, root=self.artifact_root) / "work"), work_before
+        )
+
+    def assert_scheduled_and_refused(self, store_id: str) -> None:
+        dry = run_release([store_id, "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        scheduled = scheduled_targets(dry.stdout)
+        self.assertIn("analyses.exclusions", scheduled, dry.stdout)
+        self.assertIn("build", scheduled, dry.stdout)
+        self.assertIn("would refuse", dry.stdout)
+        self.assertIn("already published", dry.stdout)
+        res = run_release([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("already published", res.stderr)
+        self.assertIn("Nothing was written", res.stderr)
+
+    def test_changed_content_with_an_older_mtime_still_schedules_the_build_and_is_refused(self) -> None:
+        """A content mismatch invalidates the job whatever the mtimes say (#339)."""
+        self.use_completed_build()
+        revise_registry_analyses(self.stores_dir, self.STORE_ID)
+        os.utime(self.stores_dir / self.STORE_ID / "analyses.tsv", ns=(10**9, 10**9))
+        self.assert_scheduled_and_refused(self.STORE_ID)
+
+    def test_a_corrupt_sidecar_with_older_mtimes_schedules_the_build_and_is_refused(self) -> None:
+        self.use_completed_build()
+        sidecar = paths.build_manifest_sidecar_path(self.STORE_ID, root=self.artifact_root)
+        written = sidecar.stat()
+        sidecar.write_text("{not json", encoding="utf-8")
+        os.utime(sidecar, ns=(written.st_atime_ns, written.st_mtime_ns))
+        self.assert_scheduled_and_refused(self.STORE_ID)
+
+    def test_identical_content_schedules_nothing_whatever_the_mtimes(self) -> None:
+        self.use_completed_build()
+        analyses_p = self.stores_dir / self.STORE_ID / "analyses.tsv"
+        for ns in (10**9, 4 * 10**18):
+            os.utime(analyses_p, ns=(ns, ns))
+            dry = run_release([self.STORE_ID, "--dry-run"], registry_root=self.stores_dir, artifact_root=self.artifact_root)
+            self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+            self.assertEqual(scheduled_targets(dry.stdout), [], dry.stdout)
+
+    def test_a_registry_file_with_changed_content_schedules_the_build_and_is_refused(self) -> None:
+        self.use_completed_build()
+        self.rewrite_registry_analyses(self.STORE_ID, extra_row=True)
+        self.assert_scheduled_and_refused(self.STORE_ID)
+
+    def test_a_forced_unregistered_id_is_left_to_the_snakefiles_unknown_id_guidance(self) -> None:
+        self.use_completed_build()
+        dry = run_release(
+            ["OGS-99999", "--dry-run"],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            config={"force": "1"},
+        )
+        self.assertNotIn("Traceback", dry.stderr)
+        self.assertIn("Unknown Store Release ID 'OGS-99999'", dry.stdout + dry.stderr)
+
+    def assert_forced_run_rebuilds(self, store_id: str) -> None:
+        """Dry run and real run of `force=1` both rebuild the published release and archive its Store (#339)."""
+        build_record = paths.record_path(store_id, "build", root=self.artifact_root)
+        old_start = json.loads(build_record.read_text(encoding="utf-8"))["start_time"]
+
+        dry = run_release(
+            [store_id, "--dry-run"],
+            registry_root=self.stores_dir,
+            artifact_root=self.artifact_root,
+            config={"force": "1"},
+        )
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertEqual(
+            scheduled_targets(dry.stdout),
+            ["analyses.exclusions", "build", "top-hits", "overview", "validate", "register", store_id],
+            dry.stdout,
+        )
+        self.assertIn("would snapshot the records", dry.stdout)
+
+        res = run_release(
+            [store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root, config={"force": "1"}
+        )
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        self.assertNotEqual(json.loads(build_record.read_text(encoding="utf-8"))["start_time"], old_start)
+        archives = list((paths.store_dir(store_id, root=self.artifact_root) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+
+    def test_a_forced_run_rebuilds_an_unchanged_release_from_the_same_checkout(self) -> None:
+        self.use_completed_build()
+        self.assert_forced_run_rebuilds(self.STORE_ID)
+
+    def test_a_forced_run_rebuilds_an_unchanged_release_from_a_fresh_registry_copy(self) -> None:
+        self.use_completed_build()
+        self.rewrite_registry_analyses(self.STORE_ID)
+        self.assert_forced_run_rebuilds(self.STORE_ID)
+
+    def test_a_forced_run_rebuilds_the_store_from_a_changed_registry_file(self) -> None:
+        store_id = self.STORE_ID
+        self.use_completed_build()
+        analyses_p = self.stores_dir / store_id / "analyses.tsv"
+        analyses_p.write_text(analyses_p.read_text(encoding="utf-8").replace("Test Trait", "Renamed Trait"), encoding="utf-8")
+
+        res = run_release(
+            [store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root, config={"force": "1"}
+        )
+
+        self.assertEqual(res.returncode, 0, res.stdout + res.stderr)
+        built_from = paths.build_manifest_path(store_id, root=self.artifact_root).read_text(encoding="utf-8")
+        self.assertIn("Renamed Trait", built_from)
+        archives = list((paths.store_dir(store_id, root=self.artifact_root) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
 
     def test_forced_rebuild_archives_the_old_release_and_publishes_the_new(self) -> None:
         """`--config force=1` replaces a named release; the old Store, records and record are archived (#195)."""
@@ -1156,6 +1411,200 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertEqual(res_dry.returncode, 0)
         scheduled = scheduled_targets(res_dry.stdout)
         self.assertEqual(set(scheduled), {"validate", "register", store_id})
+
+
+RELOCATE_STORE: Path = REPO_ROOT / "tools" / "relocate_store.py"
+
+# The record fields that name where a step ran, which a relocation moves (#331).
+RECORD_PATH_FIELDS: tuple[str, ...] = ("argv", "planned_argv", "inputs", "outputs", "record_path", "published_store")
+
+
+def relocate_store(store_id: str, old_root: Path, new_root: Path, *words: str) -> subprocess.CompletedProcess[str]:
+    """Run `tools/relocate_store.py` as an operator would."""
+    return subprocess.run(
+        [sys.executable, str(RELOCATE_STORE), store_id, "--from", str(old_root), "--to", str(new_root), *words],
+        cwd=REPO_ROOT, capture_output=True, text=True,
+    )
+
+
+def tree_state(root: Path) -> dict[str, tuple[int, bytes] | None]:
+    """Every path under `root`: a file's mtime and bytes, None for a directory."""
+    return {
+        str(p.relative_to(root)): None if p.is_dir() else (p.lstat().st_mtime_ns, p.read_bytes())
+        for p in sorted(root.rglob("*"))
+    }
+
+
+def strings_under(value: Any, directory: Path) -> int:
+    """How many strings in `value` are `directory` or a path under it."""
+    if isinstance(value, str):
+        return int(value == str(directory) or value.startswith(f"{directory}/"))
+    if isinstance(value, list):
+        return sum(strings_under(item, directory) for item in value)
+    return 0
+
+
+class TestWorkflowEndToEndRelocation(unittest.TestCase):
+    """A published release moved to another Artifact Root by `tools/relocate_store.py` (#331).
+
+    Each test takes the end-to-end tests' published release (`dense_release_template`)
+    into a root of its own, its records naming that root as if it had been
+    built there (`copy_snapshot`), and moves it to a second root. The tool's
+    other refusals, and an interrupted move resumed, are `tests/relocate-store`'s,
+    on synthetic releases.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = dense_release_template()
+        cls.store_id = cls.template["store_id"]
+
+    def setUp(self) -> None:
+        built = self.template["build_result"]
+        self.assertEqual(built.returncode, 0, f"the template release failed:\n{built.stdout}\n{built.stderr}")
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def take_release(self) -> None:
+        """The template release as if built in this test's directory, with an empty second root beside it."""
+        self.stores, self.old_root, self.new_root = self.release_built_in(self.td)
+        self.old_dir = paths.store_dir(self.store_id, root=self.old_root)
+        self.new_dir = paths.store_dir(self.store_id, root=self.new_root)
+
+    def release_built_in(self, into: Path) -> tuple[Path, Path, Path]:
+        """The template release as if built under `into`: its registry, its root, and an empty second root."""
+        stores, old_root = copy_snapshot(self.template, built=self.template, into=into / "built")
+        new_root = into / "published"
+        new_root.mkdir()
+        return stores, old_root, new_root
+
+    def next_register(self) -> dict[str, Any]:
+        """The build phase's next register at the new root: what the Snakefile's register job calls."""
+        return register.register_release(self.store_id, registry_root=self.stores, artifact_root=self.new_root)
+
+    def test_a_relocated_release_is_up_to_date_at_its_new_root(self) -> None:
+        """Only the records' path fields change; the release at the new root has nothing to do."""
+        import yaml
+
+        self.take_release()
+        records_before = {p.name: p.read_bytes() for p in sorted((self.old_dir / "records").glob("*.json"))}
+        mtimes_before = {
+            str(p.relative_to(self.old_dir)): p.stat().st_mtime_ns for p in self.old_dir.rglob("*") if p.is_file()
+        }
+
+        moved = relocate_store(self.store_id, self.old_root, self.new_root)
+
+        self.assertEqual(moved.returncode, 0, moved.stdout + moved.stderr)
+        self.assertFalse(self.old_dir.exists())
+        receipts = sorted((self.new_dir / "relocations").glob("*.json"))
+        self.assertEqual(len(receipts), 1, receipts)
+        receipt = json.loads(receipts[0].read_text(encoding="utf-8"))
+        self.assertEqual(receipt["status"], "complete")
+        self.assertEqual((receipt["old_root"], receipt["new_root"]), (str(self.old_root), str(self.new_root)))
+        self.assertEqual(
+            {
+                str(p.relative_to(self.new_dir)): p.stat().st_mtime_ns
+                for p in self.new_dir.rglob("*")
+                if p.is_file() and p.parent.name != "relocations"
+            },
+            mtimes_before,
+            "a moved file's mtime changed",
+        )
+        receipt_records = {entry["path"]: entry for entry in receipt["records"]}
+        self.assertEqual(sorted(receipt_records), [f"records/{name}" for name in records_before])
+        for name, before in records_before.items():
+            after = (self.new_dir / "records" / name).read_bytes()
+            record = json.loads(before)
+            # As `run` writes a record, with only the path fields moved: stdout,
+            # stderr and every other field are what the step wrote.
+            moved_record = {
+                field: moved_paths(value, {str(self.old_dir): str(self.new_dir)}) if field in RECORD_PATH_FIELDS else value
+                for field, value in record.items()
+            }
+            self.assertEqual(after.decode("utf-8"), run.record_text(moved_record), name)
+            for field in RECORD_PATH_FIELDS:
+                self.assertEqual(strings_under(moved_record[field], self.old_root), 0, f"{name}: {field}")
+            entry = receipt_records[f"records/{name}"]
+            self.assertEqual(entry["sha256_before"], hashlib.sha256(before).hexdigest(), name)
+            self.assertEqual(entry["sha256_after"], hashlib.sha256(after).hexdigest(), name)
+            self.assertEqual(
+                entry["replaced"], {field: strings_under(record[field], self.old_dir) for field in RECORD_PATH_FIELDS}, name
+            )
+        self.assertTrue(any(sum(entry["replaced"].values()) for entry in receipt["records"]))
+
+        rerun = run_release([self.store_id], registry_root=self.stores, artifact_root=self.new_root)
+        self.assertEqual(rerun.returncode, 0, rerun.stdout + rerun.stderr)
+        self.assertIn("nothing to be done", rerun.stdout)
+        self.assertEqual(
+            {str(p.relative_to(self.new_dir)): p.stat().st_mtime_ns for p in (self.new_dir / "records").glob("*.json")},
+            {f"records/{name}": mtimes_before[f"records/{name}"] for name in records_before},
+        )
+        registered = yaml.safe_load((self.stores / self.store_id / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(self.next_register()["status"], registered["status"])
+
+    def test_a_release_moved_by_plain_rename_drifts_at_its_next_register(self) -> None:
+        """Without the tool the release still looks up to date, and its next register refuses it, naming the old root."""
+        self.take_release()
+        os.rename(self.old_dir, self.new_dir)  # what `mv` does on one filesystem
+        rerun = run_release([self.store_id], registry_root=self.stores, artifact_root=self.new_root)
+        self.assertEqual(rerun.returncode, 0, rerun.stdout + rerun.stderr)
+        self.assertIn("nothing to be done", rerun.stdout)
+        before = tree_state(self.td)
+
+        with self.assertRaises(register.ArgvDriftError) as drift:
+            self.next_register()
+
+        self.assertIn(str(self.old_dir), str(drift.exception))
+        self.assertEqual(tree_state(self.td), before, "a refused register wrote something")
+
+    def test_each_refusal_moves_and_writes_nothing(self) -> None:
+        """A pending publication, a staged Store, an existing target, or records naming another root."""
+
+        def pending_publication(old_dir: Path, new_dir: Path) -> Path:
+            (old_dir / paths.PUBLICATION_MARKER).write_text("{}\n", encoding="utf-8")
+            return old_dir / paths.PUBLICATION_MARKER
+
+        def staged_store(old_dir: Path, new_dir: Path) -> Path:
+            (old_dir / "store.opengwasdb.partial").mkdir()
+            return old_dir / "store.opengwasdb.partial"
+
+        def existing_target(old_dir: Path, new_dir: Path) -> Path:
+            new_dir.mkdir()
+            return new_dir
+
+        def records_naming_another_root(old_dir: Path, new_dir: Path) -> Path:
+            # A copy whose records were never moved still names the root it was built in.
+            shutil.rmtree(old_dir)
+            shutil.copytree(paths.store_dir(self.store_id, root=self.template["artifacts"]), old_dir)
+            return self.template["artifacts"]
+
+        for case, arrange in enumerate((pending_publication, staged_store, existing_target, records_naming_another_root)):
+            with self.subTest(arrange.__name__):
+                _, old_root, new_root = self.release_built_in(self.td / f"case-{case}")
+                named = arrange(paths.store_dir(self.store_id, root=old_root), paths.store_dir(self.store_id, root=new_root))
+                before = tree_state(self.td)
+
+                refused = relocate_store(self.store_id, old_root, new_root)
+
+                self.assertEqual(refused.returncode, 2, refused.stdout + refused.stderr)
+                self.assertIn(str(named), refused.stderr)
+                self.assertIn("Nothing was moved", refused.stderr)
+                self.assertEqual(tree_state(self.td), before)
+
+    def test_a_dry_run_changes_nothing_and_names_what_would_change(self) -> None:
+        self.take_release()
+        before = tree_state(self.td)
+
+        dry = relocate_store(self.store_id, self.old_root, self.new_root, "--dry-run")
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertEqual(tree_state(self.td), before)
+        for record_p in (self.old_dir / "records").glob("*.json"):
+            self.assertIn(f"records/{record_p.name}", dry.stdout)
+        self.assertIn("nothing was moved", dry.stdout)
 
 
 _TWO_ID_COMPLETION: dict[str, Any] | None = None
@@ -1473,6 +1922,166 @@ def prepare_single_id_signal_release(root: Path, store_id: str) -> tuple[Path, P
     return stores, artifacts
 
 
+# The Hybrid signal fixture (#333). Its variant reference leaves out the last
+# two signal positions, so the Observed-Only Store holds their associations in
+# its Overflow, and the LD panel covers every position but the last. Completion
+# then adds the eleventh position to the Dense axis and moves its Overflow
+# association there, as an observed cell: one crossover. The twelfth stays in
+# the Overflow.
+HYBRID_OFF_REFERENCE_INDEXES: tuple[int, ...] = (10, 11)
+HYBRID_PANEL_INDEXES: tuple[int, ...] = tuple(range(11))
+# Its HM3-style variant list: five positions of the Observed-Only Dense
+# Component, the held-out one among them, and one ALID no Store holds, which
+# `build-indexed-subset` counts as absent. None is on the Overflow axis, which
+# that command refuses for a Hybrid Store.
+HYBRID_SUBSET_INDEXES: tuple[int, ...] = (0, 2, 4, 6, 8)
+HYBRID_SUBSET_ALIDS: tuple[str, ...] = (*(SIGNAL_ALID[i] for i in HYBRID_SUBSET_INDEXES), "1:5000000:A:G")
+
+def prepare_hybrid_single_id_signal_release(root: Path, store_id: str) -> tuple[Path, Path]:
+    """`prepare_single_id_signal_release`'s release as a Hybrid one (#333).
+
+    The same VCF and bundle, built by `build-hybrid` against a plain ALID
+    variant reference without `HYBRID_OFF_REFERENCE_INDEXES`, and completed by
+    `complete-hybrid` against an LD panel over `HYBRID_PANEL_INDEXES`.
+    """
+    import yaml
+
+    stores, artifacts = root / "stores", root / "artifacts"
+    stores.mkdir()
+    artifacts.mkdir()
+    create_dense_fixture_store(
+        stores,
+        store_id=store_id,
+        artifact_root=artifacts,
+        vcf_path=create_signal_fixture_vcf(root / "signal.vcf.gz"),
+        post_top_hits=False,
+        post_overview=False,
+    )
+    reference = root / "variant-reference.txt"
+    reference.write_text(
+        "".join(f"{alid}\n" for i, alid in enumerate(SIGNAL_ALID) if i not in HYBRID_OFF_REFERENCE_INDEXES),
+        encoding="utf-8",
+    )
+    build_yaml_p = stores / store_id / "build.yaml"
+    build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
+    build_yaml["layout"] = "hybrid"
+    build_yaml["build"]["command"] = "build-hybrid"
+    build_yaml["build"]["options"]["variant-reference"] = str(reference)
+    build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
+    amend_to_complete_own_store(
+        stores,
+        store_id,
+        ld_panel=create_signal_ld_panel(root / "ld-panel", indexes=HYBRID_PANEL_INDEXES),
+        command="complete-hybrid",
+    )
+    return stores, artifacts
+
+
+def prepare_hybrid_subset_signal_release(root: Path, store_id: str) -> tuple[Path, Path]:
+    """`prepare_hybrid_single_id_signal_release`'s release with OGS-00011's post steps (#333).
+
+    It regenerates its overview and builds an `hm3` Indexed Variant Subset in
+    both phases, from `HYBRID_SUBSET_ALIDS`, which the fixture maintains as a
+    Reference Resource of its registry's repository
+    (`declare_variant_list_resource`).
+    """
+    import yaml
+
+    stores, artifacts = prepare_hybrid_single_id_signal_release(root, store_id)
+    variant_list = root / "hm3.alid.txt"
+    variant_list.write_text("".join(f"{alid}\n" for alid in HYBRID_SUBSET_ALIDS), encoding="utf-8")
+    declare_variant_list_resource(stores, "fixture-hm3", variant_list)
+    build_yaml_p = stores / store_id / "build.yaml"
+    build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
+    build_yaml["post"]["overview"] = True
+    build_yaml["indexed_subsets"] = [
+        {
+            "name": "hm3",
+            "resource_id": "fixture-hm3",
+            "variant_list": str(variant_list),
+            "reference_assembly": "GRCh38",
+        }
+    ]
+    build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
+    return stores, artifacts
+
+
+# The Ragged signal fixture (#336). The signal profile as one GWAS-SSF file,
+# with an allele frequency at every position but this one.
+RAGGED_NO_EAF_INDEX: int = 11
+
+
+def create_signal_fixture_ssf(path: Path) -> Path:
+    """The signal profile as one filtered GWAS-SSF file, for `build-ragged-ssf` (#336).
+
+    The same eleven positions as `create_signal_fixture_vcf`, the held-out one
+    left out, with `beta = z * SE`. `effect_allele` is the canonical `a1 = A`,
+    so no z is negated (opengwasdb ADR 0036) and the frequency is the one the
+    panel's `EA` names.
+
+    The position at `RAGGED_NO_EAF_INDEX` reports no frequency, which keeps
+    SE `float16`: opengwasdb stores SE as `int8_residual`, predicted from
+    EAF, only when every association with an SE has an EAF. `complete-ragged`
+    refits and re-quantises a residual-coded SE, which on real data moves
+    observed SE slightly, and the Observed-View Check compares observed SE
+    exactly (opengwas/opengwasdb#301). This fixture's constant SE comes
+    through the refit unchanged, so it would pass either way; `float16` keeps
+    the test from depending on that.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    lines = [
+        "chromosome\tbase_pair_location\teffect_allele\tother_allele\tbeta\tstandard_error\t"
+        "effect_allele_frequency\tp_value\trsid\n"
+    ]
+    for i, (position, z) in enumerate(zip(SIGNAL_POSITIONS, SIGNAL_Z, strict=True)):
+        if i == SIGNAL_HELD_OUT_INDEX:
+            continue
+        eaf = "NA" if i == RAGGED_NO_EAF_INDEX else "0.3"
+        p = math.erfc(abs(z) / math.sqrt(2))
+        lines.append(f"1\t{position}\tA\tG\t{z * SIGNAL_SE:.6f}\t{SIGNAL_SE}\t{eaf}\t{p:.6g}\trs{i}\n")
+    with gzip.open(path, "wt", encoding="utf-8") as f:
+        f.write("".join(lines))
+    return path
+
+
+def prepare_ragged_single_id_signal_release(root: Path, store_id: str) -> tuple[Path, Path]:
+    """`prepare_single_id_signal_release`'s release as a Ragged one, shaped as OGS-00006's (#336).
+
+    `build-ragged-ssf` builds it from `create_signal_fixture_ssf`'s file, a
+    Top-Hit Index is built as a post step, and `complete-ragged` completes it
+    against `create_signal_ld_panel`'s one block. Its one Analysis has no Trait
+    position, as no OGS-00006 Analysis does, so completion takes the block it
+    already holds enough observations in as its one retained region. The
+    bundle is `create_dense_fixture_store`'s with its layout, build block,
+    post steps and membership table replaced; the VCF it names is never
+    written.
+    """
+    import yaml
+
+    stores, artifacts = root / "stores", root / "artifacts"
+    stores.mkdir()
+    artifacts.mkdir()
+    create_dense_fixture_store(stores, store_id=store_id, artifact_root=artifacts, vcf_path=root / "unused.vcf.gz")
+    store_dir = stores / store_id
+    build_yaml_p = store_dir / "build.yaml"
+    build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
+    build_yaml["layout"] = "ragged"
+    build_yaml["build"] = {"command": "build-ragged-ssf", "options": {"stored-effect-scale": "sd"}}
+    build_yaml["post"] = {"top_hits": True, "overview": False, "validate": True}
+    build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
+    ssf = create_signal_fixture_ssf(root / "signal.tsv.gz")
+    (store_dir / "analyses.tsv").write_text(
+        "analysis_index\tanalysis_id\tsource_file\ttrait_name\tsample_size\tstored_effect_scale\t"
+        "assigned_ancestry\tancestry_assignment_method\n"
+        f"0\ttest_analysis_{store_id}\t{ssf}\tTest Trait\t10000\tsd\tEUR\tsource_fallback\n",
+        encoding="utf-8",
+    )
+    amend_to_complete_own_store(
+        stores, store_id, ld_panel=create_signal_ld_panel(root / "ld-panel"), command="complete-ragged"
+    )
+    return stores, artifacts
+
+
 def observed_view(store_p: Path, analysis_id: str) -> dict[str, tuple[float, float, float, str]]:
     """`observed_only=True` associations of one Analysis by ALID: decoded z, se, eaf and status."""
     q = query_store(store_p)
@@ -1509,50 +2118,44 @@ def kill_release_run(proc: subprocess.Popen, pause: Path) -> None:
     proc.wait()
 
 
-def single_id_completion_template() -> dict[str, Any]:
-    """The one single-id completed release this process builds, built on first use (#304).
+def run_single_id_completion(
+    store_id: str,
+    prepare: Callable[[Path, str], tuple[Path, Path]],
+    *,
+    copy_complete_started: bool = False,
+) -> dict[str, Any]:
+    """One fresh entry-point run of a release that completes its own Store, paused twice (#304, #333).
 
-    One fresh entry-point run builds, publishes and completes it, and a
-    second run in place follows at once. Returns `store_id`, `analysis_id`,
-    the built `stores` and `artifacts`, both runs' results, the record
-    mtimes the second run found (`records_before_rerun`), and the
-    `TemporaryDirectory` that holds them. A test that may write copies
-    `stores` and `artifacts`; the template is never written again.
+    `prepare(root, store_id)` writes the release under a new
+    `TemporaryDirectory` and returns its `stores` and `artifacts`, so the
+    bundle it writes decides the layout and its completion command. Returns
+    `store_id`, `analysis_id`, the built `stores` and `artifacts`, the run's
+    result (`release_result`) and the `TemporaryDirectory` that holds them.
 
-    The first run is paused twice. As `complete` starts, once the build
-    phase has published the Observed-Only Store, its observed view is read
+    The run is paused twice. As `complete` starts, once the build phase has
+    published the Observed-Only Store, its observed view is read
     (`observed_before`, from `observed_view`), because the swap deletes that
-    Store (#309). As the Observed-View Check starts, with the completed Store
-    staged and validated, both trees are copied, mtimes kept, to
-    `check_started` (`stores`, `artifacts`), for a test that tampers with the
-    staged Store before its own run checks it. Each is None when the run
-    never got there. The snapshot is never written either: a test copies it.
-    Should anything raise meanwhile, the run is killed and reaped
-    (`kill_release_run`), its pause file removed, and the error raised.
-
-    The rerun is part of the template, not of a test, because only a rerun in
-    place reads the Snakemake metadata the build recorded, and a test that
-    ran it against the shared template could write to it. The same shape as
-    `two_id_completion_template`: `top_hits` and `overview` are off, and
-    `validate` and publication stay on in both phases. Later completion
-    tickets (#305-#309) need this shape too, and copy it.
+    Store (#309); with `copy_complete_started`, both trees are also copied,
+    mtimes kept, to `complete_started` (`stores`, `artifacts`), for a test
+    that completes a published Store. As the Observed-View Check starts, with
+    the completed Store staged and validated, both trees are copied to
+    `check_started`, for a test that tampers with the staged Store before its
+    own run checks it. Each is None when the run never got there or was not
+    asked to copy. No snapshot is written again:
+    a test copies it. Should anything raise meanwhile, the run is killed and
+    reaped (`kill_release_run`), its pause file removed, and the error raised.
     """
-    global _SINGLE_ID_COMPLETION
-    if _SINGLE_ID_COMPLETION is not None:
-        return _SINGLE_ID_COMPLETION
-
-    store_id = "OGS-00110"
     analysis_id = f"test_analysis_{store_id}"
     temp_dir = tempfile.TemporaryDirectory()
     root = Path(temp_dir.name)
-    stores, artifacts = prepare_single_id_signal_release(root, store_id)
+    stores, artifacts = prepare(root, store_id)
 
     argv = release_argv([store_id], registry_root=stores, artifact_root=artifacts)
     pause = root / "paused"
     pause_points = ("complete-started", "completion-observed-view-check-started")
     env = {**os.environ, run.PAUSE_AT_ENV: ",".join(pause_points), run.PAUSE_FILE_ENV: str(pause)}
     observed_before = None
-    check_started = None
+    snapshots: dict[str, dict[str, Path]] = {}
     with (root / "release.out").open("w+") as out, (root / "release.err").open("w+") as err:
         proc = subprocess.Popen(argv, cwd=REPO_ROOT, stdout=out, stderr=err, env=env, start_new_session=True)
         try:
@@ -1564,10 +2167,10 @@ def single_id_completion_template() -> dict[str, Any]:
                     break
                 if point == "complete-started":
                     observed_before = observed_view(paths.store_path(store_id, root=artifacts), analysis_id)
-                else:
-                    check_started = {tree: root / "check-started" / tree for tree in ("stores", "artifacts")}
-                    shutil.copytree(stores, check_started["stores"])
-                    shutil.copytree(artifacts, check_started["artifacts"])
+                if point != "complete-started" or copy_complete_started:
+                    snapshots[point] = {tree: root / point / tree for tree in ("stores", "artifacts")}
+                    shutil.copytree(stores, snapshots[point]["stores"])
+                    shutil.copytree(artifacts, snapshots[point]["artifacts"])
                 pause.unlink()
             if proc.poll() is None and time.monotonic() >= deadline:
                 kill_release_run(proc, pause)
@@ -1582,24 +2185,89 @@ def single_id_completion_template() -> dict[str, Any]:
         out.seek(0)
         err.seek(0)
         release_result = subprocess.CompletedProcess(argv, returncode, out.read(), err.read())
+    return {
+        "temp_dir": temp_dir,
+        "stores": stores,
+        "artifacts": artifacts,
+        "release_result": release_result,
+        "observed_before": observed_before,
+        "complete_started": snapshots.get("complete-started"),
+        "check_started": snapshots.get("completion-observed-view-check-started"),
+        "store_id": store_id,
+        "analysis_id": analysis_id,
+    }
+
+
+def single_id_completion_template() -> dict[str, Any]:
+    """The one single-id completed Dense release this process builds, built on first use (#304).
+
+    `run_single_id_completion` builds, publishes and completes it from
+    `prepare_single_id_signal_release`, and a second run in place follows at
+    once. Adds that run's result (`rerun_result`) and the record mtimes it
+    found (`records_before_rerun`). A test that may write copies `stores` and
+    `artifacts`; the template is never written again.
+
+    The rerun is part of the template, not of a test, because only a rerun in
+    place reads the Snakemake metadata the build recorded, and a test that
+    ran it against the shared template could write to it. The same shape as
+    `two_id_completion_template`: `top_hits` and `overview` are off, and
+    `validate` and publication stay on in both phases. Later completion
+    tickets (#305-#309) need this shape too, and copy it.
+    """
+    global _SINGLE_ID_COMPLETION
+    if _SINGLE_ID_COMPLETION is not None:
+        return _SINGLE_ID_COMPLETION
+
+    built = run_single_id_completion("OGS-00110", prepare_single_id_signal_release)
+    store_id, stores, artifacts = built["store_id"], built["stores"], built["artifacts"]
     records_before_rerun = {
         p: p.stat().st_mtime_ns for p in paths.records_dir(store_id, root=artifacts).glob("*.json")
     }
     rerun_result = run_release([store_id], registry_root=stores, artifact_root=artifacts)
 
-    _SINGLE_ID_COMPLETION = {
-        "temp_dir": temp_dir,
-        "stores": stores,
-        "artifacts": artifacts,
-        "release_result": release_result,
-        "rerun_result": rerun_result,
-        "records_before_rerun": records_before_rerun,
-        "observed_before": observed_before,
-        "check_started": check_started,
-        "store_id": store_id,
-        "analysis_id": analysis_id,
-    }
+    _SINGLE_ID_COMPLETION = {**built, "rerun_result": rerun_result, "records_before_rerun": records_before_rerun}
     return _SINGLE_ID_COMPLETION
+
+
+_HYBRID_SINGLE_ID_COMPLETION: dict[str, Any] | None = None
+
+
+def hybrid_single_id_completion_template() -> dict[str, Any]:
+    """The one single-id completed Hybrid release this process builds, built on first use (#333).
+
+    `run_single_id_completion` from `prepare_hybrid_single_id_signal_release`,
+    copying both trees as `complete` starts, with no rerun: what a rerun shows
+    does not depend on the layout, and `single_id_completion_template` shows
+    it. A test that may write copies a tree; the template is never written
+    again. Its post steps are validation only; the overview and an Indexed
+    Variant Subset cost every test that builds it some 20 s, so one class
+    builds a release of its own with them (`prepare_hybrid_subset_signal_release`).
+    """
+    global _HYBRID_SINGLE_ID_COMPLETION
+    if _HYBRID_SINGLE_ID_COMPLETION is None:
+        _HYBRID_SINGLE_ID_COMPLETION = run_single_id_completion(
+            "OGS-00130", prepare_hybrid_single_id_signal_release, copy_complete_started=True
+        )
+    return _HYBRID_SINGLE_ID_COMPLETION
+
+
+_RAGGED_SINGLE_ID_COMPLETION: dict[str, Any] | None = None
+
+
+def ragged_single_id_completion_template() -> dict[str, Any]:
+    """The one single-id completed Ragged release this process builds, built on first use (#336).
+
+    `run_single_id_completion` from `prepare_ragged_single_id_signal_release`,
+    copying both trees as `complete` starts, with no rerun, as
+    `hybrid_single_id_completion_template` does. A test that may write copies
+    a tree; the template is never written again.
+    """
+    global _RAGGED_SINGLE_ID_COMPLETION
+    if _RAGGED_SINGLE_ID_COMPLETION is None:
+        _RAGGED_SINGLE_ID_COMPLETION = run_single_id_completion(
+            "OGS-00140", prepare_ragged_single_id_signal_release, copy_complete_started=True
+        )
+    return _RAGGED_SINGLE_ID_COMPLETION
 
 
 def copy_snapshot(snapshot: dict[str, Path], *, built: dict[str, Any], into: Path) -> tuple[Path, Path]:
@@ -2256,12 +2924,31 @@ class TestWorkflowCompletingAStoreBuiltBefore304(PublishedReleaseCopies):
         replaced = yaml.safe_load((archives[0] / "validation.yaml").read_text(encoding="utf-8"))
         self.assertEqual(replaced["observed"]["n_variants"], len(SIGNAL_POSITIONS) - 1, "the Observed-Only Store's record")
 
-    def test_an_unforced_run_rebuilding_its_build_phase_is_still_refused_unchanged(self) -> None:
-        """Only completion-phase jobs are let through: a fresh checkout reschedules the build phase too (#195)."""
+    def test_bundle_files_all_rewritten_later_still_plan_only_the_completion_phase(self) -> None:
+        """A fresh checkout rewrites every bundle file; the identical analyses.tsv is no new membership (#339)."""
         stores, artifacts, store_id = self.observed_only_copy()
         amend_to_complete_own_store(stores, store_id, ld_panel=self.td / "ld-panel")
+        later = max(p.stat().st_mtime_ns for p in paths.store_dir(store_id, root=artifacts).rglob("*")) + 10**9
+        for name in ("release.yaml", "build.yaml", "analyses.tsv", "validation.yaml"):
+            if (stores / store_id / name).is_file():
+                os.utime(stores / store_id / name, ns=(later, later))
+
+        dry = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        records = [t for t in scheduled_targets(dry.stdout) if t != store_id]
+        self.assertEqual(records, self.COMPLETION_RECORDS)
+        self.assertNotIn("would refuse", dry.stdout)
+
+    def test_an_unforced_run_rebuilding_its_build_phase_is_still_refused_unchanged(self) -> None:
+        """Only completion-phase jobs are let through: a rescheduled build phase is still refused (#195)."""
+        stores, artifacts, store_id = self.observed_only_copy()
+        amend_to_complete_own_store(stores, store_id, ld_panel=self.td / "ld-panel")
+        # The records are older than the manifest the build reads, as after an
+        # interrupted build phase: unchanged membership, so only the published
+        # guard stands between this run and a rebuild.
         day_ns = 86_400 * 10**9
-        for p in paths.store_dir(store_id, root=artifacts).rglob("*"):
+        for p in paths.records_dir(store_id, root=artifacts).rglob("*"):
             if p.is_file():
                 st = p.stat()
                 os.utime(p, ns=(st.st_atime_ns - day_ns, st.st_mtime_ns - day_ns))
@@ -2332,6 +3019,23 @@ class TestWorkflowTheOneAmendmentOfAnAcceptedBundle(PublishedReleaseCopies):
         except amendment.AmendmentError as exc:
             return str(exc)
         return ""
+
+    def test_a_stale_parent_manifest_is_rerun_when_only_the_child_is_named(self) -> None:
+        """The `derived_from` walk: the child's dry run schedules the parent's build_manifest, and the unforced run is refused (#339)."""
+        template = two_id_completion_template()
+        stores, artifacts = self.published_copy(template["stores"], template["artifacts"])
+        parent_analyses = stores / template["parent_id"] / "analyses.tsv"
+        revise_registry_analyses(stores, template["parent_id"])
+        os.utime(parent_analyses, ns=(10**9, 10**9))
+
+        dry = run_release([template["child_id"], "--dry-run"], registry_root=stores, artifact_root=artifacts)
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertIn("analyses.exclusions", scheduled_targets(dry.stdout), dry.stdout)
+        self.assertIn("already published", dry.stdout)
+        res = run_release([template["child_id"]], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(res.returncode, 1, res.stdout + res.stderr)
+        self.assertIn("already published", res.stderr)
 
     def test_observed_only_and_two_id_releases_are_not_checked_even_after_planner_drift(self) -> None:
         template = two_id_completion_template()
@@ -2485,10 +3189,19 @@ class TestWorkflowForcedRunOfACompletedSingleIdRelease(unittest.TestCase):
     #195 replaces any release, and the completion phase then completes the new
     Store and replaces it in turn. The completion's records are rebuilt with
     it, never left over from the completion they described.
+
+    A subclass runs the same test on another layout's release: its template
+    and the records its two phases write (#336).
     """
 
+    PHASE_RECORDS = TestWorkflowSingleIdReferenceCompletion.PHASE_RECORDS
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return single_id_completion_template()
+
     def setUp(self) -> None:
-        template = single_id_completion_template()
+        template = self.build_template()
         self.store_id: str = template["store_id"]
         self.temp_dir = tempfile.TemporaryDirectory()
         td = Path(self.temp_dir.name)
@@ -2501,7 +3214,8 @@ class TestWorkflowForcedRunOfACompletedSingleIdRelease(unittest.TestCase):
 
     def test_a_forced_run_rebuilds_both_phases_and_replaces_the_store(self) -> None:
         store_dir = paths.store_dir(self.store_id, root=self.artifacts)
-        # A fresh checkout: every bundle file newer than the release's files.
+        # A revised bundle, every file newer than the release's files.
+        revise_registry_analyses(self.stores, self.store_id)
         day_ns = 86_400 * 10**9
         for p in store_dir.rglob("*"):
             if p.is_file():
@@ -2517,7 +3231,7 @@ class TestWorkflowForcedRunOfACompletedSingleIdRelease(unittest.TestCase):
         )
 
         self.assertEqual(res.returncode, 0, f"forced run failed:\n{res.stdout}\n{res.stderr}")
-        for name in TestWorkflowSingleIdReferenceCompletion.PHASE_RECORDS:
+        for name in self.PHASE_RECORDS:
             record = json.loads((records / f"{name}.json").read_text(encoding="utf-8"))
             self.assertTrue(record["success"], name)
             self.assertNotEqual((records / f"{name}.json").read_bytes(), old_records[f"{name}.json"], f"{name} was not rebuilt")
@@ -2558,14 +3272,37 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
     opengwasdb's plane `patch` API. The check then fails, `completion-register`
     never runs, and the Observed-Only Store the build phase published is
     exactly as it was.
+
+    A subclass runs the same test on another layout's release: its template,
+    the cell it perturbs (`tamper`), the failure that names, and the
+    Observed-Only Store's variant count (#333).
     """
 
     CHECK_STEP = "completion-observed-view-check"
+    FAILURE = "z_mismatch"
+    # The VCF's positions; the held-out one is in no Dense Store before completion.
+    OBSERVED_ONLY_N_VARIANTS = len(SIGNAL_POSITIONS) - 1
 
     @classmethod
     def setUpClass(cls) -> None:
-        cls.template = single_id_completion_template()
+        cls.template = cls.build_template()
         cls.STORE_ID: str = cls.template["store_id"]
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return single_id_completion_template()
+
+    def tamper(self, staged_p: Path) -> None:
+        """Perturb one observed Z of the staged completed Store."""
+        import numpy as np
+        from opengwasdb.encoding import DenseZPlane
+        from opengwasdb.store.open import open_store
+
+        found = query_store(staged_p).lookup([SIGNAL_ALID[0]], [f"test_analysis_{self.STORE_ID}"])
+        rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
+        opened = open_store(staged_p)
+        plane = DenseZPlane.open(opened.arrays(mode="r+"), opened.manifest.encoding)
+        plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
 
     @staticmethod
     def hash_tree(root: Path) -> dict[str, str]:
@@ -2578,10 +3315,7 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
         }
 
     def test_a_tampered_completed_store_is_refused_and_the_observed_only_store_survives(self) -> None:
-        import numpy as np
         import yaml
-        from opengwasdb.encoding import DenseZPlane
-        from opengwasdb.store.open import open_store
 
         self.assertIsNotNone(self.template["check_started"], "the template's run never reached its check")
         with tempfile.TemporaryDirectory() as temp:
@@ -2613,12 +3347,7 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
                 register_before = (paths.records_dir(self.STORE_ID, root=artifacts) / "register.json").read_bytes()
                 validation_before = (stores / self.STORE_ID / "validation.yaml").read_bytes()
 
-                # Perturb one observed Z of the staged completed Store.
-                found = query_store(staged_p).lookup([SIGNAL_ALID[0]], [f"test_analysis_{self.STORE_ID}"])
-                rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
-                opened = open_store(staged_p)
-                plane = DenseZPlane.open(opened.arrays(mode="r+"), opened.manifest.encoding)
-                plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
+                self.tamper(staged_p)
                 pause.unlink()
                 returncode = proc.wait(timeout=600)
 
@@ -2629,8 +3358,8 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
             verdict_p = paths.work_dir(self.STORE_ID, root=artifacts) / "observed-view-check.json"
             verdict = json.loads(verdict_p.read_text(encoding="utf-8"))
             self.assertIs(verdict["passed"], False)
-            self.assertIn("z_mismatch", verdict["failures"])
-            self.assertIn("z_mismatch", output)
+            self.assertIn(self.FAILURE, verdict["failures"])
+            self.assertIn(f"{self.FAILURE}=1", output)
             self.assertIn(str(verdict_p), output)
 
             # The check failed, so nothing registered and nothing was published.
@@ -2645,8 +3374,481 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
             self.assertFalse(paths.publication_marker(self.STORE_ID, root=artifacts).exists())
             self.assertEqual(
                 yaml.safe_load((stores / self.STORE_ID / "validation.yaml").read_text())["observed"]["n_variants"],
-                len(SIGNAL_POSITIONS) - 1,
+                self.OBSERVED_ONLY_N_VARIANTS,
             )
+
+
+class TestWorkflowSingleIdHybridFailingObservedViewCheck(TestWorkflowSingleIdFailingObservedViewCheck):
+    """A Hybrid completed Store that fails the Observed-View Check is not published either (#333, ADR 0037).
+
+    The release is `hybrid_single_id_completion_template`'s, and the cell
+    perturbed is its crossover: the Overflow association completion moved into
+    the Dense Component, which the Hybrid check compares with its source value.
+    """
+
+    FAILURE = "crossovers.z_mismatch"
+    # The shared axis: the variant reference's ten positions, the held-out one
+    # among them, and the two the Overflow holds.
+    OBSERVED_ONLY_N_VARIANTS = len(SIGNAL_POSITIONS)
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return hybrid_single_id_completion_template()
+
+    def tamper(self, staged_p: Path) -> None:
+        """Perturb the crossover's Z in the staged Store's Dense Component."""
+        import numpy as np
+        from opengwasdb.encoding import DenseZPlane
+        from opengwasdb.store.open import open_store
+
+        # The held-out position is on the variant reference, which the
+        # Observed-Only variant count counts on, and the crossover is observed.
+        self.assertNotIn(SIGNAL_HELD_OUT_INDEX, HYBRID_OFF_REFERENCE_INDEXES)
+        component = open_store(staged_p).dense_component()
+        (crossover,) = set(HYBRID_OFF_REFERENCE_INDEXES) & set(HYBRID_PANEL_INDEXES)
+        found = query_store(component.path).lookup([SIGNAL_ALID[crossover]], [f"test_analysis_{self.STORE_ID}"])
+        self.assertEqual(list(found["association_status"]), ["observed"])
+        rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
+        plane = DenseZPlane.open(component.arrays(mode="r+"), component.manifest.encoding)
+        plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
+
+
+class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
+    """A Hybrid release completes its own Store under its id, end to end through the entry point (#333, ADR 0037).
+
+    The release is `hybrid_single_id_completion_template`'s. Its Observed-Only
+    Store holds two associations in its Overflow, and completion moves one of
+    them into the Dense Component: a crossover. One run builds and publishes
+    the Observed-Only Store, completes it, passes the Observed-View Check
+    across both components, and publishes the completed Store at the same
+    path. `TestWorkflowSingleIdReferenceCompletion` shows the rest of the
+    single-id contract on a Dense release; this class asserts what a Hybrid
+    one adds. Every test only reads the template.
+    """
+
+    BUILD_PHASE_RECORDS = ["build", "validate", "register"]
+    COMPLETION_RECORDS = ["complete", "completion-validate", "completion-observed-view-check", "completion-register"]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = hybrid_single_id_completion_template()
+        cls.STORE_ID: str = cls.template["store_id"]
+        cls.artifacts: Path = cls.template["artifacts"]
+        cls.store_p: Path = paths.store_path(cls.STORE_ID, root=cls.artifacts)
+        cls.rec_dir: Path = paths.records_dir(cls.STORE_ID, root=cls.artifacts)
+
+    def archive(self) -> Path:
+        archives = sorted((paths.store_dir(self.STORE_ID, root=self.artifacts) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+        return archives[0]
+
+    def record(self, step: str) -> dict[str, Any]:
+        return json.loads((self.rec_dir / f"{step}.json").read_text(encoding="utf-8"))
+
+    def test_one_run_publishes_the_observed_only_store_then_the_completed_store_at_its_path(self) -> None:
+        res = self.template["release_result"]
+        self.assertEqual(res.returncode, 0, f"The entry point failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
+        for step in self.BUILD_PHASE_RECORDS + self.COMPLETION_RECORDS:
+            self.assertTrue(self.record(step).get("success"), step)
+        self.assertEqual(self.record("complete")["argv"][1], "complete-hybrid")
+        self.assertEqual(self.record("register")["published_store"], str(self.store_p))
+        self.assertIsNone(self.record("register")["replaced_archive"], "the build phase publishes first")
+        self.assertEqual(self.record("completion-register")["replaced_archive"], str(self.archive()))
+        for leftover in (
+            paths.partial_store_path(self.STORE_ID, root=self.artifacts),
+            paths.backup_store_path(self.STORE_ID, root=self.artifacts),
+            paths.publication_marker(self.STORE_ID, root=self.artifacts),
+        ):
+            self.assertFalse(leftover.exists(), leftover)
+
+    def test_the_completed_store_keeps_the_id_and_takes_its_own_release_id(self) -> None:
+        manifest_doc = json.loads((self.store_p / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            {key: manifest_doc[key] for key in ("primary_layout", "completion_state", "store_id", "release_id")},
+            {
+                "primary_layout": "hybrid",
+                "completion_state": "reference_completed",
+                "store_id": self.STORE_ID,
+                "release_id": f"{self.STORE_ID}-completed",
+            },
+        )
+
+    def test_the_check_compared_both_components_and_the_crossover_and_passed(self) -> None:
+        """Two Overflow associations, one of them on the panel: one crossover, one left in the Overflow."""
+        self.assertNotIn(SIGNAL_HELD_OUT_INDEX, HYBRID_OFF_REFERENCE_INDEXES, "both are observed in the VCF")
+        verdict = json.loads(self.record("completion-observed-view-check")["stdout"])
+        self.assertEqual(verdict["layout"], "hybrid")
+        self.assertIs(verdict["passed"], True)
+        self.assertEqual(verdict["failures"], [])
+        self.assertEqual(verdict["crossovers"]["n"], 1)
+        overflow = verdict["components"]["overflow"]
+        self.assertEqual((overflow["n_parent_associations"], overflow["n_child_associations"]), (2, 1))
+
+    def test_observed_only_returns_the_observed_only_stores_associations_unchanged(self) -> None:
+        """By ALID, across both components, z, se and eaf are those read before completion began.
+
+        The crossover's association moved from the Overflow to the Dense
+        Component and must come back unchanged and observed.
+        """
+        import numpy as np
+
+        before = self.template["observed_before"]
+        self.assertIsNotNone(before, "the template never read the Observed-Only Store")
+        after = observed_view(self.store_p, self.template["analysis_id"])
+        expected_alids = sorted(SIGNAL_ALID[i] for i in range(len(SIGNAL_POSITIONS)) if i != SIGNAL_HELD_OUT_INDEX)
+        self.assertEqual(sorted(before), expected_alids)
+        self.assertEqual(sorted(after), expected_alids)
+        for alid in expected_alids:
+            (z, se, eaf, status), (before_z, before_se, before_eaf, before_status) = after[alid], before[alid]
+            self.assertEqual((z, se), (before_z, before_se), alid)
+            self.assertTrue(eaf == before_eaf or (np.isnan(eaf) and np.isnan(before_eaf)), alid)
+            self.assertNotEqual(status, "imputed", alid)
+            self.assertNotEqual(before_status, "imputed", alid)
+
+    def test_the_replaced_store_is_deleted_and_its_records_are_archived(self) -> None:
+        import yaml
+
+        archive = self.archive()
+        self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "validation.yaml"])
+        self.assertEqual(
+            sorted(p.name for p in (archive / "records").iterdir()),
+            ["completion-observed-view-check.json", "register.json"],
+        )
+        archived_record = yaml.safe_load((archive / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(archived_record["observed"]["completion_state"], "observed_only")
+
+
+class TestWorkflowCompletedHybridStoreGetsItsSubsetAndOverview(unittest.TestCase):
+    """The completion phase builds an Indexed Variant Subset and the overview on a completed Hybrid Store (#333).
+
+    As OGS-00011's will. The release is `prepare_hybrid_subset_signal_release`'s,
+    built by this class alone: the shared Hybrid template leaves both post
+    steps out, since every process that builds it would pay for them.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.built = run_single_id_completion("OGS-00131", prepare_hybrid_subset_signal_release)
+        cls.addClassCleanup(cls.built["temp_dir"].cleanup)
+
+    def test_the_completion_phase_builds_the_subset_and_the_overview_on_the_completed_store(self) -> None:
+        """`hm3` holds the listed positions the Store holds, the held-out one now imputed."""
+        res = self.built["release_result"]
+        self.assertEqual(res.returncode, 0, f"The entry point failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
+        store_id, artifacts = self.built["store_id"], self.built["artifacts"]
+        rec_dir = paths.records_dir(store_id, root=artifacts)
+        staged = str(paths.partial_store_path(store_id, root=artifacts))
+        for step in ("indexed-subset-hm3", "overview", "completion-indexed-subset-hm3", "completion-overview"):
+            record = json.loads((rec_dir / f"{step}.json").read_text(encoding="utf-8"))
+            self.assertTrue(record["success"], step)
+            self.assertEqual(record["argv"][2], staged, step)
+        store_p = paths.store_path(store_id, root=artifacts)
+        self.assertEqual(json.loads((store_p / "manifest.json").read_text())["completion_state"], "reference_completed")
+        q = query_store(store_p)
+        try:
+            rows = q.analysis(self.built["analysis_id"], indexed_subset="hm3")
+            table = q.variants_table()
+        finally:
+            q.close()
+        self.assertEqual(
+            {
+                table[int(index)]["alid"]: str(status)
+                for index, status in zip(rows["variant_index"], rows["association_status"], strict=True)
+            },
+            {
+                SIGNAL_ALID[i]: "imputed" if i == SIGNAL_HELD_OUT_INDEX else "observed"
+                for i in HYBRID_SUBSET_INDEXES
+            },
+        )
+        self.assertTrue((store_p / "overview.html").is_file())
+
+
+class TestWorkflowCompletingAPublishedHybridStore(PublishedReleaseCopies):
+    """A published Observed-Only Hybrid Store is completed later under its id, with no rebuild (#333, #305).
+
+    The release is a copy of `hybrid_single_id_completion_template` as its
+    run stood when `complete` started (`complete_started`, through
+    `copy_snapshot`): the build phase had published the Observed-Only Store
+    and nothing of the completion phase had run. That build phase is what the
+    bundle plans without its `complete` block (`tests/plan`), so with the
+    block taken out the copy is an accepted, published Observed-Only release
+    with nothing left to do. The bundle then gains a `complete-hybrid` block,
+    the one amendment ADR 0037 allows, and an unforced run completes the
+    Store. `TestWorkflowCompletingAStoreBuiltBefore304` shows the same for a
+    Dense Store the workflow built before #304. A subclass runs the same test
+    on another layout's release: its template, layout and completion command
+    (#336).
+    """
+
+    LAYOUT = "hybrid"
+    COMMAND = "complete-hybrid"
+    COMPLETION_RECORDS = TestWorkflowSingleIdHybridReferenceCompletion.COMPLETION_RECORDS
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return hybrid_single_id_completion_template()
+
+    def test_the_amended_bundle_runs_only_the_completion_phase(self) -> None:
+        import yaml
+
+        template = self.build_template()
+        store_id = template["store_id"]
+        self.assertIsNotNone(template["complete_started"], "the template's run never reached `complete`")
+        stores, artifacts = copy_snapshot(template["complete_started"], built=template, into=self.td)
+        build_yaml_p = stores / store_id / "build.yaml"
+        declared = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
+        observed_only = {key: value for key, value in declared.items() if key != "complete"}
+        build_yaml_p.write_text(yaml.safe_dump({**observed_only, "completion_state": "observed_only"}), encoding="utf-8")
+
+        published = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+        self.assertEqual(published.returncode, 0, published.stdout + published.stderr)
+        self.assertEqual([t for t in scheduled_targets(published.stdout) if t != store_id], [])
+
+        amend_to_complete_own_store(
+            stores, store_id, ld_panel=Path(declared["complete"]["options"]["ld-panel"]), command=self.COMMAND
+        )
+        store_dir = paths.store_dir(store_id, root=artifacts)
+        build_phase_before = {
+            p: (p.stat().st_mtime_ns, p.read_bytes())
+            for directory in ("records", "work") for p in sorted((store_dir / directory).iterdir())
+        }
+        dry = run_release([store_id, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+        res = run_release([store_id], registry_root=stores, artifact_root=artifacts)
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        self.assertEqual([t for t in scheduled_targets(dry.stdout) if t != store_id], self.COMPLETION_RECORDS)
+        self.assertNotIn("would refuse", dry.stdout)
+        self.assertEqual(res.returncode, 0, f"the completion failed:\n{res.stdout}\n{res.stderr}")
+        for p, (mtime, content) in build_phase_before.items():
+            self.assertEqual((p.stat().st_mtime_ns, p.read_bytes()), (mtime, content), f"{p} was rewritten")
+        rec_dir = paths.records_dir(store_id, root=artifacts)
+        for step in self.COMPLETION_RECORDS:
+            self.assertTrue(json.loads((rec_dir / f"{step}.json").read_text(encoding="utf-8"))["success"], step)
+        manifest_doc = json.loads((paths.store_path(store_id, root=artifacts) / "manifest.json").read_text())
+        self.assertEqual(
+            (manifest_doc["primary_layout"], manifest_doc["completion_state"]), (self.LAYOUT, "reference_completed")
+        )
+
+
+class TestWorkflowSingleIdRaggedReferenceCompletion(unittest.TestCase):
+    """A Ragged release completes its own Store under its id, end to end through the entry point (#336, ADR 0037).
+
+    The release is `ragged_single_id_completion_template`'s, shaped as
+    OGS-00006's: a GWAS-SSF source, a Top-Hit Index built as a post step, and
+    an Analysis with no Trait position. One run builds and publishes the
+    Observed-Only Store, completes it against the panel's one block, passes
+    the Ragged Observed-View Check, which rebuilds that block from the panel
+    as the Analysis's retained region, and publishes the completed Store at
+    the same path. `TestWorkflowSingleIdReferenceCompletion` shows the rest of
+    the single-id contract on a Dense release; this class asserts what a
+    Ragged one changes. Every test only reads the template.
+    """
+
+    BUILD_PHASE_RECORDS = ["build", "top-hits", "validate", "register"]
+    COMPLETION_RECORDS = ["complete", "completion-validate", "completion-observed-view-check", "completion-register"]
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.template = ragged_single_id_completion_template()
+        cls.STORE_ID: str = cls.template["store_id"]
+        cls.artifacts: Path = cls.template["artifacts"]
+        cls.store_p: Path = paths.store_path(cls.STORE_ID, root=cls.artifacts)
+        cls.rec_dir: Path = paths.records_dir(cls.STORE_ID, root=cls.artifacts)
+
+    def archive(self) -> Path:
+        archives = sorted((paths.store_dir(self.STORE_ID, root=self.artifacts) / "replaced").iterdir())
+        self.assertEqual(len(archives), 1, archives)
+        return archives[0]
+
+    def record(self, step: str) -> dict[str, Any]:
+        return json.loads((self.rec_dir / f"{step}.json").read_text(encoding="utf-8"))
+
+    def test_one_run_publishes_the_observed_only_store_then_the_completed_store_under_its_id(self) -> None:
+        """`complete-ragged` builds the Top-Hit Index inline, so the completion phase has no step for it."""
+        import yaml
+
+        res = self.template["release_result"]
+        self.assertEqual(res.returncode, 0, f"The entry point failed:\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}")
+        self.assertEqual(
+            sorted(p.stem for p in self.rec_dir.glob("*.json")), sorted(self.BUILD_PHASE_RECORDS + self.COMPLETION_RECORDS)
+        )
+        for step in self.BUILD_PHASE_RECORDS + self.COMPLETION_RECORDS:
+            self.assertTrue(self.record(step).get("success"), step)
+        self.assertEqual(self.record("complete")["argv"][1], "complete-ragged")
+        self.assertEqual(self.record("register")["published_store"], str(self.store_p))
+        self.assertIsNone(self.record("register")["replaced_archive"], "the build phase publishes first")
+        self.assertEqual(self.record("completion-register")["replaced_archive"], str(self.archive()))
+        for leftover in (
+            paths.partial_store_path(self.STORE_ID, root=self.artifacts),
+            paths.backup_store_path(self.STORE_ID, root=self.artifacts),
+            paths.publication_marker(self.STORE_ID, root=self.artifacts),
+        ):
+            self.assertFalse(leftover.exists(), leftover)
+
+        manifest_doc = json.loads((self.store_p / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            {key: manifest_doc[key] for key in ("primary_layout", "completion_state", "store_id", "release_id")},
+            {
+                "primary_layout": "ragged",
+                "completion_state": "reference_completed",
+                "store_id": self.STORE_ID,
+                "release_id": f"{self.STORE_ID}-completed",
+            },
+        )
+        record = yaml.safe_load((self.template["stores"] / self.STORE_ID / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertIn(record["status"], ("passed", "passed_with_warnings"))
+        self.assertEqual(record["observed"]["n_variants"], len(SIGNAL_POSITIONS), "the panel adds the held-out position")
+
+    def test_the_check_rebuilt_the_retained_region_from_the_bundles_panel_and_passed(self) -> None:
+        """The check took the `complete` block's panel and ancestry and found the one imputed cell in the one region."""
+        import yaml
+
+        declared = yaml.safe_load((self.template["stores"] / self.STORE_ID / "build.yaml").read_text(encoding="utf-8"))
+        ld_panel = declared["complete"]["options"]["ld-panel"]
+        argv = self.record("completion-observed-view-check")["argv"]
+        output = argv.index("--output")
+        self.assertEqual(argv[output - 4 : output], ["--ld-panel", ld_panel, "--ancestry", "EUR"])
+
+        verdict = json.loads(self.record("completion-observed-view-check")["stdout"])
+        self.assertIs(verdict["passed"], True)
+        self.assertEqual(verdict["failures"], [])
+        self.assertEqual((verdict["ld_panel"]["path"], verdict["ld_panel"]["ancestry"]), (ld_panel, "EUR"))
+        self.assertIn("imputed_outside_retained", verdict["failing_counters"])
+        self.assertEqual(
+            {name: verdict["totals"][name] for name in verdict["failing_counters"]},
+            dict.fromkeys(verdict["failing_counters"], 0),
+        )
+        (analysis,) = verdict["sample"]["analyses"]
+        self.assertEqual(
+            {key: analysis[key] for key in ("analysis_id", "admitted", "blocks", "observed_in_source", "imputed")},
+            {
+                "analysis_id": self.template["analysis_id"],
+                "admitted": True,
+                "blocks": [f"1/{SIGNAL_POSITIONS[0]}-{SIGNAL_POSITIONS[-1]}"],
+                "observed_in_source": len(SIGNAL_POSITIONS) - 1,
+                "imputed": 1,
+            },
+        )
+        # The fixture keeps SE `float16` for the check's exact SE comparison (`create_signal_fixture_ssf`).
+        manifest_doc = json.loads((self.store_p / "manifest.json").read_text(encoding="utf-8"))
+        self.assertEqual(manifest_doc["encoding"]["se"]["kind"], "float16")
+
+    def test_the_held_out_position_is_imputed_and_every_observed_association_is_unchanged(self) -> None:
+        """By ALID, z, se and eaf are those read before completion began; the panel's extra position is imputed.
+
+        The held-out position is read twice: from the Analysis, and by variant,
+        through the `by_variant` index `complete-ragged` writes and validation
+        requires of a Ragged Store.
+        """
+        import numpy as np
+
+        before = self.template["observed_before"]
+        self.assertIsNotNone(before, "the template never read the Observed-Only Store")
+        after = observed_view(self.store_p, self.template["analysis_id"])
+        expected_alids = sorted(SIGNAL_ALID[i] for i in range(len(SIGNAL_POSITIONS)) if i != SIGNAL_HELD_OUT_INDEX)
+        self.assertEqual(sorted(before), expected_alids)
+        self.assertEqual(sorted(after), expected_alids)
+        for alid in expected_alids:
+            (z, se, eaf, status), (before_z, before_se, before_eaf, before_status) = after[alid], before[alid]
+            self.assertEqual((z, se), (before_z, before_se), alid)
+            self.assertTrue(eaf == before_eaf or (np.isnan(eaf) and np.isnan(before_eaf)), alid)
+            self.assertEqual((status, before_status), ("observed", "observed"), alid)
+        self.assertTrue(np.isnan(after[SIGNAL_ALID[RAGGED_NO_EAF_INDEX]][2]), "that position reports no frequency")
+
+        held_out = SIGNAL_ALID[SIGNAL_HELD_OUT_INDEX]
+        q = query_store(self.store_p)
+        try:
+            rows = q.analysis(self.template["analysis_id"])
+            table = q.variants_table()
+            by_variant = q.phewas(held_out)
+        finally:
+            q.close()
+        self.assertEqual(
+            {
+                table[int(index)]["alid"]: str(status)
+                for index, status in zip(rows["variant_index"], rows["association_status"], strict=True)
+            },
+            {alid: "imputed" if alid == held_out else "observed" for alid in SIGNAL_ALID},
+        )
+        self.assertEqual([str(status) for status in by_variant["association_status"]], ["imputed"])
+
+    def test_the_replaced_store_is_deleted_and_its_records_are_archived(self) -> None:
+        import yaml
+
+        archive = self.archive()
+        self.assertEqual(sorted(p.name for p in archive.iterdir()), ["records", "validation.yaml"])
+        self.assertEqual(
+            sorted(p.name for p in (archive / "records").iterdir()),
+            ["completion-observed-view-check.json", "register.json"],
+        )
+        archived_record = yaml.safe_load((archive / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(archived_record["observed"]["completion_state"], "observed_only")
+        self.assertEqual(archived_record["observed"]["n_variants"], len(SIGNAL_POSITIONS) - 1)
+
+
+class TestWorkflowSingleIdRaggedFailingObservedViewCheck(TestWorkflowSingleIdFailingObservedViewCheck):
+    """A Ragged completed Store that fails the Observed-View Check is not published either (#336, ADR 0037).
+
+    The release is `ragged_single_id_completion_template`'s, and the cell
+    perturbed is an observed Z of its Analysis. The Ragged check names its
+    counters with no part prefix, as the Dense check does.
+    """
+
+    OBSERVED_ONLY_N_VARIANTS = len(SIGNAL_POSITIONS) - 1
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return ragged_single_id_completion_template()
+
+    def tamper(self, staged_p: Path) -> None:
+        """Add one unit to an observed Z of the staged Store, in its stored codes.
+
+        opengwasdb has no plane API that writes a Ragged cell, so the code is
+        written in place: one unit of z is the manifest's fixed-point scale.
+        The position chosen has z 0, so the code stays in range.
+        """
+        import numpy as np
+        from opengwasdb.store import arrays as store_arrays
+
+        self.assertEqual(SIGNAL_Z[0], 0.0)
+        found = query_store(staged_p).lookup([SIGNAL_ALID[0]], [f"test_analysis_{self.STORE_ID}"])
+        self.assertEqual(list(found["association_status"]), ["observed"])
+        scale = json.loads((staged_p / "manifest.json").read_text(encoding="utf-8"))["encoding"]["z"]["scale"]
+        ragged = store_arrays.open_group(staged_p / "data.zarr" / "ragged", mode="r+")
+        analysis = int(found["analysis_index"][0])
+        start, end = (int(offset) for offset in ragged["offsets"][analysis : analysis + 2])
+        (position,) = np.flatnonzero(ragged["variant_index"][start:end] == int(found["variant_index"][0])) + start
+        ragged["z"][position] = ragged["z"][position] + scale
+
+
+class TestWorkflowCompletingAPublishedRaggedStore(TestWorkflowCompletingAPublishedHybridStore):
+    """A published Observed-Only Ragged Store is completed later under its id, with no rebuild (#336, #305).
+
+    The release is `ragged_single_id_completion_template`'s. Its build phase
+    also builds a Top-Hit Index, a post step the amendment check leaves out of
+    its comparison.
+    """
+
+    LAYOUT = "ragged"
+    COMMAND = "complete-ragged"
+    COMPLETION_RECORDS = TestWorkflowSingleIdRaggedReferenceCompletion.COMPLETION_RECORDS
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return ragged_single_id_completion_template()
+
+
+class TestWorkflowForcedRunOfACompletedRaggedRelease(TestWorkflowForcedRunOfACompletedSingleIdRelease):
+    """`--config force=1` on a completed Ragged release rebuilds, publishes and completes it in one run (#336)."""
+
+    PHASE_RECORDS = (
+        TestWorkflowSingleIdRaggedReferenceCompletion.BUILD_PHASE_RECORDS
+        + TestWorkflowSingleIdRaggedReferenceCompletion.COMPLETION_RECORDS
+    )
+
+    @staticmethod
+    def build_template() -> dict[str, Any]:
+        return ragged_single_id_completion_template()
 
 
 class TestWorkflowLineageAndMultiReleaseDAG(unittest.TestCase):
@@ -3696,10 +4898,10 @@ class TestWorkflowCompletingAStorePublishedBefore341(PublishedReleaseCopies):
     (the owner's pre-release decision on opengwas/opengwasdb#298). A record that
     names another coverage is refused, and so is every other difference.
 
-    The single-id completion gate itself is #232's (#336) and is patched here
-    only, so the comparison can be reached; production code still plans a
-    single-id completion for Dense Stores alone. Nothing else is stubbed: the
-    Store, its records and its derived build manifest are the archived run's.
+    The single-id completion gate itself is #232's (#336) and is in this tree,
+    so a Ragged release plans its own completion and the comparison is reached
+    without a patch. Nothing is stubbed: the Store, its records and its derived
+    build manifest are the archived run's.
     """
 
     COMPLETE_BLOCK: dict[str, Any] = {
@@ -3748,35 +4950,29 @@ class TestWorkflowCompletingAStorePublishedBefore341(PublishedReleaseCopies):
 
     def test_a_legacy_store_may_gain_its_completion_but_no_other_amendment(self) -> None:
         """The exception, its boundary, and everything it does not cover, in one method."""
-        # 1. Production still plans a single-id completion for Dense Stores only;
-        #    lifting that is #232's #336, not this ticket's.
+        # 1. The Store published before #341 passes the amendment check: the
+        #    plan differs from its record by the declared flag alone.
         loaded, artifacts = self.amended_copy()
-        with self.assertRaisesRegex(ValueError, "complete"):
-            plan(loaded, artifact_root=artifacts)
+        self.assertEqual(
+            amendment.bundle_changes(loaded, artifacts),
+            [],
+            "a published Ragged Store may gain its completion without a rebuild",
+        )
+        self.assertIn("--association-coverage", plan(loaded, artifact_root=artifacts)[0].argv)
 
-        with mock.patch.object(plan_module, "SINGLE_ID_COMPLETION_LAYOUTS", frozenset({"dense", "ragged"})):
-            # 2. The Store published before #341 passes the amendment check: the
-            #    plan differs from its record by the declared flag alone.
-            self.assertEqual(
-                amendment.bundle_changes(loaded, artifacts),
-                [],
-                "a published Ragged Store may gain its completion without a rebuild",
-            )
-            self.assertIn("--association-coverage", plan(loaded, artifact_root=artifacts)[0].argv)
+        # 2. A record that names another coverage is still refused, naming both.
+        mismatched, mismatched_artifacts = self.amended_copy(recorded_coverage="cis")
+        mismatch = amendment.bundle_changes(mismatched, mismatched_artifacts)
+        self.assertEqual(len(mismatch), 1, mismatch)
+        self.assertIn("association-coverage", mismatch[0])
+        self.assertIn("cis", mismatch[0])
+        self.assertIn(RAGGED_FIXTURE_COVERAGE, mismatch[0])
 
-            # 3. A record that names another coverage is still refused, naming both.
-            mismatched, mismatched_artifacts = self.amended_copy(recorded_coverage="cis")
-            mismatch = amendment.bundle_changes(mismatched, mismatched_artifacts)
-            self.assertEqual(len(mismatch), 1, mismatch)
-            self.assertIn("association-coverage", mismatch[0])
-            self.assertIn("cis", mismatch[0])
-            self.assertIn(RAGGED_FIXTURE_COVERAGE, mismatch[0])
-
-            # 4. Any other change to the Store-writing step is still an amendment.
-            changed, changed_artifacts = self.amended_copy(build_options={"stored-effect-scale": "log_or"})
-            other = amendment.bundle_changes(changed, changed_artifacts)
-            self.assertEqual(len(other), 1, other)
-            self.assertIn("stored-effect-scale", other[0])
+        # 3. Any other change to the Store-writing step is still an amendment.
+        changed, changed_artifacts = self.amended_copy(build_options={"stored-effect-scale": "log_or"})
+        other = amendment.bundle_changes(changed, changed_artifacts)
+        self.assertEqual(len(other), 1, other)
+        self.assertIn("stored-effect-scale", other[0])
 
 
 if __name__ == "__main__":

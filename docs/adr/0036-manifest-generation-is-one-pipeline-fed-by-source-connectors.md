@@ -72,6 +72,18 @@ The rules that make this hold:
 - **Connectors are files, frozen with the inventory.** Generation reads no live
   source. A metadata change is a reviewed re-freeze, never a silent difference
   between two runs.
+
+  *Clarified by #347:* shared code reads canonical connector columns only; it
+  opens no source's own metadata files. A source's adapter reads them and
+  writes facts into the Source Metadata Table: `genotyping_technology`
+  (`;`-joined, source order, blank when unrecorded) and `source_genome_build`
+  for the GWAS Catalog's `-meta.yaml` sidecars. Which technologies are exempt
+  from the MAF floor stays release policy over that fact column, and
+  preflight's build check compares `source_genome_build` with the release
+  default, opening no sidecar. The GWAS Catalog's download-pass columns and
+  overlay live in its Acquisition Manifest writer, their only caller. A
+  boundary test (`tests/packaging/test_per_source_metadata.py`) fails if
+  shared code reads provider metadata again.
 - **One Selection gives one Release Bundle.** A collection split into several
   Store Releases is several Selections. Assigned Ancestry never moves an
   Analysis into another Store Release; a disagreement with the Selection is a

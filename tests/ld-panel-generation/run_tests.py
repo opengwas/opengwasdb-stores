@@ -9,6 +9,10 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = ROOT / "tools/ld-panel/construct_block.py"
+# The scripts ask `scratch` where their scratch goes (#390), so it loads first.
+scratch_spec = importlib.util.spec_from_file_location("scratch", SCRIPT.with_name("scratch.py"))
+scratch = importlib.util.module_from_spec(scratch_spec); sys.modules[scratch_spec.name] = scratch
+assert scratch_spec.loader; scratch_spec.loader.exec_module(scratch)
 spec = importlib.util.spec_from_file_location("construct_block", SCRIPT)
 module = importlib.util.module_from_spec(spec); sys.modules[spec.name] = module
 assert spec.loader; spec.loader.exec_module(module)

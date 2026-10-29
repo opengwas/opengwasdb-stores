@@ -1,0 +1,11 @@
+analysis_id	publication_pmid	trait	study_design	sample_size	readiness_status	data_url	yaml_url	data_file	yaml_file	data_bytes	yaml_bytes	sha256	error
+ENSG00000073605	34475573	GSDMB	quantitative	31684	ok	https://eqtlgen.org/cis-eqtls.html		/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000087237	34475573	CETP	quantitative	31470	ok	https://eqtlgen.org/cis-eqtls.html		/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000130203	34475573	APOE	quantitative	30351	ok	https://eqtlgen.org/cis-eqtls.html		/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000134243	34475573	SORT1	quantitative	31684	ok	https://eqtlgen.org/cis-eqtls.html		/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000136244	34475573	IL6	quantitative	30765	ok	https://eqtlgen.org/cis-eqtls.html		/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000136997	34475573	MYC	quantitative	26355	ok	https://eqtlgen.org/cis-eqtls.html		/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000141510	34475573	TP53	quantitative	31684	ok	https://eqtlgen.org/cis-eqtls.html		/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000164308	34475573	ERAP2	quantitative	26569	ok	https://eqtlgen.org/cis-eqtls.html		/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000175445	34475573	LPL	quantitative	31684	ok	https://eqtlgen.org/cis-eqtls.html		/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	
+ENSG00000232810	34475573	TNF	quantitative	14263	ok	https://eqtlgen.org/cis-eqtls.html		/data/opengwasdb/raw/eqtlgen/pilot-10		1384176		f4eb62fc35e792e8b947f3225b00abe2751835696f467e392cda6fecdb701e58	

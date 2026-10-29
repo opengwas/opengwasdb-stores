@@ -1,0 +1,122 @@
+# One Quarto website over the registry's docs/ and the engine's docs (#388).
+#
+# It replaces the legacy GitHub Pages deployment, which served `main`'s docs/
+# as it sat on the branch, so the published pages lagged dev by weeks. The site
+# is rendered on the host (`pixi run site`) and published to `gh-pages`
+# (`pixi run site-publish`), and this file is the whole of its configuration.
+#
+# The render reads a mirror of docs/ built under /data/opengwasdb/work/site,
+# never docs/ itself (src/project_site/build.py): the mirror is where the links
+# that leave docs/ are pointed at GitHub and where a plain ```mermaid fence is
+# spelled the way Quarto renders it. So `quarto render` is always given an
+# --output-dir outside the project, and a hand-run `quarto render docs` is not
+# how the site is built — `pixi run site` is.
+#
+# `resources` is what keeps every path the old site served: Quarto renders each
+# .md to .html, and these patterns copy the .md sources and the committed,
+# self-contained report HTML beside them, exactly as published before.
+
+project:
+  type: website
+  # The site's data pages (#391, src/project_site/pages.py). This runs before
+  # the render, with the working directory set to the project — the docs mirror
+  # the build stages — and writes the Overview, the Stores, Epics, Trends and
+  # Changelog sections and one page per epic and per Store from the JSON files
+  # `pixi run site-data` collects. Quarto reads a page's contents after this
+  # runs, so a page it already knows is filled in here. The pages are
+  # git-ignored and never enter a checkout.
+  pre-render:
+    - "./pre-render.sh"
+  # What the site copies beside the pages it renders, and nothing else. Written
+  # out rather than `**/*.json` because the directory the pages read their data
+  # from (`_data/`, #389) is not for publication: it holds the collector's own
+  # fields, host paths among them (#391 review).
+  resources:
+    - "**/*.md"
+    - "**/*.html"
+    - "benchmark-output/*.json"
+    - "data/*.json"
+    - "data/*.tsv"
+    - "data/*.csv"
+    - "diagrams/*.dot"
+    - "diagrams/*.svg"
+    - "readiness-evidence.yaml"
+    - ".nojekyll"
+
+website:
+  title: "OpenGWASDB"
+  description: "Where OpenGWASDB stands: the stores, the registry, its reports, and the engine's docs."
+  site-url: "https://blog.opengwas.io/opengwasdb-stores/"
+  repo-url: "https://github.com/opengwas/opengwasdb-stores"
+  page-navigation: true
+  back-to-top-navigation: true
+  navbar:
+    left:
+      - text: Overview
+        href: index.qmd
+      - text: Stores
+        href: stores.qmd
+      - text: Epics
+        href: epics.qmd
+      - text: Trends
+        href: trends.qmd
+      - text: Changelog
+        href: changelog.qmd
+      - text: Reports
+        href: reports.qmd
+      - text: Registry
+        href: reference.qmd
+      - text: Engine
+        href: opengwasdb/index.qmd
+    right:
+      - icon: github
+        href: "https://github.com/opengwas/opengwasdb-stores"
+        aria-label: "opengwasdb-stores on GitHub"
+  sidebar:
+    - id: registry
+      title: "Registry docs"
+      contents:
+        - reference.qmd
+        - section: "Guides"
+          contents: "*.md"
+        - section: "Decisions (ADRs)"
+          contents: "adr/*.md"
+        - section: "Specifications"
+          contents: "spec/*.md"
+        - section: "Benchmarks and reports"
+          contents: "benchmark-output/*.md"
+        - section: "This site"
+          # site.md is staged as site.qmd: Quarto renders a Mermaid cell only in
+          # a .qmd. A list, not a bare string: a one-name `contents` under a
+          # `section` is dropped without a word. A page that gains or loses a
+          # diagram changes this entry.
+          contents:
+            - "site.qmd"
+    - id: engine
+      title: "Engine docs"
+      contents:
+        - opengwasdb/index.qmd
+        - section: "Guides"
+          contents: "opengwasdb/*.md"
+        - section: "Decisions (ADRs)"
+          contents: "opengwasdb/adr/*.md"
+        - section: "Specifications"
+          contents: "opengwasdb/spec/*.md"
+        - section: "Benchmarks and reports"
+          contents:
+            - "opengwasdb/benchmark-output/*.html"
+        - section: "Reviews"
+          contents: "opengwasdb/reviews/*.md"
+  page-footer:
+    left: "OpenGWASDB · rendered from the commit that names it"
+    right: "[Report a problem](https://github.com/opengwas/opengwasdb-stores/issues)"
+
+format:
+  html:
+    theme: cosmo
+    toc: true
+    toc-depth: 3
+    toc-title: "On this page"
+    code-copy: true
+    code-overflow: wrap
+    anchor-sections: true

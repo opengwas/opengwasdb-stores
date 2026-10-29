@@ -5,12 +5,9 @@ Python lives under `src/` (the packages), `tests/` (the suites), `tools/`
 (scripts) or `workflow/` (the Snakemake wiring and release entry point), and
 nowhere else: not at the repository root, and not as a namespace package such
 as `rogue/module.py`. Only `src/` and `tests/` hold packages. `resources/`
-holds inputs only, so it holds no code, except two R metadata resolvers
-under `resources/generators/lib/metadata_resolvers/` that curation's R-resolver
-round-trip still sources. Each is listed in `LEGACY_R_GENERATORS` with the
-ticket that retires it, and an entry whose file is gone fails, so the list
-only shrinks. `resources/scripts/`, the miscellany this layout replaced, does
-not come back.
+holds inputs only, so it holds no code at all: the last R metadata resolvers
+went with #350, and `resources/scripts/`, the miscellany this layout replaced,
+does not come back.
 
 Run from the repository root:
     python3 tests/packaging/test_layout.py
@@ -18,7 +15,7 @@ Run from the repository root:
 
 from __future__ import annotations
 
-import re
+import ast
 import subprocess
 import unittest
 from pathlib import Path, PurePosixPath
@@ -32,19 +29,6 @@ PACKAGE_HOMES = ("src/", "tests/")
 # What counts as code: a file with one of these suffixes (compared lower-case),
 # a Snakefile, or anything that starts with a shebang line.
 CODE_SUFFIXES = frozenset({".py", ".r", ".rmd", ".qmd", ".sh", ".smk", ".ipynb", ".js", ".pl"})
-
-# The R code under resources/, and the ticket that retires each. Every
-# generator's R path has retired (epic #282 stage 2); what is left of it is
-# what curation's R-resolver round-trip still sources.
-EPIC_CLEANUP = "#282 (curation's R-resolver round-trip still sources these)"
-LEGACY_R_GENERATORS: dict[str, str] = {
-    # These two lost their generator when ukb-b's R path retired with #289, but
-    # the curation suites (tests/curation/test_promotion.py, test_e2e_pipeline.py)
-    # still drive the R resolver through them to prove a promoted mapping row
-    # round-trips: no ticket yet moves curation off the R resolver.
-    "resources/generators/lib/metadata_resolvers/canonical_trait_table.R": EPIC_CLEANUP,
-    "resources/generators/lib/metadata_resolvers/ontology_contract.R": EPIC_CLEANUP,
-}
 
 
 def tracked_files() -> list[str]:
@@ -78,6 +62,51 @@ def packages_outside_homes(files: list[str]) -> list[str]:
     )
 
 
+#: The `tempfile` factories: each writes where `dir=` says, and to the host's
+#: `/tmp` without it. Everything this project writes lives under
+#: `/data/opengwasdb` (CONTRIBUTING, Worktrees), so a scratch root is always
+#: named -- under `/data` by default, or through the tree's own variable (#390).
+TEMP_FACTORIES = frozenset({
+    "TemporaryDirectory", "mkdtemp", "mkstemp", "NamedTemporaryFile", "TemporaryFile", "SpooledTemporaryFile",
+})
+
+#: Where the scratch rule is enforced: the site's and the yardstick's code, and
+#: the scripts beside them (#390 review, item 4). A test may use `tempfile`
+#: freely -- the runner sets the suite's own `$TMPDIR`.
+SCRATCH_TREES = ("src/project_site/", "src/yardstick/", "tools/")
+
+
+def _temp_factory(func: ast.expr) -> str | None:
+    """The factory a call names, for `tempfile.mkdtemp(...)` and a bare `mkdtemp(...)` alike."""
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "tempfile":
+        return func.attr if func.attr in TEMP_FACTORIES else None
+    if isinstance(func, ast.Name) and func.id in TEMP_FACTORIES:
+        return func.id
+    return None
+
+
+def missing_dir_calls(relative: str, source: str) -> list[str]:
+    """Every `tempfile` scratch call in one file that names no `dir=`."""
+    found = []
+    for node in ast.walk(ast.parse(source, filename=relative)):
+        if not isinstance(node, ast.Call):
+            continue
+        factory = _temp_factory(node.func)
+        if factory and not any(keyword.arg == "dir" for keyword in node.keywords):
+            found.append(f"{relative}:{node.lineno}: tempfile.{factory} without dir=")
+    return found
+
+
+def temp_calls_without_dir(files: list[str]) -> list[str]:
+    """Every `tempfile` scratch call in `SCRATCH_TREES` that names no `dir=`."""
+    found = []
+    for relative in files:
+        if not relative.endswith(".py") or not relative.startswith(SCRATCH_TREES):
+            continue
+        found += missing_dir_calls(relative, (REPO_ROOT / relative).read_text(encoding="utf-8"))
+    return sorted(found)
+
+
 def code_under_resources(files_and_heads: list[tuple[str, bytes]]) -> list[str]:
     return sorted(relative for relative, head in files_and_heads if relative.startswith("resources/") and is_code(relative, head))
 
@@ -85,6 +114,34 @@ def code_under_resources(files_and_heads: list[tuple[str, bytes]]) -> list[str]:
 class LayoutTest(unittest.TestCase):
     def setUp(self) -> None:
         self.files = [relative for relative in tracked_files() if (REPO_ROOT / relative).is_file()]
+
+    def test_no_scratch_call_falls_back_to_the_hosts_tmp(self) -> None:
+        self.assertEqual(
+            temp_calls_without_dir(self.files),
+            [],
+            "name a scratch root under /data for every tempfile call (CONTRIBUTING, Worktrees)",
+        )
+
+    def test_the_scratch_scanner_finds_what_it_looks_for(self) -> None:
+        self.assertEqual(
+            missing_dir_calls("tools/planted.py", (
+                "import tempfile\n"
+                "from tempfile import mkdtemp\n"
+                "a = tempfile.mkdtemp(prefix='x')\n"
+                "b = tempfile.TemporaryDirectory(prefix='y')\n"
+                "c = mkdtemp(prefix='z')\n"
+                "d = tempfile.mkdtemp(prefix='ok', dir=root)\n"
+                "e = tempfile.NamedTemporaryFile(delete=False)\n"
+                "f = tempfile.TemporaryFile(dir=root)\n"
+                "g = tempfile._get_candidate_names()\n"
+            )),
+            [
+                "tools/planted.py:3: tempfile.mkdtemp without dir=",
+                "tools/planted.py:4: tempfile.TemporaryDirectory without dir=",
+                "tools/planted.py:5: tempfile.mkdtemp without dir=",
+                "tools/planted.py:7: tempfile.NamedTemporaryFile without dir=",
+            ],
+        )
 
     def test_the_scanners_find_what_they_look_for(self) -> None:
         self.assertEqual(
@@ -127,16 +184,9 @@ class LayoutTest(unittest.TestCase):
     def test_no_python_package_outside_src_and_tests(self) -> None:
         self.assertEqual(packages_outside_homes(self.files), [])
 
-    def test_resources_holds_no_code_but_the_listed_r_files(self) -> None:
+    def test_resources_holds_no_code(self) -> None:
         code = code_under_resources([(r, head_of(r)) for r in self.files if r.startswith("resources/")])
-        unexpected = [relative for relative in code if relative not in LEGACY_R_GENERATORS]
-        self.assertEqual(unexpected, [], "resources/ is inputs only; code belongs in src/, tools/ or docs/reports/")
-
-    def test_every_legacy_r_generator_is_still_there_and_cites_its_ticket(self) -> None:
-        retired = [relative for relative in LEGACY_R_GENERATORS if relative not in self.files]
-        self.assertEqual(retired, [], "retired, so remove from LEGACY_R_GENERATORS")
-        uncited = [relative for relative, ticket in LEGACY_R_GENERATORS.items() if not re.search(r"#\d+", ticket)]
-        self.assertEqual(uncited, [])
+        self.assertEqual(code, [], "resources/ is inputs only; code belongs in src/, tools/ or docs/reports/")
 
     def test_resources_scripts_is_gone(self) -> None:
         self.assertEqual([relative for relative in self.files if relative.startswith("resources/scripts/")], [])

@@ -46,7 +46,8 @@ threadpoolctl = ">=3.0"
 
 [feature.store-build.pypi-dependencies]
 # Immutable pin (issue #41): a released version should replace this Git pin
-# once one exists. Do not float this to a branch. pysam is left off the conda
+# once one exists; that is what #387 did, pinning the release tag `v0.3.0`.
+# Pin a release tag, never a branch or a raw commit. pysam is left off the conda
 # dependency list on purpose: opengwasdb's own PyPI dependency on it collides
 # (conda + PyPI wheel installing the same compiled extension into the same
 # environment) if pysam is also pinned via conda, so it is left for pip/uv to
@@ -227,6 +228,35 @@ threadpoolctl = ">=3.0"
 # off-reference rows lift onto the reverse strand is now refused, not signed
 # wrongly.
 #
+# Repinned for #333 to `eb4c749b`, the merge of opengwasdb#295 into the core
+# integration branch for stores epic #232 (opengwasdb PR #303), not yet on core
+# `dev`: `check-observed-view` now compares a Hybrid pair, so a Hybrid release
+# can complete its own Store. The range `d405de0..eb4c749` is #295's two commits
+# and merge, the branch's empty first commit and core `dev`'s docs-only PR #293;
+# #295 is its only functional change.
+#
+# Repinned for #336 to `32f47b3b`, the merge of opengwasdb#296 into the same
+# integration branch, not yet on core `dev` either: `check-observed-view` now
+# compares a Ragged pair, region by region against the LD panel completion
+# used, so a Ragged release can complete its own Store. The range
+# `eb4c749..32f47b3` is #296's commits and merge; #296 is its only functional
+# change.
+#
+# Repinned for #225 to `1e2fb42`, the merge of opengwasdb#306 into the same
+# integration branch, again not yet on core `dev`: `build-hybrid` gained
+# `--on-rsid-conflict {refuse,drop}` and always reports what its rsid harvest
+# compared, so a Hybrid build can record where its sources disagree on a
+# variant's name instead of refusing every such key. The range
+# `32f47b3..1e2fb42` is #306's commits and merge; #306 is its only functional
+# change.
+#
+# Repinned for #225 to `496bfe9`, the merge of opengwasdb#324 into the same
+# integration branch, again not yet on core `dev`: `build-indexed-subset` gained
+# `--overflow-only {refuse,skip}` and records the ALIDs a Hybrid's subset leaves
+# out for living only on its Overflow axis, so a subset build need not refuse a
+# Store whose shared axis is short of the list. The range `1e2fb42..496bfe9` is
+# #324's commit and merge; #324 is its only functional change.
+#
 # Repinned for #314 to `d8896e6`, the opengwasdb `dev` merge of PR #305. The full
 # eQTLGen cis Store (OGS-00027) fails `validate` at `d405de0`: 13 hg19 SNPs
 # collide on one hg38 variant after the lift, so one Analysis's CSR segment
@@ -249,6 +279,21 @@ threadpoolctl = ">=3.0"
 # format stays 0.2.0, and the pinned runtime reads a legacy `full` in an
 # existing Store's `manifest.json` as `gwas`.
 #
+# Repinned for #282 to `0d59f151`, the opengwasdb `dev` merge of PR #329, which
+# carries core #302 (ADR 0067): `build-ragged-besd` takes `--sample-size-table`
+# and stores each stored pair's sample size in an opt-in `uint32` `n` plane and
+# its by-variant copy (a pair the table omits is missing, never estimated from
+# `se`), and `--store-esi-eaf` stores the `.esi` frequency per association,
+# oriented to the effect allele and checked once against `--eaf-reference`. A
+# Store holding an `n` plane keeps `se` in float16, and `validate`, the query
+# seam and `info` report the plane. That is the runtime the OGS-00027
+# replacement is built on. The pin already carried #326's SE re-encode primitive
+# as its branch head `5fc0766`; the range `5fc0766..0d59f151` is #330's merge of
+# that branch, #332's MAF admission fix (#331), #303 (#295/#296/#306/#324: the
+# Ragged and Hybrid Observed-View Checks, `build-hybrid --on-rsid-conflict` and
+# `build-indexed-subset --overflow-only`), #328's OGS-00009/OGS-00010 benchmark
+# harness and #329. None of them moves the Store format: it stays 0.2.0.
+#
 # Because these capabilities ship in the tracked pin, the ordinary
 # `pixi run release` invocation resolves a capable runtime from this
 # environment with no ad-hoc `PATH` overlay (the HM3 proof's temporary
@@ -265,25 +310,21 @@ threadpoolctl = ">=3.0"
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
 #
-# Repinned for #380 to `7308c6a`, the opengwasdb `dev` merge of PR #332 (issue
-# #331), which closes the MAF admission hole the #371 audit found. `admit_rows`
-# now reads a frequency as usable evidence when it is finite and inside
-# `[0, 1]`: exactly `0.0` and `1.0` are frequencies whose MAF is `0`, so a
-# `FILTERED` policy judges and drops them, and every unusable frequency (NaN,
-# non-finite, out of range) is dropped too rather than retained as
-# `maf_missing` -- which is how 192M associations and 101M off-panel variants,
-# 83% of them from five publications reporting `0.0`/blank frequencies on
-# monomorphic rows, entered OGS-00011 through a common-variant filter. The
-# provenance tally `maf_rows_missing` therefore counts rows a `FILTERED` policy
-# *dropped*, not rows it kept unjudged, and this repository's Store Audit reads
-# it that way (#380). The stored-EAF rule is deliberately unchanged: the reader
-# still records no EAF for exactly `0`/`1` (ADR 0036), and such a row now reaches
-# admission as no frequency and is dropped for that reason. The Hybrid
-# checkpoint format moves to 2, so a resumed format-1 run is refused rather than
-# publishing spills written under the old retention rule. Store format stays
-# 0.2.0 and no builder's arguments change. The range `5fc0766..7308c6a` is
-# #331's six commits and its merge; #331 is its only functional change.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "70340e03d61cc0371fa5373d8406adc48cc11255" }
+# Epic #371 pinned `70340e0` (opengwasdb#303's `dev` merge, above #332's MAF
+# admission fix) on its own branch for #380; OGS-00011's 29 Oct rebuild (#381)
+# records that commit. `0d59f151` and `v0.3.0` both contain it.
+#
+# Repinned for #387 to the release tag `v0.3.0`
+# (`bc22e8476c4378af582477f09b56af01e3f5f065`, the opengwasdb `main` merge of PR
+# #335), the first release opengwasdb's release workflow published (the earlier
+# `v0.2.0` was tagged by hand). opengwasdb now tags every merge to `main` and
+# takes its version from that tag; before #335 `pyproject.toml` held
+# `version = "0.3.0"` statically. The installed version is still `0.3.0`, but it
+# now comes from the tag, and a checkout past one reports a development
+# version. The range `0d59f151..bc22e84` is #335's release tooling -- the
+# version from tags and a changelog -- and its merge; the engine's behaviour
+# does not change, and the Store format stays 0.2.0.
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", tag = "v0.3.0" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
@@ -292,9 +333,11 @@ r-yaml = "*"
 # data.table::fread() shells out to R.utils to read .gz files directly; never
 # library()'d explicitly, so it's easy to miss auditing only `library()` calls.
 "r-r.utils" = "*"
-# Needed by resources/generators/lib/metadata_resolvers/opengwas_api.R's
-# fetch_opengwas_gwasinfo() (issue #49) to call the live OpenGWAS API; the
-# tested resolve_opengwas_api_metadata() itself has no network dependency.
+# No tracked R code calls httr any more: its only caller,
+# resources/generators/lib/metadata_resolvers/opengwas_api.R, retired with the
+# OpenGWAS R path (#289). Kept because tools/env_check.py requires the package
+# and the R environment is not shrinking with #350; dropping it would mean a
+# pixi.lock regeneration for no gain.
 r-httr = "*"
 r-jsonlite = "*"
 r-openssl = "*"
@@ -324,6 +367,15 @@ git = "*"
 gh = "*"
 sqlite = "*"
 snakemake-minimal = ">=9,<10"
+
+[feature.dev.pypi-dependencies]
+# The version is computed from the `v*` tag by setuptools-scm (pyproject.toml,
+# #386), which pip installs into its isolated *build* environment, so the
+# environment itself needs it only for the test that reads the version the
+# build would produce (tests/release-versioning/test_version.py). It is a PyPI
+# dependency because that is the same distribution the build resolves, from the
+# same index, at the same version.
+setuptools-scm = ">=8,<9"
 
 [feature.workflow.dependencies]
 # Phase A orchestration. The DAG only wires dependencies and resource requests;
@@ -391,9 +443,9 @@ generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate"
 # The Analysis Catalog (#323, ADR 0039): rebuild the cross-Store listing of every
 # Analysis of every served Store Release from the registry's Release Bundles,
 # into <artifact-root>/catalog/versions/<version>/, and swap `current`. It reads
-# bundles only and never opens a Store. Run after a merge to dev, from a clean
-# checkout; a rebuild with unchanged inputs writes nothing. Resolves the
-# Artifact Root as ogstores does; `--artifact-root PATH` overrides it.
+# bundles only and never opens a Store. Run after a merge to `main`, from a
+# clean checkout of `origin/main`; a rebuild with unchanged inputs writes nothing.
+# Resolves the Artifact Root as ogstores does; `--artifact-root PATH` overrides it.
 #
 #   pixi run catalog [--registry stores] [--artifact-root PATH]
 #
@@ -413,6 +465,17 @@ catalog = { cmd = "python3 -m analysis_catalog", default-environment = "dev" }
 #   pixi run audit-store reconcile /data/opengwasdb/stores/OGS-00011/store.opengwasdb \
 #     --output /data/opengwasdb/work/.../evidence/372/reconciliation.json
 audit-store = { cmd = "python3 -m ogstores.audit" }
+
+# The project site's data (#389, docs/spec/project-site.md): run every collector
+# (the board, the catalog's versions, both repos' Releases, the Release Bundles,
+# the epic records) and write one JSON file each under docs/_data/ (git-ignored;
+# OPENGWASDB_SITE_DATA or --data-dir overrides it). It reads the catalog
+# read-only, writes nothing under the artifact root, and needs `gh`; a source
+# it cannot read is written as `available: false` and printed as UNAVAILABLE,
+# with exit status 0 unless `--strict`.
+#
+#   pixi run site-data [--data-dir PATH] [--catalog-root PATH] [--registry PATH] [--strict]
+site-data = { cmd = "python3 -m project_site.collect", default-environment = "dev" }
 
 # Lossless SE re-encode for one registered Store Release (#326). The stores
 # lane of opengwas/opengwasdb#326: it resolves the Artifact Root through
@@ -453,6 +516,7 @@ bundle-check = { cmd = "python3 -m manifest_generation.check_bundles" }
 audit-indexed-subsets = { cmd = "python3 -m ogstores.audit_indexed_subsets" }
 env-check = { cmd = "python3 tools/env_check.py" }
 worktree-prune = { cmd = "python3 tools/prune_worktrees.py" }
+yardstick = { cmd = "python3 -m yardstick" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.r.tasks]
@@ -482,6 +546,19 @@ index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]
 docs = { cmd = "bash tools/build-site.sh" }
+# The site (#388): one Quarto website over this repository's docs/ and the
+# engine's docs. It needs Python (for the staging, link rewrite and served-path
+# check) beside Quarto, so it runs in `dev` whichever environment is default.
+#
+#   pixi run site                     # render; the served-path check fails a drop
+#   pixi run site-preview             # stage, then Quarto's live-reloading preview
+#   pixi run site-publish --dry-run   # render origin/main and commit gh-pages, no push
+#
+# The output is `/data/opengwasdb/work/site/<checkout>/_site`, never under /home
+# or /tmp (src/project_site/paths.py).
+site = { cmd = "python3 -m project_site.build", default-environment = "dev" }
+site-preview = { cmd = "python3 -m project_site.build --preview", default-environment = "dev" }
+site-publish = { cmd = "python3 -m project_site.publish", default-environment = "dev" }
 # The full `docs` task needs raw GWAS Catalog source data that is not tracked
 # in this repository (resources/data/*.tsv, "download separately" per
 # .gitignore) to build ebi-studies.qmd/make-dashboard.r's inputs. docs-smoke

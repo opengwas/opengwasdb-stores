@@ -2,7 +2,7 @@ store_id: OGS-00009
 label: ukb-b-full
 association_coverage: gwas
 access_posture: public
-status: accepted
+status: validated
 derived_from: null
 created_at: '2026-10-21T22:20:44Z'
 accepted_at: '2026-10-21T22:23:58Z'
@@ -35,4 +35,81 @@ notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,5
   the three rows it had left unresolved. Ancestry is the provider''s own population label (source_fallback),
   not an AF-based assignment; the ukb-b VCFs do carry FORMAT/AF, so the historical source_trusted_no_af
   value is not reproduced. The owner accepted these source labels (all EUR) for this build, with no AF
-  assignment first (#312, 2026-10-21).'
+  assignment first (#312, 2026-10-21).
+
+  Pre-release SE codec re-encode (2026-10-25, #326): under the one-time exception authorized
+  before the project''s first release, only the `se` and `se_exception_index` Blosc `typesize`
+  values and encoded chunk bytes changed. `records/se-reencode.json` reports full-array decoded
+  equality across 447,689 chunks and 2,810,059,224 bytes saved; the post-run Store validation
+  and observed-view check passed. This physical-representation-only exception sets no precedent
+  after release.
+
+  Release Erratum (2026-10-24, opengwas/opengwasdb#325): eight rows of the published Store
+  OGS-00009-completed are each the target of two hg19 source variants under the hg19 to hg38 lift.
+  build-dense-vcf kept one row per ALID without failing, and validate and the observed-view check
+  both passed. For each row below, the statistics are those of one source only and the other
+  source''s data is lost; the statistics'' source was matched against the source VCFs of two
+  Analyses (ukb-b-17805 and ukb-b-19953), not all 2,514.
+
+  4:74450339:C:T carries rs368667736 and the statistics of hg19 4:75485813:C:T (rs2291714); hg19
+  4:75316056:C:T (rs368667736) is lost. The rsid names the lost source, not the statistics''
+  source.
+
+  7:74988062:G:T carries rs35525401 and the statistics of hg19 7:74844193:C:A (rs868975575); hg19
+  7:74402206:G:T (rs35525401) is lost. The rsid names the lost source, not the statistics''
+  source.
+
+  7:75044656:A:C carries rs587647277 and the statistics of hg19 7:74787650:G:T (rs4517039); hg19
+  7:74458765:C:A (rs587647277) is lost. The rsid names the lost source, not the statistics''
+  source.
+
+  7:75044656:C:G carries rs587647277 and the statistics of hg19 7:74787650:G:C (rs4517039); hg19
+  7:74458765:C:G (rs587647277) is lost. The rsid names the lost source, not the statistics''
+  source.
+
+  7:101668260:A:G carries rs200217321 and the statistics of hg19 19:7323129:T:C (rs200217321);
+  hg19 7:101311540:A:G (rs848673) is lost.
+
+  8:144235357:C:T carries rs11992210 and the statistics of hg19 8:145459313:C:T (8_145459313_C_T);
+  hg19 8:145290260:C:T (rs11992210) is lost. The rsid names the lost source, not the statistics''
+  source.
+
+  10:47013158:A:G carries rs373336509 and the statistics of hg19 10:48726204:C:T (rs4926052); hg19
+  10:46539289:C:T (rs373336509) is lost. The rsid names the lost source, not the statistics''
+  source.
+
+  10:50240776:C:T carries rs200903336 and the statistics of hg19 10:52000536:T:C (rs7902744); hg19
+  10:48055247:T:C (rs200903336) is lost. The rsid names the lost source, not the statistics''
+  source.
+
+  Extent: 8 rows x 2,514 Analyses = 20,112 cells, of which 16,818 hold observed values. Every
+  other variant is unaffected. Five of the eight (4:74450339:C:T, 7:75044656:C:G, 8:144235357:C:T,
+  10:47013158:A:G, 10:50240776:C:T) were already collided in the earlier build, so this predates
+  opengwas/opengwasdb#288; three (7:74988062:G:T, 7:75044656:A:C, 7:101668260:A:G) arrived with
+  #288''s strand-aware lift. The cause and fix are tracked in opengwas/opengwasdb#325; the detail
+  is in the build_collisions section of the opengwasdb benchmark JSON. Decision (owner): document
+  now, fix at the next rebuild. The published Store is not rewritten by this note.
+
+  2026-10-23: built. The Store was built observed-only and completed against the UKB EUR LD panel
+  (ukb-hg38-eur-ld) under this id; completion was registered on 2026-10-23 at opengwasdb d405de0 and
+  the published Store is /data/opengwasdb/stores/OGS-00009/store.opengwasdb.
+
+  Read-only verification of the published Store (#332, 2026-10-28): the Validation Record says passed
+  at opengwasdb@d405de0 with 2,514 Analyses, 11,191,070 variants and 28,134,349,980 associations,
+  matching register''s completion-register record (same revision and timestamp) and completion-validate
+  record (ok, no errors or warnings, run at the same revision); d405de0 is the record''s own, historical
+  revision. The Store was opened and read with opengwasdb 5fc0766, opengwasdb-stores dev''s pin at the
+  time: the completion''s observed-view check record passed with 2,514 Analyses identical between parent
+  and child; the Store opens and its 2,514 Analysis IDs equal the bundle''s 2,514 admitted rows as sets
+  (none excluded); info reports format 0.2.0, dense layout, reference_completed, and association
+  coverage gwas. No fresh full validate was run: on a Store this size it takes hours, and the
+  completion''s own validate record is the evidence. The owner approved marking it validated on
+  2026-10-28.
+
+  Release Erratum (2026-10-28, #322): validation.yaml recorded observed.n_associations as 28134349980.
+  That is exactly 2,514 x 11,191,070, n_analyses times n_variants, not a count. `register` multiplied
+  the two axes when a Dense step printed no association count (register.py at 086d56d, removed by
+  #322), and complete-dense printed no n_associations. The product counts the imputed cells and the
+  2,764,792,625 off-panel cells completion left missing, so it is not the number of observed
+  associations. The value is null until opengwasdb reports an observed count
+  (opengwas/opengwasdb#294). No Store was rebuilt or rewritten by this registry metadata correction.'

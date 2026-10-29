@@ -1,28 +1,42 @@
-status: not_run
+status: passed
+validated_at: '2026-10-24T12:19:01.245683Z'
 validator:
-  name: resources/generators/dbgap-mvp/generate_candidate.py
-acceptance:
-  status: accepted
-  human_acceptance: pending
-  membership_accepted: true
-  membership_frozen: true
-  frozen_at: '2026-10-14T08:39:20Z'
-  owner_authorization: 'Owner approved the MVP bundle integration and the dev builds (opengwas/opengwasdb-stores#221
-    comment 6156153525; #232 comment 6156153173). The parent''s exact 1053-Analysis record binding and
-    staged-artifact review qualify this input manifest for authorized dev construction.'
-  owner_authorization_date: '2026-10-13'
-  source_evidence_scope: capped_pilot_diagnostic
-  note: 'The exact 1,053-Analysis AMR membership is accepted and frozen as the input manifest for owner-authorized
-    dev construction, including the 203 Analyses with no assigned ancestry that are preserved as empty/unassigned
-    and not forced to AMR. This is not full-source SCI qualification or publication acceptance: human
-    scientific acceptance remains pending and no Store has been built or validated.'
-  partition_total: 1053
-warnings:
-- Input accepted and frozen for owner-authorized dev construction; human scientific acceptance remains
-  pending.
-- No Store build or validation has run.
-- 'Evidence: the Analytical Metadata is a capped diagnostic (capped_pilot_diagnostic), not whole-source
-  SCI qualification.'
-- 'Unassigned: 203 of 1,053 Analyses have no assigned ancestry (200 margin, 3 proportion) and are preserved
-  empty with ancestry_assignment_method: unassigned; source_ancestry_label is AMR.'
+  name: opengwasdb validate
+  version: opengwasdb@496bfe9cc9bbc85c60718d62aa4c6d43d83af810
+build_environment:
+  opengwasdb_version: 0.3.0
+  opengwasdb_commit: 496bfe9cc9bbc85c60718d62aa4c6d43d83af810
+  python_version: 3.12.15
+  platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
+observed:
+  format_version: null
+  n_analyses: 1053
+  n_variants: 30380465
+  n_associations: null
+  store_bytes: null
+  build_elapsed_s: 465461.595
+  validate_status: passed
+  completion_state: reference_completed
+checks:
+  store: passed
+warnings: []
 errors: []
+acceptance:
+  recorded_at: null
+  commit: 9c9b92bc4ffd112de30ab661924079140ecd45aa
+  checks: null
+  warnings:
+  - Input accepted and frozen for owner-authorized dev construction; human scientific
+    acceptance remains pending.
+  - No Store build or validation has run.
+  - 'Evidence: the Analytical Metadata is a capped diagnostic (capped_pilot_diagnostic),
+    not whole-source SCI qualification.'
+  - 'Unassigned: 203 of 1,053 Analyses have no assigned ancestry (200 margin, 3 proportion)
+    and are preserved empty with ancestry_assignment_method: unassigned; source_ancestry_label
+    is AMR.'
+  reports: null
+  reference_overlap: null
+  store_composition: null
+replaced:
+  archive: /data/opengwasdb/stores/OGS-00014/replaced/20261024T121901Z
+  replaced_at: '2026-10-24T12:19:01.245683Z'

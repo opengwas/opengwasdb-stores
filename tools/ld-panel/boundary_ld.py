@@ -10,13 +10,14 @@ left out. Running it for two cohorts at the same boundary compares them.
 """
 from __future__ import annotations
 
-import argparse, json, tempfile
+import argparse, json
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 
 from construct_block import _plink_extract, construct_block, standardised_ea_dosages
+from scratch import scratch_dir
 
 R2_CUTS = (.2, .5, .8)
 
@@ -49,7 +50,7 @@ def main() -> int:
     args = ap.parse_args()
     source = SimpleNamespace(plink2=args.plink2, pfile=args.pfile, bfile=None, chrom=args.chrom,
                              start=max(1, args.edge - args.window), end=args.edge + args.window, keep=args.keep)
-    with tempfile.TemporaryDirectory(prefix="ld-boundary-") as tmp:
+    with scratch_dir("ld-boundary-") as tmp:
         genotypes, variants, _ = _plink_extract(source, Path(tmp))
     result = cross_boundary_ld(genotypes, variants, args.edge, maf_threshold=args.maf,
                                max_missing_rate=args.max_missing)

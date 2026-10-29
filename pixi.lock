@@ -235,7 +235,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/wheel-0.47.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?rev=70340e03d61cc0371fa5373d8406adc48cc11255#70340e03d61cc0371fa5373d8406adc48cc11255
+      - pypi: git+https://github.com/opengwas/opengwasdb?tag=v0.3.0#bc22e8476c4378af582477f09b56af01e3f5f065
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
   dev:
     channels:
@@ -578,8 +578,9 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?rev=70340e03d61cc0371fa5373d8406adc48cc11255#70340e03d61cc0371fa5373d8406adc48cc11255
+      - pypi: git+https://github.com/opengwas/opengwasdb?tag=v0.3.0#bc22e8476c4378af582477f09b56af01e3f5f065
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
+      - pypi: https://files.pythonhosted.org/packages/ab/ac/8f96ba9b4cfe3e4ea201f23f4f97165862395e9331a424ed325ae37024a8/setuptools_scm-8.3.1-py3-none-any.whl
   docs:
     channels:
     - url: https://conda.anaconda.org/conda-forge/
@@ -1011,7 +1012,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?rev=70340e03d61cc0371fa5373d8406adc48cc11255#70340e03d61cc0371fa5373d8406adc48cc11255
+      - pypi: git+https://github.com/opengwas/opengwasdb?tag=v0.3.0#bc22e8476c4378af582477f09b56af01e3f5f065
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 packages:
 - conda: https://conda.anaconda.org/bioconda/linux-64/bcftools-1.24-h487d631_1.conda
@@ -6620,28 +6621,52 @@ packages:
 - pypi: ./
   name: ogstores
   requires_python: '>=3.12'
-- pypi: git+https://github.com/opengwas/opengwasdb?rev=70340e03d61cc0371fa5373d8406adc48cc11255#70340e03d61cc0371fa5373d8406adc48cc11255
+- pypi: git+https://github.com/opengwas/opengwasdb?tag=v0.3.0#bc22e8476c4378af582477f09b56af01e3f5f065
   name: opengwasdb
   version: 0.3.0
   requires_dist:
-  - numpy>=1.26,<2.5
-  - zarr>=3.4,<4
   - numcodecs>=0.17
-  - pysam>=0.22
-  - typer>=0.12
-  - scipy>=1.11
+  - numpy>=1.26,<2.5
   - pandas>=2.0
-  - scikit-learn>=1.3
   - pyliftover>=0.4
+  - pysam>=0.22
+  - scikit-learn>=1.3
+  - scipy>=1.11
   - threadpoolctl>=3.0
-  - pytest>=8 ; extra == 'dev'
-  - pytest-xdist>=3.6 ; extra == 'dev'
-  - ruff>=0.6 ; extra == 'dev'
-  - mypy>=1.10 ; extra == 'dev'
+  - typer>=0.12
+  - zarr>=3.4,<4
   - lizard>=1.17 ; extra == 'dev'
+  - mypy>=1.10 ; extra == 'dev'
+  - pytest-xdist>=3.6 ; extra == 'dev'
+  - pytest>=8 ; extra == 'dev'
+  - ruff>=0.6 ; extra == 'dev'
   requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
   name: pysam
   version: 0.24.0
   sha256: 4a642f18649e59817de272173e9c27c031dceaca199809e4f8b338ebfc5d6698
+  requires_python: '>=3.8'
+- pypi: https://files.pythonhosted.org/packages/ab/ac/8f96ba9b4cfe3e4ea201f23f4f97165862395e9331a424ed325ae37024a8/setuptools_scm-8.3.1-py3-none-any.whl
+  name: setuptools-scm
+  version: 8.3.1
+  sha256: 332ca0d43791b818b841213e76b1971b7711a960761c5bea5fc5cdb5196fbce3
+  requires_dist:
+  - packaging>=20
+  - setuptools
+  - tomli>=1 ; python_full_version < '3.11'
+  - typing-extensions ; python_full_version < '3.10'
+  - importlib-metadata>=4.6 ; python_full_version < '3.10'
+  - entangled-cli~=2.0 ; extra == 'docs'
+  - mkdocs ; extra == 'docs'
+  - mkdocs-entangled-plugin ; extra == 'docs'
+  - mkdocs-include-markdown-plugin ; extra == 'docs'
+  - mkdocs-material ; extra == 'docs'
+  - mkdocstrings[python] ; extra == 'docs'
+  - pygments ; extra == 'docs'
+  - rich ; extra == 'rich'
+  - build ; extra == 'test'
+  - pytest ; extra == 'test'
+  - rich ; extra == 'test'
+  - typing-extensions ; python_full_version < '3.11' and extra == 'test'
+  - wheel ; extra == 'test'
   requires_python: '>=3.8'

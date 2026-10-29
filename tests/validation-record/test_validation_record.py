@@ -17,14 +17,17 @@ This suite asserts the container migration:
   3. The records rebuilt and registered through the workflow keep their
      observed measurements exactly: OGS-00001..3, and OGS-00005 since issue
      #195 rebuilt and re-registered it with `pixi run release --config
-     force=1`. The one correction to OGS-00001..3 since is their
-     `format_version`, a Release Erratum (issue #195): `register` recorded its
-     own fabricated default "1.0", and the true value is the "0.1.0" each
-     Store's manifest declares.
-  4. The three remaining migrated records (OGS-00004, OGS-00006, OGS-00007)
-     record every measurement they do not have as `null` rather than inventing
-     one. OGS-00005 was the fourth until its re-registration replaced its
-     migrated record with `register`'s own output. Only the release-level
+     force=1`, and OGS-00006 twice through issue #332: at format 0.2.0, then
+     again at an opengwasdb that takes the bundle's declared Association
+     Coverage as a build input, so the second rebuild is the first record here
+     that carries the two coverage keys. The one correction to OGS-00001..3
+     since is their `format_version`, a Release Erratum (issue #195):
+     `register` recorded its own fabricated default "1.0", and the true value
+     is the "0.1.0" each Store's manifest declares.
+  4. The two remaining migrated records (OGS-00004, OGS-00007) record every
+     measurement they do not have as `null` rather than inventing one.
+     OGS-00005 and OGS-00006 were the others until a forced rebuild replaced
+     their migrated record with `register`'s own output. Only the release-level
      verdict is carried, as `observed.validate_status`, because it is already
      recorded as the record's own `status`. Measurements live in the bundle's
      `sidecars/build_report.tsv`, but that describes a build the Validation
@@ -37,11 +40,11 @@ This suite asserts the container migration:
      never a version these Stores carry: it names a retired pre-reset encoding.
   7. `observed` carries every `OBSERVED_FIELDS` key, and beyond them only the
      keys `register` documents writing when they apply, with a documented value:
-     `variant_reference` (issue #148, docs/release-metadata-schema.md) and
-     `resumed` (docs/spec/store-release-workflow.md). A record from a recipe
-     naming a variant reference, as OGS-00005's re-registration is, carries
-     `variant_reference` legitimately. Any other extra key is not the register
-     shape.
+     `variant_reference` (issue #148, docs/release-metadata-schema.md), `resumed`
+     (docs/spec/store-release-workflow.md), and the `rsid_conflicts` counts a
+     Hybrid build reports (issue #225). A record from a recipe naming a variant
+     reference, as OGS-00005's re-registration is, carries `variant_reference`
+     legitimately. Any other extra key is not the register shape.
   8. `observed.completion_state` is the completion state of the Store the
      record's publication published, not the bundle's declaration (#307,
      ADR 0037): `observed_only` for a single-id release's build phase,
@@ -52,7 +55,9 @@ This suite asserts the container migration:
      true `observed.n_associations` (#322) are the producing step's report or
      null, never a value read from the Store or derived from matrix cells. A
      record committed before #322 does not carry the two coverage keys and is
-     not migrated.
+     not migrated; the first that does is OGS-00006's 23 Oct 2026 rebuild
+     (#332), whose builder was given `signals_only`, the value the bundle
+     declares (ADR 0040).
 
 Run from the repository root:
     pixi run python tests/validation-record/test_validation_record.py
@@ -81,10 +86,10 @@ from ogstores.register import (
 
 STORES: tuple[str, ...] = tuple(f"OGS-{i:05d}" for i in range(1, 8))
 ALREADY_REGISTERED: tuple[str, ...] = ("OGS-00001", "OGS-00002", "OGS-00003")
-# Rebuilt and re-registered through the release workflow's force path (#195);
-# their record is `register`'s own output and names the archived release.
-REREGISTERED: tuple[str, ...] = ("OGS-00005",)
-MIGRATED: tuple[str, ...] = ("OGS-00004", "OGS-00006", "OGS-00007")
+# Rebuilt and re-registered through the release workflow's force path (#195,
+# #332); their record is `register`'s own output and names the archived release.
+REREGISTERED: tuple[str, ...] = ("OGS-00005", "OGS-00006")
+MIGRATED: tuple[str, ...] = ("OGS-00004", "OGS-00007")
 
 # The observed keys `register` writes only when they apply, with the values each
 # may take: `variant_reference` (issue #148, docs/release-metadata-schema.md)
@@ -93,6 +98,15 @@ MIGRATED: tuple[str, ...] = ("OGS-00004", "OGS-00006", "OGS-00007")
 CONDITIONAL_OBSERVED_VALUES: dict[str, frozenset[object]] = {
     "variant_reference": frozenset({"provided", "extracted"}),
     "resumed": frozenset({True}),
+}
+
+# The conditional observed keys whose value is a block rather than a scalar, and
+# the keys that block carries: the counts a Hybrid build's rsid harvest reports
+# (issue #225), which a completion phase carries from its build phase because
+# `complete-hybrid` reports none. The build's `sample` names variants, not a
+# measurement, so `register` leaves it in the step record.
+CONDITIONAL_OBSERVED_MAPPINGS: dict[str, tuple[str, ...]] = {
+    "rsid_conflicts": ("policy", "n_keys", "n_variants"),
 }
 
 # The observed keys a later issue added. Each is in `OBSERVED_FIELDS`, so
@@ -150,7 +164,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "format_version": "0.1.0",
         "n_analyses": 10,
         "n_variants": 21230615,
-        "n_associations": 212306150,
+        "n_associations": None,
         "store_bytes": None,
         "build_elapsed_s": 1730.458,
         "validate_status": "passed",
@@ -169,6 +183,27 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "build_elapsed_s": 1819.797,
         "validate_status": "passed_with_warnings",
         "variant_reference": "provided",
+    },
+    # Rebuilt from the unchanged bundle at opengwasdb d405de0 and re-registered
+    # on 22 Oct 2026 (#332): the format-0.1.0 Store published in September
+    # failed `validate` for the missing variant-centric index, which only a
+    # format-0.2.0 build writes (#344). Null is again what no step reported.
+    # Rebuilt a second time from the same bundle on 23 Oct 2026, at 2f308cb,
+    # which takes the declared Association Coverage as a build input
+    # (opengwasdb#298, #341): the first rebuild had recorded the builder's own
+    # `cis_and_signals` default, and the store now records the declared
+    # `signals_only` and the assembly nothing reported.
+    "OGS-00006": {
+        "format_version": None,
+        "n_analyses": 1400,
+        "n_variants": 12086463,
+        "n_associations": 58054212,
+        "association_coverage": "signals_only",
+        "reference_assembly": None,
+        "store_bytes": None,
+        "build_elapsed_s": 850.366,
+        "validate_status": "passed_with_warnings",
+        "completion_state": "observed_only",
     },
 }
 
@@ -220,15 +255,22 @@ class TestCommittedValidationRecords(unittest.TestCase):
                 )
             extra = set(observed) - set(OBSERVED_FIELDS)
             self.assertEqual(
-                extra - set(CONDITIONAL_OBSERVED_VALUES),
+                extra - set(CONDITIONAL_OBSERVED_VALUES) - set(CONDITIONAL_OBSERVED_MAPPINGS),
                 set(),
                 f"{store_id}.observed carries keys register does not document writing",
             )
-            for key in sorted(extra):
+            for key in sorted(extra & set(CONDITIONAL_OBSERVED_VALUES)):
                 self.assertIn(
                     observed[key],
                     CONDITIONAL_OBSERVED_VALUES[key],
                     f"{store_id}.observed.{key} is {observed[key]!r}, not a documented value",
+                )
+            for key in sorted(extra & set(CONDITIONAL_OBSERVED_MAPPINGS)):
+                self.assertEqual(
+                    set(observed[key]),
+                    set(CONDITIONAL_OBSERVED_MAPPINGS[key]),
+                    f"{store_id}.observed.{key} carries {sorted(observed[key])}, not the "
+                    f"{sorted(CONDITIONAL_OBSERVED_MAPPINGS[key])} a record holds",
                 )
             self.assertEqual(
                 record["validator"]["name"],

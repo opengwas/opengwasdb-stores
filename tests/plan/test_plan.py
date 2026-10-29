@@ -5,6 +5,11 @@ Verifies:
 - OGS-00003 Dense observed-only golden test against external JSON fixture.
 - OGS-00004 and OGS-00005 Hybrid observed-only golden tests against external JSON fixtures.
 - OGS-00006 and OGS-00007 Ragged SSF observed-only golden tests against external JSON fixtures.
+- Single-id completion (ADR 0037): OGS-00003 (Dense), OGS-00011 (Hybrid, which declares the
+  `complete` block itself from #334) and OGS-00006 (Ragged) plan both phases against golden
+  fixtures, the build phase being the observed-only plan; a Ragged one's Observed-View Check
+  takes the LD panel and ancestry its `complete` block declares, and a Ragged `complete`
+  block that lacks either is refused.
 - Committed registry (#211): the eight Dense-component bundles declare `hm3`, and
   the declared subset Step sits before overview/validate; the four Ragged-only
   bundles declare none and plan unchanged.
@@ -1234,7 +1239,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
         self.assertEqual(complete_step.outputs, [Path("/custom/artifact/root/OGS-00088/store.opengwasdb")])
 
     def test_missing_derived_from_rejected(self) -> None:
-        """A Ragged reference-completed bundle without derived_from is refused at planning."""
+        """A Ragged reference-completed bundle without derived_from or a build block is refused at planning."""
         for missing_val in (None, ""):
             bundle_no_parent = Bundle(
                 store_id="OGS-00088",
@@ -1255,11 +1260,11 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 analyses_path=Path("stores/OGS-00088/analyses.tsv"),
             )
             # Without a parent it is a single-id release, which completes its
-            # own Store, and only a Dense one is planned (ADR 0037).
+            # own Store, so it must build that Store first (ADR 0037).
             with self.assertRaises(ValueError) as ctx:
                 plan(bundle_no_parent)
             record_check()
-            self.assertIn("'ragged'", str(ctx.exception))
+            self.assertIn("must declare a 'build' block", str(ctx.exception))
             self.assertIn("ADR 0037", str(ctx.exception))
 
     def test_malformed_derived_from_rejected(self) -> None:
@@ -1783,20 +1788,147 @@ class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
         rho = next(s for s in steps if s.name == "completion-rho")
         self.assertEqual(rho.argv, ["opengwasdb", "build-dense-rho", self.STORE])
 
-    def test_a_layout_other_than_dense_is_refused(self) -> None:
-        """The Observed-View Check supports only Dense Stores, so nothing else is planned (ADR 0037)."""
-        for layout, command in (("hybrid", "complete-hybrid"), ("ragged", "complete-ragged")):
-            with self.subTest(layout=layout):
-                bundle_obj = self.completed(
-                    layout,
-                    complete={**self.COMPLETE_BLOCK, "command": command},
-                    post={"top_hits": False, "overview": False},
-                )
-                with self.assertRaises(ValueError) as ctx:
-                    plan(bundle_obj)
-                record_check()
-                self.assertIn(repr(layout), str(ctx.exception))
-                self.assertIn("ADR 0037", str(ctx.exception))
+
+class TestPlanSingleIdHybridReferenceCompleted(unittest.TestCase):
+    """A Hybrid release without `derived_from` completes its own Store, as a Dense one does (ADR 0037, #333).
+
+    The fixture is OGS-00011's committed bundle, which declares the completion
+    itself from #334. The golden was written by the planner before Hybrid was
+    admitted: its observed-only plan of OGS-00011, then its own completion
+    phase for the amended bundle, which carries no layout rule of its own. The
+    options that phase planned stood in for OGS-00011's own (#333); #334's
+    `complete` block matched them, so the golden did not change.
+    """
+
+    GOLDEN = REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00011-single-id-completed.json"
+    STORE = "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
+
+    def observed_only(self) -> Bundle:
+        """OGS-00011 as published before it declared completion: same recipe, no `complete` block."""
+        amended = load("OGS-00011")
+        build = {key: value for key, value in amended.build.items() if key != "complete"}
+        build["completion_state"] = "observed_only"
+        return Bundle(
+            store_id=amended.store_id,
+            root=amended.root,
+            release=amended.release,
+            build=build,
+            analyses_path=amended.analyses_path,
+        )
+
+    def test_both_phases_match_the_golden(self) -> None:
+        """Build phase as today, then complete-hybrid, the HM3 subset, overview, validate and the check."""
+        steps = plan(load("OGS-00011"))
+        assert_steps_match_golden(self, steps, self.GOLDEN)
+        record_check()
+        self.assertEqual(
+            [s.name for s in steps if s.phase == "completion"],
+            [
+                "complete", "completion-indexed-subset-hm3", "completion-overview", "completion-validate",
+                "completion-observed-view-check",
+            ],
+        )
+        for step in steps:
+            validate_step_argv_against_cli(self, step)
+
+    def test_the_build_phase_is_the_observed_only_plan(self) -> None:
+        """The build phase equals the planner's observed-only plan for this bundle (ADR 0037, #305).
+
+        `observed_only()` drops the block the way the planner does, so this
+        comparison alone cannot catch a planner that drifts; the golden's build
+        steps are what anchor what OGS-00011 planned before #334.
+        """
+        steps = plan(load("OGS-00011"))
+        record_check()
+        self.assertEqual([s for s in steps if s.phase == "build"], plan(self.observed_only()))
+
+
+class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
+    """A Ragged release without `derived_from` completes its own Store, as a Dense one does (ADR 0037, #336).
+
+    The fixture is OGS-00006's committed recipe gaining a `complete-ragged`
+    block. The golden was written by the planner before Ragged was admitted:
+    its observed-only plan of OGS-00006, then its completion phase for the
+    amended bundle, with the Observed-View Check's `--ld-panel` and
+    `--ancestry` added by hand. `complete-ragged` builds the Top-Hit Index
+    inline and a Ragged Store has no overview, so the completion phase is
+    `complete`, validate and the check.
+
+    The `complete` options are OGS-00002's, standing in for OGS-00006's own
+    until its bundle declares them (#224); the golden's completion phase is
+    regenerated then.
+    """
+
+    GOLDEN = REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00006-single-id-completed.json"
+    LD_PANEL = "/data/opengwasdb/reference/hgdp1kgp-hg38/panel"
+    COMPLETE_BLOCK = {"command": "complete-ragged", "options": {"ld-panel": LD_PANEL, "ancestry": "EUR"}}
+
+    def completed(self, complete: dict | None = None) -> Bundle:
+        observed = load("OGS-00006")
+        return Bundle(
+            store_id=observed.store_id,
+            root=observed.root,
+            release=observed.release,
+            build={
+                **observed.build,
+                "completion_state": "reference_completed",
+                "complete": complete or self.COMPLETE_BLOCK,
+            },
+            analyses_path=observed.analyses_path,
+        )
+
+    def test_both_phases_match_the_golden(self) -> None:
+        """Build phase as today, then complete-ragged, validate and the check, which names the panel."""
+        steps = plan(self.completed())
+        assert_steps_match_golden(self, steps, self.GOLDEN)
+        record_check()
+        self.assertEqual(
+            [s.name for s in steps if s.phase == "completion"],
+            ["complete", "completion-validate", "completion-observed-view-check"],
+        )
+        check = steps[-1]
+        self.assertEqual(check.argv[check.argv.index("--ld-panel") + 1], self.LD_PANEL)
+        self.assertEqual(check.argv[check.argv.index("--ancestry") + 1], "EUR")
+        for step in steps:
+            validate_step_argv_against_cli(self, step)
+
+    def test_the_build_phase_is_the_observed_only_plan(self) -> None:
+        """What OGS-00006 plans today is its build phase, step for step (ADR 0037, #305)."""
+        steps = plan(self.completed())
+        record_check()
+        self.assertEqual([s for s in steps if s.phase == "build"], plan(load("OGS-00006")))
+
+    def test_the_check_renders_each_option_as_complete_does(self) -> None:
+        """One renderer for both steps, whatever the key's spelling or the value's type (ADR 0023)."""
+        steps = plan(
+            self.completed({"command": "complete-ragged", "options": {"--ld-panel": self.LD_PANEL, "ancestry": ["EUR"]}})
+        )
+        record_check()
+        complete, check = steps[-3], steps[-1]
+        self.assertEqual(complete.argv[-4:], ["--ld-panel", self.LD_PANEL, "--ancestry", "EUR"])
+        output = check.argv.index("--output")
+        self.assertEqual(check.argv[output - 4 : output], complete.argv[-4:])
+
+    def test_a_complete_block_without_the_panel_or_the_ancestry_is_refused(self) -> None:
+        """Each is refused by name, so the check is never planned without it.
+
+        The check rebuilds the regions completion retained from the panel, and
+        refuses a Ragged pair without it. Neither `complete-ragged` nor the
+        check needs the ancestry: the registry requires it declared, so a
+        silent `EUR` default cannot complete a non-EUR Store against the wrong
+        panel, and the check cross-checks it against the completed Store's
+        record.
+        """
+        for missing in ("ld-panel", "ancestry"):
+            for options in (
+                {key: value for key, value in self.COMPLETE_BLOCK["options"].items() if key != missing},
+                {**self.COMPLETE_BLOCK["options"], missing: None},
+            ):
+                with self.subTest(missing=missing, options=options):
+                    with self.assertRaises(ValueError) as ctx:
+                        plan(self.completed({"command": "complete-ragged", "options": options}))
+                    record_check()
+                    self.assertIn(f"declares no '{missing}'", str(ctx.exception))
 
 
 class TestBuildManifestSeam(unittest.TestCase):
@@ -2557,6 +2689,47 @@ class TestIndexedSubsets(unittest.TestCase):
         record_check()
         self.assertNotIn(self.CHECKSUM, subset.argv)
 
+    def test_a_declaration_without_options_plans_the_same_argv_as_before(self) -> None:
+        """No `options` key leaves the subset command line exactly as #209 planned it."""
+        steps = plan(self._bundle(indexed_subsets=[self._declaration()]), artifact_root="/AR")
+        subset = next(s for s in steps if s.name == "indexed-subset-hm3")
+        record_check()
+        self.assertEqual(
+            subset.argv,
+            [
+                "opengwasdb",
+                "build-indexed-subset",
+                "/AR/OGS-00090/store.opengwasdb",
+                "hm3",
+                "--variant-list",
+                self.VARIANT_LIST,
+                "--reference-assembly",
+                "GRCh38",
+            ],
+        )
+
+    def test_a_declared_subset_policy_is_passed_through_as_a_flag(self) -> None:
+        """A declaration carries command options verbatim, as ADR 0023 renders them (#225)."""
+        declaration = {**self._declaration(), "options": {"overflow-only": "skip"}}
+        steps = plan(self._bundle(indexed_subsets=[declaration]), artifact_root="/AR")
+        subset = next(s for s in steps if s.name == "indexed-subset-hm3")
+        record_check()
+        self.assertEqual(subset.argv[-2:], ["--overflow-only", "skip"])
+        record_check()
+        self.assertEqual(
+            subset.argv[:-2],
+            [
+                "opengwasdb",
+                "build-indexed-subset",
+                "/AR/OGS-00090/store.opengwasdb",
+                "hm3",
+                "--variant-list",
+                self.VARIANT_LIST,
+                "--reference-assembly",
+                "GRCh38",
+            ],
+        )
+
     def test_hybrid_and_reference_completed_are_supported(self) -> None:
         hybrid = plan(
             self._bundle(
@@ -2614,6 +2787,9 @@ class TestIndexedSubsets(unittest.TestCase):
             [{**self._declaration(), "options": ["not", "a", "mapping"]}],
             [{**self._declaration(), "options": {"variant-list": "/evil"}}],
             [{**self._declaration(), "options": {"--reference-assembly": "hg19"}}],
+            [{**self._declaration(), "options": {"overflow-only": {"policy": "skip"}}}],
+            [{**self._declaration(), "options": {"overflow-only": None}}],
+            [{**self._declaration(), "options": {"overflow-only": []}}],
         ]
         for entry in bad_entries:
             with self.assertRaises(ValueError):
@@ -2723,19 +2899,8 @@ class TestCurrentFormatRuntimeCompatibility(unittest.TestCase):
 
 
 def main() -> None:
-    suite = unittest.TestSuite()
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanDense))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanHybrid))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanRagged))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanReferenceCompleted))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPlanSingleIdReferenceCompleted))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestBuildManifestSeam))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestArtifactRootConfiguration))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestColumnMapPlan))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestPostDefaults))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestVariantReferencePreStage))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestIndexedSubsets))
-    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(TestCurrentFormatRuntimeCompatibility))
+    # Every TestCase in this module, so a new class cannot be left out of the run.
+    suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():

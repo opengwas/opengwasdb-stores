@@ -35,7 +35,7 @@ import yaml
 
 from ogstores import audit_indexed_subsets as audit
 from ogstores import bundle
-from ogstores.plan import plan
+from ogstores.plan import plan, render_options
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -93,6 +93,15 @@ HAPMAP3_DECLARATION: dict[str, Any] = {
     "variant_list": HAPMAP3_VARIANT_LIST,
     "reference_assembly": HAPMAP3_ASSEMBLY,
     "checksum": HAPMAP3_CHECKSUM,
+}
+
+# The one declaration that is not the plain migration: OGS-00011's Hybrid subset
+# also declares how to treat a requested ALID only its shared axis carries
+# (stores #225, opengwas/opengwasdb#324). 17,151 of its 1,206,903 HM3 ALIDs are
+# such ALIDs, so the subset cannot be built on the default policy.
+HAPMAP3_OVERFLOW_ONLY_OPTIONS: dict[str, Any] = {"overflow-only": "skip"}
+DECLARATION_OPTIONS: dict[str, dict[str, Any]] = {
+    "OGS-00011": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
 }
 
 # The pre-#211 Build Recipe values, frozen so a future edit that quietly changes
@@ -161,11 +170,21 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "variant-reference": "/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz",
             "n-workers": 24,
             "checkpoint": True,
+            # #225 adds the rsid-conflict policy as a Release Erratum: the sources
+            # name some variants two ways, and the build refused them rather than
+            # choose a name (opengwasdb#306).
             "on-rsid-conflict": "drop",
             "source-reader-capability": "opengwasdb.gwas-ssf",
             "source-assembly": "hg38",
         },
         "post": {"top_hits": False, "overview": True},
+        # #334 amends OGS-00011's accepted bundle to declare completion
+        # (ADR 0037): the same build phase, then completion against the UKB EUR
+        # panel at the build's 24 workers.
+        "complete": {
+            "command": "complete-hybrid",
+            "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR", "n-workers": 24},
+        },
     },
     "OGS-00012": {
         "phase": "build",
@@ -176,6 +195,13 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "n-workers": 16,
         },
         "post": {"top_hits": True, "overview": True},
+        # #227 amends OGS-00012's accepted bundle to declare completion
+        # (ADR 0037): the same build phase, then completion against the UKB EUR
+        # panel at 32 workers.
+        "complete": {
+            "command": "complete-dense",
+            "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR", "n-workers": 32},
+        },
     },
     "OGS-00013": {
         "phase": "build",
@@ -196,6 +222,17 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "n-workers": 16,
         },
         "post": {"top_hits": True, "overview": True},
+        # #229 amends OGS-00014's accepted bundle to declare completion
+        # (ADR 0037): the same build phase, then completion against the
+        # HGDP+1kGP AMR panel at 32 workers.
+        "complete": {
+            "command": "complete-dense",
+            "options": {
+                "ld-panel": "/data/opengwasdb/reference/hgdp1kgp-hg38-amr/panel",
+                "ancestry": "AMR",
+                "n-workers": 32,
+            },
+        },
     },
     "OGS-00015": {
         "phase": "build",
@@ -225,6 +262,13 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "n-workers": 32,
         },
         "post": {"top_hits": True, "overview": True},
+        # #223 amends OGS-00017's accepted bundle to declare completion
+        # (ADR 0037): the same build phase, then completion against the UKB EUR
+        # panel at 32 workers.
+        "complete": {
+            "command": "complete-dense",
+            "options": {"ld-panel": "/data/opengwasdb/reference/ld", "ancestry": "EUR", "n-workers": 32},
+        },
     },
 }
 
@@ -289,19 +333,24 @@ class TestRegistryMigration(unittest.TestCase):
         for store_id in EXPECTED_IN_SCOPE:
             build = load_build(store_id)
             record_check()
-            expected = dict(HAPMAP3_DECLARATION)
-            if store_id == "OGS-00011":
-                expected["options"] = {"overflow-only": "skip"}
+            declarations = build.get("indexed_subsets")
+            self.assertEqual(len(declarations), 1, store_id)
+            declaration = dict(declarations[0])
+            options = declaration.pop("options", None)
+            record_check()
+            self.assertEqual(declaration, HAPMAP3_DECLARATION, store_id)
+            record_check()
             self.assertEqual(
-                build.get("indexed_subsets"), [expected], store_id
+                options, DECLARATION_OPTIONS.get(store_id), store_id
             )
 
     def test_only_indexed_subsets_was_added(self) -> None:
         """The key is the only addition; options, command and post are unchanged.
 
         Note: OGS-00012/13/14/16 additionally carry the owner-authorized
-        execution-only `n-workers: 16` amendment, and OGS-00009 its completion
-        phase (#312).
+        execution-only `n-workers: 16` amendment, and OGS-00009 (#312),
+        OGS-00011 (#334, plus #225's rsid-conflict policy), OGS-00012 (#227),
+        OGS-00014 (#229) and OGS-00017 (#223) their completion phase.
         """
         for store_id, expected in EXPECTED_UNRELATED.items():
             build = load_build(store_id)
@@ -342,22 +391,21 @@ class TestRegistryMigration(unittest.TestCase):
             subset = next(
                 step for step in plan(loaded) if step.name == "indexed-subset-hm3"
             )
+            declaration = loaded.build["indexed_subsets"][0]
             record_check()
-            expected_argv = [
-                "opengwasdb",
-                "build-indexed-subset",
-                f"/data/opengwasdb/stores/{store_id}/store.opengwasdb",
-                "hm3",
-                "--variant-list",
-                HAPMAP3_VARIANT_LIST,
-                "--reference-assembly",
-                HAPMAP3_ASSEMBLY,
-            ]
-            if store_id == "OGS-00011":
-                expected_argv.extend(["--overflow-only", "skip"])
             self.assertEqual(
                 subset.argv,
-                expected_argv,
+                [
+                    "opengwasdb",
+                    "build-indexed-subset",
+                    f"/data/opengwasdb/stores/{store_id}/store.opengwasdb",
+                    "hm3",
+                    "--variant-list",
+                    HAPMAP3_VARIANT_LIST,
+                    "--reference-assembly",
+                    HAPMAP3_ASSEMBLY,
+                    *render_options(declaration.get("options")),
+                ],
                 store_id,
             )
 

@@ -1,11 +1,11 @@
 status: passed
-validated_at: '2026-10-22T20:39:12.554126Z'
+validated_at: '2026-10-27T20:13:36.035875Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@d8896e46677ae9d54f1fc08a974e8c7e41d105cc
+  version: opengwasdb@0d59f151c7618933747a59f825deeef6a51de9e1
 build_environment:
   opengwasdb_version: 0.3.0
-  opengwasdb_commit: d8896e46677ae9d54f1fc08a974e8c7e41d105cc
+  opengwasdb_commit: 0d59f151c7618933747a59f825deeef6a51de9e1
   python_version: 3.12.15
   platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
 observed:
@@ -13,10 +13,10 @@ observed:
   n_analyses: 19250
   n_variants: 8927061
   n_associations: 127112772
-  association_coverage: null
+  association_coverage: cis
   reference_assembly: null
   store_bytes: null
-  build_elapsed_s: 818.287
+  build_elapsed_s: 1504.655
   validate_status: passed
   completion_state: observed_only
 checks:
@@ -24,28 +24,34 @@ checks:
 warnings: []
 errors: []
 acceptance:
-  recorded_at: '2026-10-22T15:25:25Z'
-  commit: 2c0396c7280f38b0b9ca1465a5a5ed2a48c995ce
+  recorded_at: '2026-10-27T19:28:05Z'
+  commit: 8dabe6e5c851ba895c3edd7b90e4f2ad6d9a35c9
   acceptance:
     status: accepted
     human_acceptance: accepted
-    human_acceptance_date: '2026-10-23'
-    human_acceptance_authorization: https://github.com/opengwas/opengwasdb-stores/issues/314#issuecomment-6360207599
+    human_acceptance_date: '2026-10-28'
+    human_acceptance_authorization: https://github.com/opengwas/opengwasdb-stores/issues/314#issuecomment-6478111346
     membership_accepted: true
     membership_frozen: true
-    frozen_at: '2026-10-22T16:00:43Z'
-    owner_authorization: 'The owner accepted OGS-00027 for building as emitted (opengwas/opengwasdb-stores#314
-      comment 6345246939, https://github.com/opengwas/opengwasdb-stores/issues/314#issuecomment-6345246939):
-      19,250 Analyses from the frozen inventory eqtlgen-cis-full-2026-10-22d; ancestry
-      measured from the source allele frequencies, EUR; declared_standardised SD with
-      the maximum pair N as variant_level sample size; build-ragged-besd from hg19
-      on opengwasdb d405de0, reading /data/opengwasdb/raw/eqtlgen/full-19250.'
-    owner_authorization_date: '2026-10-22'
+    frozen_at: '2026-10-27T19:42:54Z'
+    owner_authorization: 'The owner accepted the replacement of OGS-00027 before release
+      (opengwas/opengwasdb-stores#282 comment 6382592883; accepted at opengwas/opengwasdb-stores#314
+      comment 6451854029): 19,250 Analyses from the frozen inventory eqtlgen-cis-full-2026-10-24;
+      membership, ancestry (measured from the source allele frequencies, EUR) and
+      quality checks as accepted on 2026-10-22; declared_standardised SD; sample_size
+      the maximum published per-pair N (kind and scope variant_level); build-ragged-besd
+      from hg19 on opengwasdb 0d59f151 with --sample-size-table /data/opengwasdb/raw/eqtlgen/full-19250.sample-size.tsv.gz,
+      --store-esi-eaf and --eaf-reference /data/opengwasdb/reference/ancestry-mixture/ref_eaf.united-kingdom.hg38.tsv.gz,
+      reading /data/opengwasdb/raw/eqtlgen/full-19250.'
+    owner_authorization_date: '2026-10-27'
     note: 'The exact 19,250-Analysis membership is accepted and frozen as the input
       manifest for the build. human_acceptance keeps the meaning it has in OGS-00012..16
       and OGS-00009: human scientific acceptance of the released Store, which follows
       its build and validation; the owner''s acceptance for building is status accepted
-      and owner_authorization. No Store has been built or validated from this bundle.'
+      and owner_authorization. The Store published before this replacement (built
+      at d8896e4 and validated 2026-10-23, then accidentally force-rebuilt at 75f0e77
+      on 2026-10-24) is superseded in place; no Store has been built or validated
+      from this bundle.'
   checks:
     schema: passed
     files: passed
@@ -178,3 +184,6 @@ acceptance:
     quality_checks: sidecars/quality_checks.tsv
     analysis_targets: sidecars/analysis_targets.tsv
   warnings: []
+replaced:
+  archive: /data/opengwasdb/stores/OGS-00027/replaced/20261027T194820Z
+  replaced_at: '2026-10-27T20:13:36.035875Z'

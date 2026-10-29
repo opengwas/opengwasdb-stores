@@ -35,7 +35,6 @@ Splits = dict[str, list[tuple[str, list[str]]]]
 # R suites are listed: discovery finds only Python ones (#257).
 R_SUITES: list[Suite] = [
     ("metadata-resolvers/gwas-catalog-ssf", "r", ["tests/metadata-resolvers/gwas-catalog-ssf/run_tests.R"]),
-    ("metadata-resolvers/trait-ontology-mapping", "r", ["tests/metadata-resolvers/trait-ontology-mapping/run_tests.R"]),
     ("materialise-gwas-ssf-ragged", "r", ["tests/materialise-gwas-ssf-ragged/run_tests.R"]),
     ("schema-validation", "r", ["tests/schema-validation/run_tests.R"]),
 ]

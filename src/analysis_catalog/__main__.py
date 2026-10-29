@@ -4,8 +4,9 @@
 
 The Artifact Root resolves as everywhere else (`ogstores.paths.artifact_root`):
 `--artifact-root`, then `OPENGWASDB_ARTIFACT_ROOT`, then `ogstores.yaml`. Run it
-after a merge to `dev`, from a clean checkout. A rebuild with unchanged inputs
-writes nothing.
+after a merge to `main`, from a dedicated clean checkout of `origin/main`
+(`docs/spec/analysis-catalog.md`). A rebuild with unchanged inputs writes
+nothing.
 """
 
 from __future__ import annotations

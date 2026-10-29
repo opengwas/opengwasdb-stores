@@ -1,0 +1,4596 @@
+{
+ "children": {
+  "e0": {
+   "issue": {
+    "number": 58,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 53,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "The Top-Hit Index has a format but no module",
+       "url": "https://github.com/opengwas/opengwasdb/issues/53"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 86,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 83,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 54,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "The two-pass VCF build is one module written twice",
+       "url": "https://github.com/opengwas/opengwasdb/issues/54"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 55,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Make a validation rule addressable",
+       "url": "https://github.com/opengwas/opengwasdb/issues/55"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 56,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "The Source Reader seam has one user and four bypasses",
+       "url": "https://github.com/opengwas/opengwasdb/issues/56"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 57,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "The overview renderer should take data, not a path",
+       "url": "https://github.com/opengwas/opengwasdb/issues/57"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "NQ",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e1": {
+   "issue": {
+    "number": 282,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 283,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Freeze from a Source Metadata Table and an Acquisition Manifest, by Selection",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/283"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 284,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Resolution Records kept per Source Collection and reused across Selections",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/284"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 285,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Quality Checks: one framework for exclusions and warnings",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/285"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 286,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Trait Ontology Mapping as a shared pipeline step",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/286"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 287,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "One release config and one entry point; GWAS Catalog end to end",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/287"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 288,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "FinnGen onto the pipeline",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/288"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 340,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 289,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "ukb-b onto the pipeline",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/289"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 290,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "dbGaP MVP onto the pipeline",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/290"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 291,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "eQTLGen onto the pipeline; its generator stops building Stores",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/291"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 292,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "The Release Bundle carries the Column Map",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/292"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 300,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Region-filtered ragged releases (Chen 2023, Sun 2018) on the shared pipeline; retire the R gwas-ssf generators",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/300"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 281,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "CLOSED",
+       "title": "Generic tabular reader driven by a Column Map",
+       "url": "https://github.com/opengwas/opengwasdb/issues/281"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 282,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "CLOSED",
+       "title": "Resolve BESD Analyses",
+       "url": "https://github.com/opengwas/opengwasdb/issues/282"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 317,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Repository layout: one home per kind of thing (src/, resources/ inputs only, tools/, docs/reports/)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/317"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 248,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 252,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Retire families/ and .rebuild133/: one home for Release Bundles",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/252"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 340,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Pipeline emits a reference-completed bundle (ADR 0037)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/340"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 285,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Move gwas-ssf and finngen-r13 capabilities onto their built-in Column Maps after a real-data parity run",
+       "url": "https://github.com/opengwas/opengwasdb/issues/285"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 287,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "trait_ontology_id: allow a \", \"-joined CURIE list for multi-term source mappings, and define matching on it",
+       "url": "https://github.com/opengwas/opengwasdb/issues/287"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 347,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Move GWAS Catalog metadata interpretation out of shared pipeline code (ADR 0036)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/347"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 350,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Move Canonical Trait Mapping curation off the last two R ontology helpers",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/350"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 302,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "CLOSED",
+       "title": "Store per-association sample size (and BESD allele frequency) in Ragged Stores",
+       "url": "https://github.com/opengwas/opengwasdb/issues/302"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "MjE",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e10": {
+   "issue": {
+    "number": 300,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 152,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "GRCh37 sources lift inside Pass 2 against a supplied axis",
+       "url": "https://github.com/opengwas/opengwasdb/issues/152"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 257,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Single-pass and two-pass Hybrid builds disagree on association-less off-reference variants",
+       "url": "https://github.com/opengwas/opengwasdb/issues/257"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 258,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "A --variant-reference that names some rsids leaves the rest blank, even when sources name them",
+       "url": "https://github.com/opengwas/opengwasdb/issues/258"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 260,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "A plain-ALID --variant-reference stores an hg19 source's associations on the wrong locus; lift hg19 sources instead",
+       "url": "https://github.com/opengwas/opengwasdb/issues/260"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 261,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "A plain-ALID single-pass build records a source_alid for reference rows no source observed",
+       "url": "https://github.com/opengwas/opengwasdb/issues/261"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 325,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "build-dense-vcf: two hg19 variants lifting to one hg38 ALID are silently merged (3 rows in rebuilt OGS-00009)",
+       "url": "https://github.com/opengwas/opengwasdb/issues/325"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "Ng",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e11": {
+   "issue": {
+    "number": 193,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 238,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Support a Rho Matrix on Hybrid stores, estimated from the Dense Component",
+       "url": "https://github.com/opengwas/opengwasdb/issues/238"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "MQ",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e12": {
+   "issue": {
+    "number": 345,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 160,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Rescue remaining unassigned and orientation-failing studies for GWAS Catalog EUR Hybrid",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/160"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 204,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Sequencing Store for the 148 MAF-unfiltered Analyses routed out of OGS-00011 (#203)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/204"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "Mg",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e13": {
+   "issue": {
+    "number": 307,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 308,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Validation logs each check as a timed phase",
+       "url": "https://github.com/opengwas/opengwasdb/issues/308"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 309,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Attribute Reference Completion's wall time to its phases",
+       "url": "https://github.com/opengwas/opengwasdb/issues/309"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 310,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Attribute the EAF survey and orientation check's wall time",
+       "url": "https://github.com/opengwas/opengwasdb/issues/310"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 311,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "A committed harness reproduces the epic's timing evidence",
+       "url": "https://github.com/opengwas/opengwasdb/issues/311"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 312,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Prove a Dense build's inline Top-Hit Index equals a standalone rebuild",
+       "url": "https://github.com/opengwas/opengwasdb/issues/312"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 313,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "build-dense-top-hits accepts --n-workers",
+       "url": "https://github.com/opengwas/opengwasdb/issues/313"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 308,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 314,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Validation reads each statistic plane once",
+       "url": "https://github.com/opengwas/opengwasdb/issues/314"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 314,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 315,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Validation spreads bands across --n-workers",
+       "url": "https://github.com/opengwas/opengwasdb/issues/315"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 316,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Dense Pass 2 matches associations with an integer key join",
+       "url": "https://github.com/opengwas/opengwasdb/issues/316"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 316,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 317,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Hybrid Pass 2 uses the integer key join",
+       "url": "https://github.com/opengwas/opengwasdb/issues/317"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 316,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 318,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "FinnGen sources stream to Pass 2 as columns",
+       "url": "https://github.com/opengwas/opengwasdb/issues/318"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 318,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 319,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "GWAS-SSF sources stream to Pass 2 as columns",
+       "url": "https://github.com/opengwas/opengwasdb/issues/319"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 320,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "The residual EAF encode runs across workers",
+       "url": "https://github.com/opengwas/opengwasdb/issues/320"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 309,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 321,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Completion's post-block band write uses more than one process",
+       "url": "https://github.com/opengwas/opengwasdb/issues/321"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 312,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 357,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "A Dense build meets its declared top_hits itself",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/357"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 315,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 358,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "The Store Release Build passes a worker count to validate",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/358"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 321,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 320,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 319,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 317,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 358,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 357,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 311,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 310,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "OA",
+         "hasNextPage": false
+        }
+       },
+       "number": 322,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Re-measure OGS-00009 end to end and record the second-language decision",
+       "url": "https://github.com/opengwas/opengwasdb/issues/322"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "MTc",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e14": {
+   "issue": {
+    "number": 366,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 367,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Let a checkout under /data/opengwasdb pass the bundle artifact-path guard",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/367"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 368,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Detach pixi environments to /data and document where checkouts live",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/368"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 361,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Test runs are not hermetic: ~/.local user site-packages shadow the pixi environment",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/361"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "Mw",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e15": {
+   "issue": {
+    "number": 371,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 372,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Reconcile OGS-00011\u2019s off-panel axis against observed associations",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/372"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 372,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 373,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Attribute OGS-00011\u2019s off-panel union to Analyses and publications",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/373"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 373,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 374,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Trace sampled OGS-00011 variants through raw-source frequency admission",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/374"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 373,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 375,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Test assembly and allele representation as causes of off-panel inflation",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/375"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 374,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 376,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Compare verified source frequencies with independent EUR evidence",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/376"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 376,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 375,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 374,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mw",
+         "hasNextPage": false
+        }
+       },
+       "number": 377,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Quantify supported causes across OGS-00011\u2019s full off-panel union",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/377"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 377,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 378,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Publish OGS-00011 off-panel scientific findings and release recommendation",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/378"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 380,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Repin opengwasdb with MAF admission fix and verify candidate resolution",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/380"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 380,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 381,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Rebuild OGS-00011 and validate the common-variant off-panel axis",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/381"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "OQ",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e16": {
+   "issue": {
+    "number": 385,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 333,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Merge PRs to main, and make every merge a version tagged from its changelog fragments",
+       "url": "https://github.com/opengwas/opengwasdb/issues/333"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 386,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Merge PRs to main, and make every merge a version (opengwasdb-stores)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/386"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 333,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 387,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Pin opengwasdb by release tag",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/387"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 388,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Build one Quarto site over both repos' docs, rendered and published locally",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/388"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 389,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Collect the project site's data, and define the epic record",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/389"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 390,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Yardstick: a fixed benchmark recorded at the end of every epic",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/390"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 390,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 389,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 388,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mw",
+         "hasNextPage": false
+        }
+       },
+       "number": 391,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Project site pages: the bird's-eye home, one page per epic, trends and Store pages",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/391"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 386,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 333,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 390,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 389,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "NA",
+         "hasNextPage": false
+        }
+       },
+       "number": 1,
+       "repository": {
+        "nameWithOwner": "opengwas/agent-skills"
+       },
+       "state": "OPEN",
+       "title": "orchestrate and board feed the project site, and follow the move to main",
+       "url": "https://github.com/opengwas/agent-skills/issues/1"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "OA",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e2": {
+   "issue": {
+    "number": 302,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 303,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Fixture LD panel, and an end-to-end test of today's reference completion",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/303"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 289,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "CLOSED",
+       "title": "Observed-view check: verify a Reference-Completed Store reproduces its Observed-Only source",
+       "url": "https://github.com/opengwas/opengwasdb/issues/289"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 303,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 304,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Single-id Dense completion: build, publish, complete and replace the Store in one run",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/304"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 304,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 305,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Complete an already-published Observed-Only Store in a later run",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/305"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 289,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 304,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 306,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Gate the completion swap on the observed-view check",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/306"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 304,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 307,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "The master list reports the Store actually published",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/307"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 304,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 308,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Manifest Generation emits single-id completed bundles",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/308"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 306,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 309,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Delete the replaced Observed-Only Store at the completion swap",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/309"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 295,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "CLOSED",
+       "title": "check-observed-view: check a Hybrid Store across its Dense Component and Overflow",
+       "url": "https://github.com/opengwas/opengwasdb/issues/295"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 295,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 333,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Single-id completion for Hybrid Stores",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/333"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 296,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "CLOSED",
+       "title": "check-observed-view: check a Ragged Store",
+       "url": "https://github.com/opengwas/opengwasdb/issues/296"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 296,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 336,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Single-id completion for Ragged Stores",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/336"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 316,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "An interrupted store-producing step leaves its staging directory (.store.opengwasdb.partial.tmp.*) behind",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/316"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 318,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Entry point did not exit after SIGTERM to every process mid completion post step (release-faults/interrupts, once under load)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/318"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 301,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "complete-ragged re-quantises observed SE when SE is stored int8_residual",
+       "url": "https://github.com/opengwas/opengwasdb/issues/301"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 327,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Completed Store manifests record a constant ld_panel_id (eur-hg38-gpm), not the panel actually used",
+       "url": "https://github.com/opengwas/opengwasdb/issues/327"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "MTY",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e3": {
+   "issue": {
+    "number": 232,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 217,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Reconcile Store Release membership, lifecycle and published evidence (#216)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/217"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 218,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Adopt a pinned current-format runtime for full release builds (#216)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/218"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 219,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Verify and freeze restored full UKB Source Inventory (#216)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/219"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 220,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Resolve MVP acquisition and source-mapping gaps (#216)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/220"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 220,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 221,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Register separate MVP ancestry and META bundles; reconcile FinnGen numbering (#216)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/221"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 219,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 218,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 222,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Build restored UKB observed and Reference-Completed Store Releases (#216)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/222"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 223,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Rebuild FinnGen OGS-00017 at format 0.2.0 and Reference-Complete it under its own id",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/223"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 301,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 336,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 224,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Rebuild OGS-00006 at format 0.2.0 and Reference-Complete it under its own id",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/224"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 324,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 306,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 225,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Rebuild OGS-00011 with its 3,169 accepted Analyses",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/225"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 221,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 218,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 226,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Build and register full MVP META as an observed-only Store (#216)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/226"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 339,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 331,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 227,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Reference-Complete MVP EUR (OGS-00012) under its own id",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/227"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 348,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 339,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 331,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mw",
+         "hasNextPage": false
+        }
+       },
+       "number": 228,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Reference-Complete MVP AFR (OGS-00013) under its own id",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/228"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 241,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 331,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 229,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Reference-Complete MVP AMR (OGS-00014) once an AMR panel is approved",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/229"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 348,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 339,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 331,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mw",
+         "hasNextPage": false
+        }
+       },
+       "number": 230,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Reference-Complete MVP EAS (OGS-00015) under its own id",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/230"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 230,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 229,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 228,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 227,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 226,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 225,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 224,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 223,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 222,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 217,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MTA",
+         "hasNextPage": false
+        }
+       },
+       "number": 231,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Rehearse bounded multi-release ingestion and report readiness (#216)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/231"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 339,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 331,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Publish the MVP observed Stores OGS-00012\u2013OGS-00016 and mark them validated",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/331"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 225,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 312,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 332,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Bring OGS-00006, OGS-00009 and OGS-00011 to validated for the API-ready milestone",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/332"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 339,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 333,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 225,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mw",
+         "hasNextPage": false
+        }
+       },
+       "number": 334,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Reference-complete OGS-00011 under its own id",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/334"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 339,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "A fresh registry checkout makes every published Store look out of date",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/339"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 335,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Retire gpm-hg38-eur-ld; point the dbGaP MVP EUR completion reference at ukb-hg38-eur-ld",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/335"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 241,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Pilot 345-sample 1kGP AMR LD from gnomAD cache: EUR boundaries, MAF \u2265 0.01",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/241"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 197,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Adopt Store format 0.2.0: bump the pin, update the catalogue, and convert the registered stores",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/197"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 199,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "OGS-00001..3: committed release records describe builds that are no longer the published Stores; OGS-00003 says 20 Analyses but holds 10",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/199"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 344,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Published 0.1.0 Ragged and Hybrid Stores lack the variant index opengwasdb dev requires",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/344"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 348,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "HGDP+1kGP LD panels hold duplicated variant identities in every block",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/348"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 383,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Six Validation Records on #232's branch record matrix cells as n_associations (the pre-#322 fallback)",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/383"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "MjY",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e4": {
+   "issue": {
+    "number": 313,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 319,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "analysis_id never contains ':'; eQTLGen IDs become bare probe IDs",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/319"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 320,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "ADR and glossary: the Analysis Catalog",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/320"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 321,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Release Bundles record trial and superseded_by",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/321"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 322,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Validation Records carry Association Coverage, reference assembly and a true association count",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/322"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 321,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 323,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "pixi run catalog: a versioned Analysis Catalog of every served Store",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/323"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 323,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 324,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Analysis Catalog search, counts, paging indexes and placeholder rows",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/324"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 324,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 325,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Analysis Catalog summary report, rendered on every rebuild",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/325"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 294,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 322,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 326,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Bring the API-ready Stores to validated, or record what each waits on",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/326"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 298,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 341,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "One Association Coverage vocabulary, declared in the Release Bundle and passed to the builder",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/341"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 352,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Mark OGS-00027 (full eQTLGen) validated",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/352"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 341,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 359,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Edit Association Coverage in the published Stores' manifests to the declared values",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/359"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 362,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "CLOSED",
+       "title": "Analysis Catalog: SD effects with a variant-level sample size are continuous",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/362"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "MTI",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e5": {
+   "issue": {
+    "number": 299,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 290,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "build-dense-vcf ignores bcftools query's exit status: a VCF without FORMAT/EZ builds an empty Store",
+       "url": "https://github.com/opengwas/opengwasdb/issues/290"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 294,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Print n_associations, association_coverage and reference_assembly in every builder and completion command",
+       "url": "https://github.com/opengwas/opengwasdb/issues/294"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 297,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Builders write temporary data beside their output, never to $TMPDIR or /tmp by default (a full UKB-B build filled /)",
+       "url": "https://github.com/opengwas/opengwasdb/issues/297"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 298,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "CLOSED",
+       "title": "Association Coverage is a build input: gwas, cis, cis_and_signals or signals_only",
+       "url": "https://github.com/opengwas/opengwasdb/issues/298"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 181,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Allow builders to record a human-readable Store label in manifest provenance",
+       "url": "https://github.com/opengwas/opengwasdb/issues/181"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "NQ",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e6": {
+   "issue": {
+    "number": 343,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 249,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         },
+         {
+          "number": 246,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 251,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Retire \"Phase A / Phase B\" from code, tests and docs",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/251"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 253,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Write the opengwasdb pin once and guard both workflows with one runtime identity",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/253"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 254,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Collapse the Store publication transaction into one module",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/254"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 247,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 255,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Deepen the Release Bundle contract: discover, declare and count once",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/255"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 254,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 253,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 256,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Split execute_step into supervised process, staging round-trip and step record",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/256"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 254,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         },
+         {
+          "number": 253,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "Mg",
+         "hasNextPage": false
+        }
+       },
+       "number": 258,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Make the release Snakefile pure wiring; schedule from the DAG, not dry-run text",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/258"
+      },
+      {
+       "blockedBy": {
+        "nodes": [
+         {
+          "number": 254,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN"
+         }
+        ],
+        "pageInfo": {
+         "endCursor": "MQ",
+         "hasNextPage": false
+        }
+       },
+       "number": 364,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Resume a failed forced release from the failed step instead of discarding a completed build",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/364"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "Nw",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e7": {
+   "issue": {
+    "number": 214,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 206,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Document Indexed Variant Subset build and query workflows",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/206"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 208,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Promote HapMap3 GRCh38 to a maintained Reference Resource",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/208"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 209,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Add Indexed Variant Subsets to release planning",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/209"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 210,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Default HM3 for future Dense-component releases",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/210"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 211,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Migrate existing Dense-component Release Bundles to HM3",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/211"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 212,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Update release benchmark reporting for HM3",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/212"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 213,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb-stores"
+       },
+       "state": "OPEN",
+       "title": "Run real-data HM3 pipeline proof",
+       "url": "https://github.com/opengwas/opengwasdb-stores/issues/213"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "Nw",
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e8": {
+   "issue": {
+    "number": 161,
+    "subIssues": {
+     "nodes": [],
+     "pageInfo": {
+      "endCursor": null,
+      "hasNextPage": false
+     }
+    }
+   }
+  },
+  "e9": {
+   "issue": {
+    "number": 200,
+    "subIssues": {
+     "nodes": [
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 201,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Pin reference completion's scratch footprint with a bytes-per-imputed-cell assertion",
+       "url": "https://github.com/opengwas/opengwasdb/issues/201"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 202,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Refuse to resume a checkpoint directory whose format version is absent or mismatched",
+       "url": "https://github.com/opengwas/opengwasdb/issues/202"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 203,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Publish the union variant axis so completion workers can resolve ALIDs to union rows",
+       "url": "https://github.com/opengwas/opengwasdb/issues/203"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 204,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Store each LD block's distinct ALIDs once, referenced by index",
+       "url": "https://github.com/opengwas/opengwasdb/issues/204"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 205,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Have completion workers write band-partitioned shards, and drop the merge pass",
+       "url": "https://github.com/opengwas/opengwasdb/issues/205"
+      },
+      {
+       "blockedBy": {
+        "nodes": [],
+        "pageInfo": {
+         "endCursor": null,
+         "hasNextPage": false
+        }
+       },
+       "number": 206,
+       "repository": {
+        "nameWithOwner": "opengwas/opengwasdb"
+       },
+       "state": "OPEN",
+       "title": "Compress the staged fill arrays with a fast codec, or prove it isn't worth it",
+       "url": "https://github.com/opengwas/opengwasdb/issues/206"
+      }
+     ],
+     "pageInfo": {
+      "endCursor": "Ng",
+      "hasNextPage": false
+     }
+    }
+   }
+  }
+ },
+ "epics": [
+  "opengwasdb#58",
+  "opengwasdb-stores#282",
+  "opengwasdb-stores#302",
+  "opengwasdb-stores#232",
+  "opengwasdb-stores#313",
+  "opengwasdb#299",
+  "opengwasdb-stores#343",
+  "opengwasdb-stores#214",
+  "opengwasdb-stores#161",
+  "opengwasdb#200",
+  "opengwasdb#300",
+  "opengwasdb-stores#193",
+  "opengwasdb-stores#345",
+  "opengwasdb#307",
+  "opengwasdb-stores#366",
+  "opengwasdb-stores#371",
+  "opengwasdb-stores#385"
+ ],
+ "project": [
+  {
+   "data": {
+    "organization": {
+     "projectV2": {
+      "items": {
+       "nodes": [
+        {
+         "content": {
+          "__typename": "Issue",
+          "body": "## Outcome\n\nA versioned, installable, documented first release is published and supportable.\n\n## Exit criteria\n\n- [ ] Release version, tag, changelog, and release notes are published.\n- [ ] Python artifacts are built and installation is verified from a clean environment.\n- [ ] Store-format/version compatibility and migration guidance are published.\n- [ ] Quickstart builds and queries a representative store.\n- [ ] Known limitations, support route, and contribution workflow are explicit.\n- [ ] Post-release smoke tests pass against the representative portfolio.\n\n## Dependencies\n\nBlocked by Roadmap 3's release-candidate exit report.\n",
+          "closedAt": "2026-10-21T23:37:18Z",
+          "issueType": {
+           "name": "Milestone"
+          },
+          "labels": {
+           "nodes": [
+            {
+             "name": "roadmap"
+            },
+            {
+             "name": "epic"
+            }
+           ]
+          },
+          "number": 91,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "CLOSED",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 0
+          },
+          "title": "Milestone: First release",
+          "url": "https://github.com/opengwas/opengwasdb/issues/91"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Milestone: First release"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Done"
+           },
+           {
+            "field": {
+             "name": "Priority"
+            },
+            "name": "P1 \u00b7 High"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Define per-workstream MVPs once API-ready is in sight"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": []
+          },
+          "number": 58,
+          "parent": {
+           "number": 88,
+           "repository": {
+            "nameWithOwner": "opengwas/opengwasdb"
+           }
+          },
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 5
+          },
+          "title": "Shallow-module cleanup ledger (delete first, then deepen)",
+          "url": "https://github.com/opengwas/opengwasdb/issues/58"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Shallow-module cleanup ledger (delete first, then deepen)"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Todo"
+           },
+           {
+            "field": {
+             "name": "Priority"
+            },
+            "name": "P3 \u00b7 Later"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Engineering"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Not started; the ledger plus #53-#57"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "body": "A stable base for API and website work: a stable engine, a running build pipeline, published Stores of each shape, and a catalog of every Analysis across them.\n\nEach MVP lists the issues or criteria it needs. A box is ticked when its issue closes or its criterion is met. `/board` keeps the boxes current.\n\n## Data architecture: stable opengwasdb\n\n- [x] opengwasdb `dev` reads every Store below: format 0.1.0 (Zarr v2) and 0.2.0 (Zarr v3) are both supported\n\n## Build architecture: build pipeline running\n\n- [x] opengwas/opengwasdb-stores#282 stage 1 merged to `dev` (opengwas/opengwasdb-stores#299). Stage 2 is not required.\n\n## Store builds: a published Store of each shape\n\n- [x] Ragged, cis: full eQTLGen, opengwas/opengwasdb-stores#314\n- [x] Ragged, signals only: OGS-00006 (Chen 2023), rebuilt and published at format 0.2.0 (opengwas/opengwasdb-stores#332)\n- [x] Dense, Reference-Completed: OGS-00009 (UKB-B, the full 2,514 Analyses), opengwas/opengwasdb-stores#312\n- [ ] Hybrid: OGS-00011 (GWAS Catalog EUR) rebuilt with its 3,169 Analyses, opengwas/opengwasdb-stores#225\n- [x] Dense, multi-ancestry, observed-only: OGS-00012\u2013OGS-00016 (MVP EUR, AFR, AMR, EAS, META), opengwas/opengwasdb-stores#331\n- [ ] OGS-00006, OGS-00009 and OGS-00011 reach `validated`, so the catalog serves them: opengwas/opengwasdb-stores#332\n\nThe test for a Store is that opengwasdb can use it, not that it is the latest build. The catalog also serves a Store only once it is `validated` and its Validation Record matches its Release Manifest (opengwas/opengwasdb-stores#313).\n- OGS-00010 is retired under opengwas/opengwasdb-stores#312, so the new OGS-00009 takes the Dense Reference-Completed place.\n- The published OGS-00011 holds 3,317 Analyses against its bundle's 3,169, so it is rebuilt.\n\n- [ ] Explain OGS-00011\u2019s 101M off-panel variants and verify MAF admission: opengwas/opengwasdb-stores#371\n\n## Interface: analysis catalog\n\n- [ ] opengwas/opengwasdb-stores#313\n\n## Not required for this milestone\n\nThese continue as ongoing work:\n- Reference Completion of OGS-00011 (opengwas/opengwasdb-stores#334), which needs single-id completion for Hybrid Stores (opengwas/opengwasdb-stores#333, #295);\n- the Reference Completion of OGS-00006 (opengwas/opengwasdb-stores#224), which needs single-id completion for Ragged Stores (opengwas/opengwasdb-stores#336, #296) and the observed-SE fix in #301. It replaces the milestone's OGS-00006 under the same id;\n- the rest of single-id reference completion (opengwas/opengwasdb-stores#302);\n- #282 stage 2;\n- Reference Completion of the MVP Stores (opengwas/opengwasdb-stores#227\u2013#230).\n\n\n\n\n",
+          "closedAt": null,
+          "issueType": {
+           "name": "Milestone"
+          },
+          "labels": {
+           "nodes": []
+          },
+          "number": 292,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 0
+          },
+          "title": "Milestone: API-ready",
+          "url": "https://github.com/opengwas/opengwasdb/issues/292"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Milestone: API-ready"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Active"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Open: #282 stage 1 (PR #299), eQTLGen Store (#314), MVP batch (#221), catalog spec (#313)"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": [
+            {
+             "name": "complexity:epic"
+            }
+           ]
+          },
+          "number": 282,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 19,
+           "total": 21
+          },
+          "title": "Epic: Manifest Generation as one pipeline fed by source connectors",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/282"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: Manifest Generation as one pipeline fed by source connectors"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Active"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Build architecture"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "5/5 merged on PR #365 \u00b7 Stage 3 complete; PR #365 ready for your review and merge"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": [
+            {
+             "name": "ready-for-agent"
+            }
+           ]
+          },
+          "number": 302,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 12,
+           "total": 16
+          },
+          "title": "Single-id reference completion: completion replaces its Store under the same id",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/302"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Single-id reference completion: completion replaces its Store under the same id"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Active"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Build architecture"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "10/10 merged on PR #311 \u00b7 PR #311 merged to dev \u00b7 follow-ups #333, #336 (single-id completion, Hybrid and Ragged), #316, #318; opengwasdb#295/#296 running in #232's run"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": [
+            {
+             "name": "ready-for-agent"
+            },
+            {
+             "name": "complexity:epic"
+            }
+           ]
+          },
+          "number": 232,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 15,
+           "total": 26
+          },
+          "title": "Epic: publish, rebuild and Reference-Complete the full Store Releases under their own ids",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/232"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: publish, rebuild and Reference-Complete the full Store Releases under their own ids"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Active"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Store builds"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "12/19 merged on PR #337 \u00b7 implementing #225, #332, #334 \u00b7 waiting #228, #230, #224, #348 \u00b7 stalled since 24 Oct: PR #337 conflicts with dev (48 behind) and holds OGS-00006 + MVP 12-16 validated; OGS-00011 rebuild now runs in #371 (#381)"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": [
+            {
+             "name": "complexity:epic"
+            }
+           ]
+          },
+          "number": 313,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 11,
+           "total": 12
+          },
+          "title": "Epic: Analysis catalog across all Stores",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/313"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: Analysis catalog across all Stores"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Active"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Interface"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "9/10 merged on PR #353 \u00b7 implementing #359 \u00b7 catalog 1b3a155d published: 9 Stores, 31,940 Analyses; waiting OGS-00011 (#381 validate, then #359 sweep, #332 validated, final rebuild)"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": "2026-10-22T21:12:05Z",
+          "issueType": {
+           "name": "Task"
+          },
+          "labels": {
+           "nodes": []
+          },
+          "number": 314,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 0
+          },
+          "title": "Register a full eQTLGen cis Store",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/314"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Register a full eQTLGen cis Store"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Done"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Store builds"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Decided (owner, 22 Oct): rebuild full eQTLGen, with #319's bare probe ids and coverage cis (#341)"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": "2026-10-26T16:55:00Z",
+          "issueType": null,
+          "labels": {
+           "nodes": []
+          },
+          "number": 312,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "CLOSED",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 0
+          },
+          "title": "Re-plan the two-id completed pairs under ADR 0037 (OGS-00009/00010, UKB-B successors OGS-00030/00031)",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/312"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Re-plan the two-id completed pairs under ADR 0037 (OGS-00009/00010, UKB-B successors OGS-00030/00031)"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "4/6 merged on PR #330 \u00b7 in review report, record \u00b7 OGS-00009 record + 8-row erratum (#369) and benchmark (opengwasdb#328) await owner merge; old-Store deletions on hold"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Done"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Store builds"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": []
+          },
+          "number": 299,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 1,
+           "total": 5
+          },
+          "title": "Epic: Builders accept and report what the registry records",
+          "url": "https://github.com/opengwas/opengwasdb/issues/299"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: Builders accept and report what the registry records"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Todo"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Data architecture"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Not started. #298 and #294 let the Analysis Catalog show true Association Coverage and association counts (stores #341, #313)"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": []
+          },
+          "number": 343,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 7
+          },
+          "title": "Epic: Deepen the Store Release Build modules",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/343"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: Deepen the Store Release Build modules"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Todo"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Engineering"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Not started: six behaviour-preserving refactors from the 13 Oct architecture review"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": null,
+          "labels": {
+           "nodes": [
+            {
+             "name": "complexity:epic"
+            }
+           ]
+          },
+          "number": 214,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 7
+          },
+          "title": "Epic: make HM3 Indexed Variant Subsets the default Dense-component release artifact",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/214"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: make HM3 Indexed Variant Subsets the default Dense-component release artifact"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Todo"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Build architecture"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Not started; tickets #206, #208-#213"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": null,
+          "labels": {
+           "nodes": [
+            {
+             "name": "ready-for-agent"
+            },
+            {
+             "name": "complexity:epic"
+            }
+           ]
+          },
+          "number": 161,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 0
+          },
+          "title": "Candidate-generation-and-review tooling to populate the Canonical Trait Mapping Table",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/161"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Candidate-generation-and-review tooling to populate the Canonical Trait Mapping Table"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Paused"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Build architecture"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Code for every stage merged (#162-#170, #185); next is a real curation run (plan in the 28 Sep comment)"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": [
+            {
+             "name": "ready-for-agent"
+            }
+           ]
+          },
+          "number": 200,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 6
+          },
+          "title": "Cut reference completion's temporary disk footprint without losing checkpointed resume",
+          "url": "https://github.com/opengwas/opengwasdb/issues/200"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Cut reference completion's temporary disk footprint without losing checkpointed resume"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Todo"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Data architecture"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Not started; tickets #201-#206"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": []
+          },
+          "number": 300,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 6
+          },
+          "title": "Epic: Variant-reference builds keep rsids, coordinates and provenance",
+          "url": "https://github.com/opengwas/opengwasdb/issues/300"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: Variant-reference builds keep rsids, coordinates and provenance"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Todo"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Data architecture"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Not started; #152, #257, #258, #260, #261 and lift-collision #325 cover supplied-axis identity and provenance."
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": [
+            {
+             "name": "enhancement"
+            },
+            {
+             "name": "complexity:large"
+            }
+           ]
+          },
+          "number": 193,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 1
+          },
+          "title": "Build the Rho Matrix by default, support Hybrid stores, and back-fill every existing store",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/193"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Build the Rho Matrix by default, support Hybrid stores, and back-fill every existing store"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Todo"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Build architecture"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Not started; Hybrid support waits on opengwasdb#238"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": []
+          },
+          "number": 345,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 2
+          },
+          "title": "Epic: Widen the GWAS Catalog EUR Store: rescue excluded studies, and a sequencing Store",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/345"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: Widen the GWAS Catalog EUR Store: rescue excluded studies, and a sequencing Store"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Todo"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Store builds"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Not started; #160 and #204"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": [
+            {
+             "name": "ready-for-agent"
+            }
+           ]
+          },
+          "number": 307,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 17
+          },
+          "title": "Epic: Cut Store Release Build, validation and Reference Completion wall time by removing repeated and single-process work",
+          "url": "https://github.com/opengwas/opengwasdb/issues/307"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: Cut Store Release Build, validation and Reference Completion wall time by removing repeated and single-process work"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Todo"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Data architecture"
+           },
+           {
+            "field": {
+             "name": "Priority"
+            },
+            "name": "P2 \u00b7 Medium"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "17 tickets filed; ready now: #308\u2013#313, #316, #320 (phase timings, harness, Top-Hit Index proof, key join, EAF encode)"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": []
+          },
+          "number": 366,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 3
+          },
+          "title": "Epic: Keep checkouts, environments and scratch off /home and /tmp",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/366"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: Keep checkouts, environments and scratch off /home and /tmp"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Todo"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Engineering"
+           },
+           {
+            "field": {
+             "name": "Priority"
+            },
+            "name": "P2 \u00b7 Medium"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "Fix the /data bundle guard (#367), then detached pixi environments (#368) and hermetic user-site isolation (#361)."
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": [
+            {
+             "name": "ready-for-agent"
+            }
+           ]
+          },
+          "number": 371,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 8,
+           "total": 9
+          },
+          "title": "Epic: Explain OGS-00011\u2019s 101M off-panel variants and verify MAF admission",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/371"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: Explain OGS-00011\u2019s 101M off-panel variants and verify MAF admission"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Active"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Store builds"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "5/6 merged on PR #379 \u00b7 implementing #381 \u00b7 #381: OGS-00011 rebuilt at 0.2.0; opengwasdb validate running (28 Oct); then PR #379"
+           }
+          ]
+         }
+        },
+        {
+         "content": {
+          "__typename": "Issue",
+          "closedAt": null,
+          "issueType": {
+           "name": "Epic"
+          },
+          "labels": {
+           "nodes": []
+          },
+          "number": 385,
+          "parent": null,
+          "repository": {
+           "nameWithOwner": "opengwas/opengwasdb-stores"
+          },
+          "state": "OPEN",
+          "subIssuesSummary": {
+           "completed": 0,
+           "total": 8
+          },
+          "title": "Epic: Project site showing where OpenGWASDB stands and what each epic changed, with a version per merged PR",
+          "url": "https://github.com/opengwas/opengwasdb-stores/issues/385"
+         },
+         "fieldValues": {
+          "nodes": [
+           {},
+           {
+            "field": {
+             "name": "Title"
+            },
+            "text": "Epic: Project site showing where OpenGWASDB stands and what each epic changed, with a version per merged PR"
+           },
+           {
+            "field": {
+             "name": "Status"
+            },
+            "name": "Active"
+           },
+           {
+            "field": {
+             "name": "Workstream"
+            },
+            "name": "Engineering"
+           },
+           {
+            "field": {
+             "name": "Next"
+            },
+            "text": "0/8 merged on PR #392 \u00b7 fixing #390 \u00b7 in review #389 \u00b7 implementing odb333, #388 \u00b7 waiting #387 \u00b7 3 blocked"
+           }
+          ]
+         }
+        }
+       ],
+       "pageInfo": {
+        "endCursor": "Y3Vyc29yOnYyOpK5MDAwMDAwMDAuMDExOTA0NzYxOTA0NzYxOc4RFhV0",
+        "hasNextPage": false
+       }
+      }
+     }
+    }
+   }
+  }
+ ]
+}

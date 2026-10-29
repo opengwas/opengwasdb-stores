@@ -1,7 +1,9 @@
 # Working in this repository
 
 Read [CONTRIBUTING.md](./CONTRIBUTING.md) before making changes. Work targets
-`dev`, not `main`.
+`main`: every merge there is a version, tagged by CI, and a pull request that
+changes a source (`src/`, `workflow/`, `tools/`, `resources/`, `stores/`) adds a
+`changelog.d/` fragment or carries the `no-changelog` label.
 
 ## Agent skills
 

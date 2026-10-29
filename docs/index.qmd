@@ -1,0 +1,28 @@
+---
+title: "Overview"
+---
+
+Where OpenGWASDB stands: each Milestone's lines met, each Workstream's Active
+epics and what they do next, and the headline figures with their trends — the
+latest tag per repository, the Analysis Catalog's Stores and Analyses per
+version, and the yardstick's key figures — with the time each source was
+collected.
+
+**This page is generated at render time** by
+[`src/project_site/pages.py`](../src/project_site/pages.py) from the five JSON
+files `pixi run site-data` collects (`docs/spec/project-site.md` is the contract
+between the data and the pages), so the render replaces this file. Run
+`pixi run site-data` and then `pixi run site` to see it; a source that could not
+be read shows a notice on the page rather than emptying it.
+
+Elsewhere on the site:
+
+- **[Stores](stores.qmd)** lists every Store Release and its state, and one page
+  per Store holds its lifecycle, its counts, its catalog presence and its notes.
+- **[Epics](epics.qmd)** lists every epic on the board; each epic's page holds
+  its tickets as a graph and, once it has a record, what it changed.
+- **[Trends](trends.qmd)** charts the catalog, the yardstick and the test time.
+- **[Reports](reports.qmd)** lists the published reports.
+- **[Registry](reference.qmd)** holds this repository's decisions,
+  specifications and guides, and the [glossary](glossary.md).
+- **[Engine](opengwasdb/index.qmd)** holds opengwasdb's own documentation.

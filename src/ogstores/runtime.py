@@ -39,6 +39,7 @@ See docs/runtime.md, docs/spec/store-release-workflow.md and ADR 0034.
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -62,6 +63,29 @@ from ogstores.plan import plan
 #: #291 whose first parent is PR #288's merge: stores #312's OGS-00009 rebuild
 #: needs #288's strand-aware hg19 lift. The range `023774a..d405de0` is #288's
 #: commits and merge plus the #291 merge; #288 is its only functional change.
+#: Then to `eb4c749b`, core #295's merge into the core integration branch for
+#: stores epic #232 (core PR #303), not yet on core `dev`: its
+#: `check-observed-view` compares a Hybrid pair, which stores #333 needs for a
+#: Hybrid release to complete its own Store. The range `d405de0..eb4c749` is
+#: #295's commits and merge, the branch's empty first commit and core `dev`'s
+#: docs-only PR #293; #295 is its only functional change.
+#: Then to `32f47b3b`, core #296's merge into the same integration branch, not
+#: yet on core `dev` either: its `check-observed-view` compares a Ragged pair,
+#: which stores #336 needs for a Ragged release to complete its own Store. The
+#: range `eb4c749..32f47b3` is #296's commits and merge; #296 is its only
+#: functional change.
+#: Then to `1e2fb42`, core #306's merge into the same integration branch, again
+#: not yet on core `dev`: `build-hybrid` gained `--on-rsid-conflict
+#: {refuse,drop}` and always reports what its rsid harvest compared, which
+#: stores #225 needs to build OGS-00011 from sources that name one variant two
+#: ways. The range `32f47b3..1e2fb42` is #306's commits and merge; #306 is its
+#: only functional change.
+#: Then to `496bfe9`, core #324's merge into the same integration branch, again
+#: not yet on core `dev`: `build-indexed-subset` gained `--overflow-only
+#: {refuse,skip}` and records the ALIDs a Hybrid's subset leaves out for living
+#: only on its Overflow axis, which stores #225 needs to index OGS-00011's HM3
+#: list without refusing the whole subset. The range `1e2fb42..496bfe9` is
+#: #324's commit and merge; #324 is its only functional change.
 #: Then to `d8896e4`, the core `dev` merge of PR #305, for OGS-00027 (#314):
 #: `build-ragged-besd` drops an ESI entry whose lifted variant another entry also
 #: claims, and `validate` requires each Analysis's CSR `variant_index` segment to
@@ -81,13 +105,61 @@ from ogstores.plan import plan
 #: and the writer fix that gives every fresh Dense 0.2.0 array a dtype-matched
 #: Blosc `typesize`. The range `75f0e77..5fc0766` is #326's core commits and
 #: merge; there is no Store format bump.
-#: Then to `7308c6a`, the core `dev` merge of PR #332 (core #331), for the MAF
-#: admission fix stores #380 repins for: `admit_rows` judges exactly `0.0`/`1.0`
-#: as MAF 0 and drops them under a `FILTERED` policy, and drops every unusable
-#: frequency instead of retaining it, so `maf_rows_missing` counts dropped rows
-#: and the Hybrid checkpoint format moves to 2. The range `5fc0766..7308c6a` is
-#: #331's six commits and its merge; there is no Store format bump.
-PINNED_OPENGWASDB_REVISION: str = "70340e03d61cc0371fa5373d8406adc48cc11255"
+#: Then to `0d59f151`, the core `dev` merge of PR #329, for the OGS-00027
+#: replacement (#282): core #302 (ADR 0067) gives `build-ragged-besd`
+#: `--sample-size-table`, which stores each stored pair's published sample size
+#: in an opt-in `uint32` `n` plane and its by-variant copy, and
+#: `--store-esi-eaf`, which stores the `.esi` frequency per association,
+#: oriented to the effect allele and checked once against `--eaf-reference`. A
+#: Store with an `n` plane keeps `se` in float16, and `validate`, the query seam
+#: and `info` report the plane. The range `5fc0766..0d59f151` is #330's merge of
+#: the #326 branch whose head `5fc0766` this pin already carried, #332's MAF
+#: admission fix, #303 (the Ragged and Hybrid Observed-View Checks,
+#: `build-hybrid --on-rsid-conflict`, `build-indexed-subset --overflow-only`),
+#: #328's benchmark harness and #329; there is no Store format bump.
+#:
+#: Epic #371 pinned `70340e0` (core #303's `dev` merge, above #332) on its own
+#: branch for #380; OGS-00011's 29 Oct rebuild (#381) records it, and
+#: `0d59f151` contains it.
+#:
+#: Repinned for #387 from `0d59f151` to the release tag `v0.3.0`, which resolves
+#: to `bc22e84`, the opengwasdb `main` merge of PR #335 (release tooling: the
+#: version from tags, a changelog). `v0.3.0` is the first release opengwasdb's
+#: release workflow published; before it, `v0.2.0` was tagged by hand. From #335
+#: the installed version comes from the tag rather than the static `0.3.0` the
+#: previous pin carried; it is still `0.3.0`. The range `0d59f151..bc22e84` adds
+#: only versioning: the engine's behaviour does not change, and the Store format
+#: stays 0.2.0.
+PINNED_OPENGWASDB_REVISION: str = "bc22e8476c4378af582477f09b56af01e3f5f065"
+
+#: The release tag the pinned revision is asked for by. `pixi.toml` names this
+#: tag rather than the commit, so the installed version names the release it was
+#: built from; the tests hold the tag, the resolved commit above and
+#: `pixi.lock` together.
+PINNED_OPENGWASDB_TAG: str = "v0.3.0"
+
+#: One lock reference to the engine pin: the exact repository URL, the request
+#: (`tag=v0.3.0` since #387, `rev=<commit>` before it) and the commit the solve
+#: resolved as the fragment. It must end at the 40 hex characters -- a 41st hex
+#: digit, or any other letter or digit continuing the token, is a different
+#: reference -- and the host is exact.
+_LOCK_PIN_REFERENCE = re.compile(
+    r"git\+https://github\.com/opengwas/opengwasdb\?"
+    r"[^\s#]+"  # the request: `tag=`/`rev=`, at least one character
+    r"#([0-9a-f]{40})(?![0-9A-Za-z])"
+)
+
+
+def lock_pin_revisions(lock: Path) -> set[str]:
+    """The opengwasdb commits `lock` carries, one per reference it pins.
+
+    A reference is the exact repository URL, its request and the resolved
+    commit as the fragment, as `_LOCK_PIN_REFERENCE` defines it, so another
+    host, a longer hash and anything else continuing the token are not pin
+    references. The caller decides what nothing and what several mean, so each
+    lock reader keeps its own error and message.
+    """
+    return set(_LOCK_PIN_REFERENCE.findall(lock.read_text(encoding="utf-8")))
 OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
 
 #: The Store format the pinned builders write and the only format Reference
@@ -383,7 +455,8 @@ def verify_runtime_for_releases(
     if not run.is_exact_commit_hash(revision) or revision != PINNED_OPENGWASDB_REVISION:
         raise RuntimeRevisionError(
             f"the resolved opengwasdb at {resolved!r} reports revision {revision!r}, which "
-            f"is not the tracked pin {PINNED_OPENGWASDB_REVISION} ({OPENGWASDB_GIT_URL}). A "
+            f"is not the tracked pin {PINNED_OPENGWASDB_REVISION} (tag "
+            f"{PINNED_OPENGWASDB_TAG} of {OPENGWASDB_GIT_URL}). A "
             "supported release run must use the pinned runtime and must be able to prove "
             "its identity from the executable's own metadata; do not substitute an "
             "executable on PATH. Run `pixi install`/`pixi run release` so the tracked lock "
@@ -488,6 +561,7 @@ __all__ = [
     "INFO_COMMAND",
     "OPENGWASDB_GIT_URL",
     "PINNED_OPENGWASDB_REVISION",
+    "PINNED_OPENGWASDB_TAG",
     "REQUIRED_FORMAT_VERSION",
     "RuntimeCapabilityError",
     "RuntimeGuardError",
@@ -497,6 +571,7 @@ __all__ = [
     "VERIFIED_RUNTIME_ENV",
     "commands_for_scheduled_steps",
     "completion_parents_for_release",
+    "lock_pin_revisions",
     "normalize_scheduled",
     "required_commands_for_release",
     "verify_runtime_for_releases",

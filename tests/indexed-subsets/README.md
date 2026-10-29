@@ -6,7 +6,10 @@ planning:
 - `ogstores.resources` resolves a declaration's `resource_id` under
   `resources/reference-resources/<id>/resource.yaml`, requires the declared
   `genome_build`/`location`/`checksums` to agree, and hashes the maintained ALID
-  list (sha256, byte size, row count). Every mismatch is a refusal.
+  list (sha256, byte size, row count). Every mismatch is a refusal. Unless a
+  caller names a repository, the resources are those of the repository that
+  holds the registry, `resources/` beside `stores/`, not of the checkout whose
+  code runs (stores #333).
 - a run that declares a subset needs an `opengwasdb` providing
   `build-indexed-subset`; the repository's tracked current-format runtime
   provides it (stores#218), and the entry point still refuses with the required

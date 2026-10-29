@@ -225,7 +225,7 @@ fallback (opengwasdb#277).
 | `trust_source_ancestry_without_af` | No | `true` opts in to #287's decision for sources with no allele frequencies (Sun 2018): an Analysis whose Resolution Record shows ancestry unmeasurable for that reason takes its Source Metadata Table `source_superpopulation` as Assigned Ancestry (`source_trusted_no_af`), a warning-level `assigned_ancestry` result. The record shows it only under a MAF request, so the opt-in needs `defaults.maf_threshold` (0 filters nothing): the resolver then counts every row without a usable frequency (`maf_rows_missing`), and absence is every row it read (`canonical_rows_observed`) with no ancestry site. Default `false`: such an Analysis is `ancestry_unassigned`. A measured ancestry never takes the source label, and frequencies the fit could not read (palindromic sites, unusable standard errors) are not absent. |
 | `keep_unassigned_ancestry_as_warning` | No | `true` opts in to #290's decision: an Analysis the ancestry gates left unassigned (Assigned Ancestry empty in its Resolution Record, with frequencies it could read) stays in, unassigned -- Ancestry Assignment Method `unassigned`, a warning-level `assigned_ancestry` result counted in `validation.yaml` and recorded per Analysis in the Quality Check sidecar. Default `false`: it is excluded as `ancestry_unassigned`. A measured *different* super-population still excludes as `ancestry_not_eur`, and the opt-in is refused in a `multi-ancestry` Selection, which never assigns ancestry. |
 | `imputation_score_declarations` | No | The reviewed per-Analysis INFO score declarations (#175). The table is the Source Collection's, so Selections may share it: a declaration may name an Analysis outside the Selection when the collection intends it (the original Source Metadata Table the snapshot's provenance checksums), and only the Selection's apply. A declaration the collection does not intend is refused, and so is one outside the Selection when that table is not on the host. |
-| `maf_filter_exempt_genotyping_technologies` | No | Technologies exempt from the MAF floor (#176). |
+| `maf_filter_exempt_genotyping_technologies` | No | Technologies exempt from the MAF floor (#176). Policy over a fact: an Analysis is exempt when its Source Metadata Table `genotyping_technology` is non-empty and every technology it lists is named here. The column records what the source says and never decides exemption; a blank column is never exempt, and shared code reads no source metadata file (#347). |
 | `maf_filter_exempt_analyses` | No | The reviewed per-Analysis MAF-floor exemptions (#176). |
 | `effect_placeholder_exclusions` | No | The reviewed effect-placeholder listing the `effect_placeholder_rows` Quality Check reads (#285). |
 
@@ -340,7 +340,7 @@ description: >
 source_collection:
   source_collection_id: gwas-catalog-ssf
   inventory:
-    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-10-20
+    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-10-24
     directory: resources/inventories
 
 selection:

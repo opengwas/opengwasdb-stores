@@ -15,7 +15,9 @@
 #     download passes the 2026-09-22 snapshot froze (base, retry_transient,
 #     rescue_upstream_harmonised).
 # Both connector files, the pass lineage and the candidate table are kept,
-# read-only, in /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-20/.
+# read-only, in /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-24/
+# (#347: the same table with the sidecar's genotyping_technology and
+# source_genome_build columns added; 2026-10-20/ holds the first set).
 # Their selected rows are frozen beside the inventory and checksummed into its
 # provenance, so this config names only the frozen snapshot: a new acquisition
 # or a changed Selection is a re-freeze under a new snapshot id, with
@@ -44,10 +46,11 @@ notes: >
 source_collection:
   source_collection_id: gwas-catalog-ssf
   inventory:
-    # Re-frozen by the shared freeze on 2026-10-20 (#287). Its inventory TSV is
-    # byte-identical to gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv, which the
+    # Re-frozen by the shared freeze on 2026-10-24 (#347), after 2026-10-20
+    # (#287). Its inventory TSV is byte-identical to
+    # gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv, which the
     # candidate-table freeze wrote and OGS-00011 was built from.
-    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-10-20
+    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-10-24
     directory: resources/inventories
 
 # Every Analysis the candidate table's curation groups as hybrid__European

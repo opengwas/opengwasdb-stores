@@ -12,7 +12,7 @@ breaks. The block is then loaded through core's public LD-panel reader.
 """
 from __future__ import annotations
 
-import argparse, csv, json, tempfile
+import argparse, csv, json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -20,6 +20,7 @@ import numpy as np
 
 from construct_block import _plink_extract, canonical_alid, standardised_ea_dosages
 from find_underresolved_blocks import components_needed
+from scratch import scratch_dir
 
 
 def verify_block(base: Path, genotypes: np.ndarray, variants: list[dict[str, object]], *,
@@ -97,7 +98,7 @@ def main() -> int:
     args = ap.parse_args()
     source = SimpleNamespace(plink2=args.plink2, pfile=args.pfile, bfile=None, chrom=args.chrom,
                              start=args.start, end=args.end, keep=args.keep)
-    with tempfile.TemporaryDirectory(prefix="ld-verify-") as tmp:
+    with scratch_dir("ld-verify-") as tmp:
         genotypes, variants, _ = _plink_extract(source, Path(tmp))
     report = verify_block(args.base, genotypes, variants, thresh=args.thresh)
     args.out.parent.mkdir(parents=True, exist_ok=True)

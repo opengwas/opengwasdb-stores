@@ -140,7 +140,7 @@ class PublishedReleaseFixture(unittest.TestCase):
         self.assertFalse(paths.publication_marker(STORE_ID, root=self.template_artifacts).exists())
 
     def published_copy(self, aged: bool = True) -> tuple[Path, Path]:
-        """A fresh copy of the published release, aged (by default) so the bundle is newer than its records."""
+        """A fresh copy of the published release; by default its bundle is revised and newer than its records."""
         td = Path(tempfile.mkdtemp(prefix="release_fault_"))
         self.addCleanup(shutil.rmtree, td, True)
         stores, artifacts = td / "stores", td / "artifacts"
@@ -148,6 +148,7 @@ class PublishedReleaseFixture(unittest.TestCase):
         shutil.copytree(self.template_artifacts, artifacts)
         if not aged:
             return stores, artifacts
+        test_workflow.revise_registry_analyses(stores, STORE_ID)
         day_ns = 86_400 * 10**9
         for p in paths.store_dir(STORE_ID, root=artifacts).rglob("*"):
             if p.is_file():

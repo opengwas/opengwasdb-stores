@@ -389,10 +389,13 @@ included with literal `NaN` INFO cells. Older bundles may omit all four columns
 entirely.
 
 The MAF floor is a `defaults.maf_threshold` release decision applied per
-Analysis: an Analysis is exempt (and emits `NaN`) when its source metadata
-YAML's `genotyping_technology` list is non-empty and every technology is in
+Analysis: an Analysis is exempt (and emits `NaN`) when its Source Metadata
+Table row's `genotyping_technology` (`;`-joined, source order) is non-empty and
+every technology is in
 `release_policy.maf_filter_exempt_genotyping_technologies`; missing technology
-metadata is never an exemption. The resolver manifest carries the derived
+metadata is never an exemption. The column is a fact a source's adapter
+writes (the GWAS Catalog's from each `-meta.yaml`); the exemption is the
+release policy over it (#347). The resolver manifest carries the derived
 `maf_threshold` per Analysis and the resolver record's `maf_state` plus its
 fingerprint binding decide the emitted candidate value, exactly as for INFO.
 Manifest Generation's rules validate the column on every row, independently of
@@ -543,8 +546,9 @@ It declares both blocks and has no `derived_from`: the `build` block builds and
 publishes the Observed-Only Store, exactly as the same file would as
 `observed_only`, and the `complete` block then completes that published Store
 and replaces it. The completion's source is the id's own Store path, so the
-recipe names no Store path at all. Only Dense releases are planned this way,
-because the Observed-View Check covers only Dense Stores so far.
+recipe names no Store path at all. Dense, Hybrid and Ragged releases are all
+planned this way. A Ragged release's `complete` options must name its
+`ld-panel` and `ancestry`, which the Observed-View Check is given too.
 
 ```yaml
 store_id: OGS-00043
@@ -625,7 +629,7 @@ is written by the ordinary step executor; no new record schema is introduced.
 | `variant_list` | Yes | The concrete canonical-ALID list path the build passes as `--variant-list`. It must match the resource declaration's `location`. Recorded so the immutable bundle is self-contained; `plan()` never opens it. |
 | `reference_assembly` | Yes | The list's assembly, passed as `--reference-assembly`. It must match the resource declaration's `genome_build`. |
 | `checksum` | No | The maintained list's sha256 as 64 hex characters. When present it must equal the resource declaration's `checksums.alid_sha256`. |
-| `options` | No | `build-indexed-subset` flags passed through verbatim (`plan.render_options`). `overwrite` is refused, and so is any key that normalises (`strip().lstrip('-')`) to `variant-list` or `reference-assembly`: those are the declaration's own verified inputs, and re-specifying one in `options` would let the executed CLI use a value the runtime did not hash or check. |
+| `options` | No | `build-indexed-subset` flags passed through verbatim (`plan.render_options`), so the same declared policy reaches both phases' subset steps. `overwrite` is refused, and so is any key that normalises (`strip().lstrip('-')`) to `variant-list` or `reference-assembly`: those are the declaration's own verified inputs, and re-specifying one in `options` would let the executed CLI use a value the runtime did not hash or check. A value must render as CLI tokens -- a string, number or bool, or a non-empty list of them; a mapping would arrive as its own repr and `null` or an empty list as nothing at all, so both are refused. |
 
 The key is optional; omit it to declare no subsets. An explicit `indexed_subsets:
 null` is malformed rather than treated as omitted, so a generator cannot
@@ -638,10 +642,21 @@ indexed_subsets:
     variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
     reference_assembly: GRCh38
     checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+    options:
+      overflow-only: skip
 ```
 
+That last declaration is OGS-00011's (stores #225). A requested ALID that
+only a Hybrid release's shared axis carries cannot be indexed in its Dense
+Component, and `--overflow-only skip` leaves such an ALID out and records how
+many the subset skipped (opengwas/opengwasdb#324, and that repository's
+ADR 0065). The planner does not interpret the flag: it renders the mapping
+into the two `build-indexed-subset` steps, build phase and completion phase
+alike, exactly as declared.
+
 `bundle.check()` validates the declaration shape (names, required strings,
-checksum syntax, uniqueness, Dense/Hybrid only, no `overwrite`) without any
+checksum syntax, uniqueness, Dense/Hybrid only, no `overwrite`, and `options`
+values that render as CLI tokens) without any
 resource I/O. Whether the `resource_id` resolves, whether the list matches the
 maintained checksum, and whether the runtime provides `build-indexed-subset`
 are run-time facts the release entry point verifies before a build; the
@@ -861,6 +876,7 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `observed.validate_status` | Yes | The validate verdict the release-level `status` is derived from. |
 | `observed.completion_state` | No | The completion state of the Store this publication published (#307, [ADR 0037](adr/0037-reference-completion-replaces-its-store.md)): `observed_only` for a build phase, which for a release that completes its own Store is the Observed-Only Store users can query while completion runs, and `reference_completed` for a completion phase or a two-id child. It follows the phase published, never `build.yaml`'s declaration, and is read from the plan and the bundle rather than from the Store (ADR 0023). Absent in records written before #307; the master list then reports the bundle's declared state, which for an Observed-Only Store and for a two-id child is the state that record's Store was published in. |
 | `observed.variant_reference` | No | Variant-reference provenance (issue #148): `provided` when the artifact already existed (a skipped `variant-reference` pre-stage, or a build option naming an existing panel with no declared pre-stage, as OGS-00004/OGS-00005 do), `extracted` when the workflow ran `extract-variant-reference`, and absent when the release uses no variant reference. |
+| `observed.rsid_conflicts` | No | What a Hybrid build's rsid harvest compared across its sources (issue #225, opengwas/opengwasdb#306): `policy`, the `on-rsid-conflict` policy it built under (`refuse` or `drop`); `n_keys`, how many routing keys its sources named differently; and `n_variants`, how many stored variants that left with no rsid under `drop`. The counts are `0` when the harvest disputed nothing and `null` when it compared no names across sources (`--reference-panel`, or a reference that names its own rsids), so absence is never recorded as zero. A release that completes its own Store carries them from its build phase, whose builder reports them and whose `complete-hybrid` reports none (issue #225, [ADR 0037](adr/0037-reference-completion-replaces-its-store.md)). Absent when no build record carries the block, as one from a runtime without the policy does. The build's `sample` of disputed keys is not a measurement and stays in its step record (`records/build.json`). |
 | `checks.store` | Yes, `register` record | This run's `opengwasdb validate --format json` verdict: `failed` when `ok` is false, `passed_with_warnings` when it reported a warning, `passed` otherwise, and `not_run` when the plan has no validate step. The only check a `register`-written record carries (#195). |
 | `checks.schema` | Yes, Phase B record | Whether required files and fields conform to OpenGWASDB's shared core schema and this registry's release-bundle requirements. Written by a Manifest Generator; not carried into a registered record. |
 | `checks.files` | Yes, Phase B record | Whether referenced source or filtered files exist and match checksums. Written by a Manifest Generator; not carried into a registered record. |
@@ -1225,7 +1241,7 @@ snapshot was frozen from:
 | `source.inventory.snapshot_id` | Yes | The snapshot's identity. Must equal the inventory file's stem and the provenance sidecar's `snapshot_id`. |
 | `source.inventory.path` | Yes | `resources/inventories/<snapshot-id>.tsv`. |
 | `source.inventory.provenance_path` | Yes | `resources/inventories/<snapshot-id>.meta.yaml`, the sidecar whose `inventory_tsv_sha256` binds the TSV to the bytes that were frozen. |
-| `source.inventory.freeze_inputs` | Yes | The ordered `{role, path}` acquisition status manifests `freeze` merges. Order is the precedence rule: earliest pass first, and a later pass is authoritative for every `analysis_id` it covers. A later pass may not regress a ready Analysis to a non-ready one. |
+| `source.inventory.freeze_inputs` | Yes, for a GWAS Catalog config (a pre-#287 key) | The ordered `{role, path}` acquisition status manifests, earliest pass first. Only the GWAS Catalog's `src/manifest_generation/providers/gwas_catalog/write_acquisition_manifest.py` reads it (#347): it overlays the passes into the **Acquisition Manifest** and its pass lineage, before freeze, and `freeze` then reads that manifest like any other source's. It is therefore required wherever that writer is given `--config`, and the writer refuses a config that declares none rather than defaulting to one pass. No shared module reads this key, and a release config names its connector files under `source_collection.connectors` instead (`docs/spec/release-config.md` maps the pre-#287 keys). Order is the precedence rule: a later pass is authoritative for every `analysis_id` it covers, and it may not regress a ready Analysis to a non-ready one. |
 
 Which `readiness_status` values count as a usable source is **not** a config
 key: it is owned by `src/manifest_generation/source_inventory.py`
@@ -1266,8 +1282,8 @@ disagree with or omit this metadata (see issue #15's `ieu-a-7` example, where a
 GWAS-VCF `##SAMPLE` header declares `StudyType=Continuous` for a study the
 source API correctly reports as case-control).
 
-Conventionally, resolver modules live under
-`resources/generators/lib/metadata_resolvers/`, one file per Source Collection,
+Conventionally, resolver modules live beside their provider, under
+`src/manifest_generation/providers/<provider>/`, one file per Source Collection,
 named for the resolved field set they share:
 `resolve_<source_collection>_metadata(...)`.
 
@@ -1329,7 +1345,7 @@ These implementations exist:
   method tiers turn `study_design` into
   `stored_effect_scale`/`sample_size_kind`.
 
-### Trait ontology mapping resolver
+### Trait ontology mapping
 
 **Manifest Generation's shared step (#286, ADR 0036 step 5).** The Python
 pipeline maps every Analysis in
@@ -1381,41 +1397,11 @@ The table's identity, the method counts, the count of source terms without a
 label, and the rejected source terms are recorded in `validation.yaml`'s
 `trait_ontology_mapping` block.
 
-**The R generators** still resolve through the R resolver below until they
-retire (epic #282).
-
-A separate resolver family, also under
-`resources/generators/lib/metadata_resolvers/`, resolves Trait Ontology Mapping
-(see `CONTEXT.md`) rather than the effect-scale/sample-size fields above — a
-different output shape. `resources/generators/lib/metadata_resolvers/canonical_trait_table.R`
-(`resolve_trait_ontology_mapping()`) returns:
-
-| Field | Required | Description |
-|---|---:|---|
-| `resolution_status` | Yes | `resolved` or `unresolved`. |
-| `trait_ontology_id` | No | `NA` when `resolution_status = unresolved`. |
-| `trait_ontology_label` | No | `NA` when `resolution_status = unresolved`. |
-| `trait_ontology_mapping_method` | Yes | `source_provided`, `canonical_table_lookup`, or `unmapped`. |
-| `resolution_notes` | No | Free-text reason when `unmapped`. |
-
-Resolution order: (1) if the Source Collection already supplies an ontology
-ID (e.g. GWAS Catalog's `MAPPED_TRAIT_URI`), pass it through as
-`source_provided`; (2) otherwise, exact-match the Analysis's trait label
-against the curated Canonical Trait Mapping Table Reference Resource
-(`resources/reference-resources/canonical-trait-mapping-efo/`) as
-`canonical_table_lookup`; (3) otherwise `unmapped`, leaving
-`trait_ontology_id`/`trait_ontology_label` blank rather than guessing. The
-Canonical Trait Mapping Table keeps its three lookup columns (`trait_label`,
-`trait_ontology_id`, `trait_ontology_label`) first; any further columns are
-provenance for reviewers, and the resolver ignores them. There is
-no gene-authority path: a gene's Ensembl ID is not a Trait Ontology Mapping, so
-a gene-centric Analysis whose source supplies no ontology term stays
-`unmapped`/blank rather than being given a gene id (issue #141). A
-source-provided term is kept even when the ontology has deprecated it, and is
+The lookup lives in this registry rather than in OpenGWASDB
+[ADR 0021](adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md).
+A source-provided term is kept even when the ontology has deprecated it, and is
 recorded as `source_provided`; a plausible-looking invented replacement would be
-worse than the genuine obsolete term. See
-[ADR 0021](adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md) for why
-this lookup lives in this repo rather than OpenGWASDB.
+worse than the genuine obsolete term.
 
 ### Reference Resource declaration
 

@@ -1327,5 +1327,21 @@ SORTABLE_COLUMNS = (
 )
 
 
+class RunbookInstructionTest(unittest.TestCase):
+    """The catalog's own instruction sends the operator to `main`, where work lands (#386).
+
+    Every merge to `main` is a version, and `docs/spec/analysis-catalog.md` says
+    to run the catalog there from a clean checkout of `origin/main`; a module
+    docstring still saying `dev` contradicts the runbook it is part of.
+    """
+
+    def test_the_module_documentation_names_main(self) -> None:
+        from analysis_catalog import __main__ as catalog_main
+
+        documentation = catalog_main.__doc__ or ""
+        self.assertIn("after a merge to `main`", documentation)
+        self.assertNotIn("`dev`", documentation)
+
+
 if __name__ == "__main__":
     unittest.main()

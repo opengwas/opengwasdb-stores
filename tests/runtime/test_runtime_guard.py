@@ -4,8 +4,10 @@
 Covers the contract `ogstores.runtime.verify_runtime_for_releases` adds to
 `pixi run release` (and, as defence in depth, the Snakefile `onstart`):
 
-* the tracked pin is explicit and the same revision in `pixi.toml`,
-  `pixi.lock`, and `ogstores.runtime.PINNED_OPENGWASDB_REVISION`, and it fails
+* the tracked pin is one release tag in `pixi.toml` and one immutable revision
+  in `pixi.lock` and `ogstores.runtime.PINNED_OPENGWASDB_REVISION` (the tag is
+  `PINNED_OPENGWASDB_TAG`); every `opengwasdb` reference the lock carries
+  requests that tag and resolves that commit as its `#<commit>`, and it fails
   closed on an unknown or non-exact revision;
 * the version and revision come from the executable that will run, not from
   the ambient interpreter;
@@ -24,6 +26,7 @@ Fixtures are a shell `opengwasdb` stub, a `direct_url.json` and a dist-info
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import sys
 import tempfile
@@ -45,11 +48,55 @@ def record_check() -> None:
     n_checks += 1
 
 
-def _pin_from_pixi_toml(toml_path: Path) -> str:
+def _pin_spec_from_pixi_toml(toml_path: Path) -> dict:
     document = tomllib.loads(toml_path.read_text(encoding="utf-8"))
     pypi = document["feature"]["store-build"]["pypi-dependencies"]
-    spec = pypi["opengwasdb"]
-    return spec["rev"]
+    return pypi["opengwasdb"]
+
+
+#: The one shape a lock reference to the pin may take: the request (the release
+#: tag, since #387) and the commit the solve resolved (`#`), with no other URL
+#: parts that could select something else.
+_LOCK_REFERENCE = re.compile(
+    r"\Agit\+https://github\.com/opengwas/opengwasdb"
+    r"\?tag=(?P<requested>v[0-9]+\.[0-9]+\.[0-9]+)#(?P<resolved>[0-9a-f]{40})\Z"
+)
+
+
+def _environments_carrying_the_pin(toml_path: Path) -> set[str]:
+    """Every environment whose features include `store-build`, which declares the pin."""
+    document = tomllib.loads(toml_path.read_text(encoding="utf-8"))
+    return {
+        name
+        for name, spec in document["environments"].items()
+        if "store-build" in spec.get("features", [])
+    }
+
+
+def _lock_references(
+    lock_path: Path,
+) -> tuple[dict[str, list[str]], list[tuple[str, str]]]:
+    """Every `opengwasdb` reference the lock carries: per environment, and package.
+
+    The lock names one reference per environment, per platform, plus one package
+    entry describing the solve. Each is a candidate for `pixi install` to build
+    from, so a stale one selects a runtime that is not the pin for that
+    environment even when `pixi.toml` and the module agree.
+    """
+    document = yaml.safe_load(lock_path.read_text(encoding="utf-8"))
+    per_environment: dict[str, list[str]] = {}
+    for name, environment in document["environments"].items():
+        for packages in environment.get("packages", {}).values():
+            for entry in packages:
+                spec = entry.get("pypi")
+                if isinstance(spec, str) and "opengwas/opengwasdb" in spec:
+                    per_environment.setdefault(name, []).append(spec)
+    package_entries = [
+        (str(entry.get("name")), entry["pypi"])
+        for entry in document["packages"]
+        if isinstance(entry.get("pypi"), str) and "opengwas/opengwasdb" in entry["pypi"]
+    ]
+    return per_environment, package_entries
 
 
 class _FakeRuntime:
@@ -175,15 +222,55 @@ class RuntimeGuardTestCase(unittest.TestCase):
 
     # --- pin & identity ---------------------------------------------------
 
-    def test_pin_is_explicit_and_consistent(self) -> None:
-        """The tracked pin is one immutable revision across toml, lock and module."""
-        toml_pin = _pin_from_pixi_toml(REPO_ROOT / "pixi.toml")
+    def test_pin_is_one_release_tag_and_one_revision(self) -> None:
+        """The tracked pin is one release tag, and one immutable revision for it."""
+        spec = _pin_spec_from_pixi_toml(REPO_ROOT / "pixi.toml")
         record_check()
-        self.assertEqual(toml_pin, runtime.PINNED_OPENGWASDB_REVISION)
-        self.assertEqual(len(toml_pin), 40)
-        lock_text = (REPO_ROOT / "pixi.lock").read_text(encoding="utf-8")
+        self.assertEqual(set(spec), {"git", "tag"}, "the pin names a tag, not a rev or branch")
+        self.assertEqual(spec["git"], runtime.OPENGWASDB_GIT_URL)
+        self.assertEqual(spec["tag"], runtime.PINNED_OPENGWASDB_TAG)
+        self.assertRegex(runtime.PINNED_OPENGWASDB_TAG, r"^v[0-9]+\.[0-9]+\.[0-9]+$")
+        self.assertEqual(len(runtime.PINNED_OPENGWASDB_REVISION), 40)
+
+    def test_every_lock_reference_requests_and_resolves_the_pin(self) -> None:
+        """One stale lock entry selects another runtime, so every one must be the pin.
+
+        A lock reference carries the request (the release tag) and the commit
+        the solve resolved (`#`). Either alone is not enough: `tag=` with a
+        different fragment installs something else, and a fragment alone cannot
+        be checked against `pixi.toml`. Every environment that depends on the
+        `store-build` feature, and the lock's single package entry, must name
+        both.
+        """
+        expected = _environments_carrying_the_pin(REPO_ROOT / "pixi.toml")
         record_check()
-        self.assertIn(f"rev={runtime.PINNED_OPENGWASDB_REVISION}", lock_text)
+        self.assertTrue(expected, "no environment declares the store-build feature")
+        per_environment, package_entries = _lock_references(REPO_ROOT / "pixi.lock")
+        record_check()
+        self.assertEqual(set(per_environment), expected)
+        references: list[tuple[str, str]] = [
+            (f"environment {name}", spec)
+            for name, specs in per_environment.items()
+            for spec in specs
+        ]
+        references.extend((f"package {name}", spec) for name, spec in package_entries)
+        record_check()
+        self.assertEqual(len(references), len(expected) + 1)
+        record_check()
+        self.assertEqual([name for name, _ in package_entries], ["opengwasdb"])
+        for where, spec in references:
+            with self.subTest(where):
+                match = _LOCK_REFERENCE.match(spec)
+                record_check()
+                self.assertIsNotNone(match, f"{where}: not an exact rev#commit reference: {spec}")
+                self.assertEqual(
+                    (match["requested"], match["resolved"]),
+                    (
+                        runtime.PINNED_OPENGWASDB_TAG,
+                        runtime.PINNED_OPENGWASDB_REVISION,
+                    ),
+                    where,
+                )
 
     def test_missing_executable_is_refused(self) -> None:
         self._write_bundle("OGS-00090")
