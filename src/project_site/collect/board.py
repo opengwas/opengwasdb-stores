@@ -193,6 +193,43 @@ PURPOSE_LIMIT = 600
 # comment, or a list of bullets and checkboxes.
 _NOT_PROSE = re.compile(r"^(#{1,6}\s|```|~~~|\||>|<!--|[-*+]\s|\d+[.)]\s)")
 
+# A fenced block opens with three or more backticks or tildes and closes with the
+# same character, in a run at least as long.
+_FENCE = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})")
+
+
+def _paragraphs(body: str | None) -> list[list[str]]:
+    """The body's paragraphs, with every fenced block dropped whole.
+
+    A fence is skipped as a block, not compared paragraph by paragraph: a code
+    block whose own blank lines split it would otherwise have its second half
+    read as prose (#391 review, item 3).
+    """
+    paragraphs: list[list[str]] = []
+    current: list[str] = []
+    closing: str | None = None
+    for line in (body or "").splitlines():
+        fence = _FENCE.match(line)
+        if closing is not None:
+            if fence and fence.group("fence")[0] == closing[0] and len(fence.group("fence")) >= len(closing):
+                closing = None
+            continue
+        if fence:
+            if current:
+                paragraphs.append(current)
+                current = []
+            closing = fence.group("fence")
+            continue
+        if not line.strip():
+            if current:
+                paragraphs.append(current)
+                current = []
+            continue
+        current.append(line)
+    if current:
+        paragraphs.append(current)
+    return paragraphs
+
 
 def purpose_of(body: str | None) -> str | None:
     """An Epic's purpose: the first non-empty paragraph that is prose, cut at a sentence.
@@ -200,9 +237,8 @@ def purpose_of(body: str | None) -> str | None:
     The body is otherwise dropped, so what a page shows is the epic's own words
     about what it is for, not a summary this repository invented.
     """
-    for paragraph in (body or "").split("\n\n"):
-        lines = [line for line in paragraph.splitlines() if line.strip()]
-        if not lines or _NOT_PROSE.match(lines[0].strip()):
+    for lines in _paragraphs(body):
+        if _NOT_PROSE.match(lines[0].strip()):
             continue
         text = " ".join(" ".join(lines).split())
         if text:

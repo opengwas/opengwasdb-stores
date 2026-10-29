@@ -127,9 +127,13 @@ aliased query, and follows every further page of both relationships (`subIssues`
 and `blockedBy` each return `pageInfo`). An issue's body is read for two things,
 and dropped otherwise: a Milestone's checklist lines, and an Epic's `purpose`,
 the first non-empty paragraph of the body that is prose -- not a heading, a
-fence, a table, a quote, or a list of bullets and boxes -- cut at a sentence (or,
+table, a quote, or a list of bullets and boxes -- cut at a sentence (or,
 failing a sentence, at a word and an ellipsis) to at most 600 characters. A
-relationship that still has a page unread when the response is parsed is an
+fenced block is skipped whole, tracked across the paragraph split: three or more
+backticks or tildes open it and the same character in a run at least as long
+closes it, so a code sample's own blank lines never end it and its second half is
+never read as prose. A relationship that still has a page unread when the
+response is parsed is an
 error, so the file is `available: false` rather than a short list marked
 complete.
 

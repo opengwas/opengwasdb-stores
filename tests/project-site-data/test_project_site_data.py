@@ -444,6 +444,29 @@ class TestBoardEpicPurpose(unittest.TestCase):
         self.assertIsNone(board.purpose_of("## Exit criteria\n\n- [ ] one\n- [x] two\n"))
         self.assertIsNone(board.purpose_of(None))
 
+    def test_a_fenced_block_is_skipped_whole_however_its_blank_lines_fall(self) -> None:
+        """A code fence is not prose, and a blank line inside it does not end the fence (#391 review, item 3)."""
+        body = (
+            "```python\n"
+            "def example():\n"
+            "\n"
+            "    print(\"example\")\n"
+            "```\n"
+            "\n"
+            "The epic makes the example run on every render.\n"
+        )
+        self.assertEqual(board.purpose_of(body), "The epic makes the example run on every render.")
+
+    def test_a_body_of_fences_alone_has_no_purpose(self) -> None:
+        for body in (
+            "```python\n\nprint(\"one\")\n```\n",
+            "~~~\n\nprint(\"two\")\n~~~\n",
+            "````\n```\n\nprint(\"three\")\n```\n````\n\n- [ ] a box, not prose\n",
+            "```\nunclosed fence\n\nprint(\"four\")\n",
+        ):
+            with self.subTest(body=body):
+                self.assertIsNone(board.purpose_of(body))
+
     def test_a_long_first_paragraph_is_cut_at_a_sentence(self) -> None:
         body = "The catalog lists every validated Store. " * 30
         purpose = board.purpose_of(body)
