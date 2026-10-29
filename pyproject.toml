@@ -23,8 +23,8 @@ dependencies = []
 # (`curation`), and the Analysis Catalog (`analysis_catalog`, #323, ADR 0039),
 # which reads Release Bundles only through that contract and which nothing
 # imports, so it can move to the API's repository. tests/packaging/test_layout.py
-# keeps it all there.
-#
+# keeps it all there. `project_site` (#388) is the repository's own tooling for
+# the docs website; nothing imports it, and it is run with `python3 -m`.
 # `manifest_generation` installs editable only: it resolves its inputs and the
 # registry against the checkout it lives in, and refuses to import from
 # anywhere else. The shell scripts in its provider directories run

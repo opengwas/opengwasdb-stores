@@ -1,0 +1,76 @@
+---
+title: "Reports"
+---
+
+Working artefacts for delineating GWAS Catalog full-summary-statistic analyses
+into candidate OpenGWASDB stores, and deciding what to build first. Their sources
+are in `docs/reports/`; the pages linked here are the committed, self-contained
+HTML the site copies as it is, so a report is refreshed with `pixi run docs` and
+never re-executed at render time.
+
+### [Progress update, October 2026](progress-2026-10.html) {#progress}
+
+*Report.* Where OpenGWASDB stands: build, reference-completion and query cost
+across Dense, Ragged and Hybrid stores; how a store holds an association in about
+2 bytes; MR and regional-plot positive controls with and without imputed
+variants; how a Release Bundle drives the Snakemake build; and the twelve Store
+Releases built so far.
+
+### [Getting started with stores](query-walkthrough.html) {#walkthrough}
+
+*Guide.* Start here if you've never opened a store: a hands-on command-line tour
+of the four pilot stores — what a store contains, the five `opengwasdb query-*`
+commands, how to turn their output into readable tables, and the gotchas that
+catch everyone first time.
+
+### [Store curation report](store-curation.html) {#curation}
+
+*Report.* How 171,274 full-sumstats analyses split into dense, ragged, and hybrid
+candidate stores — grouped by publication and dominant ancestry, ragged stores
+labelled by molecular type, with reference-completed size estimates and the
+EUR-hybrid EFO-clustered prioritisation.
+
+### [Canonical trait mapping](trait-mapping-report.html) {#trait-mapping}
+
+*Analysis.* The BioLORD + Jev pipeline that maps free-text trait labels to EFO
+terms: validation against GWAS Catalog curation (OGS-00011, ~99% estimated
+precision at the promotion threshold), the first ukb-b round (409 rows
+auto-accepted), and the defects only live runs exposed.
+
+### [UKB-B trait mapping round 2](trait-mapping-ukb-b-round2.md) {#trait-mapping-round-2}
+
+*Analysis.* The issue #185 rerun over 2,093 remaining labels: Showcase context,
+ICD-10 retrieval, top-100 shortlists, 141 new mappings, the fresh 845-label
+review queue, bucket movement, regression checks, and a published random spot
+check.
+
+### [Prioritisation dashboard](prioritisation-dashboard.html) {#dashboard}
+
+*Interactive tool.* Drag each store card into High / Low / Discard columns; each
+column tallies its store count, analyses, and estimated storage. Filter, sort,
+and export the prioritisation to CSV. Your layout is saved in the browser.
+
+### [Imputation-quality filters](imputation-filters.html) {#imputation-filters}
+
+*Analysis.* Choosing MAF and imputation-r² cutoffs before importing dense
+TOPMed-imputed summary statistics — r² by MAF bin, a retention grid of variants
+kept versus store size, and a worked tiered-threshold proposal.
+
+### [EUR LD panel comparison](eur-panel-imputation-comparison.html) {#eur-panel}
+
+*Analysis.* Paired masking experiment across five UKB-B regions comparing
+held-out beta recovery with the UKB EUR and matched HGDP+1kGP EUR LD panels.
+
+### [Beta-scale estimation](beta-scale-estimation.html) {#beta-scale}
+
+*Analysis.* A quick simulation of phenotype-SD estimation from random
+common-variant betas when source MAF is missing — comparing oracle,
+reference-profile, and uniform common-MAF assumptions for EUR-like and AFR-like
+GWAS.
+
+---
+
+The report sources and the recipes that refresh them are in
+[`../docs/reports/`](../docs/reports/) and
+[`pixi run docs`](../tools/build-site.sh); the data a report reads is under
+[`../resources/`](../resources/).
