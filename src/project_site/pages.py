@@ -10,7 +10,7 @@ Three rules hold on every page:
 
 - **Every number traces to one collector field**, and a total is never shown
   when a part of it is unknown: it reads `unknown (k of n Stores report it)`,
-  the rule `docs/spec/catalog.md` sets for the catalog's own summary.
+  the rule `docs/spec/analysis-catalog.md` sets for the catalog's own summary.
 - **A source that could not be read is a visible notice, never a crash.** Each
   page reads `available` before it reads anything else and says which source is
   missing, its error, and when it was collected.
@@ -489,7 +489,7 @@ def render_epic_page(documents: Mapping[str, Document | None], epic: Mapping[str
     key = str(epic.get("key") or "?")
     title = str(epic.get("title") or key)
     record = epic_record(documents, key)
-    lines = ["---", f"title: {json.dumps(title)}", "---", "", GENERATED, ""]
+    lines = ["---", f"title: {json.dumps(title, ensure_ascii=False)}", "---", "", GENERATED, ""]
     lines += notices(documents, ("records", "catalog", "releases", "board"))
     lines += _purpose_section(record, key)
     lines += _board_facts_section(epic)
@@ -793,6 +793,237 @@ def _measure_of(result: Mapping[str, Any] | None, store_id: str, measure: str) -
         if str(store.get("store_id") or "") == store_id:
             return measures_of(store).get(measure)
     return None
+
+
+# ---------------------------------------------------------------------------
+# The Store pages
+# ---------------------------------------------------------------------------
+
+# What a Validation Record's `observed` mapping holds, under the name a reader
+# knows it by. The field's own name is shown beside it, so every number traces
+# to one collector field.
+OBSERVED_LABELS = {
+    "n_analyses": "Analyses",
+    "n_variants": "Variants",
+    "n_associations": "Associations",
+    "store_bytes": "Store bytes",
+    "format_version": "Format version",
+    "reference_assembly": "Reference assembly",
+    "association_coverage": "Observed association coverage",
+    "build_elapsed_s": "Build elapsed (s)",
+    "validate_status": "Validation",
+    "completion_state": "Completion",
+}
+
+
+def render_store_page(documents: Mapping[str, Document | None], entry: Mapping[str, Any]) -> str:
+    """One registered Store Release: its lifecycle, its counts, its catalog presence and its notes."""
+    store_id = str(entry.get("store_id") or "?")
+    label = entry.get("label")
+    title = f"{store_id} — {label}" if label else store_id
+    lines = ["---", f"title: {json.dumps(title, ensure_ascii=False)}", "---", "", GENERATED, ""]
+    lines += notices(documents, ("stores", "catalog"))
+    lines += _store_problems(entry)
+    lines += _store_lifecycle(entry)
+    lines += _store_layout(entry)
+    lines += _store_counts(entry)
+    lines += _store_catalog(documents, store_id)
+    lines += _store_notes(entry)
+    lines += _store_bundle(store_id)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _store_problems(entry: Mapping[str, Any]) -> list[str]:
+    problems = [str(problem) for problem in entry.get("problems") or []]
+    if not problems:
+        return []
+    lines = ["> **This bundle could not state every fact on this page**:", ">"]
+    lines += [f"> - {_cell(problem)}" for problem in problems]
+    lines.append("")
+    return lines
+
+
+def _store_lifecycle(entry: Mapping[str, Any]) -> list[str]:
+    superseded = entry.get("superseded_by")
+    derived = entry.get("derived_from")
+    rows = [
+        ("Release Status", _cell(entry.get("status"))),
+        ("Validation status", _cell(entry.get("validation_status"))),
+        ("Trial Store Release", _cell(entry.get("trial"))),
+        ("Access Posture", _cell(entry.get("access_posture"))),
+        ("Created", _cell(entry.get("created_at"))),
+        ("Accepted", _cell(entry.get("accepted_at"))),
+        ("Validated", _cell(entry.get("validated_at"))),
+        ("Superseded by", _link(superseded, f"{superseded}.html") if superseded else _cell(None)),
+        ("Derived from", _link(derived, f"{derived}.html") if derived else _cell(None)),
+    ]
+    lines = ["## Status and lifecycle", "", "| Field | Value |", "| --- | --- |"]
+    lines += [f"| {name} | {value} |" for name, value in rows]
+    lines.append("")
+    return lines
+
+
+def _store_layout(entry: Mapping[str, Any]) -> list[str]:
+    rows = [
+        ("Store Layout", _cell(entry.get("layout"))),
+        ("Completion state", _cell(entry.get("completion_state"))),
+        ("Association Coverage", _cell(entry.get("association_coverage"))),
+    ]
+    lines = ["## Layout, coverage and completion", "", "| Field | Value |", "| --- | --- |"]
+    lines += [f"| {name} | {value} |" for name, value in rows]
+    lines.append("")
+    return lines
+
+
+def _store_counts(entry: Mapping[str, Any]) -> list[str]:
+    observed = entry.get("observed")
+    lines = ["## Observed counts", ""]
+    if not isinstance(observed, Mapping):
+        return lines + [
+            "This Store Release has no Validation Record, so it reports no observed count.",
+            "",
+        ]
+    lines += ["As its Validation Record states them, with an unknown left as an unknown:", ""]
+    lines += ["| Count | Value |", "| --- | --- |"]
+    for field, value in observed.items():
+        name = OBSERVED_LABELS.get(field, field)
+        lines.append(f"| {name} (`{field}`) | {_figure(value) if value is not None else _cell(None)} |")
+    lines.append("")
+    return lines
+
+
+def _store_catalog(documents: Mapping[str, Document | None], store_id: str) -> list[str]:
+    lines = ["## In the Analysis Catalog", ""]
+    catalog = available(documents, "catalog")
+    if catalog is None:
+        return lines + ["No catalog decision can be shown while the Catalog data is unavailable.", ""]
+    versions = catalog.get("versions") or []
+    current = next((version for version in versions if version.get("current")), None)
+    if current is None:
+        return lines + ["No catalog version is current, so this Store has no current decision.", ""]
+    listed = [
+        row.get("n_analyses")
+        for row in current.get("counts") or []
+        if row.get("dimension") == "store" and row.get("value") == store_id
+    ]
+    built = (current.get("catalog_meta") or {}).get("built_at")
+    lines.append(f"The current catalog version is `{_cell(current.get('version'))}`, built {_cell(built)}.")
+    lines.append("")
+    if listed:
+        lines.append(
+            f"This Store is in that version's `store` counts, with **{_figure(listed[0])}** listed Analyses."
+        )
+    else:
+        lines.append(
+            "This Store is **not** in that version's `store` counts, so the catalog lists none of its"
+            " Analyses: it is not a served Store Release, or it holds no listed Analysis."
+        )
+    lines += [
+        "",
+        "The catalog's own decision and reason per Store Release live in its `selection` table, which",
+        "the site's collector does not collect (`docs/spec/project-site.md`): this section shows the",
+        "Store's presence in the counts a version publishes, never a decision reconstructed from them.",
+        "",
+    ]
+    return lines
+
+
+def _store_notes(entry: Mapping[str, Any]) -> list[str]:
+    lines = ["## Release notes", ""]
+    description = entry.get("description")
+    notes = entry.get("notes")
+    if description:
+        lines += [_prose(description), ""]
+    if notes:
+        lines += [_prose(notes), ""]
+    if not description and not notes:
+        lines += ["The Release Bundle records no description and no notes.", ""]
+    lines += [
+        "These are the bundle's own words: `release.yaml`'s `description` and `notes`, which is where",
+        "a Release Erratum is recorded (`docs/spec/analysis-catalog.md`).",
+        "",
+    ]
+    return lines
+
+
+def _prose(text: Any) -> str:
+    """Free text as a paragraph, with Quarto's shortcode delimiters escaped."""
+    return str(text).replace("{{<", "&#123;&#123;<").replace("{{%", "&#123;&#123;%").strip()
+
+
+def _store_bundle(store_id: str) -> list[str]:
+    return [
+        "## The bundle",
+        "",
+        f"[{store_id} on GitHub]({BUNDLES}/{store_id})",
+        "",
+    ]
+
+
+def column_total(values: Sequence[Any]) -> str:
+    """A total over Stores: never a partial sum, following the catalog's rule.
+
+    `unknown (k of n Stores report it)` as soon as one Store leaves the count
+    `null`, because a total that hides an unknown is a wrong answer that looks
+    like a right one.
+    """
+    numbers = [value for value in values if isinstance(value, (int, float)) and not isinstance(value, bool)]
+    if len(numbers) != len(values):
+        return f"unknown ({len(numbers)} of {len(values)} Stores report it)"
+    return _figure(sum(numbers))
+
+
+def render_stores_index(documents: Mapping[str, Document | None]) -> str:
+    """The Stores section's index: every registered Store Release and the totals it may report."""
+    lines = [GENERATED, ""]
+    lines += notices(documents, ("stores", "catalog"))
+    stores = available(documents, "stores")
+    if stores is None:
+        return "\n".join(lines + ["No Store Release can be listed while the Stores data is unavailable.", ""])
+    rows = [entry for entry in stores.get("stores") or [] if isinstance(entry, Mapping)]
+    if not rows:
+        return "\n".join(lines + ["The registry holds no Store Release.", ""])
+    lines += [
+        f"The registry holds **{len(rows)}** Store Releases.",
+        "",
+        "| Store | Label | Status | Layout | Coverage | Analyses | Variants | Associations |",
+        "| --- | --- | --- | --- | --- | --- | --- | --- |",
+    ]
+    for entry in rows:
+        observed = entry.get("observed") if isinstance(entry.get("observed"), Mapping) else {}
+        store_id = str(entry.get("store_id") or "?")
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _link(store_id, f"{store_id}.html"),
+                    _cell(entry.get("label")),
+                    _cell(entry.get("status")),
+                    _cell(entry.get("layout")),
+                    _cell(entry.get("association_coverage")),
+                    _figure(observed.get("n_analyses")),
+                    _figure(observed.get("n_variants")),
+                    _figure(observed.get("n_associations")),
+                ]
+            )
+            + " |"
+        )
+    lines.append(
+        "| **Total** | | | | | "
+        + " | ".join(
+            column_total([(entry.get("observed") or {}).get(field) for entry in rows])
+            for field in ("n_analyses", "n_variants", "n_associations")
+        )
+        + " |"
+    )
+    lines += [
+        "",
+        "A count the Validation Record left `null` is `not reported`, and a total over such a column is",
+        "`unknown (k of n Stores report it)` rather than the sum of the Stores that did report it",
+        "(`docs/spec/analysis-catalog.md`).",
+        "",
+    ]
+    return "\n".join(lines).rstrip() + "\n"
 
 
 def main(argv: Sequence[str] | None = None) -> int:

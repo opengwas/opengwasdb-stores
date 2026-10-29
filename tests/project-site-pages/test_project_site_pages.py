@@ -220,6 +220,94 @@ class TestEpicPage(unittest.TestCase):
         self.assertNotIn("Catalog Analyses", page)
 
 
+def store(store_id: str, label: str, **overrides) -> dict:
+    """One registered Store Release, as the stores collector writes it."""
+    row = {
+        "store_id": store_id,
+        "label": label,
+        "status": "validated",
+        "trial": False,
+        "layout": "ragged",
+        "completion_state": "observed_only",
+        "association_coverage": "cis",
+        "access_posture": "public",
+        "derived_from": None,
+        "superseded_by": None,
+        "created_at": "2026-10-27T19:28:05Z",
+        "accepted_at": "2026-10-27T19:42:54Z",
+        "validated_at": "2026-10-27T20:13:36Z",
+        "validation_status": "passed",
+        "observed": None,
+        "description": None,
+        "notes": None,
+        "problems": [],
+    }
+    row.update(overrides)
+    return row
+
+
+class TestStorePages(unittest.TestCase):
+    """One page per registered Store: its lifecycle, its counts, its catalog presence and its notes."""
+
+    def setUp(self) -> None:
+        self.reported = store(
+            "OGS-00006",
+            "chen-2023",
+            observed={"n_analyses": 1400, "n_variants": 12086463, "n_associations": 50},
+        )
+        self.silent = store(
+            "OGS-00027",
+            "eqtlgen-full",
+            observed={"n_analyses": 19250, "n_variants": 8927061, "n_associations": None},
+            description="The full eQTLGen cis-eQTL catalogue.",
+            notes="2026-10-28: validated and scientifically accepted.",
+        )
+        self.documents = documents(
+            stores=envelope("stores", registry="/data/opengwasdb/stores",
+                            stores=[self.reported, self.silent]),
+            catalog=envelope(
+                "catalog",
+                root="/data/opengwasdb/stores/catalog/versions",
+                current="bbbbbbbbbbbbbbbb",
+                versions=[
+                    catalog_version(
+                        "bbbbbbbbbbbbbbbb", built_at="2026-10-28T22:57:35Z", analyses=20650, stores=2,
+                        current=True,
+                        counts=[{"dimension": "store", "value": "OGS-00006", "n_analyses": 1400},
+                                {"dimension": "store", "value": "OGS-00027", "n_analyses": 19250}],
+                    )
+                ],
+            ),
+        )
+
+    def test_a_count_the_validation_record_left_null_says_not_reported(self) -> None:
+        page = pages.render_store_page(self.documents, self.silent)
+        self.assertIn("| Associations (`n_associations`) | _not reported_ |", page)
+        self.assertIn("| Analyses (`n_analyses`) | 19,250 |", page)
+
+    def test_no_total_includes_a_count_a_store_did_not_report(self) -> None:
+        index = pages.render_stores_index(self.documents)
+        total = next(line for line in index.splitlines() if line.startswith("| **Total**"))
+        self.assertIn("unknown (1 of 2 Stores report it)", total)
+        self.assertIn("| 20,650 |", total)
+
+    def test_the_page_shows_the_lifecycle_the_layout_and_the_release_notes(self) -> None:
+        page = pages.render_store_page(self.documents, self.silent)
+        self.assertIn("2026-10-27T20:13:36Z", page)
+        self.assertIn("observed_only", page)
+        self.assertIn("The full eQTLGen cis-eQTL catalogue.", page)
+        self.assertIn("2026-10-28: validated and scientifically accepted.", page)
+
+    def test_the_catalog_section_says_the_store_is_listed_and_that_a_decision_is_not_collected(self) -> None:
+        page = pages.render_store_page(self.documents, self.silent)
+        self.assertIn("19,250", page)
+        self.assertIn("`selection`", page)
+
+    def test_the_page_links_to_the_bundle_on_github(self) -> None:
+        page = pages.render_store_page(self.documents, self.silent)
+        self.assertIn(f"{pages.BUNDLES}/OGS-00027", page)
+
+
 class TestOverview(unittest.TestCase):
     """The home page: milestone progress, each workstream's Active epics, and trends with the data below them."""
 
