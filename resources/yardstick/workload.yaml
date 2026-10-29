@@ -1,0 +1,60 @@
+# The yardstick workload (#390): what is measured, on which Stores, with which
+# queries. Every identifier below was picked once from the Store's own
+# variants.tsv.gz (rows 100,000 and 300,000) and analyses.tsv, and was checked
+# read-only to resolve to a non-empty result in that Store. The runner refuses
+# an empty result, so a Store that stops containing one fails loudly.
+#
+# Changing this file changes what every later result means: bump `workload_id`
+# and say why in docs/spec/yardstick.md.
+schema: 1
+workload_id: yardstick-1
+# Warm repetitions behind each median. `analysis_full` is lower because one
+# full extraction of an OGS-00009 Analysis reads ~9.9 million rows.
+repetitions:
+  default: 5
+  analysis_full: 3
+region_width_bp: 1000000
+# The Dense fixture build (a 2-variant VCF through `opengwasdb build-dense-vcf`,
+# ~6 s) tracks the build path (opengwas/opengwasdb#307). A Ragged fixture
+# builder is not importable from this repository, so there is no Ragged build.
+fixture_build:
+  layout: dense
+stores:
+  - store_id: OGS-00009
+    layout: dense
+    coverage: gwas
+    status: measured
+    note: Dense, Reference-Completed, with an hm3 Indexed Variant Subset
+    rsid: rs75669958
+    alid: "1:24854857:A:G"
+    position: {chromosome: "1", position: 79881235}
+    analysis_id: ukb-b-10001
+    region: {chromosome: "1", start: 79381235, end: 80381235}
+    measures: [open, phewas_rsid, phewas_alid, phewas_position, analysis_full, analysis_hm3, region, bytes_on_disk, peak_rss]
+  - store_id: OGS-00027
+    layout: ragged
+    coverage: cis
+    status: measured
+    note: Ragged, Observed-Only, cis Association Coverage
+    rsid: rs3851271
+    alid: "1:28852669:C:T"
+    position: {chromosome: "1", position: 92126665}
+    analysis_id: ENSG00000000419
+    region: {chromosome: "1", start: 91626665, end: 92626665}
+    measures: [open, phewas_rsid, phewas_alid, phewas_position, analysis_full, region, bytes_on_disk, peak_rss]
+  - store_id: OGS-00006
+    layout: ragged
+    coverage: signals_only
+    status: measured
+    note: Ragged, Observed-Only, signals_only Association Coverage
+    rsid: rs78413525
+    alid: "1:18521248:A:G"
+    position: {chromosome: "1", position: 66546730}
+    analysis_id: GCST90199621
+    region: {chromosome: "1", start: 66046730, end: 67046730}
+    measures: [open, phewas_rsid, phewas_alid, phewas_position, analysis_full, region, bytes_on_disk, peak_rss]
+  - store_id: OGS-00011
+    layout: hybrid
+    coverage: gwas
+    status: pending
+    reason: its live store.opengwasdb.partial belongs to the rebuild run (epic #371); add it once that Store is published and stable

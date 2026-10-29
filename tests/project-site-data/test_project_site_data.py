@@ -690,6 +690,45 @@ class TestRecordsCollector(unittest.TestCase):
         self.assertTrue(result["invalid"]["torn.json"][0].startswith("could not be read"))
 
 
+def minimal_yardstick_result() -> dict:
+    return {
+        "schema": 1,
+        "workload_id": "w",
+        "workload_sha256": "0" * 64,
+        "opengwasdb": {"version": "0.3.0", "revision": "0d59f151c7618933747a59f825deeef6a51de9e1"},
+        "ogstores": {"version": "0.1.0"},
+        "host": {"name": "h", "cpu_count": 4},
+        "load_average": {"before": [0.1, 0.2, 0.3], "after": [0.2, 0.2, 0.3]},
+        "started_utc": "2026-10-29T12:00:00Z",
+        "ended_utc": "2026-10-29T12:01:00Z",
+        "duration_s": 60.0,
+        "local_utc_offset_minutes": 0,
+        "veeam_window": False,
+        "repetitions": {"default": 5},
+        "stores": [{"store_id": "OGS-00011", "layout": "hybrid", "coverage": "gwas", "status": "pending", "reason": "x"}],
+    }
+
+
+class TestRecordsCollectorUsesTheYardstickValidator(unittest.TestCase):
+    def test_default_validator_reports_a_refused_result_by_name_and_passes_a_valid_one(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            epics, yardstick = Path(tmp) / "_epics", Path(tmp) / "_yardstick"
+            epics.mkdir()
+            yardstick.mkdir()
+            (yardstick / "good.json").write_text(json.dumps(minimal_yardstick_result()))
+            wrong_schema = {**minimal_yardstick_result(), "schema": 2}
+            (yardstick / "wrong-schema.json").write_text(json.dumps(wrong_schema))
+            negative = minimal_yardstick_result()
+            negative["duration_s"] = -1
+            (yardstick / "negative.json").write_text(json.dumps(negative))
+            (yardstick / "object.json").write_text('{"epic": 313}')
+            result = records_collector.collect(epics, yardstick)["yardstick"]
+        self.assertEqual([r["name"] for r in result["results"]], ["good.json"])
+        self.assertEqual(sorted(result["invalid"]), ["negative.json", "object.json", "wrong-schema.json"])
+        self.assertEqual(result["invalid"]["wrong-schema.json"], ["result schema must be 1, got 2"])
+        self.assertEqual(result["invalid"]["negative.json"], ["duration_s must not be negative, got -1"])
+
+
 class TestSiteData(unittest.TestCase):
     def setUp(self) -> None:
         tmp = tempfile.TemporaryDirectory()
