@@ -7,15 +7,17 @@ build:
     variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
     n-workers: 24
     checkpoint: true
+    on-rsid-conflict: drop
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
-    on-rsid-conflict: drop
 post:
   top_hits: false
   overview: true
 indexed_subsets:
-  - name: hm3
-    resource_id: hapmap3-hg38
-    variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
-    reference_assembly: GRCh38
-    checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+- name: hm3
+  resource_id: hapmap3-hg38
+  variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
+  reference_assembly: GRCh38
+  checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+  options:
+    overflow-only: skip

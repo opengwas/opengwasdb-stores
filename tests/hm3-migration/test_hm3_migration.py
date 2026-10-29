@@ -161,6 +161,7 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "variant-reference": "/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz",
             "n-workers": 24,
             "checkpoint": True,
+            "on-rsid-conflict": "drop",
             "source-reader-capability": "opengwasdb.gwas-ssf",
             "source-assembly": "hg38",
         },
@@ -288,8 +289,11 @@ class TestRegistryMigration(unittest.TestCase):
         for store_id in EXPECTED_IN_SCOPE:
             build = load_build(store_id)
             record_check()
+            expected = dict(HAPMAP3_DECLARATION)
+            if store_id == "OGS-00011":
+                expected["options"] = {"overflow-only": "skip"}
             self.assertEqual(
-                build.get("indexed_subsets"), [HAPMAP3_DECLARATION], store_id
+                build.get("indexed_subsets"), [expected], store_id
             )
 
     def test_only_indexed_subsets_was_added(self) -> None:
@@ -339,18 +343,21 @@ class TestRegistryMigration(unittest.TestCase):
                 step for step in plan(loaded) if step.name == "indexed-subset-hm3"
             )
             record_check()
+            expected_argv = [
+                "opengwasdb",
+                "build-indexed-subset",
+                f"/data/opengwasdb/stores/{store_id}/store.opengwasdb",
+                "hm3",
+                "--variant-list",
+                HAPMAP3_VARIANT_LIST,
+                "--reference-assembly",
+                HAPMAP3_ASSEMBLY,
+            ]
+            if store_id == "OGS-00011":
+                expected_argv.extend(["--overflow-only", "skip"])
             self.assertEqual(
                 subset.argv,
-                [
-                    "opengwasdb",
-                    "build-indexed-subset",
-                    f"/data/opengwasdb/stores/{store_id}/store.opengwasdb",
-                    "hm3",
-                    "--variant-list",
-                    HAPMAP3_VARIANT_LIST,
-                    "--reference-assembly",
-                    HAPMAP3_ASSEMBLY,
-                ],
+                expected_argv,
                 store_id,
             )
 
