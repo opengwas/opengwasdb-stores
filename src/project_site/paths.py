@@ -75,16 +75,6 @@ def engine_clone() -> Path:
     return Path(os.environ.get(CLONE_ENV) or (WORK_ROOT / "opengwasdb.git"))
 
 
-def engine_staging(repo: Path) -> Path:
-    """`docs/opengwasdb/`: the engine's docs, archived there and git-ignored."""
-    return repo / "docs" / "opengwasdb"
-
-
-def glossary_page(repo: Path) -> Path:
-    """`docs/glossary.md`: CONTEXT.md, staged as the site's glossary page."""
-    return repo / "docs" / "glossary.md"
-
-
 def pinned_opengwasdb_revision(lock: Path) -> str:
     """The opengwasdb commit `pixi.lock` pins; the site documents that runtime."""
     revisions = set(_PIN.findall(lock.read_text(encoding="utf-8")))

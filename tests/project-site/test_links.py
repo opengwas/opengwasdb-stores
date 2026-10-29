@@ -67,6 +67,24 @@ class RewriteTargetTest(unittest.TestCase):
             f"{ENGINE}/blob/{COMMIT}/CONTEXT.md",
         )
 
+    def test_a_link_to_a_page_staged_as_qmd_goes_to_its_rendered_page(self) -> None:
+        # `site.md` is served as `site.html` because Quarto needs a `.qmd` for a
+        # Mermaid cell; a link to it must reach the rendered page, not the source.
+        rendered = {"site.md": "site.html"}
+
+        self.assertEqual(
+            rewrite_target("site.md", page="notes.md", repo_url=STORES, commit=COMMIT, rendered=rendered),
+            "site.html",
+        )
+        self.assertEqual(
+            rewrite_target("../site.md#publishing", page="adr/0001-x.md", repo_url=STORES, commit=COMMIT, rendered=rendered),
+            "../site.html#publishing",
+        )
+        self.assertEqual(
+            rewrite_target("adr/0001-x.md", page="notes.md", repo_url=STORES, commit=COMMIT, rendered=rendered),
+            "adr/0001-x.md",
+        )
+
 
 class RewriteDocumentTest(unittest.TestCase):
     def test_markdown_links_and_html_hrefs_are_rewritten_outside_code_fences(self) -> None:
@@ -80,8 +98,9 @@ class RewriteDocumentTest(unittest.TestCase):
             "cat ../src/ogstores/bundle.py\n"
             "```\n"
         )
-        rewritten, targets = rewrite_document(text, page="notes.md", repo_url=STORES, commit=COMMIT)
+        rewritten, targets, unparsed = rewrite_document(text, page="notes.md", repo_url=STORES, commit=COMMIT)
 
+        self.assertEqual(unparsed, [])
         self.assertIn(f"[the bundle]({STORES}/blob/{COMMIT}/src/ogstores/bundle.py)", rewritten)
         self.assertIn("[here](adr/0001-x.md)", rewritten)
         self.assertIn(f'<a href="{STORES}/blob/{COMMIT}/CONTRIBUTING.md">', rewritten)
@@ -90,6 +109,22 @@ class RewriteDocumentTest(unittest.TestCase):
             [target.repo_path for target in targets if target.repo_path],
             ["src/ogstores/bundle.py", "CONTRIBUTING.md"],
         )
+
+    def test_a_target_the_link_pattern_cannot_read_is_reported(self) -> None:
+        text = "A [odd path](../src/a(b).py) and a [plain one](../src/plain.py).\n"
+        rewritten, targets, unparsed = rewrite_document(text, page="notes.md", repo_url=STORES, commit=COMMIT)
+
+        self.assertEqual(unparsed, ["../src/a(b).py"])
+        self.assertIn("[odd path](../src/a(b).py)", rewritten)
+        self.assertIn(f"[plain one]({STORES}/blob/{COMMIT}/src/plain.py)", rewritten)
+        self.assertEqual([target.target for target in targets], ["../src/plain.py"])
+
+    def test_a_title_on_a_link_is_not_reported_as_unreadable(self) -> None:
+        text = "A [titled](../src/x.py \"the module\").\n"
+        rewritten, targets, unparsed = rewrite_document(text, page="notes.md", repo_url=STORES, commit=COMMIT)
+
+        self.assertEqual(unparsed, [])
+        self.assertIn(f"[titled]({STORES}/blob/{COMMIT}/src/x.py \"the module\")", rewritten)
 
 
 class MermaidFenceTest(unittest.TestCase):

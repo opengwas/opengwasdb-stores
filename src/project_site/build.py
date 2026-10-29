@@ -5,10 +5,13 @@ checkout of a ref through `project_site.publish`. Both come through
 `build_site`, so what you preview is what is published.
 
 The render reads a mirror of `docs/` under the work root, never `docs/` itself:
-that is where links are rewritten to GitHub and where a plain ```` ```mermaid ````
-fence is spelled the way Quarto renders it, without editing a source file. The
-engine's docs are staged from the revision `pixi.lock` pins before the mirror is
-made, so the engine section describes the runtime the registry imports.
+that is where links are rewritten to GitHub, where a plain ```` ```mermaid ````
+fence is spelled the way Quarto renders it, and where the engine's docs and the
+glossary are staged into. Nothing is written into the checkout, so two renders of
+different checkouts, or of one checkout into two outputs, never collide.
+
+The engine's docs come from the revision `pixi.lock` pins, so the engine section
+describes the runtime the registry imports.
 """
 
 from __future__ import annotations
@@ -57,10 +60,20 @@ class BuildReport:
     served: list[urlcheck.PathStatus]
 
 
+# What a directory that already holds a render has. A render replaces a previous
+# render, and nothing else: anything else at the output path is not ours to delete.
+RENDER_MARKERS = frozenset({"index.html", "search.json", "site_libs"})
+
+
 def _quarto_render(staging: Path, output: Path) -> None:
     if output.exists():
         import shutil
 
+        held = {path.name for path in output.iterdir()}
+        if held and not held & RENDER_MARKERS:
+            raise SystemExit(
+                f"{output} exists and does not hold a previous render; refusing to replace it"
+            )
         shutil.rmtree(output)
     output.parent.mkdir(parents=True, exist_ok=True)
     subprocess.run(
@@ -154,22 +167,38 @@ class Stage:
     mirror: Path
 
 
-def stage_everything(repo: Path) -> Stage:
-    """Stage the engine's docs, the glossary and the docs mirror."""
+def stage_everything(
+    repo: Path,
+    *,
+    clone: Path | None = None,
+    revision: str | None = None,
+    stage_dir: Path | None = None,
+) -> Stage:
+    """Stage the mirror: this repository's docs, the engine's docs and the glossary.
+
+    `clone` and `revision` name the engine repository and commit; left out, they
+    come from the revision `pixi.lock` pins and the clone under the work root.
+    `stage_dir` is where the mirror is built; left out, it sits beside the output
+    under the work root. A publish gives its own, because the checkout it renders
+    is a worktree that must stay clean for `git worktree remove` to accept it.
+    """
     repo = repo.resolve()
     commit = paths.commit_of(repo)
-    pinned = paths.pinned_opengwasdb_revision(repo / "pixi.lock")
-    clone = staging.ensure_engine_clone(paths.engine_clone(), pinned, url=paths.ENGINE_URL)
-    engine_pages = staging.stage_docs(clone, pinned, paths.engine_staging(repo))
+    pinned = revision or paths.pinned_opengwasdb_revision(repo / "pixi.lock")
+    clone = Path(clone) if clone is not None else staging.ensure_engine_clone(
+        paths.engine_clone(), pinned, url=paths.ENGINE_URL
+    )
+    mirror = Path(stage_dir) if stage_dir is not None else paths.staging_dir(repo)
+    staging.mirror_docs(repo, mirror)
+    engine_section = mirror / ENGINE_SECTION
+    engine_pages = staging.stage_docs(clone, pinned, engine_section)
     if not engine_pages:
         raise SystemExit(f"no documentation staged from {clone} at {pinned}")
     # opengwasdb's own hand-built landing page is not copied: its links point at
     # `.md` sources, and the engine section's index is generated instead.
-    (paths.engine_staging(repo) / "index.html").unlink(missing_ok=True)
-    staging.stage_glossary(repo / "CONTEXT.md", paths.glossary_page(repo))
-    write_engine_index(paths.engine_staging(repo), revision=pinned, repository_url=paths.ENGINE_URL)
-    mirror = paths.staging_dir(repo)
-    staging.mirror_docs(repo, mirror)
+    (engine_section / "index.html").unlink(missing_ok=True)
+    staging.stage_glossary(repo / "CONTEXT.md", mirror / "glossary.md")
+    write_engine_index(engine_section, revision=pinned, repository_url=paths.ENGINE_URL)
     return Stage(repo=repo, commit=commit, engine_commit=pinned, clone=clone, mirror=mirror)
 
 
@@ -187,11 +216,32 @@ def rewrite(stage: Stage) -> LinkReport:
     )
 
 
-def build_site(*, repo: Path | None = None, output: Path | None = None, check_urls: bool = True) -> BuildReport:
+def served_paths(repo: Path) -> list[str]:
+    """The paths the published site serves today, from `origin/main`.
+
+    The gate this feeds fails closed: if that revision cannot be read, there is
+    no list to check against, and a render that cannot be checked is not one to
+    publish. Silence here would let a publish drop real, read URLs unnoticed.
+    """
+    try:
+        return urlcheck.paths_from_git(repo, "origin/main")
+    except subprocess.CalledProcessError as error:
+        raise SiteCheckFailed(
+            f"cannot read the paths served today from origin/main in {repo}: {error.stderr.strip()}"
+        ) from error
+
+
+def build_site(
+    *,
+    repo: Path | None = None,
+    output: Path | None = None,
+    check_urls: bool = True,
+    stage_dir: Path | None = None,
+) -> BuildReport:
     """Render the site for `repo` into `output`, and check what the site serves today."""
     repo = Path(repo).resolve() if repo is not None else paths.repo_root()
     output = Path(output).resolve() if output is not None else paths.output_dir(repo)
-    stage = stage_everything(repo)
+    stage = stage_everything(repo, stage_dir=stage_dir)
     links = rewrite(stage)
 
     started = time.monotonic()
@@ -200,14 +250,7 @@ def build_site(*, repo: Path | None = None, output: Path | None = None, check_ur
     seconds = time.monotonic() - started
 
     files = [path for path in output.rglob("*") if path.is_file()]
-    served: list[urlcheck.PathStatus] = []
-    if check_urls:
-        try:
-            served_paths = urlcheck.paths_from_git(repo, "origin/main")
-        except subprocess.CalledProcessError:
-            print("warning: origin/main is not available; the served-path check was skipped")
-        else:
-            served = urlcheck.check_paths(served_paths, output)
+    served = urlcheck.check_paths(served_paths(repo), output) if check_urls else []
 
     return BuildReport(
         repo=repo,
@@ -224,8 +267,13 @@ def build_site(*, repo: Path | None = None, output: Path | None = None, check_ur
 
 
 def render_checkout(source_commit: str, checkout: Path, output: Path) -> Path:
-    """The renderer `project_site.publish` calls: the ref's own docs, rendered cleanly."""
-    report = build_site(repo=checkout, output=output)
+    """The renderer `project_site.publish` calls: the ref's own docs, rendered cleanly.
+
+    The mirror sits beside the output, not under the work root's name for this
+    checkout: the checkout is a scratch worktree, and a render that wrote inside it
+    would leave it dirty and unremovable.
+    """
+    report = build_site(repo=checkout, output=output, stage_dir=output.with_name(f"{output.name}-stage"))
     print(f"rendered {report.pages} pages from {source_commit} in {report.seconds:.1f}s")
     missing = [status.path for status in report.served if status.state == "missing"]
     if missing:
@@ -255,6 +303,12 @@ def report_summary(report: BuildReport) -> str:
             "            "
             + ", ".join(f"{page} {count}" for page, count in sorted(per_page.items(), key=lambda item: -item[1]))
         )
+    if report.links.unparsed:
+        lines.append(
+            f"          {len(report.links.unparsed)} link destination(s) could not be read, so were left alone:"
+        )
+        for page, target in report.links.unparsed:
+            lines.append(f"            {page}: {target}")
     if report.served:
         lines.append(f"served    {urlcheck.summarise(report.served)}")
         for status in report.served:
@@ -263,26 +317,41 @@ def report_summary(report: BuildReport) -> str:
     return "\n".join(lines)
 
 
-# What a re-stage leaves alone: the build's own output and the engine's staged
-# docs (regenerated anyway), Quarto's cache, and the report sources, which are
-# rendered by `pixi run docs` rather than by the site.
-WATCH_IGNORE = ("reports/", "opengwasdb/", "glossary.md", ".quarto/", "_site/")
+# What a re-stage leaves alone: Quarto's cache and the site's own output, and the
+# report sources, which `pixi run docs` renders rather than the site.
+WATCH_IGNORE = ("reports/", ".quarto/", "_site/")
+
+# The inputs outside `docs/`: `CONTEXT.md` is the glossary page, and `pixi.lock`
+# pins the engine revision the engine section is staged from.
+WATCH_ROOT = ("CONTEXT.md", "pixi.lock")
 
 # Inside the served tree: `quarto preview`'s own output and cache. A sync must
 # never copy into them or delete them.
 SERVED_OWN = ("_site", ".quarto")
 
 
-def _snapshot(repo: Path) -> dict[str, int]:
+def watched_snapshot(repo: Path) -> dict[str, int]:
+    """The modification times of every input a render reads from `repo`.
+
+    A render's inputs are not only `docs/`: the glossary comes from `CONTEXT.md`
+    and the engine section from the revision `pixi.lock` pins. Those staged
+    copies are generated, so watching them would only see the build's own work.
+    """
     docs = repo / "docs"
     stamps: dict[str, int] = {}
+    for relative in WATCH_ROOT:
+        path = repo / relative
+        if path.is_file():
+            stamps[relative] = path.stat().st_mtime_ns
     for path in docs.rglob("*"):
         if not path.is_file():
             continue
         relative = path.relative_to(docs).as_posix()
         if relative.startswith(WATCH_IGNORE):
             continue
-        stamps[relative] = path.stat().st_mtime_ns
+        if relative == "glossary.md" or relative.startswith(f"{ENGINE_SECTION}/"):
+            continue
+        stamps[f"docs/{relative}"] = path.stat().st_mtime_ns
     return stamps
 
 
@@ -325,9 +394,9 @@ def _sync_tree(source: Path, served: Path) -> int:
 
 def _restage_on_change(repo: Path, served: Path, stop: "threading.Event") -> None:
     """Keep the served tree current while the preview runs: a source edit is re-staged."""
-    previous = _snapshot(repo)
+    previous = watched_snapshot(repo)
     while not stop.wait(1.0):
-        current = _snapshot(repo)
+        current = watched_snapshot(repo)
         if current == previous:
             continue
         previous = current

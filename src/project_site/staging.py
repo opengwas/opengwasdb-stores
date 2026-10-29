@@ -31,9 +31,13 @@ from project_site.links import convert_mermaid_fences, rewrite_document
 DOCUMENT_SUFFIXES = frozenset({".md", ".html"})
 
 # Directories under `docs/` the mirror leaves out: report sources (the site
-# copies their committed HTML instead), Quarto's own cache, and anything this
-# build writes.
-MIRROR_SKIP_DIRECTORIES = frozenset({"reports", ".quarto", "_site"})
+# copies their committed HTML instead), Quarto's own cache, and the engine
+# section, which is staged into the mirror from the engine repository rather
+# than from this checkout.
+MIRROR_SKIP_DIRECTORIES = frozenset({"reports", ".quarto", "_site", "opengwasdb"})
+
+# A file the mirror never copies from `docs/`, for the same reason.
+MIRROR_SKIP_FILES = frozenset({"glossary.md"})
 
 # Files at the top of the engine's docs tree that are not a page of the engine
 # section's index.
@@ -48,12 +52,17 @@ class LinkReport:
     accepts an executable cell (`{mermaid}`) in a `.qmd`, so a `.md` page with a
     Mermaid fence is staged as `.qmd` and its rewritten Markdown is kept here, to
     be copied to its own published `.md` path after the render.
+
+    `unparsed` are destinations the link pattern cannot read, such as one holding
+    its own parentheses: they are left alone and reported rather than silently
+    publishing a link nobody knows is broken.
     """
 
     pages: int = 0
     rewritten: int = 0
     missing: list[tuple[str, str, str]] = field(default_factory=list)
     raw_pages: list[tuple[str, str]] = field(default_factory=list)
+    unparsed: list[tuple[str, str]] = field(default_factory=list)
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -138,7 +147,9 @@ def mirror_docs(repo: Path, dest: Path) -> list[str]:
     def ignore(directory: str, names: list[str]) -> set[str]:
         skipped = set()
         for name in names:
-            if name in MIRROR_SKIP_DIRECTORIES and Path(directory, name).is_dir():
+            if name in MIRROR_SKIP_FILES and Path(directory, name).is_file():
+                skipped.add(name)
+            elif name in MIRROR_SKIP_DIRECTORIES and Path(directory, name).is_dir():
                 skipped.add(name)
         return skipped
 
@@ -163,39 +174,61 @@ def rewrite_mirror(
     other page came from this repository at `commit`. A rewritten target that the
     commit does not have is reported rather than hidden: its GitHub link will 404
     exactly as the relative one would have.
+
+    A `.md` page holding a Mermaid fence is staged as `.qmd`, because Quarto
+    refuses an executable cell in a `.md`. `rendered` carries that change of name
+    into the same pass, so every link *to* such a page, and the page itself, still
+    reach the rendered HTML rather than the source.
     """
     registry_paths = set(_git(registry, "ls-tree", "-r", "--name-only", commit).splitlines())
     engine_paths = set(_git(engine, "ls-tree", "-r", "--name-only", engine_commit).splitlines())
 
     report = LinkReport()
+    pages: list[tuple[Path, str, str]] = []  # the staged file, its docs path, its tree path
+    renamed: set[str] = set()
+    registry_rendered: dict[str, str] = {}
+    engine_rendered: dict[str, str] = {}
     for path in sorted(dest.rglob("*")):
         if not path.is_file() or path.suffix.lower() not in {".md", ".qmd"}:
             continue
         page = path.relative_to(dest).as_posix()
-        if page.startswith(engine_prefix):
-            base, known = (engine_url, engine_commit), engine_paths
-            relative = page[len(engine_prefix):]
-        else:
-            base, known = (registry_url, commit), registry_paths
-            relative = page
-        text = path.read_text(encoding="utf-8")
-        converted = convert_mermaid_fences(text)
-        text, targets = rewrite_document(
-            converted, page=relative, repo_url=base[0], commit=base[1]
-        )
-        if path.suffix.lower() == ".md" and _has_mermaid_cell(converted):
-            # Quarto refuses a `{mermaid}` cell in a `.md`, so the staged page is
-            # a `.qmd`; its published `.md` path is filled from `raw_pages`.
-            path.with_suffix(".qmd").write_text(text, encoding="utf-8")
+        from_engine = page.startswith(engine_prefix)
+        relative = page[len(engine_prefix):] if from_engine else page
+        text = convert_mermaid_fences(path.read_text(encoding="utf-8"))
+        if path.suffix.lower() == ".md" and _has_mermaid_cell(text):
+            staged = path.with_suffix(".qmd")
+            staged.write_text(text, encoding="utf-8")
             path.unlink()
-            report.raw_pages.append((page, text))
+            rendered = engine_rendered if from_engine else registry_rendered
+            rendered[relative] = f"{relative[: -len('.md')]}.html"
+            renamed.add(page)
+            pages.append((staged, page, relative))
         else:
-            path.write_text(text, encoding="utf-8")
+            pages.append((path, page, relative))
+
+    for path, page, relative in pages:
+        from_engine = page.startswith(engine_prefix)
+        repo_url, page_commit = (engine_url, engine_commit) if from_engine else (registry_url, commit)
+        known = engine_paths if from_engine else registry_paths
+        rendered = engine_rendered if from_engine else registry_rendered
+        text, targets, unparsed = rewrite_document(
+            path.read_text(encoding="utf-8"),
+            page=relative,
+            repo_url=repo_url,
+            commit=page_commit,
+            rendered=rendered,
+        )
+        path.write_text(text, encoding="utf-8")
         report.pages += 1
+        report.unparsed.extend((page, target) for target in unparsed)
         for target in targets:
             report.rewritten += 1
             if target.repo_path and known and target.repo_path not in known:
                 report.missing.append((page, target.target, target.repo_path))
+        if page in renamed:
+            # Its own published `.md` path, rewritten the same way, is filled in
+            # after the render by `project_site.build`.
+            report.raw_pages.append((page, text))
     return report
 
 
