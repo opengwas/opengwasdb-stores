@@ -15,7 +15,6 @@ import argparse
 import importlib.metadata
 import json
 import os
-import re
 import shutil
 import socket
 import subprocess
@@ -27,6 +26,7 @@ from pathlib import Path
 from typing import Any
 
 from ogstores import paths
+from ogstores.runtime import lock_pin_revisions
 from yardstick import fixture, proc, veeam
 from yardstick import result as result_spec
 from yardstick import workload as workload_spec
@@ -54,8 +54,7 @@ RESULTS_DIR = workload_spec.REPO_ROOT / "docs" / "_yardstick"
 
 def pinned_revision(lock: Path | None = None) -> str:
     """The opengwasdb revision this checkout's pixi.lock pins."""
-    text = (lock or workload_spec.REPO_ROOT / "pixi.lock").read_text(encoding="utf-8")
-    found = set(re.findall(r"opengwas/opengwasdb\?rev=([0-9a-f]{40})", text))
+    found = lock_pin_revisions(lock or workload_spec.REPO_ROOT / "pixi.lock")
     if len(found) != 1:
         raise RuntimeError(f"pixi.lock pins {len(found)} opengwasdb revisions: {sorted(found)}")
     return found.pop()

@@ -9,23 +9,30 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Revision | `0d59f151c7618933747a59f825deeef6a51de9e1`, the core `dev` merge of PR #329; its first parent is PR #328's merge, its second PR #329's branch head `555e2e6` |
-| Core merge | opengwas/opengwasdb PR #329 (core #302: a BESD Ragged build stores each pair's published sample size, and the `.esi` allele frequency per association on request; ADR 0067), on top of `dev` with #298, #326, #331, #295/#296/#306/#324 and #328; earlier pins: PR #330's branch head `5fc0766` (stores #326), the `dev` merge of PR #298 `75f0e77` (stores #341), the `dev` merge of PR #305 `d8896e4` (stores #314), the `dev` merge of PR #291 `d405de0` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288), PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Tag | `v0.3.0`, the first release opengwasdb's release workflow published (stores #387); the earlier `v0.2.0` at `3e77ecf` was tagged by hand |
+| Revision | `bc22e8476c4378af582477f09b56af01e3f5f065`, what `v0.3.0` resolves to: the `main` merge of opengwas/opengwasdb PR #335, whose range above `0d59f151` is release tooling (the version from tags, a changelog) only |
+| Pin history | the previous pin `0d59f151` was the core `dev` merge of PR #329 (core #302: a BESD Ragged build stores each pair's published sample size, and the `.esi` allele frequency per association on request; ADR 0067); before it, PR #330's branch head `5fc0766` (stores #326), the `dev` merge of PR #298 `75f0e77` (stores #341), the `dev` merge of PR #305 `d8896e4` (stores #314), the `dev` merge of PR #291 `d405de0` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288), PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
 | Package version | `0.3.0` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
 | Zarr / numcodecs | `zarr>=3.4,<4`, `numcodecs>=0.17` (Zarr v3 with the sharding codec) |
 
-The pin is an immutable git revision, not a branch or a floating tag. The
-executable form of it is the `opengwasdb` entry in `pixi.toml`'s
-`[feature.store-build.pypi-dependencies]` and the resolved package in
-`pixi.lock`. The Python 3.12 / zarr 3.4 / numcodecs 0.17 floors are not
+The pin names a release **tag**, not a branch or a raw commit: opengwasdb has
+tagged every merge to `main` since `v0.3.0` (epic #385) and, since PR #335, takes
+its version from that tag, so the installed version names the release it was
+built from -- and a checkout past a tag reports a development version -- instead
+of repeating a string hardcoded in `pyproject.toml`. The revision is what the tag resolves to,
+and it is that immutable revision the guard proves from the executed install's
+own metadata. The executable form of the pin is the `opengwasdb` entry in
+`pixi.toml`'s `[feature.store-build.pypi-dependencies]` and the resolved package
+in `pixi.lock`. The Python 3.12 / zarr 3.4 / numcodecs 0.17 floors are not
 preferences: the pinned runtime requires them, and a zarr 2.x environment cannot
 open a format-0.2.0 Store.
 
-`ogstores.runtime.PINNED_OPENGWASDB_REVISION` is the single source of truth the
-tests assert `pixi.toml` and `pixi.lock` against. Change all three together, and
-re-run `pixi lock` in the same commit.
+`ogstores.runtime.PINNED_OPENGWASDB_TAG` and
+`ogstores.runtime.PINNED_OPENGWASDB_REVISION` are the single source of truth the
+tests assert `pixi.toml`'s tag and `pixi.lock`'s resolved commit against. Change
+all four together, and re-run `pixi update opengwasdb` in the same commit.
 
 ## What the pin provides
 

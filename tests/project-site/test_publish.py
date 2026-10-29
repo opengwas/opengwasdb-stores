@@ -268,7 +268,7 @@ class PublishCollectsItsOwnData(unittest.TestCase):
         (self.repo / "stores").mkdir()
         (self.repo / "pixi.lock").write_text(
             "packages:\n  - pypi: git+https://github.com/opengwas/opengwasdb"
-            f"?rev={self.engine_commit}\n",
+            f"?tag=v0.3.0#{self.engine_commit}\n",
             encoding="utf-8",
         )
         git(self.repo, "add", "-A")
