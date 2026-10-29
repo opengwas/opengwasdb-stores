@@ -24,16 +24,79 @@ habits follow:
 ## Branches
 
 ```text
-feature branch  ->  dev  ->  main
+feature branch  ->  main
 ```
 
-- `main` is the stable repository state.
-- `dev` is the integration branch. All work lands here before `main`.
-- Feature branches start from `dev` and return to it, one issue or coherent
-  change at a time.
+- `main` is the stable repository state **and the only branch**: a pull request
+  lands there directly, one issue or coherent change at a time.
+- Feature branches start from `main` and return to it. Do not mix unrelated
+  clean-up into one. Preserve a contributor's existing working-tree changes and
+  resolve overlapping edits explicitly.
 
-Do not mix unrelated clean-up into a feature branch. Preserve a contributor's
-existing working-tree changes and resolve overlapping edits explicitly.
+## Every merge to `main` is a version
+
+A merge to `main` is tagged `vX.Y.Z` by `.github/workflows/release.yml`, and the
+package's version comes from that tag through `setuptools-scm`
+(`[tool.setuptools_scm]` in `pyproject.toml`), so a release checkout reports its
+own release number and a checkout past it reports a development version such as
+`0.1.1.dev4+g1a2b3c4`. Nothing is committed back to `main`: the tag is the
+version.
+
+**A release run reconciles, it does not just react.** GitHub keeps one pending
+run per concurrency group and discards the rest, so three quick merges cannot be
+trusted to produce three runs. Each run therefore publishes every first-parent
+commit after the newest `v*` tag that has no tag yet, and any tagged commit whose
+GitHub Release is missing and is newer than the newest Release there is, oldest
+first. Publication is two steps — push the tag, create the Release — and each is
+decided by **the remote**, which `git ls-remote` is asked: a tag a failed push
+left behind is pushed on the retry, and a tag naming another commit is refused
+rather than moved, before anything is published about it. A run that dies
+halfway is finished by the next push or by re-running the workflow. A burst is a
+handful of merges; a run that finds more than 20 owed stops instead of publishing
+them, because a whole merged branch is not a burst — at the cutover the merge
+commit is tagged before it is pushed.
+
+Each version's release notes are the **changelog fragments** that pull request
+added, so a pull request that changes what this repository is adds one under
+`changelog.d/`, and a pull request with no user-visible effect says so with the
+`no-changelog` label. A **source** is a change under `src/`, `workflow/`,
+`tools/`, `resources/` or `stores/`; `docs/` alone is not one, so a report, a
+specification or an ADR needs no fragment. `changelog.d/README.md` says what a
+fragment should contain.
+
+`tools/release.py` reads the fragment types a pull request added and picks the
+strongest bump. Below `1.0.0` the minor number carries breaking changes:
+
+| fragment type | write it when | bump |
+|---|---|---|
+| `breaking` | a Release Bundle field, a task name or a CLI surface changes incompatibly | minor |
+| `added` | a new capability, backwards compatible | minor |
+| `changed` | an existing behaviour changes | minor |
+| `fixed` | a defect is fixed, and nothing else changes | patch |
+| `internal` | the change is real but invisible to an operator or a reader | patch |
+
+With no previous tag the same rule applies from `0.0.0`, so the first feature
+release is `0.1.0`. The check that a fragment was added is CI's `changelog` job,
+and it runs the same script locally:
+
+```sh
+pixi run -e dev python3 tools/check_changelog.py --base-ref origin/main
+```
+
+Two read-only questions about a release, both answered without touching
+anything. `plan` lists every merge `main` is owed a version for, and what each
+still needs; `next` answers for one merge by hand:
+
+```sh
+pixi run -e dev python3 tools/release.py plan --repository opengwas/opengwasdb-stores
+pixi run -e dev python3 tools/release.py next --previous-tag v0.1.0 \
+    --fragment changelog.d/<slug>.<type>.md
+```
+
+A development version in an editable install is frozen at the commit it was
+installed from, so `pixi install` (or `pixi reinstall --locked -e dev`) is what
+refreshes it — CI checks the installed version against the tags for exactly
+this reason.
 
 ## Worktrees
 
@@ -88,7 +151,7 @@ Worktrees live under `/data/opengwasdb/work/worktrees/<name>`, not `/home` or
 
 ```sh
 export TMPDIR=/data/opengwasdb/work/tmp PIXI_CACHE_DIR=/data/opengwasdb/work/pixi-cache
-git worktree add /data/opengwasdb/work/worktrees/<name> -b ticket/<n>-<slug> origin/dev
+git worktree add /data/opengwasdb/work/worktrees/<name> -b ticket/<n>-<slug> origin/main
 ```
 
 With the cache on the same filesystem as the worktrees, pixi reflinks or
@@ -231,10 +294,12 @@ resources/         inputs only
   inventories/         frozen Source Inventories
   generators/          release configs, reviewed tables and receipts
 tools/             repository tooling that is neither a package nor an input
+                   (including the release and the changelog check)
 tests/             the suites, and the runner behind `pixi run test`
 docs/              adr/ decisions, spec/ specifications, reports/ report sources,
                    rendered site
-.github/           CI (workflows/ci.yml)
+changelog.d/       one fragment per change; the next version's release notes
+.github/           CI (workflows/ci.yml) and the release (workflows/release.yml)
 ```
 
 Each kind of thing has one home (ADR 0038). `stores/` holds what this
@@ -450,11 +515,15 @@ site publishes, so a published link does not change when its source moves.
 
 ### `.github/`
 
-CI, in `workflows/ci.yml`. It installs from the committed `pixi.lock` and
-runs `env-check`, the suites, `bundle-check`, the index regeneration (which
-must leave the tree clean) and the docs smoke test. Each suite that builds
-Stores through the whole release stack runs on a runner of its own (see
-Checks).
+CI, in `workflows/ci.yml`, and the release, in `workflows/release.yml`.
+`ci.yml` installs from the committed `pixi.lock` and runs `env-check`, the
+suites, `bundle-check`, the index regeneration (which must leave the tree
+clean) and the docs smoke test. Each suite that builds Stores through the whole
+release stack runs on a runner of its own (see Checks). Every job that builds
+or installs the package checks out with full history and tags, because the
+package's version comes from the tag. Its `changelog` job runs
+`tools/check_changelog.py` on each pull request. `release.yml` tags the merge
+to `main` and publishes its notes; it never commits.
 
 ## Metadata and scripts
 
@@ -569,6 +638,10 @@ process exit is not proof that a scientifically valid Store was produced.
 A commit message explains why the change exists, records relevant measurements
 or validation, and references its issue. If a change alters a documented
 contract, update the specification or ADR in the same commit.
+
+A pull request that changes a source carries its `changelog.d/` fragment, or the
+`no-changelog` label and a reason it is not needed (see "Every merge to `main`
+is a version").
 
 When reporting work, state what was completed, what was deliberately excluded,
 which checks ran, and any external data that was unavailable. Do not describe a

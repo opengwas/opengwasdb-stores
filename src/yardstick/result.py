@@ -102,7 +102,11 @@ def validate(result: dict[str, Any], workload: dict[str, Any] | None = None) -> 
     for key in ("started_utc", "ended_utc"):
         if not (isinstance(result[key], str) and _UTC.fullmatch(result[key])):
             raise ResultError(f"{key} must be UTC ISO, YYYY-MM-DDTHH:MM:SSZ, got {result[key]!r}")
-    _need("ogstores", result["ogstores"], "version")
+    _need("ogstores", result["ogstores"], "version", "commit", "dirty")
+    if not (isinstance(result["ogstores"]["commit"], str) and _REVISION.fullmatch(result["ogstores"]["commit"])):
+        raise ResultError("ogstores.commit must be 40 lower-case hex characters")
+    if not isinstance(result["ogstores"]["dirty"], bool):
+        raise ResultError("ogstores.dirty must be true or false")
     _need("host", result["host"], "name", "cpu_count")
     _need("load_average", result["load_average"], "before", "after")
     for key in ("before", "after"):

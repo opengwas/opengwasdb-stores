@@ -55,7 +55,11 @@ def minimal_result() -> dict:
         "workload_id": "w",
         "workload_sha256": "0" * 64,
         "opengwasdb": {"version": "0.3.0", "revision": "0d59f151c7618933747a59f825deeef6a51de9e1"},
-        "ogstores": {"version": "0.1.0"},
+        "ogstores": {
+            "version": "0.1.0",
+            "commit": "08bd4a57f0d4e7f1e3f2f0f0f0f0f0f0f0f0f0f0",
+            "dirty": False,
+        },
         "host": {"name": "h", "cpu_count": 4},
         "load_average": {"before": [0.1, 0.2, 0.3], "after": [0.2, 0.2, 0.3]},
         "started_utc": "2026-10-29T12:00:00Z",
@@ -245,6 +249,15 @@ class ResultValidatorTest(unittest.TestCase):
         with self.assertRaisesRegex(result_spec.ResultError, "guard_violations"):
             result_spec.validate(r)
 
+    def test_an_ogstores_commit_must_be_forty_hex_characters(self) -> None:
+        """The commit, not the version, says which code ran (#386)."""
+        for bad in ("08bd4a57", "G" * 40, "08BD4A57F0D4E7F1E3F2F0F0F0F0F0F0F0F0F0F0"):
+            with self.subTest(bad=bad):
+                self.refused(lambda r, bad=bad: r["ogstores"].__setitem__("commit", bad), "ogstores.commit")
+
+    def test_the_ogstores_dirty_flag_must_be_boolean(self) -> None:
+        self.refused(lambda r: r["ogstores"].__setitem__("dirty", "no"), "ogstores.dirty")
+
     def test_veeam_flag_must_be_boolean(self) -> None:
         r = minimal_result()
         r["veeam_window"] = "yes"
@@ -254,6 +267,32 @@ class ResultValidatorTest(unittest.TestCase):
 
 def local(day: int, hour: int, minute: int = 0) -> datetime:
     return datetime(2026, 10, day, hour, minute, tzinfo=timezone(timedelta(hours=1)))
+
+
+class OgstoresIdentityTest(unittest.TestCase):
+    """What a run records about the `ogstores` it ran (#386).
+
+    An editable install's version is frozen at the commit it was built from, so
+    the version alone can name code that did not run. The commit cannot.
+    """
+
+    def test_the_identity_names_this_checkouts_commit(self) -> None:
+        head = subprocess.run(
+            ["git", "rev-parse", "HEAD"], cwd=workload_spec.REPO_ROOT,
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        self.assertEqual(runner.ogstores_identity()["commit"], head)
+
+    def test_the_identity_keeps_the_installed_version(self) -> None:
+        from importlib.metadata import version
+
+        self.assertEqual(runner.ogstores_identity()["version"], version("ogstores"))
+
+    def test_the_dirty_flag_follows_the_working_tree(self) -> None:
+        for porcelain, expected in (("", False), (" M src/ogstores/run.py\n", True)):
+            with self.subTest(porcelain=porcelain):
+                with mock.patch.object(runner, "_git_output", return_value=porcelain):
+                    self.assertIs(runner.ogstores_identity()["dirty"], expected)
 
 
 class VeeamWindowTest(unittest.TestCase):

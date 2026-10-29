@@ -352,6 +352,15 @@ gh = "*"
 sqlite = "*"
 snakemake-minimal = ">=9,<10"
 
+[feature.dev.pypi-dependencies]
+# The version is computed from the `v*` tag by setuptools-scm (pyproject.toml,
+# #386), which pip installs into its isolated *build* environment, so the
+# environment itself needs it only for the test that reads the version the
+# build would produce (tests/release-versioning/test_version.py). It is a PyPI
+# dependency because that is the same distribution the build resolves, from the
+# same index, at the same version.
+setuptools-scm = ">=8,<9"
+
 [feature.workflow.dependencies]
 # Phase A orchestration. The DAG only wires dependencies and resource requests;
 # every semantic step is an `opengwasdb` subcommand (ADR 0023).
@@ -418,9 +427,9 @@ generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate"
 # The Analysis Catalog (#323, ADR 0039): rebuild the cross-Store listing of every
 # Analysis of every served Store Release from the registry's Release Bundles,
 # into <artifact-root>/catalog/versions/<version>/, and swap `current`. It reads
-# bundles only and never opens a Store. Run after a merge to dev, from a clean
-# checkout; a rebuild with unchanged inputs writes nothing. Resolves the
-# Artifact Root as ogstores does; `--artifact-root PATH` overrides it.
+# bundles only and never opens a Store. Run after a merge to `main`, from a
+# clean checkout of `origin/main`; a rebuild with unchanged inputs writes nothing.
+# Resolves the Artifact Root as ogstores does; `--artifact-root PATH` overrides it.
 #
 #   pixi run catalog [--registry stores] [--artifact-root PATH]
 #

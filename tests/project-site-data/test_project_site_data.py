@@ -696,7 +696,11 @@ def minimal_yardstick_result() -> dict:
         "workload_id": "w",
         "workload_sha256": "0" * 64,
         "opengwasdb": {"version": "0.3.0", "revision": "0d59f151c7618933747a59f825deeef6a51de9e1"},
-        "ogstores": {"version": "0.1.0"},
+        "ogstores": {
+            "version": "0.1.0",
+            "commit": "08bd4a57f0d4e7f1e3f2f0f0f0f0f0f0f0f0f0f0",
+            "dirty": False,
+        },
         "host": {"name": "h", "cpu_count": 4},
         "load_average": {"before": [0.1, 0.2, 0.3], "after": [0.2, 0.2, 0.3]},
         "started_utc": "2026-10-29T12:00:00Z",
