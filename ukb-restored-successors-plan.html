@@ -1633,6 +1633,23 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
       </ul>
   </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+ <span class="menu-text">This site</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The site</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
     </ul>
     </div>
 </nav>
@@ -1663,7 +1680,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="restored-ukb-successors-identity-completion-panel-and-qualification-plan-219" class="level1">
 <h1>Restored UKB successors: identity, completion-panel and qualification plan (#219)</h1>
 <blockquote class="blockquote">
-<p><strong>Superseded (#312, 2026-10-21).</strong> The <a href="https://github.com/opengwas/opengwasdb-stores/issues/312#issuecomment-6326686714">owner decision on #312</a> replaces this plan. <code>OGS-00009</code> is the full 2,514-Analysis Store, one single-id Reference-Completed release (ADR 0037) completed against the UKB EUR panel; <code>OGS-00010</code>, <code>OGS-00030</code> and <code>OGS-00031</code> are retired unused, and the old Stores are deleted once the new <code>OGS-00009</code> is completed. See <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/generators/ukb-b/successor-identity.yaml"><code>resources/generators/ukb-b/successor-identity.yaml</code></a>. The panel declaration proposed below is active as <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/reference-resources/ukb-hg38-eur-ld/resource.yaml"><code>resources/reference-resources/ukb-hg38-eur-ld/resource.yaml</code></a>, through the <code>EUR -&gt; ukb</code> alias now at <code>/data/opengwasdb/reference/ld/EUR</code>; <code>resources/generators/ukb-b/proposed-ld-resource.yaml</code> is retired. The rest of this page is the plan as #219 recorded it.</p>
+<p><strong>Superseded (#312, 2026-10-21).</strong> The <a href="https://github.com/opengwas/opengwasdb-stores/issues/312#issuecomment-6326686714">owner decision on #312</a> replaces this plan. <code>OGS-00009</code> is the full 2,514-Analysis Store, one single-id Reference-Completed release (ADR 0037) completed against the UKB EUR panel; <code>OGS-00010</code>, <code>OGS-00030</code> and <code>OGS-00031</code> are retired unused, and the old Stores are deleted once the new <code>OGS-00009</code> is completed. See <a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/generators/ukb-b/successor-identity.yaml"><code>resources/generators/ukb-b/successor-identity.yaml</code></a>. The panel declaration proposed below is active as <a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/reference-resources/ukb-hg38-eur-ld/resource.yaml"><code>resources/reference-resources/ukb-hg38-eur-ld/resource.yaml</code></a>, through the <code>EUR -&gt; ukb</code> alias now at <code>/data/opengwasdb/reference/ld/EUR</code>; <code>resources/generators/ukb-b/proposed-ld-resource.yaml</code> is retired. The rest of this page is the plan as #219 recorded it.</p>
 </blockquote>
 <p>Owner decisions cited: <a href="https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6132878514" class="uri">https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6132878514</a> (the 2,514 replacement + production UKB EUR panel path) and <a href="https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6133853820" class="uri">https://github.com/opengwas/opengwasdb-stores/issues/219#issuecomment-6133853820</a> (successor identity / replacement lineage / bundle-retention clarification). The restored 2,514-Analysis target is accepted as the replacement for the incomplete <code>OGS-00009</code>/<code>OGS-00010</code> pair; the successor identities are <strong><code>OGS-00030</code></strong> (observed) and <strong><code>OGS-00031</code></strong> (completed). Historical <strong>Store artifacts must be preserved</strong>; retention of the old <strong>Release Bundles</strong> is waived only in the sense that their definitions need not be permanently archived — they may be retired or removed once successor activation is genuinely ready (nothing is removed now: <code>OGS-00030</code> is only staged and <code>OGS-00031</code> is absent). Physical Store artifacts remain preserved <strong>byte-identical always</strong>, not merely until a lineage gate, and minimal artifact lineage / evidence / Git history is retained. This records identity, lineage and a qualification plan only: <strong>no acceptance, no production build, no <code>OGS-00031</code> construction, no <code>OGS-00030</code> build.</strong></p>
 <p>Branch base: <code>dev@1db347d922a53aa6e057da2a08575aa53259918a</code> (clean feature branch <code>ticket/219-ukb-successors</code>); the previous reviewed checkpoint <code>d4192a6</code> is preserved on <code>ticket/219-restored-ukb</code>.</p>

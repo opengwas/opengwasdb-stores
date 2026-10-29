@@ -4,42 +4,84 @@
     "href": "site.html",
     "title": "The site",
     "section": "",
-    "text": "How this site is built, previewed, published and extended. It is one Quarto website over this repository’s docs/ and opengwasdb’s docs, rendered on the host where the data lives, and published from the gh-pages branch at https://blog.opengwas.io/opengwasdb-stores/."
+    "text": "How this site is built, previewed, published and extended. It is one Quarto website over this repository’s docs/ and opengwasdb’s docs, rendered on the host where the data lives, and published from the gh-pages branch at https://blog.opengwas.io/opengwasdb-stores/.",
+    "crumbs": [
+      "Registry",
+      "This site",
+      "The site"
+    ]
   },
   {
     "objectID": "site.html#the-commands",
     "href": "site.html#the-commands",
     "title": "The site",
     "section": "The commands",
-    "text": "The commands\n\n\n\nCommand\nWhat it does\n\n\n\n\npixi run site\nStage both repositories’ docs, render the site, and check every served path.\n\n\npixi run site-preview\nThe same staging, then Quarto’s live-reloading preview on http://localhost:4200.\n\n\npixi run site-publish --dry-run\nRender a clean checkout of origin/dev and commit it to gh-pages without pushing.\n\n\npixi run site-publish\nThe same, then push gh-pages. The owner runs this.\n\n\npixi run docs\nRefresh a report: render its .qmd and copy the HTML to the name the site serves.\n\n\n\nNothing is rendered in CI: every page repeats the site’s navigation, so committed output would make parallel pull requests conflict."
+    "text": "The commands\n\n\n\nCommand\nWhat it does\n\n\n\n\npixi run site\nStage both repositories’ docs, render the site, and check every served path.\n\n\npixi run site-preview\nThe same staging, then Quarto’s live-reloading preview on http://localhost:4200.\n\n\npixi run site-publish --dry-run\nRender a clean checkout of origin/dev and commit it to gh-pages without pushing.\n\n\npixi run site-publish\nThe same, then push gh-pages. The owner runs this.\n\n\npixi run docs\nRefresh a report: render its .qmd and copy the HTML to the name the site serves.\n\n\n\nNothing is rendered in CI: every page repeats the site’s navigation, so committed output would make parallel pull requests conflict.",
+    "crumbs": [
+      "Registry",
+      "This site",
+      "The site"
+    ]
   },
   {
     "objectID": "site.html#where-a-render-puts-things",
     "href": "site.html#where-a-render-puts-things",
     "title": "The site",
     "section": "Where a render puts things",
-    "text": "Where a render puts things\n\n\n\n\n\n\n\nPath\nWhat\n\n\n\n\n/data/opengwasdb/work/site/&lt;checkout&gt;/_site\nThe rendered site ($OPENGWASDB_SITE_OUT overrides it).\n\n\n/data/opengwasdb/work/site/&lt;checkout&gt;/_stage\nThe mirror of docs/ the render reads ($OPENGWASDB_SITE_ROOT moves the work root).\n\n\n/data/opengwasdb/work/site/&lt;checkout&gt;/_preview\nThe synced copy site-preview serves; Quarto renders inside it.\n\n\n/data/opengwasdb/work/site/opengwasdb.git\nThe bare clone the engine’s docs are staged from ($OPENGWASDB_SITE_ENGINE_CLONE overrides it).\n\n\ndocs/opengwasdb/\nThe engine’s docs staged at the pinned revision. Git-ignored, regenerated on every render.\n\n\ndocs/glossary.md\nCONTEXT.md, staged as the glossary page. Git-ignored, regenerated.\n\n\n\nNothing the site build writes goes under /home or /tmp.\nThe render reads a mirror of docs/, not docs/ itself. That is deliberate: the mirror is where the link rewrite and the Mermaid spelling happen, so no source file is ever edited, and docs/ stays readable on GitHub."
+    "text": "Where a render puts things\n\n\n\n\n\n\n\nPath\nWhat\n\n\n\n\n/data/opengwasdb/work/site/&lt;checkout&gt;/_site\nThe rendered site ($OPENGWASDB_SITE_OUT overrides it).\n\n\n/data/opengwasdb/work/site/&lt;checkout&gt;/_stage\nThe mirror of docs/ the render reads ($OPENGWASDB_SITE_ROOT moves the work root).\n\n\n/data/opengwasdb/work/site/&lt;checkout&gt;/_preview\nThe synced copy site-preview serves; Quarto renders inside it.\n\n\n/data/opengwasdb/work/site/opengwasdb.git\nThe bare clone the engine’s docs are staged from ($OPENGWASDB_SITE_ENGINE_CLONE overrides it).\n\n\n\nNothing the site build writes goes under /home or /tmp, and nothing is written into the checkout.\nThe render reads a mirror of docs/, not docs/ itself. That is deliberate: the mirror is where the link rewrite, the Mermaid spelling and the staged engine docs and glossary live, so no source file is ever edited, docs/ stays readable on GitHub, and two renders — of different checkouts, or of one checkout into two outputs — never collide. docs/opengwasdb/ holds the engine’s docs at the pinned revision and docs/glossary.md is CONTEXT.md, both inside the mirror.",
+    "crumbs": [
+      "Registry",
+      "This site",
+      "The site"
+    ]
   },
   {
     "objectID": "site.html#publishing",
     "href": "site.html#publishing",
     "title": "The site",
     "section": "Publishing",
-    "text": "Publishing\nsite-publish renders a clean detached worktree of the ref, so nothing depends on an uncommitted change in your checkout, and commits the output to a gh-pages worktree with a message naming the source commit. It creates gh-pages as an orphan branch when it is absent, so the published branch shares no history with a source branch.\nIt refuses a ref that is not on the remote, and it refuses a gh-pages worktree with uncommitted changes, because a publish replaces what that worktree holds.\n\n\n\n\n\nflowchart TD\n  A[\"pixi run site-publish --ref origin/dev\"] --&gt; B{\"ref on the remote?\"}\n  B -- no --&gt; X[\"refuse\"]\n  B -- yes --&gt; C[\"fetch origin, resolve the source commit\"]\n  C --&gt; D[\"clean detached worktree of that commit\"]\n  D --&gt; E[\"stage the engine's docs at the pixi.lock pin\"]\n  E --&gt; F[\"mirror docs/, rewrite outbound links, spell mermaid fences\"]\n  F --&gt; G[\"quarto render into /data/opengwasdb/work/site/\"]\n  G --&gt; H[\"replace the gh-pages worktree contents\"]\n  H --&gt; I{\"--dry-run?\"}\n  I -- yes --&gt; J[\"commit to gh-pages locally, push nothing\"]\n  I -- no --&gt; K[\"commit to gh-pages and push\"]\n\n\n\n\n\n\nThe default ref is origin/dev until the cutover, after which it becomes origin/main."
+    "text": "Publishing\nsite-publish renders a clean detached worktree of the ref, so nothing depends on an uncommitted change in your checkout, and commits the output to a gh-pages worktree with a message naming the source commit. It creates gh-pages as an orphan branch when it is absent, so the published branch shares no history with a source branch.\nIt refuses a ref that is not on the remote, and it refuses a gh-pages worktree with uncommitted changes, because a publish replaces what that worktree holds.\n\n\n\n\n\nflowchart TD\n  A[\"pixi run site-publish --ref origin/dev\"] --&gt; B{\"ref on the remote?\"}\n  B -- no --&gt; X[\"refuse\"]\n  B -- yes --&gt; C[\"fetch origin, resolve the source commit\"]\n  C --&gt; D[\"clean detached worktree of that commit\"]\n  D --&gt; E[\"stage the engine's docs at the pixi.lock pin\"]\n  E --&gt; F[\"mirror docs/, rewrite outbound links, spell mermaid fences\"]\n  F --&gt; G[\"quarto render into /data/opengwasdb/work/site/\"]\n  G --&gt; H[\"replace the gh-pages worktree contents\"]\n  H --&gt; I{\"--dry-run?\"}\n  I -- yes --&gt; J[\"commit to gh-pages locally, push nothing\"]\n  I -- no --&gt; K[\"commit to gh-pages and push\"]\n\n\n\n\n\n\nThe default ref is origin/dev until the cutover, after which it becomes origin/main.",
+    "crumbs": [
+      "Registry",
+      "This site",
+      "The site"
+    ]
+  },
+  {
+    "objectID": "site.html#going-live",
+    "href": "site.html#going-live",
+    "title": "The site",
+    "section": "Going live",
+    "text": "Going live\nThe first real publish creates gh-pages; GitHub Pages keeps serving the legacy main/docs deployment until its source is switched. That switch is the owner’s step, taken after the first real pixi run site-publish:\ngh api -X PUT repos/opengwas/opengwasdb-stores/pages \\\n  -f 'source[branch]=gh-pages' -f 'source[path]=/'\nIt sets Pages to build from the gh-pages branch at /, which is where site-publish puts the rendered site.",
+    "crumbs": [
+      "Registry",
+      "This site",
+      "The site"
+    ]
   },
   {
     "objectID": "site.html#adding-a-page",
     "href": "site.html#adding-a-page",
     "title": "The site",
     "section": "Adding a page",
-    "text": "Adding a page\n\nAdd a Markdown file under docs/ — docs/my-page.md — with a single # heading as its title. It is served at /my-page.html.\nIf it belongs to a section, add it to docs/_quarto.yml: the navbar for a section index, or a sidebar’s contents. A glob such as adr/*.md already covers a new ADR, so most pages need no configuration.\nUse ```mermaid for a diagram and it renders as one, as it does on GitHub; dot files under docs/diagrams/ are served as the files they are.\nLink to a sibling with its relative path (../spec/release-config.md). Link to anything outside docs/ with the relative path you would use on GitHub — the build rewrites it to that file on GitHub at the commit being rendered. A link the build rewrites is reported if the commit does not have the target.\nNever move or rename a page that is already published. A reader’s link would break. If a page must move, keep the old path as an aliases entry in the new page’s YAML front matter; Quarto then writes a redirect page there, which the served-path check counts as an alias rather than a missing path.\nHistorical reports are not rendered: their source .qmd lives in docs/reports/, and pixi run docs renders it and copies the self-contained HTML to the root name the site serves. Do not add .qmd files to docs/ outside reports/ unless the page really must execute code at render time."
+    "text": "Adding a page\n\nAdd a Markdown file under docs/ — docs/my-page.md — with a single # heading as its title. It is served at /my-page.html.\nIf it belongs to a section, add it to docs/_quarto.yml: the navbar for a section index, or a sidebar’s contents. A glob such as adr/*.md already covers a new ADR, so most pages need no configuration.\nUse ```mermaid for a diagram and it renders as one, as it does on GitHub; dot files under docs/diagrams/ are served as the files they are. Quarto renders a Mermaid cell only in a .qmd, so a .md page holding one is staged as .qmd, its published .md path is filled in after the render, and links to it reach its rendered page. Add it to the sidebar as &lt;name&gt;.qmd.\nLink to a sibling with its relative path (../spec/release-config.md). Link to anything outside docs/ with the relative path you would use on GitHub — the build rewrites it to that file on GitHub at the commit being rendered. A link the build rewrites is reported if the commit does not have the target.\nNever move or rename a page that is already published. A reader’s link would break. If a page must move, keep the old path as an aliases entry in the new page’s YAML front matter; Quarto then writes a redirect page there, which the served-path check counts as an alias rather than a missing path.\nHistorical reports are not rendered: their source .qmd lives in docs/reports/, and pixi run docs renders it and copies the self-contained HTML to the root name the site serves. Do not add .qmd files to docs/ outside reports/ unless the page really must execute code at render time.",
+    "crumbs": [
+      "Registry",
+      "This site",
+      "The site"
+    ]
   },
   {
     "objectID": "site.html#checking-a-change",
     "href": "site.html#checking-a-change",
     "title": "The site",
     "section": "Checking a change",
-    "text": "Checking a change\npixi run site ends with the served-path check: every path origin/main serves under docs/ today must be present or aliased in the output, and a missing path fails the build. Run it before opening a pull request that touches docs/.\nYou can run the check on its own against an existing render:\npixi run -e dev python3 -m project_site.urlcheck \\\n  --git-rev origin/main \\\n  --output /data/opengwasdb/work/site/&lt;checkout&gt;/_site"
+    "text": "Checking a change\npixi run site ends with the served-path check: every path origin/main serves under docs/ today must be present or aliased in the output, and a missing path fails the build. Run it before opening a pull request that touches docs/.\nYou can run the check on its own against an existing render:\npixi run -e dev python3 -m project_site.urlcheck \\\n  --git-rev origin/main \\\n  --output /data/opengwasdb/work/site/&lt;checkout&gt;/_site",
+    "crumbs": [
+      "Registry",
+      "This site",
+      "The site"
+    ]
   },
   {
     "objectID": "opengwasdb/index.html",
@@ -6908,7 +6950,7 @@
     "href": "stores.html",
     "title": "Stores",
     "section": "",
-    "text": "The Stores section lists every Store Release and its state: its family, its Analysis Coverage, the releases and buildings it went through, and what it holds.\nThis page is a placeholder and is filled by #391. Until then the registry itself is the record: one directory per Store Release under stores/, and ../STORES.md is the generated index of them.\n\n\n\n Back to top"
+    "text": "The Stores section lists every Store Release and its state: its Store Layout, its Association Coverage, the Store Release Builds it went through, and what it holds.\nThis page is a placeholder and is filled by #391. Until then the registry itself is the record: one directory per Store Release under stores/, and ../STORES.md is the generated index of them.\n\n\n\n Back to top"
   },
   {
     "objectID": "trait-mapping-ukb-b-round2.html",

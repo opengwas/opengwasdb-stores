@@ -1598,6 +1598,23 @@ ul.task-list li input[type="checkbox"] {
 </li>
       </ul>
   </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+ <span class="menu-text">This site</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The site</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
     </ul>
     </div>
 </nav>
@@ -1639,7 +1656,7 @@ ul.task-list li input[type="checkbox"] {
 <li>a matching physical directory rename (<code>git mv</code>), with the <code>store_id</code> updated;</li>
 <li>association/index artifacts left byte-identical, and an evidence record.</li>
 </ul>
-<p>The first case moved FinnGen from <code>OGS-00016</code> to <code>OGS-00017</code> so the MVP META observed-only Store could take <code>OGS-00016</code> ahead of it (owner decision 2026-10-13, “reorder the IDs”); see <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/ogs-00016-to-ogs-00017-migration.md"><code>docs/ogs-00016-to-ogs-00017-migration.md</code></a>. The <code>migration</code> block is provenance for the renumbering only; <code>store_uri</code> remains a pure function of the identifier (ADR 0030).</p>
+<p>The first case moved FinnGen from <code>OGS-00016</code> to <code>OGS-00017</code> so the MVP META observed-only Store could take <code>OGS-00016</code> ahead of it (owner decision 2026-10-13, “reorder the IDs”); see <a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/ogs-00016-to-ogs-00017-migration.md"><code>docs/ogs-00016-to-ogs-00017-migration.md</code></a>. The <code>migration</code> block is provenance for the renumbering only; <code>store_uri</code> remains a pure function of the identifier (ADR 0030).</p>
 <p>Rejected alternatives:</p>
 <ul>
 <li><strong>Silent reassignment, or a directory rename alone.</strong> Rejected: the identifier is a join key across the registry, the artifact root and core-owned provenance; a rename without the recorded mapping, erratum and evidence is the silent rewrite this ADR forbids.</li>

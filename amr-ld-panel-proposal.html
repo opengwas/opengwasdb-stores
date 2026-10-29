@@ -1598,6 +1598,23 @@ ul.task-list li input[type="checkbox"] {
 </li>
       </ul>
   </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+ <span class="menu-text">This site</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The site</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
     </ul>
     </div>
 </nav>
@@ -1646,8 +1663,8 @@ ul.task-list li input[type="checkbox"] {
 <p>Epic #232 requires a completed descendant for each MVP ancestry except META, and ticket #229 states the operational prerequisite plainly: <em>a verified AMR, assembly-compatible LD Reference Resource is required before Reference Completion; a convenient EUR panel is not an acceptable silent substitute</em>.</p>
 <p>The registry currently declares no AMR panel. Two facts make that a blocker rather than an opt-out:</p>
 <ul>
-<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/reference-resources/hgdp1kgp-hg38-ld/resource.yaml"><code>resources/reference-resources/hgdp1kgp-hg38-ld/resource.yaml</code></a> declares <code>ancestry: [AFR, EAS, SAS]</code>; its description says Analyses assigned AMR/MID/NAF “remain observed-only” until a panel exists.</li>
-<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/reference-resources/hgdp1kgp-hg38-ld/populations_to_superpop.tsv"><code>resources/reference-resources/hgdp1kgp-hg38-ld/populations_to_superpop.tsv</code></a> maps <code>CLM</code>, <code>MXL</code>, <code>PEL</code>, <code>PUR</code> (1kGP Admixed American) and <code>Pima</code>, <code>Maya</code>, <code>Karitiana</code>, <code>Surui</code>, <code>Colombian</code> (HGDP American) to <code>excluded</code> / <code>no_AMR_panel</code>, and <code>ld_regions_hg38.tsv</code> (host: <code>/data/opengwasdb/reference/hgdp1kgp-hg38/ld_regions_hg38.tsv</code>) defines block boundaries for <strong>AFR, EAS, EUR and SAS only</strong>.</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/reference-resources/hgdp1kgp-hg38-ld/resource.yaml"><code>resources/reference-resources/hgdp1kgp-hg38-ld/resource.yaml</code></a> declares <code>ancestry: [AFR, EAS, SAS]</code>; its description says Analyses assigned AMR/MID/NAF “remain observed-only” until a panel exists.</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/reference-resources/hgdp1kgp-hg38-ld/populations_to_superpop.tsv"><code>resources/reference-resources/hgdp1kgp-hg38-ld/populations_to_superpop.tsv</code></a> maps <code>CLM</code>, <code>MXL</code>, <code>PEL</code>, <code>PUR</code> (1kGP Admixed American) and <code>Pima</code>, <code>Maya</code>, <code>Karitiana</code>, <code>Surui</code>, <code>Colombian</code> (HGDP American) to <code>excluded</code> / <code>no_AMR_panel</code>, and <code>ld_regions_hg38.tsv</code> (host: <code>/data/opengwasdb/reference/hgdp1kgp-hg38/ld_regions_hg38.tsv</code>) defines block boundaries for <strong>AFR, EAS, EUR and SAS only</strong>.</li>
 </ul>
 <p>So the current behaviour is correct-by-design (ADR 0020), but it cannot satisfy #229. <code>docs/epic-232-execution.md</code> (orchestrator-owned, not modified here) already records: <em>“#229 needs an explicitly suitable LD resource; HGDP resource declares AFR/EAS/SAS, not AMR. Missing reference is not observed-only success.”</em></p>
 <p>This proposal answers the owner’s question, <em>“1kg?”</em>, by evaluating the candidate sample sources and recommending a calibration design.</p>
@@ -1701,7 +1718,7 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="gnomad-v3.1.2-hgdp-1kgp-subset-cached-candidate" class="level3">
 <h3 class="anchored" data-anchor-id="gnomad-v3.1.2-hgdp-1kgp-subset-cached-candidate">2.3 gnomAD v3.1.2 HGDP + 1kGP subset (cached candidate)</h3>
-<p>The registry already acquires this joint GRCh38 genome-wide callset (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/tools/ld-panel/acquire_hgdp1kgp.py"><code>acquire_hgdp1kgp.py</code></a>, gnomAD v3.1.2). The primary description of the subset’s sample QC and relatedness handling is <strong>Koenig et al.&nbsp;2024</strong>, <em>Genome Research</em> 34(5):796–809 (DOI 10.1101/gr.278378.123; PMID 38749656; PMC11216312). Their pipeline reduces the raw source <strong>4,150 → 4,117 after 33 QC failures → 4,094 after 23 ancestry outliers</strong>; the published 4,094 set contains <strong>3,400 inferred unrelated individuals</strong>. The <strong>3,419 unrelated + 698 related</strong> partition belongs to the <strong>earlier 4,117-sample PCA stage</strong>, not the final 4,094 set. The harmonized callset is genome-wide on GRCh38 (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC11216312/">primary paper</a>; <a href="https://gnomad.broadinstitute.org/downloads#v3-hgdp-1kg">download availability</a>). The <strong>kinship &gt; 0.05 / maximal-independent-set</strong> prune reused for the LD subset here is a <strong>proposed reuse of the paper’s PCA-relatedness QC choice</strong>, not a claim that upstream calibrated that threshold for LD-panel construction, and the choice is this pilot’s pending owner approval.</p>
+<p>The registry already acquires this joint GRCh38 genome-wide callset (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/tools/ld-panel/acquire_hgdp1kgp.py"><code>acquire_hgdp1kgp.py</code></a>, gnomAD v3.1.2). The primary description of the subset’s sample QC and relatedness handling is <strong>Koenig et al.&nbsp;2024</strong>, <em>Genome Research</em> 34(5):796–809 (DOI 10.1101/gr.278378.123; PMID 38749656; PMC11216312). Their pipeline reduces the raw source <strong>4,150 → 4,117 after 33 QC failures → 4,094 after 23 ancestry outliers</strong>; the published 4,094 set contains <strong>3,400 inferred unrelated individuals</strong>. The <strong>3,419 unrelated + 698 related</strong> partition belongs to the <strong>earlier 4,117-sample PCA stage</strong>, not the final 4,094 set. The harmonized callset is genome-wide on GRCh38 (<a href="https://pmc.ncbi.nlm.nih.gov/articles/PMC11216312/">primary paper</a>; <a href="https://gnomad.broadinstitute.org/downloads#v3-hgdp-1kg">download availability</a>). The <strong>kinship &gt; 0.05 / maximal-independent-set</strong> prune reused for the LD subset here is a <strong>proposed reuse of the paper’s PCA-relatedness QC choice</strong>, not a claim that upstream calibrated that threshold for LD-panel construction, and the choice is this pilot’s pending owner approval.</p>
 <p>Measured directly from the host’s cached <code>/data/opengwasdb/reference/hgdp1kgp-hg38/source/cohort_populations.tsv</code> (sample metadata only — no genotype read):</p>
 <ul>
 <li>The cache has <strong>4,151 rows = 3,202 1kGP + 948 HGDP + 1 control</strong>; <code>high_quality == true</code> is <strong>4,097 = 3,166 1kGP + 931 HGDP</strong>. This named local <code>high_quality</code> set is <strong>not the same selection as the published 4,094</strong>: the paper’s pipeline is raw 4,150 → 4,117 (33 QC) → 4,094 (23 ancestry outliers). The task is therefore to <strong>reconcile exact QC and ancestry-outlier membership</strong> against the paper’s selection, not to resolve a 3-row count difference in isolation.</li>

@@ -1598,6 +1598,23 @@ ul.task-list li input[type="checkbox"] {
 </li>
       </ul>
   </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true">
+ <span class="menu-text">This site</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-16" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-16" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./site.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The site</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
     </ul>
     </div>
 </nav>
@@ -1661,7 +1678,7 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="scope-and-method" class="level2">
 <h2 class="anchored" data-anchor-id="scope-and-method">Scope and method</h2>
-<p>This is a static audit of tracked source files. Generated HTML was excluded as software evidence, as were local <code>.git</code> and <code>.claude</code> state and the contents of <code>/data</code>. The repository explicitly says that it stores metadata and small reports while large source/build artifacts live externally (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/README.md#L85-L87">README.md</a>); that separation should also apply to software environments.</p>
+<p>This is a static audit of tracked source files. Generated HTML was excluded as software evidence, as were local <code>.git</code> and <code>.claude</code> state and the contents of <code>/data</code>. The repository explicitly says that it stores metadata and small reports while large source/build artifacts live externally (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/README.md#L85-L87">README.md</a>); that separation should also apply to software environments.</p>
 </section>
 <section id="inventory" class="level2">
 <h2 class="anchored" data-anchor-id="inventory">Inventory</h2>
@@ -1678,27 +1695,27 @@ ul.task-list li input[type="checkbox"] {
 <tbody>
 <tr class="odd">
 <td>Python</td>
-<td>Python 3 shebangs are used by the LD acquisition and generation scripts (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/acquire_hgdp1kgp.py#L1-L6">acquire_hgdp1kgp.py</a>) and tests (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/tests/ld-panel-generation/run_tests.py#L1-L8">run_tests.py</a>). Store builders use the ambiguous <code>#!/usr/bin/env python</code> shebang (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/generators/lib/source-formats/gwas-ssf-ragged/build-store.py#L1-L12">build-store.py</a>).</td>
+<td>Python 3 shebangs are used by the LD acquisition and generation scripts (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/acquire_hgdp1kgp.py#L1-L6">acquire_hgdp1kgp.py</a>) and tests (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/tests/ld-panel-generation/run_tests.py#L1-L8">run_tests.py</a>). Store builders use the ambiguous <code>#!/usr/bin/env python</code> shebang (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/generators/lib/source-formats/gwas-ssf-ragged/build-store.py#L1-L12">build-store.py</a>).</td>
 <td>No version declared. Syntax such as <code>X | None</code> requires Python 3.10+, while <code>datetime.UTC</code> in <code>resources/generators/lib/release_yaml.py</code> requires 3.11+, making 3.11 the effective minimum.</td>
 </tr>
 <tr class="even">
 <td>R</td>
-<td>Generators and tests run as <code>Rscript</code>; the shared generator workflow documents direct invocations (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/generators/lib/source-formats/gwas-ssf-ragged/README.md#L6-L21">generator README</a>).</td>
+<td>Generators and tests run as <code>Rscript</code>; the shared generator workflow documents direct invocations (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/generators/lib/source-formats/gwas-ssf-ragged/README.md#L6-L21">generator README</a>).</td>
 <td>No R version declared or locked.</td>
 </tr>
 <tr class="odd">
 <td>Bash</td>
-<td>The site build is a Bash script with strict mode (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/build-site.sh#L1-L16">build-site.sh</a>).</td>
+<td>The site build is a Bash script with strict mode (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/build-site.sh#L1-L16">build-site.sh</a>).</td>
 <td>No Bash/platform version declared. It also assumes GNU-like utilities.</td>
 </tr>
 <tr class="even">
 <td>Quarto</td>
-<td>Quarto renders the reports in the site build (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/build-site.sh#L21-L28">build-site.sh</a>).</td>
-<td>No version declared. Only prose says to use an activated Conda environment (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/build-site.sh#L6-L7">build-site.sh</a>).</td>
+<td>Quarto renders the reports in the site build (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/build-site.sh#L21-L28">build-site.sh</a>).</td>
+<td>No version declared. Only prose says to use an activated Conda environment (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/build-site.sh#L6-L7">build-site.sh</a>).</td>
 </tr>
 <tr class="odd">
 <td>YAML/TSV/Markdown/QMD</td>
-<td>Configuration, release metadata, manifests, documentation, and executable reports. Release build metadata names an import-style builder entry point (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/families/pqtl-interval-2018/releases/2018-sun-pilot-100/build.yaml#L1-L10">build.yaml</a>).</td>
+<td>Configuration, release metadata, manifests, documentation, and executable reports. Release build metadata names an import-style builder entry point (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/families/pqtl-interval-2018/releases/2018-sun-pilot-100/build.yaml#L1-L10">build.yaml</a>).</td>
 <td>Schema versions exist for domain metadata, but do not constrain software.</td>
 </tr>
 </tbody>
@@ -1708,20 +1725,20 @@ ul.task-list li input[type="checkbox"] {
 <h3 class="anchored" data-anchor-id="python-packages">Python packages</h3>
 <p>The only direct third-party scientific imports in this repository are:</p>
 <ul>
-<li><code>numpy</code>: LD construction, eigendecomposition, fixtures/tests, and the consumer smoke test (for example <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/construct_block.py#L11-L21">construct_block.py</a>).</li>
-<li><code>scipy</code> (<code>scipy.linalg</code>): LD eigendecomposition (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/backfill_eigendecomposition.py#L58-L66">backfill_eigendecomposition.py</a>).</li>
-<li><code>opengwasdb</code>: store construction/read-back, ancestry assignment, variant normalization, and LD consumption. Store construction imports its APIs directly (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/generators/lib/source-formats/gwas-ssf-ragged/build-store.py#L23-L26">build-store.py</a>).</li>
+<li><code>numpy</code>: LD construction, eigendecomposition, fixtures/tests, and the consumer smoke test (for example <a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/construct_block.py#L11-L21">construct_block.py</a>).</li>
+<li><code>scipy</code> (<code>scipy.linalg</code>): LD eigendecomposition (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/backfill_eigendecomposition.py#L58-L66">backfill_eigendecomposition.py</a>).</li>
+<li><code>opengwasdb</code>: store construction/read-back, ancestry assignment, variant normalization, and LD consumption. Store construction imports its APIs directly (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/generators/lib/source-formats/gwas-ssf-ragged/build-store.py#L23-L26">build-store.py</a>).</li>
 </ul>
-<p>Everything else imported is from the Python standard library or local <code>resources.lib</code> code. None of these packages has a declared version constraint. The documented workflow points <code>PYTHONPATH</code> at a separate checkout and invokes that checkout’s virtual-environment Python (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/generators/lib/source-formats/gwas-ssf-ragged/README.md#L17-L21">generator README</a>, <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/generators/lib/source-formats/gwas-ssf-ragged/README.md#L63-L68">ancestry workflow</a>). The LD consumer similarly accepts an <code>--opengwasdb-repo</code> path and mutates <code>sys.path</code> (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/smoke_test_consumer.py#L9-L18">smoke_test_consumer.py</a>).</p>
+<p>Everything else imported is from the Python standard library or local <code>resources.lib</code> code. None of these packages has a declared version constraint. The documented workflow points <code>PYTHONPATH</code> at a separate checkout and invokes that checkout’s virtual-environment Python (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/generators/lib/source-formats/gwas-ssf-ragged/README.md#L17-L21">generator README</a>, <a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/generators/lib/source-formats/gwas-ssf-ragged/README.md#L63-L68">ancestry workflow</a>). The LD consumer similarly accepts an <code>--opengwasdb-repo</code> path and mutates <code>sys.path</code> (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/smoke_test_consumer.py#L9-L18">smoke_test_consumer.py</a>).</p>
 </section>
 <section id="r-packages" class="level3">
 <h3 class="anchored" data-anchor-id="r-packages">R packages</h3>
 <p>Direct package usage comprises:</p>
 <ul>
-<li>Core pipeline/tests: <code>data.table</code>, <code>yaml</code> (for example <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/generators/lib/source-formats/gwas-ssf-ragged/generate.R#L1-L3">generate.R</a> and <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/tests/effect-scale-validation/run_tests.R#L11-L15">run_tests.R</a>).</li>
-<li>Network-assisted SomaScan metadata generation: <code>curl</code> alongside <code>data.table</code> (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/scripts/somascan/generate-somascan-targets.R#L1-L6">generate-somascan-targets.R</a>).</li>
-<li>Curation/dashboard: <code>tidyverse</code>, <code>data.table</code>, and <code>jsonlite</code> (the broad <code>tidyverse</code> dependency is loaded in <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ebi-studies.r#L32-L33">ebi-studies.r</a>).</li>
-<li>Reports: <code>dplyr</code>, <code>ggplot2</code>, <code>knitr</code>, <code>scales</code>, <code>tibble</code>, <code>tidyr</code>, <code>DT</code>, and <code>data.table</code>; the beta-scale report lists most explicitly (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/beta-scale-estimation.qmd#L18-L24">beta-scale-estimation.qmd</a>) and the curation report also calls <code>DT::datatable</code> and <code>knitr::kable</code>.</li>
+<li>Core pipeline/tests: <code>data.table</code>, <code>yaml</code> (for example <a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/generators/lib/source-formats/gwas-ssf-ragged/generate.R#L1-L3">generate.R</a> and <a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/tests/effect-scale-validation/run_tests.R#L11-L15">run_tests.R</a>).</li>
+<li>Network-assisted SomaScan metadata generation: <code>curl</code> alongside <code>data.table</code> (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/scripts/somascan/generate-somascan-targets.R#L1-L6">generate-somascan-targets.R</a>).</li>
+<li>Curation/dashboard: <code>tidyverse</code>, <code>data.table</code>, and <code>jsonlite</code> (the broad <code>tidyverse</code> dependency is loaded in <a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ebi-studies.r#L32-L33">ebi-studies.r</a>).</li>
+<li>Reports: <code>dplyr</code>, <code>ggplot2</code>, <code>knitr</code>, <code>scales</code>, <code>tibble</code>, <code>tidyr</code>, <code>DT</code>, and <code>data.table</code>; the beta-scale report lists most explicitly (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/beta-scale-estimation.qmd#L18-L24">beta-scale-estimation.qmd</a>) and the curation report also calls <code>DT::datatable</code> and <code>knitr::kable</code>.</li>
 </ul>
 <p>No package versions or repository snapshot are recorded. Some dependencies are declared only through namespace calls rather than <code>library()</code>, which makes an informal package list easy to miss.</p>
 </section>
@@ -1738,22 +1755,22 @@ ul.task-list li input[type="checkbox"] {
 <tbody>
 <tr class="odd">
 <td><code>plink2</code></td>
-<td>Block extraction/export (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/construct_block.py#L133-L166">construct_block.py</a>) and VCF-to-PGEN conversion (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/materialize_reference.py#L15-L28">materialize_reference.py</a>).</td>
+<td>Block extraction/export (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/construct_block.py#L133-L166">construct_block.py</a>) and VCF-to-PGEN conversion (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/materialize_reference.py#L15-L28">materialize_reference.py</a>).</td>
 <td>Not versioned. Usually PATH-resolved, but materialization uniquely hard-codes <code>&lt;reference-root&gt;/tools/bin/plink2</code>.</td>
 </tr>
 <tr class="even">
 <td><code>bcftools</code></td>
-<td>Header verification and index checks (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/acquire_hgdp1kgp.py#L25-L31">acquire_hgdp1kgp.py</a>, <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/acquire_hgdp1kgp.py#L64-L71">same file</a>).</td>
+<td>Header verification and index checks (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/acquire_hgdp1kgp.py#L25-L31">acquire_hgdp1kgp.py</a>, <a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/acquire_hgdp1kgp.py#L64-L71">same file</a>).</td>
 <td>Not versioned; PATH-resolved.</td>
 </tr>
 <tr class="odd">
 <td><code>curl</code> CLI</td>
-<td>Resumable gnomAD downloads (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/acquire_hgdp1kgp.py#L12-L22">acquire_hgdp1kgp.py</a>).</td>
+<td>Resumable gnomAD downloads (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/acquire_hgdp1kgp.py#L12-L22">acquire_hgdp1kgp.py</a>).</td>
 <td>Not versioned; distinct from the R <code>curl</code> package.</td>
 </tr>
 <tr class="even">
 <td>GitHub CLI <code>gh</code></td>
-<td>Checks whether an external consumer issue is closed before smoke testing (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/smoke_test_consumer.py#L13-L16">smoke_test_consumer.py</a>).</td>
+<td>Checks whether an external consumer issue is closed before smoke testing (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/smoke_test_consumer.py#L13-L16">smoke_test_consumer.py</a>).</td>
 <td>Not declared/versioned; also introduces network/auth/API availability into a smoke test.</td>
 </tr>
 <tr class="odd">
@@ -1763,12 +1780,12 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>GNU <code>du</code></td>
-<td>Store-size measurement invokes <code>du -sb</code> from Python (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/generators/lib/source-formats/gwas-ssf-ragged/build-store.py#L106-L113">build-store.py</a>); <code>-b</code> is not portable to BSD/macOS <code>du</code>.</td>
+<td>Store-size measurement invokes <code>du -sb</code> from Python (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/generators/lib/source-formats/gwas-ssf-ragged/build-store.py#L106-L113">build-store.py</a>); <code>-b</code> is not portable to BSD/macOS <code>du</code>.</td>
 <td>Undeclared platform assumption.</td>
 </tr>
 <tr class="odd">
 <td><code>Rscript</code>, <code>quarto</code>, <code>bash</code>, <code>cp</code></td>
-<td>Generators/tests and documentation build (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/build-site.sh#L21-L34">build-site.sh</a>).</td>
+<td>Generators/tests and documentation build (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/build-site.sh#L21-L34">build-site.sh</a>).</td>
 <td>Only prose requirements, no versions.</td>
 </tr>
 </tbody>
@@ -1779,25 +1796,25 @@ ul.task-list li input[type="checkbox"] {
 <h3 class="anchored" data-anchor-id="entry-points-and-orchestration">Entry points and orchestration</h3>
 <p>There is no single project CLI or task definition. Users invoke scripts directly:</p>
 <ul>
-<li>R generator modes (<code>emit</code>, <code>filter</code>, <code>effect-scale</code>, and refresh operations) are documented in the shared generator README (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/generators/lib/source-formats/gwas-ssf-ragged/README.md#L6-L42">README</a>).</li>
-<li>Python store construction and ancestry assignment are separate direct script invocations using an external Python interpreter (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/generators/lib/source-formats/gwas-ssf-ragged/README.md#L17-L21">README</a>, <a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/generators/lib/source-formats/gwas-ssf-ragged/README.md#L63-L68">README</a>).</li>
+<li>R generator modes (<code>emit</code>, <code>filter</code>, <code>effect-scale</code>, and refresh operations) are documented in the shared generator README (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/generators/lib/source-formats/gwas-ssf-ragged/README.md#L6-L42">README</a>).</li>
+<li>Python store construction and ancestry assignment are separate direct script invocations using an external Python interpreter (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/generators/lib/source-formats/gwas-ssf-ragged/README.md#L17-L21">README</a>, <a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/generators/lib/source-formats/gwas-ssf-ragged/README.md#L63-L68">README</a>).</li>
 <li>LD panel acquisition, membership, construction, orchestration, calibration, backfill, and consumer checks are individual scripts in <code>resources/scripts/ld-panel/</code>; <code>run_panels.py</code> composes <code>construct_block.py</code> using the current interpreter.</li>
-<li>Tests are standalone Python/R scripts rather than a common test framework; the generation suite is run with <code>python3</code> (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/tests/ld-panel-generation/README.md#L1-L4">test README</a>).</li>
+<li>Tests are standalone Python/R scripts rather than a common test framework; the generation suite is run with <code>python3</code> (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/tests/ld-panel-generation/README.md#L1-L4">test README</a>).</li>
 <li>The site has its own Bash orchestration script.</li>
 </ul>
-<p>Release metadata records a generator script SHA-256 and command (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/families/pqtl-interval-2018/releases/2018-sun-pilot-100/release.yaml#L14-L18">release.yaml</a>). This is valuable provenance, but it omits interpreter, libraries, native tools, platform, and the <code>opengwasdb</code> revision.</p>
+<p>Release metadata records a generator script SHA-256 and command (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/families/pqtl-interval-2018/releases/2018-sun-pilot-100/release.yaml#L14-L18">release.yaml</a>). This is valuable provenance, but it omits interpreter, libraries, native tools, platform, and the <code>opengwasdb</code> revision.</p>
 </section>
 <section id="package-managers-environments-ci-and-containers" class="level3">
 <h3 class="anchored" data-anchor-id="package-managers-environments-ci-and-containers">Package managers, environments, CI, and containers</h3>
-<p>No tracked declaration was found for pip/uv/Poetry, Conda/Mamba, <code>renv</code>/pak, Nix, Docker/Apptainer, runtime version managers, or system packages. There are also no tracked GitHub Actions workflows or other CI definitions. The sole environment-management statement is the site’s comment that it expects an activated Conda environment, but that environment is not defined (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/build-site.sh#L6-L7">build-site.sh</a>).</p>
-<p>The <code>.gitignore</code> deliberately separates generated/downloaded data from source (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/.gitignore#L1-L22">.gitignore</a>), but has no standard local-environment entries such as <code>.venv/</code>, <code>.Rproj.user/</code>, or Conda prefix directories. This is another signal that a repository-local environment contract has not yet been established.</p>
+<p>No tracked declaration was found for pip/uv/Poetry, Conda/Mamba, <code>renv</code>/pak, Nix, Docker/Apptainer, runtime version managers, or system packages. There are also no tracked GitHub Actions workflows or other CI definitions. The sole environment-management statement is the site’s comment that it expects an activated Conda environment, but that environment is not defined (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/build-site.sh#L6-L7">build-site.sh</a>).</p>
+<p>The <code>.gitignore</code> deliberately separates generated/downloaded data from source (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/.gitignore#L1-L22">.gitignore</a>), but has no standard local-environment entries such as <code>.venv/</code>, <code>.Rproj.user/</code>, or Conda prefix directories. This is another signal that a repository-local environment contract has not yet been established.</p>
 </section>
 </section>
 <section id="inconsistencies-and-risks" class="level2">
 <h2 class="anchored" data-anchor-id="inconsistencies-and-risks">Inconsistencies and risks</h2>
 <ol type="1">
 <li><strong>No reproducible bootstrap.</strong> A contributor cannot determine compatible Python, R, package, Quarto, PLINK, or bcftools versions from the checkout. Test success can depend on whatever happens to be installed on the host.</li>
-<li><strong>Software is mixed with reference data.</strong> <code>materialize_reference.py</code> hard-codes <code>args.root / "tools/bin/plink2"</code> (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/materialize_reference.py#L13-L16">lines 13-16</a>), while <code>construct_block.py</code> defaults to PATH-resolved <code>plink2</code> (<a href="https://github.com/opengwas/opengwasdb-stores/blob/1d4d2bec40b4884a48f8e3640121c89c8ed24652/resources/scripts/ld-panel/construct_block.py#L158-L166">lines 158-166</a>). These two resolution policies can silently run different versions and explain why an entire Conda prefix appeared beneath <code>/data/opengwasdb/reference</code>.</li>
+<li><strong>Software is mixed with reference data.</strong> <code>materialize_reference.py</code> hard-codes <code>args.root / "tools/bin/plink2"</code> (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/materialize_reference.py#L13-L16">lines 13-16</a>), while <code>construct_block.py</code> defaults to PATH-resolved <code>plink2</code> (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/scripts/ld-panel/construct_block.py#L158-L166">lines 158-166</a>). These two resolution policies can silently run different versions and explain why an entire Conda prefix appeared beneath <code>/data/opengwasdb/reference</code>.</li>
 <li><strong>Two undeclared Python environments.</strong> General tests use <code>python3</code>; store workflows use a sibling checkout’s <code>.venv/bin/python</code>; two scripts use <code>#!/usr/bin/env python</code>; LD composition uses <code>sys.executable</code>. Results depend on invocation path.</li>
 <li><strong>External package revision is unrecorded.</strong> <code>opengwasdb</code> APIs are central to builds but are not pinned. The issue-state gate checks compatibility process, not the exact code executed.</li>
 <li><strong>R dependency surface is implicit and broad.</strong> <code>tidyverse</code> pulls a larger transitive set than the directly used packages, while report-only packages appear only inside QMD namespace calls. There is no lockfile or restore test.</li>
