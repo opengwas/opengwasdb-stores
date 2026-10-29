@@ -373,11 +373,19 @@ def _sync_tree(source: Path, served: Path) -> int:
         data = path.read_bytes()
         wanted.add(relative.as_posix())
         target = served / relative
+        mode = path.stat().st_mode & 0o777
         if target.is_file() and target.read_bytes() == data:
+            # The preview tree is what Quarto runs the project's `pre-render`
+            # hook from (`docs/pre-render.sh`, #391), so the mirror's mode is
+            # part of what `served` matches: a file written fresh is 0644.
+            if target.stat().st_mode & 0o777 != mode:
+                os.chmod(target, mode)
+                changed += 1
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         temporary = target.with_name(f".{target.name}.staging")
         temporary.write_bytes(data)
+        os.chmod(temporary, mode)
         os.replace(temporary, target)
         changed += 1
     for path in served.rglob("*"):
