@@ -9,8 +9,9 @@
 # mirror, and `python3` is the pixi environment's, which has `project_site`
 # installed.
 #
-# Rendering that mirror with Quarto by hand needs this file to have run first,
-# which is what the hook is for; `python3 -m project_site.pages --docs docs`
-# writes the same pages into the checkout, where they are git-ignored.
+# A hand run needs `--docs` naming a tree to write, and it replaces the five
+# section pages the checkout commits as short "this page is generated" stubs, so
+# point it at the mirror (`--docs /data/opengwasdb/work/site/<checkout>/_stage`)
+# rather than at `docs/`: only the per-epic and per-Store pages are git-ignored.
 set -eu
 exec python3 -m project_site.pages --docs .
