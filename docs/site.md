@@ -92,6 +92,17 @@ one per registered Store beside them
 - A page never fails because a source is missing: it shows a notice naming the
   source, its error and when it was collected. `docs/spec/project-site.md` is
   the contract between the data and the pages.
+- An epic page is written for every epic the board lists **and** for every valid
+  epic record: a record outlives the board, so when `gh` is offline the
+  record-backed page is still generated, carrying the board's unavailable notice,
+  and a page that has a record is never removed as stale.
+- A yardstick trend is drawn within one workload. Results are keyed by
+  `workload_sha256` (`workload_id` where the hash is missing), each series and
+  each matrix table names the workload it measured, and no line or row spans two
+  workloads, so a trend shows a change in the code rather than in the benchmark.
+  A point measured in the Veeam backup window (`veeam_window: true`) is ringed in
+  the figure and marked `†` in the table, with a caveat saying its timing is not
+  comparable.
 
 ## Going live
 
