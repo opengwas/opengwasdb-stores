@@ -42,7 +42,39 @@ def pinned_revision(lock: Path | None = None) -> str:
     return found.pop()
 
 
-def _worker(mode: str, store_path: Path, entry: dict[str, Any], workload: dict[str, Any], scratch: Path) -> dict[str, Any]:
+WORKER_MODULE = "yardstick.worker"
+INDEX = "index.sqlite"
+
+
+def snapshot(store_path: Path) -> dict[str, Any]:
+    """The Store directory's top-level entries, and `index.sqlite`'s size and mtime.
+
+    `query_store` opens `index.sqlite` read-write (opengwasdb store/open.py), so
+    a missing index would be created beside the Store. The runner records the
+    directory before a Store's worker starts and compares afterwards.
+    """
+    index = store_path / INDEX
+    stat = index.stat() if index.is_file() else None
+    return {
+        "entries": sorted(os.listdir(store_path)),
+        "index": (stat.st_size, stat.st_mtime_ns) if stat else None,
+    }
+
+
+def compare(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
+    """What changed beside a Store: new top-level entries, and a changed or removed index."""
+    problems = [f"new top-level entry: {name}" for name in after["entries"] if name not in before["entries"]]
+    if before["index"] != after["index"]:
+        problems.append(f"{INDEX} changed")
+    return problems
+
+
+def _worker(
+    mode: str, store_path: Path, entry: dict[str, Any], workload: dict[str, Any], scratch: Path,
+    *, timeout: float | None = None,
+) -> dict[str, Any]:
+    if timeout is not None and timeout <= 0:
+        raise RuntimeError("timeout after 0 s: the run's budget was already spent")
     spec = scratch / f"{entry['store_id']}-{mode}.json"
     spec.write_text(
         json.dumps({
@@ -53,32 +85,44 @@ def _worker(mode: str, store_path: Path, entry: dict[str, Any], workload: dict[s
         }),
         encoding="utf-8",
     )
-    done = subprocess.run(
-        [sys.executable, "-m", "yardstick.worker", mode, str(spec)], capture_output=True, text=True
-    )
+    try:
+        done = subprocess.run(
+            [sys.executable, "-m", WORKER_MODULE, mode, str(spec)], capture_output=True, text=True, timeout=timeout
+        )
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"timeout after {timeout:g} s") from None
     if done.returncode != 0:
         raise RuntimeError(done.stderr.strip()[-500:] or f"worker exited {done.returncode}")
     return json.loads(done.stdout.strip().splitlines()[-1])
 
 
-def _store(entry: dict[str, Any], store_path: Path, workload: dict[str, Any], scratch: Path) -> dict[str, Any]:
+def _store(
+    entry: dict[str, Any], store_path: Path, workload: dict[str, Any], scratch: Path, deadline: float
+) -> tuple[dict[str, Any], list[str]]:
     head = {k: entry[k] for k in ("store_id", "layout", "coverage") if k in entry}
     if entry["status"] == "pending":
-        return {**head, "status": "pending", "reason": entry["reason"]}
+        return {**head, "status": "pending", "reason": entry["reason"]}, []
     wanted = entry["measures"]
+    before = snapshot(store_path)
+    if before["index"] is None:
+        error = f"{INDEX} missing; refusing to let the query path create it"
+        measures = {name: {"status": "unavailable", "error": error} for name in wanted}
+        return {**head, "status": "measured", "measures": measures}, []
+    remaining = lambda: deadline - time.perf_counter()  # noqa: E731
     measures: dict[str, Any] = {}
     try:
-        measures.update(_worker("timed", store_path, entry, workload, scratch))
+        measures.update(_worker("timed", store_path, entry, workload, scratch, timeout=remaining()))
     except RuntimeError as error:
         for name in wanted:
             if name != "peak_rss":
                 measures[name] = {"status": "unavailable", "error": str(error)}
     if "peak_rss" in wanted:
         try:
-            measures["peak_rss"] = _worker("rss", store_path, entry, workload, scratch)
+            measures["peak_rss"] = _worker("rss", store_path, entry, workload, scratch, timeout=remaining())
         except RuntimeError as error:
             measures["peak_rss"] = {"status": "unavailable", "error": str(error)}
-    return {**head, "status": "measured", "measures": measures}
+    problems = compare(before, snapshot(store_path))
+    return {**head, "status": "measured", "measures": measures}, problems
 
 
 def run(
@@ -88,6 +132,7 @@ def run(
     scratch: Path | None = None,
     stores_root: Path = paths.DEFAULT_ARTIFACT_ROOT,
     workload_path: Path = workload_spec.DEFAULT_PATH,
+    budget_s: float = BUDGET_S,
 ) -> dict[str, Any]:
     own_scratch = scratch is None
     scratch = Path(scratch) if scratch else Path(tempfile.mkdtemp(prefix="yardstick-", dir=os.environ.get("TMPDIR")))
@@ -95,16 +140,20 @@ def run(
     start_local = datetime.now().astimezone()
     start_clock = time.perf_counter()
     load_before = list(os.getloadavg())
+    deadline = start_clock + budget_s
+    violations: list[dict[str, str]] = []
     try:
         stores = []
         for entry in workload["stores"]:
             store_path = (store_paths or {}).get(entry["store_id"]) or paths.store_dir(entry["store_id"], stores_root) / "store.opengwasdb"
-            stores.append(_store(entry, store_path, workload, scratch))
+            record, problems = _store(entry, store_path, workload, scratch, deadline)
+            stores.append(record)
+            violations += [{"store_id": entry["store_id"], "problem": p} for p in problems]
         build = None
         if workload.get("fixture_build"):
             build_dir = scratch / "fixture-build"
             build_dir.mkdir()
-            build = fixture.timed_build(build_dir)
+            build = fixture.timed_build(build_dir, timeout=deadline - time.perf_counter())
         end_local = datetime.now().astimezone()
         result: dict[str, Any] = {
             "schema": result_spec.SCHEMA_VERSION,
@@ -121,6 +170,7 @@ def run(
             "veeam_window": veeam.overlaps_window(start_local, end_local),
             "repetitions": workload["repetitions"],
             "stores": stores,
+            "guard_violations": violations,
         }
         if build is not None:
             result["fixture_build"] = build
@@ -146,6 +196,9 @@ def main(argv: list[str] | None = None) -> int:
     print(out)
     if result["veeam_window"]:
         print("warning: the run overlapped the Veeam window (00:00-11:00 local); veeam_window is true", file=sys.stderr)
+    if result["guard_violations"]:
+        print(f"error: the run wrote beside a Store: {result['guard_violations']}", file=sys.stderr)
+        return 3
     if result["duration_s"] > BUDGET_S:
         print(f"warning: the run took {result['duration_s']} s, over the {BUDGET_S:.0f} s budget", file=sys.stderr)
         return 2

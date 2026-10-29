@@ -38,7 +38,7 @@ def _opengwasdb() -> list[str]:
     return [str(beside)] if beside.is_file() else [shutil.which("opengwasdb") or "opengwasdb"]
 
 
-def build_dense_store(store_path: Path, source_dir: Path) -> Path:
+def build_dense_store(store_path: Path, source_dir: Path, *, timeout: float | None = None) -> Path:
     """Build the fixture Dense Store at `store_path`, writing its inputs to `source_dir`."""
     source_dir.mkdir(parents=True, exist_ok=True)
     vcf = source_dir / "fixture.vcf.gz"
@@ -55,16 +55,20 @@ def build_dense_store(store_path: Path, source_dir: Path) -> Path:
             "--store-id", "OGS-00099", "--release-id", "OGS-00099",
             "--source-reader-capability", "opengwasdb.gwas-vcf", "--source-assembly", "hg38",
         ],
-        check=True, capture_output=True, text=True,
+        check=True, capture_output=True, text=True, timeout=timeout,
     )
     return store_path
 
 
-def timed_build(scratch: Path) -> dict:
+def timed_build(scratch: Path, *, timeout: float | None = None) -> dict:
     """Build the fixture Store once into `scratch`, and say how long it took."""
+    if timeout is not None and timeout <= 0:
+        return {"status": "unavailable", "layout": "dense", "error": "timeout after 0 s: the run's budget was already spent"}
     start = time.perf_counter()
     try:
-        build_dense_store(scratch / "store.opengwasdb", scratch / "source")
+        build_dense_store(scratch / "store.opengwasdb", scratch / "source", timeout=timeout)
+    except subprocess.TimeoutExpired:
+        return {"status": "unavailable", "layout": "dense", "error": f"timeout after {timeout:g} s"}
     except subprocess.CalledProcessError as error:
         return {"status": "unavailable", "layout": "dense", "error": (error.stderr or str(error))[-500:]}
     return {"status": "measured", "layout": "dense", "seconds": round(time.perf_counter() - start, 3)}

@@ -7,6 +7,7 @@ and a reader refuses a version it does not know.
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 SCHEMA_VERSION = 1
@@ -17,6 +18,10 @@ TOP_LEVEL = (
     "started_utc", "ended_utc", "duration_s", "local_utc_offset_minutes", "veeam_window",
     "repetitions", "stores",
 )
+
+
+_REVISION = re.compile(r"[0-9a-f]{40}")
+_UTC = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 
 
 class ResultError(ValueError):
@@ -52,8 +57,12 @@ def _measure(where: str, name: str, record: dict[str, Any]) -> None:
         for key in ("first_read_ms", "median_ms", "p95_ms"):
             _number(f"{where}.{key}", record[key])
         _number(f"{where}.reps", record["reps"], integer=True)
+        if name != "open":
+            _need(where, record, "result_count")
         if "result_count" in record:
             _number(f"{where}.result_count", record["result_count"], integer=True)
+        if name == "analysis_hm3":
+            _need(where, record, "subset", "analysis_id")
     elif name == "bytes_on_disk":
         _need(where, record, "bytes", "source")
         _number(f"{where}.bytes", record["bytes"], integer=True)
@@ -75,13 +84,24 @@ def validate(result: dict[str, Any], workload: dict[str, Any] | None = None) -> 
     if not isinstance(result["veeam_window"], bool):
         raise ResultError("veeam_window must be true or false")
     _need("opengwasdb", result["opengwasdb"], "version", "revision")
+    if not (isinstance(result["opengwasdb"]["revision"], str) and _REVISION.fullmatch(result["opengwasdb"]["revision"])):
+        raise ResultError("opengwasdb.revision must be 40 lower-case hex characters")
+    for key in ("started_utc", "ended_utc"):
+        if not (isinstance(result[key], str) and _UTC.fullmatch(result[key])):
+            raise ResultError(f"{key} must be UTC ISO, YYYY-MM-DDTHH:MM:SSZ, got {result[key]!r}")
     _need("ogstores", result["ogstores"], "version")
     _need("host", result["host"], "name", "cpu_count")
     _need("load_average", result["load_average"], "before", "after")
+    for key in ("before", "after"):
+        values = result["load_average"][key]
+        if not isinstance(values, list) or not values:
+            raise ResultError(f"load_average.{key} must be a non-empty list")
+        for value in values:
+            _number(f"load_average.{key}", value)
     _number("duration_s", result["duration_s"])
     for store in result["stores"]:
         where = f"stores[{store.get('store_id')}]"
-        _need(where, store, "store_id", "layout", "status")
+        _need(where, store, "store_id", "layout", "coverage", "status")
         if store["status"] == "pending":
             _need(where, store, "reason")
         elif store["status"] == "measured":
@@ -93,9 +113,16 @@ def validate(result: dict[str, Any], workload: dict[str, Any] | None = None) -> 
     build = result.get("fixture_build")
     if build is not None:
         if build.get("status") == "measured":
+            _need("fixture_build", build, "layout", "seconds")
             _number("fixture_build.seconds", build.get("seconds"))
         elif build.get("status") != "unavailable" or not build.get("error"):
             raise ResultError("fixture_build is measured, or unavailable with an error")
+    violations = result.get("guard_violations", [])
+    if not isinstance(violations, list):
+        raise ResultError("guard_violations must be a list")
+    for violation in violations:
+        if not (isinstance(violation, dict) and {"store_id", "problem"} <= violation.keys()):
+            raise ResultError("guard_violations entries are {store_id, problem}")
     if workload is not None:
         _against(result, workload)
 

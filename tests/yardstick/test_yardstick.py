@@ -13,12 +13,15 @@ from __future__ import annotations
 import copy
 import json
 import os
+import shutil
 import tempfile
+import time
 import unittest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from unittest import mock
 
-from yardstick import fixture, runner, veeam
+from yardstick import fixture, measure, runner, veeam
 from yardstick import result as result_spec
 from yardstick import workload as workload_spec
 
@@ -57,7 +60,7 @@ def minimal_result() -> dict:
                     "peak_rss": {"status": "measured", "baseline_mb": 100.0, "peak_mb": 120.0, "delta_mb": 20.0, "result_count": 2},
                 },
             },
-            {"store_id": "OGS-00011", "layout": "hybrid", "coverage": "full", "status": "pending", "reason": "rebuild"},
+            {"store_id": "OGS-00011", "layout": "hybrid", "coverage": "gwas", "status": "pending", "reason": "rebuild"},
         ],
         "fixture_build": {"status": "measured", "layout": "dense", "seconds": 5.8},
     }
@@ -144,6 +147,59 @@ class ResultValidatorTest(unittest.TestCase):
         r["stores"][0]["measures"]["open"] = {"status": "unavailable", "error": "boom"}
         result_spec.validate(r)
 
+    def refused(self, mutate, pattern: str) -> None:
+        r = minimal_result()
+        mutate(r)
+        with self.assertRaisesRegex(result_spec.ResultError, pattern):
+            result_spec.validate(r)
+
+    def test_store_object_needs_store_id_layout_coverage_and_status(self) -> None:
+        for key in ("store_id", "layout", "coverage", "status"):
+            with self.subTest(key=key):
+                self.refused(lambda r, key=key: r["stores"][0].pop(key), key)
+
+    def test_timed_record_other_than_open_needs_result_count(self) -> None:
+        self.refused(lambda r: r["stores"][0]["measures"]["phewas_rsid"].pop("result_count"), "result_count")
+        r = minimal_result()
+        r["stores"][0]["measures"]["open"].pop("result_count", None)
+        result_spec.validate(r)
+
+    def test_hm3_record_needs_subset_and_analysis_id(self) -> None:
+        for key in ("subset", "analysis_id"):
+            with self.subTest(key=key):
+                def mutate(r, key=key):
+                    record = timed(result_count=3, subset="hm3", analysis_id="a")
+                    del record[key]
+                    r["stores"][0]["measures"]["analysis_hm3"] = record
+                self.refused(mutate, key)
+
+    def test_measured_fixture_build_needs_layout(self) -> None:
+        self.refused(lambda r: r["fixture_build"].pop("layout"), "layout")
+
+    def test_revision_must_be_forty_hex_characters(self) -> None:
+        for bad in ("0d59f151", "G" * 40, "0D59F151C7618933747A59F825DEEF6A51DE9E1F"):
+            with self.subTest(bad=bad):
+                self.refused(lambda r, bad=bad: r["opengwasdb"].__setitem__("revision", bad), "revision")
+
+    def test_timestamps_must_be_utc_iso(self) -> None:
+        for key in ("started_utc", "ended_utc"):
+            for bad in ("2026-10-29 12:00:00", "2026-10-29T12:00:00+01:00", "yesterday"):
+                with self.subTest(key=key, bad=bad):
+                    self.refused(lambda r, key=key, bad=bad: r.__setitem__(key, bad), key)
+
+    def test_load_arrays_must_not_be_empty(self) -> None:
+        for key in ("before", "after"):
+            with self.subTest(key=key):
+                self.refused(lambda r, key=key: r["load_average"].__setitem__(key, []), key)
+
+    def test_guard_violations_are_recorded_as_store_and_problem(self) -> None:
+        r = minimal_result()
+        r["guard_violations"] = [{"store_id": "OGS-00099", "problem": "new entry x"}]
+        result_spec.validate(r)
+        r["guard_violations"] = ["x"]
+        with self.assertRaisesRegex(result_spec.ResultError, "guard_violations"):
+            result_spec.validate(r)
+
     def test_veeam_flag_must_be_boolean(self) -> None:
         r = minimal_result()
         r["veeam_window"] = "yes"
@@ -179,47 +235,213 @@ class VeeamWindowTest(unittest.TestCase):
         self.assertTrue(veeam.overlaps_window(local(28, 12), local(30, 12)))
 
 
-class RunnerOnFixtureStoreTest(unittest.TestCase):
-    def test_runner_result_validates_and_has_every_listed_measure(self) -> None:
+class AbsenceIsNeverATimingTest(unittest.TestCase):
+    def test_an_empty_first_read_is_refused(self) -> None:
+        calls = iter([{"z": []}, {"z": [1]}, {"z": [1]}])
+        with self.assertRaisesRegex(RuntimeError, "no rows"):
+            measure.time_calls(lambda: next(calls), 2, count=lambda r: len(r["z"]))
+
+    def test_an_empty_warm_read_in_the_middle_is_refused(self) -> None:
+        calls = iter([{"z": [1]}, {"z": []}, {"z": [1]}])
+        with self.assertRaisesRegex(RuntimeError, "no rows"):
+            measure.time_calls(lambda: next(calls), 2, count=lambda r: len(r["z"]))
+
+    def test_every_nonempty_call_is_measured_with_the_first_count(self) -> None:
+        record = measure.time_calls(lambda: {"z": [1, 2, 3]}, 2, count=lambda r: len(r["z"]))
+        self.assertEqual((record["status"], record["result_count"], record["first_result_count"]), ("measured", 3, 3))
+
+    def test_peak_rss_of_an_empty_read_is_refused(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "no rows"):
+            measure.sample_peak(lambda: {"z": []})
+
+    def test_peak_rss_of_a_read_counts_its_rows(self) -> None:
+        self.assertEqual(measure.sample_peak(lambda: {"z": [1, 2]})["result_count"], 2)
+
+    def test_a_walk_error_is_raised_not_summed_around(self) -> None:
         with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
-            tmp_path = Path(tmp)
-            store = fixture.build_dense_store(tmp_path / "store.opengwasdb", tmp_path / "src")
-            workload = {
-                "schema": 1,
-                "workload_id": "fixture",
-                "repetitions": {"default": 2, "analysis_full": 2},
-                "region_width_bp": 100000,
-                "fixture_build": {"layout": "dense"},
-                "stores": [
-                    {
-                        "store_id": "OGS-00099",
-                        "layout": "dense",
-                        "coverage": "gwas",
-                        "status": "measured",
-                        "rsid": "rs1",
-                        "alid": "1:20000:C:T",
-                        "position": {"chromosome": "1", "position": 10000},
-                        "analysis_id": "fx1",
-                        "region": {"chromosome": "1", "start": 1, "end": 100000},
-                        "measures": [
-                            "open", "phewas_rsid", "phewas_alid", "phewas_position",
-                            "analysis_full", "region", "bytes_on_disk", "peak_rss",
-                        ],
-                    },
-                    {"store_id": "OGS-00011", "layout": "hybrid", "coverage": "full", "status": "pending", "reason": "x"},
-                ],
-            }
-            result = runner.run(workload, store_paths={"OGS-00099": store}, scratch=tmp_path / "scratch")
+            locked = Path(tmp) / "locked"
+            locked.mkdir()
+            (locked / "f").write_bytes(b"x" * 10)
+            os.chmod(locked, 0)
+            try:
+                if os.access(locked, os.R_OK):
+                    self.skipTest("permissions are not enforced for this user")
+                with self.assertRaises(OSError):
+                    measure.bytes_on_disk(Path(tmp))
+            finally:
+                os.chmod(locked, 0o700)
+
+
+class StoreGuardTest(unittest.TestCase):
+    def test_snapshot_compares_equal_when_nothing_changed(self) -> None:
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
+            store = Path(tmp)
+            (store / "index.sqlite").write_bytes(b"abc")
+            (store / "manifest.json").write_text("{}")
+            before = runner.snapshot(store)
+            self.assertEqual(runner.compare(before, runner.snapshot(store)), [])
+
+    def test_a_new_top_level_entry_is_a_violation(self) -> None:
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
+            store = Path(tmp)
+            (store / "index.sqlite").write_bytes(b"abc")
+            before = runner.snapshot(store)
+            (store / "index.sqlite-journal").write_bytes(b"")
+            self.assertEqual(
+                runner.compare(before, runner.snapshot(store)),
+                ["new top-level entry: index.sqlite-journal"],
+            )
+
+    def test_a_changed_index_is_a_violation(self) -> None:
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
+            store = Path(tmp)
+            (store / "index.sqlite").write_bytes(b"abc")
+            before = runner.snapshot(store)
+            (store / "index.sqlite").write_bytes(b"abcd")
+            self.assertEqual(runner.compare(before, runner.snapshot(store)), ["index.sqlite changed"])
+
+    def test_a_removed_index_is_a_violation(self) -> None:
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
+            store = Path(tmp)
+            (store / "index.sqlite").write_bytes(b"abc")
+            before = runner.snapshot(store)
+            (store / "index.sqlite").unlink()
+            self.assertIn("index.sqlite changed", runner.compare(before, runner.snapshot(store)))
+
+
+ENTRY = {
+    "store_id": "OGS-00099",
+    "layout": "dense",
+    "coverage": "gwas",
+    "status": "measured",
+    "rsid": "rs1",
+    "alid": "1:20000:C:T",
+    "position": {"chromosome": "1", "position": 10000},
+    "analysis_id": "fx1",
+    "region": {"chromosome": "1", "start": 1, "end": 100000},
+    "measures": [
+        "open", "phewas_rsid", "phewas_alid", "phewas_position",
+        "analysis_full", "region", "bytes_on_disk", "peak_rss",
+    ],
+}
+PENDING = {"store_id": "OGS-00011", "layout": "hybrid", "coverage": "gwas", "status": "pending", "reason": "x"}
+
+
+def fixture_workload(**extra: object) -> dict:
+    return {
+        "schema": 1,
+        "workload_id": "fixture",
+        "repetitions": {"default": 2, "analysis_full": 2},
+        "region_width_bp": 100000,
+        "stores": [copy.deepcopy(ENTRY), dict(PENDING)],
+        **extra,
+    }
+
+
+class RunnerOnFixtureStoreTest(unittest.TestCase):
+    """One real build (a few seconds) serves every test here."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR"))
+        cls.root = Path(cls.tmp.name)
+        cls.store = fixture.build_dense_store(cls.root / "store.opengwasdb", cls.root / "src")
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        cls.tmp.cleanup()
+
+    def scratch(self) -> Path:
+        path = Path(tempfile.mkdtemp(dir=self.root))
+        return path
+
+    def run_yardstick(self, workload: dict, store: Path | None = None, **kwargs: object) -> dict:
+        return runner.run(
+            workload, store_paths={"OGS-00099": store or self.store}, scratch=self.scratch(), **kwargs
+        )
+
+    def test_runner_result_validates_and_has_every_listed_measure(self) -> None:
+        workload = fixture_workload()
+        result = self.run_yardstick(workload)
         result_spec.validate(result, workload)
         measures = result["stores"][0]["measures"]
-        self.assertEqual(sorted(measures), sorted(workload["stores"][0]["measures"]))
+        self.assertEqual(sorted(measures), sorted(ENTRY["measures"]))
+        self.assertEqual({m["status"] for m in measures.values()}, {"measured"})
         self.assertEqual(measures["phewas_rsid"]["result_count"], 1)
         self.assertEqual(measures["analysis_full"]["result_count"], 2)
         self.assertEqual(measures["phewas_rsid"]["reps"], 2)
         self.assertGreater(measures["bytes_on_disk"]["bytes"], 1000)
         self.assertEqual(result["stores"][1]["status"], "pending")
-        self.assertEqual(result["fixture_build"]["status"], "measured")
+        self.assertEqual(result["guard_violations"], [])
         self.assertIs(json.loads(json.dumps(result))["veeam_window"], result["veeam_window"])
+
+    def test_fixture_build_is_timed(self) -> None:
+        def stub(store_path: Path, source_dir: Path, *, timeout: float | None = None) -> Path:
+            return store_path
+
+        with mock.patch.object(fixture, "build_dense_store", stub):
+            result = self.run_yardstick(fixture_workload(fixture_build={"layout": "dense"}))
+        self.assertEqual(result["fixture_build"]["status"], "measured")
+        self.assertEqual(result["fixture_build"]["layout"], "dense")
+        result_spec.validate(result, fixture_workload(fixture_build={"layout": "dense"}))
+
+    def test_missing_index_is_refused_and_not_created(self) -> None:
+        copy_root = self.scratch()
+        store = copy_root / "store.opengwasdb"
+        shutil.copytree(self.store, store)
+        (store / "index.sqlite").unlink()
+        before = sorted(os.listdir(store))
+        result = self.run_yardstick(fixture_workload(), store)
+        self.assertEqual(sorted(os.listdir(store)), before)
+        measures = result["stores"][0]["measures"]
+        self.assertEqual(sorted(measures), sorted(ENTRY["measures"]))
+        for record in measures.values():
+            self.assertEqual(record["status"], "unavailable")
+            self.assertIn("index.sqlite missing; refusing to let the query path create it", record["error"])
+        result_spec.validate(result, fixture_workload())
+
+    def test_a_worker_that_writes_beside_the_store_fails_the_run(self) -> None:
+        store = self.scratch() / "store.opengwasdb"
+        shutil.copytree(self.store, store)
+        real = runner._worker
+
+        def meddling(mode, store_path, entry, workload, scratch, **kw):
+            (store_path / "stray.tmp").write_text("x")
+            return real(mode, store_path, entry, workload, scratch, **kw)
+
+        with mock.patch.object(runner, "_worker", meddling):
+            result = self.run_yardstick(fixture_workload(), store)
+        self.assertEqual(
+            result["guard_violations"], [{"store_id": "OGS-00099", "problem": "new top-level entry: stray.tmp"}]
+        )
+        result_spec.validate(result, fixture_workload())
+        out = self.scratch()
+        with mock.patch.object(runner, "run", return_value=result), mock.patch.object(
+            workload_spec, "load", return_value=fixture_workload()
+        ):
+            self.assertEqual(runner.main(["--output-dir", str(out)]), 3)
+        self.assertEqual(len(list(out.glob("*.json"))), 1)
+
+    def test_a_tiny_budget_times_out_every_measure_and_still_writes_a_result(self) -> None:
+        workload = fixture_workload(fixture_build={"layout": "dense"})
+        result = self.run_yardstick(workload, budget_s=0.001)
+        result_spec.validate(result, workload)
+        for record in result["stores"][0]["measures"].values():
+            self.assertEqual(record["status"], "unavailable")
+            self.assertRegex(record["error"], r"^timeout after ")
+        self.assertEqual(result["fixture_build"]["status"], "unavailable")
+        self.assertRegex(result["fixture_build"]["error"], r"^timeout after ")
+
+    def test_a_hung_worker_is_killed_at_the_budget(self) -> None:
+        with mock.patch.object(runner, "WORKER_MODULE", "yardstick_hang"):
+            hang = self.scratch() / "yardstick_hang.py"
+            hang.write_text("import time\ntime.sleep(60)\n")
+            env = {**os.environ, "PYTHONPATH": str(hang.parent)}
+            with mock.patch.dict(os.environ, env):
+                start = time.monotonic()
+                result = self.run_yardstick(fixture_workload(), budget_s=3)
+        self.assertLess(time.monotonic() - start, 30)
+        self.assertRegex(result["stores"][0]["measures"]["open"]["error"], r"^timeout after ")
 
 
 if __name__ == "__main__":

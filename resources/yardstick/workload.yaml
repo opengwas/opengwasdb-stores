@@ -55,6 +55,6 @@ stores:
     measures: [open, phewas_rsid, phewas_alid, phewas_position, analysis_full, region, bytes_on_disk, peak_rss]
   - store_id: OGS-00011
     layout: hybrid
-    coverage: full
+    coverage: gwas
     status: pending
     reason: its live store.opengwasdb.partial belongs to the rebuild run (epic #371); add it once that Store is published and stable

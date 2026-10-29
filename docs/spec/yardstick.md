@@ -21,7 +21,7 @@ result means, so a change bumps `workload_id`, and this section says why.
 | OGS-00009 | Dense | gwas, Reference-Completed, with `hm3` | measured |
 | OGS-00027 | Ragged | cis | measured |
 | OGS-00006 | Ragged | signals_only | measured |
-| OGS-00011 | Hybrid | full | pending: its live `store.opengwasdb.partial` belongs to the rebuild run (#371) |
+| OGS-00011 | Hybrid | gwas | pending: its live `store.opengwasdb.partial` belongs to the rebuild run (#371) |
 
 Measures (a Store lists the ones that apply to it):
 
@@ -35,10 +35,22 @@ Measures (a Store lists the ones that apply to it):
 | `analysis_hm3` | `analysis(analysis_id, indexed_subset="hm3")`, only where the Store has `hm3` (Dense); the record shape of opengwasdb's `measure_hm3_extract` |
 | `region` | `range_phewas` over a fixed 1 Mb window |
 | `bytes_on_disk` | apparent bytes of every file under `store.opengwasdb`, from one walk (`du -sb`); the walk of the 62 GB OGS-00009 takes under a second, so the manifest figure is never needed |
-| `peak_rss` | one `analysis_full` read in a fresh interpreter, RSS sampled every 5 ms from `/proc/self/statm` (the method of `benchmarks/_rss.py`) |
+| `peak_rss` | one `analysis_full` read in a fresh interpreter, RSS sampled every 5 ms from `/proc/self/statm` (the method of opengwasdb's `benchmarks/_rss.py` at the pinned revision, copied into `yardstick.measure` because that module is not importable) |
 
 A fixed query that returns no rows is refused: a measure on an empty result
-measures nothing, so it is recorded `unavailable` with its error.
+measures nothing, so it is recorded `unavailable` with its error. Every call is
+checked, the first read included, and so is the `peak_rss` read; a failure to
+walk the Store (`bytes_on_disk`) is `unavailable` too, never a partial total.
+
+## Read-only guarantee
+
+`query_store` opens `index.sqlite` read-write, so a missing index would be
+created beside the Store. Before a Store's worker starts the runner records the
+Store directory's top-level entries and `index.sqlite`'s size and mtime. A Store
+with no `index.sqlite` is not opened: every measure is `unavailable` ("index.sqlite
+missing; refusing to let the query path create it"). After the workers it
+compares: a new top-level entry or a changed `index.sqlite` is recorded in the
+result's `guard_violations` and the run exits 3.
 
 `fixture_build` times `opengwasdb build-dense-vcf` on a 2-variant GWAS-VCF
 (`yardstick.fixture`). There is no Ragged build: the Ragged fixture builders are
@@ -51,8 +63,10 @@ measure reads once (`first_read_ms`, kept apart), then `reps` warm times; the
 median and p95 are over the warm reads. `repetitions.default` is 5 and
 `analysis_full` is 3. A run is flagged `veeam_window: true`, never dropped, if
 any part of it fell between 00:00 and 11:00 local time (the nightly Veeam
-snapshot throttles disk I/O). A run that exceeds 600 s still writes its result
-and exits 2.
+snapshot throttles disk I/O). Each worker and the fixture build
+are given the run's remaining 600 s budget as a timeout; one that overruns is
+killed and its measures are `unavailable` ("timeout after N s"). The result is
+still written, and a run over budget exits 2.
 
 ## Result schema, version 1
 
@@ -73,6 +87,7 @@ a new version.
 | `veeam_window` | boolean |
 | `repetitions` | as in the workload |
 | `stores` | one object per workload Store, below |
+| `guard_violations` | optional list of `{store_id, problem}`: what the runner found changed beside a Store (empty on a clean run) |
 | `fixture_build` | optional: `{status: measured, layout, seconds}` or `{status: unavailable, error}` |
 
 A Store object has `store_id`, `layout`, `coverage` and `status`. A `pending`
@@ -81,7 +96,12 @@ measure name, each with a `status` of `measured`, `unavailable` (with an
 `error`) or `not_applicable`. A measured record holds:
 
 - timed measures: `first_read_ms`, `median_ms`, `p95_ms`, `reps`, and
-  `result_count` (rows returned; absent for `open`); `analysis_hm3` adds
+  `result_count` (rows returned, every call non-empty; required except for `open`), `first_result_count`; `analysis_hm3` carries the fields of
+  opengwasdb's `measure_hm3_extract` at the pin: `subset` (`hm3`), `detail`,
+  `analysis_id`, `warm_result_count` (rows of the first read), and, read from the
+  subset's own metadata, `subset_n_variants`, `subset_n_analyses`,
+  `subset_requested_count`, `subset_resolved_count`, `subset_absent_count`,
+  `subset_reference_assembly` and `subset_input_sha256`; the validator requires
   `subset` and `analysis_id`;
 - `bytes_on_disk`: `bytes` and `source` (`walk` or `manifest`);
 - `peak_rss`: `baseline_mb`, `peak_mb`, `delta_mb`, `result_count`.
@@ -91,7 +111,12 @@ No timing, byte or size field is negative.
 ## Validator
 
 `yardstick.result.validate(result, workload=None)` raises `yardstick.result.ResultError`
-on the first problem. With a `workload` (`yardstick.workload.load()`) it also
+on the first problem. It refuses: a wrong `schema`; a Store object without
+`store_id`, `layout`, `coverage` or `status`; a timed record other than `open`
+without `result_count`; an `analysis_hm3` record without `subset` or
+`analysis_id`; a measured `fixture_build` without `layout`; a revision that is
+not 40 lower-case hex characters; a timestamp that is not `YYYY-MM-DDTHH:MM:SSZ`;
+an empty or negative load array; and any negative timing, byte or size. With a `workload` (`yardstick.workload.load()`) it also
 requires every workload Store, with the same status, and every measure that
 Store lists. The project site's collector reads results through it. Load a
 workload with `yardstick.workload.load()`; `check()` raises `WorkloadError`.
