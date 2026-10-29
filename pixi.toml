@@ -427,9 +427,9 @@ generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate"
 # The Analysis Catalog (#323, ADR 0039): rebuild the cross-Store listing of every
 # Analysis of every served Store Release from the registry's Release Bundles,
 # into <artifact-root>/catalog/versions/<version>/, and swap `current`. It reads
-# bundles only and never opens a Store. Run after a merge to dev, from a clean
-# checkout; a rebuild with unchanged inputs writes nothing. Resolves the
-# Artifact Root as ogstores does; `--artifact-root PATH` overrides it.
+# bundles only and never opens a Store. Run after a merge to `main`, from a
+# clean checkout of `origin/main`; a rebuild with unchanged inputs writes nothing.
+# Resolves the Artifact Root as ogstores does; `--artifact-root PATH` overrides it.
 #
 #   pixi run catalog [--registry stores] [--artifact-root PATH]
 #

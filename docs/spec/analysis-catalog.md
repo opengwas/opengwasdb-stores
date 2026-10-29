@@ -25,8 +25,8 @@ pixi run catalog [--registry stores] [--artifact-root PATH]
   repository with uncommitted or untracked changes, because the commit it
   records would then be false. A registry that is not a git repository (a test
   fixture) records a `NULL` commit.
-- Run it on the host after a merge to `dev`, from a dedicated clean checkout of
-  `origin/dev`, not a shared working checkout (ADR 0039). It prints each
+- Run it on the host after a merge to `main`, from a dedicated clean checkout of
+  `origin/main`, not a shared working checkout (ADR 0039). It prints each
   registered Store Release's decision, the version, and whether it published,
   moved `current`, or was a no-op.
 
