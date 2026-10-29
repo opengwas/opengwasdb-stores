@@ -1,0 +1,660 @@
+{
+  "blocks_by_status": {
+    "built": 1357,
+    "empty": 0,
+    "failed": 0
+  },
+  "blocks_declared": 1357,
+  "blocks_failing_verification": [],
+  "calibration": {
+    "11_30827313-33937829": {
+      "held_out": {
+        "accepted": 20,
+        "components_at_thresh": 112,
+        "components_retained": 230,
+        "median_pearson_r_accepted": 0.8771943176041268,
+        "median_pearson_r_rejected_as_0": 0.8771943176041268,
+        "median_rmse_accepted": 0.8234258069885396,
+        "median_slope_accepted": 0.7725943303769696,
+        "min_pearson_r_accepted": 0.8047431188710863,
+        "n_variants": 11394,
+        "replicates": 20
+      },
+      "n_shared_variants": 9776,
+      "n_test": 115,
+      "n_train": 230,
+      "test_in_sample": {
+        "accepted": 20,
+        "components_at_thresh": 67,
+        "components_retained": 115,
+        "median_pearson_r_accepted": 0.9864866203093045,
+        "median_pearson_r_rejected_as_0": 0.9864866203093045,
+        "median_rmse_accepted": 0.296533826701593,
+        "median_slope_accepted": 0.968849201971288,
+        "min_pearson_r_accepted": 0.9509451586823723,
+        "n_variants": 10752,
+        "replicates": 20
+      }
+    },
+    "16_60049115-62536937": {
+      "held_out": {
+        "accepted": 20,
+        "components_at_thresh": 110,
+        "components_retained": 230,
+        "median_pearson_r_accepted": 0.8713912605013459,
+        "median_pearson_r_rejected_as_0": 0.8713912605013459,
+        "median_rmse_accepted": 0.7897623651933656,
+        "median_slope_accepted": 0.7588272161984939,
+        "min_pearson_r_accepted": 0.7857381935739026,
+        "n_variants": 10636,
+        "replicates": 20
+      },
+      "n_shared_variants": 9021,
+      "n_test": 115,
+      "n_train": 230,
+      "test_in_sample": {
+        "accepted": 20,
+        "components_at_thresh": 69,
+        "components_retained": 115,
+        "median_pearson_r_accepted": 0.9805477187935222,
+        "median_pearson_r_rejected_as_0": 0.9805477187935222,
+        "median_rmse_accepted": 0.345346152136977,
+        "median_slope_accepted": 0.9629710450378521,
+        "min_pearson_r_accepted": 0.9484696677743122,
+        "n_variants": 9920,
+        "replicates": 20
+      }
+    },
+    "1_222798680-224041489": {
+      "held_out": {
+        "accepted": 20,
+        "components_at_thresh": 90,
+        "components_retained": 230,
+        "median_pearson_r_accepted": 0.9219605999149817,
+        "median_pearson_r_rejected_as_0": 0.9219605999149817,
+        "median_rmse_accepted": 0.7209053896499276,
+        "median_slope_accepted": 0.8416365290233403,
+        "min_pearson_r_accepted": 0.8441198001659175,
+        "n_variants": 5365,
+        "replicates": 20
+      },
+      "n_shared_variants": 4838,
+      "n_test": 115,
+      "n_train": 230,
+      "test_in_sample": {
+        "accepted": 20,
+        "components_at_thresh": 57,
+        "components_retained": 115,
+        "median_pearson_r_accepted": 0.9845860449852721,
+        "median_pearson_r_rejected_as_0": 0.9845860449852721,
+        "median_rmse_accepted": 0.32813900138263474,
+        "median_slope_accepted": 0.9693526784566057,
+        "min_pearson_r_accepted": 0.9672718946973216,
+        "n_variants": 5497,
+        "replicates": 20
+      }
+    },
+    "22_32439511-33959775": {
+      "held_out": {
+        "accepted": 20,
+        "components_at_thresh": 117,
+        "components_retained": 230,
+        "median_pearson_r_accepted": 0.853460746637466,
+        "median_pearson_r_rejected_as_0": 0.853460746637466,
+        "median_rmse_accepted": 0.8877272685293607,
+        "median_slope_accepted": 0.7345791342770975,
+        "min_pearson_r_accepted": 0.7411847191310243,
+        "n_variants": 7616,
+        "replicates": 20
+      },
+      "n_shared_variants": 6986,
+      "n_test": 115,
+      "n_train": 230,
+      "test_in_sample": {
+        "accepted": 20,
+        "components_at_thresh": 70,
+        "components_retained": 115,
+        "median_pearson_r_accepted": 0.9806613120356464,
+        "median_pearson_r_rejected_as_0": 0.9806613120356464,
+        "median_rmse_accepted": 0.338952393570472,
+        "median_slope_accepted": 0.9574413989759893,
+        "min_pearson_r_accepted": 0.9643135144615126,
+        "n_variants": 7719,
+        "replicates": 20
+      }
+    },
+    "6_30106780-30425675": {
+      "held_out": {
+        "accepted": 20,
+        "components_at_thresh": 28,
+        "components_retained": 230,
+        "median_pearson_r_accepted": 0.9828265140565826,
+        "median_pearson_r_rejected_as_0": 0.9828265140565826,
+        "median_rmse_accepted": 0.5131494573952711,
+        "median_slope_accepted": 0.9645238396996398,
+        "min_pearson_r_accepted": 0.956772187787671,
+        "n_variants": 2871,
+        "replicates": 20
+      },
+      "n_shared_variants": 2536,
+      "n_test": 115,
+      "n_train": 230,
+      "test_in_sample": {
+        "accepted": 20,
+        "components_at_thresh": 25,
+        "components_retained": 115,
+        "median_pearson_r_accepted": 0.9929815762020492,
+        "median_pearson_r_rejected_as_0": 0.9929815762020492,
+        "median_rmse_accepted": 0.30904669842675514,
+        "median_slope_accepted": 0.9855424334298302,
+        "min_pearson_r_accepted": 0.9771532696544374,
+        "n_variants": 2642,
+        "replicates": 20
+      }
+    }
+  },
+  "conversion": {
+    "1": [
+      "12236357 out of 14614990 variants loaded from",
+      "9152661 variants removed due to allele frequency threshold(s)",
+      "3083696 variants remaining after main filters."
+    ],
+    "10": [
+      "7575027 out of 8905960 variants loaded from",
+      "5612699 variants removed due to allele frequency threshold(s)",
+      "1962328 variants remaining after main filters."
+    ],
+    "11": [
+      "7453349 out of 8588832 variants loaded from",
+      "5580391 variants removed due to allele frequency threshold(s)",
+      "1872958 variants remaining after main filters."
+    ],
+    "12": [
+      "7253061 out of 8455624 variants loaded from",
+      "5403304 variants removed due to allele frequency threshold(s)",
+      "1849757 variants remaining after main filters."
+    ],
+    "13": [
+      "5381556 out of 6176573 variants loaded from",
+      "4019364 variants removed due to allele frequency threshold(s)",
+      "1362192 variants remaining after main filters."
+    ],
+    "14": [
+      "5016968 out of 5924960 variants loaded from",
+      "3740483 variants removed due to allele frequency threshold(s)",
+      "1276485 variants remaining after main filters."
+    ],
+    "15": [
+      "4566925 out of 5517571 variants loaded from",
+      "3422630 variants removed due to allele frequency threshold(s)",
+      "1144295 variants remaining after main filters."
+    ],
+    "16": [
+      "5141161 out of 6209121 variants loaded from",
+      "3868403 variants removed due to allele frequency threshold(s)",
+      "1272758 variants remaining after main filters."
+    ],
+    "17": [
+      "4549950 out of 5599764 variants loaded from",
+      "3406859 variants removed due to allele frequency threshold(s)",
+      "1143091 variants remaining after main filters."
+    ],
+    "18": [
+      "4213431 out of 4826502 variants loaded from",
+      "3132578 variants removed due to allele frequency threshold(s)",
+      "1080853 variants remaining after main filters."
+    ],
+    "19": [
+      "3608153 out of 4576340 variants loaded from",
+      "2654553 variants removed due to allele frequency threshold(s)",
+      "953600 variants remaining after main filters."
+    ],
+    "2": [
+      "13261913 out of 15388029 variants loaded from",
+      "9971159 variants removed due to allele frequency threshold(s)",
+      "3290754 variants remaining after main filters."
+    ],
+    "20": [
+      "3461151 out of 4131940 variants loaded from",
+      "2575127 variants removed due to allele frequency threshold(s)",
+      "886024 variants remaining after main filters."
+    ],
+    "21": [
+      "2185492 out of 2865760 variants loaded from",
+      "1606661 variants removed due to allele frequency threshold(s)",
+      "578831 variants remaining after main filters."
+    ],
+    "22": [
+      "2308224 out of 3088073 variants loaded from",
+      "1708119 variants removed due to allele frequency threshold(s)",
+      "600105 variants remaining after main filters."
+    ],
+    "3": [
+      "10863040 out of 12461273 variants loaded from",
+      "8135291 variants removed due to allele frequency threshold(s)",
+      "2727749 variants remaining after main filters."
+    ],
+    "4": [
+      "10786347 out of 12409843 variants loaded from",
+      "8055990 variants removed due to allele frequency threshold(s)",
+      "2730357 variants remaining after main filters."
+    ],
+    "5": [
+      "9891144 out of 11329292 variants loaded from",
+      "7419591 variants removed due to allele frequency threshold(s)",
+      "2471553 variants remaining after main filters."
+    ],
+    "6": [
+      "9363526 out of 10737272 variants loaded from",
+      "6951464 variants removed due to allele frequency threshold(s)",
+      "2412062 variants remaining after main filters."
+    ],
+    "7": [
+      "8972245 out of 10586417 variants loaded from",
+      "6692558 variants removed due to allele frequency threshold(s)",
+      "2279687 variants remaining after main filters."
+    ],
+    "8": [
+      "8519490 out of 9805588 variants loaded from",
+      "6403871 variants removed due to allele frequency threshold(s)",
+      "2115619 variants remaining after main filters."
+    ],
+    "9": [
+      "6852844 out of 8361072 variants loaded from",
+      "5148372 variants removed due to allele frequency threshold(s)",
+      "1704472 variants remaining after main filters."
+    ]
+  },
+  "ended_utc": "2026-10-22T22:16:58Z",
+  "environment": {
+    "blas_threads": {
+      "MKL_NUM_THREADS": "1",
+      "OMP_NUM_THREADS": "1",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "cpu_affinity": 16,
+    "numpy_path": "/home/gh13047/repo/opengwasdb-stores-wt/241-amr-ld-pilot/.pixi/envs/dev/lib/python3.12/site-packages/numpy/__init__.py",
+    "packages": {
+      "numpy": "2.4.6",
+      "opengwasdb": "0.3.0",
+      "scikit-learn": "1.9.1",
+      "scipy": "1.18.1"
+    },
+    "python": "/home/gh13047/repo/opengwasdb-stores-wt/241-amr-ld-pilot/.pixi/envs/dev/bin/python3",
+    "python_version": "3.12.15",
+    "tools": {
+      "bcftools": {
+        "path": "/home/gh13047/repo/opengwasdb-stores-wt/241-amr-ld-pilot/.pixi/envs/dev/bin/bcftools",
+        "version": "bcftools 1.24"
+      },
+      "plink2": {
+        "path": "/home/gh13047/repo/opengwasdb-stores-wt/241-amr-ld-pilot/.pixi/envs/dev/bin/plink2",
+        "version": "PLINK v2.0.0-a.6.9LM 64-bit Intel (29 Jan 2025)"
+      }
+    }
+  },
+  "floor_as_approved": true,
+  "inputs": {
+    "/data/opengwasdb/reference/hgdp1kgp-hg38/members/EUR.keep": "5b491d6fd477e4cc9a48cc0928463d50ce3cb49a5890b6eeb82b396fe81cad71",
+    "/data/opengwasdb/reference/hgdp1kgp-hg38/source/cohort_populations.tsv": "9cb20ef4210613eab6521b00183135bc036115eb7439e7b7cc3abc9bc5447016",
+    "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_1kg_subset_sample_meta.tsv.bgz": "d5c212dd6534fbaf6deb1110cc70a6e9fd0322b97f27d6f0acde2a3fa6cb52a9",
+    "/home/gh13047/repo/opengwasdb-stores-wt/241-amr-ld-pilot/resources/reference-resources/hgdp1kgp-hg38-amr-ld/ld_regions_hg38.amr.tsv": "1f4055501d3e241320c52d7c239db3a21e94df05e0d5d7892b10bb1993d14773",
+    "/home/gh13047/repo/opengwasdb-stores-wt/241-amr-ld-pilot/resources/reference-resources/hgdp1kgp-hg38-amr-ld/phase3-amr-samples.tsv": "1ea40be03368544a9623ef65be7076841ad11fbf7379c8a43802650f77aa76d4",
+    "/home/gh13047/repo/opengwasdb-stores-wt/241-amr-ld-pilot/resources/reference-resources/hgdp1kgp-hg38-amr-ld/populations_to_superpop.tsv": "d44491067882cc6f2c49cc7c434800b54d6bcd76ad91de011d59e0b1ee4dc958",
+    "/home/gh13047/repo/opengwasdb-stores-wt/241-amr-ld-pilot/resources/reference-resources/hgdp1kgp-hg38-ld/amr-pilot/blocks.tsv": "ab3188ed3186ca8dafdc09ee2f7588ba8a5b99daa00b544eaa6fc4d297d6a883"
+  },
+  "membership": {
+    "amr_keep_sha256": "2b6cc790670b0038b3c111a5b223071540ffbaac32c622f59338d1ca13ad67a0",
+    "excluded": {
+      "HG01137": "high_quality=false",
+      "HG01366": "high_quality=false"
+    },
+    "gnomad_related_flag": [
+      "HG01348",
+      "HG01365",
+      "HG02298",
+      "NA19657"
+    ],
+    "members": 345,
+    "members_by_population": {
+      "CLM": 92,
+      "MXL": 64,
+      "PEL": 85,
+      "PUR": 104
+    },
+    "note": "Relatedness and outliers are reported, not filtered on: no kinship threshold is owner-approved (#241).",
+    "phase3_amr_ids": 347,
+    "projects": [
+      "1000 Genomes"
+    ],
+    "related_pairs_within_members": [
+      {
+        "ibd0": 0.7204005301742026,
+        "ibd1": 0.2819938266292643,
+        "ibd2": -0.0023943568034669304,
+        "kin": 0.06930127825558265,
+        "samples": [
+          "NA19657",
+          "NA19786"
+        ]
+      }
+    ],
+    "subcontinental_pca_outliers": []
+  },
+  "output_bytes": {
+    "calibration": 59239,
+    "members": 2847,
+    "panel": 21024167991,
+    "pgen": 1274591894,
+    "tmp": 0,
+    "verify": 465012
+  },
+  "panel_root": "/data/opengwasdb/reference/hgdp1kgp-hg38-amr",
+  "peak_step_rss_mb": 10140.2,
+  "qc": {
+    "alid_collision_rule": "keep_highest_maf",
+    "conversion_mac": 1,
+    "maf_threshold": 0.01,
+    "max_missing_rate": 0.2,
+    "pass_only": true
+  },
+  "receipt": "/data/opengwasdb/reference/hgdp1kgp-hg38-amr/runs/20261022T183214Z/receipt.json",
+  "revision": {
+    "branch": "ticket/241-amr-ld-pilot",
+    "commit": "2b846805222824f3c8e1f216ed31fe5d75b7230a"
+  },
+  "sources": {
+    "1": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-14T17:52:00Z",
+      "size": 280193031160,
+      "tbi_sha256": "20d1615e35fb9741471d6e295c27585927b9f20f813b45c9019311f5c73a2346",
+      "tbi_size": 252785,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr1.vcf.bgz"
+    },
+    "10": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T05:07:46Z",
+      "size": 172256834483,
+      "tbi_sha256": "ff8a023b6e6b76931bfd0234d86befc4e2146a86fad0319c666efbb29ee31a25",
+      "tbi_size": 146247,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr10.vcf.bgz"
+    },
+    "11": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T06:06:03Z",
+      "size": 166044668876,
+      "tbi_sha256": "6ee6401e4bacae784c48c3d0ba95161ed05d3d9069b567f030aba35ac3c56131",
+      "tbi_size": 145884,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr11.vcf.bgz"
+    },
+    "12": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T07:03:05Z",
+      "size": 163776032027,
+      "tbi_sha256": "1530904c8798fb4d38142f10cc53104dca6551a8d35c5fa052c1bf5d62da8ae3",
+      "tbi_size": 145297,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr12.vcf.bgz"
+    },
+    "13": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T07:48:25Z",
+      "size": 118575154820,
+      "tbi_sha256": "f65db84bf492e2d5c696c3a4afda8f19d883229e030e290aee04db6bd0114bda",
+      "tbi_size": 106984,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr13.vcf.bgz"
+    },
+    "14": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T08:28:41Z",
+      "size": 114124838525,
+      "tbi_sha256": "c2b7b030b5357f934018947d0304993fa7af2b3dd286e362c8c470f06ec3cb59",
+      "tbi_size": 98191,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr14.vcf.bgz"
+    },
+    "15": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T09:09:19Z",
+      "size": 106121874912,
+      "tbi_sha256": "86dfe0478e688e1ae8eaf452b44b0d17c55591ba086e4ec79fcf40079d839773",
+      "tbi_size": 91292,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr15.vcf.bgz"
+    },
+    "16": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T09:50:59Z",
+      "size": 119115990821,
+      "tbi_sha256": "9b9d0d2fb32c248981ca29036ea38d3a205cf5ac8dcb508b82be31e0f77f2b0e",
+      "tbi_size": 88977,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr16.vcf.bgz"
+    },
+    "17": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T10:29:27Z",
+      "size": 108129088234,
+      "tbi_sha256": "b544a8acc3710108076a060b8de42fa81e6cf51de0be309321ee9b540ad3a4df",
+      "tbi_size": 88377,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr17.vcf.bgz"
+    },
+    "18": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T11:02:21Z",
+      "size": 93080821057,
+      "tbi_sha256": "7df6089826e0639d3f62acc48af7b555b67ea880810dcea2f5efae5f732689f6",
+      "tbi_size": 83281,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr18.vcf.bgz"
+    },
+    "19": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T11:33:01Z",
+      "size": 88755091704,
+      "tbi_sha256": "5a27988ea8bd37b1c68e78defeb28b85a2c672ee82c540e52c10ff900049aa01",
+      "tbi_size": 61053,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr19.vcf.bgz"
+    },
+    "2": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-14T19:38:48Z",
+      "size": 295199118882,
+      "tbi_sha256": "b638e356f53777ad556e82fc0daf32dcaac00b79da163530d7df9205db33bb17",
+      "tbi_size": 264919,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr2.vcf.bgz"
+    },
+    "20": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T12:03:26Z",
+      "size": 79553016140,
+      "tbi_sha256": "2cc20f954e45af5bb19649213f9be058da712a9f5fc6e14493f971e716db146f",
+      "tbi_size": 67129,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr20.vcf.bgz"
+    },
+    "21": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T12:22:33Z",
+      "size": 55039425858,
+      "tbi_sha256": "46edbf0ecc6f9a2dea1bcf551a943b8554ac9ed77063cf3f067c7f947519b59e",
+      "tbi_size": 41777,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr21.vcf.bgz"
+    },
+    "22": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T12:41:43Z",
+      "size": 59465212964,
+      "tbi_sha256": "db6231c43135b597998d1b97985c4199ff5003e1ffb518fcca6a10f8dd0220e1",
+      "tbi_size": 41840,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr22.vcf.bgz"
+    },
+    "3": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-14T21:04:03Z",
+      "size": 241114288719,
+      "tbi_sha256": "efc5bfbb9dbe6698e5e27a88c77b7d28eecb89b151f46b5c26e332fe3bbefe5b",
+      "tbi_size": 216994,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr3.vcf.bgz"
+    },
+    "4": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-14T22:26:40Z",
+      "size": 238539807942,
+      "tbi_sha256": "2898ab2912a4076d5ef4829928a536e4dd233b4dbd9384659751233d45f3f02f",
+      "tbi_size": 208906,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr4.vcf.bgz"
+    },
+    "5": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-14T23:41:13Z",
+      "size": 217404466631,
+      "tbi_sha256": "ed3cb108ff87101377c678de23c5391d1e6c1a14b17176a59e6c77fa5fdbc56f",
+      "tbi_size": 197263,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr5.vcf.bgz"
+    },
+    "6": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T00:52:52Z",
+      "size": 208068024841,
+      "tbi_sha256": "68dbec424ab7dd659e1ebf7e1aa44fe28aa5b87a675874075e9c3559cc2d62f6",
+      "tbi_size": 187793,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr6.vcf.bgz"
+    },
+    "7": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T02:03:59Z",
+      "size": 203698194977,
+      "tbi_sha256": "4aa938b97d8869efe5c9dcf8be8ba91dfa905f3ddc4338c210bce168e395d1fe",
+      "tbi_size": 173089,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr7.vcf.bgz"
+    },
+    "8": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T03:09:18Z",
+      "size": 188134951619,
+      "tbi_sha256": "c6eedea0a6abfd43a2480659afa500b4a6b7af1172164364b2ed60d3ede8aab8",
+      "tbi_size": 159138,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr8.vcf.bgz"
+    },
+    "9": {
+      "all_members_in_header": true,
+      "complete_marker": "gnomAD-v3.1.2;GRCh38;indexed",
+      "grch38_header": true,
+      "index_query": true,
+      "mtime_utc": "2026-09-15T04:08:55Z",
+      "size": 159300549055,
+      "tbi_sha256": "c7dac4eba1a3b34277ee1720fd8050adb04bac39deb9480a2832470a6792be99",
+      "tbi_size": 133334,
+      "vcf": "/data/opengwasdb/reference/hgdp1kgp-hg38/source/gnomad.genomes.v3.1.2.hgdp_tgp.chr9.vcf.bgz"
+    }
+  },
+  "stages": {
+    "calibrate": {
+      "cpu_s": 33.0,
+      "max_rss_mb": 649.2,
+      "steps": 5,
+      "wall_s": 32.5
+    },
+    "construct": {
+      "cpu_s": 4529.4,
+      "max_rss_mb": 1649.6,
+      "steps": 1,
+      "wall_s": 552.4
+    },
+    "convert": {
+      "cpu_s": 73527.0,
+      "max_rss_mb": 10140.2,
+      "steps": 22,
+      "wall_s": 23571.7
+    },
+    "membership": {
+      "cpu_s": 0.1,
+      "max_rss_mb": 40.1,
+      "steps": 1,
+      "wall_s": 0.1
+    },
+    "underresolved": {
+      "cpu_s": 144.9,
+      "max_rss_mb": 136.4,
+      "steps": 1,
+      "wall_s": 145.4
+    },
+    "verify": {
+      "cpu_s": 6301.0,
+      "max_rss_mb": 1659.8,
+      "steps": 1357,
+      "wall_s": 6194.0
+    }
+  },
+  "started_utc": "2026-10-22T18:32:14Z",
+  "underresolved_at_0.9": [],
+  "variant_totals": {
+    "n_variants_alid_collision": 265083,
+    "n_variants_all_missing": 0,
+    "n_variants_below_floor": 24506688,
+    "n_variants_high_missing": 1356409,
+    "n_variants_input": 38797435,
+    "n_variants_invariant": 0,
+    "n_variants_retained": 12669255,
+    "n_variants_zero_variance": 0
+  }
+}

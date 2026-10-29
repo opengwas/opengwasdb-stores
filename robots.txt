@@ -1,0 +1,1 @@
+Sitemap: https://blog.opengwas.io/opengwasdb-stores/sitemap.xml

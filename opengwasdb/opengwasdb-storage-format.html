@@ -1,0 +1,737 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>OpenGWASDB — Storage Format Internals</title>
+<style>
+  :root {
+    --paper: #f1f2ef;
+    --surface: #fbfbf9;
+    --ink: #14181c;
+    --ink-soft: #4b5459;
+    --muted: #8b9095;
+    --hairline: #dcdcd6;
+    --hairline-strong: #c3c4be;
+    --accent: #1f5fd1;
+    --accent-soft: #dce6fa;
+    --accent-wash: #eef3fc;
+    --kept: #2a78d6;
+    --kept-wash: #e5eefa;
+    --derived: #eb6834;
+    --derived-wash: #fce8dd;
+    --baseline: #8b9095;
+    --baseline-wash: #eceeec;
+    --good: #0ca30c;
+    --warning: #b5790a;
+    --serious: #c1502c;
+    --critical: #d03b3b;
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", "Roboto Mono", Consolas, "Liberation Mono", monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+  ::selection { background: var(--accent-soft); }
+  a { color: var(--accent); }
+  h1, h2, h3, h4 { text-wrap: balance; font-weight: 650; margin: 0; }
+  p { margin: 0 0 0.9em; max-width: 62ch; color: var(--ink-soft); }
+  code, .mono { font-family: var(--mono); }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* ---------- layout shell ---------- */
+  .shell {
+    display: grid;
+    grid-template-columns: 220px minmax(0, 1fr);
+    max-width: 1180px;
+    margin: 0 auto;
+  }
+  .rail {
+    position: sticky;
+    top: 0;
+    align-self: start;
+    height: 100vh;
+    overflow-y: auto;
+    padding: 40px 20px 40px 32px;
+    border-right: 1px solid var(--hairline);
+  }
+  .rail-brand {
+    font-family: var(--mono);
+    font-size: 12px;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-bottom: 28px;
+  }
+  .rail-brand strong { color: var(--ink); display: block; font-size: 13px; margin-bottom: 2px; }
+  .rail nav { display: flex; flex-direction: column; gap: 2px; }
+  .rail a {
+    display: flex;
+    gap: 10px;
+    align-items: baseline;
+    text-decoration: none;
+    color: var(--ink-soft);
+    font-size: 13.5px;
+    padding: 6px 8px;
+    border-radius: 6px;
+  }
+  .rail a:hover { background: var(--accent-wash); color: var(--accent); }
+  .rail a .n { font-family: var(--mono); font-size: 11px; color: var(--muted); width: 14px; }
+  .main { padding: 40px 40px 120px 40px; min-width: 0; }
+
+  @media (max-width: 860px) {
+    .shell { grid-template-columns: 1fr; }
+    .rail { position: static; height: auto; border-right: none; border-bottom: 1px solid var(--hairline); }
+    .main { padding: 28px 20px 90px; }
+  }
+
+  /* ---------- header ---------- */
+  .doc-header { padding-bottom: 40px; border-bottom: 1px solid var(--hairline); margin-bottom: 48px; }
+  .doc-eyebrow {
+    font-family: var(--mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase;
+    color: var(--accent); margin-bottom: 14px; display: flex; align-items: center; gap: 8px;
+  }
+  .doc-eyebrow::before { content: ""; width: 7px; height: 7px; background: var(--accent); border-radius: 1px; display: inline-block; }
+  .doc-header h1 { font-size: clamp(28px, 3.4vw, 38px); letter-spacing: -0.01em; max-width: 20ch; }
+  .doc-header .dek { font-size: 16.5px; margin-top: 14px; max-width: 60ch; }
+
+  .stat-row { display: flex; gap: 0; margin-top: 32px; border: 1px solid var(--hairline); border-radius: 10px; overflow: hidden; background: var(--surface); }
+  .stat { flex: 1; padding: 16px 20px; border-right: 1px solid var(--hairline); }
+  .stat:last-child { border-right: none; }
+  .stat .v { font-size: 24px; font-weight: 650; letter-spacing: -0.01em; }
+  .stat .v .unit { font-size: 14px; font-weight: 500; color: var(--muted); margin-left: 2px; }
+  .stat .l { font-size: 12.5px; color: var(--muted); margin-top: 3px; }
+  @media (max-width: 700px) { .stat-row { flex-wrap: wrap; } .stat { flex: 1 1 50%; border-bottom: 1px solid var(--hairline); } }
+
+  /* ---------- sections ---------- */
+  .stage { padding: 56px 0; border-bottom: 1px solid var(--hairline); }
+  .stage:last-of-type { border-bottom: none; }
+  .stage-head { display: flex; gap: 18px; margin-bottom: 26px; align-items: baseline; }
+  .stage-head .idx {
+    font-family: var(--mono); font-size: 13px; color: var(--muted); flex-shrink: 0;
+    padding-top: 2px;
+  }
+  .stage-head h2 { font-size: 23px; letter-spacing: -0.005em; }
+  .stage-dek { font-size: 15px; margin-bottom: 28px; }
+
+  .callout {
+    font-size: 13.5px; background: var(--accent-wash); border: 1px solid var(--accent-soft);
+    border-radius: 8px; padding: 12px 16px; color: var(--ink-soft); max-width: 68ch; margin: 20px 0;
+  }
+  .callout strong { color: var(--ink); }
+  .callout code { background: rgba(0,0,0,0.05); padding: 1px 5px; border-radius: 4px; font-size: 12.5px; }
+
+  /* ---------- field / record diagrams ---------- */
+  .record-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 700px) { .record-pair { grid-template-columns: 1fr; } }
+  .record-card { border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface); overflow: hidden; }
+  .record-card-head { padding: 12px 16px; border-bottom: 1px solid var(--hairline); display: flex; justify-content: space-between; align-items: center; }
+  .record-card-head .name { font-weight: 650; font-size: 14.5px; }
+  .record-card-head .tag { font-family: var(--mono); font-size: 11px; color: var(--muted); background: var(--paper); padding: 2px 7px; border-radius: 5px; }
+  .field-list { list-style: none; margin: 0; padding: 6px 0; }
+  .field-list li { display: flex; gap: 10px; padding: 6px 16px; align-items: baseline; }
+  .field-list li:hover { background: var(--paper); }
+  .field-list .fname { font-family: var(--mono); font-size: 12.5px; color: var(--ink); min-width: 92px; }
+  .field-list .fdesc { font-size: 12.5px; color: var(--muted); }
+
+  /* ---------- transform diagram ---------- */
+  .transform { display: grid; grid-template-columns: 1fr auto 1.2fr; gap: 22px; align-items: center; margin: 28px 0; }
+  @media (max-width: 760px) { .transform { grid-template-columns: 1fr; } .transform .arrow { transform: rotate(90deg); margin: 4px auto; } }
+  .transform .arrow { color: var(--muted); font-size: 20px; }
+  .box { border: 1px solid var(--hairline); border-radius: 10px; padding: 16px 18px; background: var(--surface); }
+  .box h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px; font-weight: 650; }
+  .box.kept { border-color: var(--kept); background: var(--kept-wash); }
+  .box.kept h4 { color: #1a4d8f; }
+  .box.dropped { }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-family: var(--mono); font-size: 12px; padding: 4px 9px; border-radius: 6px; background: var(--paper); border: 1px solid var(--hairline); color: var(--ink-soft); }
+  .chip.strike { text-decoration: line-through; color: var(--muted); text-decoration-color: var(--derived); }
+  .chip.hero { background: var(--kept); color: #fff; border-color: var(--kept); font-size: 15px; padding: 8px 14px; font-weight: 650; }
+  .box .note { font-size: 12px; color: var(--muted); margin-top: 10px; margin-bottom: 0; }
+
+  /* ---------- dense vs ragged grids ---------- */
+  .layout-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+  @media (max-width: 760px) { .layout-pair { grid-template-columns: 1fr; } }
+  .layout-card { border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface); padding: 18px 20px 20px; }
+  .layout-card .tag {
+    display: inline-flex; align-items: center; gap: 6px; font-family: var(--mono); font-size: 11.5px;
+    padding: 3px 9px; border-radius: 5px; margin-bottom: 12px; font-weight: 600;
+  }
+  .tag.kept { background: var(--kept-wash); color: #1a4d8f; }
+  .tag.derived { background: var(--derived-wash); color: #93390f; }
+  .layout-card h4 { font-size: 15px; margin-bottom: 4px; }
+  .layout-card .sub { font-size: 12.5px; color: var(--muted); margin-bottom: 14px; }
+
+  .grid-dense { display: grid; grid-template-columns: repeat(9, 1fr); gap: 3px; margin-bottom: 14px; }
+  .cell { aspect-ratio: 1; border-radius: 2px; background: var(--hairline); }
+  .cell.filled { background: var(--kept); }
+  .cell.imputed { background: var(--kept); opacity: 0.4; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.55) 0 2px, transparent 2px 4px); }
+
+  .ragged-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .ragged-label { font-family: var(--mono); font-size: 10.5px; color: var(--muted); width: 34px; flex-shrink: 0; }
+  .ragged-seq { display: flex; gap: 3px; flex: 1; }
+  .ragged-cell { height: 16px; flex: 1; max-width: 22px; border-radius: 2px; background: var(--derived); }
+  .ragged-cell.ghost { background: transparent; }
+
+  .fact-list { list-style: none; margin: 14px 0 0; padding: 0; border-top: 1px solid var(--hairline); }
+  .fact-list li { display: flex; justify-content: space-between; gap: 10px; padding: 7px 0; border-bottom: 1px dashed var(--hairline); font-size: 12.5px; }
+  .fact-list .k { color: var(--muted); }
+  .fact-list .v { font-family: var(--mono); text-align: right; color: var(--ink); }
+
+  /* ---------- status legend ---------- */
+  .status-legend { display: flex; gap: 18px; flex-wrap: wrap; margin: 4px 0 20px; }
+  .status-item { display: flex; align-items: center; gap: 7px; font-size: 12.5px; color: var(--ink-soft); }
+  .status-swatch { width: 12px; height: 12px; border-radius: 3px; flex-shrink: 0; }
+  .status-swatch.observed { background: var(--kept); }
+  .status-swatch.imputed { background: var(--kept); opacity: 0.4; background-image: repeating-linear-gradient(45deg, rgba(255,255,255,0.7) 0 2px, transparent 2px 4px); }
+  .status-swatch.missing { background: transparent; border: 1px dashed var(--hairline-strong); }
+
+  /* ---------- acceleration stack ---------- */
+  .stack { display: flex; flex-direction: column; gap: 10px; }
+  .layer {
+    display: grid; grid-template-columns: 160px 1fr 140px; gap: 18px; align-items: center;
+    border: 1px solid var(--hairline); background: var(--surface); border-radius: 9px; padding: 13px 18px;
+  }
+  @media (max-width: 760px) { .layer { grid-template-columns: 1fr; gap: 4px; } }
+  .layer .lname { font-weight: 620; font-size: 13.5px; }
+  .layer .lfile { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .layer .lwhat { font-size: 12.5px; color: var(--ink-soft); }
+  .layer .lcost { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); text-align: right; }
+  @media (max-width: 760px) { .layer .lcost { text-align: left; } }
+  .layer .lcost .big { color: var(--accent); font-weight: 650; }
+  .stack-connector { width: 1px; height: 10px; background: var(--hairline-strong); margin-left: 178px; }
+  @media (max-width: 760px) { .stack-connector { display: none; } }
+
+  /* ---------- charts ---------- */
+  .chart-block { border: 1px solid var(--hairline); border-radius: 10px; background: var(--surface); padding: 22px 24px 18px; }
+  .chart-title { font-size: 13.5px; font-weight: 650; margin-bottom: 2px; }
+  .chart-sub { font-size: 12px; color: var(--muted); margin-bottom: 18px; }
+  .legend-row { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+  .legend-item { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--ink-soft); }
+  .legend-swatch { width: 10px; height: 10px; border-radius: 3px; }
+
+  .bar-h-row { display: grid; grid-template-columns: 128px 1fr 92px; gap: 12px; align-items: center; padding: 7px 0; }
+  .bar-h-label { font-size: 12.5px; color: var(--ink-soft); }
+  .bar-h-track { position: relative; height: 20px; background: var(--paper); border-radius: 4px; overflow: hidden; }
+  .bar-h-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 4px 0 0 4px; }
+  .bar-h-fill.rounded-end { border-radius: 4px; }
+  .bar-h-value { font-family: var(--mono); font-size: 12px; text-align: right; color: var(--ink); }
+
+  .scale-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 28px; }
+  @media (max-width: 700px) { .scale-pair { grid-template-columns: 1fr; } }
+  .scale-panel { padding: 4px 0; }
+  .scale-panel .sp-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+  .scale-panel .sp-head .sp-title { font-size: 12.5px; font-weight: 650; }
+  .scale-panel .sp-head .sp-sub { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+  .scale-panel + .scale-panel { border-left: 1px solid var(--hairline); padding-left: 28px; }
+  @media (max-width: 700px) { .scale-panel + .scale-panel { border-left: none; padding-left: 0; border-top: 1px solid var(--hairline); padding-top: 18px; } }
+
+  [data-tip] { position: relative; cursor: default; }
+  [data-tip]::after {
+    content: attr(data-tip);
+    position: absolute; bottom: calc(100% + 7px); left: 50%; transform: translateX(-50%);
+    background: var(--ink); color: #fff; font-family: var(--mono); font-size: 11px;
+    padding: 5px 8px; border-radius: 5px; white-space: nowrap; opacity: 0; pointer-events: none;
+    transition: opacity 0.1s ease; z-index: 5;
+  }
+  [data-tip]:hover::after { opacity: 1; }
+
+  .grid-gridlines { position: relative; }
+  .grid-gridlines .bar-h-track {
+    background-image: repeating-linear-gradient(
+      to right, var(--hairline) 0, var(--hairline) 1px, transparent 1px, transparent 25%
+    );
+    background-color: var(--paper);
+  }
+  .glabels { display: grid; font-family: var(--mono); font-size: 10.5px; color: var(--muted); margin-top: 6px; padding-left: 128px; }
+  .glabels span { border-left: 1px solid transparent; padding-left: 2px; }
+
+  .qcards { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+  @media (max-width: 900px) { .qcards { grid-template-columns: repeat(2, 1fr); } }
+  .qcard { border: 1px solid var(--hairline); border-radius: 9px; padding: 13px 14px; background: var(--paper); }
+  .qcard .pname { font-family: var(--mono); font-size: 11.5px; color: var(--ink-soft); margin-bottom: 10px; }
+  .qbar-row { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
+  .qbar-row .qlabel { font-size: 9.5px; font-family: var(--mono); color: var(--muted); width: 30px; flex-shrink: 0; }
+  .qbar-track { flex: 1; height: 12px; background: var(--surface); border-radius: 3px; overflow: hidden; }
+  .qbar-fill { height: 100%; border-radius: 3px; }
+  .qcard .ratio-pill {
+    display: inline-flex; align-items: center; gap: 5px; margin-top: 10px; font-size: 11px; font-weight: 650;
+    padding: 3px 8px; border-radius: 20px;
+  }
+  .ratio-pill.good { background: #e2f5e2; color: #0d6b0d; }
+  .ratio-pill.warning { background: #faf0d9; color: #85590a; }
+  .ratio-pill.serious { background: #fbe4da; color: #93390f; }
+  .ratio-pill .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  details.data-table { margin-top: 16px; }
+  details.data-table summary {
+    font-size: 12px; color: var(--accent); cursor: pointer; font-family: var(--mono); user-select: none;
+  }
+  details.data-table table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12.5px; }
+  details.data-table th, details.data-table td { text-align: left; padding: 6px 10px; border-bottom: 1px solid var(--hairline); }
+  details.data-table th { color: var(--muted); font-weight: 600; font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.03em; }
+  details.data-table td.num, details.data-table th.num { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  .source-note { font-size: 11.5px; color: var(--muted); margin-top: 14px; font-family: var(--mono); }
+
+  footer.doc-footer { padding: 40px 0 10px; font-size: 12px; color: var(--muted); }
+</style>
+</head>
+<body>
+<div class="shell">
+  <aside class="rail">
+    <div class="rail-brand"><strong>OpenGWASDB</strong>storage format internals</div>
+    <nav>
+      <a href="#src"><span class="n">1</span>Source fields</a>
+      <a href="#condense"><span class="n">2</span>Condensation</a>
+      <a href="#layout"><span class="n">3</span>Dense vs Ragged</a>
+      <a href="#complete"><span class="n">4</span>Observed vs Complete</a>
+      <a href="#accel"><span class="n">5</span>Acceleration layer</a>
+      <a href="#storage"><span class="n">6</span>Storage payoff</a>
+      <a href="#query"><span class="n">7</span>Query payoff</a>
+    </nav>
+  </aside>
+
+  <main class="main">
+    <header class="doc-header">
+      <div class="doc-eyebrow">Storage format internals</div>
+      <h1>From a VCF row to an 8.9&nbsp;ms lookup</h1>
+      <p class="dek">
+        OpenGWASDB takes per-analysis summary statistics — GWAS-VCF or BESD — and
+        reduces them to two canonical arrays, a choice of physical layout, and a
+        stack of purpose-built indexes. This is that pipeline end to end, grounded
+        in the actual eQTLGen and UK Biobank benchmark runs.
+      </p>
+      <div class="stat-row">
+        <div class="stat"><div class="v num">1.76<span class="unit">×</span></div><div class="l">smaller than source (eQTLGen, ragged)</div></div>
+        <div class="stat"><div class="v num">8.9<span class="unit">ms</span></div><div class="l">top-hit query, 121.9M associations</div></div>
+        <div class="stat"><div class="v num">2<span class="unit">arrays</span></div><div class="l">canonical statistics stored (z, se)</div></div>
+        <div class="stat"><div class="v num">7.1<span class="unit">×</span></div><div class="l">smaller than raw VCF at 1,000 analyses</div></div>
+      </div>
+    </header>
+
+    <!-- ============ 1. SOURCE FIELDS ============ -->
+    <section class="stage" id="src">
+      <div class="stage-head"><span class="idx">01</span><h2>What comes in</h2></div>
+      <p class="stage-dek">
+        Two source formats reach the same canonical shape. GWAS-VCF carries one analysis
+        per file; BESD carries a whole matrix of analyses (<em>probes</em>) per file set.
+      </p>
+
+      <div class="record-pair">
+        <div class="record-card">
+          <div class="record-card-head"><span class="name">GWAS-VCF record</span><span class="tag">per variant · per analysis</span></div>
+          <ul class="field-list">
+            <li><span class="fname">CHROM, POS</span><span class="fdesc">genomic coordinate, hg19 or hg38</span></li>
+            <li><span class="fname">REF, ALT</span><span class="fdesc">alleles, oriented to canonical ALID on read</span></li>
+            <li><span class="fname">EZ</span><span class="fdesc">z-score, preferred when present</span></li>
+            <li><span class="fname">ES, SE</span><span class="fdesc">effect + standard error, fallback for z</span></li>
+            <li><span class="fname">##SAMPLE</span><span class="fdesc">StudyType header → stored effect scale</span></li>
+          </ul>
+        </div>
+        <div class="record-card">
+          <div class="record-card-head"><span class="name">BESD triple</span><span class="tag">.esi + .epi + .besd</span></div>
+          <ul class="field-list">
+            <li><span class="fname">.esi row</span><span class="fdesc">chr, snp_id, bp, a1, a2, freq — shared variant list</span></li>
+            <li><span class="fname">.epi row</span><span class="fdesc">chr, probe_id, bp, gene, orientation — one per analysis</span></li>
+            <li><span class="fname">.besd</span><span class="fdesc">binary column table: snp_index[], beta[f32], se[f32]</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 2. CONDENSATION ============ -->
+    <section class="stage" id="condense">
+      <div class="stage-head"><span class="idx">02</span><h2>What gets kept</h2></div>
+      <p class="stage-dek">
+        Every source field collapses into one canonical statistic pair, plus a small
+        set of values that only need to be known once per analysis or once per variant —
+        never once per cell.
+      </p>
+
+      <div class="transform">
+        <div class="box dropped">
+          <h4>Arrives as</h4>
+          <div class="chip-row">
+            <span class="chip">beta</span><span class="chip">se</span><span class="chip">z / ez</span>
+            <span class="chip">eaf / freq</span><span class="chip">n</span><span class="chip">info</span>
+            <span class="chip">rsid</span><span class="chip">study type</span>
+          </div>
+        </div>
+        <div class="arrow">→</div>
+        <div class="box kept">
+          <h4>Canonical pair, per cell</h4>
+          <div class="chip-row"><span class="chip hero">z</span><span class="chip hero">se</span></div>
+          <p class="note">beta is never stored — it's recovered as <code>z × se</code> on read.
+          Scale-agnostic, and avoids the undefined <code>beta/z</code> case when z is exactly zero.</p>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Everything else moves to a coarser grain, or drops entirely.</strong>
+        EAF is <em>Variant</em>-scoped, filled only where a reference panel supplies it — not stored per
+        association. Sample size is typically <em>Analysis</em>-scoped, one value for the whole
+        column. INFO is optional and <em>Absent</em> by default. None of the three is required to
+        reconstruct beta, SE, Z, or p-value — that's the boundary the format is drawn on.
+        <span class="mono" style="opacity:0.7">— ADR-0005</span>
+      </div>
+    </section>
+
+    <!-- ============ 3. DENSE vs RAGGED ============ -->
+    <section class="stage" id="layout">
+      <div class="stage-head"><span class="idx">03</span><h2>Where the cells live</h2></div>
+      <p class="stage-dek">
+        Same z/se pair, two physical shapes — chosen by whether analyses share a
+        variant axis or each keep their own retained set. (Illustrative grid below;
+        real stores range from hundreds of thousands to tens of millions of variants.)
+      </p>
+
+      <div class="layout-pair">
+        <div class="layout-card">
+          <span class="tag kept">Dense</span>
+          <h4>Shared variant × analysis matrix</h4>
+          <div class="sub">e.g. UK Biobank GWAS batches — every analysis reports on ~the same variants</div>
+          <div class="grid-dense" id="denseGrid"></div>
+          <ul class="fact-list">
+            <li><span class="k">Address a cell</span><span class="v">z[row, col] — O(1)</span></li>
+            <li><span class="k">Missing cell</span><span class="v">NaN, no extra storage</span></li>
+            <li><span class="k">Cost</span><span class="v">divergent analyses waste NaN cells</span></li>
+          </ul>
+        </div>
+        <div class="layout-card">
+          <span class="tag derived">Ragged</span>
+          <h4>Per-analysis retained sequence</h4>
+          <div class="sub">e.g. eQTL/pQTL — each analysis keeps a different cis window</div>
+          <div id="raggedRows"></div>
+          <ul class="fact-list">
+            <li><span class="k">Address a cell</span><span class="v">offsets[i]…offsets[i+1], binary search</span></li>
+            <li><span class="k">Missing cell</span><span class="v">not represented at all</span></li>
+            <li><span class="k">Cost</span><span class="v">no shared column alignment across analyses</span></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ 4. OBSERVED vs REFERENCE-COMPLETE ============ -->
+    <section class="stage" id="complete">
+      <div class="stage-head"><span class="idx">04</span><h2>Filling in against a reference panel</h2></div>
+      <p class="stage-dek">
+        An Observed-Only release holds exactly what the source reported. Reference
+        Completion is a separate, later pass: LD-block elastic-net imputation fills
+        variants the source never observed, and every cell keeps a status.
+      </p>
+
+      <div class="status-legend">
+        <div class="status-item"><span class="status-swatch observed"></span>Observed — from the source</div>
+        <div class="status-item"><span class="status-swatch imputed"></span>Imputed — inferred from the LD panel</div>
+        <div class="status-item"><span class="status-swatch missing"></span>Missing — not observed, imputation declined or out of scope</div>
+      </div>
+
+      <div class="layout-pair">
+        <div class="layout-card">
+          <h4>Observed-Only</h4>
+          <div class="sub">sparse — only what the source reported</div>
+          <div class="grid-dense" id="obsGrid"></div>
+        </div>
+        <div class="layout-card">
+          <h4>Reference-Completed</h4>
+          <div class="sub">same axis, gaps filled where the quality gate passes</div>
+          <div class="grid-dense" id="completeGrid"></div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <strong>Every imputed cell carries provenance, not just a value.</strong>
+        A <code>completion_quality</code> row records the Pearson r of the fit, n_imputed, and
+        n_missing at LD-block × Analysis granularity. For Dense stores specifically, n_missing
+        splits further: <code>n_missing_off_panel</code> (source-only variants with no LD
+        structure — never imputable, tracked once per Analysis) versus
+        <code>n_missing_imputation_failed</code> (reference-panel variants where the fit
+        didn't clear the quality gate).
+      </div>
+    </section>
+
+    <!-- ============ 5. ACCELERATION LAYER ============ -->
+    <section class="stage" id="accel">
+      <div class="stage-head"><span class="idx">05</span><h2>What sits alongside z and se</h2></div>
+      <p class="stage-dek">
+        None of these change what a query returns — each one exists purely to avoid
+        a full scan for a specific access pattern.
+      </p>
+
+      <div class="stack">
+        <div class="layer">
+          <div><div class="lname">Variant axis</div><div class="lfile">variants.tsv.gz + .tbi</div></div>
+          <div class="lwhat">Tabix-indexed table — chromosome:position range fetches, rsid aliasing</div>
+          <div class="lcost">range query<br><span class="big">O(log n) seek</span></div>
+        </div>
+        <div class="layer">
+          <div><div class="lname">Row offsets</div><div class="lfile">variant_offsets.npy</div></div>
+          <div class="lwhat">BGZF byte offset per variant_index — jump straight to one row, no scan</div>
+          <div class="lcost">random row<br><span class="big">O(1) seek</span></div>
+        </div>
+        <div class="layer">
+          <div><div class="lname">ALID search index</div><div class="lfile">variant_alid_bytes/rows.npy</div></div>
+          <div class="lwhat">mmap'd, sorted — binary search a variant by identity, ~zero process startup cost</div>
+          <div class="lcost">by ALID<br><span class="big">O(log n)</span>, ~0MB RSS</div>
+        </div>
+        <div class="layer">
+          <div><div class="lname">Top-hit index</div><div class="lfile">top_hits/p_5e_08, p_5e_06, p_5e_04</div></div>
+          <div class="lwhat">Precomputed, threshold-parameterised — significance queries skip the full matrix</div>
+          <div class="lcost">tophits<br><span class="big">no scan</span></div>
+        </div>
+        <div class="layer">
+          <div><div class="lname">Imputed mask</div><div class="lfile">data.zarr/imputed (Reference-Completed only)</div></div>
+          <div class="lwhat">Parallel uint8 array — drives Association Status and observed_only filtering inline</div>
+          <div class="lcost">status lookup<br><span class="big">O(1), no join</span></div>
+        </div>
+      </div>
+      <p class="source-note">besdq, by comparison, resolves identity through an in-memory dict — O(1) but ≈1.5 GB resident at 12M variants. The mmap'd index trades a constant factor for near-zero startup memory.</p>
+    </section>
+
+    <!-- ============ 6. STORAGE PAYOFF ============ -->
+    <section class="stage" id="storage">
+      <div class="stage-head"><span class="idx">06</span><h2>Storage</h2></div>
+      <p class="stage-dek">
+        Same UK Biobank chr1 source, two scales: the compressed <span class="mono">.vcf.gz</span>
+        files OpenGWASDB actually reads, weighed against the Dense store it writes.
+      </p>
+
+      <div class="chart-block">
+        <div class="chart-title">Raw source VCF vs. OpenGWASDB store</div>
+        <div class="chart-sub">chr1 · 762,080 variants · UK Biobank GWAS-VCF, bgzip-compressed</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--baseline)"></span>Raw source (.vcf.gz)</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>OpenGWASDB store</div>
+        </div>
+
+        <div class="scale-pair">
+          <div class="scale-panel">
+            <div class="sp-head"><span class="sp-title">100 analyses</span><span class="sp-sub">100 files</span></div>
+            <div class="bar-h-row">
+              <div class="bar-h-label">Raw VCF</div>
+              <div class="bar-h-track"><div class="bar-h-fill rounded-end" data-tip="1,308.16 MB" style="width:100%; background:var(--baseline)"></div></div>
+              <div class="bar-h-value">1,308.2 MB</div>
+            </div>
+            <div class="bar-h-row">
+              <div class="bar-h-label">OpenGWASDB</div>
+              <div class="bar-h-track"><div class="bar-h-fill rounded-end" data-tip="309.44 MB" style="width:23.7%; background:var(--accent)"></div></div>
+              <div class="bar-h-value">309.4 MB</div>
+            </div>
+            <span class="ratio-pill good"><span class="dot"></span>4.2× smaller</span>
+          </div>
+          <div class="scale-panel">
+            <div class="sp-head"><span class="sp-title">1,000 analyses</span><span class="sp-sub">1,000 files</span></div>
+            <div class="bar-h-row">
+              <div class="bar-h-label">Raw VCF</div>
+              <div class="bar-h-track"><div class="bar-h-fill rounded-end" data-tip="12,632.86 MB" style="width:100%; background:var(--baseline)"></div></div>
+              <div class="bar-h-value">12,632.9 MB</div>
+            </div>
+            <div class="bar-h-row">
+              <div class="bar-h-label">OpenGWASDB</div>
+              <div class="bar-h-track"><div class="bar-h-fill rounded-end" data-tip="1,773.73 MB" style="width:14.0%; background:var(--accent)"></div></div>
+              <div class="bar-h-value">1,773.7 MB</div>
+            </div>
+            <span class="ratio-pill good"><span class="dot"></span>7.1× smaller</span>
+          </div>
+        </div>
+
+        <div class="callout" style="margin-top:20px">
+          The margin <strong>widens</strong> with scale, not narrows: each raw VCF pays its own
+          per-file header and variant-ID overhead in full, while OpenGWASDB's variant axis,
+          tabix index, and ALID index are built once and amortised across every additional
+          analysis column. A <strong>10×</strong> increase in analyses grows the raw source
+          <strong>9.7×</strong> but the store only <strong>5.7×</strong> — and build time <strong>8.8×</strong>.
+        </div>
+
+        <details class="data-table">
+          <summary>Show data table</summary>
+          <table>
+            <thead><tr><th>Scale</th><th>Form</th><th class="num">Size</th><th class="num">Ratio</th></tr></thead>
+            <tbody>
+              <tr><td>100 analyses</td><td>Raw VCF (.vcf.gz)</td><td class="num">1,308.16 MB</td><td class="num">1.00×</td></tr>
+              <tr><td>100 analyses</td><td>OpenGWASDB store</td><td class="num">309.44 MB</td><td class="num">4.23×</td></tr>
+              <tr><td>1,000 analyses</td><td>Raw VCF (.vcf.gz)</td><td class="num">12,632.86 MB</td><td class="num">1.00×</td></tr>
+              <tr><td>1,000 analyses</td><td>OpenGWASDB store</td><td class="num">1,773.73 MB</td><td class="num">7.12×</td></tr>
+            </tbody>
+          </table>
+        </details>
+        <p class="source-note">source: du -sb on besdq/data/vcf-ukb{,-1000}/*.vcf.gz; storage.store_bytes in opengwasdb_vcf_ukb_chr1_benchmark.json / opengwasdb_vcf_ukb_chr1_1000_benchmark.json. Excludes .csi sidecar indexes on the VCF side (+0.8% at 100 analyses) — not required to read the source, so not counted as source size.</p>
+      </div>
+    </section>
+
+    <!-- ============ 7. QUERY PAYOFF ============ -->
+    <section class="stage" id="query">
+      <div class="stage-head"><span class="idx">07</span><h2>Query time</h2></div>
+      <p class="stage-dek">
+        Five access patterns, benchmarked the same way on both systems: median of
+        10 repetitions after one warm-up call.
+      </p>
+
+      <div class="chart-block">
+        <div class="chart-title">OpenGWASDB vs besdq · 100 analyses</div>
+        <div class="chart-sub">each panel scaled to its own max — bar length isn't comparable across panels, only within one</div>
+        <div class="legend-row">
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>OpenGWASDB</div>
+          <div class="legend-item"><span class="legend-swatch" style="background:var(--baseline)"></span>besdq zstd</div>
+        </div>
+
+        <div class="qcards">
+          <div class="qcard">
+            <div class="pname">regional</div>
+            <div class="qbar-row"><span class="qlabel">odb</span><div class="qbar-track"><div class="qbar-fill" data-tip="16.01 ms" style="width:100%; background:var(--accent)"></div></div></div>
+            <div class="qbar-row"><span class="qlabel">besdq</span><div class="qbar-track"><div class="qbar-fill" data-tip="4.99 ms" style="width:31.1%; background:var(--baseline)"></div></div></div>
+            <span class="ratio-pill serious"><span class="dot"></span>3.2× slower</span>
+          </div>
+          <div class="qcard">
+            <div class="pname">phewas</div>
+            <div class="qbar-row"><span class="qlabel">odb</span><div class="qbar-track"><div class="qbar-fill" data-tip="1.82 ms" style="width:100%; background:var(--accent)"></div></div></div>
+            <div class="qbar-row"><span class="qlabel">besdq</span><div class="qbar-track"><div class="qbar-fill" data-tip="0.91 ms" style="width:49.7%; background:var(--baseline)"></div></div></div>
+            <span class="ratio-pill warning"><span class="dot"></span>2.0× slower</span>
+          </div>
+          <div class="qcard">
+            <div class="pname">tophits</div>
+            <div class="qbar-row"><span class="qlabel">odb</span><div class="qbar-track"><div class="qbar-fill" data-tip="1.44 ms" style="width:100%; background:var(--accent)"></div></div></div>
+            <div class="qbar-row"><span class="qlabel">besdq</span><div class="qbar-track"><div class="qbar-fill" data-tip="0.69 ms" style="width:47.7%; background:var(--baseline)"></div></div></div>
+            <span class="ratio-pill warning"><span class="dot"></span>2.1× slower</span>
+          </div>
+          <div class="qcard">
+            <div class="pname">bulk</div>
+            <div class="qbar-row"><span class="qlabel">odb</span><div class="qbar-track"><div class="qbar-fill" data-tip="854.4 ms" style="width:100%; background:var(--accent)"></div></div></div>
+            <div class="qbar-row"><span class="qlabel">besdq</span><div class="qbar-track"><div class="qbar-fill" data-tip="490.5 ms" style="width:57.4%; background:var(--baseline)"></div></div></div>
+            <span class="ratio-pill good"><span class="dot"></span>1.7× slower</span>
+          </div>
+          <div class="qcard">
+            <div class="pname">random_lookup</div>
+            <div class="qbar-row"><span class="qlabel">odb</span><div class="qbar-track"><div class="qbar-fill" data-tip="126.3 ms" style="width:100%; background:var(--accent)"></div></div></div>
+            <div class="qbar-row"><span class="qlabel">besdq</span><div class="qbar-track"><div class="qbar-fill" data-tip="30.4 ms" style="width:24.1%; background:var(--baseline)"></div></div></div>
+            <span class="ratio-pill serious"><span class="dot"></span>4.2× slower</span>
+          </div>
+        </div>
+
+        <details class="data-table">
+          <summary>Show data table</summary>
+          <table>
+            <thead><tr><th>Pattern</th><th class="num">OpenGWASDB</th><th class="num">besdq zstd</th><th class="num">Ratio</th><th>What it reads</th></tr></thead>
+            <tbody>
+              <tr><td>regional</td><td class="num">16.01 ms</td><td class="num">4.99 ms</td><td class="num">3.21×</td><td>1&nbsp;Mb window, all analyses</td></tr>
+              <tr><td>phewas</td><td class="num">1.82 ms</td><td class="num">0.91 ms</td><td class="num">2.01×</td><td>1 variant × all analyses</td></tr>
+              <tr><td>tophits</td><td class="num">1.44 ms</td><td class="num">0.69 ms</td><td class="num">2.10×</td><td>p &lt; 5×10⁻⁸ for 1 analysis</td></tr>
+              <tr><td>bulk</td><td class="num">854.4 ms</td><td class="num">490.5 ms</td><td class="num">1.74×</td><td>all ~762K variants, 1 analysis</td></tr>
+              <tr><td>random_lookup</td><td class="num">126.3 ms</td><td class="num">30.4 ms</td><td class="num">4.15×</td><td>100 variants × 10 analyses</td></tr>
+            </tbody>
+          </table>
+        </details>
+        <p class="source-note">source: opengwasdb_vcf_ukb_chr1_benchmark.json — honest state: OpenGWASDB reads two arrays (z, se) against besdq's one, and returns a sparse dict rather than a dense array, which accounts for part of the gap.</p>
+      </div>
+
+      <div class="chart-block" style="margin-top:20px">
+        <div class="chart-title">Absolute latency at 1,000 analyses</div>
+        <div class="chart-sub">same chr1 dataset, 10× the columns — log scale, one order of magnitude per gridline</div>
+
+        <div class="grid-gridlines">
+          <div class="bar-h-row"><div class="bar-h-label">regional</div><div class="bar-h-track"><div class="bar-h-fill" data-tip="129.8 ms · 1,488,379 cells" style="width:52.8%; background:var(--accent)"></div></div><div class="bar-h-value">129.8 ms</div></div>
+          <div class="bar-h-row"><div class="bar-h-label">phewas</div><div class="bar-h-track"><div class="bar-h-fill" data-tip="7.75 ms · 1,000 cells" style="width:22.2%; background:var(--accent)"></div></div><div class="bar-h-value">7.8 ms</div></div>
+          <div class="bar-h-row"><div class="bar-h-label">tophits</div><div class="bar-h-track"><div class="bar-h-fill" data-tip="8.90 ms · 182,843 cells" style="width:23.7%; background:var(--accent)"></div></div><div class="bar-h-value">8.9 ms</div></div>
+          <div class="bar-h-row"><div class="bar-h-label">bulk</div><div class="bar-h-track"><div class="bar-h-fill" data-tip="5,546.6 ms · 762,080 cells" style="width:93.6%; background:var(--accent)"></div></div><div class="bar-h-value">5,546.6 ms</div></div>
+          <div class="bar-h-row"><div class="bar-h-label">random_lookup</div><div class="bar-h-track"><div class="bar-h-fill" data-tip="649.6 ms · 587 cells" style="width:70.3%; background:var(--accent)"></div></div><div class="bar-h-value">649.6 ms</div></div>
+          <div class="glabels" style="grid-template-columns: repeat(4, 1fr);">
+            <span>1 ms</span><span>10 ms</span><span>100 ms</span><span>1,000 ms</span>
+          </div>
+        </div>
+
+        <details class="data-table">
+          <summary>Show data table</summary>
+          <table>
+            <thead><tr><th>Pattern</th><th class="num">Median</th><th class="num">p95</th><th class="num">Result cells</th></tr></thead>
+            <tbody>
+              <tr><td>regional</td><td class="num">129.84 ms</td><td class="num">163.09 ms</td><td class="num">1,488,379</td></tr>
+              <tr><td>phewas</td><td class="num">7.75 ms</td><td class="num">10.98 ms</td><td class="num">1,000</td></tr>
+              <tr><td>tophits</td><td class="num">8.90 ms</td><td class="num">11.59 ms</td><td class="num">182,843</td></tr>
+              <tr><td>bulk</td><td class="num">5,546.56 ms</td><td class="num">6,936.65 ms</td><td class="num">762,080</td></tr>
+              <tr><td>random_lookup</td><td class="num">649.58 ms</td><td class="num">768.15 ms</td><td class="num">587</td></tr>
+            </tbody>
+          </table>
+        </details>
+        <p class="source-note">source: opengwasdb_vcf_ukb_chr1_1000_benchmark.json — no besdq run exists at this scale for direct comparison.</p>
+      </div>
+    </section>
+
+    <footer class="doc-footer">
+      Every number above is read from a benchmark JSON checked into <span class="mono">docs/benchmark-output/</span> —
+      re-run the corresponding script in <span class="mono">benchmarks/</span> to refresh a figure rather than
+      editing it here.
+    </footer>
+  </main>
+</div>
+
+<script>
+  // Illustrative Dense/Ragged/completion grids — small hand-set patterns, not real query output.
+  function paintGrid(id, pattern) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    pattern.split('').forEach(function (c) {
+      var d = document.createElement('div');
+      d.className = 'cell' + (c === '1' ? ' filled' : c === 'i' ? ' filled imputed' : '');
+      el.appendChild(d);
+    });
+  }
+  paintGrid('denseGrid',
+    '010010101' +
+    '001100010' +
+    '100010001' +
+    '010001100' +
+    '001010010'
+  );
+  paintGrid('obsGrid',
+    '010000000' +
+    '000100000' +
+    '100000001' +
+    '000001000' +
+    '001000000'
+  );
+  paintGrid('completeGrid',
+    '01i00i0i0' +
+    '0i0100i00' +
+    '10i000i01' +
+    'i0000110i' +
+    '0010i0i0i'
+  );
+
+  (function () {
+    var rows = [
+      { label: 'a1', pattern: [1,1,0,1,0,1,0,0,0] },
+      { label: 'a2', pattern: [0,1,1,0,0,0,1,1,0] },
+      { label: 'a3', pattern: [1,0,0,0,1,1,0,0,1] },
+    ];
+    var host = document.getElementById('raggedRows');
+    rows.forEach(function (r) {
+      var row = document.createElement('div');
+      row.className = 'ragged-row';
+      var label = document.createElement('span');
+      label.className = 'ragged-label';
+      label.textContent = r.label;
+      row.appendChild(label);
+      var seq = document.createElement('div');
+      seq.className = 'ragged-seq';
+      r.pattern.forEach(function (v) {
+        var c = document.createElement('div');
+        c.className = 'ragged-cell' + (v ? '' : ' ghost');
+        seq.appendChild(c);
+      });
+      row.appendChild(seq);
+      host.appendChild(row);
+    });
+  })();
+</script>
+
+</body>
+</html>

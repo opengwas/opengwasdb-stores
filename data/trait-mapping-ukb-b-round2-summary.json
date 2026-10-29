@@ -1,0 +1,99 @@
+{
+  "round": {
+    "round_id": "ukb-b-2026q4",
+    "created_at": "2026-09-30T15:07:56.365495+00:00",
+    "ontology_release": "efo/v3.94.0",
+    "embedding_model": "FremyCompany/BioLORD-2023",
+    "embedding_build_id": "blake2b:5328e64d77fdaf5847e565c01bb94c2d",
+    "chooser": {
+      "id": "jev",
+      "version": "jev-1.13.0",
+      "model": "jev-1.13.0",
+      "context": "Each trait label is a source field description used as a GWAS phenotype. Map it to the EFO ontology term that denotes the same trait. Choose none_suitable if no option denotes the same trait; do not pick a merely related term."
+    },
+    "shortlist_size": 100,
+    "thresholds": {
+      "confidence": 0.85,
+      "margin": 0.2,
+      "evidence": "OGS-00011 GWAS Catalog validation (2,228 labels, Jev jev-1.13.0, BioLORD+lexical top-10): at conf>=0.85 756 promoted, 87.8% agree with the Catalog term; most disagreements are a more specific correct term"
+    }
+  },
+  "labels": 2093,
+  "analyses": 2103,
+  "outcomes": {
+    "no suitable term": 971,
+    "review (uncertain pick)": 465,
+    "auto-accepted": 141,
+    "review (uncertain abstention)": 380,
+    "no candidate": 136
+  },
+  "cost_usd": 0.384047,
+  "input_tokens": 9144273,
+  "movement": {
+    "review (uncertain pick)": {
+      "auto-accepted": 103,
+      "review (uncertain pick)": 342,
+      "review (uncertain abstention)": 39,
+      "no suitable term": 63,
+      "no candidate": 19
+    },
+    "review (uncertain abstention)": {
+      "auto-accepted": 26,
+      "review (uncertain pick)": 82,
+      "review (uncertain abstention)": 166,
+      "no suitable term": 159,
+      "no candidate": 57
+    },
+    "no suitable term": {
+      "auto-accepted": 12,
+      "review (uncertain pick)": 41,
+      "review (uncertain abstention)": 175,
+      "no suitable term": 749,
+      "no candidate": 60
+    }
+  },
+  "showcase": {
+    "downloaded_at": "2026-09-29",
+    "files": {
+      "schema-1.tsv": {
+        "sha256": "2d7b5f394457002a5a41e278074d64c3b56811f4c50fd916599145aa10210cc6",
+        "size_bytes": 4164390
+      },
+      "schema-3.tsv": {
+        "sha256": "1c50d4e998a57084e9a8fd67021c9aa4c72eedf17f081f5ec69ead0524b46c9d",
+        "size_bytes": 176100
+      },
+      "schema-13.tsv": {
+        "sha256": "c2a09cf905c4e67ccc2b76b62ad73851e77e75a28d2c841b0d1f9fd9c6ef829f",
+        "size_bytes": 5084
+      }
+    },
+    "unique_labels": 2502,
+    "matched": 2489,
+    "unmatched": 13
+  },
+  "icd10_benchmark": {
+    "labels": 125,
+    "baseline_recall_at_10": 76,
+    "round2_pipeline_recall_at_10": 120
+  },
+  "ogs00011_regression": {
+    "shared_labels": 2220,
+    "old_recall_at_10": 0.7441,
+    "new_recall_at_10": 0.755,
+    "new_recall_at_100": 0.8559,
+    "old_promoted": 748,
+    "new_promoted": 792,
+    "old_exact_agreement": 0.8783,
+    "new_exact_agreement": 0.8775,
+    "old_exact_correct": 657,
+    "new_exact_correct": 695
+  },
+  "spot_check": {
+    "seed": 185,
+    "sample_size": 25,
+    "acceptable": 25,
+    "exact_or_near_exact": 21,
+    "broader_but_compatible": 4
+  }
+}

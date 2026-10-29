@@ -1,0 +1,2221 @@
+# OpenGWASDB Store Format Specification
+
+Status: draft  
+Format version described: `0.2.0` (Zarr v3 with sharding, §10a; what every builder writes)  
+Also readable: `0.1.0` (Zarr v2); nothing else (§21)
+
+This document defines the contract for valid OpenGWASDB Store Releases. It
+describes `format_version` **0.2.0** (§10a: Zarr v3 with the sharding codec),
+what every builder writes since #247, and **0.1.0** (Zarr v2), which a reader
+still reads and a builder no longer writes. Everything below that is not
+about the physical layout holds for both versions: statistic planes carry a
+declared encoding (§6a), `z` is `int16` fixed point rather than `float16`, `eaf`
+is a per-variant baseline plus a per-cell `int8` logit residual rather than a
+`float32` plane, and `se` is either `float16` or — when the build measures the
+fit and the saving — an `int8` residual from its EAF-predicted value.
+
+**`0.1.0` is a reset, not a fifth version** (ADR 0041, issue #143). The format
+carried `0.1`, then `1.0`, `2.0` and `3.0` through a single pre-release cycle,
+and no store in any of them was published outside the core team. All four are
+now refused rather than decoded, with a message that says rebuild; the shape
+change from `MAJOR.MINOR` to `MAJOR.MINOR.PATCH` is what makes that refusal
+reliable, since no reader — including one written before the reset — can read
+`0.1.0` as `0.1`. The bytes are unchanged from `3.0`, which is why a `3.0`
+release may be restamped rather than rebuilt (§21.4); every earlier version is a
+different encoding and is rebuilt.
+
+Sections that say "v0.1" below describe vocabularies and column contracts
+settled early and unchanged since; they are not statements about
+`format_version` `0.1`, which is a pre-reset format this build does not read.
+
+Normative language:
+
+- **MUST** indicates a requirement for a valid store.
+- **SHOULD** indicates a recommended default that implementations may override with documented reason.
+- **MAY** indicates an optional feature.
+
+## 1. Store release envelope
+
+A Store Release is a self-contained directory.
+
+```text
+manifest.json
+index.sqlite
+analyses.tsv
+overview.html
+data.zarr/
+variants.tsv.gz
+variants.tsv.gz.tbi
+variant_offsets.npy
+variant_alid_bytes.npy
+variant_alid_rows.npy
+variant_rsid_bytes.npy
+variant_rsid_rows.npy
+```
+
+`manifest.json` identifies the release and declares how to interpret it.
+`index.sqlite` stores compact relational metadata such as key/value metadata,
+small alias maps, and large fine-grained tables that are not practical as flat
+text (such as Reference Completion Quality — see §12). `analyses.tsv` is the
+sole source of truth for Analytical Metadata (§7a) — one row per Analysis;
+`index.sqlite` MUST NOT also contain an `analyses` table. `overview.html` is a
+generated, store-wide human-browsable rendering of `analyses.tsv`; it MAY be
+regenerated from `analyses.tsv` and MUST NOT be treated as a second source of
+truth — Ragged releases do not carry one (§11). `data.zarr/` stores compressed
+numerical association arrays and layout-specific numerical indexes. Every
+layout stores its high-cardinality variant axis in `variants.tsv.gz`, indexed
+by `variants.tsv.gz.tbi`, with `variant_offsets.npy` mapping Store-local
+Variant Indices to BGZF row offsets, `variant_alid_bytes.npy`/
+`variant_alid_rows.npy` supporting ALID lookup, and
+`variant_rsid_bytes.npy`/`variant_rsid_rows.npy` supporting rsid lookup
+(issue #109). The rsid pair is written by every layout and MAY be empty — a
+source that names no variants indexes none — but a release whose
+`variants.tsv.gz` carries rsids and whose index does not is invalid (§20):
+every rsid lookup against such a release returns an empty result
+indistinguishable from a real absence.
+
+`index.sqlite` MUST NOT contain a `variants` table. The variant axis is
+`variants.tsv.gz` plus the offset and search sidecars above; a relational copy
+duplicated every column of the table it shadowed, was read by nothing, and
+carried a `rsid` column that no builder populated — a fourth copy of the axis
+that disagreed with the other three (issue #128).
+
+Both search indexes are fixed-width arrays, because that is what allows a
+binary search over them without parsing. An identifier too wide for its slot
+MUST be left out of the index and the omission counted — never cast into it.
+Casting truncates, and two variants whose identifiers agree over the slot width
+then share one key, so a lookup by either returns whichever row sorts first: one
+variant answering to another's name, with nothing to show it (issue #127). An
+ALID omitted this way stays reachable, resolved by exact scan over its position;
+an rsid omitted this way is not resolvable by name, which is why the widths are
+chosen from measured data and the omission is reported at build time.
+
+This is the complete envelope for a standalone Dense or Ragged Store Release.
+A Hybrid release additionally nests a `dense/` Dense Component directory
+holding a self-contained Dense Store Release of its own (same envelope as
+above, plus `dense_to_shared.npy` mapping its rows into the Hybrid release's
+shared variant table) — see §16. §20 requires every Store Release's
+directory to be closed: no file or directory beyond what its `primary_layout`
+legitimately produces per this section and §10/§11/§16/§17.
+
+Build and query commands operate on an explicit Store Release path. Directory naming, multi-store catalogues, default release selection, and remote API deployment are outside the store-format contract.
+
+## 2. Manifest contract
+
+Every Store Release MUST contain `manifest.json`.
+
+Required fields:
+
+| Field | Meaning |
+|---|---|
+| `store_id` | Stable identity of the logical Store |
+| `release_id` | Identity of this immutable release |
+| `format_version` | Store format version |
+| `primary_layout` | `dense`, `ragged`, or `hybrid` |
+| `association_coverage` | What the release retains of each source Analysis's associations: `gwas`, `cis`, `cis_and_signals` or `signals_only` (§2a) |
+| `completion_state` | `observed_only` or `reference_completed` |
+| `reference_assembly` | One genome assembly for all coordinates in the release |
+| `created_at` | Release creation timestamp |
+| `provenance` | Source and build provenance object |
+| `encoding` | How the statistic planes are encoded (§6a). Required in every readable release; the pre-reset formats that omitted it are refused (ADR 0041) |
+
+Reference-Completed releases MUST additionally declare:
+
+| Field | Meaning |
+|---|---|
+| `ld_reference_panel` | The panel defining the Reference Variant Set and LD resources |
+| `reference_completion_method` | Algorithm, software, version, and parameters used for imputation |
+
+Observed-Only and Reference-Completed releases for the same source collection SHOULD share `store_id` and use different `release_id` values.
+
+A release derived from another one — by migration or reference completion — is a new immutable release with its own identity: it MUST NOT reuse the source's `release_id`, and MUST record a fresh `created_at`. The restamp migration additionally records the source `release_id` in its provenance (§21.4).
+
+Published releases are immutable. Enhancing an Observed-Only release to Reference-Completed produces a new release.
+
+### 2a. Association Coverage
+
+`association_coverage` states **what the release retains**, independently of its
+Primary Storage Layout and Completion State (ADR 0009, ADR 0064):
+
+| value | the release retains |
+|---|---|
+| `gwas` | every association the source reports, genome-wide |
+| `cis` | a cis window around each Analysis's target, and nothing else |
+| `cis_and_signals` | a cis window plus significant signals elsewhere |
+| `signals_only` | significant signals and their flanks, with no cis window |
+
+`full` is the pre-#298 spelling of `gwas`. A reader MUST accept it and report
+`gwas`; a build MUST NOT write it, and neither MUST a derivation — a converted,
+restamped or amended release states the vocabulary the deriving package writes,
+not the spelling it read (§21.0).
+
+A `dense` or `hybrid` release has a cell for every (variant, Analysis), and a
+missing cell there means the source did not report the association — which is
+what Reference Completion imputes. So a `dense` or `hybrid` release MUST
+declare `gwas`, and a release declaring anything else is invalid. A `ragged`
+release is the list of associations kept, so absence states itself and it MAY
+declare any of the four. Validators reject a release outside this rule (ADR
+0064).
+
+## 3. Identity and terminology
+
+An **Analysis** is one statistical analysis of one Trait. An Analysis produces associations between that Trait and variants.
+
+A **Trait** is a measured or derived outcome. `phenotype` is treated as a synonym in user-facing descriptions, but the canonical term is Trait.
+
+A Store Release contains one or more Analyses. Analysis metadata MUST be sufficient to interpret stored effect scales, sample-size semantics, and source provenance.
+
+## 4. Variant identity and variant table
+
+Each Store Release MUST contain a Store Variant Table.
+
+The canonical within-Store variant key is ALID:
+
+```text
+chr:pos:A1:A2
+```
+
+where:
+
+- coordinates are on the release's declared Reference Assembly;
+- chromosome labels use canonical `X`, `Y`, and `MT`; source labels `23`, `24`,
+  and `25`/`26`/`M` respectively MUST be normalised to those labels before
+  identity assignment (ADR 0052);
+- alleles are trimmed and left-aligned before identity assignment;
+- `A1` is alphabetically first;
+- `A2` is the other allele.
+
+A build that lifts a source variant from another Reference Assembly MUST project
+the variant onto the release's assembly using the chain block's orientation: on a
+reverse-strand block the alleles are complemented before the ALID is formed, so
+the stored ALID names the variant the release's assembly carries rather than the
+source's allele string at a moved coordinate. Signed statistics follow the
+projected alleles, so a lift that swaps which allele is `A1` flips them
+(§5).
+
+The BESD builder (`build-ragged-besd`) checks its lift, and records that it
+did. Given `--variant-reference`, a reverse-strand lifted variant whose alleles
+the reference spells on the other strand fails the build naming the variant; a
+variant the reference names with a *different* allele pair, or does not name at
+all, is counted rather than failed — a Variant Reference is a variant list, not
+a genome, and cannot say that a variant it omits does not exist. A lift with no
+reference warns and is recorded as unchecked rather than passing as verified.
+That release's `manifest.json` `provenance.lift` records the source Reference
+Assembly, the chain, the reference (or `null` when none was supplied) and the
+verified / other-variant / absent counts (issue #284, ADR 0062).
+
+A lift that lands two ESI entries on one canonical variant is ambiguous, and
+MUST be dropped, not resolved: a source of 9,000,000 rows cannot fail the way
+one Analysis can, and nothing in the file set says which of the two entries a
+probe's association belongs to. Every entry in such a group is dropped, with
+its associations — never one of them kept, chosen by position, allele order or
+row order — so no Analysis holds one `variant_index` twice (§11). The same
+refusal applies to a source that lists one variant under two entries without a
+lift, because it is the store's invariant that is at stake rather than the
+chain's. `build-ragged-besd` reports the drop on stdout and in
+`provenance.lift` as `n_collisions` (entries dropped) and `n_collision_groups`
+(contested variants), beside `n_lifted`; a same-assembly build has no lift
+record to hold them, and carries the same two fields in the provenance's root
+(issue #304).
+
+The Dense and Hybrid builders lift through the same projection and re-orient
+their statistics from it, but they do not perform this allele check and record
+no `provenance.lift`; nothing in this section requires them to until one is
+added deliberately.
+
+Cross-Store identity is:
+
+```text
+reference_assembly + ALID
+```
+
+`rsid` is an alias, not primary identity.
+
+One rsid MAY name several Store-local Variant Indices — a multi-allelic site,
+or one position stored under both allele orders — so an rsid is not a key.
+Resolution therefore has two contracts (issue #109): an API returning a *set*
+of variants MUST return every row the rsid names, and an API whose contract is
+a single variant MUST resolve to the lowest Store-local Variant Index among
+them. Neither may silently pick an arbitrary one.
+
+Where a build obtains the `rsid` column, and what wins when inputs disagree,
+is part of the contract (issue #255):
+
+- A build that reads its sources (a two-pass build, or a single-pass build
+  whose reference names no variants) takes the **first non-empty** rsid a
+  source names for a variant, in `(rank, site)` order — Pass 1's manifest-order
+  reduction, so the first Analysis listed that names the variant. A later
+  source's different name for the same variant does not replace it, and a `.`
+  or empty cell names nothing and never clears an earlier name. Several source
+  coordinates that canonicalise to one ALID therefore take the answer of the
+  one that sorts first, not of the one that appears first in a file. The one
+  exception is a Hybrid build's routing key that its sources name differently,
+  below.
+- A GWAS-SSF source, read directly or through a Column Map, names a variant by
+  the first of its `rsid` and `variant_id` cells that names an rs identifier,
+  normalised before any name is compared (issue #306): a `;`-separated list
+  names its first item that begins `rs`, and an rs identifier ends at its first
+  `:`, so the compound `rsN:pos:a:b` names `rsN`. A cell with no such item names
+  nothing. Harmonised GWAS Catalog files write one name both ways —
+  `rs199633771:13122834:C:T` in one Analysis and `rs199633771` in another for
+  the same variant — and the normalisation makes them one name. The GWAS-VCF
+  reader's `ID` and the FinnGen reader's first comma-separated `rsids` item are
+  read as before.
+- A Hybrid routing key upper-cases alleles, so source coordinates spelt in
+  different case are one stored variant. When their sources name it with
+  different (normalised) rsids, nothing in the sources says which is right, and
+  `build-hybrid --on-rsid-conflict` decides (issue #306). `refuse`, the default,
+  fails the build and names the routing key and both names. `drop` gives **no
+  rsid** to every stored variant such a key routes to, over the build's final
+  combined routing — even when a second routing key reaches the same variant
+  with a name of its own (the same site reported in the other allele order),
+  because the variant's sources still disagree on its name. (A variant whose
+  routing keys are each named consistently, but differently from each other, is
+  reached by no disputed key and keeps the first name, by the rule above.) The
+  variant is
+  written with `rsid` `.` and left out of the rsid search index, exactly as a
+  variant no source names: a lookup by any of its names finds nothing, and
+  lookups by ALID and position find the variant and all of its associations.
+  Either way the build's JSON summary carries `rsid_conflicts`: the `policy`;
+  `n_keys`, the number of such routing keys among the harvested sites, stored or
+  not; `n_variants`, the number of stored variants they reach, which `drop`
+  leaves unnamed; and `sample`, the first 20 keys in genomic order, each with
+  its distinct names in `(rank, site)` order. A build that compared names and
+  found none disputed — even one whose sources name nothing — reports `0` and
+  `0`. `n_keys` and `n_variants` are `null`, never `0`, for a build that
+  compared no names across sources — a
+  `--reference-panel` build, or one whose reference names its variants — and a
+  build with no `--variant-reference` refuses `drop`, which it could not apply. A
+  checkpointed build records the policy and the counts, and resuming it under
+  the other policy is refused. A resume past the fold does not harvest again, so
+  one whose recorded counts are missing is refused too, unless its checkpoint
+  predates the option (records no `on_rsid_conflict`); its counts are then
+  `null`. A Dense routing key is the source's own spelling,
+  so two source coordinates never share one and a Dense build never meets this
+  case.
+- A single-pass build given `--variant-reference` MUST NOT write a `rsid`
+  column blank simply because the reference it was given is a plain ALID list.
+  When the reference names none of its variants, the build runs the same Pass 1
+  harvest the two-pass build runs for its candidates and their `(rank, site)`
+  order, keys those candidates with **exactly the key normalisation the build's
+  own association routing uses** (upper-cased alleles for a Hybrid routing,
+  the source's own spelling for a Dense one, allele order kept), and then rekeys
+  them **once** over **one combined site → ALID routing** — the reference's own
+  source keys, plus a Hybrid build's fold for off-reference rows — so a name
+  always lands on the ALID its association lands on and the global first
+  candidate in `(rank, site)` order wins, whichever partition routed it. Where
+  Pass 1's own liftover would have chosen a different ALID, the reference wins
+  and the disagreement is logged. When the reference carries its own rsids (a
+  full `*.variant-ref.tsv.gz` artifact or a Store Variant Table), it is the axis
+  authority and its names are used as given; a variant the reference does not
+  name is then written with no rsid, even when a source names it, and the build
+  warns with counts of the rows it leaves blank (the reference's own unnamed
+  rows and the fold-discovered Overflow rows separately). A reference that
+  already names rsids therefore predates this contract, and no rule below is
+  claimed for that path — an artifact extracted from the same sources names
+  every one of them, which is the supported way to keep a reference-named
+  axis and the sources' identifiers together.
+- For a store whose reference names no rsids, the resulting names are identical
+  to the two-pass build's **for every variant both axes carry**. The axes
+  themselves need not be identical, and one difference is expected: the
+  single-pass axis is the reference plus the off-reference variants its sources
+  actually observe, while a two-pass `--reference-panel` axis also keeps a
+  source variant that has no usable association anywhere. Such a variant is
+  absent from the single-pass release rather than present under a wrong name,
+  and both releases answer alike every query the two axes share.
+- A build that harvests (that is, a build whose reference names none of its
+  variants, or a two-pass build) MUST fail rather than publish a variant table
+  that disagrees with the rsids the sources named. Two checks run before
+  publication: the resolved ALID → rsid map is compared exactly with an
+  independently computed expectation — the raw harvest candidates walked
+  through the build's own key function over the *same final combined* routing,
+  first non-empty per ALID, and under `--on-rsid-conflict drop` with every ALID
+  that a routing key it finds named differently reaches expecting no name — so a
+  wrong value, a missing entry, a key-normalisation collapse that keeps the wrong
+  name, a disputed variant left named, or an extra entry fails;
+  and the written table is read back row for row against that map, so a stale
+  map or a table lost in the write fails too. Neither check runs on the
+  reference-named path above. A release whose sources genuinely name no variants
+  is valid, and builds normally — neither check can fire for it.
+
+Every Store Release assigns compact Store-local Variant Indices. Variant Indices MUST NOT be assumed stable across releases or stores.
+
+Dense Observed-Only releases use a tabix-backed Store Variant Table:
+
+```text
+variants.tsv.gz
+variants.tsv.gz.tbi
+variant_offsets.npy
+variant_alid_bytes.npy
+variant_alid_rows.npy
+variant_rsid_bytes.npy
+variant_rsid_rows.npy
+```
+
+The `variants.tsv.gz` table MUST contain one row per Store-local Variant Index,
+sorted by chromosome, position, effect allele, other allele, and variant index.
+The v0.1 dense column contract is:
+
+```text
+chromosome
+position
+variant_index
+effect_allele
+other_allele
+alid
+rsid
+```
+
+`variants.tsv.gz.tbi` MUST index chromosome and position for genomic range and
+single-position lookup. `variant_offsets.npy` MUST contain one fixed-width
+integer offset per variant row so row-index materialisation does not require a
+large SQL variant table.
+
+Long alleles MAY use deterministic hashed ALIDs as compact identifiers, but the complete normalised alleles MUST be retained once per variant so exact export and validation do not depend on an irreversible hash.
+
+Reference-Completed releases MUST expose Reference Panel Membership as variant metadata, distinguishing Reference Variant Set variants from observed off-panel variants.
+
+## 5. Allele orientation and signed statistics
+
+Every association MUST be normalised to the Store's canonical allele orientation.
+
+If the source effect allele is not canonical `A1`, the builder MUST swap orientation and negate signed statistics. Z is signed and carries effect direction. SE is non-negative.
+
+Derived beta is:
+
+```text
+beta = z * se
+```
+
+## 6. Stored statistics
+
+OpenGWASDB stores the canonical statistic pair:
+
+```text
+z
+se
+```
+
+Requirements:
+
+- `z` is signed.
+- `se` is non-negative.
+- `se` is on the same Stored Effect Scale as beta.
+- beta is queryable but derived from `z * se`.
+- p-value is queryable but derived from Z.
+- INFO and sample size MUST NOT be required to reconstruct beta, SE, Z, or
+  p-value. EAF is not required to reconstruct beta, Z, or p-value, and is
+  not required to reconstruct a legacy or floating-point `se`. A
+  residual-coded `se` (§6a) **is** unreadable without the EAF its cells were
+  coded against — the observed EAF for observed cells, the Reference EAF for
+  imputed cells.
+
+Statistic planes are not required to be floating point, and `z` is not. Their
+physical encoding is declared per release, in `manifest.json` (§6a), and is
+read from that declaration rather than inferred from a dtype.
+
+## 6a. Statistic encodings
+
+Every Store Release MUST declare an `encoding` object in `manifest.json`,
+stating `version` 3 and a plan for each of `z`, `se` and `eaf` -- and, for a
+Ragged release carrying per-association sample sizes, `n`:
+
+```json
+"encoding": {
+  "version": 3,
+  "z": {"kind": "int16_fixed", "scale": 1024},
+  "se": {"kind": "int8_residual", "residual_range": 1.0},
+  "eaf": {"kind": "int8_residual", "residual_range": 0.5}
+}
+```
+
+- The declaration is authoritative. A reader decodes what the manifest says;
+  validation checks that the arrays agree with it (§20).
+- A reader meeting a `kind` it does not implement MUST reject the release
+  (§21), not guess and not fall back.
+- **The block is required, and there is no reading of its absence.** A release
+  that declares no `encoding`, or a block that declares no `version` or no
+  `eaf` plan, MUST be rejected. Every such absence used to date a release to a
+  pre-reset format — "no block" meant `float16` throughout, "no `eaf`" meant
+  ADR 0036's optional plane — and those formats are no longer read (ADR 0041),
+  so the inference has nothing left to infer and would only let a malformed
+  release of *this* format be decoded as something it is not.
+- **`version` MUST be 3.** It identifies the shape of the block, not the store
+  format, and is not reset alongside `format_version`: blocks stamped 1 and 2
+  were real shapes, and reusing one of those numbers for a third shape would
+  recreate the collision the format reset exists to avoid (ADR 0041 §3).
+- Issue #157's rule that a release may declare only kinds its own
+  `format_version` admits is retired with the versions it gated: one readable
+  format admits every kind its parser implements.
+
+**`z` — `int16` fixed point plus an exact overflow table** (ADR 0037 §1). The
+stored code is `round(z × scale)`, `scale` = 1024 by default, with two
+reserved codes:
+
+| code | meaning |
+|---|---|
+| `-32768` | missing — decodes to NaN, and the paired `se` MUST also be missing (§15) |
+| `-32767` | out of range — the exact `float32` is in the plane's overflow table |
+| `-32766 … 32767` | `z × scale`, i.e. −31.998046875 … +31.9990234375 |
+
+The representable interval is stated as exact endpoints rather than "±32":
+signed fixed point is asymmetric, and reserving codes makes it more so.
+
+A value outside that interval is **not** clipped and does **not** fail the
+build — genuine associations reach |z| = 137.5. It is held exactly, in two
+parallel arrays beside its plane:
+
+```text
+z_overflow_index   int64, sorted, unique — the cell's flat position in its plane
+z_overflow_value   float32               — the exact z
+```
+
+A cell's flat position is `variant_index × n_analyses + analysis_index` for a
+Dense grid, and the association's ordinal in the concatenated CSR arrays for a
+Ragged sequence. The arrays are present whenever `z` is `int16_fixed`, even
+when empty. Every out-of-range cell MUST have an entry and the table MUST NOT
+describe any other cell (§20).
+
+A build MUST fail on a non-finite `z` that is not a recorded absence (±inf, or
+a malformed statistic): it is neither a value nor an absence, and no encoding
+of it is honest.
+
+**`se` — `float16` or `int8_residual`.** Residual coding predicts
+`log(SE) = intercept + slope × log(2 × EAF × (1 − EAF))` using decoded,
+quantised EAF and two `float32` coefficients per Analysis in
+`se_coefficients[n_analyses, 2]`. Codes `-128` and `-127` mean missing and
+exact exception; `-126…127` carry a residual at `step = residual_range / 127`.
+Exact values are stored in sorted parallel `se_exception_index` (`int64`) and
+`se_exception_value` (`float32`) arrays, present even when empty. Dense keys
+are `row × n_analyses + column`; Ragged keys are CSR ordinals.
+
+Builders try ranges ±0.5, ±1, and ±2 in order, accepting one only when every
+finite SE has decodable EAF, exact exceptions are at most 2% **in every
+Analysis** — not pooled over the plane — ordinary-cell relative error is at
+most 1%, and measured compressed bytes decrease after codes, coefficients, and
+side tables are charged. Otherwise the entire plane is `float16`. A release
+carrying an `n` plane keeps `se` in `float16` unconditionally: the residual
+model has one intercept per Analysis and so assumes one N per Analysis, and
+with per-pair N spanning 2.5 decades it measured a 0.79% worst-case SE error on
+eQTLGen against `float16`'s 0.049% (ADR 0067 §4). A reader MUST reject an
+`encoding` block that declares `n` beside `int8_residual`, and validation
+names it (§20). Zero SE,
+non-finite predictions, and out-of-range residuals are exact exceptions, never
+clips.
+
+**Residual SE is all-or-nothing per component, and that verdict is reached
+before the fit and the measurements.** One Analysis whose cells carry a finite
+SE and no frequency, or from which the fit yields no coefficients — fewer than
+two usable cells, or a frequency spread with no variation — leaves the whole
+plane, every other Analysis included, in `float16`. This is a property of the
+format rather than of any release: the plan declares one encoding for the
+entire plane and every reader decodes every cell against it. A build therefore
+decides it from one bounded streaming pass over both components, before it fits
+a coefficient or measures a candidate, so a plane that cannot be coded never
+pays for either; that pass reports which trigger fired and how many Analyses
+were responsible. Coding the Analyses that can be fitted and falling back only
+for those that cannot would need a representation for "this Analysis is coded
+differently", which is format surface with its own version story (ADR 0037,
+ADR 0041) and is deliberately not built (issue #229).
+
+**Every cell carrying a standard error owes a finite EAF, exact exceptions
+included.** A residual plane is defined over a store whose frequencies are
+complete where its standard errors are, and encoding refuses a finite `SE`
+whose cell has no frequency rather than absorbing it as an exception — a store
+only this package could read is worse than one it declines to write. Nothing
+upstream produces such a cell: an imputed standard error is derived from the
+panel frequency, so a cell without one gets no standard error either.
+
+The 2% budget is **per Analysis and pooled across a Hybrid store's two
+components**, not met by each component separately. What it bounds is storage:
+an exact exception stores the source value exactly, so a high exception rate
+costs side-table bytes and no accuracy. The quantity that bounds those bytes
+for an Analysis is its share over all of its cells, wherever they live. Hybrid
+components share one decision, and each must save bytes on its own.
+
+**`eaf` — one of three kinds** (ADR 0037 §2). EAF's *semantics* are unchanged by
+the encoding: it is still per (variant, Analysis), still oriented to the stored
+effect allele (§5, §9.1), still declared per Analysis by `eaf_scope` (§9).
+
+| `kind` | what the plane holds | written by |
+|---|---|---|
+| `absent` | nothing — the release has no `eaf` array | yes |
+| `float32` | ADR 0036's exact plane | yes |
+| `int8_residual` | a quantised logit residual against a per-variant baseline | yes |
+
+There is no present-or-absent kind. ADR 0036's `float32_optional` — where the
+plane's *presence* rather than the plan said whether a release had frequencies
+— named the contract of a format this build no longer reads, and was deleted
+with it (ADR 0041). A release with no frequencies declares `absent`.
+
+**The residual coding.** Three arrays beside the plane, all in the same group:
+
+```text
+eaf                   int8    — the quantised residual, one per cell
+eaf_baseline          float32 — one per variant of *this component's* axis
+eaf_exception_index   int64, sorted, unique — flat position in the plane
+eaf_exception_value   float32 — the exact frequency
+```
+
+Per-variant frequency arrays (`eaf_baseline` and `eaf_reference`) are chunked
+along the variant axis, no more coarsely than the component plane they serve
+and never above 200,000 variants per chunk. A multi-chunk-sized variant axis
+stored as one chunk is invalid: point queries must not decompress the full
+per-variant array.
+
+The transform is the **logit**, `logit(f) = log(f / (1 − f))`, and the stored
+code is `round((logit(f) − logit(b)) / step)` where `b` is the variant's
+`eaf_baseline` and `step = residual_range / 127`. The logit, and not `log(f)`,
+because a residual error of `d` moves `f` by a relative `(1 − f)·d` and `1 − f`
+by a relative `f·d`: neither the effect allele frequency nor the minor allele
+frequency a user filters on can be wrong by more than `d`. `log(f)` is blind to
+the minor side, which for a frequency near 1 is the only side anyone reads.
+Measured on real data the two transforms leave residuals of the same width
+(FinnGen chr1, 8 endpoints: sd 0.0170 against 0.0169), so the choice costs
+nothing.
+
+Two of the 256 codes are reserved, leaving **254** levels:
+
+| code | meaning |
+|---|---|
+| `-128` | this Analysis reports no EAF at this cell — decodes to NaN |
+| `-127` | exception — the exact `float32` is in the plane's exception table |
+| `-126 … 127` | `round((logit(f) − logit(b)) / step)` |
+
+so the representable residual interval is `[−126·step, +127·step]`, stated as
+exact endpoints for the same reason `z`'s is. A cell that is not an exception
+round-trips to within **half a step**, which is a function of the declared
+range and must be quoted per range:
+
+| `residual_range` | step (logit) | worst-case relative error |
+|---|---|---|
+| 0.5 | 0.003937 | **0.197%** |
+| 1.0 | 0.007874 | 0.394% |
+| 2.0 | 0.015748 | 0.787% |
+
+Three kinds of cell are **exceptions**, held exactly rather than approximated:
+a residual outside the interval; a frequency of exactly 0 or 1, which has no
+logit; and a cell at a variant with no usable baseline. The exception table has
+the same shape and the same rules as `z`'s overflow table: present whenever
+`eaf` is `int8_residual`, even when empty; every exception cell MUST have an
+entry and the table MUST NOT describe any other cell (§20).
+
+`eaf_baseline[v]` is the median, taken in logit space, of the frequencies the
+release's Analyses report at variant `v` that lie strictly inside `(0, 1)`. The
+median of an even count is the mean of the two central logits. A variant at
+which no Analysis reports such a frequency has a NaN baseline, and every
+EAF-bearing cell at it is an exception — there is no honest baseline to code
+against, and a substituted one (0.5, say, or a store-wide mean) is exactly the
+plausible-looking default this format refuses.
+
+A build MUST fail on a value outside `[0, 1]`: it is not a frequency.
+
+**Which kind a build writes is measured, not inferred from the layout.** The
+builder measures the residual spread over its own data and picks the smallest
+`residual_range` whose exception fraction is within budget, then compares the
+resulting byte total against the `float32` plane and writes `float32` when the
+residual coding would not be smaller. A store with roughly one EAF-bearing cell
+per variant pays more for the per-variant baseline than the `int8` cell saves,
+and nothing stops a Dense manifest spanning several cohorts — a store that
+assumed otherwise would clip silently against a range chosen for data it does
+not hold.
+
+**Every component writes its own baseline and its own exception table**, against
+its own variant axis. A Hybrid release has two: its Dense Component's is
+panel-sized, its Ragged Overflow's covers the shared union table. Both
+components share one `kind` and one `residual_range`, because they partition one
+Analysis's associations and a result assembled from both must be coherent.
+
+**`eaf_reference` — the panel frequency for imputed cells** (ADR 0037 §4). An
+imputed cell's EAF *is* the LD Reference Panel's, and it is identical for every
+Analysis imputed at that variant, so it is a per-variant constant rather than
+per-cell data:
+
+```text
+eaf_reference   float32 — one per variant of this component's axis
+```
+
+declared by `"reference": true` in the `eaf` block. Which cells it describes is
+already recorded, by Association Status (§9, §15): a reader substitutes it on
+imputed cells and on no others. It is per **component**, not per release — a
+Hybrid release's Dense Component has imputed cells where its Ragged Overflow
+does not, and each declares its own plan in its own manifest. A component
+declaring it MUST carry the array and an imputed mask; a component carrying the
+array MUST declare it.
+
+**An observed cell whose source reported no EAF stays NaN.** It does not fall
+back to the panel. FinnGen's frequencies differ from the EUR panel by up to
+3000× (max log-residual 8.07, the Finnish founder effect), so substituting a
+panel frequency for a missing cohort one would hand a user a plausible number
+that is wrong by three orders of magnitude, precisely for the rare variants
+they filter on.
+
+`eaf_reference` is declared independently of the plane, `absent` included. A
+source whose Analyses reported no frequency at all still gains imputed cells
+when it is completed, and those cells have the panel's frequency: such a release
+carries `eaf_reference`, no `eaf` array, and reads NaN on every observed cell.
+Its Analyses that gained imputed cells declare `eaf_scope=association`, which is
+a statement about the arrays and not a contradiction of them — a release holding
+only the panel's frequencies still holds frequencies.
+
+The panel may itself declare none. An LD Reference Panel is supplied for
+imputation and its frequencies are optional; a completion against one that has
+none carries no `eaf_reference` and leaves imputed cells NaN, rather than
+failing. In this pipeline that case is vacuous, and deliberately so: an imputed
+`se` is scaled by the panel's heterozygosity, so a panel with no frequencies
+imputes nothing at all rather than deriving an `se` from a substituted one.
+What such a completion protects is the release's *own* frequencies — the run
+succeeds and the observed plane survives it. A reader must still handle NaN
+here, because the rule is about the panel and not about how any one pipeline
+derives `se`.
+
+Constraint: **one LD Reference Panel per completed release**. True of the
+completion pipeline today, but load-bearing here, so it is recorded in
+`manifest.json` rather than left implicit: `provenance.completion` names the
+`ld_panel_id` and `ancestry` the release was completed against. A Hybrid
+release records it at the top level as well as inside its Dense Component —
+the component is where the imputation happened, but the release is what a
+reader opens.
+
+**`n` — the optional per-association sample size** (ADR 0067). A Ragged
+release MAY carry a fifth CSR plane, `data.zarr/ragged/n`, and declares it as
+`"n": {"kind": "uint32"}`. A release without the plane declares **no** `n` key
+at all: unlike `eaf`, there is no `absent` kind, and a block without the key
+is every release written before the plane existed and every release since
+that was given no sample-size input. A reader meeting an `n` kind it does not
+implement MUST reject the release (§21).
+
+| code | meaning |
+|---|---|
+| `4294967295` (`2³² − 1`) | missing — the build was given no N for this pair; decodes to NaN |
+| `1 … 4294967294` | that many participants |
+| `0` | invalid — never written; a release holding one fails validation |
+
+`n` has no side table: its codes are its values. It is written only by
+Ragged builds, never by a Dense build or a Hybrid component, and is decoded to
+`float64` (exact for every code) with NaN for missing.
+
+Derived artifacts that hold their own copies of `z` — top-hit indexes (§18)
+and the Rho Matrix — remain decoded `float32` and are explicitly rebuildable
+from the encoded planes. A top-hit index's `z` MUST equal what a query reads
+back from the plane, so candidate selection is done on the **stored** value.
+
+## 7. Effect scale
+
+Each Analysis MUST declare Stored Effect Scale from the controlled vocabulary:
+
+```text
+sd
+log_or
+log_hazard
+```
+
+There is no `other`, `unknown`, or original-units Stored Effect Scale in v0.1. Unsupported stored scales MUST fail ingestion until the vocabulary is deliberately extended.
+
+Original Effect Scale MAY be recorded as free-text provenance. For continuous traits, builders SHOULD store effects in SD Units when phenotype standard deviation is available or can be derived with acceptable provenance, by rescaling the source statistics with a per-study phenotype SD rather than reconstructing them from Z, N, and allele frequency (ADR 0029). The method used to obtain that SD (`original_sd_method`) and a dispersion diagnostic over its supporting evidence MUST be recorded as Analytical Metadata (§7a).
+
+## 7a. Analytical Metadata, Attribution Metadata, and `analyses.tsv`
+
+A Store Release MUST carry its own Analytical Metadata — metadata affecting the
+interpretation of association statistics — and its own Attribution Metadata —
+metadata establishing how an Analysis may be cited, licensed, and attributed —
+so a downloaded or mirrored copy remains usable and interpretable without a
+catalogue service (ADR 0030, ADR 0034). Both live entirely in `analyses.tsv`,
+one row per Analysis, keyed by `analysis_index`, **identically across every
+Primary Storage Layout** (ADR 0034) — Ragged is not exempt, and `index.sqlite`
+MUST NOT hold a second, layout-specific per-Analysis metadata table. This
+column list is a **breaking revision** of the one ADR 0030 originally
+specified (ADR 0034, further narrowed by ADR 0035's retirement of `gene_id`/
+`gene_name`): a Store Release built against a prior column list is not a
+valid Store Release against this one, and no reader is required to accept
+both.
+
+```text
+analysis_index
+analysis_id
+analysis_label
+trait_ontology_id            (CURIE, e.g. EFO:0001073; blank when unmapped)
+trait_ontology_label
+tissue
+context
+trait_chr                    (blank for Analyses with no single genomic position)
+trait_bp
+stored_effect_scale
+assigned_ancestry
+ancestry_assignment_method
+ancestry_prop_<population>   (repeated, one column per reference population)
+sample_size_kind
+sample_size_scope
+sample_size
+n_cases
+n_controls
+eaf_scope                    (see §9; blank or `absent` when the build stored no EAF)
+original_effect_scale
+original_sd
+original_sd_method
+original_sd_dispersion
+license
+publication_doi
+publication_pmid
+consortium
+first_author
+completed_against   (Reference-Completed releases only; null when unimputed)
+completion_median_pearson_r   (Reference-Completed releases only)
+completion_n_imputed_total
+completion_n_missing_total
+eaf_orientation      (see §9.1; `passed`, `failed` or `unverified`; blank only on a store built before the check existed)
+eaf_orientation_r    (the observed correlation; blank when none was computed)
+eaf_orientation_n    (variants the correlation was computed over)
+n_hits_5e8   (count of associations at p <= 5e-8, genome-wide significant)
+n_hits_5e6   (count of associations at p <= 5e-6, suggestive)
+n_hits_5e4   (count of associations at p <= 5e-4, nominal)
+```
+
+Every column beyond `analysis_index`/`analysis_id` MAY be blank for an
+individual row when genuinely unknown or not applicable — a phenotype-level
+Analysis leaves `trait_chr`/`trait_bp` blank; a Trait with no clean ontology
+mapping yet leaves `trait_ontology_id`/`trait_ontology_label` blank rather
+than fabricating one. `trait_ontology_id` is not required to be unique — one
+Trait MAY have several Analyses (differing by cohort, ancestry, model, sample
+subset, or meta-analysis) that share it, and it MAY be blank on some or all of
+them. There is deliberately no other Trait-identifying column: a raw,
+source-native trait identifier alongside `trait_ontology_id` was considered
+and rejected (ADR 0034) as recreating the same "which column is authoritative"
+ambiguity `phenotype_id` had. This extends to gene identity for gene-centric
+(pQTL) Analyses: `trait_ontology_id`'s CURIE contract is polymorphic by Trait
+kind, so an Ensembl gene ID (e.g. `ENSEMBL:ENSG00000152256`) belongs there and
+in `trait_ontology_label` (`"Ensembl"`) rather than in dedicated `gene_id`/
+`gene_name` columns, with the gene symbol carried as free text in
+`analysis_label` (ADR 0035). `trait_ontology_label`'s meaning is therefore
+polymorphic along with `trait_ontology_id`'s: for an EFO/MONDO CURIE it MUST
+be that specific term's human-readable name; for a gene-centric CURIE, whose
+human-readable name is already `analysis_label`, it instead names the
+identifying vocabulary (`"Ensembl"`) rather than repeating the gene name.
+`analysis_id` MUST be unique within a Store Release.
+
+For CORE build-input manifests (stores #175), optional `info_score_threshold`,
+`imputation_score_column`, `imputation_score_kind`, and
+`imputation_score_provenance` are per-Analysis shared-core policy inputs. They
+are not inferred from source headers. A manifest omitting all four has no INFO
+filter; a literal `NaN` threshold without a mapping explicitly means unavailable
+and also has no filter. A numeric threshold, including zero, MUST be finite in
+`[0, 1]` and MUST accompany an exact source column name, a kind of
+`imputation_info` or `imputation_r2`, independent provider evidence in
+`imputation_score_provenance`, and an INFO-capable Source Reader (currently
+`opengwasdb.gwas-ssf`). Partial declarations, a mapping without a numeric
+threshold, malformed thresholds, and a declaration alongside `NaN` are invalid.
+The declared source column must occur exactly once with the declared spelling;
+the GWAS-SSF reader rejects absent, padded, or ambiguous source header columns
+when it opens the file. These inputs define an ingestion policy, and a CORE
+build applies it: the Hybrid builder (issue #175) passes the declaration to the
+Source Reader and drops every association the policy excludes — a usable score
+strictly below a positive threshold, or a score that is missing, malformed,
+non-finite or out of `[0, 1]` — before Dense/Overflow routing, before the EAF
+orientation check and before the Top-Hit Counts, so nothing a declared
+threshold rejected can be stored, counted or oriented. A score exactly equal to
+the threshold is kept. A literal `NaN` threshold and an explicit zero drop
+nothing while remaining distinct recorded states. An Analysis that declares a
+score and has no usable value anywhere in its source fails the build, naming
+that Analysis.
+
+What a Hybrid build filtered and how much it dropped is recorded per Analysis
+in `manifest.json`'s `provenance.info_score.analyses` (stores #175): one entry
+per Analysis of the build-input manifest, in `analyses.tsv` order, each carrying
+`analysis_id`, `info_score_state` (`legacy_absent`/`unavailable`/`disabled`/
+`filtered`), `info_score_threshold` (null when none was declared or the score is
+unavailable), `associations_observed`, `associations_retained`,
+`associations_below_threshold`, `associations_missing`, `associations_malformed`,
+`associations_nonfinite`, `associations_out_of_range` and
+`associations_usable`. The denominator is the associations the Analysis's Source
+Reader yielded after its own effect/SE admission, **not** raw source lines and
+not the whole-file canonical-row counts `resolve-analyses` reports separately:
+`associations_observed` = `associations_retained` +
+`associations_below_threshold` + the four unusable dispositions, and
+`associations_usable` = `associations_retained` + `associations_below_threshold`
+under a positive threshold. The whole block MUST be absent when no
+build-input row declared a policy — an absent block means the manifest declared
+none, never "nothing was dropped" — so a legacy manifest's release records
+exactly what it did before this filter existed. A policy may be `unavailable` or
+`disabled` for some Analyses of a table and `filtered` for others; every entry
+appears whenever the threshold column is present at all.
+
+`analyses.tsv` MUST be sufficient on its own to interpret every Analysis's stored
+effect scale, sample-size semantics, ancestry, and licensing/citation terms —
+this supersedes the general requirement in §3 that "Analysis metadata MUST be
+sufficient to interpret stored effect scales, sample-size semantics, and source
+provenance," which this section makes concrete. `index.sqlite` MUST NOT
+duplicate any column of `analyses.tsv`; large, fine-grained, tooling-only
+evidence (such as Reference Completion Quality at LD-block-by-Analysis
+granularity, §12) stays SQLite-only, with only its per-Analysis rollup
+appearing in `analyses.tsv`.
+
+`n_hits_5e8`/`n_hits_5e6`/`n_hits_5e4` are Analytical Metadata too (ADR 0032): a
+signal of study power and test-statistic-inflation risk, derived at build time
+from the store's own top-hit index (§18) and never recomputed at query or render
+time. A store whose associations are split across more than one on-disk top-hit
+index for the same Analysis (a Hybrid store's Dense Component and Ragged
+Overflow Component) records the sum, since the two partition an Analysis's
+associations disjointly.
+
+## 8. Sample size metadata
+
+Sample size semantics are represented by kind and scope.
+
+Sample Size Kind:
+
+```text
+total
+case_control
+effective
+variant_level
+```
+
+Sample Size Scope:
+
+```text
+analysis_level
+variant_level
+```
+
+OpenGWASDB MUST NOT present sample size inferred from effect statistics as an observed participant count.
+
+A Ragged release MAY store a sample size **per association**, in the `n` plane
+(§6a, §11, ADR 0067). It is a build input -- for a BESD build, a per-pair table
+keyed by `.epi` probe ID and `.esi` SNP ID, such as eQTLGen's published
+`NrSamples` -- and never a value recovered from `z`, `se` and EAF: a pair the
+input does not name is stored as missing, not estimated. The input's path,
+sha256 and match counts are recorded in `manifest.json`'s
+`provenance.sample_size_table` (`n_rows`, `n_rows_matched`,
+`n_rows_unmatched`, `n_associations`, `n_associations_missing`). An Analysis
+holding at least one per-association N declares
+`sample_size_scope=variant_level`; its `sample_size` column keeps whatever
+per-Analysis figure its manifest supplied.
+
+Physical sample-size encoding is an implementation detail. Builders SHOULD choose the smallest lossless representation compatible with source data, including scalar counts, total N plus constant case fraction, sparse residuals, or full per-variant counts.
+
+## 9. EAF and INFO metadata
+
+EAF Scope and INFO Scope use the same values:
+
+```text
+absent
+variant
+association
+```
+
+EAF and INFO are optional metadata, and neither is needed to reconstruct beta,
+Z, or p-value, nor a legacy or floating-point `se` (§6). The exception is a
+residual-coded `se` (§6a), which decodes against the EAF planes its cells were
+coded against — the observed EAF for observed cells, the Reference EAF for
+imputed cells — so a release carrying one is not reconstruction-independent of
+EAF, and validation requires a complete `eaf` plane beside it (§20).
+
+Variant-scoped EAF or INFO is valid only when the builder can establish that one value is genuinely shared. Builders MUST NOT average differing association values into variant-scoped values.
+
+For imputed associations, EAF comes from the LD Reference Panel when stored. EAF provenance is inferred from Association Status:
+
+- observed association: source EAF, or NaN where the source reported none;
+- imputed association: reference-panel EAF, held once per variant in
+  `eaf_reference` (§6a).
+
+An observed cell never takes the panel's frequency: the two are not
+interchangeable, and the difference between them can be three orders of
+magnitude (§6a, ADR 0037 §4).
+
+Each Analysis declares its EAF Scope in `analyses.tsv`'s `eaf_scope` column
+(ADR 0036), derived by the builder from what it actually stored rather than
+copied from a build manifest. Builders emit `absent` or `association`;
+`variant` remains specified but unimplemented, since no ingestion path can
+establish that one value is genuinely shared. Reference Completion carries
+observed EAF across unchanged, and stamps `association` on an Analysis that
+gained imputed cells in a release carrying `eaf_reference` — that Analysis now
+stores a frequency for those cells, and the declaration follows what the
+release holds rather than what its source reported.
+
+`eaf_scope` is per Analysis and the `encoding` block (§6a) is per release: two
+granularities of the same fact, which validation cross-checks (§20). A release
+declaring no `eaf` plane while an Analysis declares `eaf_scope=association` is
+invalid, and so is the reverse — unless the release declares `eaf_reference`,
+in which case it does hold frequencies for its imputed cells and the Analyses
+that gained them say so. On a Hybrid release the question is asked of **every**
+component: `analyses.tsv` describes the Analyses of both, and `eaf_reference`
+is per component, so a release whose frequencies are all in its Dense Component
+is not a contradiction of its top-level plan.
+
+### 9.1 EAF orientation is verified, and the verification is recorded
+
+Stored EAF MUST describe the *stored* effect allele (§5). A source that
+reports `effect_allele_frequency` against the other allele produces a store
+whose every frequency is wrong by `1 - f`, with nothing in the row to show it:
+`0.42` where the truth is `0.58` is a perfectly plausible frequency. This is
+not hypothetical — `GCST003566` in the `gwas-catalog-eur-hybrid` pilot does
+exactly this (ADR 0037 §6, issue #115).
+
+Builders MUST therefore correlate each Analysis's A1-oriented EAF against a
+reference over a deterministic sample of the overlapping variants, and MUST
+fail the build when the correlation is negative. The reference is an external
+panel where one is supplied; otherwise, for a build of three or more Analyses,
+it is the consensus of the other Analyses — which can establish that Analyses
+disagree but not which is right, so an inconsistent build fails rather than
+dropping a study.
+
+A BESD file set is the one source whose Analyses share their frequencies: the
+`.esi` reports one per variant, and a build asked to store it
+(`--store-esi-eaf`, opt-in) stores that one value at that variant for every
+probe (`1 − f` where the canonical orientation flipped the allele). Its check
+is therefore run **once, over the `.esi`**, against the supplied reference, and
+the one outcome is recorded against every probe that stores a frequency, under
+`provenance.eaf_orientation.scope = "source_file"` (ADR 0067). It MUST NOT fall
+back to a consensus of probes: they agree by construction, so a consensus would
+certify the `.esi` against itself. With no reference, every such probe records
+`unverified`.
+
+The check MUST NOT be interpreted where it cannot be. Below a minimum overlap,
+or below a minimum frequency variance on either side, the Analysis records
+`unverified` — never `passed`. An Analysis that stores no EAF likewise records
+`unverified`: there is no wrong column, but neither is there a checked one, and
+the two must not read alike.
+
+The evidence is about a **stored, source-derived** frequency column, and only
+about that. A Reference-Completed release whose components declare no `eaf`
+plane at all carries the panel's `eaf_reference` and nothing else (§6a): its
+Analyses declare `eaf_scope=association` because the release holds frequencies
+for their imputed cells, but no cohort reported those frequencies and none can
+be reported against the wrong allele — `panel_a1_eaf` orients the panel by
+construction, through the same reader this check uses. Such an Analysis
+therefore requires no orientation evidence, and a blank `eaf_orientation` on it
+is correct rather than missing. Requiring evidence there asks for a check on a
+column that does not exist, which no build can supply: it rejected every
+Reference-Completed release built from a source with no frequencies of its own,
+which is the release §6a exists for.
+
+The reference itself is checked before it is trusted: one whose frequencies
+exceed 0.5 for only a negligible fraction of its variants is minor allele
+frequency, which is symmetric about 0.5 and would correlate a flipped source at
+r ≈ +1. Such a reference is **refused outright** — the build fails on the
+reference, not on the Analyses, because nothing correlated against it would mean
+anything.
+
+The threshold is on the *sign* of `r`, not its strength. A genuine study can
+correlate weakly with a reference panel — `GCST007320` in the
+`gwas-catalog-eur-hybrid` pilot reads +0.878 against the UKB EUR panel where the
+other nine read above +0.99 — so a floor on `|r|` would reject real data while
+adding nothing: the defect this catches sits at −0.999.
+
+The outcome is Analytical Metadata: `eaf_orientation` (`passed`/`failed`/
+`unverified`), `eaf_orientation_r` and `eaf_orientation_n` in `analyses.tsv`,
+with the reference's identity and checksum, the sample size, and each
+Analysis's evidence in `manifest.json`'s `provenance.eaf_orientation`.
+Validation checks the recorded evidence rather than the panel, since a Store
+Release must stay interpretable after the panel it was built against has moved;
+re-deriving the answer from the store's arrays is a separate audit that takes a
+panel as input.
+
+A correlation is deliberately used in preference to any threshold on the *size*
+of the difference: a bottlenecked cohort's frequencies legitimately differ from
+a reference panel's by three orders of magnitude (FinnGen, max log-residual
+8.07) while still correlating at r = +0.995, because a bottleneck changes
+magnitudes, not direction.
+
+## 10. Dense Observed-Only layout
+
+Dense Observed-Only is the first implementation target.
+
+Dense layout stores arrays with shape:
+
+```text
+n_variants x n_analyses
+```
+
+Required statistic arrays:
+
+```text
+data.zarr/z
+data.zarr/se
+```
+
+`z` is encoded as §6a declares, and carries `data.zarr/z_overflow_index` and
+`data.zarr/z_overflow_value` beside it when that encoding is `int16_fixed`.
+
+Optional (ADR 0036), same shape and chunking as the required arrays:
+
+```text
+data.zarr/eaf
+```
+
+`eaf` is `float32` where `se` is `float16`: the canonical A1 is the
+lexicographically smaller allele rather than the minor one, so EAF near 1 is
+ordinary, and `float16` spacing near 1.0 (0.00049) would round a MAF of 1e-4
+to zero. The array is absent entirely when no Analysis in the release carries
+a frequency; per-cell NaN carries per-Analysis and per-cell absence alike.
+
+In Observed-Only Dense stores:
+
+- every present cell represents an observed association;
+- unavailable associations are represented by each plane's missing marker
+  (§6a, §15) in both `z` and `se`;
+- no imputed mask is required;
+- the dense variant axis is source-faithful and does not require an LD Reference Panel.
+
+Recommended compression for initial implementation is Zarr with Zstandard and bitshuffle, using benchmarked chunking appropriate for mixed range, variant, PheWAS, and full-analysis extraction workloads.
+
+## 10a. `data.zarr` physical layout in format 0.2.0
+
+Format 0.2.0 stores every array as **Zarr v3 with the sharding codec**. The
+arrays, dtypes, fill values and encodings are exactly those of 0.1.0 (§10); only
+the physical layout changes. A 0.2.0 release exists because the unit a query
+reads — the **inner chunk** — is decoupled from the unit stored as a file — the
+**shard** — so the Dense Analysis-axis inner chunk can narrow without
+multiplying the file count (ADR 0057, ADR 0021).
+
+```text
+format_version 0.1.0   Zarr v2   .zarray / .zgroup, one file per chunk
+format_version 0.2.0   Zarr v3   zarr.json, one file per shard
+```
+
+**Shards are bounded on both axes.** The Dense VCF builder writes `[all variants
+× band]` column bands, so a shard spanning every Analysis is never written whole
+(ADR 0057). A Dense shard is `[V_s × A_s]`, with `A_s` a whole multiple of the
+Analysis-axis inner chunk. The decided shapes (#246, ADR 0058), which a
+conversion takes as parameters, are:
+
+| array role | inner chunk | shard |
+|---|---|---|
+| Dense statistic planes (`z`, `se`, `eaf`) and the imputed mask | `[1000, A_c]`, `A_c` the analysis-axis chunk (**decided 64**), clipped to the array | `[100_000, 1024]` (rows × Analyses); the inner chunk MUST tile this shard (**`100000 % V_c == 0` and `1024 % A_c == 0`**), and the shard is clipped only when the array itself is shorter than it |
+| Dense per-variant side arrays (`eaf_baseline`, `eaf_reference`) | per §6: the serving plane's variant-axis chunk, capped at 200,000, clipped to the array | about 1,000,000 elements |
+| Ragged association sequences (`ragged/z`, `se`, `variant_index`, `eaf`, `imputed`) | 200,000, or an explicit `chunks=(...)` | 50,000,000 elements, clipped to a whole number of inner chunks |
+| Ragged per-variant side arrays (`ragged/eaf_baseline`, `ragged/eaf_reference`) | per §6 | 10,000,000 elements |
+| Ragged exception / overflow tables (`ragged/z_overflow_*`, `ragged/eaf_exception_*`, `ragged/se_exception_*`) | the role policy's 200,000, clipped to the array length | 10,000,000 elements |
+| flat Rho arrays | 1,000,000, clipped to the array | about 1,000,000 elements |
+| top-hit index columns | 16,384 (as 0.1.0), clipped to the array | `--top-hit-shard-chunks` inner chunks (**decided 64**), clipped to cover the array. The converter may set it to 1, one inner chunk per shard, the "effectively unsharded" variant #246 measured the top-hit query against; the array is a sharded v3 array either way. A builder always takes the decided 64 |
+| top-hit per-Analysis offsets | whole array | one shard holding the array |
+| Dense exception / overflow tables (Z, EAF and SE) | the role policy's 200,000, clipped to the array length (a shorter table is one inner chunk) | one shard holding the array |
+| SE coefficients | `(min(n_analyses, 1024), 2)` | one shard holding the array |
+| CSR per-Analysis offsets | 10,000 | one shard holding the array |
+
+The Ragged shards are fixed, not conversion parameters: they are chosen so
+OGS-00011's overflow sequences (3,085,080,783 entries) become 62 files of
+tens to low hundreds of MB per array rather than one multi-GB file, and its
+Ragged `eaf_exception_index` (180,396,687 entries) becomes 19 files rather than
+one 1.4 GB file.  The sequence shard is bounded by cells, not by one Analysis's
+run, so a future variant-side index can be added beside the Analysis-sorted
+arrays without re-sharding them.  A builder writes a Ragged sequence plane one
+**whole shard** at a time: a write covering part of a shard is a read-modify-write
+of the whole thing, so at a 50,000,000-element shard the flush region follows the
+shard rather than the other way around (#249).
+
+`clipped to cover the array` means the smallest whole number of inner chunks
+that spans the dimension, so an array shorter than the decided shard gets one
+shard of its own extent.  The inner
+chunk is `chunk_layout(role, shape, …)`; the shard is `shard_layout(role, shape,
+inner_chunk=…)` — one role → layout table in `opengwasdb.store.arrays`, so the
+converter and the builders cannot disagree. The top-hit shard width is the
+one override a caller passes to `shard_layout` (`top_hit_shard_chunks`); it
+applies to `TOP_HIT_INDEX` alone and defaults to the policy's 64.
+
+**A Dense inner chunk MUST tile the decided shard.**  The Dense shard is
+`[100_000, 1024]`; a builder that supplied an inner chunk not dividing an axis
+of it (`1024 % A_c != 0`, say) is refused, naming the values that do, rather
+than silently writing a different shard such as `[100000, 1000]`.  That is the
+one way a build could otherwise choose its shard, and a shard the converter does
+not reproduce is a layout divergence a reader cannot see.  The one exception is
+an array **shorter** than the shard on an axis: its shard is the array's own
+extent, so divisibility is moot and it clips.  The default `[1000, 64]` tiles
+both axes.
+
+**The builders do not expose the shard shape.** `opengwasdb build-dense-vcf`,
+`build-hybrid` and `build-hybrid-from-catalogue` take `--chunk-variants` and
+`--chunk-analyses`, and both name the **inner chunk** (the unit a query reads);
+the shard is the decided shape above and cannot be overridden on a build. That
+is deliberate: the shard is part of the format's contract, a release whose
+shard the converter cannot reproduce would break the identity #249 checks, and
+a build-time shard knob is a way to write a release whose layout nothing else
+in the release records. The converter keeps its `--dense-shard` and
+`--dense-analysis-chunk` because it reproduces a chosen layout and records it
+in `provenance.zarr_v3_conversion`; a builder chooses the format's layout and
+records it in the same three places as any Dense release.
+
+The inner chunk is the role policy of `opengwasdb.store.arrays` (`chunk_layout`)
+and the shard its companion `shard_layout`; a shard MUST be a whole multiple of
+the inner chunk on every axis, and a layout that is not is invalid rather than
+clipped.  For a Dense plane the reverse also holds: the inner chunk MUST tile
+the decided shard, or `shard_layout` refuses it (§10a).
+
+The codec chain is Blosc Zstandard / clevel 3 / bitshuffle inside the
+`sharding_indexed` codec — the v3 spelling of the 0.1.0 compressor. An array
+written uncompressed in 0.1.0 (the `z`/`eaf` exception and overflow tables)
+stays uncompressed inside its shard. Every shard carries the codec's own
+`crc32c` index codec.
+
+**Where the layout is recorded.** A 0.2.0 release records the Dense planes'
+inner chunk and shard in three places, all of which MUST agree with the arrays:
+
+- `manifest.json` `provenance.dense.chunk_shape`, `.shard_shape` and
+  `.compressor` (with `.zarr_format`), plus the per-array layout in
+  `provenance.zarr_v3_conversion.layouts` for a converted release;
+- the `dense` metadata blob in `index.sqlite`
+  (`chunk_shape`, `shard_shape`, `compressor`, `zarr_format`);
+- the `data.zarr` root attributes (`chunk_shape`, `shard_shape`, `compressor`,
+  `zarr_format`).
+
+A **Hybrid** release's nested Dense Component is a Store Release with its own
+manifest, its own `index.sqlite` and its own root attributes, so it records the
+same three places itself: its `provenance.dense` MUST carry `chunk_shape`,
+`shard_shape`, `compressor` and `zarr_format`, and the outer release's
+`provenance.hybrid` MUST agree with them.  Leaving the layout only in the outer
+`provenance.hybrid` leaves the component undescribed — the gap #248 closes.  A
+component root that holds no Dense plane (a Ragged or Hybrid outer root) carries
+no Dense layout attributes at all.
+
+For 0.1.0 the same three places record the inner chunk alone (there is no shard)
+and a `chunk_shape` is a *hint* the role policy clips to the array's dimensions;
+the recorded-layout rule (§20) clips it the same way before comparing, so a small
+store's build-wide hint is not a disagreement.
+
+The per-variant chunking rule (§6) applies to the **inner chunk** of a sharded
+array. In zarr-python 3 `Array.chunks` is the inner chunk and `Array.shards` the
+outer shard; every read-unit rule MUST use `chunks`.
+
+## 10b. Indexed Variant Subsets (optional, Dense)
+
+An **Indexed Variant Subset** is a named, optional, rebuildable query index over
+a caller-supplied set of canonical ALIDs (ADR 0061). It is **derived,
+non-authoritative data**: it changes no association and no Analytical Metadata,
+a reader that does not know about it still reads the primary planes correctly,
+and it may be added, atomically replaced or removed in place without minting a
+Store Release or moving `format_version` (§21.1). Deleting it leaves a valid
+release whose ordinary queries are unchanged. It is therefore **not** the
+"optional array, index, or sidecar" a compatible format change is made of
+(ADRs 0038, 0041): those are content a reader may need to interpret
+authoritative data.
+
+The index content is **Dense-only**, covering both Observed-Only and
+Reference-Completed Dense releases. Ragged stores already expose each Analysis as
+a direct CSR slice and carry none. A Hybrid release is reachable from its root:
+`build-indexed-subset <root> ...` resolves to `<root>/dense` and stores the group
+at `dense/data.zarr/indexed_subsets/<name>`, indexing only that self-contained
+Dense Component's on-panel variants and never unifying them with the Ragged
+Overflow (issue #271). A Reference-Completed Dense index carries the per-cell
+`imputed` mask and the subset `eaf_reference`, so it reproduces the release's
+ordinary Association Status and frequency exactly (issue #266).
+
+It is stored beside the other optional derived artifacts:
+
+```text
+data.zarr/
+  rho/
+  top_hits/
+  indexed_subsets/
+    <name>/
+```
+
+For a Hybrid release these paths are relative to `<root>/dense`; the shared
+`data.zarr`, which holds only the Ragged Overflow and the merged top-hit cache,
+never carries the `indexed_subsets` namespace. Discovery, removal, overview,
+validation and the CLI accept the Hybrid root and resolve to the nested
+component, while a direct nested-Dense path remains valid.
+
+### Variant list and subset name
+
+The input is one canonical ALID (§4) per nonblank line; a malformed, repeated or
+non-canonical ALID fails the build, naming the line. ALIDs absent from the Store
+Variant Table are permitted but counted and recorded, never treated as matches;
+a list resolving to no Store variant is refused. The caller MUST supply the
+list's Reference Assembly, and a mismatch with the release's
+`reference_assembly` is refused because cross-Store Variant Identity is
+assembly plus ALID (ADR 0061).
+
+On a Hybrid root, an ALID present in the shared union table but absent from the
+Dense Component is an **overflow-only** request: it names a variant the release
+carries at a Variant Index this index cannot address, so resolving against the
+Dense Component alone would count it absent and silently drop it. `--overflow-only`
+decides it. `refuse` (the default) MUST fail the build and name the ALIDs.
+`skip` MUST leave them out of the subset and record `overflow_only_count` (the
+number skipped, always written, `0` when none) and `overflow_only_sample`
+(the deterministic first 20 in variant-list order) beside the absent count, and
+MUST report both in the command's summary as `overflow_only` (`policy`,
+`n_overflow_only`, `sample`).  The metadata key matches `absent_count`; only
+the summary's field is `n_overflow_only`.  The skipped count is never folded
+into `absent_count`: `absent_count` keeps its meaning of "the release does not
+carry this ALID". The recorded counts MUST satisfy `requested_count ==
+resolved_count + absent_count + overflow_only_count`, and a group recording
+neither Overflow-only attribute is read as `0` because the builder that wrote
+it could only refuse such a request. An ALID absent from the shared union
+table as well keeps the counted-as-absent handling; the shared table makes the
+two observable, and that is what licenses preserving the existing handling. A
+direct nested-Dense build names only the Dense Component, so an off-panel ALID
+there is absent-and-counted as before; a Dense release has no Overflow axis, so
+there `--overflow-only` is accepted and has no effect.
+
+A subset name MUST match `[A-Za-z0-9][A-Za-z0-9._-]{0,127}`. A leading `.` is
+reserved so a name cannot collide with the `.{name}.tmp.*` staging groups or the
+`.{name}.old` replacement directory of the atomic publication below.
+
+### Arrays
+
+`variant_index` is the subset's sorted, unique Store Variant Indices, shape
+`(n_subset_variants,)`, `int32`; it is the subset's own axis order and the
+Analysis-major planes below are indexed in that order (`order =
+"analysis,variant"`). Its inner chunk is 65,536, clipped. The read seam and
+validation require that storage dtype: a widened integer or floating-point axis
+is refused rather than silently cast, because it could truncate or round a Store
+Variant Index.
+
+The statistic planes are **Analysis-major**: shape `(n_analyses,
+n_subset_variants)`, so one Analysis is one row.
+
+| array | when | inner chunk |
+|---|---|---|
+| `z` | always | `(1, 65,536)`, clipped |
+| `se` | always | `(1, 65,536)`, clipped |
+| `eaf` | when the release has an `eaf` plane | `(1, 65,536)`, clipped |
+| `imputed` | Reference-Completed release | `(1, 65,536)`, clipped |
+| `z_overflow_index`, `z_overflow_value` | declared fixed-point `z` | 200,000 |
+| `se_coefficients` | declared `int8_residual` `se` | `(min(n_analyses, 1024), 2)` |
+| `se_exception_index`, `se_exception_value` | declared `int8_residual` `se` | 200,000 |
+| `eaf_baseline` | declared `int8_residual` `eaf` | 65,536, clipped |
+| `eaf_reference` | when the release declares reference EAF | 65,536, clipped |
+| `eaf_exception_index`, `eaf_exception_value` | declared `int8_residual` `eaf` | 200,000 |
+
+The group carries exactly those arrays and no others, under the release's
+declared `encoding` plus its Completion State: a `float16` `se` or a
+`float32`/`absent` `eaf` has none of the side arrays its plan does not define,
+exactly as §6a requires of the primary planes; a Reference-Completed release
+always has `imputed`, a release declaring reference EAF always has
+`eaf_reference`, and an Observed-Only release has neither. `imputed` is `uint8`
+and MUST hold only 0 and 1. On a 0.2.0 release (§10a) each plane's shard is one
+Analysis row by 1,048,576 variants (16 inner chunks), clipped to the array, so
+reading one Analysis never decompresses another's cells.
+
+The inner chunk and shard of **every** array, not only the statistic planes, are
+part of the format: each array's expected layout is derived from its `ArrayRole`
+and shape through the store-array seam's policies (§10a), so no attribute records
+it and none is required. On a 0.2.0 release every array MUST carry that shard; on
+a 0.1.0 release no array may be sharded. A plane inner chunk or shard that spans
+Analyses defeats the index's one-Analysis narrow read, and a per-variant side
+array off the format's layout is the same class of silent divergence; both the
+read seam and validation refuse them.
+
+A cell's flat position in an Analysis-major plane is `analysis *
+n_subset_variants + subset_slot`, and a side table is keyed by it. The index
+copies the primary planes' stored **codes** and re-keys their side tables into
+this layout, so a decoded indexed cell is identical to the authoritative primary
+cell rather than a re-encode of a decoded value. `eaf_baseline` is the release's
+own per-variant baseline restricted to the subset's variants -- not one
+recomputed from the subset, which would decode a single-Analysis variant to its
+own value. `imputed` is copied cell for cell, because Association Status is a
+per-cell fact and never an Analysis-level one; `eaf_reference` is the release's
+own per-variant panel frequency restricted to the subset's variants. Decoding an
+imputed cell substitutes that panel frequency through the same codec the primary
+plane uses, so an imputed cell reads the panel's value and an observed cell whose
+source reported none stays absent (ADR 0037 §4).
+
+### Attributes
+
+A published group self-describes; validation rejects a group missing any of
+`indexed_subset_schema` (`1`), `indexed_subset_name`, `statistic_profile` (`full_statistic`),
+`encoding` (the release's block, §6a), `reference_assembly` (normalised),
+`source_store_id`, `source_release_id`, `source_format_version`, `n_analyses`,
+`n_subset_variants`, `input_sha256` (the variant list's bytes),
+`requested_count`, `resolved_count`, `absent_count`, `overflow_only_count`,
+`overflow_only_sample`, `builder_version`,
+`created_at` and `order` (`analysis,variant`). `overflow_only_count` is the
+number of requested ALIDs present only on a Hybrid release's shared/Overflow
+axis that a `--overflow-only skip` build left out (`0` when none were, and on a
+Dense release, which has no Overflow axis), and `overflow_only_sample` is the
+first 20 of them in variant-list order; a group written before the option
+existed records neither and is read as `0` (ADR 0065). On a Hybrid release the
+`source_store_id`/`source_release_id`/`source_format_version` attributes record
+the nested Dense Component, the self-contained release the index physically
+belongs to and the one the read seam validates it against.
+
+A regenerated `overview.html` lists every published subset: the name, the
+requested/resolved/absent/Overflow-only counts, the input checksum, the
+Reference Assembly and
+the build provenance are read from the group's own recorded metadata, while the
+physical size is computed from the group's files at render time (it is not
+recorded as an attribute). A named directory that cannot be read, whose
+recorded `indexed_subset_name` disagrees with its directory name, or that fails
+the structural read seam (§10b: schema, profile, order, counts, exact array set,
+dtypes, shapes and in-range Variant Indices, but no decoded-value comparison) is
+surfaced as an invalid entry rather than silently omitted or relabelled, and is
+**not** also listed or counted as a valid subset. A structural probe that cannot
+read the store metadata it needs (a missing or corrupt `manifest.json`) is
+treated the same way, so one unreadable release envelope cannot abort the whole
+page. The page presents these facts and is not a second source of truth (§1).
+
+### Lifecycle
+
+Generation follows ADR 0043's isolation and publication rules at the
+named-group level: it creates the `indexed_subsets` namespace group under a
+lock on `data.zarr`, writes into an invocation-unique `.{name}.tmp.*` sibling,
+validates the complete staged group (structural invariants and the small side
+tables exhaustively, a bounded deterministic decoded sample otherwise; §10b),
+takes a release-local advisory lock on the
+namespace, re-checks the destination under it, and publishes by rename. A
+failure discards only that invocation's temporary group; an existing published
+group is preserved byte-for-byte after any failed replacement. Two same-name
+no-overwrite builds yield one winner and one loud failure; different names do
+not delete or publish one another's work.
+
+Removing a subset takes the same namespace lock and renames the group aside
+before reclaiming its bytes, so a removal can never interleave with a commit of
+the same name and a reader never sees a half-deleted group. The published name
+disappears atomically; a `.{name}.old.*` directory left by an interrupted
+removal is inert and is rejected by validation until it is cleaned up. A
+removal beneath consolidated metadata is refused before the rename, because the
+record would keep listing the removed group and the next open would read it.
+
+The 0.2.0 converter (§21.4) does not carry this namespace: it refuses an array
+or group it cannot name a role for, so a release holding an Indexed Variant
+Subset must have it removed before conversion. That is safe -- the index is
+deletable derived data -- and the refusal is loud rather than a silent drop of
+an artifact the user built.
+
+### Query
+
+A selected-Analysis query may name a published subset
+(`query-analysis STORE ANALYSIS_ID --indexed-subset SUBSET_NAME`, ADR 0061,
+issue #265). It returns the same parallel arrays, with the same meanings,
+dtypes, allele orientation, finite Z/SE filtering and Store ordering as
+filtering the ordinary selected-Analysis result to the subset's Variant
+Indices; beta and p-values remain derived from the returned Z and SE exactly as
+they are without a subset. Every subset covers every Analysis, so there is no
+partial-Analysis answer.
+
+On a Reference-Completed release the result carries the same `association_status`
+values (`observed`, `imputed`, `missing`) and the same allele orientation as the
+ordinary path, because the index decodes the same stored codes through the same
+`imputed`/`eaf_reference` dependencies. Imputed associations are included by
+default, `observed_only` excludes exactly them, and the paired Z/SE finite rule
+excludes missing cells. The mask is per cell: an Analysis left observed-only by
+the ancestry-match filter reads its own observed cells correctly from the index,
+and no completion state is inferred from another Analysis.
+
+A reader MUST refuse an unknown, staging, incomplete, stale, invalid or
+unsupported subset by name, naming the Store it belongs to, rather than fall
+back to the authoritative planes: the selector is a request for the indexed
+path, and answering it from the primary matrix would silently return the slow
+path's result while appearing to be indexed. The named subset is resolved and
+structurally validated **before** the Analysis ID is resolved, so a typo'd,
+stale or corrupt selector always fails even when the Analysis ID is also unknown;
+a *valid* subset with an unknown Analysis ID keeps the ordinary empty result.
+Before decoding any value, independent of whether `validate` has been run, the
+read path re-checks the declared name, schema, profile and `order`, the declared
+Analysis and requested/resolved/absent/Overflow-only counts, the exact array set, every plane's
+declared dtype and shape, the `int32` storage dtype of `variant_index`, every
+array's inner chunk and shard against the format's role policy, and that
+`variant_index` is non-empty, sorted, unique and in bounds `[0, n_variants)`. A malformed encoding block is refused as a malformed
+subset rather than allowed to raise a decode error. An entry that is not a
+readable Zarr group -- a plain directory, an array, or metadata a reader
+cannot parse or validate -- is refused the same way, not left to leak a zarr,
+JSON or ValueError exception through the facade. For a Reference-Completed
+index it also reads the `imputed` mask's dtype from its metadata and checks
+that the mask column of the Analysis being decoded holds only 0 and 1, before
+any value, Association Status or `observed_only` filter is derived from it: a
+float or out-of-domain mask would otherwise be read as imputed by the frequency
+substitution and as observed by Association Status at the same time. It does
+not compare the mask's or `eaf_reference`'s content against the release --
+`validate` does that. It does NOT re-derive
+decoded values or side-table internals -- that is `validate`'s expensive job --
+and cannot detect an in-range Variant Index shift while identity and bounds
+hold. A subset on a Ragged release is refused, because Indexed Variant Subsets
+are Dense-only. On a Hybrid root the selector is served by the nested Dense
+Component's index: the result's panel-local `variant_index` is remapped through
+`dense_to_shared.npy`, the Ragged Overflow is never read or appended, and an
+unknown, stale or corrupt selector still fails loudly rather than falling back
+to either ordinary path. When no subset is named, selected-Analysis behaviour
+is unchanged and no indexed-subset state is consulted at all.
+
+## 11. Ragged layout
+
+Ragged layout stores Analysis-specific association sequences referencing the Store Variant Table.
+
+Each retained association row contains at least:
+
+```text
+analysis index or analysis offset
+variant_idx
+z
+se
+```
+
+`z` is encoded as §6a declares, with its overflow arrays
+(`data.zarr/ragged/z_overflow_index`, `…_value`) keyed by the association's
+ordinal in the concatenated CSR arrays.
+
+The CSR is analysis-major: `data.zarr/ragged/offsets` bounds one contiguous
+segment per Analysis, and within every segment `variant_index` MUST be
+**strictly increasing** — a repeated `variant_index` is two associations at one
+variant of one Analysis, which `(variant, Analysis)` resolution cannot tell
+apart. The ordering is a format invariant, not a builder convention: a reader
+locates a `(variant, Analysis)` pair by binary-searching that Analysis's
+segment, and a segment out of order would answer with a plausible, wrong row
+rather than an error. Validation therefore checks the ordering on every
+release, including ones this build did not write (§20).
+
+`eaf` (ADR 0036) is an optional fourth parallel array (`data.zarr/ragged/eaf`,
+`float32`), aligned with the CSR `z`/`se` and absent when no Analysis in the
+release carries a frequency. A BESD build stores the `.esi` frequency there
+only when asked (`--store-esi-eaf`, §9.1, ADR 0067); without the flag it stores
+none, whatever the `.esi` reports.
+
+`n` (ADR 0067) is an optional fifth parallel array (`data.zarr/ragged/n`,
+`uint32`, §6a), present exactly when the `encoding` block declares it, and
+written only when the build is given a per-association sample size (§8). The
+top-hit indexes do not carry it; a top-hit query resolves each hit to its CSR
+cell for `n`, as it does for `eaf` when an index carries none.
+
+### 11.1 The variant-centric index (`ragged/by_variant/`)
+
+In `format_version` 0.2.0, every Ragged component (a Ragged Store Release or a
+Hybrid Overflow) MUST carry a variant-centric index at `ragged/by_variant/`
+(ADR 0060). It is **required**: an absent index is refused by the query facade
+and fails validation, and builders always write it. Its presence is recorded
+in `provenance.ragged.by_variant` (`{"group", "n_axis", "n_rows"}`). It holds
+one row per association of the Analysis-sorted component, ordered
+`(variant_index, analysis_index)`, so a variant's rows are contiguous:
+
+| array | dtype | contents |
+|---|---|---|
+| `offsets` | int64 | `n_axis + 1` row offsets on the component's own variant axis (the shared axis for a Hybrid Overflow); `offsets[v] == offsets[v+1]` for a variant the index does not cover |
+| `analysis_index` | int32 | the Analysis of each row |
+| `z`, `se` | the component's `z`/`se` dtypes | the same stored codes, re-keyed |
+| `eaf` | the component's `eaf` dtype | the same codes, re-keyed; present only when the component has an `eaf` array |
+| `imputed` | uint8 | the imputed mask, present only when the component has one |
+| `n` | uint32 | the same per-association sample-size codes, re-keyed; present only when the component has an `n` plane (ADR 0067) |
+| `z_overflow_index` / `_value` | int64 / float32 | the re-keyed `z` overflow table |
+| `eaf_exception_index` / `_value` | int64 / float32 | the re-keyed EAF exception table |
+| `se_exception_index` / `_value` | int64 / float32 | the re-keyed SE exception table, under `int8_residual` |
+
+The per-variant `eaf_baseline`, `eaf_reference` and the `se_coefficients` are
+**shared** with the Analysis-sorted plane, never duplicated: only arrays keyed
+on the flat cell position are re-keyed. `imputed` and the exception tables move
+with the rows because a decode cannot reconstruct them from the
+Analysis-sorted component (the duplicate does not preserve the source's CSR
+ordinal). `analysis_index` and not `variant_index` is the per-row key: the
+row's variant is implied by the offsets, and storing it would duplicate the
+Analysis-sorted `variant_index`.
+
+A query reads it through the analysis-sorted component's own layouts: the
+`ragged/by_variant/offsets` array takes the `RAGGED_PER_VARIANT` role with a
+**1,000-element inner-chunk hint** (it is read a variant at a time), the cell
+sequences the `ASSOCIATION_SEQUENCE` role, and the re-keyed tables the
+`RAGGED_EXCEPTION_TABLE` role. The hint is a fact about the path, so the
+converter and the builders reproduce the same inner chunk.
+
+Ragged layout is used when Analyses do not share one dense source variant axis, or when Association Coverage is narrower than `gwas` and cannot be represented as a Dense matrix (§2a, ADR 0064).
+
+For Observed-Only Ragged stores, absence from an Analysis sequence means the association is not retained by that Store Release.
+
+A Ragged store's Analytical and Attribution Metadata lives in `analyses.tsv`, the same schema §7a defines for every layout (ADR 0034) — not a layout-specific `index.sqlite` table, and not a second, tabix-indexed positional side-file either: an earlier draft of this section allowed such a side-file over `analyses.tsv`'s `trait_chr`/`trait_bp` columns as a query-acceleration structure, but issue #69 retired it before it shipped in favour of scanning `analyses.tsv`'s own columns directly (`range_by_analysis()`), so a Ragged Store Release's envelope (§1, §20) has no such file.
+
+## 12. Reference completion model
+
+Reference Completion is an optional build phase that produces a new Reference-Completed Store Release from an Observed-Only source release.
+
+Reference Completion exists to avoid query-time LD proxy lookup and reduce missingness by filling gaps once at build time.
+
+Reference-Completed releases MUST:
+
+- declare an LD Reference Panel;
+- declare a Reference Completion Method;
+- expose Association Status;
+- produce both Z and SE for imputed associations;
+- record Reference Completion Quality at LD-block-by-Analysis granularity;
+- preserve observed associations not present in the Reference Variant Set.
+
+There is no Z-only completion mode.
+
+Completion preserves every observed association exactly: a source-observed cell has the same decoded Z, SE and EAF in the Reference-Completed release and is not marked imputed, and no source-missing cell is observed in it. In a Hybrid release a Dense cell becomes observed only as a crossover, a source Overflow association moved into the Dense Component when the LD panel extends its axis; it holds what that component's own codec gives for the source value. `check-observed-view` (§20.4) re-derives that from the two releases' arrays.
+
+## 13. LD Reference Panel requirements
+
+An LD Reference Panel used for Reference Completion MUST define:
+
+| Requirement | Meaning |
+|---|---|
+| `reference_panel_id` | Stable panel identity |
+| `reference_panel_version` | Panel version |
+| `reference_assembly` | Genome assembly, matching the Store Release |
+| `ancestry` | Population or ancestry label |
+| variant list | Canonical ALIDs defining the Reference Variant Set |
+| allele orientation | Orientation compatible with Store canonical ALID convention |
+| LD blocks | Block definitions used by the completion method |
+| LD representation | Form in which LD is stored — see below |
+| source cohort | Cohort the panel's LD was estimated from |
+| sample size | Number of individuals contributing to the LD estimate |
+| variant inclusion | Threshold governing which variants enter the panel |
+| checksums | Integrity checks for reference files |
+| provenance | Source, build, and filtering provenance for the panel |
+
+If EAF is emitted for imputed associations, the LD Reference Panel MUST provide EAF for panel variants or declare why EAF is absent.
+
+The Store Release reference assembly MUST match the LD Reference Panel reference assembly.
+
+### 13.1 LD representation
+
+A panel SHOULD store, per LD block, the **eigendecomposition** of the block's LD
+matrix — all eigenvalues plus a retained set of eigenvectors — rather than the LD
+matrix itself (ADR 0031). Reference completion consumes eigenvectors only, so the
+matrix is not required to interpret or apply a panel.
+
+The number of eigenvectors retained MUST be sufficient for the truncation the
+Reference Completion Method requests, and the panel MUST record, per block, both
+the retained count and the proportion of total eigenvalue mass it represents. A
+fixed retained count is NOT sufficient: the number of components needed to reach a
+given variance depends on the panel's sample size, so a count calibrated on one
+cohort will silently under-resolve a panel built from a smaller one. Where a
+consumer's requested truncation cannot be satisfied from the retained components,
+it MUST surface that rather than proceeding with reduced variance.
+
+Panels MAY additionally retain full LD matrices, but consumers MUST NOT require
+them when a conforming eigendecomposition is present.
+
+### 13.2 Panel power is not uniform across ancestries
+
+Panels for different ancestries may be estimated from cohorts differing by orders
+of magnitude in sample size, and a panel's LD matrix has rank at most one less
+than its sample size regardless of how many variants it spans. Reference
+completion quality therefore varies by panel construction independently of the
+quality of the Analyses being completed. Because `sample size`, `source cohort`,
+and `variant inclusion` are recorded per panel, that difference is discoverable;
+comparisons of completion quality across ancestries MUST NOT assume panels are
+equivalently powered.
+
+## 14. Reference completion method requirements
+
+The Reference Completion Method MUST record:
+
+| Field | Meaning |
+|---|---|
+| `method_name` | Algorithm name |
+| `method_version` | Method version |
+| `software` | Software/package and version |
+| `parameters` | Parameters affecting imputed Z or SE |
+| `required_reference_inputs` | LD reference files/data required |
+| `deterministic` | Whether same inputs produce same output |
+| `quality_metric` | Definition of recorded quality values |
+| `quality_thresholds` | Pass/fail or reporting thresholds, if used |
+
+The initial intended method family is LD-eigenvector based imputation of Z and SE. The store format is not locked to one algorithm: different methods are valid if they record provenance, satisfy the `z + se` output contract, and pass validation.
+
+The initial Reference Completion implementation should use the existing `pleiodb` imputation work as prior art:
+
+- method source: `https://github.com/explodecomputer/pleiodb/blob/main/src/pleiodb/impute.py`;
+- benchmark and reference-file location notes: `https://github.com/explodecomputer/pleiodb/blob/main/scratch/imputation_benchmark.qmd`;
+- benchmarked LD panel root recorded there: `/local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38/EUR`.
+
+That prior art uses LD block TSV files alongside `.unphased.vcor1.gz` LD matrices, treating the eigendecomposition as a derived cache. Under §13.1 that relationship is inverted: the eigendecomposition is the primary panel artifact and the LD matrix is optional. Panels produced before that decision may still carry matrices, and a conforming reader MAY use one to derive a missing decomposition, but MUST NOT require it when a decomposition is present. These file types remain implementation inputs to the Reference Completion Method and MUST be captured through LD Reference Panel and Reference Completion Method provenance when used.
+
+## 15. Association Status encoding
+
+Reference-Completed Stores encode Association Status using a per-plane **missing marker** plus an imputed mask.
+
+Each statistic plane's missing marker is defined by that plane's declared encoding, not by its dtype: a floating-point plane marks a missing cell with NaN, and an integer plane with the reserved sentinel its codec declares. Every release declares an encoding (§6a), so there is no plane whose marker has to be inferred. Stating it in terms of the codec rather than of NaN is what lets an integer `z` plane, which cannot hold NaN, express the same contract (ADR 0037, ADR 0038 §6).
+
+State derivation:
+
+| Z | SE | imputed mask | Association Status |
+|---|---|---|---|
+| present | present | false | observed |
+| present | present | true | imputed |
+| missing | missing | false | missing |
+
+Invalid states:
+
+- only one of Z or SE is missing — the two markers MUST agree;
+- imputed mask is true while Z or SE is missing;
+- a marker payload is non-canonical (for a float plane, a non-canonical NaN).
+
+Builders and validators MUST reject invalid states.
+
+The imputed mask is:
+
+- dense boolean or uint8 Zarr for Dense Reference-Completed grids;
+- association-aligned boolean or uint8 Zarr for Ragged Reference-Completed sequences;
+- chunk-aligned with Z and SE arrays.
+
+The imputed mask is not a sparse offsets index like the top-hit significance index.
+
+## 16. Dense Reference-Completed layout and overflow
+
+A Hybrid Store Release physically nests its Dense Component as a
+self-contained Dense Store Release at `<store>/dense` (§1) — same envelope,
+opened the same way as a standalone Dense release, plus `dense_to_shared.npy`
+mapping each Dense Component row to its index in the Hybrid release's shared
+variant table. Its Ragged Overflow Component lives in the Hybrid release's
+own `data.zarr/ragged`, alongside the shared `variants.tsv.gz`/`index.sqlite`
+covering both components (§4).
+
+For Dense Reference-Completed releases:
+
+- the dense matrix axis MUST contain only Reference Variant Set variants;
+- observed off-panel associations MUST be stored in Ragged Overflow rather than discarded;
+- Hybrid source-coordinate routing MUST treat allele-letter case as insignificant when
+  matching a variant reference, without changing source effect-allele order or
+  association sign/frequency orientation; conflicting case-folded source keys
+  MUST fail rather than select a Dense target arbitrarily;
+- the dense axis SHOULD be identical across Stores completed with the same LD Reference Panel.
+
+Observed-Only Dense releases remain source-faithful and do not require an LD Reference Panel or panel-defined axis. A later Reference-Completed release MAY use a different dense axis defined by the LD Reference Panel.
+
+Queries against Dense Reference-Completed releases with Ragged Overflow include overflow results by default for exact and range queries. Returned rows MUST expose Query Component when multiple components are involved.
+
+## 17. Ragged Reference-Completed regions
+
+For Ragged Cis-and-Signals molecular Stores, Reference Completion is bounded to retained regions:
+
+- complete cis regions within existing cis boundaries;
+- complete significant trans regions within existing trans-region boundaries;
+- do not expand singleton suggestive associations.
+
+A **region** is identified from the Analysis's Trait position where it has one.
+Not every Store Family has one: a family with no single encoding gene per
+Analysis (small-molecule metabolomics, say) carries no `trait_chr`/`trait_bp`
+at all, by design. For those Analyses the retained regions are identified from
+**the Analysis's own retained associations** instead: an LD block is a region
+of that Analysis when the Analysis already holds at least
+`impute.min_observed_points()` observations at that block's own panel
+variants. Below that threshold the block cannot be fitted, so completing it
+would add its panel variants as missing rows and impute none of them; the
+"do not expand singleton suggestive associations" rule above is the same
+threshold seen from the other side. Counting a variant that merely falls
+inside a block's base-pair extent, rather than one of the block's own panel
+variants, is not the same count and MUST NOT be substituted for it (ADR 0039,
+issue #102).
+
+Each completed region contains:
+
+- the full slice of Reference Variant Set variants within the region boundary;
+- observed off-panel variants inside the same boundary;
+- missing-marked statistic rows (§6a, §15) for reference-panel variants that were neither observed nor imputed.
+
+Observed, imputed, and missing rows belong to the same ragged association sequence. Ragged Reference-Completed stores do not create a separate imputed-ragged component.
+
+Observed off-panel variants inside a Ragged Reference-Completed region have ordinary observed Association Status and are not labelled as a separate Query Component.
+
+## 18. Top-hit query contract
+
+Top-Hit Queries return associations ranked by statistical significance.
+
+Dense, Ragged, Ragged Overflow, observed, and imputed associations have equal priority. Ranking is by significance, not storage component or Association Status.
+
+Both Dense and Ragged components SHOULD provide Top-Hit Indexes using the same thresholds and result contract. The physical index encoding MAY differ by layout.
+
+Each threshold tier stores `analysis_offsets`, `variant_index`,
+`analysis_index`, `abs_z`, `z`, `se`, and `p_value` in
+`(analysis_index, variant_index)` order. When the component can
+report effect allele frequencies, the tier SHOULD also store decoded `eaf` as
+`float32` in that identical order. Readers MUST use it when present and MUST
+fall back to the component frequency plane when reading an older index. An
+index without `eaf` therefore remains compatible; rebuilding the derived index
+adds the fast path without changing the Store's association data or format
+version.
+
+Default thresholds:
+
+```text
+5e-8
+5e-6
+5e-4
+```
+
+Top-hit results from Reference-Completed releases include imputed associations by default. Observed-Only Query mode applies to Top-Hit Queries as well as exact and range queries.
+
+## 19. Query result contract
+
+Query results SHOULD expose:
+
+| Field | Required when |
+|---|---|
+| variant identity | always |
+| analysis identity | always |
+| z | always when available |
+| se | always when available |
+| beta | when requested, derived as `z * se` |
+| p-value | when requested, derived from Z |
+| stored_effect_scale | always or through Analysis metadata |
+| association_status | Reference-Completed releases |
+| query_component | multi-component releases |
+| eaf | when stored/requested |
+| info | when stored/requested |
+| sample size | when stored/requested |
+
+A Ragged release with an `n` plane (§6a) adds `n` to **every** query result --
+`float64`, NaN where the build was given no N for the pair, and present on an
+empty result too, so "this release holds no sample sizes" and "no rows" never
+read alike. A release without the plane never has the key. The CLI's resolved
+output prints an `n` column immediately before `association_status` (`.` where
+missing) only for such a release (ADR 0067).
+
+Reference-Completed queries include imputed associations by default. Query APIs MUST provide an Observed-Only mode that excludes imputed associations.
+
+Detailed Reference Completion Quality is not joined onto every imputed association by default. Query APIs MAY expose it when requested.
+
+## 20. Validation rules
+
+Validators MUST check at least:
+
+- `manifest.json` contains required fields;
+- `reference_assembly` is single-valued across the release;
+- canonical variant identity is valid and unique within the Store Variant Table;
+- signed statistics have been normalised to canonical allele orientation;
+- `se >= 0` for all finite SE values;
+- Z and SE missingness is consistent, each read through its own plane's missing marker (§6a, §15);
+- each statistic plane's dtype matches the `encoding` the manifest declares, and a plane with a declared `kind` this build does not implement fails the release rather than being decoded (§6a);
+- every out-of-range Z cell has an entry in the plane's overflow table, and the table describes no other cell (§6a) — a lost entry is the *largest* |z| in the store, which is the one value that must never read as something plausible instead;
+- Stored Effect Scale values are in the controlled vocabulary;
+- Dense arrays match declared dimensions;
+- Reference-Completed releases declare LD Reference Panel and Reference Completion Method;
+- Reference-Completed Dense axes match the Reference Variant Set;
+- imputed mask is consistent with Z and SE;
+- Ragged Reference-Completed regions include all Reference Variant Set variants within completed boundaries;
+- top-hit indexes, when present, are consistent with the **decoded** `z`, `se` and `eaf` planes — decoded, because an index built from raw codes and one built from values a query returns are indistinguishable until they are compared against the plane the query reads;
+- `analyses.tsv` contains exactly one row per Analysis, covering every `analysis_index` referenced by `index.sqlite` (this is the one place SQLite cannot enforce the relationship as a foreign key, since `analyses.tsv` is a separate file);
+- `index.sqlite` does not contain an `analyses` table, nor a `variants` table (§1, issue #128);
+- `variant_alid_bytes.npy` holds one entry per ALID narrow enough to index, and no key in it is shared by two variants — a shared key is what silently truncating an over-wide ALID produced, and it makes one variant answer another's lookup (issue #127);
+- `original_sd_method`, `ancestry_assignment_method` and `eaf_scope` values are in their controlled vocabularies (ADR 0029, ADR 0030, ADR 0036);
+- every rsid in the Store Variant Table is resolvable through the rsid search index (§1) — a release that carries rsids it cannot resolve fails silently at query time, so the check is on coverage, not merely presence (issue #109);
+- `eaf`, when present, has the same shape/length as `z`/`se`, and its **decoded** values hold no finite value outside `[0, 1]` (ADR 0036) — decoded, because an `int8` residual plane's raw bytes are codes and checking those would pass every store while saying nothing about what a query returns;
+- `variant_index` is **strictly increasing within every Analysis's segment** in a standalone Ragged or a Hybrid Overflow CSR (§11): an out-of-order segment makes the variant-side binary search answer with a plausible, wrong row, and a repeated one is a second association at a variant that Analysis already holds. It is checked on every release, not only on ones this build wrote. The check MUST be bounded and MUST NOT materialise the array: it reads the sequence in windows (1,000,000 int32, 4 MB), carries the preceding value across a window boundary and resets at each Analysis boundary, so peak memory is the window, its comparison bool and the per-Analysis offsets (`O(n_analyses)`), independent of the association count. The error names the first offending Analysis and says which of the two it found — a decrease, or a repeat;
+- the variant-centric index MUST be present on every Ragged component (a Ragged Store Release or a Hybrid Overflow) in `format_version` 0.2.0, agrees with the Analysis-sorted component and is recorded in `provenance.ragged.by_variant`: its `offsets` array is `n_axis + 1` direct offsets spanning `[0, N)`, each variant holds exactly as many index rows as the component holds at that variant, `analysis_index` is non-decreasing within each variant's block and names a real Analysis, `eaf`/`imputed`/`n` are present on both sides or neither, and the cell contents match the Analysis-sorted planes (§11.1, ADR 0060);
+- the `eaf` plane, its `eaf_baseline`, its exception table and its `eaf_reference` agree with the plan the manifest declares (§6a): a residual-coded plane has a baseline the length of its component's variant axis and an exception table, a plane of any other kind has neither, every exception cell has an entry and the table describes no other cell, and a component carrying `eaf_reference` declares it, carries an imputed mask, holds one entry per variant of its axis, and holds only frequencies in `[0, 1]`;
+- the `n` plane is present exactly when the `encoding` block declares one, in the declared dtype, and only beside a `float16` `se` plane; its length equals the CSR's; every code is a count from 1 to `2³² − 2` or the missing code; the plane holds at least one N, since an all-missing plane reads exactly like a release without one; every Analysis holding an N declares `sample_size_scope=variant_level`; and the by-variant copy is present on both sides or neither and its sampled cells equal the CSR's (§6a, §11, ADR 0067). The read is windowed, never the whole plane;
+- the `se` plane, its `se_coefficients` and its exception table agree with the plan the manifest declares (§6a): a residual-coded plane has finite `float32` coefficients of shape `(n_analyses, 2)`, a sorted duplicate-free exception table whose positions lie inside the plane and whose entries are exactly the cells marked `-127`, and a complete `eaf` plane beside it; a `float16` plane has none of those arrays, and carrying one is a failure rather than a harmless relic;
+- `eaf_scope` (per Analysis) and the `encoding` block's `eaf` kind (per release) agree — a release declaring no plane while an Analysis declares `eaf_scope=association`, or the reverse, is rejected (§9, issue #106);
+- each Analysis's completion metadata describes its own cells: an Analysis declaring a nonzero `completion_n_imputed_total` holds at least one imputed cell, one that holds imputed cells declares them, and a blank `completed_against` with a nonzero count is rejected. The comparison is categorical, not by count — the rollup counts what the LD blocks produced and the arrays hold what was written — and it is what an ancestry-match filter (ADR 0028) applied to one and not the other looks like from outside, including the `eaf_scope` derived from the count;
+- every Analysis with `eaf_scope=association` carries EAF orientation evidence (§9.1, issue #115) **unless no component of the release declares an `eaf` plane**, in which case its frequencies are the panel's alone and there is no column to check: a blank `eaf_orientation` fails, since a frequency column that has never been checked is indistinguishable from one reported against the other allele; a recorded `failed` fails; `unverified` warns; and `analyses.tsv` and `manifest.json` MUST agree on the outcome recorded for each Analysis;
+- the Zarr on-disk format matches `format_version`: a 0.1.0 release has Zarr v2 metadata (`.zarray`/`.zgroup`, `zarr_format: 2`) and no `zarr.json` anywhere; a 0.2.0 release has Zarr v3 metadata (`zarr.json`, `zarr_format: 3`) and no v2 metadata anywhere, and every array uses the `sharding_indexed` codec. A half-converted release — one manifest, two formats — is invalid (§10a, ADR 0057);
+- an Indexed Variant Subset, when present, is self-describing and agrees with the release it indexes (§10b): the only entries under `data.zarr/indexed_subsets` are published subset groups — no staging or replacement directory, no unknown name, no non-group entry and no explicit empty group — and each group records a name, profile, encoding and source identity matching the release. It carries exactly the arrays its declared encoding and the release's Completion State define — an Observed-Only release's index has no `imputed`, a Reference-Completed release's must; a release declaring reference EAF carries `eaf_reference`, and one that does not carries none; `imputed` holds only 0 and 1; `variant_index` is stored `int32` and is non-empty, sorted ascending, unique and in `[0, n_variants)` — a zero-variant subset is not an index and is rejected even when its planes are zero-length; every array's inner chunk and shard match the format's `ArrayRole` policy (the layout is derived, never an attribute); its Analysis-major planes have shape `(n_analyses, n_subset_variants)` and the declared dtypes; `eaf_reference` holds one entry per indexed variant when declared; its side tables are sorted, unique and in range; Z and SE missingness agree within the index; no imputed cell is missing; the `imputed` mask and `eaf_reference` equal the release's own; and every **decoded** indexed Z, SE and EAF equals the authoritative primary-plane cell at that Store Variant Index. This is the **standalone** `validate` contract and it is exhaustive. The build's own staged publication gate is narrower and documented: exhaustively it checks only the enumerated structural rules -- self-describing identity and attributes, the exact array set, shapes and dtypes, the inner-chunk/shard layout, the full Variant Index (dtype, non-empty, sorted, unique, in bounds), counts and provenance, and the small side tables' structure and remapping (with the per-variant `eaf_baseline`/`eaf_reference`) -- while the `imputed` mask domain and agreement, Z/SE missingness, and decoded Z/SE/EAF values are compared over a documented deterministic, bounded, input-checksum-seeded sample (the endpoints of both axes, a spread of physical write-unit and inner-chunk boundaries, a spread of Analyses and seeded cells). The build records `validation_mode`, the sample strategy, seed and cell count, and its duration, and an isolated unsampled corruption is caught by the exhaustive standalone audit instead. A release with no `indexed_subsets` group stays valid and unchanged, and a reader MUST refuse a subset whose recorded source release, store, format, assembly or encoding does not match the release, before decoding any value (ADR 0061, issue #264, #266);
+- the recorded layout matches the arrays: the Dense planes' `chunk_shape` and `shard_shape` in `manifest.json` `provenance.dense`, in the `index.sqlite` `dense` blob and in the `data.zarr` root attributes each clip to the plane's dimensions to equal the plane's actual **inner** chunk, and name its actual shard, and the three compressors agree. A manifest that describes one shape over arrays of another is a silent failure class (§10a);
+- the per-variant chunking rule applies to the **inner** chunk of a sharded array, not to the shard (§6, §10a);
+- the Store Release directory contains no top-level file or directory beyond what its `primary_layout` (and, for Hybrid, its nested Dense Component directory) legitimately produces per §1/§10/§11/§16/§17 — the envelope is closed, not merely a set of required entries (issue #80).
+
+### 20.1 Validation and inspection CLI interface
+
+Command-line validation (`ogdb validate`) and inspection (`ogdb info`) provide both human-readable text output (default) and machine-readable JSON output via `--format json` (issue #175, ADR 0042):
+
+- `ogdb validate <store> --format json` outputs a single JSON object on `stdout`:
+  ```json
+  {"ok": true, "errors": [], "warnings": []}
+  ```
+  On failure (`ok=false`), it outputs the JSON object containing the recorded error strings on `stdout` and exits with a non-zero exit code. On success, `stderr` is empty.
+- `ogdb info <store> --format json` outputs a single JSON object on `stdout` representing the store release manifest with decomposed structured encoding:
+  ```json
+  {
+    "store_id": "...",
+    "release_id": "...",
+    "format_version": "0.2.0",
+    "primary_layout": "dense",
+    "association_coverage": "gwas",
+    "completion_state": "observed_only",
+    "reference_assembly": "GRCh38",
+    "encoding": {
+      "version": 3,
+      "z": {"kind": "int16_fixed", "scale": 1024},
+      "se": {"kind": "float16"},
+      "eaf": {"kind": "absent"}
+    }
+  }
+  ```
+
+### 20.2 Phenotype-SD estimation CLI interface
+
+`ogdb estimate-phenotype-sd <manifest.tsv> <out.tsv>` estimates the per-Analysis
+phenotype SD used to standardise continuous-trait effects (§7, §7a; ADR 0029)
+from a canonical `analyses.tsv` (ADR 0034), needing no caller-pre-extracted
+arrays (issue #176):
+
+- `MANIFEST_PATH` is read through the same column-alias resolver as every other
+  manifest. It supplies `analysis_id`, `source_file`,
+  `source_reader_capability`, `sample_size`, and the caller-chosen
+  `original_sd_method`. Each row's capability resolves a `SourceReader` through
+  the registry; an unknown capability is rejected naming the registered set.
+- `--af-source source` estimates from the source's own `se`/`eaf`;
+  `--af-source reference` (with `--af-reference`, a frequency table or LD panel
+  directory, and `--af-reference-ancestry` for the latter) estimates from the
+  source's `se` and the reference's A1-oriented frequency at each variant.
+- The output TSV is keyed by `analysis_id`, in input order, and carries the
+  shared-core `analyses.tsv` spellings so a caller merges rather than
+  translates: `analysis_id`, `original_sd`, `original_sd_method`,
+  `original_sd_dispersion`, `notes`. A missing or unusable `sample_size` writes
+  `original_sd_method=unavailable` with a blank `original_sd` — an explicit
+  unresolved outcome, never a fabricated value.
+- Results are order-preserving and independent of `--n-workers`.
+
+The command **computes** the number; it does not choose the method tier, the
+tolerance, or whether a disagreement blocks a release. Those remain registry
+acceptance policy per ADR 0029, and the manifest column is read, never inferred
+from whichever arrays happen to be present.
+
+### 20.3 Column Map: reading a tabular collection
+
+A Source Collection whose files are tabular summary statistics may be read
+through a **Column Map** (ADR 0063, issue #281): a TOML file declaring the
+provider column for each field and the conventions its values follow. A
+manifest row opts in with `source_reader_capability = opengwasdb.column-map`;
+`resolve-analyses`, `build-dense-vcf`, `build-hybrid`,
+`build-hybrid-from-catalogue` and `extract-variant-reference` take
+`--column-map PATH|NAME`, where `NAME` is a
+built-in map (`gwas-ssf`, `finngen-r13`). A built-in name that is also a file
+in the working directory is refused as ambiguous.
+
+- **Keys.** `column_map_version` (`1`), `name`, `[columns]` and
+  `[conventions]` are required; `description`, `[optional_columns]` and
+  `ignored_columns` are optional. Anything else is refused.
+- **Fields.** `chromosome`, `position`, `effect_allele`, `other_allele`, `ref`,
+  `alt`, `beta`, `odds_ratio`, `z_score`, `standard_error`, `frequency`,
+  `p_value`, `ci_lower`, `ci_upper`, `confidence_interval`, `sample_size`,
+  `rsid`, `variant_id`. A value is one column name or a list of spellings, of
+  which a file carries at most one. `[columns]` must be present in every file,
+  and `[optional_columns]` are read when present. `chromosome`, `position` and
+  the allele convention's fields are required, and at least one of `beta`,
+  `odds_ratio` and `z_score` must be declared. The field a column maps to is its
+  effect type.
+- **Conventions.** `missing_values`, `unmapped_columns`, `alleles`,
+  `position_notation`, `chromosome_spelling` and `genome_build` are always
+  declared. `frequency_allele`, `p_value_form`, `confidence_interval_separator`
+  and `rsid_separator` are declared exactly when their column is. Every value
+  comes from a closed vocabulary (ADR 0063 lists them). A value the reader
+  cannot honour (`plink`, `neg_log10_p`, `other_allele`) is refused with its
+  reason. Nothing is defaulted.
+- **Reading.** The file is presented to the GWAS-SSF reader in GWAS-SSF's
+  columns, and every undeclared column is renamed out of reach. These are
+  failures, never skipped rows:
+  - a declared column the file lacks;
+  - a field the file names twice;
+  - a column `unmapped_columns = "refuse"` did not expect;
+  - a statistic that is neither a number nor a declared missing token;
+  - an effect allele naming neither `ref` nor `alt`;
+  - an interval that does not contain exactly one declared separator;
+  - a row longer than the header.
+
+  A shorter row has omitted trailing empty cells; it is padded at the trailing
+  edge only, so those cells enter the declared missing-value rules exactly as
+  explicitly empty cells do.
+- **Agreement.** These are refused before any source is read:
+  - a mapped row with no `--column-map`;
+  - a `--column-map` no row reads through;
+  - a row whose build is not the map's `genome_build`;
+  - a row with no build of its own, no CLI fallback, and a `per_analysis` map.
+
+  A mapped row's build is its own, else the CLI fallback, else the map's; no
+  builder default applies to it.
+- **Provenance.**
+  - A mapped Resolution Record's fingerprint carries
+    `resolution_config.column_map = {"name", "sha256"}`; an unmapped record
+    omits the key, so its digest is unchanged.
+  - A Dense or Hybrid store built through a map carries the same object as
+    `manifest.json` `provenance.column_map`.
+  - `sha256` is the checksum of the map file's bytes.
+  - A checkpointed Hybrid build records the map (a built-in's name or a file's
+    absolute path) and refuses to resume once it has changed.
+  - The variant-reference artifact records no map.
+
+### 20.4 Observed-view check CLI interface
+
+`opengwasdb check-observed-view SOURCE TARGET --seed N --output verdict.json [--n-random 1000]`
+(the **Observed-View Check**, issue #289, stores ADR 0037) compares an Observed-Only Dense
+release `SOURCE` with the Reference-Completed Dense release `TARGET` completed from it, and
+confirms every observed association survived completion unchanged. Reference completion
+replaces its Store under the same id, so this check gates the swap.
+
+- **Exhaustive axis check.** Every `SOURCE` variant is mapped to `TARGET` by its ALID, and the
+  map must be complete and strictly increasing (order preserved). Both releases must list the
+  same Analyses in the same order (compared by `analysis_id`, not by every column, since
+  completion rewrites `analyses.tsv`). The map is exact: the mmap'd ALID index is used where
+  it covers a row, and an ALID wider than its key (§1, issue #127), or a release with no index,
+  is read from the variant table, so a long indel is mapped and never reported unmapped. A
+  row recovered from the table is searched against both the other release's index and its
+  unindexed rows, so either release, or both, may lack the index.
+- **Sampled cell check.** Whole `SOURCE` chunk-rows (the inner chunk height of `SOURCE`'s `z`,
+  across all Analyses), compared against the `TARGET` rows they map to. A chunk-row is chosen by
+  one or more strata:
+  - `random`: `--n-random` rows drawn uniformly with `numpy.random.default_rng(--seed)`; a
+    grid with fewer chunk-rows is sampled whole;
+  - `chrom_edge`: the first and last chunk-row of every run of one chromosome;
+  - `final_partial`: the last chunk-row;
+  - `writer_band_boundary`: the chunk-rows whose spans hold the `TARGET` rows either side of
+    every row where the completion writer's band starts, whose height is derived from `TARGET`'s `z` by the writer's own rule
+    (`completion_band_rows` over the shard height, or the inner chunk height when unsharded).
+    Neither height is a constant of this check.
+
+  Each chunk-row owns a **span** of `TARGET` rows. The spans partition the completed axis: a
+  span starts after the previous chunk-row's last mapped row and ends at its own, the first
+  starts at row 0 and the last runs to the end. Every `TARGET` row, inserted panel rows
+  included, is therefore in exactly one chunk-row's span, and sampling every chunk-row examines
+  every `TARGET` row. Per chunk-row, over its span: each source-observed cell (finite Z and SE)
+  has identical decoded Z, SE and EAF (NaN equals NaN) and is not marked imputed; no
+  source-missing cell is observed with `imputed == 0`; and no inserted panel row carries an
+  observed cell with `imputed == 0`. Before cells are classified, every sampled `imputed` value
+  must be 0 or 1 (`imputed_mask_invalid`) and every sampled cell, in `SOURCE` or `TARGET`
+  and on inserted rows, must have Z and SE both finite or both missing
+  (`z_se_missingness_mismatch`, §20).
+- **Verdict.** One JSON object, written to `--output` (which must be in an existing directory)
+  and printed on `stdout`. `seed` is required so every verdict is reproducible from its record.
+
+  | key | meaning |
+  |---|---|
+  | `seed`, `n_random` | the sample's inputs |
+  | `source`, `target` | `store_id`, `release_id` and `path` of each release |
+  | `analyses` | `n_parent`, `n_child`, `identical` |
+  | `axis` | `n_parent`, `n_child`, `parent_rows_unmapped`, `order_preserved`, and `parent_rows_unindexed` / `child_rows_unindexed` (rows read from the variant table) |
+  | `geometry` | `parent_chunk_rows`, `n_parent_chunk_rows`, `completion_band_rows` |
+  | `bands_checked`, `bands_by_stratum` | distinct chunk-rows; per stratum, overlap-inclusive |
+  | `bands` | each checked chunk-row: `band`, `parent_rows`, `strata` |
+  | `bands_with_mismatch` | chunk-rows with a nonzero failing counter |
+  | `totals` | below |
+  | `max_abs_diff` | `z`, `se`, `eaf`: the largest gap over cells where both sides are finite; a NaN against a number is counted in `*_mismatch`, not here |
+  | `failures`, `passed` | the failing names, and whether there are none |
+  | `seconds` | timing; informational |
+
+  `totals` sums over the sampled chunk-rows. Informational fields never fail the check:
+  - `cells_compared` (informational): sampled `SOURCE` rows × Analyses. It excludes inserted
+    `TARGET` rows, which `inserted_rows` counts, so it is comparable across spans.
+  - `parent_observed` (informational): the sampled `SOURCE` cells with finite Z and SE.
+  - `inserted_rows` (informational): the inserted `TARGET` rows (not mapped from any `SOURCE`
+    row) in the sampled spans.
+  - `missing_now_imputed` (informational): source-missing cells that `TARGET` holds finite and
+    flagged imputed, which is what completion is for.
+  - `parent_rows_without_finite` (informational): sampled `SOURCE` rows with no observed cell.
+  - Failing, each over the sampled cells: `z_mismatch`, `se_mismatch`, `eaf_mismatch` (a
+    source-observed cell whose decoded value differs, NaN equal to NaN);
+    `observed_marked_imputed`; `observed_missing_in_child`; `missing_became_observed`
+    (a source-missing cell observed with `imputed == 0`); `inserted_observed_cells`;
+    `imputed_mask_invalid` (an `imputed` value outside 0 and 1);
+    `z_se_missingness_mismatch` (a cell, in `SOURCE` or `TARGET`, with only one of Z and SE
+    finite).
+
+  A nonzero failing
+  counter, `parent_rows_unmapped > 0`, an order that is not preserved, and differing Analyses
+  each fail the check (`failures` names `parent_rows_unmapped`, `order_not_preserved`,
+  `analyses_mismatch`, or the counter). After an axis or Analyses failure the sample is skipped
+  (`bands_checked` is 0) and the verdict says why.
+- **Exit codes.** `0` pass; `1` the check ran and found a mismatch (the verdict is still
+  written, and each failure is named on `stderr`); `2` refused: nothing was checked, so no
+  verdict is written and the reason is on `stderr`. Refused are a mixed-layout pair, a layout
+  the check does not support (it checks Dense, Hybrid and Ragged pairs), a `SOURCE` that is
+  not Observed-Only, a `TARGET` that is not Reference-Completed, a release that cannot be opened,
+  a `TARGET` with no `imputed` mask, a release whose `z` plane and variant axis disagree in length
+  or are empty.
+- **Hybrid scope.** A Hybrid pair (issue #295) is an Observed-Only Hybrid `SOURCE` and the
+  `complete-hybrid` output made from it. Completion changes both components: it completes the
+  Dense Component, folds each `SOURCE` Overflow association at a variant the LD panel added to
+  the Dense axis into the Dense Component as an observed cell (`imputed == 0`), and rebuilds the
+  Overflow on the completed shared axis without it (a **crossover**, issue #99). So the check
+  compares the observed view across both components, by ALID:
+  - *Axes, exhaustively.* The Dense Components' axes and the shared axes are each mapped as
+    above, and every `TARGET` Dense row must be on `TARGET`'s shared axis.
+  - *Every crossover.* `complete-hybrid` records none, so they are derived from the axes: a
+    `SOURCE` Overflow association whose ALID is a `TARGET` Dense row. Each must be an observed
+    Dense cell, not marked imputed, whose decoded Z, SE and EAF equal the `SOURCE` value encoded
+    and decoded with the `TARGET` Dense Component's own codec: Z, then EAF against that row's
+    `eaf_baseline`, then SE against that EAF, as the fold writes it. A crossover is coded against
+    the Dense Component's baseline, not the Overflow's, so bit-identity with `SOURCE` is not the
+    rule; the round trip is exact, and a moved or altered value still differs from it. Every
+    crossover is read, so the cost grows with the `TARGET` chunk-rows that hold one.
+  - *The Dense Component, sampled.* The chunk-row sample above, over the two Dense Components,
+    with the crossover cells on inserted rows set aside for the crossover check: they are the
+    only observed, unflagged cells an inserted row may hold.
+  - *The Overflow, sampled.* `--n-random` Analyses (all of them when there are fewer), drawn
+    with their own `numpy.random.default_rng(--seed)`. Every association of each is matched with
+    `TARGET`'s by shared-axis ALID, in both directions, and must have bit-identical decoded Z, SE
+    and EAF. `SOURCE` crossovers are left to the crossover check, and `TARGET` associations at a
+    Dense variant to `observed_in_both`.
+  - *The Overflow, every Analysis.* `TARGET`'s Overflow holds `SOURCE`'s association count less
+    that Analysis's crossovers, none of them at a `TARGET` Dense variant and none marked imputed.
+
+  The verdict carries `"layout": "hybrid"`, then `seed`, `n_random`, `source`, `target` and
+  `analyses` as above; `analyses.identical` also needs both Overflows to have one offset per
+  Analysis.
+
+  | key | meaning |
+  |---|---|
+  | `components.dense` | the Dense verdict's `axis`, `geometry`, `bands_checked`, `bands_by_stratum`, `bands`, `bands_with_mismatch`, `totals` and `max_abs_diff`, over the Dense Components; `totals.crossover_cells` (informational) counts the crossover cells set aside in the sampled spans |
+  | `components.overflow` | `axis` (the shared-axis map, with `child_dense_rows_unshared` and `child_dense_order_preserved`), `n_parent_associations`, `n_child_associations`, `analyses_checked`, `analyses`, `analyses_with_mismatch`, `totals`, `max_abs_diff`, `all_analyses` |
+  | `crossovers` | `n` associations on `rows` Dense rows (null when the comparison was skipped), `totals`, `max_abs_diff` (`TARGET` against the round trip) and `reencoding_max_abs_diff` (the round trip against `SOURCE`; informational) |
+
+  `components.overflow.totals` sums over the sampled Analyses: `parent_associations`,
+  `crossovers` and `child_associations` are informational; `z_mismatch`, `se_mismatch`,
+  `eaf_mismatch` (a matched association whose decoded value differs, NaN equal to NaN),
+  `observed_missing_in_child` (a `SOURCE` association that `TARGET`'s Overflow lacks),
+  `missing_became_observed` (a `TARGET` association that `SOURCE` lacks) and
+  `z_se_missingness_mismatch` fail. `components.overflow.all_analyses` covers every Analysis and
+  all fail: `observed_in_both`, `imputed_cells`, and `analyses_count_mismatch` (Analyses whose
+  count is not `SOURCE`'s less its crossovers). `crossovers.totals` all fail: `z_mismatch`,
+  `se_mismatch`, `eaf_mismatch`, `observed_marked_imputed`, `observed_missing_in_child`.
+  `failures` names each nonzero failing counter with the part that counted it
+  (`dense.inserted_observed_cells`, `overflow.observed_in_both`, `crossovers.z_mismatch`), and
+  `dense.parent_rows_unmapped`, `dense.order_not_preserved`, the same two for `overflow.` (the
+  shared axes), `overflow.child_dense_rows_not_on_shared_axis` and `analyses_mismatch`; after
+  any of these last the comparison is skipped. Also refused: a Dense Component that is not Dense
+  or not in its root's completion state, a `TARGET` Dense Component with no `imputed` mask, and
+  an Overflow that cannot be opened or holds a variant index off its shared axis.
+
+The check does not compare `TARGET`'s `source_release_id` with `SOURCE`'s `release_id`: a wrong
+pairing fails the axis or cell checks.
+
+#### Ragged scope
+
+`check-observed-view SOURCE TARGET --seed N --output verdict.json --ld-panel DIR [--ancestry EUR]
+[--n-random 1000]` also checks an Observed-Only **Ragged** release `SOURCE` against the
+`complete-ragged` output `TARGET` (issue #296). A Ragged release has no grid to sample, and
+completion rebuilds the union variant axis, so every comparison is by variant identity (ALID),
+never by index. The exit codes, the required `--seed` and the verdict's `seed`, `n_random`,
+`source`, `target`, `analyses`, `failures`, `passed` and `seconds` are those of the Dense check.
+
+- **Axis.** The exact `SOURCE` -> `TARGET` ALID map of the Dense check; an unmapped source
+  variant (`parent_rows_unmapped`) or differing Analyses fail the check and skip the sample.
+  Order is not required: `axis.order_preserved` is reported, not failed, because the associations
+  are compared by ALID.
+- **Sample.** Whole Analyses, each compared completely: `--n-random` drawn uniformly with
+  `numpy.random.default_rng(--seed)` (a store with fewer is sampled whole), plus the strata
+  `non_admitted` (every Analysis the ancestry filter did not admit, up to 100, drawn with
+  `default_rng((seed, 1))` beyond that), `largest` (the 5 with most associations), `empty` (up to
+  5 with none) and `trait_less` (the first 5 without a Trait position). An Analysis is
+  *not admitted* when its `TARGET` `completed_against` is empty (ADR 0028).
+- **Per Analysis.** Each source-observed association (finite Z and SE) is in `TARGET` with
+  identical decoded Z, SE and EAF (NaN equal to NaN) and `imputed == 0`; `TARGET` holds no
+  association with finite Z and SE and `imputed == 0` that `SOURCE` lacks
+  (`target_observed_not_in_source`); every `imputed` value is 0 or 1; every imputed association
+  lies inside one of the Analysis's **retained regions**; a non-admitted Analysis holds no imputed
+  cell (`imputed_in_non_admitted`). Rows that are neither observed nor imputed (NaN: panel
+  positions inside a region that completion could not fill) are counted as `nan_rows` and fail
+  nothing.
+- **Retained regions need the LD panel.** A release stores no region coordinates, only block ids
+  and counts in `completion_quality`; block extents live in the panel. The check rebuilds each
+  sampled admitted Analysis's blocks as `complete-ragged` chose them (ADR 0014, ADR 0039): the
+  blocks touching its Trait position plus or minus the manifest's
+  `provenance.completion.cis_window_bp`, or, with no Trait position, the blocks holding enough of
+  its own observations; a region is the panel positions of those blocks. `--ld-panel` (the
+  directory `complete-ragged` was given) is therefore required for a Ragged pair, and `--ancestry`
+  must equal `provenance.completion.ancestry` when given. There is no panel-free fallback.
+  A `completion_quality` block the rebuilt regions lack is `quality_blocks_not_in_regions`, so a
+  panel other than the one used is noticed. `--ld-panel` for a Dense or Hybrid pair is refused.
+- **Totals.** `observed_in_source`, `imputed`, `nan_rows` and `regions` (retained
+  Analysis-by-block regions) are informational. Failing: `z_mismatch`, `se_mismatch`,
+  `eaf_mismatch`, `observed_marked_imputed`, `observed_missing_in_target`,
+  `target_observed_not_in_source`, `imputed_outside_retained`, `imputed_in_non_admitted`,
+  `imputed_mask_invalid`, `z_se_missingness_mismatch`, `target_variants_unordered` (an Analysis's
+  variant indices not strictly increasing) and `quality_blocks_not_in_regions`. `sample` lists
+  each checked Analysis with its strata, admission, the ids of its retained `blocks` and counts, and `by_stratum` counts
+  them.
+- **Refused (exit 2)**: a mixed-layout pair, a Ragged pair without `--ld-panel`, an LD panel
+  with no chromosomes for the ancestry, an ancestry other than the one recorded, a `TARGET`
+  completed against an ancestry other than the panel's, a `TARGET` with no completion ancestry
+  or `cis_window_bp` recorded, a release that cannot be opened or decoded (a missing array
+  group or EAF array included), and either `--ld-panel` or `--ancestry` for a Dense or Hybrid
+  pair.
+- **Known limit: residual-coded SE.** SE is compared for exact equality, as the contract in
+  section 12 states. Ragged completion refits `se_coefficients` over the completed Analysis, so
+  when SE is `int8_residual` (ADR 0037 section 3) every observed SE of an Analysis that was
+  completed is re-quantised and differs from its source (on three real Chen 2023 Analyses completed with
+  `--cis-window-bp 1000000`: all 135,596 observed SE differ, by a median of 0.09% and at most
+  0.14%, with Z and EAF identical); such a pair fails with `se_mismatch`. Where SE is `float16`
+  the pair is exact. The check stays strict (owner ruling, 2026-10-22): the re-quantisation is
+  completion's defect, and opengwasdb#301 owns fixing the refit, not this check.
+
+## 21. Compatibility
+
+`format_version` describes compatibility of the store representation. It does not describe biological data release version or source publication version. The **package version and `format_version` are independent**: a package release may change neither, one, or both. Which package reads and writes which format is recorded in the package's `CHANGELOG.md` compatibility table.
+
+`format_version` is semantic versioning — `MAJOR.MINOR.PATCH`, three non-negative integers. A release whose `format_version` is not of that shape MUST be rejected (ADR 0041). That includes every pre-reset version (`0.1`, `1.0`, `2.0`, `3.0`), which a reader MUST refuse with an instruction to rebuild rather than any attempt to decode.
+
+**The leftmost non-zero component carries an incompatible change.** Below `1.0.0` a format declares itself unsettled, so it is `MINOR` that breaks compatibility and `PATCH` that does not; from `1.0.0` it is `MAJOR`, and `MINOR` joins the compatible remainder. The components left of and including the breaking one are a release's **series**.
+
+### 21.0 Before 1.0, a metadata or vocabulary change is applied in place
+
+A format below `1.0.0` declares itself unsettled. Before then, a change to a
+**manifest vocabulary or required metadata** — a value added, renamed or
+re-spelled in a required field, with no array, encoding or required entry
+touched — is applied by **editing the existing Stores' metadata in place**, as
+one coherent step across this package, `opengwasdb-stores` and every published
+Store. Such a change:
+
+- **does not move `format_version`**;
+- MUST be recorded in `CHANGELOG.md`, naming the old and new value, so a reader
+  of an old Store knows what it will now be reported as;
+- MAY leave an older package unable to read a release written after it, because
+  a closed vocabulary is refused by name rather than guessed at (§21.2). Below
+  `1.0.0` that refusal is the accepted consequence of one coherent vocabulary,
+  not a compatibility break in the sense of §21.1 — which is why the in-place
+  edit, not a version bump and a rebuild, is the migration.
+
+This rule exists because the alternative was tried first: ADR 0064 §5 required
+the rename of `association_coverage`'s `full` to `gwas` without a version bump,
+and had to justify it against §21.1 and §21.2's "MUST accept". The owner's
+decision of 23 Oct 2026 is that one vocabulary across all three repositories is
+worth more than an old package reading a new release, and that this rule is
+what says so. From `1.0.0` the usual rule returns: a vocabulary change is
+incompatible and moves the series (§21.1), because a released format is a
+contract with readers outside this project.
+
+An in-place metadata edit still follows §21.4: it is a **Provenance Amendment**
+only when it touches `provenance`; a change to a required field is a recorded,
+reviewed edit of the release's `manifest.json`, made as part of the same
+coherent step, and every edited Store is re-validated afterwards.
+
+### 21.1 What breaks compatibility, and what does not
+
+The distinction is defined by **what a reader that does not know about the change would do**, not by the size of the change:
+
+- **Incompatible** (moves the series) — a reader that does not know about the change would *misinterpret* the store: the encoding of an existing array changes; a required entry is removed, renamed, or restructured; the meaning of an existing field changes while its name and type do not. **Before `1.0.0`, a change confined to a controlled vocabulary is the §21.0 exception**: it is applied by editing existing Stores' metadata in place and does not move the version.
+- **Compatible** (moves the remainder) — a reader that does not know about the change still reads correctly everything it already knew, and the new thing is discoverable through the manifest: a new optional array, index, or sidecar; a new `analyses.tsv` column; a new `provenance` block.
+
+| change | bump (at `0.x.y`) |
+|---|---|
+| a new optional array (e.g. `eaf`, ADR 0036) | patch |
+| a new `analyses.tsv` column | patch |
+| a required column removed or renamed (ADR 0034) | **minor** |
+| the encoding of `z`, `se` or `eaf` changes (ADR 0037) | **minor** |
+
+An **Indexed Variant Subset** (§10b, ADR 0061) is not one of those compatible
+additions: it is a rebuildable, non-authoritative acceleration artifact that can
+be deleted without changing any existing query answer, so it may be added or
+removed in place and does not move `format_version`. That narrows ADR 0038 and
+ADR 0041, whose "optional array, index, or sidecar" means optional content a
+reader may need to interpret authoritative data.
+
+### 21.2 Reader obligations
+
+For a release at `M.m.p`, a reader that fully understands that release series up to remainder `k`:
+
+| condition | behaviour |
+|---|---|
+| series unknown | MUST reject |
+| series known, remainder `<= k` | MUST accept |
+| series known, remainder `> k` | MUST accept, and SHOULD warn |
+| not `MAJOR.MINOR.PATCH` | MUST reject |
+
+Accepting a newer remainder follows from the definition of a compatible change: if an older reader could not read it correctly, the change was incompatible and was classified wrong. The warning is what makes such a misclassification visible instead of silently returning partial data.
+
+This build reads two series, `0.1` (Zarr v2, readable but no longer written) and `0.2` (Zarr v3 with sharding, §10a, what every builder writes since #247). `0.2.0` is the only 0.2 release and `0.1.0` the only 0.1 release; a second remainder in either series is a decision, not an accident. A 0.2 release is a different physical layout, not a different decoding: a reader decodes a 0.2 plane exactly as §6a says and gets the same values as the 0.1 release it was converted from.
+
+A reader meeting a feature it does not implement — an encoding kind, an index type, or a value in a controlled vocabulary it does not know — MUST reject the release rather than guess or fall back. Before `1.0.0` that refusal is exactly what a §21.0 vocabulary change produces in an older package: the "MUST accept a newer remainder" rows above govern a release whose *content* a reader understands, and §21.0 is the pre-release substitute for the version bump those rows would otherwise require.
+
+Future format versions may add fields, arrays, or indexes, but MUST preserve explicit manifest-based feature discovery.
+
+### 21.3 Writing
+
+A build writes exactly one `format_version` and reads every series it implements. There is no facility for writing an older format: a store that needs to be in an older format already exists in that format.
+
+**Since #247**, this build writes `0.2.0` from every builder and from the converter (§21.4), whose target is `CURRENT_FORMAT_VERSION` — the same constant the builders read — and whose source version is `SOURCE_FORMAT_VERSION = "0.1.0"`. A built release and a converted release therefore declare the same format and carry the same Zarr v3 sharded layout — which is what lets #249 check their identity. `0.1.0` stays readable; deleting the v2 reader is a later decision (ADR 0057). Because completion writes into its source's arrays and keeps its `format_version`, a `0.1.0` source cannot be Reference-Completed by this build: **the one executable order is to convert the `0.1.0` source to `0.2.0` and then complete the converted release** (or rebuild it). Completion refuses a `0.1.0` source and names the conversion tool. A converted `0.2.0` release is writable, so it can then be completed in place.
+
+### 21.4 I have an old store — now what?
+
+Store Releases are immutable. Reference Completion, re-indexing and migration all produce a **new release**, with one narrow exception: a **Provenance Amendment** may fold additional facts into an existing release's `provenance` dict in place, including a format migration recording what it did to that release. Anything that changes association data or Analytical Metadata is outside the exception.
+
+Before `1.0.0` there is one further in-place case, §21.0's coherent vocabulary
+sweep: a change of spelling in a required manifest field is applied by editing
+the existing Stores' metadata, not by deriving or rebuilding them. It touches no
+association data and no Analytical Metadata, and every edited Store is
+re-validated.
+
+1. **Rebuild** — the default. Sources are retained and builds are reproducible, and a rebuild also picks up every build-time fix since the store was made.
+2. **Migrate** — where a mechanical transformation is sufficient and a rebuild is disproportionate. `scripts/convert_store_to_0_2_0.py` (`opengwasdb.store.convert`, issues #245 and #248) derives a new `0.2.0` release from a `0.1.0` one at an explicit `--into` path: every array is re-written as Zarr v3 with the sharding codec holding the same stored codes, so no value is re-encoded. It accepts every layout whose arrays the role table names — Dense Observed-Only and Reference-Completed, Ragged Observed-Only and Reference-Completed, and Hybrid — and refuses an array or group it cannot name a role for, a source that is already `0.2.0` (including a Hybrid with one component already converted), and a Hybrid without its nested Dense Component. A Hybrid release is two Store Releases, so both of its manifests and both of its `data.zarr` trees are converted; a half-converted Hybrid is invalid under §20. Like every derived release it never writes its source, mints a fresh `release_id` and `created_at`, records the source `release_id` and the new layout in a `zarr_v3_conversion` provenance block per component, regenerates `overview.html` where the layout carries one, and publishes by rename only after the staged copy is verified **bit-identical** to its source and validates with no errors. It reads no source VCF, so conversion rather than a rebuild is the migration route for a store whose values are right and whose layout is old (ADR 0057). `scripts/restamp_store_to_0_1_0.py` (issue #143) derives a new `0.1.0` release from a `3.0` one at an explicit `--into` path. It reads no array: the reset renumbered the format and deleted the pre-release decoders, and did not change the bytes a build writes, so a `3.0` release already holds what `0.1.0` describes. It exists for `ukb-b`, where a rebuild is 13h30m (issue #148); the pilots are rebuilt. It refuses `0.1`, `1.0` and `2.0`, whose planes are genuinely different encodings. Like every derived release it mints a fresh `release_id` and `created_at` rather than inheriting the source's, regenerates `overview.html` — which embeds `release_id` in its header (ADR 0032) — so the release's own page agrees with its new identity (issue #164), and builds the destination in a staging directory, publishing it by rename only when the staged copy validates with **no** errors — an error string identical to one the source already carried is never subtracted (issue #164). Its source release is never written. `scripts/migrate_store_to_analyses_tsv.py` predates this policy: it rewrites `analyses.tsv` in place, which is outside the Provenance Amendment exception. Its targets are stores that should be rebuilt instead (ADR 0038 §5).
+3. **Rejected** — a store whose series this build does not implement cannot be read, and no amount of validation makes it readable. Every pre-reset release is in this category, and says so by name.
+
+There is no support window for older remainders: a known series reads every remainder within it.
+
+**Reference Completion preserves its source's `format_version`**, because it writes into the source's arrays and therefore its encoding — a completed release is the same format as its source. A build that can read a source but cannot write that format MUST refuse to complete it, rather than stamp a version onto arrays it did not encode that way. Since #247 the refusal fires on a `0.1.0` source: convert a Dense 0.1.0 release to `0.2.0` with `scripts/convert_store_to_0_2_0.py` and complete that, or rebuild it; the message names the tool.

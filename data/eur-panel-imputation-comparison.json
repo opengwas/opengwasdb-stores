@@ -1,0 +1,45 @@
+{
+  "store": "/data/opengwasdb/wip/ukb-b-c128.opengwasdb",
+  "raw_results": "/data/opengwasdb/wip/eur-panel-imputation-comparison.csv",
+  "panels": {
+    "UKB EUR": "/data/opengwasdb/reference/ukb-hg38",
+    "HGDP+1kGP EUR": "/data/opengwasdb/reference/hgdp1kgp-hg38/panel"
+  },
+  "blocks": [
+    [
+      "1",
+      "222798680-224041489"
+    ],
+    [
+      "6",
+      "30106780-30425675"
+    ],
+    [
+      "11",
+      "30827313-33937829"
+    ],
+    [
+      "16",
+      "60049115-62536937"
+    ],
+    [
+      "22",
+      "32439511-33959775"
+    ]
+  ],
+  "mask_fraction": 0.2,
+  "seed": 20260806,
+  "pca_threshold": 0.9,
+  "min_correlation": 0.7,
+  "n_analyses": 2514,
+  "summary": {
+    "ukb_acceptance_rate": 0.9991249005568814,
+    "ukb_median_pearson_r": 0.9775419379239928,
+    "hgdp1kgp_acceptance_rate": 0.9888623707239459,
+    "hgdp1kgp_median_pearson_r": 0.9625881967468097,
+    "paired_successful_fits": 12421,
+    "median_ukb_minus_hgdp1kgp_r": 0.014203492381393623,
+    "ukb_higher_fraction": 0.912164882054585
+  },
+  "recommendation": "SHIP AFR/EAS/SAS for ancestry-matched completion; retain UKB EUR for EUR"
+}

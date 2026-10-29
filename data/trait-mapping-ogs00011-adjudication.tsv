@@ -1,0 +1,93 @@
+trait_label	source_id	source_label	selected_id	selected_label	confidence	verdict	note
+a body shape index	EFO:0007789	BMI-adjusted waist circumference	EFO:0801227	body shape measurement	0.9	arguable	ABSI is waist circumference adjusted for BMI and height; source term closer
+ascending aorta diameter	EFO:0020865	aortic measurement	OBA:2050001	ascending aorta diameter	0.98	pick more specific or more accurate	
+average circumferential strain of left ventricle	MONDO:0005267	heart disorder	EFO:0920101	myocardial strain	0.88	pick more specific or more accurate	source term is a disease, not a strain measurement
+bilateral amygdala volume	EFO:0021790	subcortical volume measurement	OBA:2050034	amygdala volume	0.96	pick more specific or more accurate	
+blood glucose levels	EFO:0004468	glucose measurement	OBA:VT0000188	blood glucose amount	0.88	equivalent	
+c-c motif chemokine 4 levels	EFO:0021848	C-C motif chemokine 4-like measurement	OBA:2051171	level of C-C motif chemokine 4 in blood	0.86	pick more specific or more accurate	source term is the CCL4-like paralogue
+carotid intima media thickness	OBA:2050108	carotid artery thickness	OBA:2090004	carotid artery intima-media region thickness	0.95	pick more specific or more accurate	
+carotid intima media thickness (maximum)	OBA:2050108	carotid artery thickness	OBA:2090004	carotid artery intima-media region thickness	0.94	pick more specific or more accurate	
+carotid intima media thickness (mean)	OBA:2050108	carotid artery thickness	OBA:2090004	carotid artery intima-media region thickness	0.95	pick more specific or more accurate	
+carotid intima media thickness (minimum)	OBA:2050108	carotid artery thickness	OBA:2090004	carotid artery intima-media region thickness	0.85	pick more specific or more accurate	
+carotid intima-media thickness (mtag)	OBA:2050108	carotid artery thickness	OBA:2090004	carotid artery intima-media region thickness	0.95	pick more specific or more accurate	
+carotid plaque	EFO:0009783	carotid atherosclerosis	EFO:0006501	carotid plaque build	0.98	pick more specific or more accurate	
+cerebrospinal fluid amyloid beta 42 levels	EFO:0005194	amyloid-beta measurement	EFO:0004670	beta-amyloid 1-42 measurement	0.99	pick more specific or more accurate	
+cerebrospinal fluid amyloid beta 42 levels in abnormal amyloid levels	EFO:0005194	amyloid-beta measurement	EFO:0004670	beta-amyloid 1-42 measurement	0.89	pick more specific or more accurate	
+chronic back pain	HP:0003418	Back pain	EFO:0022861	chronic back pain	0.95	pick more specific or more accurate	
+chronic hip pain	HP:0030838	Hip pain	EFO:0022863	chronic hip pain	0.99	pick more specific or more accurate	
+cognitive function (baseline)	EFO:0008393	reaction time measurement	EFO:0008354	cognitive function measurement	0.89	arguable	source reflects the instrument (reaction time); pick reflects the label
+collagen band thickness in collagenous colitis	OBA:VT0005416	blood protein amount	OBA:2100045	collagen band thickness	0.96	pick more specific or more accurate	source term is unrelated (blood protein amount)
+common executive function	EFO:0009332	executive function measurement	EFO:0007046	executive function	0.91	equivalent	
+complement factor h-related protein 1 levels	OBA:VT0005416	blood protein amount	EFO:0600054	complement factor H-related protein 1 measurement	0.98	pick more specific or more accurate	
+cortical surface area	OBA:2045267	cerebral cortex area attribute	EFO:0008381	total cortical area measurement	0.95	equivalent	
+covid-19 (very severe respiratory confirmed vs population) release 5	MONDO:0100096	COVID-19	EFO:0022915	susceptibility to severe covid-19	0.89	pick more specific or more accurate	
+cross sectional area of superior vena cava	OBA:0000183	blood vessel diameter	OBA:2100043	vena cava size trait	0.85	pick more specific or more accurate	
+daytime nap	EFO:0007828	daytime rest measurement	EFO:0009818	nap during day, self-reported	0.95	pick more specific or more accurate	
+dxa-bone mineral density (l1-l4)	OBA:1000110	bone tissue density	EFO:0007701	spine bone mineral density	0.9394	pick more specific or more accurate	
+dxa-bone mineral density (l1-l4) (ukb data field 23203)	OBA:1000110	bone tissue density	EFO:0007701	spine bone mineral density	0.9	pick more specific or more accurate	
+easily annoyed or irritable - several or more days in the last two weeks	EFO:0009594	irritability measurement	HP:0000737	Irritability	0.95	equivalent	
+emotional lability	EFO:0008475	mood instability measurement	HP:0000712	Emotional lability	0.88	equivalent	
+endorsed measures of depression (one)	MONDO:0002009	major depressive disorder	EFO:0007006	depressive symptom measurement	0.86	arguable	symptom count vs diagnosis
+endorsed measures of depression (three)	MONDO:0002009	major depressive disorder	EFO:0007006	depressive symptom measurement	0.92	arguable	symptom count vs diagnosis
+epstein-barr virus ea-d antibody levels	OBA:VT0002460	blood immunoglobulin amount	EFO:0009348	Anti-Epstein-Barr virus early antigen IgG measurement	0.9394	pick more specific or more accurate	specific anti-EBV IgG measurement vs generic immunoglobulin
+epstein-barr virus ebna-1 antibody levels	OBA:VT0002460	blood immunoglobulin amount	EFO:0007790	Epstein Barr virus nuclear antigen 1 IgG measurement	0.86	pick more specific or more accurate	specific anti-EBV IgG measurement vs generic immunoglobulin
+epstein-barr virus vca p18 antibody levels	OBA:VT0002460	blood immunoglobulin amount	EFO:0009274	Epstein Barr viral capsid antigen IgG measurement	0.85	pick more specific or more accurate	specific anti-EBV IgG measurement vs generic immunoglobulin
+esterified desmosterol levels	EFO:0004529	lipid measurement	EFO:0920097	esterified desmosterol measurement	1.0	pick more specific or more accurate	
+fasting glucose	EFO:0004468	glucose measurement	OBA:2090000	level of glucose in blood during fasting	1.0	pick more specific or more accurate	
+fracture of forearm	MONDO:0005315	bone fracture	EFO:0009514	upper extremity fracture	0.88	pick more specific or more accurate	
+free desmosterol levels	EFO:0004529	lipid measurement	EFO:0920098	free desmosterol measurement	1.0	pick more specific or more accurate	
+ganglion cell inner plexiform layer (gcipl) thickness	OBA:2050104	ganglion thickness	OBA:2100044	ganglion cell-inner plexiform layer thickness	0.9394	pick more specific or more accurate	
+hair color	OBA:0002313	strand of hair color	EFO:0003924	hair color	0.98	equivalent	
+hair color (dark brown)	OBA:0002313	strand of hair color	EFO:0003924	hair color	0.92	equivalent	
+heart failure with preserved ejection fraction	MONDO:0005252	heart failure	MONDO:0006727	diastolic heart failure	0.91	pick more specific or more accurate	
+heart rate variability (root mean square of successive differences)	EFO:0008003	heart rate variability measurement	EFO:0009257	root mean square of the successive differences of inter beat intervals	0.98	pick more specific or more accurate	
+heart rate variability (standard deviation of normal-to-normal intervals)	EFO:0008003	heart rate variability measurement	EFO:0009256	standard deviation of the normal-to-normal inter beat intervals	0.93	pick more specific or more accurate	
+heart rate variability traits (rmssd)	EFO:0008003	heart rate variability measurement	EFO:0009257	root mean square of the successive differences of inter beat intervals	0.9	pick more specific or more accurate	
+high-grade serous ovarian cancer	EFO:1001516	ovarian serous carcinoma	EFO:1001958	high grade ovarian serous adenocarcinoma	0.9	pick more specific or more accurate	
+hypertension	MONDO:0005044	hypertensive disorder	HP:0000822	Hypertension	0.86	equivalent	
+icd10 b35.6: tinea cruris	MONDO:0004678	dermatophytosis	MONDO:0001405	dermatophytosis of groin and perianal area	0.97	pick more specific or more accurate	
+icd10 c53: malignant neoplasm of cervix uteri	MONDO:0005131	cervical carcinoma	MONDO:0002974	cervical cancer	0.9	equivalent	
+icd10 c56: malignant neoplasm of ovary	MONDO:0021068	ovarian neoplasm	MONDO:0008170	ovarian cancer	0.93	pick more specific or more accurate	
+icd10 d25: leiomyoma of uterus	HP:0000131	Uterine leiomyoma	MONDO:0007886	uterine corpus leiomyoma	0.91	equivalent	
+icd10 e28.3: primary ovarian failure	MONDO:0001889	ovarian dysfunction	MONDO:0005387	primary ovarian failure	0.93	pick more specific or more accurate	
+icd10 f40.2: specific (isolated) phobias	MONDO:0003699	phobic disorder	MONDO:0012000	specific phobia	0.85	pick more specific or more accurate	
+icd10 n98.1: hyperstimulation of ovaries	MONDO:0005558	ovarian disorder	MONDO:0011972	ovarian hyperstimulation syndrome	0.93	pick more specific or more accurate	
+immature fraction of reticulocytes	OBA:0002272	reticulocyte amount	EFO:0803545	immature reticulocyte measurement	0.87	pick more specific or more accurate	
+impulsive action (no-go trial accuracy)	EFO:0006946	behavioural disinhibition measurement	EFO:0008467	behavioural inhibitory control measurement	0.92	arguable	inhibitory control vs disinhibition: two framings
+insulin fold change during an oral glucose tolerance test	HP:0000855	Insulin resistance	EFO:0008473	insulin response measurement	0.9	pick more specific or more accurate	
+joint pain (confirmatory factor analysis factor 14)	EFO:0010639	pain measurement	HP:0002829	Arthralgia	0.95	pick more specific or more accurate	
+kidney cancer	MONDO:0005206	renal carcinoma	MONDO:0002367	kidney cancer	0.9	equivalent	
+left ventricular mass-to-volume ratio	EFO:0004295	left ventricular function	EFO:0010556	Left ventricular mass to end-diastolic volume ratio	0.97	pick more specific or more accurate	
+left ventricular peak filling rate	EFO:0004295	left ventricular function	EFO:0008204	left ventricular diastolic function measurement	0.88	pick more specific or more accurate	
+left ventricular peak filling rate (adjusted without bsa and sbp)	EFO:0004295	left ventricular function	EFO:0008204	left ventricular diastolic function measurement	0.85	pick more specific or more accurate	
+malignant salivary gland tumor	MONDO:0044743	major salivary gland cancer	MONDO:0004669	salivary gland cancer	0.9	equivalent	
+modified stumvoll insulin sensitivity index	HP:0000855	Insulin resistance	EFO:0004471	insulin sensitivity measurement	0.88	pick more specific or more accurate	
+monoclonal gammopathy of undetermined significance	MONDO:0004960	monoclonal gammopathy	EFO:1000836	benign monoclonal gammopathy	0.92	pick more specific or more accurate	
+mosaic loss of chromosome x	EFO:0022842	mosaic loss of chromosome X measurement	MONDO:0020467	mosaic monosomy X	0.91	source better	the GWAS is of a quantitative mLOX measure; pick is the disease
+n-terminal prohormone brain natriuretic peptide levels	OBA:2045349	natriuretic peptides B proteolytic cleavage product level	EFO:0022014	N-terminal pro-BNP measurement	0.99	pick more specific or more accurate	
+nonsyndromic cleft palate	EFO:0003959	cleft lip	MONDO:0007336	isolated cleft palate	0.87	pick more specific or more accurate	source term is cleft lip; the trait is cleft palate
+palmoplantar pustulosis	MONDO:0005083	psoriasis	MONDO:0015597	palmoplantar pustulosis	0.95	pick more specific or more accurate	
+parental longevity (father's age at death)	EFO:0007796	parental longevity	EFO:0009712	father's age at death	0.94	pick more specific or more accurate	
+parental longevity (mother's age at death)	EFO:0007796	parental longevity	EFO:0009721	mother's age at death	0.95	pick more specific or more accurate	
+phq-9 questionnaire- feeling down, depressed, or hopeless several or more days in the last two weeks (ukb data field 20510)	EFO:0007803	emotional symptom measurement	EFO:0007006	depressive symptom measurement	0.97	pick more specific or more accurate	
+phq-9 questionnaire- feeling tired or having little energy several or more days in the last two weeks (ukb data field 20519)	EFO:0007803	emotional symptom measurement	HP:0012378	Fatigue	0.92	pick more specific or more accurate	
+phq-9 questionnaire- thoughts that you would be better off dead or of hurting yourself in some way several or more days in the last two weeks (ukb data field 20513)	EFO:0007803	emotional symptom measurement	EFO:0004320	suicidal ideation	0.99	pick more specific or more accurate	
+physical activity	EFO:0008002	physical activity measurement	EFO:0003940	physical activity	0.97	equivalent	
+prostate-specific antigen levels	OBA:2050200	prostate specific antigen amount	OBA:2040412	level of prostate-specific antigen in blood serum	0.95	equivalent	
+serum levels of protein igf1	EFO:0004627	IGF-1 measurement	OBA:2042067	level of insulin-like growth factor I in blood serum	0.92	equivalent	
+serum total triglyceride levels	EFO:0004530	triglyceride measurement	OBA:2045035	level of triglyceride in blood serum	0.95	equivalent	
+skin pigmentation	HP:0001000	Abnormal skin pigmentation	OBA:VT0002095	skin pigmentation	0.9	pick more specific or more accurate	source term is the abnormal phenotype
+sleep apnea (mtag) (adjusted for bmi)	MONDO:0005296	sleep apnea syndrome	HP:0010535	Sleep apnea	0.89	equivalent	
+snoring	EFO:0008341	snoring measurement	HP:0025267	Snoring	0.94	equivalent	
+spirogram blow fef25-75	EFO:0003892	pulmonary function measurement	EFO:0004313	maximal midexpiratory flow rate	0.99	pick more specific or more accurate	
+spirogram blow fev1	EFO:0003892	pulmonary function measurement	EFO:0004314	forced expiratory volume	0.99	pick more specific or more accurate	
+spirogram blow fev1/fvc ratio	EFO:0003892	pulmonary function measurement	EFO:0004713	FEV/FVC ratio	0.99	pick more specific or more accurate	
+spirogram blow fvc	EFO:0003892	pulmonary function measurement	EFO:0004312	vital capacity	0.91	pick more specific or more accurate	
+spirogram blow pef	EFO:0003892	pulmonary function measurement	EFO:0009718	peak expiratory flow	0.99	pick more specific or more accurate	
+strenuous sports or other exercises	EFO:0008002	physical activity measurement	EFO:0000483	exercise	0.89	arguable	exercise vs physical activity measurement
+total desmosterol levels	EFO:0004529	lipid measurement	EFO:0920099	total desmosterol measurement	0.99	pick more specific or more accurate	
+urinary albumin excretion	EFO:0004285	albuminuria	EFO:0005667	urinary albumin excretion rate	0.99	pick more specific or more accurate	
+uterine fibroids	MONDO:0007886	uterine corpus leiomyoma	HP:0000131	Uterine leiomyoma	0.94	equivalent	
+volume of heart	OBA:VT0000266	heart morphology trait	OBA:2100042	heart volume	0.98	pick more specific or more accurate	
+waist-hip index	EFO:0007788	BMI-adjusted waist-hip ratio	EFO:0004343	waist-hip ratio	0.92	source better	waist-hip index is BMI-independent; source term closer
+white matter hyperintensities	EFO:0005665	white matter hyperintensity measurement	HP:0030890	Hyperintensity of cerebral white matter on MRI	0.9394	equivalent	

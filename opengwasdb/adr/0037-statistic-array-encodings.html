@@ -1,0 +1,2589 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>statistic-array-encodings – OpenGWASDB</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<link href="../../opengwasdb/adr/0038-store-format-versioning-and-migration-policy.html" rel="next">
+<link href="../../opengwasdb/adr/0036-store-effect-allele-frequency-per-association.html" rel="prev">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-b46a788e9dbe025090d634cacd4b6238.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+</head>
+
+<body class="nav-sidebar floating nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">OpenGWASDB</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../index.html"> 
+<span class="menu-text">Overview</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../stores.html"> 
+<span class="menu-text">Stores</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../reports.html"> 
+<span class="menu-text">Reports</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link active" href="../../reference.html" aria-current="page"> 
+<span class="menu-text">Registry</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="../../opengwasdb/index.html"> 
+<span class="menu-text">Engine</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/opengwas/opengwasdb-stores"> <i class="bi bi-github" role="img" aria-label="opengwasdb-stores on GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+  <nav class="quarto-secondary-nav">
+    <div class="container-fluid d-flex">
+      <button type="button" class="quarto-btn-toggle btn" data-bs-toggle="collapse" role="button" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+        <i class="bi bi-layout-text-sidebar-reverse"></i>
+      </button>
+        <nav class="quarto-page-breadcrumbs" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../allele-orientation-failure-modes.html">Guides</a></li><li class="breadcrumb-item"><a href="../../opengwasdb/besd-resolver.html">Opengwasdb</a></li><li class="breadcrumb-item"><a href="../../opengwasdb/adr/0001-hybrid-sqlite-zarr-store-envelope.html">Adr</a></li><li class="breadcrumb-item"><a href="../../opengwasdb/adr/0037-statistic-array-encodings.html">Statistic array encodings: fixed-point z, residual-coded EAF, reference EAF for imputed cells</a></li></ol></nav>
+        <a class="flex-grow-1" role="navigation" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item" aria-controls="quarto-sidebar" aria-expanded="false" aria-label="Toggle sidebar navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">      
+        </a>
+    </div>
+  </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+  <nav id="quarto-sidebar" class="sidebar collapse collapse-horizontal quarto-sidebar-collapse-item sidebar-navigation floating overflow-auto">
+    <div class="sidebar-menu-container"> 
+    <ul class="list-unstyled mt-1">
+        <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../reference.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Registry</span></a>
+  </div>
+</li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true">
+ <span class="menu-text">Guides</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-1" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-1" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../allele-orientation-failure-modes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Allele Orientation &amp; Ancestry Gate Failure Modes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../amr-ld-panel-proposal.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">AMR Reference-Completion LD panel: a calibration proposal</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../amr-ld-pilot-evidence.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">AMR LD calibration pilot: evidence (#241)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../epic-232-execution.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Epic #232 execution record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../glossary.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OpenGWASDB Store Operations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../hgdp1kgp-ld-release-evidence.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">HGDP+1kGP LD panel release evidence</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../hm3-pipeline-proof.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Real-data HM3 pipeline proof (stores #213)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../mvp-acquisition-conversion-retry-2026-10-12.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MVP dbGaP conversion retry and metadata-refresh qualification</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../mvp-acquisition-reconciliation-2026-10-11.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MVP (PMID 39024449) acquisition reconciliation — owner decision record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../mvp-metric-resolution-plan.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">MVP metric-resolution plan (PMID 39024449) — planning checkpoint</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../ogs-00012-16-nworkers-16-amendment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Execution-only amendment: <code>n-workers: 16</code> for MVP observed Stores 12/13/14/16</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../ogs-00016-to-ogs-00017-migration.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Identity migration: FinnGen <code>OGS-00016</code> → <code>OGS-00017</code></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../qc-panel-concordance-report.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">QC Panel Concordance Study &amp; Reference Policy Report</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../release-metadata-schema.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release Bundle schema</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../release-seam-audit.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release seam audit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../runtime.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The release runtime: pinned, current-format, and gated before writes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../se-reencode-2026-10-26.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dense SE codec re-encode — 2026-10-24 to 2026-10-26</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../software-management-audit.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Software management audit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../software-management-proposal.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Unified software management proposal</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../store-release-readiness.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Release readiness reconciliation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../trait-mapping-ukb-b-round2.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">UKB-B canonical trait mapping: round 2</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../ukb-b-restored-inventory-2026-10-11.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Restored full UKB (ukb-b) Source Inventory and candidate — acceptance report (#219)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../ukb-restored-successors-plan.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Restored UKB successors: identity, completion-panel and qualification plan (#219)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../workflow-engine-comparison.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Workflow orchestration engine comparison</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false">
+ <span class="menu-text">Adr</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-2" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-2" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0001-store-registry-boundary.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store registry boundary</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0002-custom-manifest-generators-standard-release-manifests.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Custom manifest generators with standard release manifests</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0003-separate-release-manifests-from-build-recipes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Separate release manifests from build recipes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0004-store-release-identity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store release identity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0005-release-errata.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release errata</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0006-family-scoped-release-ids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Family-scoped release IDs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0007-reference-completion-as-release-lineage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference completion as release lineage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0008-registry-service-catalogue-boundary.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Registry and service catalogue boundary</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0009-source-formats-and-reader-capabilities.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Source formats and reader capabilities</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0010-single-source-store-families.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Single-source store families</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0011-reference-resources-are-build-resources.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference resources are build resources</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0012-manifest-generators-own-orchestration-only.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Manifest generators own orchestration only</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0013-yaml-metadata-tsv-tables.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">YAML metadata and TSV tables</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0014-release-manifest-bundles.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release manifest bundles</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0015-registry-not-artifact-store.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Registry not artifact store</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0016-infer-variant-axis-policy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Infer variant-axis policy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0017-opengwasdb-owns-shared-analysis-schema.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OpenGWASDB owns the shared analysis schema</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0018-family-first-external-artifact-layout.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Family-first external artifact layout</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0019-reference-af-effect-scale-validation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference-AF effect-scale validation as a generator stage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0020-non-eur-ld-panels-from-hgdp-1kgp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Non-EUR LD Reference Panels are built from HGDP+1kGP, at structurally lower power</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0021-trait-ontology-mapping-lookup-lives-in-registry.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Trait Ontology Mapping lookup lives in the registry, not OpenGWASDB</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0022-flat-opaque-store-ids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Flat opaque Store Release IDs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0023-the-registry-store-seam-is-a-command-line.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The registry/store seam is a command line</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0024-one-family-record-no-source-collection-tier.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One family record, and no Source Collection tier</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0025-registry-filters-excluded-analyses.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The registry filters excluded analyses before build</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0026-detached-builds-die-with-their-orchestrator.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Detached builds die with their orchestrator</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0027-build-recipes-carry-only-what-differs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Build Recipes carry only what differs between Store Releases</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0028-store-family-tier-retired.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Family tier retired</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0029-release-identity-file-trimmed.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release identity file trimmed to identity, lineage, status and prose</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0030-artifact-path-is-the-identifier-migration-retired.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Artifact path is the identifier; the migration block is retired</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0031-pure-planning-runtime-artifact-existence.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Planning is pure; artifact existence is a runtime fact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0032-phase-b-candidate-workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Phase B candidate generation invokes the OpenGWASDB resolver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0033-shared-stores-admit-only-maf-filtered-analyses.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A shared Store admits only MAF-filtered Analyses</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0034-indexed-variant-subsets-in-release-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Indexed Variant Subsets are optional, declared in the Build Recipe</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0035-manifest-generation-and-store-release-build.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Manifest Generation and Store Release Build meet at the Release Bundle</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Manifest Generation is one pipeline fed by source connectors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0037-reference-completion-replaces-its-store.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference completion replaces its Store under the same id</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0038-one-home-per-kind-of-thing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One home per kind of thing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0039-analysis-catalog.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Analysis Catalog is a generated, versioned database over Release Bundles</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0040-association-coverage-is-declared-in-the-release-bundle.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Coverage is declared in the Release Bundle, in one vocabulary</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false">
+ <span class="menu-text">Benchmark Output</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-3" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-3" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../benchmark-output/opengwasdb_hm3_release_benchmark.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release benchmark report: HM3 Indexed Variant Subset</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true">
+ <span class="menu-text">Opengwasdb</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-4" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-4" class="collapse list-unstyled sidebar-section depth2 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/besd-resolver.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolving BESD Analyses</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/convert-store-to-0-2-0.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Converting a Store Release to format 0.2.0</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/getting-started.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Getting started</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/gwas-vcf-resolver.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolving GWAS-VCF Analysis metadata</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/info-score-resolver.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">CORE resolver INFO and MAF diagnostics (stores #175, #176)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/opengwas-roadmap.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OpenGWAS Roadmap</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true">
+ <span class="menu-text">Adr</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-5" class="collapse list-unstyled sidebar-section depth3 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0001-hybrid-sqlite-zarr-store-envelope.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Use a hybrid SQLite, tabix, and Zarr store envelope</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0002-store-local-variant-indices.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Use store-local variant indices</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0003-one-reference-assembly-per-store-release.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Use one reference assembly per Store Release</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0004-controlled-stored-effect-scale.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Use a controlled stored effect scale and loose original effect scale</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0005-store-z-and-se-as-canonical-statistics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Z and SE as canonical association statistics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0006-layout-independent-query-engine.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Use a layout-independent query engine</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0007-layout-independent-build-pipeline.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Use a layout-independent build pipeline</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0008-implement-dense-observed-only-first.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Implement Dense Observed-Only first</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0009-separate-layout-coverage-completion.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Separate layout, coverage, and completion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0010-model-eaf-and-info-scope.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Model EAF and INFO scope explicitly</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0011-reference-completion-release-enhancement.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Make reference completion an optional release enhancement</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0012-reference-completed-query-semantics.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Include imputed associations by default in reference-completed queries</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0013-association-status-nan-plus-imputed-mask.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Encode association status with NaN and an imputed mask</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0014-ragged-reference-completed-regions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Complete ragged regions within retained boundaries</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0015-dense-reference-completed-overflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Use ragged overflow for off-panel observations in dense completed stores</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0016-sample-size-kind-and-scope.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Factor sample-size kind and scope</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0017-long-allele-normalisation-and-hashing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Retain full normalised long alleles</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0018-local-path-cli-and-external-catalogue.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Use explicit local store paths and keep catalogues external</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0019-two-pass-vcf-build-with-inline-liftover.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Two-pass VCF build path with inline liftover</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0020-sparse-array-query-contract.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ADR-0020: Sparse flat array query contract</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0021-clip-zarr-chunk-shape-to-array-dimensions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ADR-0021: Clip zarr chunk shape to actual array dimensions at write time</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0022-dense-completed-axis-is-source-union-panel.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dense Reference-Completed variant axis is source ∪ reference panel, not panel-only</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0023-dense-completion-block-parallel-build.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dense Reference-Completion build: process pool over LD blocks, no thread layer, checkpointed resume</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0024-parallel-dense-vcf-build-disk-spill.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Parallel Dense VCF build: serial Pass 1, disk-spill Pass 2, no large IPC</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0025-dense-rho-matrix.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dense Rho Matrix: distance-thinned self-axis, observed-only null Z, pleiodb CML estimator</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0026-hybrid-layout-dense-ragged-overflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Hybrid Layout: Dense Component + Ragged Overflow for heterogeneous genome-wide collections</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0027-analysis-catalogue-ingestion-hub.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Analysis Catalogue as the ingestion hub; stores are subset views</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0028-ancestry-assignment-from-allele-frequencies.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Ancestry assignment from allele frequencies; ancestry-matched completion</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0029-standardise-continuous-effects-via-phenotype-sd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Standardise continuous-trait effects to SD units via phenotype-SD rescaling</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0030-analytical-metadata-travels-with-the-store.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Analytical Metadata travels with the Store Release; <code>analyses.tsv</code> replaces the SQLite <code>analyses</code> table</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0031-ld-panels-store-eigendecompositions.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">LD Reference Panels store eigendecompositions, not LD matrices</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0032-overview-html-is-a-single-tabbed-page-with-persisted-hit-counts.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text"><code>overview.html</code> is one tabbed page; Top-Hit Counts are persisted <code>analyses.tsv</code> columns, not rendered on the fly</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0033-query-facade-adapter-contract.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Query facade stays three adapters behind one documented contract</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0034-unify-analysestsv-across-layouts-retire-phenotype-id.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One <code>analyses.tsv</code> schema for every layout; retire <code>phenotype_id</code>/<code>phenotype_label</code>; add Attribution Metadata</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0035-retire-gene-id-gene-name-scope-tissue-context.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Retire <code>gene_id</code>/<code>gene_name</code>; keep <code>tissue</code>/<code>context</code> scoped to what was measured</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0036-store-effect-allele-frequency-per-association.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store effect allele frequency as a per-association array, per-Analysis opt-in</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0037-statistic-array-encodings.html" class="sidebar-item-text sidebar-link active">
+ <span class="menu-text">Statistic array encodings: fixed-point z, residual-coded EAF, reference EAF for imputed cells</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0038-store-format-versioning-and-migration-policy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store format versioning, reader obligations, and migration expectations</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0039-completion-region-identity-and-ancestry-refusal.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion: what identifies a region, and what happens when a panel matches nothing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0040-top-hit-index-carries-decoded-eaf.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Top-hit indexes carry decoded effect allele frequency</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0041-reset-format-version-and-drop-pre-release-formats.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reset <code>format_version</code> to 0.1.0 and drop the pre-release formats</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0042-registry-orchestration-seam-and-manifest-precedence.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Registry-orchestration seam, canonical manifest column aliases, per-release option precedence, machine-readable evidence, and phenotype-SD computation</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0043-staging-work-isolation-and-commit-locking.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Staged Release work isolation and parent-directory commit locking</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0044-one-pass-analysis-resolution-with-bounded-evidence.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One-pass pre-build Analysis resolution, with evidence bounded by configuration</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0045-resumable-manifest-resolver-with-atomic-records.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resumable manifest Analysis resolution with atomic per-Analysis records</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0046-retain-full-source-scan-over-prefix.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Retain the full source scan: a prefix is not a substitute for one-pass Analysis resolution</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0047-adopt-50k-ancestry-site-bound.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Adopt a 50,000-site ancestry bound for the full-catalog release</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0048-decouple-ancestry-site-bound-from-quantitative-phenotype-sd.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Decouple the ancestry-site bound from quantitative phenotype-SD evidence</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0049-resolve-effect-source-over-assuming-beta.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolve an Analysis’s effect source rather than assuming <code>beta</code></span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0050-enumerate-effect-column-spellings.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Enumerate accepted effect-column spellings</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0051-derive-effect-from-signed-z-score.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Derive an effect from a signed z-score, EAF and per-variant N</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0052-canonicalise-non-autosomal-chromosome-labels.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Canonicalise non-autosomal chromosome labels</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0053-hybrid-build-phase-checkpoint-and-resume.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Phase-granularity checkpoint and resume for the Hybrid build tail</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0054-whole-stream-evidence-and-one-row-admission-rule.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Whole-stream evidence and one row-admission rule</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0055-recover-effect-and-standard-error-from-row-columns.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Recover a row’s effect and standard error from its own columns</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0056-zarr-runtime-configuration-owned-by-the-array-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">zarr’s process-wide runtime configuration is owned by the array seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0057-store-format-0-2-0-zarr-v3-with-sharding.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store format 0.2.0: Zarr v3 with sharding</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0058-dense-chunk-and-shard-shapes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dense chunk and shard shapes for format 0.2.0</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0059-convert-remaining-layouts-and-ragged-shards.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Convert every layout to 0.2.0, and bound the Ragged shards</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0060-variant-centric-index.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A variant-centric index for the Ragged and Hybrid Overflow components</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0061-indexed-variant-subsets.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Indexed Variant Subsets are optional full-statistic Dense query indexes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0062-resolve-besd-probes-from-one-per-file-esi-measurement.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolve BESD probes from one per-file <code>.esi</code> measurement</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0063-read-tabular-collections-through-a-column-map.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Read tabular collections through a Column Map</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0064-association-coverage-is-a-build-input.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Coverage is a build input, not a layout constant</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0065-count-overflow-only-alids-a-hybrid-index-skips.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Leave an Overflow-only ALID out of a Hybrid’s Indexed Variant Subset on request, and count it</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0066-withhold-an-rsid-its-sources-dispute.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Withhold an rsid its sources dispute, and read compound ids as their rs identifier</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0067-per-association-sample-size-and-besd-allele-frequency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false">
+ <span class="menu-text">Benchmark Output</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-6" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-6" class="collapse list-unstyled sidebar-section depth3 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_se_residual_implementation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Residual-SE implementation pilot</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_store_comparison_ogs00009_zarr3_set_l.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OGS-00009 on zarr-python 3 against set L (#244 Stage B)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_ukbb_dense_completed_issue135_benchmark.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference-completed ukb-b EAF rechunk benchmark (issue #135)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_ukbb_dense_issue134_benchmark.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ukb-b Dense top-hit EAF index benchmark (#134)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_ukbb_dense_issue135_benchmark.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ukb-b EAF baseline rechunk benchmark (issue #135)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_ukbb_dense_issue148_benchmark.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">ukb-b at Store format 3.0: residual-coded <code>se</code> (issue #148)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_ukbb_dense_rho_benchmark.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Dense Rho Matrix: genome-scale run on the real ukb-b store (issue 051)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_zarr_v3_sharding_summary.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Zarr v3 with sharding: before and after (epic #240)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false">
+ <span class="menu-text">Opengwasdb 246 Shapes</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-7" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-7" class="collapse list-unstyled sidebar-section depth4 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_246_shapes/opengwasdb_store_comparison_ogs00009_shapes_s256_set_l.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OGS-00009 across chunk and shard shapes (#246)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_246_shapes/opengwasdb_store_comparison_ogs00009_shapes_s256_set_l_pair2.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OGS-00009 across chunk and shard shapes (#246)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_246_shapes/opengwasdb_store_comparison_ogs00009_shapes_set_l.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OGS-00009 across chunk and shard shapes (#246)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_246_shapes/opengwasdb_store_comparison_ogs00009_shapes_set_l_pair2.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OGS-00009 across chunk and shard shapes (#246)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_246_shapes/PROVENANCE.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Provenance: #246’s OGS-00009 shape comparison</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false">
+ <span class="menu-text">Opengwasdb Zarr3 Read Levers</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-8" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-8" class="collapse list-unstyled sidebar-section depth4 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_zarr3_read_levers/PROVENANCE.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Provenance: #244’s zarr-python 3 read-lever outputs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/benchmark-output/opengwasdb_zarr3_read_levers/RESULTS-step1.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">244 step 1: zarr 3 read levers. Results</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false">
+ <span class="menu-text">Reviews</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-9" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-9" class="collapse list-unstyled sidebar-section depth3 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/reviews/v0.1-compatibility.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">v0.1 Dense Observed-Only Compatibility Review</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false">
+ <span class="menu-text">Spec</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-10" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-10" class="collapse list-unstyled sidebar-section depth3 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/spec/bounded-evidence-scan-preregistration.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Preregistration: Bounded-Prefix and Compiled-Parser Acceleration for Resolver Evidence Scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/spec/resolver-reference-overlap.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver reference-overlap diagnostics</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/spec/store-format.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OpenGWASDB Store Format Specification</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false">
+ <span class="menu-text">Spec</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-11" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-11" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../spec/analysis-catalog.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Analysis Catalog</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../spec/qc-panel-concordance-preregistration.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../spec/release-config.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release config</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../spec/source-connectors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Source connectors and freeze</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Release workflow</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+          <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false">
+ <span class="menu-text">Tasks</span></a>
+          <a class="sidebar-item-toggle text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-12" role="navigation" aria-expanded="false" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-12" class="collapse list-unstyled sidebar-section depth2 ">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../tasks/rescue-remaining-studies.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Task: Rescue remaining unassigned and orientation-failing studies for GWAS Catalog EUR Hybrid</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="true">
+ <span class="menu-text">Decisions (ADRs)</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-13" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-13" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0001-store-registry-boundary.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store registry boundary</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0002-custom-manifest-generators-standard-release-manifests.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Custom manifest generators with standard release manifests</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0003-separate-release-manifests-from-build-recipes.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Separate release manifests from build recipes</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0004-store-release-identity.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store release identity</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0005-release-errata.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release errata</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0006-family-scoped-release-ids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Family-scoped release IDs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0007-reference-completion-as-release-lineage.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference completion as release lineage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0008-registry-service-catalogue-boundary.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Registry and service catalogue boundary</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0009-source-formats-and-reader-capabilities.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Source formats and reader capabilities</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0010-single-source-store-families.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Single-source store families</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0011-reference-resources-are-build-resources.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference resources are build resources</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0012-manifest-generators-own-orchestration-only.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Manifest generators own orchestration only</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0013-yaml-metadata-tsv-tables.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">YAML metadata and TSV tables</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0014-release-manifest-bundles.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release manifest bundles</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0015-registry-not-artifact-store.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Registry not artifact store</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0016-infer-variant-axis-policy.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Infer variant-axis policy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0017-opengwasdb-owns-shared-analysis-schema.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">OpenGWASDB owns the shared analysis schema</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0018-family-first-external-artifact-layout.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Family-first external artifact layout</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0019-reference-af-effect-scale-validation.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference-AF effect-scale validation as a generator stage</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0020-non-eur-ld-panels-from-hgdp-1kgp.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Non-EUR LD Reference Panels are built from HGDP+1kGP, at structurally lower power</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0021-trait-ontology-mapping-lookup-lives-in-registry.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Trait Ontology Mapping lookup lives in the registry, not OpenGWASDB</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0022-flat-opaque-store-ids.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Flat opaque Store Release IDs</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0023-the-registry-store-seam-is-a-command-line.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The registry/store seam is a command line</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0024-one-family-record-no-source-collection-tier.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One family record, and no Source Collection tier</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0025-registry-filters-excluded-analyses.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The registry filters excluded analyses before build</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0026-detached-builds-die-with-their-orchestrator.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Detached builds die with their orchestrator</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0027-build-recipes-carry-only-what-differs.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Build Recipes carry only what differs between Store Releases</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0028-store-family-tier-retired.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Family tier retired</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0029-release-identity-file-trimmed.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release identity file trimmed to identity, lineage, status and prose</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0030-artifact-path-is-the-identifier-migration-retired.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Artifact path is the identifier; the migration block is retired</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0031-pure-planning-runtime-artifact-existence.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Planning is pure; artifact existence is a runtime fact</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0032-phase-b-candidate-workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Phase B candidate generation invokes the OpenGWASDB resolver</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0033-shared-stores-admit-only-maf-filtered-analyses.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">A shared Store admits only MAF-filtered Analyses</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0034-indexed-variant-subsets-in-release-planning.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Indexed Variant Subsets are optional, declared in the Build Recipe</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0035-manifest-generation-and-store-release-build.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Manifest Generation and Store Release Build meet at the Release Bundle</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Manifest Generation is one pipeline fed by source connectors</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0037-reference-completion-replaces-its-store.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference completion replaces its Store under the same id</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0038-one-home-per-kind-of-thing.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One home per kind of thing</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0039-analysis-catalog.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Analysis Catalog is a generated, versioned database over Release Bundles</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../adr/0040-association-coverage-is-declared-in-the-release-bundle.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Coverage is declared in the Release Bundle, in one vocabulary</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="true">
+ <span class="menu-text">Specifications</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-14" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-14" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../spec/analysis-catalog.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Analysis Catalog</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../spec/qc-panel-concordance-preregistration.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Preregistration: QC Panel Concordance Study &amp; Reference-AF Fallback Policy</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../spec/release-config.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release config</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../spec/source-connectors.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Source connectors and freeze</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Release workflow</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+        <li class="sidebar-item sidebar-item-section">
+      <div class="sidebar-item-container"> 
+            <a class="sidebar-item-text sidebar-link text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true">
+ <span class="menu-text">Benchmarks and reports</span></a>
+          <a class="sidebar-item-toggle text-start" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-15" role="navigation" aria-expanded="true" aria-label="Toggle section">
+            <i class="bi bi-chevron-right ms-2"></i>
+          </a> 
+      </div>
+      <ul id="quarto-sidebar-section-15" class="collapse list-unstyled sidebar-section depth1 show">  
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../benchmark-output/opengwasdb_hm3_release_benchmark.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Release benchmark report: HM3 Indexed Variant Subset</span></a>
+  </div>
+</li>
+      </ul>
+  </li>
+    </ul>
+    </div>
+</nav>
+<div id="quarto-sidebar-glass" class="quarto-sidebar-collapse-item" data-bs-toggle="collapse" data-bs-target=".quarto-sidebar-collapse-item"></div>
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#statistic-array-encodings-fixed-point-z-residual-coded-eaf-reference-eaf-for-imputed-cells" id="toc-statistic-array-encodings-fixed-point-z-residual-coded-eaf-reference-eaf-for-imputed-cells" class="nav-link active" data-scroll-target="#statistic-array-encodings-fixed-point-z-residual-coded-eaf-reference-eaf-for-imputed-cells">Statistic array encodings: fixed-point z, residual-coded EAF, reference EAF for imputed cells</a>
+  <ul class="collapse">
+  <li><a href="#context" id="toc-context" class="nav-link" data-scroll-target="#context">Context</a>
+  <ul class="collapse">
+  <li><a href="#float16-is-the-wrong-encoding-for-z-and-always-was" id="toc-float16-is-the-wrong-encoding-for-z-and-always-was" class="nav-link" data-scroll-target="#float16-is-the-wrong-encoding-for-z-and-always-was"><code>float16</code> is the wrong encoding for <code>z</code>, and always was</a></li>
+  <li><a href="#float16-is-the-right-encoding-for-se" id="toc-float16-is-the-right-encoding-for-se" class="nav-link" data-scroll-target="#float16-is-the-right-encoding-for-se"><code>float16</code> is the <em>right</em> encoding for <code>se</code></a></li>
+  <li><a href="#eaf-is-highly-redundant-but-only-against-the-right-baseline" id="toc-eaf-is-highly-redundant-but-only-against-the-right-baseline" class="nav-link" data-scroll-target="#eaf-is-highly-redundant-but-only-against-the-right-baseline">EAF is highly redundant, but only against the right baseline</a></li>
+  <li><a href="#the-measurement-found-a-live-data-defect" id="toc-the-measurement-found-a-live-data-defect" class="nav-link" data-scroll-target="#the-measurement-found-a-live-data-defect">The measurement found a live data defect</a></li>
+  </ul></li>
+  <li><a href="#decision" id="toc-decision" class="nav-link" data-scroll-target="#decision">Decision</a>
+  <ul class="collapse">
+  <li><a href="#z-is-int16-fixed-point-plus-a-sparse-exact-overflow-table" id="toc-z-is-int16-fixed-point-plus-a-sparse-exact-overflow-table" class="nav-link" data-scroll-target="#z-is-int16-fixed-point-plus-a-sparse-exact-overflow-table">1. <code>z</code> is <code>int16</code> fixed-point plus a sparse exact overflow table</a></li>
+  <li><a href="#eaf-is-a-per-variant-baseline-plus-a-per-cell-int8-log-residual" id="toc-eaf-is-a-per-variant-baseline-plus-a-per-cell-int8-log-residual" class="nav-link" data-scroll-target="#eaf-is-a-per-variant-baseline-plus-a-per-cell-int8-log-residual">2. EAF is a per-variant baseline plus a per-cell <code>int8</code> log-residual</a></li>
+  <li><a href="#se-may-be-coded-as-an-int8-residual-but-only-where-every-analysis-has-eaf" id="toc-se-may-be-coded-as-an-int8-residual-but-only-where-every-analysis-has-eaf" class="nav-link" data-scroll-target="#se-may-be-coded-as-an-int8-residual-but-only-where-every-analysis-has-eaf">3. <code>se</code> may be coded as an <code>int8</code> residual, but only where every Analysis has EAF</a></li>
+  <li><a href="#reference-panel-eaf-is-stored-once-per-variant-for-imputed-cells-only" id="toc-reference-panel-eaf-is-stored-once-per-variant-for-imputed-cells-only" class="nav-link" data-scroll-target="#reference-panel-eaf-is-stored-once-per-variant-for-imputed-cells-only">4. Reference-panel EAF is stored once per variant, for imputed cells only</a></li>
+  <li><a href="#scenarios" id="toc-scenarios" class="nav-link" data-scroll-target="#scenarios">5. Scenarios</a></li>
+  <li><a href="#allele-flipped-eaf-is-rejected-at-build-time" id="toc-allele-flipped-eaf-is-rejected-at-build-time" class="nav-link" data-scroll-target="#allele-flipped-eaf-is-rejected-at-build-time">6. Allele-flipped EAF is rejected at build time</a></li>
+  </ul></li>
+  <li><a href="#consequences" id="toc-consequences" class="nav-link" data-scroll-target="#consequences">Consequences</a></li>
+  <li><a href="#correction-note" id="toc-correction-note" class="nav-link" data-scroll-target="#correction-note">Correction note</a></li>
+  </ul></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content"><header id="title-block-header" class="quarto-title-block"><nav class="quarto-page-breadcrumbs quarto-title-breadcrumbs d-none d-lg-block" aria-label="breadcrumb"><ol class="breadcrumb"><li class="breadcrumb-item"><a href="../../allele-orientation-failure-modes.html">Guides</a></li><li class="breadcrumb-item"><a href="../../opengwasdb/besd-resolver.html">Opengwasdb</a></li><li class="breadcrumb-item"><a href="../../opengwasdb/adr/0001-hybrid-sqlite-zarr-store-envelope.html">Adr</a></li><li class="breadcrumb-item"><a href="../../opengwasdb/adr/0037-statistic-array-encodings.html">Statistic array encodings: fixed-point z, residual-coded EAF, reference EAF for imputed cells</a></li></ol></nav></header>
+
+
+
+
+<section id="statistic-array-encodings-fixed-point-z-residual-coded-eaf-reference-eaf-for-imputed-cells" class="level1">
+<h1>Statistic array encodings: fixed-point z, residual-coded EAF, reference EAF for imputed cells</h1>
+<blockquote class="blockquote">
+<p><strong>Partly superseded by <a href="../../opengwasdb/adr/0041-reset-format-version-and-drop-pre-release-formats.html">ADR 0041</a></strong> (issue #143). The encoding decisions below still stand — they describe what <code>0.1.0</code> writes. What no longer holds is the version numbering: the pre-release formats this ADR introduced or discussed — <code>0.1</code>, <code>1.0</code>, <code>2.0</code>, <code>3.0</code> — were reset to <code>0.1.0</code>, and all four are refused rather than decoded. Read every version reference below as a historical name for what is now the one readable format.</p>
+</blockquote>
+<blockquote class="blockquote">
+<p><strong>Excepted by <a href="../../opengwasdb/adr/0067-per-association-sample-size-and-besd-allele-frequency.html">ADR 0067</a> §4</strong> (issue #302) for <code>se</code> selection. A Ragged release carrying a per-association <code>n</code> plane keeps <code>se</code> in <code>float16</code> whatever §3’s measurements choose: the residual model’s one intercept per Analysis assumes one N per Analysis, and with eQTLGen’s per-pair N it cost up to 0.79% SE error against <code>float16</code>’s 0.049%. <code>decide()</code> applies the exception, and the loader and <code>validate</code> refuse a release that declares <code>n</code> beside <code>int8_residual</code>. §3 is otherwise unchanged.</p>
+</blockquote>
+<p>Supersedes ADR 0036’s Decision 3 (<code>float32</code> for <code>eaf</code>) and refines its Decision 5 (Reference Completion). Leaves ADR 0036’s semantics intact: EAF is still per (variant, Analysis), still oriented to the stored effect allele, still declared per Analysis by <code>eaf_scope</code>. Only the physical encoding changes — and, unlike ADR 0036, this <strong>is</strong> a breaking format change.</p>
+<section id="context" class="level2">
+<h2 class="anchored" data-anchor-id="context">Context</h2>
+<p>ADR 0036 stored EAF as a <code>float32</code> plane parallel to <code>z</code>/<code>se</code>. That roughly doubled a store’s statistic bytes, which is a large price for a column that is annotation rather than the finding. Reviewing that cost surfaced three questions, each answered by measurement on this project’s own pilot data rather than from theory. All figures below are <strong>compressed</strong> bytes per stored cell under the store’s own codec (Blosc zstd level 3 + bitshuffle), because raw size is not what a Store Release occupies.</p>
+<section id="float16-is-the-wrong-encoding-for-z-and-always-was" class="level3">
+<h3 class="anchored" data-anchor-id="float16-is-the-wrong-encoding-for-z-and-always-was"><code>float16</code> is the wrong encoding for <code>z</code>, and always was</h3>
+<p><code>z</code> is finite but not usefully bounded by the pilot values first sampled for this ADR: the later #117 rebuild found |z| up to <strong>163.66</strong> in pilot stores, and the <code>ukb-b</code> top-hit index reaches <strong>137.5</strong>. It needs <em>uniform</em> precision because p-value error scales with <code>z · Δz</code>. <code>float16</code> gives the opposite: precision degrades exactly where p-values are steepest.</p>
+<p>Three different quantities get confused here, so they are named separately throughout (a first draft of this ADR conflated them — see the correction note at the end):</p>
+<ul>
+<li><strong>worst-case error</strong> — the largest p error any value can suffer under round-to-nearest, i.e.&nbsp;from half a quantisation step;</li>
+<li><strong>actual error</strong> — what a specific value suffers;</li>
+<li><strong>bin width</strong> — the p ratio between the two ends of one quantisation interval, which is <em>not</em> an error bound.</li>
+</ul>
+<p>For <code>float16</code>, whose step doubles with magnitude:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>z</th>
+<th>float16 step</th>
+<th>worst-case p error</th>
+<th>actual for this z</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>5.0</td>
+<td>0.0039</td>
+<td>1.010×</td>
+<td>1.000×</td>
+</tr>
+<tr class="even">
+<td>30.0</td>
+<td>0.0156</td>
+<td>1.264×</td>
+<td>1.000×</td>
+</tr>
+<tr class="odd">
+<td>47.8</td>
+<td>0.0312</td>
+<td>2.110×</td>
+<td>1.818×</td>
+</tr>
+<tr class="even">
+<td>137.5</td>
+<td>0.1250</td>
+<td>5,400×</td>
+<td>1.000×</td>
+</tr>
+</tbody>
+</table>
+<p>The tail is not theoretical. A survey of the <code>ukb-b</code> store’s top-hit index (9.85M variants × 2,514 analyses; the index holds every |z| ≥ 3.48, so these counts are exact for the whole store) gives:</p>
+<table class="caption-top table">
+<tbody>
+<tr class="odd">
+<td>max |z|</td>
+<td><strong>137.5</strong></td>
+</tr>
+<tr class="even">
+<td>p99 / p99.9 / p99.99</td>
+<td>10.8 / 20.1 / 37.3</td>
+</tr>
+<tr class="odd">
+<td>|z| &gt; 32 / 48 / 64 / 100</td>
+<td>6,346 / 1,760 / 568 / 136</td>
+</tr>
+<tr class="even">
+<td>non-finite</td>
+<td>0</td>
+</tr>
+</tbody>
+</table>
+<p>The extremes are genuine, not malformed: the largest are HERC2/OCA2 (<code>15:28120472</code>, ukb-b-19560) and the MC1R region (<code>16:89.7–89.9Mb</code>, ukb-b-533) — the classic pigmentation loci, with plausible SEs around 0.0015 and betas of 0.2–0.43.</p>
+<p>So <code>z</code> is <strong>not</strong> bounded at 64, and a build limit there would reject 568 real associations in a store this project already holds.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>encoding</th>
+<th>B/cell</th>
+<th>worst-case p error at z=30</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>float16</td>
+<td>1.85</td>
+<td>26.4%</td>
+</tr>
+<tr class="even">
+<td><strong>int16 fixed 1/1024 + overflow table</strong></td>
+<td><strong>~1.47</strong></td>
+<td><strong>1.5%</strong></td>
+</tr>
+<tr class="odd">
+<td>int8</td>
+<td>0.47</td>
+<td>unusable</td>
+</tr>
+</tbody>
+</table>
+<p>Fixed-point int16 is smaller <em>and</em> substantially more accurate — smaller because bitshuffle groups the near-constant high bytes of a bounded quantity, where float16’s exponent bits churn for the small values that dominate. Accuracy no longer degrades with magnitude, and values outside the representable range are held exactly in a sparse table rather than clipped or rejected.</p>
+</section>
+<section id="float16-is-the-right-encoding-for-se" class="level3">
+<h3 class="anchored" data-anchor-id="float16-is-the-right-encoding-for-se"><code>float16</code> is the <em>right</em> encoding for <code>se</code></h3>
+<p>The mirror image, and worth stating so it is not “fixed” later by analogy: <code>se</code> spans 3.2 decades and needs relative precision, which is what a floating-point exponent already provides.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>encoding</th>
+<th>B/cell</th>
+<th>max relative error</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>float16</strong></td>
+<td><strong>1.75</strong></td>
+<td>4.9e-4</td>
+</tr>
+<tr class="even">
+<td>int16 log-se</td>
+<td>1.84</td>
+<td>1.1e-4</td>
+</tr>
+<tr class="odd">
+<td>int16 uniform</td>
+<td>1.36</td>
+<td>4.1e-1</td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="eaf-is-highly-redundant-but-only-against-the-right-baseline" class="level3">
+<h3 class="anchored" data-anchor-id="eaf-is-highly-redundant-but-only-against-the-right-baseline">EAF is highly redundant, but only against the right baseline</h3>
+<p>Cross-analysis EAF agreement, as the log-residual against a candidate baseline:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>store</th>
+<th>baseline</th>
+<th>residual sd</th>
+<th>p99</th>
+<th>max</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FinnGen, 8 endpoints (one cohort)</td>
+<td>within-store median</td>
+<td><strong>0.0121</strong></td>
+<td>0.059</td>
+<td>0.63</td>
+</tr>
+<tr class="even">
+<td>FinnGen</td>
+<td>EUR reference panel</td>
+<td>0.436</td>
+<td>1.82</td>
+<td><strong>8.07</strong></td>
+</tr>
+<tr class="odd">
+<td>GWAS Catalog, 7 EUR studies</td>
+<td>within-store median</td>
+<td><strong>0.0876</strong></td>
+<td>0.154</td>
+<td>4.22</td>
+</tr>
+</tbody>
+</table>
+<p>A within-store baseline leaves residuals small enough to code in 8 bits. The reference panel does not: a max log-residual of 8.07 is a <strong>3000× discrepancy in MAF</strong>, the Finnish bottleneck showing up exactly as it should. This is the central negative result — reference-panel EAF is not a proxy for a cohort’s own allele frequency, and must never be substituted for a missing one.</p>
+<p>Cross-<em>study</em> residuals (GWAS Catalog, one ancestry) are 7× wider than cross-<em>endpoint</em> residuals within one cohort, which is what separates the Hybrid case from Dense/Ragged — not the layout itself, but the cohort heterogeneity the layout happens to correlate with.</p>
+</section>
+<section id="the-measurement-found-a-live-data-defect" class="level3">
+<h3 class="anchored" data-anchor-id="the-measurement-found-a-live-data-defect">The measurement found a live data defect</h3>
+<p>While computing the above, GCST003566 — one of the ten studies in the <code>gwas-catalog-eur-hybrid</code> pilot — turned out to report <code>effect_allele_frequency</code> against the <em>other</em> allele: r = −0.999 against every other study and against the reference panel. Nothing in the pipeline could have caught it, because until ADR 0036 no store retained EAF at all. See #115.</p>
+</section>
+</section>
+<section id="decision" class="level2">
+<h2 class="anchored" data-anchor-id="decision">Decision</h2>
+<section id="z-is-int16-fixed-point-plus-a-sparse-exact-overflow-table" class="level3">
+<h3 class="anchored" data-anchor-id="z-is-int16-fixed-point-plus-a-sparse-exact-overflow-table">1. <code>z</code> is <code>int16</code> fixed-point plus a sparse exact overflow table</h3>
+<p>Default scale 1/1024 — recorded in the plan, not hard-coded, so it can be chosen per store from measured data like every other parameter here.</p>
+<p>Two codes are reserved, because <strong>an integer array cannot hold NaN and the missing-cell contract currently depends on it</strong> (store-format §15; ADR 0013 derives Association Status from paired Z/SE NaNs):</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>code</th>
+<th>meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>-32768</code></td>
+<td>missing — decodes to NaN, and the paired <code>se</code> must also be NaN</td>
+</tr>
+<tr class="even">
+<td><code>-32767</code></td>
+<td>out of range — exact <code>float32</code> in the overflow table</td>
+</tr>
+<tr class="odd">
+<td><code>-32766 … 32767</code></td>
+<td>z × 1024, i.e.&nbsp;−31.998 … +31.999</td>
+</tr>
+</tbody>
+</table>
+<p>The representable interval is deliberately stated as exact endpoints rather than “±32”: signed fixed point is asymmetric, and reserving codes makes it more so.</p>
+<p>Measured overflow cost on <code>ukb-b</code>, the largest store available:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>scale</th>
+<th>range</th>
+<th>overflow cells (of 24.8e9)</th>
+<th>table</th>
+<th>worst-case p error at range edge</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>1/512</td>
+<td>±64</td>
+<td>572</td>
+<td>7 KB</td>
+<td>6.4%</td>
+</tr>
+<tr class="even">
+<td><strong>1/1024</strong></td>
+<td><strong>±32</strong></td>
+<td><strong>6,346</strong></td>
+<td><strong>74 KB</strong></td>
+<td><strong>1.6%</strong></td>
+</tr>
+<tr class="odd">
+<td>1/2048</td>
+<td>±16</td>
+<td>95,558</td>
+<td>1.1 MB</td>
+<td>0.8%</td>
+</tr>
+</tbody>
+</table>
+<p>1/1024 is the default: a 74 KB side table against a multi-gigabyte store, with worst-case p error of 1.6% at the range edge and 0.24% at z = 5, against <code>float16</code>’s 26.4% at z = 30.</p>
+<p><strong>A build fails only on non-finite or malformed statistics, never on a legitimate strong association.</strong> The earlier draft of this ADR proposed failing at |z| &gt; 64; the <code>ukb-b</code> survey shows that would reject real pigmentation hits.</p>
+<p><code>se</code> remained <code>float16</code> through format 2.0. Format 3.0 implements §3’s conditional residual coding with a whole-plane float16 fallback.</p>
+<p><strong>As implemented</strong> (issue #114, store-format spec §6a, §15, §20). Four details were settled during implementation and are recorded here rather than left to the code:</p>
+<ul>
+<li><strong>The overflow table is keyed by flat position</strong>, <code>variant_index x n_analyses + analysis_index</code> for a Dense grid and the association’s ordinal for a CSR, in two sorted arrays (<code>z_overflow_index</code>, <code>z_overflow_value</code>) beside the plane they describe. Keying it by position rather than by (variant, analysis) is what lets one implementation serve both layout shapes, and it is why every read of a fixed-point plane says <em>where</em> its values came from: the codec cannot resolve an out-of-range cell it cannot locate.</li>
+<li><strong>The arrays are written even when empty</strong>, so “this plane is fixed point” and “this plane has a table” are the same statement, and validation needs no special case for the store that overflows nothing.</li>
+<li><strong>There is no raw-only <code>decode_se(raw_se)</code> convenience.</strong> Format 3.0’s decoder requires decoded EAF, Analysis indices, coefficients, and flat positions. That signature prevents a caller from treating residual codes as physical Standard Errors; decoded plane views carry those dependencies for query, completion, Top-Hit, Rho, and validation paths.</li>
+<li><strong>The plan carries <code>z</code> and <code>se</code> only.</strong> <code>eaf</code>’s physical encoding is unchanged by this issue — it is still ADR 0036’s <code>float32</code> plane, present or absent per source — so it joins <code>StoreEncoding</code> with #116, the change that gives it something to declare. The scaffolding is proven on the two planes whose encoding this issue actually decides.</li>
+</ul>
+</section>
+<section id="eaf-is-a-per-variant-baseline-plus-a-per-cell-int8-log-residual" class="level3">
+<h3 class="anchored" data-anchor-id="eaf-is-a-per-variant-baseline-plus-a-per-cell-int8-log-residual">2. EAF is a per-variant baseline plus a per-cell <code>int8</code> log-residual</h3>
+<ul>
+<li><code>eaf_baseline</code> — one <code>float32</code> per variant, the within-store representative observed EAF. It amortises only when many Analyses share a variant axis: a per-variant array costs roughly <code>4 / cells_per_variant</code> raw B/cell, which is negligible on a 2,514-Analysis Dense grid and material on sparse Ragged stores (#117).</li>
+<li><code>eaf</code> — one <code>int8</code> per cell, the quantised log-ratio to that baseline.</li>
+</ul>
+<p>Two codes are reserved: one for “this Analysis has no EAF here”, one for “out of range — exact value in a sparse side table”. 253 levels remain for the residual.</p>
+<p>The builder <strong>measures</strong> the residual spread and selects the range, rather than inferring it from the layout. Nothing stops a Dense manifest spanning several cohorts, and a store that did would silently clip against a range chosen on the assumption it did not.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>range</th>
+<th>step (logit)</th>
+<th><strong>worst-case</strong> error</th>
+<th>rebuilt-pilot plane B/cell (#117)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>±0.5</td>
+<td>0.00395</td>
+<td>0.20%</td>
+<td>0.276 FinnGen; 0.492 metabolome; 0.558 GWAS Catalog quant</td>
+</tr>
+<tr class="even">
+<td>±1.0</td>
+<td>0.00791</td>
+<td>0.40%</td>
+<td>0.790 GWAS Catalog case-control</td>
+</tr>
+<tr class="odd">
+<td>±2.0</td>
+<td>0.01581</td>
+<td><strong>0.79%</strong></td>
+<td>not selected by the rebuilt pilots</td>
+</tr>
+</tbody>
+</table>
+<p>254 levels across a width of 2·range, so accuracy is a function of the range chosen — a fixed “within 0.5%” acceptance criterion is unsatisfiable at ±2.0 and must be stated per range. (The table’s error column was computed for 254; an earlier draft said “two reserved, 253 remain”, which does not add up for a type with 256 codes.)</p>
+<p><strong>As implemented</strong> (issue #116, store-format spec §6a, §9, §20). This section was under-specified at the mathematical, side-table and Hybrid-component levels, so implementation had to settle six things. They are recorded here rather than left to the code, and the spec states them normatively.</p>
+<ul>
+<li><p><strong>The transform is the logit</strong>, <code>log(f / (1 − f))</code>, not <code>log(f)</code> and not <code>log(MAF)</code>. The draft moved between all three. The logit is the only one whose error is bounded on <em>both</em> sides of the frequency: a residual error of <code>d</code> moves <code>f</code> by a relative <code>(1 − f)·d</code> and <code>1 − f</code> by a relative <code>f·d</code>, so neither the effect allele frequency nor the minor allele frequency users filter on can be wrong by more than <code>d</code>. <code>log(f)</code> is blind to the minor side, which for a frequency near 1 is the only side anyone reads; a signed log-MAF would need a sign bit there is no room for and a rule for a cohort crossing 0.5 relative to its baseline. Measured on FinnGen chr1 (8 endpoints, 429,961 variants, 3.44M EAF-bearing cells) the logit and log-EAF residuals are the same width — sd 0.0170 against 0.0169, p99 0.081 against 0.081, max 0.632 for both — so the choice costs nothing in bytes and buys the bound.</p></li>
+<li><p><strong>The code map</strong>: <code>-128</code> absent, <code>-127</code> exception, <code>-126 … 127</code> residual. 254 levels, <code>step = range / 127</code>, representable interval <code>[−126·step, +127·step]</code>. Half a step is the round-trip bound, measured at 0.219% / 0.419% / 0.812% worst case at ±0.5 / ±1.0 / ±2.0 against the 0.197% / 0.394% / 0.787% half-step, the difference being the <code>float32</code> result type’s own rounding.</p></li>
+<li><p><strong>The baseline</strong> is the median, in logit space, of the frequencies the release’s Analyses report at that variant <em>strictly inside</em> (0, 1); the median of an even count is the mean of the two central logits. A variant with none gets a NaN baseline and all its cells become exceptions. A variant seen in one Analysis gets that Analysis’s frequency and a residual of zero — correct, and the reason the byte rule below exists.</p></li>
+<li><p><strong>Frequency 0 and 1 have no logit, so they are exceptions</strong>, stored exactly. No clamping and no epsilon: a monomorphic cohort is a fact about the data, not a number to nudge. Crossing 0.5 relative to the baseline needs no rule at all, which is the second reason the logit wins over a signed log-MAF.</p></li>
+<li><p><strong>The exception table is <code>z</code>’s overflow table with a different name.</strong> Same structure (<code>eaf_exception_index</code> / <code>eaf_exception_value</code>, <code>int64</code> positions sorted and unique, <code>float32</code> values), same flat-position keying, same rule that it is written even when empty, same validation that every exception cell has an entry and the table describes no other cell. One implementation serves both, so they cannot drift. Measured lookup cost, which the review asked for alongside the bytes: <strong>109 ns/cell</strong> against a 1,000-entry table, 219 ns against 100,000, 684 ns against 1,000,000 — a binary search per cell, paid only for the cells that are exceptions.</p></li>
+<li><p><strong>The range is chosen by measured bytes, not by a clipping threshold.</strong> The draft’s 1e-3 rule was self-contradicting: the measured Hybrid clipping of 0.11% exceeds it, so the rule would have picked ±2.0 and invalidated the scenario it was quoted for. Replaced by: the smallest candidate whose exception fraction is at most <strong>2%</strong> — an exception costs 12 raw bytes against the plane’s 1 byte per cell, so 2% caps the side table at 24% of the plane — and within that budget the smaller range always wins, because it is 2–4× more accurate on every cell that is not an exception and an exception is exact either way. Then the resulting raw byte total is compared against ADR 0036’s <code>float32</code> plane and <strong><code>float32</code> is written when the residual coding would not be smaller</strong>. That is where the baseline’s economics are decided rather than assumed: the saving is per <em>cell</em>, the cost is per <em>variant</em>, so a sparse Ragged store with roughly one EAF-bearing cell per variant stays in <code>float32</code>, exactly as the review required.</p>
+<p>On this project’s own data the rule reproduces the scenarios above. Measured by running the shipped encoder over chr1 of two pilots’ source files, as a Dense grid, under the store’s own codec:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>store</th>
+<th>cells/variant</th>
+<th>chosen</th>
+<th><code>float32</code> B/cell</th>
+<th>chosen B/cell</th>
+<th>round-trip p99 / max</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FinnGen R13, 8 endpoints</td>
+<td>8.00</td>
+<td><strong>±0.5</strong></td>
+<td>1.373</td>
+<td><strong>0.718</strong> = 0.294 plane + 0.424 baseline + 0.000 table, <strong>−48%</strong></td>
+<td>0.184% / 0.262%</td>
+</tr>
+<tr class="even">
+<td>GWAS Catalog EUR, 9 studies</td>
+<td>4.86</td>
+<td><strong>±1.0</strong></td>
+<td>5.072</td>
+<td><strong>2.023</strong> = 1.245 + 0.696 + 0.082, <strong>−60%</strong></td>
+<td>0.374% / 0.394%</td>
+</tr>
+</tbody>
+</table>
+<p>Exception fractions at ±0.5 / ±1.0 / ±2.0: FinnGen 0.0003% / 0% / 0%, GWAS Catalog 3.75% / 1.71% / 0.87%. Every exception cell round-trips <strong>exactly</strong>. The round-trip figures are the worse of the relative error on EAF and on 1 − EAF, against half-step bounds of 0.197% and 0.394%.</p>
+<p>The baseline figure of 0.424 B/cell across 8 Analyses is this ADR’s own prediction (0.42), measured.</p>
+<p><strong>The rebuilt pilots in #117 settled which table was wrong.</strong> The earlier §2 table predicted 0.14 B/cell for one cohort and 0.52 for mixed studies; measured Store Releases miss those figures by 1.5–4.0×. The chr1 dry-run reproduced for FinnGen (0.276 full rebuild against 0.294 dry-run), so the error was the original prediction, not the implementation note. The decision still holds: the range-selection rule chose the expected ranges unprompted, and residual coding remains smaller than the <code>float32</code> plane it replaces.</p>
+<p>Absolute <code>float32</code> figures also differ from the 3.39 B/cell quoted earlier because these are chr1 subsets measured as Dense grids rather than whole stores; for the GWAS Catalog pilot, which is Hybrid, a Dense grid overstates the <code>float32</code> plane by counting cells no Analysis reports.</p></li>
+<li><p><strong><code>int16_log_maf</code> is not implemented.</strong> The decision tree in #119 named it as the escape valve for data no range fits. <code>float32</code> is a better one: it is exact where <code>int16_log_maf</code> is lossy, it already exists, and the byte comparison above reaches it by measurement rather than by a special case. The saving forgone is real (1.94 against 3.39 B/cell on a store with no cross-Analysis redundancy at all), and it can be added later as a fourth <code>kind</code> without changing anything else; it is left out because a third lossy encoding is a third thing to get wrong, for a case no pilot exhibits.</p></li>
+</ul>
+</section>
+<section id="se-may-be-coded-as-an-int8-residual-but-only-where-every-analysis-has-eaf" class="level3">
+<h3 class="anchored" data-anchor-id="se-may-be-coded-as-an-int8-residual-but-only-where-every-analysis-has-eaf">3. <code>se</code> may be coded as an <code>int8</code> residual, but only where every Analysis has EAF</h3>
+<p><code>log(se) ≈ a + b·log(2f(1−f))</code> fits real data at R² = 0.992 with b = −0.52 against a theoretical −0.5 — <code>opengwasdb.completion.block</code> already relies on this relationship to derive imputed SE. Coding the residual costs 0.86 B/cell instead of 1.75, at 0.12% median / 0.24% p99 round-trip error, far below the sampling error of the SE estimate itself.</p>
+<p>It requires EAF <strong>in the same cell</strong>, and a zarr array has one dtype, so a single EAF-less Analysis forces the whole array back to <code>float16</code>. This is why the Hybrid case differs from Dense/Ragged.</p>
+<p>That all-or-nothing property belongs to the format and not to any release, so it is worth stating plainly: one Analysis without usable frequencies, or one the fit cannot solve at all (too few usable cells, or no spread in its frequencies), forces <code>float16</code> for every Analysis in the component. A build decides it from one bounded streaming pass over both components, <strong>before</strong> it fits a coefficient or measures a candidate, so the fallback costs the read the fit would have made instead of reading the plane and then measuring candidates it can never use; the pass reports which trigger fired and how many Analyses were responsible (issue #229). Falling back per Analysis was considered and is deliberately not built: the plan describes a whole component’s plane, so a per-Analysis mix is format surface with its own version story (ADR 0041), not a tuning decision, and the gate is what keeps the uniform answer cheap.</p>
+<p><strong>As implemented</strong> (issue #118, <code>format_version</code> 3.0, store-format spec §6a). Five details were settled during implementation:</p>
+<ul>
+<li><strong>The coefficients live in a <code>se_coefficients[n_analyses, 2]</code> <code>float32</code> array beside the plane, not in <code>analyses.tsv</code>.</strong> The issue asked for this to be decided rather than defaulted. <code>analyses.tsv</code> is the sole source of truth for <em>Analytical Metadata</em> (ADR 0030) — facts about the study a person reads. These are decode parameters for a binary array: meaningless without the plane, invalid the moment it is rewritten, and never interesting on their own. Putting them in the TSV would invite an editor to change one.</li>
+<li><strong>The range is chosen per store from ±0.5, ±1, ±2</strong>, the smallest whose measured exception share is ≤ 2%, whose worst ordinary-cell relative error is ≤ 1%, and whose <em>measured compressed</em> bytes — codes, coefficients and both exception arrays — beat the same store’s <code>float16</code>. Nothing is hard-coded from the survey; a store that does not save bytes keeps <code>float16</code>.</li>
+<li><strong>Codes <code>-128</code> and <code>-127</code> are reserved</strong> for missing and exact exception, as §1 and §2 reserve theirs. Zero SE, non-finite predictions and out-of-range residuals all become exact exceptions; nothing is clipped.</li>
+<li><strong>Hybrid’s two components share one fit and one decision, gated independently as well as jointly.</strong> They partition the same Analyses, so a fit taken over only one of them would leave the shared manifest describing data it had not measured; and a component that would not save bytes on its own sends <em>both</em> back to <code>float16</code> rather than paying for the coding in one.</li>
+<li><strong>A plane’s codes and its coefficients are always written together.</strong> That is the invariant; who may refit follows from it. Dense and Hybrid completion <em>patch</em> the source’s plane, carrying its existing codes forward, so they read <code>se_coefficients</code> off the source and must never refit — a refit would silently re-point every carried-over code at a new model. Ragged completion rewrites the whole CSR plane from decoded values, so it refits, and its imputed cells are then modelled by the fit rather than excluded from it. Completion preserves the source’s <em>kind and range</em> either way (ADR 0038 §4); the coefficients are decode parameters of the array actually written, not part of the encoding the release declares.</li>
+</ul>
+<p>The gate is per Analysis, not pooled over the plane: an exception share taken across every cell lets one badly fitting Analysis hide behind its well-fitting neighbours, which is the GCST007320 case the issue was raised about.</p>
+<p>It <em>is</em> pooled across a Hybrid store’s two components, and that asymmetry is deliberate. What the 2% bounds is storage, not accuracy: an exact exception stores the source’s own value, so exceeding the budget costs side-table bytes and loses nothing. The quantity that bounds those bytes for one Analysis is its exception share over all of that Analysis’s cells, wherever they live — so a Hybrid Analysis is charged once over the pair, while two different Analyses are never charged together. Requiring each component to pass separately would instead reject a store whose overall side table is small because a minority of one Analysis’s cells sit in the Overflow Component.</p>
+<p><strong>A cell carrying a standard error always owes a finite EAF</strong>, exact exceptions included. Encoding refuses one that does not, rather than storing it as an exception: that would leave a residual plane holding a cell no conforming reader could reconstruct, and force a decoder to accept data outside the contract this ADR describes. Nothing upstream produces such a cell, because an imputed standard error is derived from the panel frequency and a cell without one gets no standard error either.</p>
+<p><strong>This is not a check on EAF correctness.</strong> <code>f(1−f)</code> is symmetric about 0.5, so a source reporting its frequencies against the wrong allele fits exactly as well as a correct one — GCST003566, the study §6 catches, fits at R² = 0.9976 here. A plane that accepts residual coding has said nothing about whether its <code>eaf</code> is oriented right.</p>
+<p>Measured on the rebuilt FinnGen R13 pilot-20 Dense release (21,230,615 variants × 20 Analyses), the builder selected ±0.5 and persisted SE storage fell from 580,465,385 to 243,415,048 bytes — <strong>1.367 to 0.573 B/cell, −58.1%</strong> — 12.7% above the estimate this ADR was written from, inside the ±20% the issue asked for. Reads pay for the EAF dependency: a full Analysis scan of 21.2M rows went from 7,631 ms to 11,312 ms, while Top-Hit queries were unchanged at 173/179 ms because the index stores decoded <code>float32</code> SE (<code>docs/benchmark-output/opengwasdb_se_residual_implementation.md</code>).</p>
+</section>
+<section id="reference-panel-eaf-is-stored-once-per-variant-for-imputed-cells-only" class="level3">
+<h3 class="anchored" data-anchor-id="reference-panel-eaf-is-stored-once-per-variant-for-imputed-cells-only">4. Reference-panel EAF is stored once per variant, for imputed cells only</h3>
+<p>An imputed cell’s EAF <em>is</em> the panel’s, identical for every Analysis imputed at that variant, so it is a per-variant constant: <code>eaf_reference</code>, one <code>float32</code> per variant. It is ~0 B/cell only on Dense grids with many Analyses per variant; #117 measured <strong>3.206 B/cell</strong> on completed <code>eqtlgen</code>, where the Ragged store has only 2.4 cells per variant. Which cells it describes is already recorded, by <code>association_status</code> (ADR 0013), exactly as spec §9 specifies.</p>
+<p>Observed cells whose source reported no EAF stay NaN. They do <strong>not</strong> fall back to the panel value — see the 3000× result above.</p>
+<p>This supersedes ADR 0036’s reason for deferring imputed EAF to #113. That deferral assumed the value had to travel through the completion checkpoint shards; as a per-variant constant read straight from the panel, it does not.</p>
+<p>Constraint: one panel per completed store. True of <code>complete_{dense,ragged,hybrid}_store</code> today, but it becomes load-bearing here, so it is recorded in <code>manifest.json</code> rather than left implicit.</p>
+<p><strong>As implemented</strong> (issue #116, store-format spec §6a, §9). Three details were settled during implementation:</p>
+<ul>
+<li><p><strong><code>eaf_reference</code> is per component, not per release.</strong> A single release-level flag cannot say <em>which</em> component holds the array, and a Hybrid release’s Dense Component has imputed cells where its Ragged Overflow does not. Each component already carries its own manifest — spec §16 nests the Dense Component as a self-contained Dense release — so the flag lives in the component’s own <code>encoding</code> block, and it is the one field on which the two components of a Hybrid release are allowed to differ. Validation compares their plans with it normalised away, so a real disagreement about the <em>encoding</em> still fails the store.</p></li>
+<li><p><strong>Decoding is one operation, not three.</strong> <code>decode_eaf</code> requires the imputed mask and the reference array whenever the plan declares <code>eaf_reference</code>, rather than defaulting them: a decode that quietly skipped the substitution would return NaN for every imputed cell in a store that holds the value, and one that applied it without the mask would return the panel’s frequency for observed cells — the 3000× error above. The failure mode of getting this half-right is silent, so it is made unrepresentable instead of documented.</p></li>
+<li><p><strong>Reference EAF is added independently of the observed plane</strong> — including to a release whose source stored no EAF at all, which is the case issue #113 was raised about. Such a release carries <code>eaf_reference</code> and no <code>eaf</code> array: NaN on every observed cell, the panel’s frequency on every imputed one. The first implementation refused that pairing, on the argument that a release whose <em>only</em> frequencies were the panel’s would be read as a frequency column contradicting its Analyses’ <code>eaf_scope=absent</code>. That gets the direction wrong — <code>eaf_scope</code> is derived from what the release holds, so an Analysis that gains imputed cells is stamped <code>association</code> by completion and the declaration and the arrays agree. Refusing the pairing made the release with no frequencies of its own the one release that could not hold the panel’s, which is precisely what #113 asked for.</p>
+<p>The panel may equally hold none: an LD Reference Panel is supplied for imputation and its <code>EAF</code> column is optional, so a completion against one without it carries no <code>eaf_reference</code> and leaves imputed cells NaN, rather than failing the run.</p></li>
+</ul>
+<p>The baselines and the exception values travel with the observed cells across Reference Completion’s variant remap rather than being recomputed from the decoded frequencies. Recomputing would move every baseline by up to half a step and re-quantise every cell against the moved baseline, so a completed release would be <em>less</em> accurate than the source it was completed from, for no reason.</p>
+</section>
+<section id="scenarios" class="level3">
+<h3 class="anchored" data-anchor-id="scenarios">5. Scenarios</h3>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>z</th>
+<th>se</th>
+<th>eaf</th>
+<th>total</th>
+<th>vs today</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><strong>A</strong> Dense/Ragged, no EAF</td>
+<td>int16 1.47</td>
+<td>f16 1.75</td>
+<td>—</td>
+<td><strong>3.22</strong></td>
+<td>−11%</td>
+</tr>
+<tr class="even">
+<td><strong>B</strong> Dense/Ragged, EAF, after #118</td>
+<td>int16 1.47</td>
+<td>int8 0.86</td>
+<td>0.14</td>
+<td><strong>2.47</strong></td>
+<td>−31%</td>
+</tr>
+<tr class="odd">
+<td><strong>B′</strong> Dense/Ragged, EAF, shipped before #118</td>
+<td>int16 1.47</td>
+<td>f16 1.75</td>
+<td>0.14</td>
+<td><strong>3.36</strong></td>
+<td>−7%</td>
+</tr>
+<tr class="even">
+<td><strong>C</strong> Hybrid, mixed</td>
+<td>int16 1.47</td>
+<td>f16 1.75</td>
+<td>0.52</td>
+<td><strong>3.74</strong></td>
+<td>+4%</td>
+</tr>
+<tr class="odd">
+<td><strong>D</strong> + Reference-Completed</td>
+<td></td>
+<td></td>
+<td>+ref, <code>4 / cells_per_variant</code> raw B/cell</td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+<p>Today’s baseline is 3.60 B/cell carrying no EAF at all. The B row is conditional on #118: shipped <code>format_version</code> 2.0 stores still declare <code>"se": {"kind": "float16"}</code>. In #117, EAF-bearing pilot stores with few cells per variant were often larger than these scenario totals because the per-variant <code>eaf_baseline</code> cost was not negligible; the 2,514-Analysis <code>ukb-b</code> case is the Dense grid where the baseline is expected to amortise away.</p>
+</section>
+<section id="allele-flipped-eaf-is-rejected-at-build-time" class="level3">
+<h3 class="anchored" data-anchor-id="allele-flipped-eaf-is-rejected-at-build-time">6. Allele-flipped EAF is rejected at build time</h3>
+<p>Each Analysis’s A1-oriented EAF is correlated against the reference panel; <code>r &lt; 0</code> fails the build. Measured separation is unambiguous, and population bottlenecking does not confuse it — Finnish frequencies differ from EUR by up to 3000× in magnitude but not in direction.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>source</th>
+<th>r vs EUR panel</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>GCST003566</td>
+<td>−0.9992</td>
+</tr>
+<tr class="even">
+<td>GCST005076</td>
+<td>+0.9996</td>
+</tr>
+<tr class="odd">
+<td>FinnGen (bottlenecked isolate)</td>
+<td>+0.9954</td>
+</tr>
+<tr class="even">
+<td>Metabolome</td>
+<td>+0.9996</td>
+</tr>
+</tbody>
+</table>
+<p><strong>As implemented</strong> (issue #115, store-format spec §9.1). This part of the ADR landed ahead of the encoding work, since it needs no codec and no <code>format_version</code> bump. Three details were settled during implementation and are recorded here rather than left to the code:</p>
+<ul>
+<li>The outcome is three-valued, not two. <code>unverified</code> covers the cases where a correlation must not be interpreted — too few overlapping variants, too little frequency variance on either side, or an Analysis that stores no EAF — and is recorded per Analysis rather than passing quietly as <code>passed</code>.</li>
+<li><strong>The reference is checked before it is trusted.</strong> A panel column that is minor allele frequency rather than allele-oriented EAF is symmetric about 0.5 and would correlate a flipped source at r ≈ +1, certifying the exact defect this check exists to find. A reference reporting a frequency above 0.5 for only a negligible fraction of its variants is refused outright — a single rounded row must not be enough to get a MAF column accepted.</li>
+<li><strong>A build with no panel falls back to the consensus of the other Analyses</strong> when there are at least three — any layout, not only Dense/Ragged. A consensus can establish that Analyses disagree but not which is right, so an inconsistent build fails rather than dropping an Analysis.</li>
+<li><strong>The correlation is computed per Analysis, over that Analysis’s own variants.</strong> Sampling the store’s variant axis instead looks equivalent and is not: <code>GCST90199621</code> in the metabolome pilot covers 0.8% of the axis and drew 89 of 20,000 axis-sampled sites against the EUR panel — too few to say anything — where 20,000 of its own variants are ample.</li>
+</ul>
+<p>The evidence — reference identity and checksum, overlap <code>n</code>, observed <code>r</code>, outcome — is persisted in <code>analyses.tsv</code> and <code>manifest.json</code>, because standalone validation cannot depend on a panel that may no longer be available.</p>
+</section>
+</section>
+<section id="consequences" class="level2">
+<h2 class="anchored" data-anchor-id="consequences">Consequences</h2>
+<ul>
+<li><strong>This is a breaking format change</strong>, unlike ADR 0036. It needs a <code>format_version</code> bump and therefore depends on #112 settling the compatibility and migration policy first. Landed as <code>format_version</code> 1.0 (#114, fixed-point <code>z</code>), 2.0 (#116, residual-coded <code>eaf</code>), and 3.0 (#118, residual-coded <code>se</code>). <code>0.1</code>, <code>1.0</code>, and <code>2.0</code> stay readable and are never written again; neither can be <em>completed</em>, since completion writes into its source’s encoding (ADR 0038 §4).</li>
+<li><strong>Existing stores must be rebuilt</strong> to gain any of it. All four pilots need rebuilding regardless, since #83/#106/#109 were all build-time defects.</li>
+<li><strong>Arrays stop being independently interpretable.</strong> An <code>int8</code> <code>eaf</code> plane is meaningless without <code>eaf_baseline</code>; a residual-coded <code>se</code> is meaningless without <code>eaf</code> and the per-Analysis fit coefficients. That is a real cost against a format whose stated goal is self-containment, and it is accepted deliberately, not chosen on byte count. It also argues for landing the three changes in order of increasing coupling — <code>z</code> first, <code>se</code> last.</li>
+<li><strong>Decode is no longer free.</strong> Reads gain a vectorised transform and, for <code>se</code>, a second array plus per-Analysis coefficients. Negligible per query, but it removes the option of handing a caller a raw mmap’d slice.</li>
+<li><strong><code>EafScope.VARIANT</code> stays reserved and unimplemented.</strong> The measurements rule out collapsing per-Analysis EAF to one value per variant: no variant in either single-cohort pilot has identical EAF across analyses.</li>
+<li><strong>The missing-cell contract changes.</strong> Store-format §15 currently <em>requires</em> paired Z/SE NaNs, which an integer Z array cannot express. §15 needs revising to define missingness in terms of each plane’s declared codec, with validation checking that the Z sentinel and the SE NaN agree — the same invariant, expressed through the plan rather than through a dtype.</li>
+<li><strong>Derived indexes stay decoded.</strong> Top-hit indexes and the Rho matrix hold their own small copies of Z/SE. They remain <code>float32</code> artifacts, explicitly rebuildable from the encoded planes, rather than being re-encoded too — the duplication is small and the alternative multiplies the number of decode sites for no saving.</li>
+</ul>
+</section>
+<section id="correction-note" class="level2">
+<h2 class="anchored" data-anchor-id="correction-note">Correction note</h2>
+<p>A first draft of this ADR, and issues #114/#116 as originally filed, carried three errors caught in review of #119:</p>
+<ol type="1">
+<li><strong>The <code>z</code> precision claim was wrong.</strong> “p accurate to 1.02%” conflated an empirical figure on sampled data with a worst-case bound. At scale 1/512 the worst case is 4.8% at z = 47.8 and 6.4% at z = 64. The “4.45×” attributed to <code>float16</code> was the width of a quantisation bin, not a rounding error; the actual error for 47.8 is 1.82× and the worst case is 2.11×. The conclusion — fixed point is substantially better — survives; the numbers did not.</li>
+<li><strong>The |z| ≤ 64 bound was unjustified</strong>, and the survey above shows it is wrong: 568 genuine associations in <code>ukb-b</code> exceed it. Replaced by an overflow table.</li>
+<li><strong>The decision tree was not executable</strong>, and integer planes had no missing-value contract at all. Both are addressed above.</li>
+<li><strong>The EAF byte table was a prediction, not a rebuilt-store measurement.</strong> #117 rebuilt the pilots and found the original 0.14 / 0.52 B/cell plane figures were too optimistic by 1.5–4.0×; the ADR now quotes the rebuilt Store Release measurements and qualifies per-variant baseline/reference costs by cells per variant.</li>
+</ol>
+
+
+</section>
+</section>
+
+<a onclick="window.scrollTo(0, 0); return false;" role="button" id="quarto-back-to-top"><i class="bi bi-arrow-up"></i> Back to top</a></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/blog\.opengwas\.io\/opengwasdb-stores\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+<nav class="page-navigation">
+  <div class="nav-page nav-page-previous">
+      <a href="../../opengwasdb/adr/0036-store-effect-allele-frequency-per-association.html" class="pagination-link" aria-label="Store effect allele frequency as a per-association array, per-Analysis opt-in">
+        <i class="bi bi-arrow-left-short"></i> <span class="nav-page-text">Store effect allele frequency as a per-association array, per-Analysis opt-in</span>
+      </a>          
+  </div>
+  <div class="nav-page nav-page-next">
+      <a href="../../opengwasdb/adr/0038-store-format-versioning-and-migration-policy.html" class="pagination-link" aria-label="Store format versioning, reader obligations, and migration expectations">
+        <span class="nav-page-text">Store format versioning, reader obligations, and migration expectations</span> <i class="bi bi-arrow-right-short"></i>
+      </a>
+  </div>
+</nav>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>OpenGWASDB · rendered from the commit that names it</p>
+</div>   
+    <div class="nav-footer-center">
+      &nbsp;
+    </div>
+    <div class="nav-footer-right">
+<p><a href="https://github.com/opengwas/opengwasdb-stores/issues">Report a problem</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>
