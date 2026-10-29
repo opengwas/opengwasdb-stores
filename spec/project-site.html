@@ -662,6 +662,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">OpenGWAS Roadmap</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/store-format-compatibility.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Package version and Store format compatibility</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
@@ -1851,7 +1857,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A source that fails (<code>gh</code> offline, a catalog root that does not exist) writes <code>available: false</code> with its error and no other key, and never stops the other collectors. An <strong>empty</strong> source is not a failure: no Releases yet is <code>available: true</code> with empty lists. A page reads <code>available</code> before it reads anything else.</p>
 <section id="board-board.json" class="level3">
 <h3 class="anchored" data-anchor-id="board-board.json">Board (<code>board.json</code>)</h3>
-<p>The board collector has its own GraphQL query (<code>project_site.collect.board</code>); this repository does not import the board skill. It reads project 1 of the <code>opengwas</code> organisation, every page of it, and then every epic’s sub-issues and their blocked-by edges (<code>subIssues</code> and <code>blockedBy</code> in the GraphQL API) in one aliased query, and follows every further page of both relationships (<code>subIssues</code> and <code>blockedBy</code> each return <code>pageInfo</code>). An issue’s body is read for two things, and dropped otherwise: a Milestone’s checklist lines, and an Epic’s <code>purpose</code>, the first non-empty paragraph of the body that is prose – not a heading, a fence, a table, a quote, or a list of bullets and boxes – cut at a sentence (or, failing a sentence, at a word and an ellipsis) to at most 600 characters. A relationship that still has a page unread when the response is parsed is an error, so the file is <code>available: false</code> rather than a short list marked complete.</p>
+<p>The board collector has its own GraphQL query (<code>project_site.collect.board</code>); this repository does not import the board skill. It reads project 1 of the <code>opengwas</code> organisation, every page of it, and then every epic’s sub-issues and their blocked-by edges (<code>subIssues</code> and <code>blockedBy</code> in the GraphQL API) in one aliased query, and follows every further page of both relationships (<code>subIssues</code> and <code>blockedBy</code> each return <code>pageInfo</code>). An issue’s body is read for two things, and dropped otherwise: a Milestone’s checklist lines, and an Epic’s <code>purpose</code>, the first non-empty paragraph of the body that is prose – not a heading, a table, a quote, or a list of bullets and boxes – cut at a sentence (or, failing a sentence, at a word and an ellipsis) to at most 600 characters. A fenced block is skipped whole, tracked across the paragraph split: three or more backticks or tildes open it and the same character in a run at least as long closes it, so a code sample’s own blank lines never end it and its second half is never read as prose. A relationship that still has a page unread when the response is parsed is an error, so the file is <code>available: false</code> rather than a short list marked complete.</p>
 <table class="caption-top table">
 <colgroup>
 <col style="width: 50%">
@@ -2054,7 +2060,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 </tbody>
 </table>
-<p>An invalid file is reported by name and never stops the others. An absent or empty <code>docs/_epics/</code> or <code>docs/_yardstick/</code> is not an error. The yardstick’s result schema and validator are #390’s (<code>docs/spec/yardstick.md</code>): the collector reads each result through <code>yardstick.result.validate</code>, and reports a refused one under <code>yardstick.invalid</code> with its <code>ResultError</code> message. <code>records.collect</code> takes another validator as an argument, for tests.</p>
+<p>An invalid file is reported by name and never stops the others. An absent or empty <code>docs/_epics/</code> or <code>docs/_yardstick/</code> is not an error. The yardstick’s result schema and validator are #390’s (<code>docs/spec/yardstick.md</code>): the collector reads each result through <code>yardstick.result.validate</code>, and reports a refused one under <code>yardstick.invalid</code> with its <code>ResultError</code> message. Any <em>other</em> exception from validating one file – a validator that raises rather than refuses – is that file’s error too, recorded as <code>ExceptionType: message</code>, and the other results are still read: one bad file never makes the source unavailable. The same holds for the epic records above. <code>records.collect</code> takes another validator as an argument, for tests.</p>
 </section>
 <section id="the-commands-output-and-exit-status" class="level3">
 <h3 class="anchored" data-anchor-id="the-commands-output-and-exit-status">The command’s output and exit status</h3>

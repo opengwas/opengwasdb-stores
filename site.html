@@ -664,6 +664,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">OpenGWAS Roadmap</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/store-format-compatibility.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Package version and Store format compatibility</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
@@ -1807,12 +1813,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="the-data-pages" class="level2">
 <h2 class="anchored" data-anchor-id="the-data-pages">The data pages</h2>
-<p>Five pages are generated from the site’s own data rather than written by hand: the <a href="./index.html">Overview</a>, <a href="./stores.html">Stores</a>, <a href="./epics.html">Epics</a>, <a href="./trends.html">Trends</a> and <a href="./changelog.html">Changelog</a>, with one page per epic and one per registered Store beside them (<a href="https://github.com/opengwas/opengwasdb-stores/blob/68ad3718bd9046c56faf95c30c5e0974e99f389c/src/project_site/pages.py"><code>src/project_site/pages.py</code></a>, #391).</p>
+<p>Five pages are generated from the site’s own data rather than written by hand: the <a href="./index.html">Overview</a>, <a href="./stores.html">Stores</a>, <a href="./epics.html">Epics</a>, <a href="./trends.html">Trends</a> and <a href="./changelog.html">Changelog</a>, with one page per epic and one per registered Store beside them (<a href="https://github.com/opengwas/opengwasdb-stores/blob/79fbfd33ddc51027eb89e00b8e1725e10f7dc6a4/src/project_site/pages.py"><code>src/project_site/pages.py</code></a>, #391).</p>
 <ul>
 <li><code>pixi run site</code> and <code>site-publish</code> <strong>collect the data themselves</strong> before the render, into the render’s own <code>_stage/_data</code>, from the <code>stores/</code> and <code>docs/_epics/</code> of the checkout being rendered. <code>$OPENGWASDB_SITE_DATA</code> names a directory collected already, and then nothing is collected.</li>
 <li><code>docs/_quarto.yml</code> names <code>docs/pre-render.sh</code> as the project’s <code>pre-render</code> hook. Quarto runs it inside the mirror before rendering, so the generator writes the pages where the render reads them and never into the checkout. The commit being rendered reaches it as <code>$OPENGWASDB_SITE_COMMIT</code>, which is what a generated link to a file outside <code>docs/</code> names.</li>
 <li>The five section pages are committed as short stubs that say they are generated: their published paths stay (<code>index.html</code>, <code>stores.html</code>), and a render replaces them. The per-epic and per-Store pages are git-ignored (<code>docs/epics/</code>, <code>docs/stores/</code>).</li>
 <li>A page never fails because a source is missing: it shows a notice naming the source, its error and when it was collected. <code>docs/spec/project-site.md</code> is the contract between the data and the pages.</li>
+<li>An epic page is written for every epic the board lists <strong>and</strong> for every valid epic record: a record outlives the board, so when <code>gh</code> is offline the record-backed page is still generated, carrying the board’s unavailable notice, and a page that has a record is never removed as stale.</li>
+<li>The Overview reports progress for the board’s <strong>open</strong> Milestones only. A closed Milestone is a plan nobody is working to any more, so it appears as one short line under them — <code>Closed: Milestone: First release (#91)</code> — and never with a count of lines met or to go.</li>
+<li>A yardstick trend is drawn within one workload. Results are keyed by <code>workload_sha256</code> (<code>workload_id</code> where the hash is missing), each series and each matrix table names the workload it measured, and no line or row spans two workloads, so a trend shows a change in the code rather than in the benchmark. A point measured in the Veeam backup window (<code>veeam_window: true</code>) is ringed in the figure and marked <code>†</code> in the table, with a caveat saying its timing is not comparable.</li>
 </ul>
 </section>
 <section id="going-live" class="level2">
@@ -1832,6 +1841,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><strong>Never move or rename a page that is already published.</strong> A reader’s link would break. If a page must move, keep the old path as an <code>aliases</code> entry in the new page’s YAML front matter; Quarto then writes a redirect page there, which the served-path check counts as an alias rather than a missing path.</li>
 <li>Historical reports are not rendered: their source <code>.qmd</code> lives in <code>docs/reports/</code>, and <code>pixi run docs</code> renders it and copies the self-contained HTML to the root name the site serves. Do not add <code>.qmd</code> files to <code>docs/</code> outside <code>reports/</code> unless the page really must execute code at render time.</li>
 <li>A page that is computed from the site’s data is not written by hand: add it to <code>src/project_site/pages.py</code> (<code>SECTION_PAGES</code> for a section, or one of the per-epic and per-Store writers) and commit a stub with its published path at <code>docs/</code>, as the five data pages above do. Do not edit a generated page — a render replaces it. A page holding a chart is written as a <code>{=html}</code> block, not an inline SVG in a table cell: Pandoc drops an SVG’s children there.</li>
+<li>A fact is data, never markup, and that includes a fact in a code span: a version tag is free text, so it may hold a backtick, a <code>|</code> or a <code>&lt;b&gt;</code>. Write one with <code>pages._code</code>, which uses a plain code span when the value cannot close it or cut its table cell and an HTML <code>&lt;code&gt;</code> with escaped text otherwise; a hand-written <code>`{value}`</code> fence breaks on the first one that does.</li>
 </ol>
 </section>
 <section id="checking-a-change" class="level2">

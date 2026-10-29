@@ -6,9 +6,9 @@
 > single-id Reference-Completed release (ADR 0037) completed against the UKB
 > EUR panel; `OGS-00010`, `OGS-00030` and `OGS-00031` are retired unused, and
 > the old Stores are deleted once the new `OGS-00009` is completed. See
-> [`resources/generators/ukb-b/successor-identity.yaml`](https://github.com/opengwas/opengwasdb-stores/blob/68ad3718bd9046c56faf95c30c5e0974e99f389c/resources/generators/ukb-b/successor-identity.yaml).
+> [`resources/generators/ukb-b/successor-identity.yaml`](https://github.com/opengwas/opengwasdb-stores/blob/79fbfd33ddc51027eb89e00b8e1725e10f7dc6a4/resources/generators/ukb-b/successor-identity.yaml).
 > The panel declaration proposed below is active as
-> [`resources/reference-resources/ukb-hg38-eur-ld/resource.yaml`](https://github.com/opengwas/opengwasdb-stores/blob/68ad3718bd9046c56faf95c30c5e0974e99f389c/resources/reference-resources/ukb-hg38-eur-ld/resource.yaml),
+> [`resources/reference-resources/ukb-hg38-eur-ld/resource.yaml`](https://github.com/opengwas/opengwasdb-stores/blob/79fbfd33ddc51027eb89e00b8e1725e10f7dc6a4/resources/reference-resources/ukb-hg38-eur-ld/resource.yaml),
 > through the `EUR -> ukb` alias now at `/data/opengwasdb/reference/ld/EUR`;
 > `resources/generators/ukb-b/proposed-ld-resource.yaml` is retired. The rest
 > of this page is the plan as #219 recorded it.

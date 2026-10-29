@@ -184,7 +184,7 @@ ul.task-list li input[type="checkbox"] {
 <section id="purpose" class="level2">
 <h2 class="anchored" data-anchor-id="purpose">Purpose</h2>
 <p>The board says what each thread of work does next, and issues and PRs say why each change was made. Nothing shows the project as a whole, or how it has moved: what each epic changed in performance, in the feature set and in the Analysis Catalog.</p>
-<p>No epic record exists yet: it is committed when the epic finishes (<code>docs/spec/project-site.md</code>), so this page shows only what the board states.</p>
+<p>Epic #385 adds a project site that shows where OpenGWASDB stands and what each epic changed: one Quarto site over both repositories’ docs, rendered and published locally, with an overview, a page per epic and per Store, and trends of the catalog, the yardstick and test time. It adds the data behind those pages (board, catalog history, Releases and Release Bundle collectors, and this epic record), and the yardstick, a fixed read-only benchmark on OGS-00009, OGS-00027 and OGS-00006. Both repositories move to merging PRs to main with a version per merge, taken from changelog fragments and published by a release workflow that reconciles and resumes; the cutover itself is the owner’s. The epic stays active until the cutover, the opengwasdb pin by tag, the skills’ update and the first quiet-host yardstick results.</p>
 </section>
 <section id="where-it-stands" class="level2">
 <h2 class="anchored" data-anchor-id="where-it-stands">Where it stands</h2>
@@ -218,11 +218,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Sub-issues</td>
-<td>4 of 8 completed</td>
+<td>7 of 8 completed</td>
 </tr>
 <tr class="odd">
 <td>Next</td>
-<td>4/8 merged on PR #392 · implementing #391 · waiting odb333, #387 · 1 blocked</td>
+<td>7/9 merged on PR #392 · implementing skills1 · waiting #387 · both cutovers done (v0.3.0, v0.1.0); #387 in PR #396; opengwasdb#336 fixes its Pages build</td>
 </tr>
 </tbody>
 </table>
@@ -237,13 +237,13 @@ ul.task-list li input[type="checkbox"] {
 <pre class="mermaid mermaid-js">flowchart LR
   classDef open fill:#fff8e1,stroke:#8d6e00,color:#000
   classDef closed fill:#e6f4ea,stroke:#2e6b2e,color:#000
-  n0["opengwasdb#35;333 — Merge PRs to main, and make every merge a version tagged from its changelog fragments"]:::open
+  n0["opengwasdb#35;333 — Merge PRs to main, and make every merge a version tagged from its changelog fragments"]:::closed
   n1["opengwasdb-stores#35;386 — Merge PRs to main, and make every merge a version (opengwasdb-stores)"]:::closed
-  n2["opengwasdb-stores#35;387 — Pin opengwasdb by release tag"]:::open
+  n2["opengwasdb-stores#35;387 — Pin opengwasdb by release tag"]:::closed
   n3["opengwasdb-stores#35;388 — Build one Quarto site over both repos' docs, rendered and published locally"]:::closed
   n4["opengwasdb-stores#35;389 — Collect the project site's data, and define the epic record"]:::closed
   n5["opengwasdb-stores#35;390 — Yardstick: a fixed benchmark recorded at the end of every epic"]:::closed
-  n6["opengwasdb-stores#35;391 — Project site pages: the bird's-eye home, one page per epic, trends and Store pages"]:::open
+  n6["opengwasdb-stores#35;391 — Project site pages: the bird's-eye home, one page per epic, trends and Store pages"]:::closed
   n7["agent-skills#35;1 — orchestrate and board feed the project site, and follow the move to main"]:::open
   n0 --&gt; n2
   n5 --&gt; n6
@@ -270,38 +270,38 @@ ul.task-list li input[type="checkbox"] {
 <tbody>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/333">Merge PRs to main, and make every merge a version tagged from its changelog fragments</a> (<code>opengwasdb#333</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/386">Merge PRs to main, and make every merge a version (opengwasdb-stores)</a> (<code>opengwasdb-stores#386</code>)</td>
 <td>CLOSED</td>
-<td><em>not reported</em></td>
+<td>b97f1d6</td>
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/387">Pin opengwasdb by release tag</a> (<code>opengwasdb-stores#387</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/388">Build one Quarto site over both repos’ docs, rendered and published locally</a> (<code>opengwasdb-stores#388</code>)</td>
 <td>CLOSED</td>
-<td><em>not reported</em></td>
+<td>34f651c</td>
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/389">Collect the project site’s data, and define the epic record</a> (<code>opengwasdb-stores#389</code>)</td>
 <td>CLOSED</td>
-<td><em>not reported</em></td>
+<td>804989b</td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/390">Yardstick: a fixed benchmark recorded at the end of every epic</a> (<code>opengwasdb-stores#390</code>)</td>
 <td>CLOSED</td>
-<td><em>not reported</em></td>
+<td>548e194</td>
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/391">Project site pages: the bird’s-eye home, one page per epic, trends and Store pages</a> (<code>opengwasdb-stores#391</code>)</td>
-<td>OPEN</td>
-<td><em>not reported</em></td>
+<td>CLOSED</td>
+<td>49aa494</td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/agent-skills/issues/1">orchestrate and board feed the project site, and follow the move to main</a> (<code>agent-skills#1</code>)</td>
@@ -313,15 +313,188 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="decisions" class="level2">
 <h2 class="anchored" data-anchor-id="decisions">Decisions</h2>
-<p>No epic record exists yet, so its decisions are not on this page.</p>
+<ul>
+<li><strong>2026-10-29</strong> — Integration branch cut from dev, the base CONTRIBUTING names today; the move to main (#386, opengwas/opengwasdb#333) is an owner cutover after this epic’s PRs merge.</li>
+<li><strong>2026-10-29</strong> — Changelog fragments under changelog.d/ set the bump (breaking/added/changed -&gt; minor; fixed/internal -&gt; patch) instead of a PR label, following opengwasdb’s versioning table; CHANGELOG.md keeps history to the cutover, then points to GitHub Releases. No bot commits to main.</li>
+<li><strong>2026-10-29</strong> — Lanes: #389 and #390 on Claude Sonnet (a contract; real-data measurement), the rest on opencode-go/deepseek-v4.1-flash. #386 runs after opengwasdb#333 to reuse its script.</li>
+<li><strong>2026-10-29</strong> — Yardstick Stores: OGS-00009 (Dense+hm3), OGS-00027 (Ragged cis), OGS-00006 (Ragged signals_only); OGS-00011 pending until validated (its .partial belongs to #371). Runs between 00:00 and 11:00 local are flagged veeam_window, not dropped. First before/after: 0d59f151 (current pin) twice and 75f0e77 once.</li>
+<li><strong>2026-10-29</strong> — Backfill epic records for #313 (active), #282, #302, #241; skip in-flight #232, #371, #385 and #312’s partial run. Analysis totals come from count(*) on listed_analyses, never summed dimension rows.</li>
+<li><strong>2026-10-29</strong> — The first yardstick results (00:43-00:47, load 9-15, spread up to 127%) are not committed. The code merges without results; the orchestrator reruns after 11:00 local with the lanes idle and commits the results to the integration branch.</li>
+<li><strong>2026-10-29</strong> — query_store opens index.sqlite read-write; verified the three runs wrote nothing (journal_mode delete, no side files). Yardstick guards it (refuses a Store without index.sqlite; before/after top-level check fails loudly). Upstream read-only open filed as an opengwasdb follow-up.</li>
+<li><strong>2026-10-29</strong> — Epic record: finished is the epic issue’s close date and status follows the issue (open = active); a finished run does not finish its epic. #282 and #302 become active. #241’s record is dropped (a ticket, not an Epic).</li>
+<li><strong>2026-10-29</strong> — Guess-word checks apply only to typed values (dates, numbers, commits, keys, paths); prose fields are free text. Recorded fixtures stay faithful; the retired-names guard gets a narrow historical exemption for docs/_epics and the board fixture.</li>
+<li><strong>2026-10-29</strong> — site-data exits 0 with UNAVAILABLE lines when a source fails; –strict exits 1. Yardstick validator is wired in when the second of #389/#390 merges.</li>
+<li><strong>2026-10-29</strong> — Release workflow reconciles instead of trusting the concurrency queue: each run releases every untagged first-parent commit on main after the latest v* tag, oldest first, each with its own PR and fragments; tag and Release creation are separate idempotent steps so a rerun completes a half-published version.</li>
+<li><strong>2026-10-29</strong> — The 64 rewritten links to paths a commit lacks (historical audits of the retired families/ and resources/scripts/ layout) stay as reported; #391 adds its own navigation; site-publish’s default ref moves to origin/main in #386’s sweep.</li>
+<li><strong>2026-10-29</strong> — No retroactive Release for v0.2.0: the reconciler resumes a missing Release only for tags newer than the newest existing Release. The 20-release limit per run stays. Cutover tags v0.3.0 before pushing main, so the first run owes only v0.3.0’s Release.</li>
+<li><strong>2026-10-29</strong> — pixi.toml, pixi.lock and pyproject.toml count as source changes (a re-pin changes every build). The yardstick records the ogstores checkout commit beside its version (an editable install’s version can be stale). Cutover tags v0.1.0 before pushing main. pixi’s workspace version and PyPI publishing are left alone.</li>
+<li><strong>2026-10-29</strong> — Cutover order for both repos: merge the epic PR (which carries release.yml) into dev; push the annotated tag on dev’s head and verify it; then fast-forward main with a separate push; protect main right after that push (requiring PRs earlier blocks the owner’s direct fast-forward); watch the release run create exactly the first tag’s Release.</li>
+<li><strong>2026-10-29</strong> — site and site-publish run the collectors into the render’s own stage directory (registry = the rendered checkout’s stores/), so a publish never renders unavailable pages; collected _data/*.json (host paths) is not published. The board collector keeps each epic’s first paragraph as purpose; the catalog collector reads the current version’s selection decisions. Generated links point at the rendered commit; site-publish defaults to origin/main. The epic’s v0.1.0 notes come from one added fragment per ticket.</li>
+<li><strong>2026-10-29</strong> — The yardstick reran at 11:04 on a quiet host (load 1.5-1.9, outside the Veeam window, 82 s per run). Run-to-run spread is under 11% on 16 of 19 timed measures; the rest are OGS-00006’s phewas by rsid (25%), by ALID (19%) and region (18%), 4-9 ms apart. Peak RSS agrees to 1.5% and bytes on disk exactly. Both results are committed; after is the first.</li>
+</ul>
 </section>
 <section id="versions-shipped" class="level2">
 <h2 class="anchored" data-anchor-id="versions-shipped">Versions shipped</h2>
-<p>No epic record exists yet, so no version is attributed to this epic.</p>
+<p>No version has shipped from this epic yet: a record’s <code>versions</code> fills once each repository tags every merge to <code>main</code> (#386).</p>
 </section>
 <section id="before-and-after" class="level2">
 <h2 class="anchored" data-anchor-id="before-and-after">Before and after</h2>
-<p>No epic record exists yet, so there is no measured before and after to compare.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>What</th>
+<th>Before</th>
+<th>After</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Catalog Analyses</td>
+<td><em>not reported</em></td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td>Catalog Stores</td>
+<td><em>not reported</em></td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td>Test time (wall)</td>
+<td>166.3 s at <code>de99f3b</code></td>
+<td>156.4 s at <code>49aa494</code> (-6.0% on the baseline)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>open</code> on OGS-00009</td>
+<td><em>not reported</em></td>
+<td>79.888 ms (p95 83.626 ms)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>phewas_rsid</code> on OGS-00009</td>
+<td><em>not reported</em></td>
+<td>66.814 ms (p95 71.226 ms)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>phewas_alid</code> on OGS-00009</td>
+<td><em>not reported</em></td>
+<td>64.714 ms (p95 69.291 ms)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>phewas_position</code> on OGS-00009</td>
+<td><em>not reported</em></td>
+<td>66.704 ms (p95 70.7 ms)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>region</code> on OGS-00009</td>
+<td><em>not reported</em></td>
+<td>2640.82 ms (p95 2672.28 ms)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>analysis_full</code> on OGS-00009</td>
+<td><em>not reported</em></td>
+<td>8266.5 ms (p95 8605.78 ms)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>analysis_hm3</code> on OGS-00009</td>
+<td><em>not reported</em></td>
+<td>426.863 ms (p95 449.438 ms)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>bytes_on_disk</code> on OGS-00009</td>
+<td><em>not reported</em></td>
+<td>61,882,085,184 bytes (walk)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>peak_rss</code> on OGS-00009</td>
+<td><em>not reported</em></td>
+<td>1235.2 MB peak (baseline 174.3 MB)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>open</code> on OGS-00027</td>
+<td><em>not reported</em></td>
+<td>338.976 ms (p95 343.857 ms)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>phewas_rsid</code> on OGS-00027</td>
+<td><em>not reported</em></td>
+<td>19.383 ms (p95 21.758 ms)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>phewas_alid</code> on OGS-00027</td>
+<td><em>not reported</em></td>
+<td>18.939 ms (p95 19.241 ms)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>phewas_position</code> on OGS-00027</td>
+<td><em>not reported</em></td>
+<td>19.421 ms (p95 20.895 ms)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>region</code> on OGS-00027</td>
+<td><em>not reported</em></td>
+<td>62.035 ms (p95 62.256 ms)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>analysis_full</code> on OGS-00027</td>
+<td><em>not reported</em></td>
+<td>20.668 ms (p95 21.226 ms)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>bytes_on_disk</code> on OGS-00027</td>
+<td><em>not reported</em></td>
+<td>2,632,390,381 bytes (walk)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>peak_rss</code> on OGS-00027</td>
+<td><em>not reported</em></td>
+<td>229.2 MB peak (baseline 220.7 MB)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>open</code> on OGS-00006</td>
+<td><em>not reported</em></td>
+<td>113.316 ms (p95 121.16 ms)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>phewas_rsid</code> on OGS-00006</td>
+<td><em>not reported</em></td>
+<td>22.918 ms (p95 23 ms)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>phewas_alid</code> on OGS-00006</td>
+<td><em>not reported</em></td>
+<td>21.651 ms (p95 22.899 ms)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>phewas_position</code> on OGS-00006</td>
+<td><em>not reported</em></td>
+<td>20.499 ms (p95 21.216 ms)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>region</code> on OGS-00006</td>
+<td><em>not reported</em></td>
+<td>59.3 ms (p95 59.91 ms)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>analysis_full</code> on OGS-00006</td>
+<td><em>not reported</em></td>
+<td>75.578 ms (p95 76.68 ms)</td>
+</tr>
+<tr class="odd">
+<td>Yardstick <code>bytes_on_disk</code> on OGS-00006</td>
+<td><em>not reported</em></td>
+<td>1,497,874,236 bytes (walk)</td>
+</tr>
+<tr class="even">
+<td>Yardstick <code>peak_rss</code> on OGS-00006</td>
+<td><em>not reported</em></td>
+<td>215.7 MB peak (baseline 172.5 MB)</td>
+</tr>
+</tbody>
+</table>
 
 
 </section>

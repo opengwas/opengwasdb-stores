@@ -627,6 +627,12 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">OpenGWAS Roadmap</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/store-format-compatibility.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Package version and Store format compatibility</span></a>
+  </div>
+</li>
           <li class="sidebar-item sidebar-item-section">
       <div class="sidebar-item-container"> 
             <a class="sidebar-item-text sidebar-link text-start collapsed" data-bs-toggle="collapse" data-bs-target="#quarto-sidebar-section-5" role="navigation" aria-expanded="false">
@@ -1657,7 +1663,7 @@ ul.task-list li input[type="checkbox"] {
 <section id="the-yardstick" class="level1">
 <h1>The yardstick</h1>
 <p>One fixed benchmark, run at the end of every epic, so that a performance trend compares like with like (#390). opengwasdb’s <code>benchmarks/</code> holds one-off harnesses; the yardstick is the single workload this repository re-runs.</p>
-<p>Run it with <code>pixi run yardstick</code>. It writes <code>docs/_yardstick/&lt;UTC start, YYYYMMDDTHHMMSSZ&gt;-&lt;opengwasdb version&gt;.json</code>. It is read-only on the Artifact Root: Stores are opened for reading, and the fixture build and worker files go under <code>$TMPDIR</code>.</p>
+<p>Run it with <code>pixi run yardstick</code>. It writes <code>docs/_yardstick/&lt;UTC start, YYYYMMDDTHHMMSSZ&gt;-&lt;opengwasdb version&gt;.json</code>. It is read-only on the Artifact Root: Stores are opened for reading, and the fixture build and worker files go to a scratch directory under <code>$YARDSTICK_TMPDIR</code>, else <code>$TMPDIR</code>, else <code>/data/opengwasdb/work/yardstick-tmp</code> – never the host’s <code>/tmp</code>, because everything this project writes goes under <code>/data/opengwasdb</code> (CONTRIBUTING, Worktrees). A run removes the scratch directory it made.</p>
 <section id="workload" class="level2">
 <h2 class="anchored" data-anchor-id="workload">Workload</h2>
 <p><code>resources/yardstick/workload.yaml</code> names the Stores, the fixed identifiers used on each, the measures and the repetitions. Changing it changes what every later result means, so a change bumps <code>workload_id</code>, and this section says why. <code>workload_sha256</code> in each result pins the file it ran.</p>
@@ -1852,7 +1858,7 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="validator" class="level2">
 <h2 class="anchored" data-anchor-id="validator">Validator</h2>
-<p><code>yardstick.result.validate(result, workload=None)</code> raises <code>yardstick.result.ResultError</code> on the first problem. It refuses: a wrong <code>schema</code>; a Store object without <code>store_id</code>, <code>layout</code>, <code>coverage</code> or <code>status</code>; a timed record other than <code>open</code> without <code>result_count</code>; an <code>analysis_hm3</code> record lacking any <code>measure_hm3_extract</code> field above; a measured <code>fixture_build</code> without <code>layout</code>; a revision that is not 40 lower-case hex characters; a timestamp that is not <code>YYYY-MM-DDTHH:MM:SSZ</code>; a load array that is not exactly three non-negative numbers; a missing <code>first_result_count</code>; and any negative timing, byte or size. With a <code>workload</code> (<code>yardstick.workload.load()</code>) it also requires every workload Store, with the same status, and every measure that Store lists. The project site’s collector reads results through it. Load a workload with <code>yardstick.workload.load()</code>; <code>check()</code> raises <code>WorkloadError</code>.</p>
+<p><code>yardstick.result.validate(result, workload=None)</code> raises <code>yardstick.result.ResultError</code> on the first problem. It refuses: a wrong <code>schema</code>; a Store object without <code>store_id</code>, <code>layout</code>, <code>coverage</code> or <code>status</code>; a timed record other than <code>open</code> without <code>result_count</code>; an <code>analysis_hm3</code> record lacking any <code>measure_hm3_extract</code> field above; a measured <code>fixture_build</code> without <code>layout</code>; a revision that is not 40 lower-case hex characters; a timestamp that is not <code>YYYY-MM-DDTHH:MM:SSZ</code>; a load array that is not exactly three non-negative numbers; a missing <code>first_result_count</code>; and any negative timing, byte or size. Every nested value is checked before it is read: the result object, <code>opengwasdb</code>, <code>ogstores</code>, <code>host</code>, <code>load_average</code>, <code>fixture_build</code>, <code>stores</code> and each Store, its <code>measures</code> and each measure record must be of the shape the schema names, and one that is not is a <code>ResultError</code> naming its path (<code>stores[0] must be an object</code>) rather than an exception escaping the validator. A value of the wrong shape is a refusal, never a crash (#390). With a <code>workload</code> (<code>yardstick.workload.load()</code>) it also requires every workload Store, with the same status, and every measure that Store lists. The project site’s collector reads results through it. Load a workload with <code>yardstick.workload.load()</code>; <code>check()</code> raises <code>WorkloadError</code>.</p>
 
 
 </section>

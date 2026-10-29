@@ -412,7 +412,213 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="the-yardstick-across-results" class="level2">
 <h2 class="anchored" data-anchor-id="the-yardstick-across-results">The yardstick across results</h2>
-<p><strong>No yardstick results yet.</strong> Each epic writes one under <code>docs/_yardstick/</code> when it finishes (<code>pixi run yardstick</code>, #390); this page charts them as they accumulate, so a change in a measure reflects a change in the code rather than in the benchmark.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+<col style="width: 16%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Result</th>
+<th>Started</th>
+<th>Engine</th>
+<th>Host</th>
+<th>Duration</th>
+<th>Over budget</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>20261029T110403Z-0.3.0</code></td>
+<td>2026-10-29T11:04:03Z</td>
+<td>0.3.0</td>
+<td>app-dc3-ogws-p0.services.bris.ac.uk</td>
+<td>82.2 s</td>
+<td>no</td>
+</tr>
+<tr class="even">
+<td><code>20261029T110527Z-0.3.0</code></td>
+<td>2026-10-29T11:05:27Z</td>
+<td>0.3.0</td>
+<td>app-dc3-ogws-p0.services.bris.ac.uk</td>
+<td>78.4 s</td>
+<td>no</td>
+</tr>
+</tbody>
+</table>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+<col style="width: 25%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Store</th>
+<th>Measure</th>
+<th>2026-10-29</th>
+<th>2026-10-29</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>OGS-00006</td>
+<td><code>open</code></td>
+<td>113.316 ms (p95 121.16 ms)</td>
+<td>113.205 ms (p95 128.015 ms)</td>
+</tr>
+<tr class="even">
+<td>OGS-00006</td>
+<td><code>phewas_rsid</code></td>
+<td>22.918 ms (p95 23 ms)</td>
+<td>18.319 ms (p95 19.948 ms)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00006</td>
+<td><code>phewas_alid</code></td>
+<td>21.651 ms (p95 22.899 ms)</td>
+<td>18.206 ms (p95 19.281 ms)</td>
+</tr>
+<tr class="even">
+<td>OGS-00006</td>
+<td><code>phewas_position</code></td>
+<td>20.499 ms (p95 21.216 ms)</td>
+<td>18.715 ms (p95 19.229 ms)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00006</td>
+<td><code>region</code></td>
+<td>59.3 ms (p95 59.91 ms)</td>
+<td>50.374 ms (p95 52.666 ms)</td>
+</tr>
+<tr class="even">
+<td>OGS-00006</td>
+<td><code>analysis_full</code></td>
+<td>75.578 ms (p95 76.68 ms)</td>
+<td>69.635 ms (p95 72.993 ms)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00006</td>
+<td><code>bytes_on_disk</code></td>
+<td>1,497,874,236 bytes (walk)</td>
+<td>1,497,874,236 bytes (walk)</td>
+</tr>
+<tr class="even">
+<td>OGS-00006</td>
+<td><code>peak_rss</code></td>
+<td>215.7 MB peak (baseline 172.5 MB)</td>
+<td>212.4 MB peak (baseline 169 MB)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00009</td>
+<td><code>open</code></td>
+<td>79.888 ms (p95 83.626 ms)</td>
+<td>77.371 ms (p95 79.698 ms)</td>
+</tr>
+<tr class="even">
+<td>OGS-00009</td>
+<td><code>phewas_rsid</code></td>
+<td>66.814 ms (p95 71.226 ms)</td>
+<td>61.66 ms (p95 65.96 ms)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00009</td>
+<td><code>phewas_alid</code></td>
+<td>64.714 ms (p95 69.291 ms)</td>
+<td>62.366 ms (p95 63.991 ms)</td>
+</tr>
+<tr class="even">
+<td>OGS-00009</td>
+<td><code>phewas_position</code></td>
+<td>66.704 ms (p95 70.7 ms)</td>
+<td>63.534 ms (p95 64.975 ms)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00009</td>
+<td><code>region</code></td>
+<td>2640.82 ms (p95 2672.28 ms)</td>
+<td>2568.13 ms (p95 2649.52 ms)</td>
+</tr>
+<tr class="even">
+<td>OGS-00009</td>
+<td><code>analysis_full</code></td>
+<td>8266.5 ms (p95 8605.78 ms)</td>
+<td>7955.14 ms (p95 8019.98 ms)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00009</td>
+<td><code>analysis_hm3</code></td>
+<td>426.863 ms (p95 449.438 ms)</td>
+<td>387.957 ms (p95 430.126 ms)</td>
+</tr>
+<tr class="even">
+<td>OGS-00009</td>
+<td><code>bytes_on_disk</code></td>
+<td>61,882,085,184 bytes (walk)</td>
+<td>61,882,085,184 bytes (walk)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00009</td>
+<td><code>peak_rss</code></td>
+<td>1235.2 MB peak (baseline 174.3 MB)</td>
+<td>1232.8 MB peak (baseline 173.8 MB)</td>
+</tr>
+<tr class="even">
+<td>OGS-00027</td>
+<td><code>open</code></td>
+<td>338.976 ms (p95 343.857 ms)</td>
+<td>340.855 ms (p95 393.269 ms)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00027</td>
+<td><code>phewas_rsid</code></td>
+<td>19.383 ms (p95 21.758 ms)</td>
+<td>17.541 ms (p95 19.553 ms)</td>
+</tr>
+<tr class="even">
+<td>OGS-00027</td>
+<td><code>phewas_alid</code></td>
+<td>18.939 ms (p95 19.241 ms)</td>
+<td>17.446 ms (p95 17.561 ms)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00027</td>
+<td><code>phewas_position</code></td>
+<td>19.421 ms (p95 20.895 ms)</td>
+<td>18.403 ms (p95 18.519 ms)</td>
+</tr>
+<tr class="even">
+<td>OGS-00027</td>
+<td><code>region</code></td>
+<td>62.035 ms (p95 62.256 ms)</td>
+<td>59.994 ms (p95 67.413 ms)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00027</td>
+<td><code>analysis_full</code></td>
+<td>20.668 ms (p95 21.226 ms)</td>
+<td>19.279 ms (p95 20.284 ms)</td>
+</tr>
+<tr class="even">
+<td>OGS-00027</td>
+<td><code>bytes_on_disk</code></td>
+<td>2,632,390,381 bytes (walk)</td>
+<td>2,632,390,381 bytes (walk)</td>
+</tr>
+<tr class="odd">
+<td>OGS-00027</td>
+<td><code>peak_rss</code></td>
+<td>229.2 MB peak (baseline 220.7 MB)</td>
+<td>228.4 MB peak (baseline 220.8 MB)</td>
+</tr>
+</tbody>
+</table>
+<p>A timed measure is its median over the warm reads with its p95 beside it; <code>bytes_on_disk</code> is the apparent bytes of the Store and <code>peak_rss</code> the memory of one <code>analysis_full</code> read. A measure the result marks <code>unavailable</code> says why, and one it marks <code>not_applicable</code> is left out.</p>
 </section>
 <section id="test-time-per-epic" class="level2">
 <h2 class="anchored" data-anchor-id="test-time-per-epic">Test time per epic</h2>
@@ -443,6 +649,12 @@ ul.task-list li input[type="checkbox"] {
 <td>158.4 s at <code>e6e829d</code></td>
 <td>162.05 s at <code>a84ecfb</code></td>
 <td>+2.3% on the baseline</td>
+</tr>
+<tr class="even">
+<td><a href="epics/opengwasdb-stores-385.html">opengwasdb-stores#385</a></td>
+<td>166.3 s at <code>de99f3b</code></td>
+<td>156.4 s at <code>49aa494</code></td>
+<td>-6.0% on the baseline</td>
 </tr>
 </tbody>
 </table>
