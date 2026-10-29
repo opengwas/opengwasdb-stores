@@ -1,0 +1,153 @@
+repo: opengwasdb-stores
+number: 385
+title: Project site showing where OpenGWASDB stands and what each epic changed, with a version per merged PR
+status: active
+workstream: Engineering
+started: '2026-10-29'
+finished: null
+summary: 'Epic #385 adds a project site that shows where OpenGWASDB stands and what each epic changed: one Quarto
+  site over both repositories'' docs, rendered and published locally, with an overview, a page per epic and per
+  Store, and trends of the catalog, the yardstick and test time. It adds the data behind those pages (board, catalog
+  history, Releases and Release Bundle collectors, and this epic record), and the yardstick, a fixed read-only benchmark
+  on OGS-00009, OGS-00027 and OGS-00006. Both repositories move to merging PRs to main with a version per merge,
+  taken from changelog fragments and published by a release workflow that reconciles and resumes; the cutover itself
+  is the owner''s. The epic stays active until the cutover, the opengwasdb pin by tag, the skills'' update and the
+  first quiet-host yardstick results.'
+prs:
+- opengwasdb-stores#392
+- opengwasdb#335
+versions: []
+tickets:
+- key: opengwasdb#333
+  title: Merge PRs to main, and make every merge a version tagged from its changelog fragments
+  pr: opengwasdb#335
+  merge: null
+- key: opengwasdb-stores#386
+  title: Merge PRs to main, and make every merge a version (opengwasdb-stores)
+  pr: null
+  merge: b97f1d6
+- key: opengwasdb-stores#387
+  title: Pin opengwasdb by release tag
+  pr: null
+  merge: null
+- key: opengwasdb-stores#388
+  title: Build one Quarto site over both repos' docs, rendered and published locally
+  pr: null
+  merge: 34f651c
+- key: opengwasdb-stores#389
+  title: Collect the project site's data, and define the epic record
+  pr: null
+  merge: 804989b
+- key: opengwasdb-stores#390
+  title: 'Yardstick: a fixed benchmark recorded at the end of every epic'
+  pr: null
+  merge: 548e194
+- key: opengwasdb-stores#391
+  title: 'Project site pages: the bird''s-eye home, one page per epic, trends and Store pages'
+  pr: null
+  merge: 49aa494
+- key: agent-skills#1
+  title: orchestrate and board feed the project site, and follow the move to main
+  pr: null
+  merge: null
+decisions:
+- date: '2026-10-29'
+  text: Integration branch cut from dev, the base CONTRIBUTING names today; the move to main (#386, opengwas/opengwasdb#333)
+    is an owner cutover after this epic's PRs merge.
+  link: null
+- date: '2026-10-29'
+  text: Changelog fragments under changelog.d/ set the bump (breaking/added/changed -> minor; fixed/internal ->
+    patch) instead of a PR label, following opengwasdb's versioning table; CHANGELOG.md keeps history to the cutover,
+    then points to GitHub Releases. No bot commits to main.
+  link: null
+- date: '2026-10-29'
+  text: 'Lanes: #389 and #390 on Claude Sonnet (a contract; real-data measurement), the rest on opencode-go/deepseek-v4.1-flash.
+    #386 runs after opengwasdb#333 to reuse its script.'
+  link: null
+- date: '2026-10-29'
+  text: 'Yardstick Stores: OGS-00009 (Dense+hm3), OGS-00027 (Ragged cis), OGS-00006 (Ragged signals_only); OGS-00011
+    pending until validated (its .partial belongs to #371). Runs between 00:00 and 11:00 local are flagged veeam_window,
+    not dropped. First before/after: 0d59f151 (current pin) twice and 75f0e77 once.'
+  link: null
+- date: '2026-10-29'
+  text: 'Backfill epic records for #313 (active), #282, #302, #241; skip in-flight #232, #371, #385 and #312''s
+    partial run. Analysis totals come from count(*) on listed_analyses, never summed dimension rows.'
+  link: null
+- date: '2026-10-29'
+  text: The first yardstick results (00:43-00:47, load 9-15, spread up to 127%) are not committed. The code merges
+    without results; the orchestrator reruns after 11:00 local with the lanes idle and commits the results to the
+    integration branch.
+  link: null
+- date: '2026-10-29'
+  text: query_store opens index.sqlite read-write; verified the three runs wrote nothing (journal_mode delete, no
+    side files). Yardstick guards it (refuses a Store without index.sqlite; before/after top-level check fails loudly).
+    Upstream read-only open filed as an opengwasdb follow-up.
+  link: null
+- date: '2026-10-29'
+  text: 'Epic record: finished is the epic issue''s close date and status follows the issue (open = active); a finished
+    run does not finish its epic. #282 and #302 become active. #241''s record is dropped (a ticket, not an Epic).'
+  link: null
+- date: '2026-10-29'
+  text: Guess-word checks apply only to typed values (dates, numbers, commits, keys, paths); prose fields are free
+    text. Recorded fixtures stay faithful; the retired-names guard gets a narrow historical exemption for docs/_epics
+    and the board fixture.
+  link: null
+- date: '2026-10-29'
+  text: 'site-data exits 0 with UNAVAILABLE lines when a source fails; --strict exits 1. Yardstick validator is
+    wired in when the second of #389/#390 merges.'
+  link: null
+- date: '2026-10-29'
+  text: 'Release workflow reconciles instead of trusting the concurrency queue: each run releases every untagged
+    first-parent commit on main after the latest v* tag, oldest first, each with its own PR and fragments; tag and
+    Release creation are separate idempotent steps so a rerun completes a half-published version.'
+  link: null
+- date: '2026-10-29'
+  text: 'The 64 rewritten links to paths a commit lacks (historical audits of the retired families/ and resources/scripts/
+    layout) stay as reported; #391 adds its own navigation; site-publish''s default ref moves to origin/main in
+    #386''s sweep.'
+  link: null
+- date: '2026-10-29'
+  text: 'No retroactive Release for v0.2.0: the reconciler resumes a missing Release only for tags newer than the
+    newest existing Release. The 20-release limit per run stays. Cutover tags v0.3.0 before pushing main, so the
+    first run owes only v0.3.0''s Release.'
+  link: null
+- date: '2026-10-29'
+  text: pixi.toml, pixi.lock and pyproject.toml count as source changes (a re-pin changes every build). The yardstick
+    records the ogstores checkout commit beside its version (an editable install's version can be stale). Cutover
+    tags v0.1.0 before pushing main. pixi's workspace version and PyPI publishing are left alone.
+  link: null
+- date: '2026-10-29'
+  text: 'Cutover order for both repos: merge the epic PR (which carries release.yml) into dev; push the annotated
+    tag on dev''s head and verify it; then fast-forward main with a separate push; protect main right after that
+    push (requiring PRs earlier blocks the owner''s direct fast-forward); watch the release run create exactly the
+    first tag''s Release.'
+  link: null
+- date: '2026-10-29'
+  text: site and site-publish run the collectors into the render's own stage directory (registry = the rendered
+    checkout's stores/), so a publish never renders unavailable pages; collected _data/*.json (host paths) is not
+    published. The board collector keeps each epic's first paragraph as purpose; the catalog collector reads the
+    current version's selection decisions. Generated links point at the rendered commit; site-publish defaults to
+    origin/main. The epic's v0.1.0 notes come from one added fragment per ticket.
+  link: null
+test_time:
+  baseline:
+    commit: de99f3b
+    wall_s: 166.3
+    suites: null
+  final:
+    commit: 49aa494
+    wall_s: 156.4
+    suites: null
+yardstick:
+  before: null
+  after: null
+catalog:
+  before: null
+  after: null
+followups:
+- key: opengwasdb#334
+  text: Open a Store's index.sqlite read-only on the query path
+- key: opengwasdb-stores#393
+  text: Keep every scratch directory under /data in src/ too, and enforce it
+- key: opengwasdb-stores#394
+  text: The Analysis Catalog's opengwasdb identity is a frozen version under an editable install
