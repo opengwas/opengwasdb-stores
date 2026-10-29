@@ -434,9 +434,10 @@ catalog = { cmd = "python3 -m analysis_catalog", default-environment = "dev" }
 # the epic records) and write one JSON file each under docs/_data/ (git-ignored;
 # OPENGWASDB_SITE_DATA or --data-dir overrides it). It reads the catalog
 # read-only, writes nothing under the artifact root, and needs `gh`; a source
-# it cannot read is written as `available: false` and the exit status is 1.
+# it cannot read is written as `available: false` and printed as UNAVAILABLE,
+# with exit status 0 unless `--strict`.
 #
-#   pixi run site-data [--data-dir PATH] [--catalog-root PATH] [--registry PATH]
+#   pixi run site-data [--data-dir PATH] [--catalog-root PATH] [--registry PATH] [--strict]
 site-data = { cmd = "python3 -m project_site.collect", default-environment = "dev" }
 
 # Lossless SE re-encode for one registered Store Release (#326). The stores

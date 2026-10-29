@@ -19,6 +19,7 @@ import os
 import sqlite3
 import tempfile
 import unittest
+from unittest import mock
 
 import yaml
 from pathlib import Path
@@ -737,8 +738,18 @@ class TestSiteData(unittest.TestCase):
                          ["board.json", "catalog.json", "records.json", "releases.json", "stores.json"])
         self.assertEqual(json.loads((self.data / "board.json").read_text())["available"], False)
         self.assertEqual(len(lines), 5)
-        self.assertTrue(lines[0].startswith("board: unavailable: CollectError: gh api graphql"))
+        self.assertEqual(lines[0], "UNAVAILABLE board: CollectError: gh api graphql exited 4: could not resolve host")
         self.assertEqual(lines[1], "catalog: 1 versions, current none")
+
+    def test_an_unavailable_source_exits_0_unless_strict(self) -> None:
+        down = [common.envelope("board", available=False, error="CollectError: offline"),
+                common.envelope("stores", available=True, error=None, stores=[])]
+        for argv, status in (([], 0), (["--strict"], 1)):
+            with mock.patch.object(site_data, "run", return_value=down):
+                self.assertEqual(site_data.main(["--data-dir", str(self.data), *argv]), status, argv)
+        up = [common.envelope("stores", available=True, error=None, stores=[])]
+        with mock.patch.object(site_data, "run", return_value=up):
+            self.assertEqual(site_data.main(["--data-dir", str(self.data), "--strict"]), 0)
 
     def test_the_envelope_names_the_source_and_when_it_was_collected(self) -> None:
         result = common.collect_source("stores", lambda: {"stores": []})

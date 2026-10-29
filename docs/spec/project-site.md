@@ -93,7 +93,7 @@ others.
 ## The collectors
 
 ```text
-pixi run site-data [--data-dir PATH] [--catalog-root PATH] [--registry PATH]
+pixi run site-data [--data-dir PATH] [--catalog-root PATH] [--registry PATH] [--strict]
 ```
 
 `pixi run site-data` runs every collector and prints one line per source. Each
@@ -235,10 +235,11 @@ stores: 22 stores
 records: 0 epics, 0 invalid, 0 yardstick results, 0 invalid
 ```
 
-An unavailable source prints `<source>: unavailable: <error>`. The exit status
-is 0 when every source is available and 1 when any is not, so a publish that
-chains on `site-data` stops instead of rendering pages from a source it could
-not read.
+An unavailable source prints `UNAVAILABLE <source>: <error>` in place of its
+line. The exit status is **0** all the same: every file is written, and the
+pages show the notice from the file's `available` and `error`. `--strict` exits
+1 when any source is unavailable (after every file is written), for a caller
+that must not go on without it.
 
 ## Backfill
 

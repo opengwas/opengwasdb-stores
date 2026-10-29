@@ -1,11 +1,11 @@
 """`pixi run site-data`: run every collector, write `<data dir>/<source>.json`, print a line each (#389).
 
-    pixi run site-data [--data-dir PATH] [--catalog-root PATH] [--registry PATH]
+    pixi run site-data [--data-dir PATH] [--catalog-root PATH] [--registry PATH] [--strict]
 
-A source that fails is written as `available: false` with its error and the
-others still run. The exit status is 1 when any source is unavailable, after
-every file is written, so a publish that chains on this command does not
-publish pages from a source it could not read.
+A source that fails is written as `available: false` with its error, printed as
+`UNAVAILABLE <source>: <error>`, and the others still run. The exit status is 0
+anyway, because the pages show the notice; `--strict` exits 1 when any source
+is unavailable, after every file is written, for a caller that must not go on.
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from project_site.collect import board, catalog, common, records, releases, stor
 def describe(result: dict[str, Any]) -> str:
     source = result["source"]
     if not result["available"]:
-        return f"{source}: unavailable: {result['error']}"
+        return f"UNAVAILABLE {source}: {result['error']}"
     if source == "board":
         lines = sum(len(m["lines"]) for m in result["milestones"])
         return f"board: {len(result['epics'])} epics, {len(result['milestones'])} milestones, {lines} milestone lines"
@@ -72,9 +72,10 @@ def main(argv: list[str] | None = None) -> int:
                         help="the catalog's versions directory (default: <artifact root>/catalog/versions)")
     parser.add_argument("--registry", type=Path, default=None,
                         help="directory of Release Bundles (default: stores/ of this checkout)")
+    parser.add_argument("--strict", action="store_true", help="exit 1 when any source is unavailable")
     args = parser.parse_args(argv)
     results = run(args.data_dir or common.data_dir(), catalog_root=args.catalog_root, registry=args.registry)
-    return 0 if all(r["available"] for r in results) else 1
+    return 1 if args.strict and not all(r["available"] for r in results) else 0
 
 
 if __name__ == "__main__":
