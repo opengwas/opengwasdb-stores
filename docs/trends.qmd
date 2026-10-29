@@ -1,0 +1,15 @@
+---
+title: "Trends"
+---
+
+What moved from version to version: the Analysis Catalog by version — its Stores
+and listed Analyses, and the counts by Association Coverage, Assigned Ancestry,
+outcome type and trait class — the yardstick's measures across results, and the
+test time each epic's record carries.
+
+**This page is generated at render time** by
+[`src/project_site/pages.py`](../src/project_site/pages.py) from the collected
+catalog versions, the yardstick results under `docs/_yardstick/` and the epic
+records; the render replaces this file. Run `pixi run site-data` and then
+`pixi run site` to see it. A measure no run has taken yet says so rather than
+appearing as a zero.

@@ -352,6 +352,15 @@ gh = "*"
 sqlite = "*"
 snakemake-minimal = ">=9,<10"
 
+[feature.dev.pypi-dependencies]
+# The version is computed from the `v*` tag by setuptools-scm (pyproject.toml,
+# #386), which pip installs into its isolated *build* environment, so the
+# environment itself needs it only for the test that reads the version the
+# build would produce (tests/release-versioning/test_version.py). It is a PyPI
+# dependency because that is the same distribution the build resolves, from the
+# same index, at the same version.
+setuptools-scm = ">=8,<9"
+
 [feature.workflow.dependencies]
 # Phase A orchestration. The DAG only wires dependencies and resource requests;
 # every semantic step is an `opengwasdb` subcommand (ADR 0023).
@@ -418,9 +427,9 @@ generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate"
 # The Analysis Catalog (#323, ADR 0039): rebuild the cross-Store listing of every
 # Analysis of every served Store Release from the registry's Release Bundles,
 # into <artifact-root>/catalog/versions/<version>/, and swap `current`. It reads
-# bundles only and never opens a Store. Run after a merge to dev, from a clean
-# checkout; a rebuild with unchanged inputs writes nothing. Resolves the
-# Artifact Root as ogstores does; `--artifact-root PATH` overrides it.
+# bundles only and never opens a Store. Run after a merge to `main`, from a
+# clean checkout of `origin/main`; a rebuild with unchanged inputs writes nothing.
+# Resolves the Artifact Root as ogstores does; `--artifact-root PATH` overrides it.
 #
 #   pixi run catalog [--registry stores] [--artifact-root PATH]
 #
@@ -428,6 +437,17 @@ generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate"
 # It also renders the summary report (#325), which needs Quarto and R beside
 # the builder, so the task runs in `dev` whichever environment is default.
 catalog = { cmd = "python3 -m analysis_catalog", default-environment = "dev" }
+
+# The project site's data (#389, docs/spec/project-site.md): run every collector
+# (the board, the catalog's versions, both repos' Releases, the Release Bundles,
+# the epic records) and write one JSON file each under docs/_data/ (git-ignored;
+# OPENGWASDB_SITE_DATA or --data-dir overrides it). It reads the catalog
+# read-only, writes nothing under the artifact root, and needs `gh`; a source
+# it cannot read is written as `available: false` and printed as UNAVAILABLE,
+# with exit status 0 unless `--strict`.
+#
+#   pixi run site-data [--data-dir PATH] [--catalog-root PATH] [--registry PATH] [--strict]
+site-data = { cmd = "python3 -m project_site.collect", default-environment = "dev" }
 
 # Lossless SE re-encode for one registered Store Release (#326). The stores
 # lane of opengwas/opengwasdb#326: it resolves the Artifact Root through
@@ -468,6 +488,7 @@ bundle-check = { cmd = "python3 -m manifest_generation.check_bundles" }
 audit-indexed-subsets = { cmd = "python3 -m ogstores.audit_indexed_subsets" }
 env-check = { cmd = "python3 tools/env_check.py" }
 worktree-prune = { cmd = "python3 tools/prune_worktrees.py" }
+yardstick = { cmd = "python3 -m yardstick" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.r.tasks]
@@ -497,6 +518,19 @@ index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]
 docs = { cmd = "bash tools/build-site.sh" }
+# The site (#388): one Quarto website over this repository's docs/ and the
+# engine's docs. It needs Python (for the staging, link rewrite and served-path
+# check) beside Quarto, so it runs in `dev` whichever environment is default.
+#
+#   pixi run site                     # render; the served-path check fails a drop
+#   pixi run site-preview             # stage, then Quarto's live-reloading preview
+#   pixi run site-publish --dry-run   # render origin/main and commit gh-pages, no push
+#
+# The output is `/data/opengwasdb/work/site/<checkout>/_site`, never under /home
+# or /tmp (src/project_site/paths.py).
+site = { cmd = "python3 -m project_site.build", default-environment = "dev" }
+site-preview = { cmd = "python3 -m project_site.build --preview", default-environment = "dev" }
+site-publish = { cmd = "python3 -m project_site.publish", default-environment = "dev" }
 # The full `docs` task needs raw GWAS Catalog source data that is not tracked
 # in this repository (resources/data/*.tsv, "download separately" per
 # .gitignore) to build ebi-studies.qmd/make-dashboard.r's inputs. docs-smoke

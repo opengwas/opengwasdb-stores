@@ -13,6 +13,12 @@ docs/reports/*_files/
 docs/reports/*_cache/
 docs/reports/.quarto/
 
+# The site build (#388, src/project_site/) renders a mirror of docs/ under
+# /data/opengwasdb/work/site/ and writes nothing into the checkout, so only
+# Quarto's own cache and a hand-run render's output are ignored here.
+docs/.quarto/
+docs/_site/
+
 # Large downloaded summary statistics used by mvp-imputation-filters.qmd.
 resources/data/mvp-example/
 
@@ -83,3 +89,13 @@ gnomad.genomes.*.vcf.bgz.tbi
 
 # The candidate emitter's staging area and per-id lock files (#248).
 stores/.staging/
+
+# The project site's collected data (#389): regenerate with `pixi run site-data`.
+docs/_data/
+
+# The project site's generated pages (#391, src/project_site/pages.py): written by
+# the render's pre-render step into the docs mirror, and by hand into these paths,
+# which a render replaces. Never committed: every page repeats the site's
+# navigation, so committed output would make parallel pull requests conflict.
+docs/epics/
+docs/stores/

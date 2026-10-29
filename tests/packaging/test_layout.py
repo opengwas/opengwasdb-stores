@@ -15,6 +15,7 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import ast
 import subprocess
 import unittest
 from pathlib import Path, PurePosixPath
@@ -61,6 +62,51 @@ def packages_outside_homes(files: list[str]) -> list[str]:
     )
 
 
+#: The `tempfile` factories: each writes where `dir=` says, and to the host's
+#: `/tmp` without it. Everything this project writes lives under
+#: `/data/opengwasdb` (CONTRIBUTING, Worktrees), so a scratch root is always
+#: named -- under `/data` by default, or through the tree's own variable (#390).
+TEMP_FACTORIES = frozenset({
+    "TemporaryDirectory", "mkdtemp", "mkstemp", "NamedTemporaryFile", "TemporaryFile", "SpooledTemporaryFile",
+})
+
+#: Where the scratch rule is enforced: the site's and the yardstick's code, and
+#: the scripts beside them (#390 review, item 4). A test may use `tempfile`
+#: freely -- the runner sets the suite's own `$TMPDIR`.
+SCRATCH_TREES = ("src/project_site/", "src/yardstick/", "tools/")
+
+
+def _temp_factory(func: ast.expr) -> str | None:
+    """The factory a call names, for `tempfile.mkdtemp(...)` and a bare `mkdtemp(...)` alike."""
+    if isinstance(func, ast.Attribute) and isinstance(func.value, ast.Name) and func.value.id == "tempfile":
+        return func.attr if func.attr in TEMP_FACTORIES else None
+    if isinstance(func, ast.Name) and func.id in TEMP_FACTORIES:
+        return func.id
+    return None
+
+
+def missing_dir_calls(relative: str, source: str) -> list[str]:
+    """Every `tempfile` scratch call in one file that names no `dir=`."""
+    found = []
+    for node in ast.walk(ast.parse(source, filename=relative)):
+        if not isinstance(node, ast.Call):
+            continue
+        factory = _temp_factory(node.func)
+        if factory and not any(keyword.arg == "dir" for keyword in node.keywords):
+            found.append(f"{relative}:{node.lineno}: tempfile.{factory} without dir=")
+    return found
+
+
+def temp_calls_without_dir(files: list[str]) -> list[str]:
+    """Every `tempfile` scratch call in `SCRATCH_TREES` that names no `dir=`."""
+    found = []
+    for relative in files:
+        if not relative.endswith(".py") or not relative.startswith(SCRATCH_TREES):
+            continue
+        found += missing_dir_calls(relative, (REPO_ROOT / relative).read_text(encoding="utf-8"))
+    return sorted(found)
+
+
 def code_under_resources(files_and_heads: list[tuple[str, bytes]]) -> list[str]:
     return sorted(relative for relative, head in files_and_heads if relative.startswith("resources/") and is_code(relative, head))
 
@@ -68,6 +114,34 @@ def code_under_resources(files_and_heads: list[tuple[str, bytes]]) -> list[str]:
 class LayoutTest(unittest.TestCase):
     def setUp(self) -> None:
         self.files = [relative for relative in tracked_files() if (REPO_ROOT / relative).is_file()]
+
+    def test_no_scratch_call_falls_back_to_the_hosts_tmp(self) -> None:
+        self.assertEqual(
+            temp_calls_without_dir(self.files),
+            [],
+            "name a scratch root under /data for every tempfile call (CONTRIBUTING, Worktrees)",
+        )
+
+    def test_the_scratch_scanner_finds_what_it_looks_for(self) -> None:
+        self.assertEqual(
+            missing_dir_calls("tools/planted.py", (
+                "import tempfile\n"
+                "from tempfile import mkdtemp\n"
+                "a = tempfile.mkdtemp(prefix='x')\n"
+                "b = tempfile.TemporaryDirectory(prefix='y')\n"
+                "c = mkdtemp(prefix='z')\n"
+                "d = tempfile.mkdtemp(prefix='ok', dir=root)\n"
+                "e = tempfile.NamedTemporaryFile(delete=False)\n"
+                "f = tempfile.TemporaryFile(dir=root)\n"
+                "g = tempfile._get_candidate_names()\n"
+            )),
+            [
+                "tools/planted.py:3: tempfile.mkdtemp without dir=",
+                "tools/planted.py:4: tempfile.TemporaryDirectory without dir=",
+                "tools/planted.py:5: tempfile.mkdtemp without dir=",
+                "tools/planted.py:7: tempfile.NamedTemporaryFile without dir=",
+            ],
+        )
 
     def test_the_scanners_find_what_they_look_for(self) -> None:
         self.assertEqual(

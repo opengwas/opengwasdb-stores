@@ -1,0 +1,41 @@
+---
+title: "Registry"
+---
+
+The registry's own documentation: what the vocabulary means, what was decided
+and why, what each contract is, and the guides that record how the repository is
+laid out and worked in.
+
+## [Glossary](glossary.md) {#glossary}
+
+`CONTEXT.md` is the authority on project vocabulary, and the site stages it at
+render time as this page. Use its terms in code, configuration, documentation,
+issue comments and commit messages.
+
+## [Decisions (ADRs)](adr/0038-one-home-per-kind-of-thing.md) {#decisions}
+
+One numbered decision per constraint on future work, from the Store Registry
+boundary (0001) to the Analysis Catalog (0039) and Association Coverage in the
+Release Bundle (0040). A later ADR supersedes an earlier one explicitly rather
+than quietly contradicting it. The whole set is in the sidebar, or in
+`docs/adr/`.
+
+## [Specifications](spec/store-release-workflow.md) {#specifications}
+
+The contracts the code is held to: the Release Bundle schema, the Store Release
+workflow and its boundary, the QC Panel Concordance preregistration, release
+configuration, and source connectors.
+
+## Guides
+
+The repository's layout, its runtime, the software-management proposal and
+audit, and the evidence records from the MVPs and pilots. They are `docs/*.md`,
+and the sidebar lists them.
+
+## How the pages are built
+
+Every page here comes from a file under `docs/` and keeps its path. A link from a
+page to a file outside `docs/` — a module under `src/`, a table under
+`resources/`, `CONTRIBUTING.md` — is rewritten at render time to the GitHub blob
+URL of the commit being rendered, so it works on the site and still points at the
+same file. See [the site page](site.md) for how to preview and publish.
