@@ -219,9 +219,10 @@ has `validated_at: null`, never a date borrowed from elsewhere, and a
 
 An invalid file is reported by name and never stops the others. An absent or
 empty `docs/_epics/` or `docs/_yardstick/` is not an error. The yardstick's
-result schema and validator are #390's (`docs/spec/yardstick.md`): until it
-lands the collector checks only that a result is a JSON object, and the
-validator is passed to `records.collect` when it does.
+result schema and validator are #390's (`docs/spec/yardstick.md`): the collector
+reads each result through `yardstick.result.validate`, and reports a refused one
+under `yardstick.invalid` with its `ResultError` message. `records.collect`
+takes another validator as an argument, for tests.
 
 ### The command's output and exit status
 

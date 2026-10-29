@@ -479,6 +479,7 @@ bundle-check = { cmd = "python3 -m manifest_generation.check_bundles" }
 audit-indexed-subsets = { cmd = "python3 -m ogstores.audit_indexed_subsets" }
 env-check = { cmd = "python3 tools/env_check.py" }
 worktree-prune = { cmd = "python3 tools/prune_worktrees.py" }
+yardstick = { cmd = "python3 -m yardstick" }
 index-ci = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.r.tasks]
