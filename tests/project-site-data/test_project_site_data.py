@@ -15,11 +15,14 @@ from __future__ import annotations
 import copy
 import datetime
 import json
+import os
+import sqlite3
+import tempfile
 import unittest
 from pathlib import Path
 
 from project_site import records
-from project_site.collect import board
+from project_site.collect import board, catalog
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -262,6 +265,103 @@ class TestBoardCollector(unittest.TestCase):
                 {"checked": True, "text": "nested #10", "refs": ["opengwasdb-stores#10"]},
             ],
         )
+
+
+def write_catalog_version(
+    root: Path, version: str, *, built_at: str, commit: str, counts: list[tuple], listed: list[tuple],
+    changes: str | None = None,
+) -> Path:
+    """A catalog version with only the tables the collector reads (`analysis_catalog.database` has the rest)."""
+    directory = root / version
+    directory.mkdir(parents=True)
+    db = sqlite3.connect(directory / "catalog.sqlite")
+    db.executescript(
+        "CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT);"
+        "CREATE TABLE counts (dimension TEXT NOT NULL, value TEXT, n_analyses INTEGER NOT NULL);"
+        "CREATE TABLE listed_analyses (id TEXT, store_id TEXT, analysis_id TEXT);"
+    )
+    db.executemany("INSERT INTO catalog_meta VALUES (?, ?)",
+                   [("built_at", built_at), ("registry_commit", commit), ("builder_version", "1")])
+    db.executemany("INSERT INTO counts VALUES (?, ?, ?)", counts)
+    db.executemany("INSERT INTO listed_analyses VALUES (?, ?, ?)", [(f"{s}:{a}", s, a) for s, a in listed])
+    db.commit()
+    db.close()
+    if changes is not None:
+        (directory / "changes.tsv").write_text(changes)
+    return directory
+
+
+class TestCatalogHistoryCollector(unittest.TestCase):
+    def setUp(self) -> None:
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.catalog_dir = Path(self.tmp.name) / "catalog"
+        self.root = self.catalog_dir / "versions"
+        self.root.mkdir(parents=True)
+        # The older version has no changes.tsv; the newer has two Stores, and
+        # its dimension rows overlap (3 + 2 + 1 = 6 rows, 5 Analyses).
+        write_catalog_version(
+            self.root, "aaaaaaaaaaaaaaaa", built_at="2026-10-23T18:25:29Z", commit="560dae9",
+            counts=[("store", "OGS-00027", 3), ("coverage", "cis", 3), ("ancestry", None, 3)],
+            listed=[("OGS-00027", "g1"), ("OGS-00027", "g2"), ("OGS-00027", "g3")],
+        )
+        write_catalog_version(
+            self.root, "bbbbbbbbbbbbbbbb", built_at="2026-10-28T22:57:35Z", commit="49d8099",
+            counts=[("store", "OGS-00006", 2), ("store", "OGS-00027", 3), ("coverage", "cis", 3),
+                    ("coverage", "signals_only", 2), ("ancestry", "EUR", 5)],
+            listed=[("OGS-00006", "a"), ("OGS-00006", "b"), ("OGS-00027", "g1"), ("OGS-00027", "g2"), ("OGS-00027", "g3")],
+            changes="id\tchange\nOGS-00006:a\tadded\nOGS-00006:b\tadded\nOGS-00027:g3\tchanged\n",
+        )
+        os.symlink("versions/bbbbbbbbbbbbbbbb", self.catalog_dir / "current")
+
+    def test_each_version_has_its_meta_counts_and_sql_totals(self) -> None:
+        result = catalog.collect(self.root)
+        self.assertEqual([v["version"] for v in result["versions"]], ["aaaaaaaaaaaaaaaa", "bbbbbbbbbbbbbbbb"])
+        older, newer = result["versions"]
+        self.assertEqual(older["catalog_meta"],
+                         {"built_at": "2026-10-23T18:25:29Z", "registry_commit": "560dae9", "builder_version": "1"})
+        self.assertEqual(older["counts"], [
+            {"dimension": "store", "value": "OGS-00027", "n_analyses": 3},
+            {"dimension": "coverage", "value": "cis", "n_analyses": 3},
+            {"dimension": "ancestry", "value": None, "n_analyses": 3},
+        ])
+        self.assertEqual(older["totals"], {"analyses": 3, "stores": 1})
+        self.assertEqual(newer["totals"], {"analyses": 5, "stores": 2})
+        self.assertEqual(len(newer["counts"]), 5)
+
+    def test_the_total_is_the_row_count_not_a_sum_of_dimension_rows(self) -> None:
+        db = sqlite3.connect(self.root / "bbbbbbbbbbbbbbbb" / "catalog.sqlite")
+        db.execute("INSERT INTO counts VALUES ('store', 'OGS-99999', 100)")
+        db.commit()
+        db.close()
+        newer = catalog.collect(self.root)["versions"][1]
+        self.assertEqual(newer["totals"]["analyses"], 5)
+        self.assertEqual(sum(r["n_analyses"] for r in newer["counts"] if r["dimension"] == "store"), 105)
+
+    def test_changes_are_tallied_and_a_missing_file_is_null(self) -> None:
+        older, newer = catalog.collect(self.root)["versions"]
+        self.assertIsNone(older["changes"])
+        self.assertEqual(newer["changes"], {"added": 2, "changed": 1})
+
+    def test_current_is_the_version_the_symlink_names(self) -> None:
+        result = catalog.collect(self.root)
+        self.assertEqual(result["current"], "bbbbbbbbbbbbbbbb")
+        self.assertEqual([v["current"] for v in result["versions"]], [False, True])
+
+    def test_the_collector_opens_catalogs_read_only(self) -> None:
+        before = {p: p.stat().st_mtime_ns for p in self.root.rglob("*") if p.is_file()}
+        os.chmod(self.root / "aaaaaaaaaaaaaaaa" / "catalog.sqlite", 0o444)
+        catalog.collect(self.root)
+        after = {p: p.stat().st_mtime_ns for p in self.root.rglob("*") if p.is_file()}
+        self.assertEqual(before, after)
+        self.assertEqual(sorted(p.name for p in self.root.rglob("*") if p.is_file() and "-journal" in p.name), [])
+
+    def test_a_missing_root_is_an_error_and_an_empty_root_is_not(self) -> None:
+        with self.assertRaises(catalog.CollectError):
+            catalog.collect(Path(self.tmp.name) / "nowhere")
+        empty = Path(self.tmp.name) / "empty"
+        empty.mkdir()
+        self.assertEqual(catalog.collect(empty), {"root": str(empty), "current": None, "versions": []})
 
 
 if __name__ == "__main__":

@@ -138,3 +138,25 @@ aliased query. The issue bodies of everything but Milestones are dropped.
   reference into another owner is dropped.
 - `tests/project-site-data/fixtures/board-graphql.json` is a response recorded
   once from the real API by `board.fetch`.
+
+### Catalog history (`catalog.json`)
+
+Every version directory under `<artifact root>/catalog/versions/`
+(`/data/opengwasdb/stores/catalog/versions/` here); `--catalog-root` names
+another root. Each `catalog.sqlite` is opened through a `file:...?mode=ro` URI.
+A root that does not exist is an error; a root with no versions is `versions: []`.
+
+| Key | Content |
+|---|---|
+| `root`, `current` | the root read, and the name of the version `current` points at, or `null` |
+| `versions` | oldest `built_at` first, one row per version |
+| `versions[].version`, `.current` | the directory name (16 hex), and whether `current` names it |
+| `versions[].catalog_meta` | the `catalog_meta` table as a mapping: `built_at`, `registry_commit`, `builder_version`, `serving_policy` (JSON text), as written |
+| `versions[].counts` | the `counts` table's rows as they are, in table order: `dimension`, `value`, `n_analyses` |
+| `versions[].totals` | `analyses`: `count(*)` of `listed_analyses`; `stores`: the Stores those rows belong to |
+| `versions[].changes` | `changes.tsv`'s rows tallied by change (`{added: n, ...}`), or `null` for a version without the file |
+
+`counts` rows are per dimension and **overlap**: an Analysis is counted once in
+each dimension, and `NULL` is a category, so a dimension's rows sum to the
+total only when none is missing. `totals.analyses` comes from SQL on the
+listed Analyses, never from summing dimension rows.
