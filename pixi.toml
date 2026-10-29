@@ -352,6 +352,15 @@ gh = "*"
 sqlite = "*"
 snakemake-minimal = ">=9,<10"
 
+[feature.dev.pypi-dependencies]
+# The version is computed from the `v*` tag by setuptools-scm (pyproject.toml,
+# #386), which pip installs into its isolated *build* environment, so the
+# environment itself needs it only for the test that reads the version the
+# build would produce (tests/release-versioning/test_version.py). It is a PyPI
+# dependency because that is the same distribution the build resolves, from the
+# same index, at the same version.
+setuptools-scm = ">=8,<9"
+
 [feature.workflow.dependencies]
 # Phase A orchestration. The DAG only wires dependencies and resource requests;
 # every semantic step is an `opengwasdb` subcommand (ADR 0023).

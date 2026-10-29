@@ -6,15 +6,33 @@
 # second copy of what conda already provides.
 
 [build-system]
-requires = ["setuptools>=64"]
+# `setuptools-scm` reads the version from the `v*` tag (#386). pip fetches it
+# into its isolated build environment, so it is a build requirement rather than
+# a pixi dependency; the `dev` environment also carries it for the test that
+# reads the version a build would produce.
+requires = ["setuptools>=64", "setuptools-scm>=8,<9"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "ogstores"
-version = "0.1.0"
+# No `version` here: every merge to `main` is tagged `vX.Y.Z` by
+# `.github/workflows/release.yml`, and the tag is the version (see
+# `[tool.setuptools_scm]` below and CONTRIBUTING "Branches and releases"). A
+# literal would shadow the tag, and then a release would not be a version.
+dynamic = ["version"]
 description = "OpenGWASDB Store Registry tooling: the Release Bundle contract, Store Release Build, and Manifest Generation"
 requires-python = ">=3.12"
 dependencies = []
+
+[tool.setuptools_scm]
+# The version comes from the tag, exactly as opengwasdb's does (opengwasdb
+# #333, stores #386), so both repositories release the same way. `tag_regex`
+# admits one tag convention; `fallback_version` is what a build with no git
+# metadata reports -- valid PEP 440, below every release, and obviously not one.
+# Nothing writes a version file into the tree: a generated file under `src/`
+# would make CI's "regenerate and require a clean tree" gate fail.
+tag_regex = "^v(?P<version>.*)$"
+fallback_version = "0.0.0+unknown"
 
 [tool.setuptools]
 # All importable Python lives under src/ (ADR 0038, #317): Store Release Build
