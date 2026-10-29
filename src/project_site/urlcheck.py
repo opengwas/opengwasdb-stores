@@ -1,13 +1,18 @@
 """Check that every path served today still resolves in a render (#388).
 
 Readers hold links to the pages the legacy Pages deployment serves, so a render
-may not drop one. The paths come from the site's current source of truth —
-`git ls-tree -r --name-only origin/main docs` — and each must be present in the
-output, either as the same file or as an HTML redirect page (`aliases`). A
-missing path fails the build.
+may not drop one. The paths come from the committed baseline
+`resources/site/legacy-served-paths.txt` (#397): the paths under `docs/` at the
+commit the legacy deployment was built from, one per line, `#` for comments. It
+is fixed, so a page the site stops generating never removes one, and each path
+must be present in the output, either as the same file or as an HTML redirect
+page (`aliases`). A missing path fails the build, and so does a baseline that
+cannot be read: an unchecked render is not one to publish.
+
+For an ad-hoc check the command can list a revision's `docs/` instead:
 
     python3 -m project_site.urlcheck --paths-file <file> --output <dir>
-    python3 -m project_site.urlcheck --git-rev origin/main --output <dir>
+    python3 -m project_site.urlcheck --git-rev ff204b6 --output <dir>
 """
 
 from __future__ import annotations
@@ -90,19 +95,60 @@ def paths_from_git(repo: Path, revision: str) -> list[str]:
     return [path[len("docs/"):] for path in listed if path.startswith("docs/")]
 
 
+class ServedPathsUnreadable(ValueError):
+    """The baseline lists no usable paths, so a render cannot be checked against it."""
+
+
+def paths_from_file(baseline: Path) -> list[str]:
+    """The served paths a baseline file lists; refuse one that cannot be read (#397).
+
+    Blank lines and `#` comments are skipped. Anything else must be a path
+    relative to the site root: an absolute path, a `.` or `..` part or a NUL
+    byte is refused rather than silently become a path nobody can serve.
+    """
+    try:
+        text = Path(baseline).read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise ServedPathsUnreadable(f"cannot read the served-path baseline {baseline}: {error}") from error
+    paths: list[str] = []
+    for number, line in enumerate(text.splitlines(), start=1):
+        entry = line.strip()
+        if not entry or entry.startswith("#"):
+            continue
+        if entry.startswith("/") or "\x00" in entry or any(
+            part in {"", ".", ".."} for part in entry.split("/")
+        ):
+            raise ServedPathsUnreadable(
+                f"{baseline}:{number}: not a path the site serves: {entry!r}"
+            )
+        paths.append(entry)
+    if not paths:
+        raise ServedPathsUnreadable(f"the served-path baseline {baseline} lists no paths")
+    return paths
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     source = parser.add_mutually_exclusive_group(required=True)
-    source.add_argument("--paths-file", type=Path, help="one served path per line")
+    source.add_argument("--paths-file", type=Path, help="one served path per line, `#` for comments")
     source.add_argument("--git-rev", help="a revision whose docs/ is the served set")
     parser.add_argument("--repo", type=Path, default=Path.cwd(), help="repository for --git-rev")
     parser.add_argument("--output", type=Path, required=True, help="the rendered site")
     args = parser.parse_args(argv)
 
-    if args.paths_file is not None:
-        paths = [line.strip() for line in args.paths_file.read_text(encoding="utf-8").splitlines() if line.strip()]
-    else:
-        paths = paths_from_git(args.repo, args.git_rev)
+    try:
+        if args.paths_file is not None:
+            paths = paths_from_file(args.paths_file)
+        else:
+            paths = paths_from_git(args.repo, args.git_rev)
+    except ServedPathsUnreadable as error:
+        print(f"cannot read the served paths: {error}", file=sys.stderr)
+        return 2
+    except subprocess.CalledProcessError as error:
+        # `str(error)` names the command, not why it failed: keep git's own
+        # diagnostic, which says the revision is not there (#397 review).
+        print(f"cannot read the served paths: {error}\n{(error.stderr or '').strip()}", file=sys.stderr)
+        return 2
 
     statuses = check_paths(paths, args.output)
     for status in statuses:
