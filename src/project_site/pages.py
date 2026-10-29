@@ -198,6 +198,36 @@ def _figure(value: Any) -> str:
     return f"{value:g}"
 
 
+#: Characters Markdown still reads inside an inline `<code>`: pandoc parses the text
+#: between the tags as Markdown, so a fact's own `*`, `_`, `[`, `~`, `$`, `^`, `\`
+#: or backtick would become emphasis, a link, a subscript, math, a superscript,
+#: an escape or a code span of its own. Their numeric entities render as the
+#: character and are read as neither Markdown nor a table cell's `|`.
+_CODE_ENTITIES = str.maketrans({
+    "\\": "&#92;", "`": "&#96;", "*": "&#42;", "_": "&#95;", "[": "&#91;",
+    "]": "&#93;", "^": "&#94;", "$": "&#36;", "~": "&#126;", "|": "&#124;",
+})
+#: What a Markdown code span cannot hold: a backtick closes it, and a pipe cuts the
+#: table cell it sits in. A version tag is free text -- `v`<b>x</b>` is a legal one.
+_CODE_RISKY = re.compile(r"[`|]")
+
+
+def _code(value: Any) -> str:
+    """A fact in a code span, rendered literally whatever it holds.
+
+    A plain code span is used when the value cannot close its fence or cut its
+    table cell, so the common value stays readable in the Markdown source. A
+    value that can does not fit a Markdown code span at all, so it is written as
+    HTML: `<code>` with the text escaped as HTML and its Markdown-active
+    characters as entities, which no reader turns back into markup (#391
+    review, item 2).
+    """
+    text = " ".join(str(value).split())
+    if not _CODE_RISKY.search(text):
+        return f"`{text}`"
+    return "<code>" + html.escape(text, quote=False).translate(_CODE_ENTITIES) + "</code>"
+
+
 def _link(text: Any, url: Any) -> str:
     """A Markdown link whose label is a fact: escaped, and folded onto one line."""
     label = escape(" ".join(str(text if text is not None else "").split()))
@@ -798,17 +828,17 @@ def _versions_section_shipped(documents: Mapping[str, Document | None], record: 
     releases = available(documents, "releases")
     if releases is None:
         lines += ["| Version | Release |", "| --- | --- |"]
-        lines += [f"| `{version}` | _Releases data unavailable, so its notes cannot be matched_ |" for version in versions]
+        lines += [f"| {_code(version)} | _Releases data unavailable, so its notes cannot be matched_ |" for version in versions]
         lines.append("")
         return lines
     lines += ["| Version | Release notes | Published |", "| --- | --- | --- |"]
     for version in versions:
         release = find_release(releases, repository, version)
         if release is None:
-            lines.append(f"| `{version}` | _no Release carries this tag_ | _not reported_ |")
+            lines.append(f"| {_code(version)} | _no Release carries this tag_ | _not reported_ |")
             continue
         lines.append(
-            f"| `{version}` | {_link(release.get('name') or release.get('tag'), release.get('url'))}"
+            f"| {_code(version)} | {_link(release.get('name') or release.get('tag'), release.get('url'))}"
             f" | {_cell(release.get('published_at'))} |"
         )
     lines.append("")
@@ -859,8 +889,8 @@ def _catalog_cell(documents: Mapping[str, Document | None], record: Document, si
         return _cell(None)
     found = _catalog_version(documents, str(version))
     if found is None:
-        return f"`{version}` (not in the collected versions)"
-    return f"{_figure((found.get('totals') or {}).get('analyses'))} (`{version}`)"
+        return f"{_code(version)} (not in the collected versions)"
+    return f"{_figure((found.get('totals') or {}).get('analyses'))} ({_code(version)})"
 
 
 def _catalog_stores_cell(documents: Mapping[str, Document | None], record: Document, side: str) -> str:
@@ -869,7 +899,7 @@ def _catalog_stores_cell(documents: Mapping[str, Document | None], record: Docum
         return _cell(None)
     found = _catalog_version(documents, str(version))
     if found is None:
-        return f"_not collected_ (`{version}`)"
+        return f"_not collected_ ({_code(version)})"
     return _figure((found.get("totals") or {}).get("stores"))
 
 
@@ -1500,7 +1530,7 @@ def render_changelog(documents: Mapping[str, Document | None]) -> str:
             ]
             tags = [tag.get("name") for tag in repo.get("tags") or [] if tag.get("name")]
             if tags:
-                lines += ["", f"Its tags so far are {', '.join(f'`{tag}`' for tag in tags)}; a tag is not a Release."]
+                lines += ["", f"Its tags so far are {', '.join(_code(tag) for tag in tags)}; a tag is not a Release."]
             lines.append("")
             continue
         lines += ["| Version | Release notes | Published | Flags |", "| --- | --- | --- | --- |"]
@@ -1508,7 +1538,7 @@ def render_changelog(documents: Mapping[str, Document | None]) -> str:
             flags = [flag for flag in ("draft" if release.get("draft") else "",
                                        "prerelease" if release.get("prerelease") else "") if flag]
             lines.append(
-                f"| `{_cell(release.get('tag'))}`"
+                f"| {_code(release.get('tag')) if release.get('tag') else _cell(None)}"
                 f" | {_link(release.get('name') or release.get('tag'), release.get('url'))}"
                 f" | {_cell(release.get('published_at'))} | {', '.join(flags) or '—'} |"
             )

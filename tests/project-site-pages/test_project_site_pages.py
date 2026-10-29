@@ -543,6 +543,9 @@ class TestAnUnavailableSource(unittest.TestCase):
 # A fact a collector may hold: a title, a Next line, a release name, a note. It is
 # data, and a page must state it rather than obey the markup it happens to hold.
 NASTY = "<b>x</b> *y* [z](w) | q `c` _e_ & r"
+# A legal Git tag: it holds a backtick, which closes a one-backtick code span, and
+# a `<b>`, which every other escaping rule turns into text (#391 review, item 2).
+NASTY_TAG = "v`<b>x</b>`"
 
 
 def adversarial_documents() -> dict:
@@ -585,7 +588,7 @@ def adversarial_documents() -> dict:
                                catalog={"before": "aaaaaaaaaaaaaaaa", "after": "bbbbbbbbbbbbbbbb"},
                                test_time={"baseline": {"commit": "e6e829d", "wall_s": 1.0, "suites": None},
                                           "final": {"commit": "a84ecfb", "wall_s": 1.1, "suites": None}},
-                               versions=["v0.1.0"],
+                               versions=["v0.1.0", NASTY_TAG],
                                decisions=[{"date": "2026-10-21", "text": NASTY, "link": None}])],
             invalid={},
             yardstick={"results": [], "invalid": {}},
@@ -621,6 +624,12 @@ class TestFreeTextIsData(unittest.TestCase):
         self.assertIn("\\*y\\*", overview)
         self.assertIn("\\| q", overview)  # an unescaped pipe would cut the table cell in two
 
+    def test_a_version_in_a_code_span_is_literal_through_its_own_backtick(self) -> None:
+        """A tag is free text: its backtick must not close the code span it is written in."""
+        epic_page = self.rendered[2]
+        self.assertIn("<code>v&#96;&lt;b&gt;x&lt;/b&gt;&#96;</code>", epic_page)
+        self.assertNotIn(f"`{NASTY_TAG}`", epic_page)
+
 
 @unittest.skipUnless(QUARTO, "Quarto is not on PATH; the render assertions need it")
 class TestWhatQuartoWrites(unittest.TestCase):
@@ -640,6 +649,16 @@ class TestWhatQuartoWrites(unittest.TestCase):
         self.assertIn("&lt;b&gt;x&lt;/b&gt;", html)
         self.assertNotIn("<b>x</b>", html)
         self.assertNotIn('href="w"', html)
+
+    def test_a_version_holding_a_backtick_and_a_tag_renders_as_text(self) -> None:
+        documents = adversarial_documents()
+        with tempfile.TemporaryDirectory(prefix="project-site-render-") as tmp:
+            html = render_with_quarto(
+                pages.render_epic_page(documents, documents["board"]["epics"][0]), Path(tmp)
+            )
+
+        self.assertIn("v`&lt;b&gt;x&lt;/b&gt;`", html)
+        self.assertNotIn("<b>x</b>", html)
 
 
 class TestNoInventedCurrentVersion(unittest.TestCase):

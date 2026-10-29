@@ -137,6 +137,12 @@ It sets Pages to build from the `gh-pages` branch at `/`, which is where
    `docs/`, as the five data pages above do. Do not edit a generated page — a
    render replaces it. A page holding a chart is written as a `{=html}` block,
    not an inline SVG in a table cell: Pandoc drops an SVG's children there.
+8. A fact is data, never markup, and that includes a fact in a code span: a
+   version tag is free text, so it may hold a backtick, a `|` or a `<b>`. Write
+   one with `pages._code`, which uses a plain code span when the value cannot
+   close it or cut its table cell and an HTML `<code>` with escaped text
+   otherwise; a hand-written `` `{value}` `` fence breaks on the first one that
+   does.
 
 ## Checking a change
 
