@@ -31,7 +31,7 @@ dependencies = []
 # `python3 -m manifest_generation...` and so rely on that editable install.
 # tests/packaging/test_packages.py keeps this list equal to the package's
 # directories.
-package-dir = { "ogstores" = "src/ogstores", "manifest_generation" = "src/manifest_generation", "analysis_catalog" = "src/analysis_catalog", "curation" = "src/curation" }
+package-dir = { "ogstores" = "src/ogstores", "manifest_generation" = "src/manifest_generation", "analysis_catalog" = "src/analysis_catalog", "curation" = "src/curation", "project_site" = "src/project_site", "project_site.collect" = "src/project_site/collect" }
 packages = [
     "ogstores",
     "manifest_generation",
@@ -45,4 +45,6 @@ packages = [
     "manifest_generation.providers.ukb_b",
     "analysis_catalog",
     "curation",
+    "project_site",
+    "project_site.collect",
 ]
