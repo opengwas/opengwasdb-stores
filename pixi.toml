@@ -497,6 +497,19 @@ index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]
 docs = { cmd = "bash tools/build-site.sh" }
+# The site (#388): one Quarto website over this repository's docs/ and the
+# engine's docs. It needs Python (for the staging, link rewrite and served-path
+# check) beside Quarto, so it runs in `dev` whichever environment is default.
+#
+#   pixi run site                     # render; the served-path check fails a drop
+#   pixi run site-preview             # stage, then Quarto's live-reloading preview
+#   pixi run site-publish --dry-run   # render origin/dev and commit gh-pages, no push
+#
+# The output is `/data/opengwasdb/work/site/<checkout>/_site`, never under /home
+# or /tmp (src/project_site/paths.py).
+site = { cmd = "python3 -m project_site.build", default-environment = "dev" }
+site-preview = { cmd = "python3 -m project_site.build --preview", default-environment = "dev" }
+site-publish = { cmd = "python3 -m project_site.publish", default-environment = "dev" }
 # The full `docs` task needs raw GWAS Catalog source data that is not tracked
 # in this repository (resources/data/*.tsv, "download separately" per
 # .gitignore) to build ebi-studies.qmd/make-dashboard.r's inputs. docs-smoke

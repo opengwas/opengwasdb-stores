@@ -28,6 +28,7 @@ from pathlib import Path
 from typing import Callable, Sequence
 
 from project_site import paths
+from project_site.build import SiteCheckFailed, render_checkout
 
 Render = Callable[[str, Path, Path], Path]
 
@@ -145,8 +146,6 @@ def publish(
     source_commit = _remote_commit(repo, remote, ref)
 
     if render is None:
-        from project_site.build import render_checkout
-
         render = render_checkout
 
     checkout = work_root / f"{name}-publish"
@@ -204,7 +203,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     try:
         result = publish(repo=args.repo, ref=args.ref, remote=args.remote, dry_run=args.dry_run)
-    except PublishRefused as refusal:
+    except (PublishRefused, SiteCheckFailed) as refusal:
         print(f"refused: {refusal}", file=sys.stderr)
         return 2
     print(f"ref          {result.ref}")

@@ -33,7 +33,7 @@ DOCUMENT_SUFFIXES = frozenset({".md", ".html"})
 # Directories under `docs/` the mirror leaves out: report sources (the site
 # copies their committed HTML instead), Quarto's own cache, and anything this
 # build writes.
-MIRROR_SKIP_DIRECTORIES = frozenset({"reports", ".quarto", "_site", "opengwasdb"})
+MIRROR_SKIP_DIRECTORIES = frozenset({"reports", ".quarto", "_site"})
 
 # Files at the top of the engine's docs tree that are not a page of the engine
 # section's index.
@@ -42,11 +42,18 @@ ENGINE_INDEX = "index.qmd"
 
 @dataclass
 class LinkReport:
-    """What the link rewrite did to the mirror, for the build's summary."""
+    """What the link rewrite did to the mirror, for the build's summary.
+
+    `raw_pages` are pages the render could not read as Markdown: Quarto only
+    accepts an executable cell (`{mermaid}`) in a `.qmd`, so a `.md` page with a
+    Mermaid fence is staged as `.qmd` and its rewritten Markdown is kept here, to
+    be copied to its own published `.md` path after the render.
+    """
 
     pages: int = 0
     rewritten: int = 0
     missing: list[tuple[str, str, str]] = field(default_factory=list)
+    raw_pages: list[tuple[str, str]] = field(default_factory=list)
 
 
 def _git(repo: Path, *args: str) -> str:
@@ -172,16 +179,28 @@ def rewrite_mirror(
             base, known = (registry_url, commit), registry_paths
             relative = page
         text = path.read_text(encoding="utf-8")
-        text = convert_mermaid_fences(text)
+        converted = convert_mermaid_fences(text)
         text, targets = rewrite_document(
-            text, page=relative, repo_url=base[0], commit=base[1]
+            converted, page=relative, repo_url=base[0], commit=base[1]
         )
-        path.write_text(text, encoding="utf-8")
+        if path.suffix.lower() == ".md" and _has_mermaid_cell(converted):
+            # Quarto refuses a `{mermaid}` cell in a `.md`, so the staged page is
+            # a `.qmd`; its published `.md` path is filled from `raw_pages`.
+            path.with_suffix(".qmd").write_text(text, encoding="utf-8")
+            path.unlink()
+            report.raw_pages.append((page, text))
+        else:
+            path.write_text(text, encoding="utf-8")
         report.pages += 1
         for target in targets:
             report.rewritten += 1
             if target.repo_path and known and target.repo_path not in known:
                 report.missing.append((page, target.target, target.repo_path))
     return report
+
+
+def _has_mermaid_cell(text: str) -> bool:
+    """Whether the text holds a `{mermaid}` cell after the fence conversion."""
+    return any(line.strip() == "```{mermaid}" for line in text.splitlines())
 
 

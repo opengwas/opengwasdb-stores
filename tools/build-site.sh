@@ -51,4 +51,6 @@ else
   echo "    (skipped imputation-filters.html — render it first to refresh)"
 fi
 
-echo "Done. Commit docs/ and push to update GitHub Pages."
+echo "Done. These pages are published by the site build: \`pixi run site\` renders"
+echo "docs/ into the site, and \`pixi run site-publish\` publishes it. Commit the"
+echo "refreshed HTML; do not push docs/ to Pages."
