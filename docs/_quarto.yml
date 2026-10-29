@@ -40,7 +40,7 @@ project:
     - "data/*.csv"
     - "diagrams/*.dot"
     - "diagrams/*.svg"
-    - "*.yaml"
+    - "readiness-evidence.yaml"
     - ".nojekyll"
 
 website:
