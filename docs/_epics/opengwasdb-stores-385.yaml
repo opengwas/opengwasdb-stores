@@ -129,6 +129,12 @@ decisions:
     current version's selection decisions. Generated links point at the rendered commit; site-publish defaults to
     origin/main. The epic's v0.1.0 notes come from one added fragment per ticket.
   link: null
+- date: '2026-10-29'
+  text: The yardstick reran at 11:04 on a quiet host (load 1.5-1.9, outside the Veeam window, 82 s per run).
+    Run-to-run spread is under 11% on 16 of 19 timed measures; the rest are OGS-00006's phewas by rsid (25%), by
+    ALID (19%) and region (18%), 4-9 ms apart. Peak RSS agrees to 1.5% and bytes on disk exactly. Both results are
+    committed; after is the first.
+  link: null
 test_time:
   baseline:
     commit: de99f3b
@@ -140,7 +146,7 @@ test_time:
     suites: null
 yardstick:
   before: null
-  after: null
+  after: docs/_yardstick/20261029T110403Z-0.3.0.json
 catalog:
   before: null
   after: null

@@ -1,0 +1,290 @@
+{
+  "schema": 1,
+  "workload_id": "yardstick-1",
+  "workload_sha256": "3199525b31a344db5dafed2bda866f8cdab09fcf3dbdbdceac1ba424e29ba8c1",
+  "opengwasdb": {
+    "version": "0.3.0",
+    "revision": "0d59f151c7618933747a59f825deeef6a51de9e1"
+  },
+  "ogstores": {
+    "version": "0.1.dev1167+g67eee25",
+    "commit": "67eee250ee40625c87dfb5a1d9a70fc2e0fd31ad",
+    "dirty": false
+  },
+  "host": {
+    "name": "app-dc3-ogws-p0.services.bris.ac.uk",
+    "cpu_count": 224
+  },
+  "load_average": {
+    "before": [
+      1.48,
+      0.99,
+      0.8
+    ],
+    "after": [
+      1.91,
+      1.22,
+      0.9
+    ]
+  },
+  "started_utc": "2026-10-29T11:04:03Z",
+  "ended_utc": "2026-10-29T11:05:26Z",
+  "duration_s": 82.2,
+  "over_budget": false,
+  "local_utc_offset_minutes": 0,
+  "veeam_window": false,
+  "repetitions": {
+    "default": 5,
+    "analysis_full": 3
+  },
+  "stores": [
+    {
+      "store_id": "OGS-00009",
+      "layout": "dense",
+      "coverage": "gwas",
+      "status": "measured",
+      "measures": {
+        "open": {
+          "status": "measured",
+          "first_read_ms": 86.265,
+          "median_ms": 79.888,
+          "p95_ms": 83.626,
+          "reps": 5
+        },
+        "phewas_rsid": {
+          "status": "measured",
+          "first_read_ms": 98.07,
+          "median_ms": 66.814,
+          "p95_ms": 71.226,
+          "reps": 5,
+          "result_count": 2514,
+          "first_result_count": 2514
+        },
+        "phewas_alid": {
+          "status": "measured",
+          "first_read_ms": 70.013,
+          "median_ms": 64.714,
+          "p95_ms": 69.291,
+          "reps": 5,
+          "result_count": 350,
+          "first_result_count": 350
+        },
+        "phewas_position": {
+          "status": "measured",
+          "first_read_ms": 68.034,
+          "median_ms": 66.704,
+          "p95_ms": 70.7,
+          "reps": 5,
+          "result_count": 2514,
+          "first_result_count": 2514
+        },
+        "analysis_full": {
+          "status": "measured",
+          "first_read_ms": 11502.893,
+          "median_ms": 8266.505,
+          "p95_ms": 8605.781,
+          "reps": 3,
+          "result_count": 9912269,
+          "first_result_count": 9912269
+        },
+        "analysis_hm3": {
+          "subset": "hm3",
+          "detail": "",
+          "analysis_id": "ukb-b-10001",
+          "status": "measured",
+          "first_read_ms": 420.497,
+          "median_ms": 426.863,
+          "p95_ms": 449.438,
+          "reps": 5,
+          "result_count": 1189911,
+          "warm_result_count": 1189911,
+          "subset_n_variants": 1206088,
+          "subset_n_analyses": 2514,
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1206088,
+          "subset_absent_count": 815,
+          "subset_reference_assembly": "hg38",
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"
+        },
+        "region": {
+          "status": "measured",
+          "first_read_ms": 2563.785,
+          "median_ms": 2640.819,
+          "p95_ms": 2672.276,
+          "reps": 5,
+          "result_count": 11366579,
+          "first_result_count": 11366579
+        },
+        "bytes_on_disk": {
+          "status": "measured",
+          "bytes": 61882085184,
+          "source": "walk"
+        },
+        "peak_rss": {
+          "status": "measured",
+          "baseline_mb": 174.3,
+          "peak_mb": 1235.2,
+          "delta_mb": 1060.9,
+          "result_count": 9912269
+        }
+      }
+    },
+    {
+      "store_id": "OGS-00027",
+      "layout": "ragged",
+      "coverage": "cis",
+      "status": "measured",
+      "measures": {
+        "open": {
+          "status": "measured",
+          "first_read_ms": 266.958,
+          "median_ms": 338.976,
+          "p95_ms": 343.857,
+          "reps": 5
+        },
+        "phewas_rsid": {
+          "status": "measured",
+          "first_read_ms": 38.16,
+          "median_ms": 19.383,
+          "p95_ms": 21.758,
+          "reps": 5,
+          "result_count": 16,
+          "first_result_count": 16
+        },
+        "phewas_alid": {
+          "status": "measured",
+          "first_read_ms": 19.0,
+          "median_ms": 18.939,
+          "p95_ms": 19.241,
+          "reps": 5,
+          "result_count": 23,
+          "first_result_count": 23
+        },
+        "phewas_position": {
+          "status": "measured",
+          "first_read_ms": 21.967,
+          "median_ms": 19.421,
+          "p95_ms": 20.895,
+          "reps": 5,
+          "result_count": 16,
+          "first_result_count": 16
+        },
+        "analysis_full": {
+          "status": "measured",
+          "first_read_ms": 24.396,
+          "median_ms": 20.668,
+          "p95_ms": 21.226,
+          "reps": 3,
+          "result_count": 7533,
+          "first_result_count": 7533
+        },
+        "region": {
+          "status": "measured",
+          "first_read_ms": 75.936,
+          "median_ms": 62.035,
+          "p95_ms": 62.256,
+          "reps": 5,
+          "result_count": 41790,
+          "first_result_count": 41790
+        },
+        "bytes_on_disk": {
+          "status": "measured",
+          "bytes": 2632390381,
+          "source": "walk"
+        },
+        "peak_rss": {
+          "status": "measured",
+          "baseline_mb": 220.7,
+          "peak_mb": 229.2,
+          "delta_mb": 8.4,
+          "result_count": 7533
+        }
+      }
+    },
+    {
+      "store_id": "OGS-00006",
+      "layout": "ragged",
+      "coverage": "signals_only",
+      "status": "measured",
+      "measures": {
+        "open": {
+          "status": "measured",
+          "first_read_ms": 127.546,
+          "median_ms": 113.316,
+          "p95_ms": 121.16,
+          "reps": 5
+        },
+        "phewas_rsid": {
+          "status": "measured",
+          "first_read_ms": 41.431,
+          "median_ms": 22.918,
+          "p95_ms": 23.0,
+          "reps": 5,
+          "result_count": 4,
+          "first_result_count": 4
+        },
+        "phewas_alid": {
+          "status": "measured",
+          "first_read_ms": 21.915,
+          "median_ms": 21.651,
+          "p95_ms": 22.899,
+          "reps": 5,
+          "result_count": 3,
+          "first_result_count": 3
+        },
+        "phewas_position": {
+          "status": "measured",
+          "first_read_ms": 22.368,
+          "median_ms": 20.499,
+          "p95_ms": 21.216,
+          "reps": 5,
+          "result_count": 4,
+          "first_result_count": 4
+        },
+        "analysis_full": {
+          "status": "measured",
+          "first_read_ms": 89.912,
+          "median_ms": 75.578,
+          "p95_ms": 76.68,
+          "reps": 3,
+          "result_count": 77819,
+          "first_result_count": 77819
+        },
+        "region": {
+          "status": "measured",
+          "first_read_ms": 55.632,
+          "median_ms": 59.3,
+          "p95_ms": 59.91,
+          "reps": 5,
+          "result_count": 24784,
+          "first_result_count": 24784
+        },
+        "bytes_on_disk": {
+          "status": "measured",
+          "bytes": 1497874236,
+          "source": "walk"
+        },
+        "peak_rss": {
+          "status": "measured",
+          "baseline_mb": 172.5,
+          "peak_mb": 215.7,
+          "delta_mb": 43.2,
+          "result_count": 77819
+        }
+      }
+    },
+    {
+      "store_id": "OGS-00011",
+      "layout": "hybrid",
+      "coverage": "gwas",
+      "status": "pending",
+      "reason": "its live store.opengwasdb.partial belongs to the rebuild run (epic"
+    }
+  ],
+  "guard_violations": [],
+  "fixture_build": {
+    "status": "measured",
+    "layout": "dense",
+    "seconds": 2.119
+  }
+}
