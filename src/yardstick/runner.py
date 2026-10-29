@@ -25,11 +25,15 @@ from pathlib import Path
 from typing import Any
 
 from ogstores import paths
-from yardstick import fixture, veeam
+from yardstick import fixture, proc, veeam
 from yardstick import result as result_spec
 from yardstick import workload as workload_spec
 
 BUDGET_S = 600.0
+
+
+def _now() -> float:
+    return time.perf_counter()
 RESULTS_DIR = workload_spec.REPO_ROOT / "docs" / "_yardstick"
 
 
@@ -86,14 +90,18 @@ def _worker(
         encoding="utf-8",
     )
     try:
-        done = subprocess.run(
-            [sys.executable, "-m", WORKER_MODULE, mode, str(spec)], capture_output=True, text=True, timeout=timeout
-        )
+        done = proc.run_group([sys.executable, "-m", WORKER_MODULE, mode, str(spec)], timeout=timeout)
     except subprocess.TimeoutExpired:
         raise RuntimeError(f"timeout after {timeout:g} s") from None
     if done.returncode != 0:
         raise RuntimeError(done.stderr.strip()[-500:] or f"worker exited {done.returncode}")
-    return json.loads(done.stdout.strip().splitlines()[-1])
+    try:
+        record = json.loads(done.stdout.strip().splitlines()[-1])
+    except (IndexError, ValueError):
+        raise RuntimeError(f"worker printed no JSON record: {done.stdout.strip()[-200:]!r}") from None
+    if not isinstance(record, dict):
+        raise RuntimeError(f"worker printed a {type(record).__name__}, not a record")
+    return record
 
 
 def _store(
@@ -108,20 +116,36 @@ def _store(
         error = f"{INDEX} missing; refusing to let the query path create it"
         measures = {name: {"status": "unavailable", "error": error} for name in wanted}
         return {**head, "status": "measured", "measures": measures}, []
-    remaining = lambda: deadline - time.perf_counter()  # noqa: E731
+    remaining = lambda: deadline - _now()  # noqa: E731
     measures: dict[str, Any] = {}
-    try:
-        measures.update(_worker("timed", store_path, entry, workload, scratch, timeout=remaining()))
-    except RuntimeError as error:
-        for name in wanted:
-            if name != "peak_rss":
-                measures[name] = {"status": "unavailable", "error": str(error)}
+    steps = [("timed", [n for n in wanted if n != "peak_rss"])]
     if "peak_rss" in wanted:
-        try:
-            measures["peak_rss"] = _worker("rss", store_path, entry, workload, scratch, timeout=remaining())
-        except RuntimeError as error:
-            measures["peak_rss"] = {"status": "unavailable", "error": str(error)}
-    problems = compare(before, snapshot(store_path))
+        steps.append(("rss", ["peak_rss"]))
+
+    def unavailable(names: list[str], error: str) -> None:
+        for name in names:
+            measures[name] = {"status": "unavailable", "error": error}
+
+    problems: list[str] = []
+    try:
+        for position, (mode, names) in enumerate(steps):
+            # Before every worker: a worker never opens a Store that has lost its index, or one already disturbed.
+            if not (store_path / INDEX).is_file():
+                for _, rest in steps[position:]:
+                    unavailable(rest, f"{INDEX} missing before the {mode} worker; refusing to let the query path create it")
+                break
+            try:
+                record = _worker(mode, store_path, entry, workload, scratch, timeout=remaining())
+                measures.update({"peak_rss": record} if mode == "rss" else record)
+            except RuntimeError as error:
+                unavailable(names, str(error))
+            disturbed = compare(before, snapshot(store_path))
+            if disturbed:
+                for _, rest in steps[position + 1:]:
+                    unavailable(rest, f"skipped: the Store changed beside it ({'; '.join(disturbed)})")
+                break
+    finally:
+        problems = compare(before, snapshot(store_path))
     return {**head, "status": "measured", "measures": measures}, problems
 
 
@@ -138,7 +162,7 @@ def run(
     scratch = Path(scratch) if scratch else Path(tempfile.mkdtemp(prefix="yardstick-", dir=os.environ.get("TMPDIR")))
     scratch.mkdir(parents=True, exist_ok=True)
     start_local = datetime.now().astimezone()
-    start_clock = time.perf_counter()
+    start_clock = _now()
     load_before = list(os.getloadavg())
     deadline = start_clock + budget_s
     violations: list[dict[str, str]] = []
@@ -153,8 +177,9 @@ def run(
         if workload.get("fixture_build"):
             build_dir = scratch / "fixture-build"
             build_dir.mkdir()
-            build = fixture.timed_build(build_dir, timeout=deadline - time.perf_counter())
+            build = fixture.timed_build(build_dir, timeout=deadline - _now())
         end_local = datetime.now().astimezone()
+        elapsed = _now() - start_clock
         result: dict[str, Any] = {
             "schema": result_spec.SCHEMA_VERSION,
             "workload_id": workload["workload_id"],
@@ -165,7 +190,8 @@ def run(
             "load_average": {"before": load_before, "after": list(os.getloadavg())},
             "started_utc": start_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
             "ended_utc": end_local.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-            "duration_s": round(time.perf_counter() - start_clock, 1),
+            "duration_s": round(elapsed, 1),
+            "over_budget": elapsed > budget_s,
             "local_utc_offset_minutes": int(start_local.utcoffset().total_seconds() // 60),
             "veeam_window": veeam.overlaps_window(start_local, end_local),
             "repetitions": workload["repetitions"],
@@ -199,7 +225,7 @@ def main(argv: list[str] | None = None) -> int:
     if result["guard_violations"]:
         print(f"error: the run wrote beside a Store: {result['guard_violations']}", file=sys.stderr)
         return 3
-    if result["duration_s"] > BUDGET_S:
+    if result.get("over_budget"):
         print(f"warning: the run took {result['duration_s']} s, over the {BUDGET_S:.0f} s budget", file=sys.stderr)
         return 2
     return 0

@@ -24,6 +24,16 @@ _REVISION = re.compile(r"[0-9a-f]{40}")
 _UTC = re.compile(r"\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ")
 
 
+# What opengwasdb's `measure_hm3_extract` reports at the pin, beyond the timings.
+HM3_COUNTS = (
+    "subset_n_variants", "subset_n_analyses", "subset_requested_count",
+    "subset_resolved_count", "subset_absent_count",
+)
+HM3_FIELDS = (
+    "subset", "detail", "analysis_id", *HM3_COUNTS, "subset_reference_assembly", "subset_input_sha256",
+)
+
+
 class ResultError(ValueError):
     pass
 
@@ -58,11 +68,14 @@ def _measure(where: str, name: str, record: dict[str, Any]) -> None:
             _number(f"{where}.{key}", record[key])
         _number(f"{where}.reps", record["reps"], integer=True)
         if name != "open":
-            _need(where, record, "result_count")
-        if "result_count" in record:
-            _number(f"{where}.result_count", record["result_count"], integer=True)
+            _need(where, record, "result_count", "warm_result_count" if name == "analysis_hm3" else "first_result_count")
+        for key in ("result_count", "first_result_count", "warm_result_count"):
+            if key in record:
+                _number(f"{where}.{key}", record[key], integer=True)
         if name == "analysis_hm3":
-            _need(where, record, "subset", "analysis_id")
+            _need(where, record, *HM3_FIELDS)
+            for key in HM3_COUNTS:
+                _number(f"{where}.{key}", record[key], integer=True)
     elif name == "bytes_on_disk":
         _need(where, record, "bytes", "source")
         _number(f"{where}.bytes", record["bytes"], integer=True)
@@ -94,11 +107,13 @@ def validate(result: dict[str, Any], workload: dict[str, Any] | None = None) -> 
     _need("load_average", result["load_average"], "before", "after")
     for key in ("before", "after"):
         values = result["load_average"][key]
-        if not isinstance(values, list) or not values:
-            raise ResultError(f"load_average.{key} must be a non-empty list")
+        if not isinstance(values, list) or len(values) != 3:
+            raise ResultError(f"load_average.{key} must be the 1, 5 and 15 minute averages")
         for value in values:
             _number(f"load_average.{key}", value)
     _number("duration_s", result["duration_s"])
+    if "over_budget" in result and not isinstance(result["over_budget"], bool):
+        raise ResultError("over_budget must be true or false")
     for store in result["stores"]:
         where = f"stores[{store.get('store_id')}]"
         _need(where, store, "store_id", "layout", "coverage", "status")

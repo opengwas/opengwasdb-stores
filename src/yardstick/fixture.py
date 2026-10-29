@@ -11,6 +11,8 @@ import shutil
 import subprocess
 import sys
 import time
+
+from yardstick import proc
 from pathlib import Path
 
 VCF = (
@@ -49,14 +51,16 @@ def build_dense_store(store_path: Path, source_dir: Path, *, timeout: float | No
         ANALYSES_HEADER + f"fx1\t{vcf}\tTest Trait\t10000\tsd\tdeclared_standardised\t\tEUR\tsource_fallback\n",
         encoding="utf-8",
     )
-    subprocess.run(
+    result = proc.run_group(
         [
             *_opengwasdb(), "build-dense-vcf", str(analyses), str(store_path),
             "--store-id", "OGS-00099", "--release-id", "OGS-00099",
             "--source-reader-capability", "opengwasdb.gwas-vcf", "--source-assembly", "hg38",
         ],
-        check=True, capture_output=True, text=True, timeout=timeout,
+        timeout=timeout,
     )
+    if result.returncode != 0:
+        raise subprocess.CalledProcessError(result.returncode, "opengwasdb build-dense-vcf", result.stdout, result.stderr)
     return store_path
 
 

@@ -45,11 +45,15 @@ walk the Store (`bytes_on_disk`) is `unavailable` too, never a partial total.
 ## Read-only guarantee
 
 `query_store` opens `index.sqlite` read-write, so a missing index would be
-created beside the Store. Before a Store's worker starts the runner records the
+created beside the Store. Before a Store's first worker starts the runner records the
 Store directory's top-level entries and `index.sqlite`'s size and mtime. A Store
 with no `index.sqlite` is not opened: every measure is `unavailable` ("index.sqlite
-missing; refusing to let the query path create it"). After the workers it
-compares: a new top-level entry or a changed `index.sqlite` is recorded in the
+missing; refusing to let the query path create it"). `index.sqlite` must still be present before each worker (the timed one and the
+RSS one); a violation stops that Store's remaining workers, whose measures are
+`unavailable`. The comparison runs in a `finally`, so it happens whatever a
+worker does; a worker that exits non-zero, times out or prints malformed JSON
+makes its measures `unavailable` with the error and never aborts the run. After
+the workers it compares: a new top-level entry or a changed `index.sqlite` is recorded in the
 result's `guard_violations` and the run exits 3.
 
 `fixture_build` times `opengwasdb build-dense-vcf` on a 2-variant GWAS-VCF
@@ -65,8 +69,8 @@ median and p95 are over the warm reads. `repetitions.default` is 5 and
 any part of it fell between 00:00 and 11:00 local time (the nightly Veeam
 snapshot throttles disk I/O). Each worker and the fixture build
 are given the run's remaining 600 s budget as a timeout; one that overruns is
-killed and its measures are `unavailable` ("timeout after N s"). The result is
-still written, and a run over budget exits 2.
+killed with its whole process group (each runs in its own session: SIGTERM, a one-second grace, then SIGKILL, and it is reaped before the run goes on) and its measures are `unavailable` ("timeout after N s"). The result is
+still written, and a run over budget exits 2. "Over budget" is decided on the unrounded elapsed time and carried as `over_budget`; `duration_s` is rounded for display.
 
 ## Result schema, version 1
 
@@ -80,9 +84,10 @@ a new version.
 | `opengwasdb` | `version`, and `revision`: the 40-hex rev `pixi.lock` pins |
 | `ogstores` | `version` |
 | `host` | `name`, `cpu_count` |
-| `load_average` | `before` and `after`, each `[1, 5, 15]` minute |
+| `load_average` | `before` and `after`, each exactly three non-negative numbers: the 1, 5 and 15 minute averages |
 | `started_utc`, `ended_utc` | `YYYY-MM-DDTHH:MM:SSZ` |
-| `duration_s` | wall time of the whole run, non-negative |
+| `duration_s` | wall time of the whole run in seconds, rounded to 0.1, non-negative |
+| `over_budget` | boolean: the unrounded wall time exceeded 600 s (a run over budget exits 2) |
 | `local_utc_offset_minutes` | the local zone the Veeam test used |
 | `veeam_window` | boolean |
 | `repetitions` | as in the workload |
@@ -96,13 +101,13 @@ measure name, each with a `status` of `measured`, `unavailable` (with an
 `error`) or `not_applicable`. A measured record holds:
 
 - timed measures: `first_read_ms`, `median_ms`, `p95_ms`, `reps`, and
-  `result_count` (rows returned, every call non-empty; required except for `open`), `first_result_count`; `analysis_hm3` carries the fields of
+  `result_count` (rows returned, every call non-empty; required except for `open`), `first_result_count` (rows of the first read; `warm_result_count` on `analysis_hm3`); `analysis_hm3` carries the fields of
   opengwasdb's `measure_hm3_extract` at the pin: `subset` (`hm3`), `detail`,
   `analysis_id`, `warm_result_count` (rows of the first read), and, read from the
   subset's own metadata, `subset_n_variants`, `subset_n_analyses`,
   `subset_requested_count`, `subset_resolved_count`, `subset_absent_count`,
   `subset_reference_assembly` and `subset_input_sha256`; the validator requires
-  `subset` and `analysis_id`;
+  every one of these, with non-negative integer counts;
 - `bytes_on_disk`: `bytes` and `source` (`walk` or `manifest`);
 - `peak_rss`: `baseline_mb`, `peak_mb`, `delta_mb`, `result_count`.
 
@@ -113,10 +118,10 @@ No timing, byte or size field is negative.
 `yardstick.result.validate(result, workload=None)` raises `yardstick.result.ResultError`
 on the first problem. It refuses: a wrong `schema`; a Store object without
 `store_id`, `layout`, `coverage` or `status`; a timed record other than `open`
-without `result_count`; an `analysis_hm3` record without `subset` or
-`analysis_id`; a measured `fixture_build` without `layout`; a revision that is
+without `result_count`; an `analysis_hm3` record lacking any
+`measure_hm3_extract` field above; a measured `fixture_build` without `layout`; a revision that is
 not 40 lower-case hex characters; a timestamp that is not `YYYY-MM-DDTHH:MM:SSZ`;
-an empty or negative load array; and any negative timing, byte or size. With a `workload` (`yardstick.workload.load()`) it also
+a load array that is not exactly three non-negative numbers; a missing `first_result_count`; and any negative timing, byte or size. With a `workload` (`yardstick.workload.load()`) it also
 requires every workload Store, with the same status, and every measure that
 Store lists. The project site's collector reads results through it. Load a
 workload with `yardstick.workload.load()`; `check()` raises `WorkloadError`.
