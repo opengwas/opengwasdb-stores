@@ -24,7 +24,9 @@ import yaml
 from pathlib import Path
 
 from project_site import records
+from project_site.collect import __main__ as site_data
 from project_site.collect import board, catalog, common, releases, stores
+from project_site.collect import records as records_collector
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -491,6 +493,117 @@ class TestStoresCollector(unittest.TestCase):
     def test_a_registry_that_is_not_a_directory_is_an_error(self) -> None:
         with self.assertRaises(common.CollectError):
             stores.collect(self.registry / "nowhere")
+
+
+class TestRecordsCollector(unittest.TestCase):
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.epics = Path(tmp.name) / "_epics"
+        self.yardstick = Path(tmp.name) / "_yardstick"
+        self.epics.mkdir()
+
+    def write_epic(self, name: str, record: dict) -> None:
+        (self.epics / name).write_text(yaml.safe_dump(record))
+
+    def test_valid_records_are_collected_and_each_invalid_file_is_named(self) -> None:
+        self.write_epic("opengwasdb-stores-313.yaml", minimal_record())
+        wrong = minimal_record()
+        wrong["status"] = "done"
+        self.write_epic("opengwasdb-stores-314.yaml", {**wrong, "number": 314})
+        (self.epics / "broken.yaml").write_text("a: [unclosed")
+        result = records_collector.collect(self.epics, self.yardstick)
+        self.assertEqual([e["number"] for e in result["epics"]], [313])
+        self.assertEqual(result["epics"][0]["started"], "2026-10-21")
+        self.assertEqual(result["invalid"]["opengwasdb-stores-314.yaml"], ["status 'done' is not one of active, finished"])
+        self.assertEqual(list(result["invalid"]), ["broken.yaml", "opengwasdb-stores-314.yaml"])
+
+    def test_an_absent_or_empty_yardstick_directory_is_not_an_error(self) -> None:
+        self.assertEqual(
+            records_collector.collect(self.epics, self.yardstick)["yardstick"],
+            {"results": [], "invalid": {}},
+        )
+        self.yardstick.mkdir()
+        self.assertEqual(
+            records_collector.collect(self.epics, self.yardstick)["yardstick"],
+            {"results": [], "invalid": {}},
+        )
+
+    def test_yardstick_results_go_through_the_validator_given(self) -> None:
+        self.yardstick.mkdir()
+        (self.yardstick / "good.json").write_text('{"epic": 313}')
+        (self.yardstick / "bad.json").write_text('{"epic": "x"}')
+        (self.yardstick / "torn.json").write_text("{")
+
+        def validator(document: dict) -> list[str]:
+            return [] if isinstance(document.get("epic"), int) else ["epic is not an integer"]
+
+        result = records_collector.collect(self.epics, self.yardstick, validator)["yardstick"]
+        self.assertEqual(result["results"], [{"name": "good.json", "result": {"epic": 313}}])
+        self.assertEqual(result["invalid"]["bad.json"], ["epic is not an integer"])
+        self.assertTrue(result["invalid"]["torn.json"][0].startswith("could not be read"))
+
+
+class TestSiteData(unittest.TestCase):
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.tmp = Path(tmp.name)
+        self.data = self.tmp / "data"
+        self.registry = self.tmp / "stores"
+        self.registry.mkdir()
+        self.epics = self.tmp / "_epics"
+        self.epics.mkdir()
+        self.catalog_root = self.tmp / "no-catalog"
+
+    def run_all(self, gh: common.GhRunner) -> tuple[list[dict], list[str]]:
+        lines: list[str] = []
+        results = site_data.run(
+            self.data, gh=gh, catalog_root=self.catalog_root, registry=self.registry,
+            epics_dir=self.epics, yardstick_dir=self.tmp / "_yardstick", out=lines.append,
+        )
+        return results, lines
+
+    def test_one_unavailable_source_is_recorded_and_the_others_are_intact(self) -> None:
+        def gh(args: list[str], stdin: str | None = None) -> str:
+            if args[1] == "graphql":
+                raise common.CollectError("gh api graphql exited 4: could not resolve host")
+            return ""  # the releases endpoints: nothing
+
+        write_catalog_version(
+            self.tmp / "versions", "aaaaaaaaaaaaaaaa", built_at="2026-10-23T18:25:29Z", commit="560dae9",
+            counts=[("store", "OGS-00027", 1)], listed=[("OGS-00027", "g1")],
+        )
+        self.catalog_root = self.tmp / "versions"
+        results, lines = self.run_all(gh)
+        by_source = {r["source"]: r for r in results}
+        self.assertEqual(list(by_source), ["board", "catalog", "releases", "stores", "records"])
+        self.assertFalse(by_source["board"]["available"])
+        self.assertEqual(by_source["board"]["error"], "CollectError: gh api graphql exited 4: could not resolve host")
+        self.assertEqual(
+            sorted(k for k in by_source["board"] if k not in ("source", "available", "collected_at", "error")), []
+        )
+        for source in ("catalog", "releases", "stores", "records"):
+            self.assertTrue(by_source[source]["available"], source)
+            self.assertIsNone(by_source[source]["error"], source)
+        self.assertEqual(by_source["catalog"]["versions"][0]["totals"], {"analyses": 1, "stores": 1})
+        # Every source has its file, and the file is the result.
+        self.assertEqual(sorted(p.name for p in self.data.iterdir()),
+                         ["board.json", "catalog.json", "records.json", "releases.json", "stores.json"])
+        self.assertEqual(json.loads((self.data / "board.json").read_text())["available"], False)
+        self.assertEqual(len(lines), 5)
+        self.assertTrue(lines[0].startswith("board: unavailable: CollectError: gh api graphql"))
+        self.assertEqual(lines[1], "catalog: 1 versions, current none")
+
+    def test_the_envelope_names_the_source_and_when_it_was_collected(self) -> None:
+        result = common.collect_source("stores", lambda: {"stores": []})
+        self.assertEqual(sorted(result), ["available", "collected_at", "error", "source", "stores"])
+        self.assertRegex(result["collected_at"], r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+
+    def test_the_data_directory_defaults_to_docs_data_and_is_overridable(self) -> None:
+        self.assertEqual(common.data_dir({}), common.DEFAULT_DATA_DIR)
+        self.assertEqual(common.DEFAULT_DATA_DIR.parts[-2:], ("docs", "_data"))
+        self.assertEqual(common.data_dir({"OPENGWASDB_SITE_DATA": "/x/y"}), Path("/x/y"))
 
 
 if __name__ == "__main__":

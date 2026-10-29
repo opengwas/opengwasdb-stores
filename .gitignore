@@ -83,3 +83,6 @@ gnomad.genomes.*.vcf.bgz.tbi
 
 # The candidate emitter's staging area and per-id lock files (#248).
 stores/.staging/
+
+# The project site's collected data (#389): regenerate with `pixi run site-data`.
+docs/_data/

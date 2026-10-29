@@ -197,3 +197,56 @@ has `validated_at: null`, never a date borrowed from elsewhere, and a
 `n_associations` the record left `null` stays `null` (it is not
 `n_variants × n_analyses`). This collector does not run `bundle.check()`;
 `pixi run bundle-check` does.
+
+### Records (`records.json`)
+
+| Key | Content |
+|---|---|
+| `epics` | the valid epic records of `docs/_epics/*.yaml`, dates as ISO text |
+| `invalid` | each invalid file's name, and its errors (`validate_epic`'s, or `could not be read: ...`) |
+| `yardstick.results` | each valid `docs/_yardstick/*.json` as `{name, result}` |
+| `yardstick.invalid` | each invalid file's name and errors |
+
+An invalid file is reported by name and never stops the others. An absent or
+empty `docs/_epics/` or `docs/_yardstick/` is not an error. The yardstick's
+result schema and validator are #390's (`docs/spec/yardstick.md`): until it
+lands the collector checks only that a result is a JSON object, and the
+validator is passed to `records.collect` when it does.
+
+### The command's output and exit status
+
+One line per source, in this order, then the files are all written:
+
+```text
+board: 17 epics, 2 milestones, 16 milestone lines
+catalog: 3 versions, current 1b3a155d449bb84a
+releases: 0 releases, 1 tags
+stores: 22 stores
+records: 0 epics, 0 invalid, 0 yardstick results, 0 invalid
+```
+
+An unavailable source prints `<source>: unavailable: <error>`. The exit status
+is 0 when every source is available and 1 when any is not, so a publish that
+chains on `site-data` stops instead of rendering pages from a source it could
+not read.
+
+## Backfill
+
+The records under `docs/_epics/` are written from the orchestrate run states
+on the host (`~/.cache/orchestrate/*/state.json`,
+`/data/opengwasdb/work/epic*/orchestrate/*/state.json`), read-only. A run state
+holds no start or finish date, no PR merge date and no per-suite test time, so
+from a state:
+
+- `started` is the earliest `decisions[].when`; `finished` is the latest, for a
+  finished epic, and `null` while it is active;
+- `tickets` are the state's ticket entries, with `merge` the merge commit where
+  one is recorded and `null` where only a PR is named;
+- `decisions` are the state's `decisions[]`, each with its date and no link;
+- `test_time` is the state's `baseline` and `final`, with `suites: null`;
+- `yardstick` is `null` and `versions` is `[]`: the yardstick (#390) and the
+  versions (#386) do not exist yet.
+
+A run still in flight is not a record: its epic has no `finished` date to
+write and its state is still changing. The orchestrator writes the record when
+the epic finishes (opengwas/agent-skills#1).
