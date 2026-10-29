@@ -11,7 +11,6 @@ locally, and leaves the branch to inspect. Publishing without `--dry-run` is the
 owner's, so nothing here runs it by accident.
 
     pixi run site-publish --dry-run
-    pixi run site-publish --ref origin/dev --dry-run    # before the cutover
 
 Every directory a publish writes to is created by that run, under the work root,
 with a name no other run will choose; a publish never writes to a path that
