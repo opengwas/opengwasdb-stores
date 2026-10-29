@@ -175,3 +175,25 @@ and `.../releases`.
 A repository with no Release has `releases: []` and the file is still
 `available: true`. A tag is not a Release: until #386 each repository's
 Releases are empty, and `opengwasdb` has one tag, `v0.2.0`.
+
+### Stores (`stores.json`)
+
+Every registered Store Release of the registry of the checkout being rendered
+(`stores/`; `--registry` names another), never `/data`. A registered Store is
+a directory named `OGS-xxxxx`; `by-label/`, `README.md` and `.staging/` are
+not. Each bundle is read with `ogstores.bundle.load`, which never opens a Store.
+
+| Key | Content |
+|---|---|
+| `registry`, `stores` | the registry read; one row per Store, in id order |
+| `stores[]` | `store_id`, `label`, `status`, `trial`, `layout`, `completion_state`, `association_coverage`, `access_posture`, `derived_from`, `superseded_by` |
+| lifecycle | `created_at`, `accepted_at` (release.yaml), `validated_at`, `validation_status` (validation.yaml) |
+| `observed` | validation.yaml's `observed` mapping as written (`n_analyses`, `n_variants`, `n_associations`, `store_bytes`, ...), or `null` without a Validation Record |
+| `description`, `notes` | release.yaml's text as written. `notes` is where Release Errata live, and the catalog shows it |
+| `problems` | what the bundle could not state: a `trial` that is not a boolean, a coverage outside the vocabulary, a malformed YAML file. Empty when there is nothing |
+
+A fact the bundle does not hold is `null`: a Store with no Validation Record
+has `validated_at: null`, never a date borrowed from elsewhere, and a
+`n_associations` the record left `null` stays `null` (it is not
+`n_variants × n_analyses`). This collector does not run `bundle.check()`;
+`pixi run bundle-check` does.

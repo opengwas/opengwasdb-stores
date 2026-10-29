@@ -19,10 +19,12 @@ import os
 import sqlite3
 import tempfile
 import unittest
+
+import yaml
 from pathlib import Path
 
 from project_site import records
-from project_site.collect import board, catalog, common, releases
+from project_site.collect import board, catalog, common, releases, stores
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
@@ -411,6 +413,84 @@ class TestReleasesCollector(unittest.TestCase):
         self.assertTrue(result["available"])
         self.assertIsNone(result["error"])
         self.assertEqual([(r["tags"], r["releases"]) for r in result["repos"]], [([], []), ([], [])])
+
+
+def write_store_bundle(registry: Path, store_id: str, release: dict, build: dict, validation: dict | None) -> None:
+    root = registry / store_id
+    root.mkdir(parents=True)
+    (root / "release.yaml").write_text(yaml.safe_dump({"store_id": store_id, **release}))
+    (root / "build.yaml").write_text(yaml.safe_dump({"store_id": store_id, **build}))
+    (root / "analyses.tsv").write_text("analysis_id\nA1\n")
+    if validation is not None:
+        (root / "validation.yaml").write_text(yaml.safe_dump(validation))
+
+
+class TestStoresCollector(unittest.TestCase):
+    def setUp(self) -> None:
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.registry = Path(tmp.name) / "stores"
+        self.registry.mkdir()
+        write_store_bundle(
+            self.registry, "OGS-00001",
+            {"label": "eqtlgen-cis", "status": "built", "trial": True, "association_coverage": "cis",
+             "access_posture": "public", "derived_from": None, "created_at": "2026-09-15T10:00:00Z",
+             "description": "Trial eQTLGen.", "notes": "Built at 0.1.0."},
+            {"layout": "ragged", "completion_state": "observed_only"},
+            None,
+        )
+        write_store_bundle(
+            self.registry, "OGS-00009",
+            {"label": "ukb-b-full", "status": "validated", "association_coverage": "gwas",
+             "access_posture": "public", "derived_from": None, "created_at": "2026-10-21T22:20:44Z",
+             "accepted_at": "2026-10-21T22:23:58Z", "description": "Full UKB-B.",
+             "notes": "Release Erratum: n_associations is null."},
+            {"layout": "dense", "completion_state": "reference_completed"},
+            {"status": "passed", "validated_at": "2026-10-23T19:04:59Z",
+             "observed": {"n_analyses": 2514, "n_variants": 11191070, "n_associations": None, "store_bytes": None}},
+        )
+        # Not Store Releases: the by-label index, a README, and the emitter's staging area.
+        (self.registry / "by-label").mkdir()
+        (self.registry / ".staging").mkdir()
+        (self.registry / "README.md").write_text("x")
+
+    def test_each_registered_store_has_its_bundle_facts(self) -> None:
+        result = stores.collect(self.registry)
+        self.assertEqual([s["store_id"] for s in result["stores"]], ["OGS-00001", "OGS-00009"])
+        first, second = result["stores"]
+        self.assertEqual(first, {
+            "store_id": "OGS-00001", "label": "eqtlgen-cis", "status": "built", "trial": True,
+            "layout": "ragged", "completion_state": "observed_only", "association_coverage": "cis",
+            "access_posture": "public", "derived_from": None, "superseded_by": None,
+            "created_at": "2026-09-15T10:00:00Z", "accepted_at": None, "validated_at": None,
+            "validation_status": None, "observed": None,
+            "description": "Trial eQTLGen.", "notes": "Built at 0.1.0.", "problems": [],
+        })
+        self.assertEqual(second["trial"], False)
+        self.assertEqual(second["accepted_at"], "2026-10-21T22:23:58Z")
+        self.assertEqual(second["validated_at"], "2026-10-23T19:04:59Z")
+        self.assertEqual(second["validation_status"], "passed")
+        self.assertEqual(
+            second["observed"],
+            {"n_analyses": 2514, "n_variants": 11191070, "n_associations": None, "store_bytes": None},
+        )
+
+    def test_an_unreadable_fact_is_reported_on_its_store_and_stops_nothing(self) -> None:
+        write_store_bundle(
+            self.registry, "OGS-00002",
+            {"label": "x", "status": "built", "trial": "yes", "association_coverage": "nonsense"},
+            {"layout": "dense", "completion_state": "observed_only"}, None,
+        )
+        result = stores.collect(self.registry)
+        bad = next(s for s in result["stores"] if s["store_id"] == "OGS-00002")
+        self.assertIsNone(bad["trial"])
+        self.assertIsNone(bad["association_coverage"])
+        self.assertEqual(len(bad["problems"]), 2)
+        self.assertEqual(len(result["stores"]), 3)
+
+    def test_a_registry_that_is_not_a_directory_is_an_error(self) -> None:
+        with self.assertRaises(common.CollectError):
+            stores.collect(self.registry / "nowhere")
 
 
 if __name__ == "__main__":
