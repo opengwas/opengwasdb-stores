@@ -15,7 +15,7 @@ evidence itself was captured 2026-10-11), authority **dbGaP**, durable citation
 <https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6132878250>.
 dbGaP `phs002453` is the canonical source; the GWAS Catalog counterparts are
 retained as provenance. The decision is committed in
-[`resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml`](https://github.com/opengwas/opengwasdb-stores/blob/bd40aa9edd819a4ec8b6197dc51d1d8278858a93/resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml)
+[`resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml`](https://github.com/opengwas/opengwasdb-stores/blob/fa20d069e1de554ff4addf5c2057682fb94a9882/resources/generators/dbgap-mvp/dbgap-phs002453-key-discrepancies.yaml)
 (`owner_decisions`), and each resolved record carries its `owner_decision`.
 
 ## Resolved — the two missing accessions
