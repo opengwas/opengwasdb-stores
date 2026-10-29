@@ -1,0 +1,63 @@
+repo: opengwasdb-stores
+number: 241
+title: 'AMR LD panel: second-review follow-ups'
+status: finished
+workstream: null
+started: 2026-10-23
+finished: 2026-10-23
+summary: 'This run orchestrated the second-review follow-ups to the AMR LD panel pilot (#241): #354 hardened
+  the panel build''s resume and receipts, and #355 corrected the panel declarations and evidence wording.
+  It decided against a rebuild, because none of the review''s construction findings occurred in the AMR
+  build. Its PR #356 merged into the pilot''s branch, ticket/241-amr-ld-pilot, on 23 October, and the
+  pilot merged to dev as PR #349 on 24 October.'
+prs:
+- opengwasdb-stores#356
+- opengwasdb-stores#349
+versions: []
+tickets:
+- key: opengwasdb-stores#354
+  title: Harden the AMR panel build's resume and receipts
+  pr: null
+  merge: 0c2f1e2
+- key: opengwasdb-stores#355
+  title: Correct the AMR panel declarations and evidence wording
+  pr: null
+  merge: 2d260a4
+- key: null
+  title: Final-review fixes
+  pr: null
+  merge: 171a90d
+decisions:
+- date: 2026-10-23
+  text: 'Reject the review''s candidates.yaml edit and revert the config-candidate.yaml edit: both are
+    the retired #221 generator''s historical plan'
+  link: null
+- date: 2026-10-23
+  text: 'No rebuild: none of the second review''s construction findings occurred in the AMR build (0 zero-variance,
+    unnameable or duplicate records; no failed block)'
+  link: null
+- date: 2026-10-23
+  text: not_verified blocks stay in blocks_failing_verification; an old calibration's mismatch count is
+    null, not 0
+  link: null
+- date: 2026-10-23
+  text: 'Rejected: sharing the FILTER join with the historical pilot runner; and unrelated suite slow-downs
+    (host load, OGS-00017 concurrent; total +8%)'
+  link: null
+test_time:
+  baseline:
+    commit: 84946f3
+    wall_s: 76
+    suites:
+      ld-panel-generation: 4.7
+  final:
+    commit: 171a90d
+    wall_s: 88
+    suites: null
+yardstick:
+  before: null
+  after: null
+catalog:
+  before: null
+  after: null
+followups: []

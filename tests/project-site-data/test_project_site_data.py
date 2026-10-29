@@ -23,6 +23,7 @@ import unittest
 import yaml
 from pathlib import Path
 
+from ogstores import paths
 from project_site import records
 from project_site.collect import __main__ as site_data
 from project_site.collect import board, catalog, common, releases, stores
@@ -163,6 +164,34 @@ class TestEpicRecordValidator(unittest.TestCase):
         before = copy.deepcopy(record)
         records.validate_epic(record)
         self.assertEqual(record, before)
+
+
+class TestCommittedEpicRecords(unittest.TestCase):
+    """The records backfilled from the orchestrate run states (docs/spec/project-site.md, Backfill)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.valid, cls.invalid = records.load_epics(paths.REPO_ROOT / "docs" / "_epics")
+        cls.by_number = {r["number"]: r for r in cls.valid}
+
+    def test_every_committed_record_is_valid(self) -> None:
+        self.assertEqual(self.invalid, {})
+
+    def test_the_backfilled_epics_are_present(self) -> None:
+        self.assertEqual(sorted(self.by_number), [241, 282, 302, 313])
+        self.assertEqual({n: r["status"] for n, r in self.by_number.items()},
+                         {241: "finished", 282: "finished", 302: "finished", 313: "active"})
+
+    def test_313_is_active_because_ogs_00011_remains(self) -> None:
+        record = self.by_number[313]
+        self.assertEqual(record["finished"], None)
+        self.assertEqual(record["started"], datetime.date(2026, 10, 21))
+        self.assertEqual(record["catalog"], {"before": None, "after": "1b3a155d449bb84a"})
+        self.assertEqual(record["test_time"]["final"]["commit"], "a84ecfb")
+        self.assertIn("OGS-00011", record["summary"])
+        tickets = {t["key"]: t for t in record["tickets"] if t["key"]}
+        self.assertEqual(tickets["opengwasdb-stores#319"]["merge"], "7832deb")
+        self.assertIsNone(tickets["opengwasdb-stores#359"]["merge"])
 
 
 class TestBoardCollector(unittest.TestCase):

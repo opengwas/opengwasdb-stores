@@ -245,8 +245,30 @@ from a state:
 - `decisions` are the state's `decisions[]`, each with its date and no link;
 - `test_time` is the state's `baseline` and `final`, with `suites: null`;
 - `yardstick` is `null` and `versions` is `[]`: the yardstick (#390) and the
-  versions (#386) do not exist yet.
+  versions (#386) do not exist yet;
+- a ticket's `key` is its issue number under the run's repository, or the
+  sibling repository's when the entry is named for it (`opengwasdb#298`), and
+  `null` for work with no issue of its own (a split part, an operation, a
+  review pass). Its `pr` is the PR the entry names, and its `merge` is the
+  commit it records, `null` where the entry records none or only a pin;
+- a run in stages (#282) has an archive per stage beside its `state.json`
+  (`state-stage1.json`, `state-stage2.json`): `tickets`, `decisions` and `prs`
+  cover all of them, a ticket a later stage finished replaces its earlier entry,
+  and `test_time` is the last stage's, whose baseline and final are measured on
+  the same test runner;
+- `catalog` is null where the run state does not name the versions.
+
+The backfilled records are #313 (active, because OGS-00011 is not validated),
+#282, #302 and #241. #241's run was based on a ticket branch
+(`ticket/241-amr-ld-pilot`), so its PR #356 merged there and the pilot reached
+`dev` as PR #349; its `title` is the run's, not the issue's.
 
 A run still in flight is not a record: its epic has no `finished` date to
 write and its state is still changing. The orchestrator writes the record when
 the epic finishes (opengwas/agent-skills#1).
+
+One title names the two retired bundle directories, which
+`tests/migration/test_families_retired.py` refuses in any tracked file outside
+its historical fields. The recorded board response and #282's record give
+#252's title as "Retire the two old bundle directories" for that reason;
+nothing else in the fixture is edited.

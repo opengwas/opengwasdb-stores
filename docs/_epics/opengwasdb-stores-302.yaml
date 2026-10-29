@@ -1,0 +1,190 @@
+repo: opengwasdb-stores
+number: 302
+title: Single-id reference completion (ADR 0037)
+status: finished
+workstream: Build architecture
+started: 2026-10-21
+finished: 2026-10-21
+summary: 'Epic #302 made reference completion replace its Store under the same id (ADR 0037), so one Store
+  Release is built Observed-Only and then completed in place instead of becoming two ids. It added single-id
+  Dense completion in one run, completion of an already-published Observed-Only Store later, an observed-view
+  check that gates the swap, and deletion of the replaced Store at the swap. The master list reports the
+  Store actually published, and Manifest Generation emits single-id completed bundles. It merged as PR
+  #311 on 21 October.'
+prs:
+- opengwasdb#291
+- opengwasdb-stores#311
+versions: []
+tickets:
+- key: opengwasdb-stores#303
+  title: Fixture LD panel + end-to-end two-id completion test
+  pr: null
+  merge: d4f620f
+- key: opengwasdb#289
+  title: opengwasdb#289 check-observed-view (sibling repo)
+  pr: opengwasdb#291
+  merge: d405de0
+- key: opengwasdb-stores#304
+  title: Single-id Dense completion in one run (tracer bullet)
+  pr: null
+  merge: 1ad7685
+- key: opengwasdb-stores#305
+  title: Complete an already-published Observed-Only Store later
+  pr: null
+  merge: 3a42c33
+- key: opengwasdb-stores#306
+  title: Observed-view check gates the swap
+  pr: null
+  merge: 024202b
+- key: opengwasdb-stores#307
+  title: Master list reports the Store actually published
+  pr: null
+  merge: aaffca6
+- key: opengwasdb-stores#308
+  title: Manifest Generation emits single-id completed bundles
+  pr: null
+  merge: 76294e9
+- key: opengwasdb-stores#309
+  title: Delete the replaced Observed-Only Store at the swap
+  pr: null
+  merge: 119bf39
+- key: null
+  title: 'Test-cost pass: share single-id snapshots across completion tests'
+  pr: null
+  merge: null
+- key: null
+  title: Final-review fixes (fail-closed provenance and exclusions, docs, one decoder, execute_step extraction)
+  pr: null
+  merge: 1f1d2fa
+decisions:
+- date: 2026-10-21
+  text: check-observed-view exits 0 pass / 1 mismatch (verdict written) / 2 refused (no verdict); --seed
+    required; exact ALID map (no |S32-only mapping); band height derived from the child; chrom-edge stratum
+    = every contig; no source_release_id provenance check (YAGNI)
+  link: null
+- date: 2026-10-21
+  text: No --store-id on complete (pinned complete-dense lacks it; manifest inherits store_id = id); role-aware
+    staging rewrite (destination only); build phase byte-identical incl. records/register.json and Snakefile
+    rule bodies; archive stamp unique per replacement, snapshot-free
+  link: null
+- date: 2026-10-21
+  text: 'Inserted-row gap closed: child axis partitioned into chunk-row spans so a whole-grid sample sees
+    every child row; benchmark re-recorded with every parent-cell count equal to the prototype''s and
+    span-count differences explained (correctness over exact reproduction of the prototype''s blind spot)'
+  link: null
+- date: 2026-10-21
+  text: Completion preservation asserted exactly (child observed == parent decoded, by ALID); one lazily
+    built template per fixture shape; complete_publication skips identical rewrites (copied-root rerun
+    = 0 jobs)
+  link: null
+- date: 2026-10-21
+  text: 'Generator mints no completed ids (OGS-00018-21 retired unused); qualified reference -> one single-id
+    bundle; pending reference -> observed bundle unchanged + completion plan keyed to observed id (completion
+    later via the #305 amendment)'
+  link: null
+- date: 2026-10-21
+  text: Base-code pins are generated once and committed as goldens, never run via git archive at test
+    time (CI checkouts are depth 1)
+  link: null
+- date: 2026-10-21
+  text: 'check_argv_drift made role-aware in #304 (reproduced pass on a wrongly staged published-Store
+    arg); build_elapsed_s sums both phases (documented meaning kept); interrupted-completion resume stays
+    #305''s, and #304''s docs don''t claim it'
+  link: null
+- date: 2026-10-21
+  text: 'Check step completion-observed-view-check with fixed seed 20261021, --n-random 1000; verdict
+    in the step record (stdout); develop on #291''s head 023774a, re-pin to the opengwasdb dev merge commit
+    before merging'
+  link: null
+- date: 2026-10-21
+  text: Published Observed-Only Store is read from records (build register present, completion register
+    absent), never the Store; interrupted complete resumes via complete-dense-resume with a build_params
+    drift check; pre-#304 test runs ff204b6's workflow (reachable from dev forever), CI fetch-depth 0
+    allowed
+  link: null
+- date: 2026-10-21
+  text: 'A single-id bundle whose published Validation Record lacks observed.completion_state reports
+    observed_only (completion pending): no register reaching dev ever wrote a field-less record for a
+    completed single-id Store; two-id/observed-only rows keep the declared fallback'
+  link: null
+- date: 2026-10-21
+  text: A failed check's verdict stays in <id>/work/ and the error names it (Snakemake deletes failed
+    outputs; fixed seed makes it reproducible); the passing record is the swap evidence. The dedicated
+    capability guard is kept so a single-id plan is refused before the build phase starts
+  link: null
+- date: 2026-10-21
+  text: 'Merged with the temporary pin 023774a (#291 head) so #309 can start; re-pin to the opengwasdb
+    dev merge commit is a tracked item before PR #311 goes ready'
+  link: null
+- date: 2026-10-21
+  text: Amendment check scoped to releases that complete their own Store with a published build phase
+    (observed-only/two-id unchanged); baseline = recorded argv of Store-producing build steps (variant-reference,
+    build) + membership; post steps (validate, top-hits, rho, overview, IVS) are in-place additions and
+    don't count. ADR 0037 clarification note to follow
+  link: null
+- date: 2026-10-21
+  text: Resume compatibility via a stores-side sidecar of the planned argv written before complete-dense
+    starts (no mirrored opengwasdb option schema, ADR 0023); checkpoint discarded only under force; release.yaml
+    prose out of the amendment check (enforced by review, as for every bundle); historical-test PYTHONPATH
+    gets a narrow CONTRIBUTING exception
+  link: null
+- date: 2026-10-21
+  text: '''A boundary without a case fails'' is enforced by the register suite (iterates every publication
+    boundary); release-faults keeps one deletion smoke case; malformed force provenance is refused, never
+    treated as unforced; the fresh build in the release-faults case is converted to a template copy in
+    the test-cost pass after #305'
+  link: null
+- date: 2026-10-21
+  text: 'A register record without replaced_archive (every production Store predates #195) means unforced;
+    only a present field of the wrong type is refused. Found by checking OGS-00001/04/09/11 records'
+  link: null
+- date: 2026-10-21
+  text: Direct-Snakemake no-op runs don't re-check amendments (onstart never runs; nothing is written);
+    documented scope limit. The entry point always checks
+  link: null
+- date: 2026-10-21
+  text: 'Pin stays 023774a (head of #291, an ancestor of opengwasdb dev via merge d405de0) rather than
+    d405de0, because d405de0 also brings #288''s strand-aware lift, which epic #282 holds until #222 lands;
+    pin comments updated to say so'
+  link: null
+- date: 2026-10-21
+  text: 'Final review: fix both fail-open paths (malformed register.json; missing exclusion sidecar),
+    two stale docs, share the verdict decoder, bounded extraction from execute_step; #304/#305/#306/#309
+    reopened until the fix merges'
+  link: null
+test_time:
+  baseline:
+    commit: 29f344f
+    wall_s: 549.7
+    suites:
+      workflow: 141.4
+      release-faults/boundaries: 183.2
+      release-faults/interrupts: 115.3
+      phase-b-candidate: 88.7
+      plan: 4.2
+      register: 3.1
+      run: 4.5
+      index: null
+  final:
+    commit: 1f1d2fa
+    wall_s: 777.4
+    suites:
+      workflow: 321.1
+      release-faults/boundaries: 195.2
+      release-faults/interrupts: 161.4
+yardstick:
+  before: null
+  after: null
+catalog:
+  before: null
+  after: null
+followups:
+- key: opengwasdb#290
+  text: opengwas/opengwasdb#290 build-dense-vcf ignores bcftools exit status (empty Store from a VCF without
+    FORMAT/EZ)
+- key: opengwasdb-stores#316
+  text: opengwas/opengwasdb-stores#316 interrupted store-producing step leaves .store.opengwasdb.partial.tmp.*
+    behind
+- key: opengwasdb-stores#318
+  text: opengwas/opengwasdb-stores#318 entry point did not exit after SIGTERM to every process mid completion
+    post step (once, under load)
