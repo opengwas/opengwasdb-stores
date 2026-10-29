@@ -468,6 +468,333 @@ def _as_of_section(documents: Mapping[str, Document | None]) -> list[str]:
     return lines
 
 
+# ---------------------------------------------------------------------------
+# The epic pages
+# ---------------------------------------------------------------------------
+
+
+def epic_record(documents: Mapping[str, Document | None], key: str) -> Document | None:
+    """The epic's committed record, or `None`: only a finished epic has one."""
+    records = available(documents, "records") or {}
+    for record in records.get("epics") or []:
+        if not isinstance(record, Mapping):
+            continue
+        if f"{record.get('repo')}#{record.get('number')}" == key:
+            return record
+    return None
+
+
+def render_epic_page(documents: Mapping[str, Document | None], epic: Mapping[str, Any]) -> str:
+    """One epic: what it is for, where it stands, its tickets and their graph, and what it changed."""
+    key = str(epic.get("key") or "?")
+    title = str(epic.get("title") or key)
+    record = epic_record(documents, key)
+    lines = ["---", f"title: {json.dumps(title)}", "---", "", GENERATED, ""]
+    lines += notices(documents, ("records", "catalog", "releases", "board"))
+    lines += _purpose_section(record, key)
+    lines += _board_facts_section(epic)
+    lines += _tickets_section(documents, epic, record)
+    lines += _decisions_section(record)
+    lines += _versions_section_shipped(documents, record)
+    lines += _before_and_after_section(documents, record)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _purpose_section(record: Document | None, key: str) -> list[str]:
+    lines = ["## Purpose", ""]
+    if record is None:
+        return lines + [
+            f"No epic record exists for `{key}` yet: it is committed when the epic finishes"
+            " (`docs/spec/project-site.md`), so this page shows only what the board states.",
+            "",
+        ]
+    return lines + [_cell(record.get("summary")), ""]
+
+
+def _board_facts_section(epic: Mapping[str, Any]) -> list[str]:
+    sub_issues = epic.get("sub_issues") or {}
+    rows = [
+        ("Issue", _link(f"{epic.get('key')} on GitHub", epic.get("url"))),
+        ("State", _cell(epic.get("state"))),
+        ("Status", _cell(epic.get("status"))),
+        ("Workstream", _cell(epic.get("workstream"))),
+        ("Priority", _cell(epic.get("priority"))),
+        ("Sub-issues", f"{_figure(sub_issues.get('completed'))} of {_figure(sub_issues.get('total'))} completed"),
+        ("Next", _cell(epic.get("next"))),
+    ]
+    lines = ["## Where it stands", "", "| Field | Value |", "| --- | --- |"]
+    lines += [f"| {name} | {value} |" for name, value in rows]
+    lines.append("")
+    return lines
+
+
+def _tickets_section(
+    documents: Mapping[str, Document | None], epic: Mapping[str, Any], record: Document | None
+) -> list[str]:
+    children = epic.get("children") or []
+    lines = ["## Tickets", ""]
+    if not children:
+        return lines + ["The board lists no sub-issue for this epic.", ""]
+    merges = {
+        str(ticket.get("key")): ticket.get("merge")
+        for ticket in (record or {}).get("tickets") or []
+        if isinstance(ticket, Mapping) and ticket.get("key")
+    }
+    lines += [epic_graph(epic), ""]
+    lines += ["| Ticket | State | Merge commit |", "| --- | --- | --- |"]
+    for ticket in children:
+        key = str(ticket.get("key") or "?")
+        lines.append(
+            f"| {_link(ticket.get('title') or key, ticket.get('url'))} (`{key}`)"
+            f" | {_cell(ticket.get('state'))} | {_cell(merges.get(key))} |"
+        )
+    lines.append("")
+    return lines
+
+
+def epic_graph(epic: Mapping[str, Any]) -> str:
+    """A Mermaid flowchart of the epic's sub-issues: a node each, styled by state, and blocked-by arrows."""
+    children = epic.get("children") or []
+    ids: dict[str, str] = {str(ticket.get("key")): f"n{index}" for index, ticket in enumerate(children)}
+    nodes: list[str] = []
+    for index, ticket in enumerate(children):
+        nodes.append(f'  n{index}["{_graph_label(ticket)}"]:::{_state_class(ticket.get("state"))}')
+    edges: list[str] = []
+    external = 0
+    for index, ticket in enumerate(children):
+        for blocker in ticket.get("blocked_by") or []:
+            blocker_key = str(blocker.get("key") or "?")
+            if blocker_key not in ids:
+                external += 1
+                ids[blocker_key] = f"x{external}"
+                nodes.append(
+                    f'  x{external}["{_graph_label({"key": blocker_key})}"]:::{_state_class(blocker.get("state"))}'
+                )
+            edge = f"  {ids[blocker_key]} --> n{index}"
+            if edge not in edges:
+                edges.append(edge)
+    lines = [
+        "```{mermaid}",
+        "flowchart LR",
+        "  classDef open fill:#fff8e1,stroke:#8d6e00,color:#000",
+        "  classDef closed fill:#e6f4ea,stroke:#2e6b2e,color:#000",
+        *nodes,
+        *edges,
+        "```",
+    ]
+    return "\n".join(lines)
+
+
+def _state_class(state: Any) -> str:
+    return "closed" if str(state or "").upper() == "CLOSED" else "open"
+
+
+def _graph_label(ticket: Mapping[str, Any]) -> str:
+    """A Mermaid node label: the key and title, with the characters Mermaid reads escaped."""
+    key = str(ticket.get("key") or "?")
+    title = " ".join(str(ticket.get("title") or "").split())
+    text = f"{key} — {title}" if title else key
+    escapes = {'"': "#quot;", "#": "#35;", "<": "#60;", ">": "#62;"}
+    return "".join(escapes.get(character, character) for character in text)
+
+
+def _decisions_section(record: Document | None) -> list[str]:
+    lines = ["## Decisions", ""]
+    decisions = [decision for decision in (record or {}).get("decisions") or [] if isinstance(decision, Mapping)]
+    if record is None:
+        return lines + ["No epic record exists yet, so its decisions are not on this page.", ""]
+    if not decisions:
+        return lines + ["The record holds no decision.", ""]
+    for decision in decisions:
+        text = _cell(decision.get("text"))
+        if decision.get("link"):
+            text += f" ([the decision]({decision.get('link')}))"
+        lines.append(f"- **{_cell(decision.get('date'))}** — {text}")
+    lines.append("")
+    return lines
+
+
+def _versions_section_shipped(documents: Mapping[str, Document | None], record: Document | None) -> list[str]:
+    lines = ["## Versions shipped", ""]
+    if record is None:
+        return lines + ["No epic record exists yet, so no version is attributed to this epic.", ""]
+    versions = [str(version) for version in record.get("versions") or []]
+    if not versions:
+        return lines + [
+            "No version has shipped from this epic yet: a record's `versions` fills once each"
+            " repository tags every merge to `main` (#386).",
+            "",
+        ]
+    releases = available(documents, "releases")
+    if releases is None:
+        lines += ["| Version | Release |", "| --- | --- |"]
+        lines += [f"| `{version}` | _Releases data unavailable, so its notes cannot be matched_ |" for version in versions]
+        lines.append("")
+        return lines
+    lines += ["| Version | Release notes | Published |", "| --- | --- | --- |"]
+    for version in versions:
+        release = find_release(releases, version)
+        if release is None:
+            lines.append(f"| `{version}` | _no Release carries this tag_ | _not reported_ |")
+            continue
+        lines.append(
+            f"| `{version}` | {_link(release.get('name') or release.get('tag'), release.get('url'))}"
+            f" | {_cell(release.get('published_at'))} |"
+        )
+    lines.append("")
+    return lines
+
+
+def find_release(releases: Document, tag: str) -> Mapping[str, Any] | None:
+    """The Release a tag names, if one exists: a tag is not a Release."""
+    for repo in releases.get("repos") or []:
+        for release in repo.get("releases") or []:
+            if isinstance(release, Mapping) and release.get("tag") == tag:
+                return release
+    return None
+
+
+def _before_and_after_section(documents: Mapping[str, Document | None], record: Document | None) -> list[str]:
+    lines = ["## Before and after", ""]
+    if record is None:
+        return lines + [
+            "No epic record exists yet, so there is no measured before and after to compare.",
+            "",
+        ]
+    rows: list[tuple[str, str, str]] = [
+        ("Catalog Analyses", _catalog_cell(documents, record, "before"), _catalog_cell(documents, record, "after")),
+        (
+            "Catalog Stores",
+            _catalog_stores_cell(documents, record, "before"),
+            _catalog_stores_cell(documents, record, "after"),
+        ),
+        *_test_time_rows(record),
+        *_yardstick_rows(documents, record),
+    ]
+    lines += ["| What | Before | After |", "| --- | --- | --- |"]
+    lines += [f"| {name} | {before} | {after} |" for name, before, after in rows]
+    lines.append("")
+    return lines
+
+
+def _catalog_cell(documents: Mapping[str, Document | None], record: Document, side: str) -> str:
+    version = (record.get("catalog") or {}).get(side)
+    if version is None:
+        return _cell(None)
+    found = _catalog_version(documents, str(version))
+    if found is None:
+        return f"`{version}` (not in the collected versions)"
+    return f"{_figure((found.get('totals') or {}).get('analyses'))} (`{version}`)"
+
+
+def _catalog_stores_cell(documents: Mapping[str, Document | None], record: Document, side: str) -> str:
+    version = (record.get("catalog") or {}).get(side)
+    if version is None:
+        return _cell(None)
+    found = _catalog_version(documents, str(version))
+    if found is None:
+        return f"_not collected_ (`{version}`)"
+    return _figure((found.get("totals") or {}).get("stores"))
+
+
+def _catalog_version(documents: Mapping[str, Document | None], version: str) -> Mapping[str, Any] | None:
+    catalog = available(documents, "catalog") or {}
+    for candidate in catalog.get("versions") or []:
+        if isinstance(candidate, Mapping) and candidate.get("version") == version:
+            return candidate
+    return None
+
+
+def _test_time_rows(record: Document) -> list[tuple[str, str, str]]:
+    test_time = record.get("test_time") or {}
+    baseline = test_time.get("baseline") or {}
+    final = test_time.get("final") or {}
+    if not baseline and not final:
+        return [("Test time (wall)", _cell(None), _cell(None))]
+    before_seconds, after_seconds = baseline.get("wall_s"), final.get("wall_s")
+    rows = [(
+        "Test time (wall)",
+        _seconds_cell(before_seconds, baseline.get("commit")),
+        _seconds_cell(after_seconds, final.get("commit")) + _change(before_seconds, after_seconds),
+    )]
+    suites = {**(baseline.get("suites") or {}), **(final.get("suites") or {})}
+    for name in suites:
+        rows.append((
+            f"Test suite `{name}`",
+            _seconds_cell((baseline.get("suites") or {}).get(name), None),
+            _seconds_cell((final.get("suites") or {}).get(name), None)
+            + _change((baseline.get("suites") or {}).get(name), (final.get("suites") or {}).get(name)),
+        ))
+    return rows
+
+
+def _seconds_cell(seconds: Any, commit: Any) -> str:
+    if seconds is None:
+        return _cell(None)
+    cell = f"{_figure(seconds)} s"
+    if commit:
+        cell += f" at `{commit}`"
+    return cell
+
+
+def _change(before: Any, after: Any) -> str:
+    """The change from `before` to `after`, as a share of the baseline: both fields, no guess."""
+    if not isinstance(before, (int, float)) or not isinstance(after, (int, float)) or not before:
+        return ""
+    return f" ({100 * (after - before) / before:+.1f}% on the baseline)"
+
+
+def _yardstick_rows(documents: Mapping[str, Document | None], record: Document) -> list[tuple[str, str, str]]:
+    reference = record.get("yardstick") or {}
+    before = _yardstick_result(documents, reference.get("before"))
+    after = _yardstick_result(documents, reference.get("after"))
+    if before is None and after is None:
+        return [("Yardstick", _cell(None), _cell(None))]
+    rows: list[tuple[str, str, str]] = []
+    for store_id, measure in _figure_places(before) + _figure_places(after):
+        label = f"Yardstick `{measure}` on {store_id}"
+        if any(label == name for name, _before, _after in rows):
+            continue
+        rows.append((
+            label,
+            measure_value(_measure_of(before, store_id, measure)),
+            measure_value(_measure_of(after, store_id, measure)),
+        ))
+    return rows
+
+
+def _yardstick_result(documents: Mapping[str, Document | None], path: Any) -> Mapping[str, Any] | None:
+    """The result a record's `docs/_yardstick/<name>.json` reference names, if it was collected."""
+    if not path:
+        return None
+    name = str(path).rsplit("/", 1)[-1]
+    for entry in yardstick_results(documents):
+        if entry.get("name") == name:
+            return entry["result"]
+    return None
+
+
+def _figure_places(result: Mapping[str, Any] | None) -> list[tuple[str, str]]:
+    if result is None:
+        return []
+    places = []
+    for store in measured_stores(result):
+        store_id = str(store.get("store_id") or "?")
+        for measure in (*TIMED_MEASURES, "bytes_on_disk", "peak_rss"):
+            if measures_of(store).get(measure) is not None:
+                places.append((store_id, measure))
+    return places
+
+
+def _measure_of(result: Mapping[str, Any] | None, store_id: str, measure: str) -> Mapping[str, Any] | None:
+    if result is None:
+        return None
+    for store in measured_stores(result):
+        if str(store.get("store_id") or "") == store_id:
+            return measures_of(store).get(measure)
+    return None
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--docs", type=Path, default=Path("."),

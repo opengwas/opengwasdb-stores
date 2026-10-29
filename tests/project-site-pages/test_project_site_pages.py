@@ -64,6 +64,42 @@ def milestone(key: str, title: str, checked: int, total: int) -> dict:
     }
 
 
+def child(key: str, title: str, *, state: str = "OPEN", blocked_by: list | None = None) -> dict:
+    """One of an epic's sub-issues, with the blocked-by edges the board reports for it."""
+    repo, number = key.split("#")
+    return {
+        "key": key,
+        "title": title,
+        "url": f"https://github.com/opengwas/{repo}/issues/{number}",
+        "state": state,
+        "blocked_by": blocked_by or [],
+    }
+
+
+def epic_record(key: str, *, title: str, catalog: dict, test_time: dict,
+                tickets: list | None = None, versions: list | None = None) -> dict:
+    """An epic record, in the shape `docs/spec/project-site.md` documents."""
+    repo, number = key.split("#")
+    return {
+        "repo": repo,
+        "number": int(number),
+        "title": title,
+        "status": "active",
+        "workstream": "Engineering",
+        "started": "2026-10-21",
+        "finished": None,
+        "summary": "One sentence about the epic. A second sentence about what it changed.",
+        "prs": [],
+        "versions": versions or [],
+        "tickets": tickets or [],
+        "decisions": [],
+        "test_time": test_time,
+        "yardstick": {"before": None, "after": None},
+        "catalog": catalog,
+        "followups": [],
+    }
+
+
 def catalog_version(version: str, *, built_at: str, analyses: int, stores: int,
                     current: bool = False, counts: list | None = None, changes: dict | None = None) -> dict:
     """One Analysis Catalog version, as the catalog collector writes it."""
@@ -96,6 +132,92 @@ def documents(**overrides) -> dict:
     }
     everything.update(overrides)
     return everything
+
+
+class TestEpicPage(unittest.TestCase):
+    """One page per epic: its tickets as a graph, and what it changed where a record exists."""
+
+    def setUp(self) -> None:
+        site_epic = epic(
+            "opengwasdb-stores#385",
+            "Epic: The project site",
+            status="Active",
+            workstream="Engineering",
+            next_line="4 of 8 merged",
+            children=[
+                child("opengwasdb-stores#388", "One Quarto site", state="CLOSED"),
+                child("opengwasdb-stores#391", "The site's pages", state="OPEN",
+                      blocked_by=[{"key": "opengwasdb-stores#388", "state": "CLOSED"}]),
+            ],
+        )
+        self.documents = documents(
+            board=envelope("board", project="opengwas/1", epics=[site_epic], milestones=[], items=[]),
+            catalog=envelope(
+                "catalog",
+                root="/data/opengwasdb/stores/catalog/versions",
+                current="bbbbbbbbbbbbbbbb",
+                versions=[
+                    catalog_version("aaaaaaaaaaaaaaaa", built_at="2026-10-23T18:25:29Z", analyses=19250, stores=1),
+                    catalog_version("bbbbbbbbbbbbbbbb", built_at="2026-10-28T22:57:35Z",
+                                    analyses=31940, stores=9, current=True),
+                ],
+            ),
+            records=envelope(
+                "records",
+                epics=[
+                    epic_record(
+                        "opengwasdb-stores#385",
+                        title="Epic: The project site",
+                        catalog={"before": "aaaaaaaaaaaaaaaa", "after": "bbbbbbbbbbbbbbbb"},
+                        test_time={
+                            "baseline": {"commit": "e6e829d", "wall_s": 158.4, "suites": None},
+                            "final": {"commit": "a84ecfb", "wall_s": 162.05, "suites": None},
+                        },
+                        tickets=[{"key": "opengwasdb-stores#388", "title": "One Quarto site",
+                                  "pr": "opengwasdb-stores#390", "merge": "7832deb"}],
+                        versions=["v0.3.0"],
+                    )
+                ],
+                invalid={},
+                yardstick={"results": [], "invalid": {}},
+            ),
+            releases=envelope("releases", repos=[
+                {"repo": "opengwasdb", "tags": [], "releases": []},
+                {"repo": "opengwasdb-stores", "tags": [{"name": "v0.3.0", "commit": "0" * 40}],
+                 "releases": [{"tag": "v0.3.0", "name": "0.3.0 — the project site",
+                                "published_at": "2026-10-30T09:00:00Z", "draft": False,
+                                "prerelease": False, "url": "https://github.com/opengwas/opengwasdb-stores/releases/tag/v0.3.0"}]},
+            ]),
+        )
+        self.page = pages.render_epic_page(self.documents, site_epic)
+
+    def test_the_ticket_graph_has_a_node_per_sub_issue_styled_by_state(self) -> None:
+        self.assertIn('n0["opengwasdb-stores#35;388 — One Quarto site"]:::closed', self.page)
+        self.assertIn('n1["opengwasdb-stores#35;391 — The site\'s pages"]:::open', self.page)
+        self.assertIn("classDef closed", self.page)
+
+    def test_a_blocked_by_edge_is_an_arrow_from_the_blocker_to_the_blocked(self) -> None:
+        self.assertIn("n0 --> n1", self.page)
+
+    def test_the_record_adds_the_catalog_and_the_test_time_before_and_after(self) -> None:
+        self.assertIn("| Catalog Analyses | 19,250 (`aaaaaaaaaaaaaaaa`) | 31,940 (`bbbbbbbbbbbbbbbb`) |", self.page)
+        self.assertIn("| Catalog Stores | 1 | 9 |", self.page)
+        self.assertIn("158.4 s at `e6e829d`", self.page)
+        self.assertIn("162.05 s at `a84ecfb`", self.page)
+
+    def test_a_version_the_record_names_is_shown_with_its_release_notes(self) -> None:
+        self.assertIn("v0.3.0", self.page)
+        self.assertIn("0.3.0 — the project site", self.page)
+        self.assertIn("2026-10-30T09:00:00Z", self.page)
+
+    def test_an_epic_without_a_record_shows_only_the_board_facts(self) -> None:
+        bare = epic("opengwasdb-stores#214", "Epic: Indexed variant subsets", status="Todo",
+                    workstream="Build architecture", children=[])
+        documents_ = documents(board=envelope("board", project="opengwas/1", epics=[bare], milestones=[], items=[]))
+        page = pages.render_epic_page(documents_, bare)
+        self.assertIn("No epic record", page)
+        self.assertIn("Build architecture", page)
+        self.assertNotIn("Catalog Analyses", page)
 
 
 class TestOverview(unittest.TestCase):
