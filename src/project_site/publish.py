@@ -256,3 +256,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print("scratch      left in place; see the messages above")
         return 1
     return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
