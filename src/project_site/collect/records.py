@@ -22,11 +22,18 @@ Validator = Callable[[dict[str, Any]], list[str]]
 
 
 def yardstick_errors(document: dict[str, Any]) -> list[str]:
-    """`yardstick.result.validate`, as a list of errors."""
+    """`yardstick.result.validate`, as a list of errors: any failure, by the file that caused it.
+
+    A refusal is the validator's own message; anything else it raises is that
+    file's error too, named by its exception type. One unreadable result is a
+    refused file, never an unavailable Records source (#389 review, item 1).
+    """
     try:
         yardstick_result.validate(document)
     except yardstick_result.ResultError as exc:
         return [str(exc)]
+    except Exception as exc:  # noqa: BLE001 - one file never makes the source unavailable
+        return [f"{type(exc).__name__}: {exc}"]
     return []
 
 
@@ -49,6 +56,14 @@ def _json_ready(value: Any) -> Any:
     return value
 
 
+def _validated(validator: Validator, document: dict[str, Any]) -> list[str]:
+    """One file's errors: a validator that raises is that file's error, never the source's."""
+    try:
+        return list(validator(document))
+    except Exception as exc:  # noqa: BLE001 - one file never makes the source unavailable
+        return [f"{type(exc).__name__}: {exc}"]
+
+
 def _yardstick(directory: Path, validator: Validator | None) -> dict[str, Any]:
     results: list[dict[str, Any]] = []
     invalid: dict[str, list[str]] = {}
@@ -61,7 +76,7 @@ def _yardstick(directory: Path, validator: Validator | None) -> dict[str, Any]:
         if not isinstance(document, dict):
             errors = ["a result must be a JSON object"]
         else:
-            errors = (validator or yardstick_errors)(document)
+            errors = _validated(validator or yardstick_errors, document)
         if errors:
             invalid[path.name] = errors
         else:

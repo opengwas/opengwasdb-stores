@@ -829,6 +829,42 @@ class TestRecordsCollectorUsesTheYardstickValidator(unittest.TestCase):
         self.assertEqual(result["invalid"]["wrong-schema.json"], ["result schema must be 1, got 2"])
         self.assertEqual(result["invalid"]["negative.json"], ["duration_s must not be negative, got -1"])
 
+    def test_one_malformed_result_is_that_files_error_and_never_the_sources(self) -> None:
+        """A shape the validator cannot read is refused by file name; the others are still read (#389)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            epics, yardstick = Path(tmp) / "_epics", Path(tmp) / "_yardstick"
+            epics.mkdir()
+            yardstick.mkdir()
+            (yardstick / "good.json").write_text(json.dumps(minimal_yardstick_result()))
+            null_store = minimal_yardstick_result()
+            null_store["stores"] = [None]
+            (yardstick / "null-store.json").write_text(json.dumps(null_store))
+            string_engine = minimal_yardstick_result()
+            string_engine["opengwasdb"] = "0.3.0"
+            (yardstick / "string-engine.json").write_text(json.dumps(string_engine))
+            result = records_collector.collect(epics, yardstick)["yardstick"]
+        self.assertEqual([entry["name"] for entry in result["results"]], ["good.json"])
+        self.assertIn("stores[0] must be an object", result["invalid"]["null-store.json"][0])
+        self.assertIn("opengwasdb must be an object", result["invalid"]["string-engine.json"][0])
+
+    def test_a_validator_that_raises_is_that_files_error_too(self) -> None:
+        """Any exception from validating one file is that file's error, named, and the rest go on (#389)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            epics, yardstick = Path(tmp) / "_epics", Path(tmp) / "_yardstick"
+            epics.mkdir()
+            yardstick.mkdir()
+            (yardstick / "good.json").write_text('{"epic": 313}')
+            (yardstick / "breaks.json").write_text('{"epic": null}')
+
+            def validator(document: dict) -> list[str]:
+                if document["epic"] is None:
+                    return [document["epic"].citation]  # AttributeError, not a refusal
+                return []
+
+            result = records_collector.collect(epics, yardstick, validator)["yardstick"]
+        self.assertEqual(result["results"], [{"name": "good.json", "result": {"epic": 313}}])
+        self.assertTrue(result["invalid"]["breaks.json"][0].startswith("AttributeError: "))
+
 
 class TestSiteData(unittest.TestCase):
     def setUp(self) -> None:

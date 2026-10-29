@@ -227,7 +227,11 @@ An invalid file is reported by name and never stops the others. An absent or
 empty `docs/_epics/` or `docs/_yardstick/` is not an error. The yardstick's
 result schema and validator are #390's (`docs/spec/yardstick.md`): the collector
 reads each result through `yardstick.result.validate`, and reports a refused one
-under `yardstick.invalid` with its `ResultError` message. `records.collect`
+under `yardstick.invalid` with its `ResultError` message. Any *other* exception
+from validating one file -- a validator that raises rather than refuses -- is
+that file's error too, recorded as `ExceptionType: message`, and the other
+results are still read: one bad file never makes the source unavailable. The
+same holds for the epic records above. `records.collect`
 takes another validator as an argument, for tests.
 
 ### The command's output and exit status
