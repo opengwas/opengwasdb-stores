@@ -1,0 +1,101 @@
+# The paths the legacy GitHub Pages deployment serves, which every render must
+# still serve (#388, #397). One path per line, relative to the site root.
+#
+# The baseline is fixed: it is `docs/` at ff204b619ad8a5f671f4f67dd65d234096731102,
+# the commit the live legacy Pages deployment was built from (repos/opengwas/
+# opengwasdb-stores/pages/builds/latest). It protects the links readers already
+# hold, so a path is never removed here because the site stopped generating it;
+# generated pages (epics, Stores, trends) may come and go between publishes.
+#
+# Generated once with (`LC_ALL=C` so the order does not depend on the locale):
+#   git ls-tree -r --name-only ff204b6 -- docs | sed 's|^docs/||' | LC_ALL=C sort
+.nojekyll
+adr/0001-store-registry-boundary.md
+adr/0002-custom-manifest-generators-standard-release-manifests.md
+adr/0003-separate-release-manifests-from-build-recipes.md
+adr/0004-store-release-identity.md
+adr/0005-release-errata.md
+adr/0006-family-scoped-release-ids.md
+adr/0007-reference-completion-as-release-lineage.md
+adr/0008-registry-service-catalogue-boundary.md
+adr/0009-source-formats-and-reader-capabilities.md
+adr/0010-single-source-store-families.md
+adr/0011-reference-resources-are-build-resources.md
+adr/0012-manifest-generators-own-orchestration-only.md
+adr/0013-yaml-metadata-tsv-tables.md
+adr/0014-release-manifest-bundles.md
+adr/0015-registry-not-artifact-store.md
+adr/0016-infer-variant-axis-policy.md
+adr/0017-opengwasdb-owns-shared-analysis-schema.md
+adr/0018-family-first-external-artifact-layout.md
+adr/0019-reference-af-effect-scale-validation.md
+adr/0020-non-eur-ld-panels-from-hgdp-1kgp.md
+adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md
+adr/0022-flat-opaque-store-ids.md
+adr/0023-the-registry-store-seam-is-a-command-line.md
+adr/0024-one-family-record-no-source-collection-tier.md
+adr/0025-registry-filters-excluded-analyses.md
+adr/0026-detached-builds-die-with-their-orchestrator.md
+adr/0027-build-recipes-carry-only-what-differs.md
+adr/0028-store-family-tier-retired.md
+adr/0029-release-identity-file-trimmed.md
+adr/0030-artifact-path-is-the-identifier-migration-retired.md
+adr/0031-pure-planning-runtime-artifact-existence.md
+adr/0032-phase-b-candidate-workflow.md
+adr/0033-shared-stores-admit-only-maf-filtered-analyses.md
+adr/0034-indexed-variant-subsets-in-release-planning.md
+adr/0035-manifest-generation-and-store-release-build.md
+adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md
+adr/0037-reference-completion-replaces-its-store.md
+allele-orientation-failure-modes.md
+amr-ld-panel-proposal.md
+benchmark-output/README.md
+benchmark-output/ogs00009_ogs00010_observed_view_check.json
+benchmark-output/opengwasdb_213_hm3_pipeline_proof.json
+benchmark-output/opengwasdb_hm3_release_benchmark.json
+benchmark-output/opengwasdb_hm3_release_benchmark.md
+beta-scale-estimation.html
+data/eur-panel-imputation-comparison.json
+data/eur-panel-imputation-summary.csv
+data/trait-mapping-ogs00011-adjudication.tsv
+data/trait-mapping-summary.json
+data/trait-mapping-ukb-b-round1.tsv
+data/trait-mapping-ukb-b-round2-spot-check.tsv
+data/trait-mapping-ukb-b-round2-summary.json
+data/trait-mapping-ukb-b-round2.tsv
+data/trait-mapping-ukb-b-sample-adjudication.tsv
+data/trait-mapping-validation-ogs00011.tsv
+diagrams/store-release-workflow.dot
+diagrams/store-release-workflow.svg
+epic-232-execution.md
+eur-panel-imputation-comparison.html
+hgdp1kgp-ld-release-evidence.md
+hm3-pipeline-proof.md
+imputation-filters.html
+index.html
+mvp-acquisition-conversion-retry-2026-10-12.md
+mvp-acquisition-reconciliation-2026-10-11.md
+mvp-metric-resolution-plan.md
+ogs-00012-16-nworkers-16-amendment.md
+ogs-00016-to-ogs-00017-migration.md
+prioritisation-dashboard.html
+progress-2026-10.html
+qc-panel-concordance-report.md
+query-walkthrough.html
+readiness-evidence.yaml
+release-metadata-schema.md
+release-seam-audit.md
+runtime.md
+software-management-audit.md
+software-management-proposal.md
+spec/qc-panel-concordance-preregistration.md
+spec/source-connectors.md
+spec/store-release-workflow.md
+store-curation.html
+store-release-readiness.md
+tasks/rescue-remaining-studies.md
+trait-mapping-report.html
+trait-mapping-ukb-b-round2.md
+ukb-b-restored-inventory-2026-10-11.md
+ukb-restored-successors-plan.md
+workflow-engine-comparison.md

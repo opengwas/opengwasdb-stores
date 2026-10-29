@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
 """The render's two gates: what it checks against, and what a preview watches (#388).
 
-The served-path gate compares a render to the paths the published site serves
-today, read from `origin/main`. If that revision cannot be read there is nothing
-to compare with, and a render that cannot be checked must not be published: the
-gate fails closed instead of passing an unchecked render.
+The served-path gate compares a render to the paths the legacy Pages deployment
+serves, read from the committed baseline `resources/site/legacy-served-paths.txt`
+(#397). The baseline is fixed: `main`'s `docs/` now holds the site's own sources,
+and a source the render does not serve must not fail the gate. If the baseline
+cannot be read there is nothing to compare with, and a render that cannot be
+checked must not be published: the gate fails closed instead of passing an
+unchecked render.
 
 The preview re-stages when an input changes. Its inputs are not only `docs/`:
 `CONTEXT.md` is the glossary page and `pixi.lock` pins the engine revision, so an
@@ -22,12 +25,17 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import yaml
 
-from project_site import build
+from project_site import build, staging
+from project_site.urlcheck import check_paths
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+BASELINE = Path("resources/site/legacy-served-paths.txt")
+BASELINE_HEADER = "# generated from ff204b6 docs/ (#397)\n"
 
 # What the published site serves besides the pages Quarto renders, as
 # `docs/_quarto.yml` must keep copying them (`origin/main`'s docs/ holds these).
@@ -51,6 +59,8 @@ def git(repo: Path, *args: str) -> str:
 
 
 class ServedPathGateTest(unittest.TestCase):
+    """The baseline is the fixed legacy list, not the sources `main` happens to hold (#397)."""
+
     def setUp(self) -> None:
         self._tmp = tempfile.TemporaryDirectory(prefix="project-site-gate-")
         self.addCleanup(self._tmp.cleanup)
@@ -62,25 +72,88 @@ class ServedPathGateTest(unittest.TestCase):
         git(self.repo, "config", "user.name", "Test")
         (self.repo / "docs").mkdir()
         (self.repo / "docs" / "index.md").write_text("# Index\n", encoding="utf-8")
+        self._baseline(["index.html"])
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "docs")
+        self.output = self.root / "_site"
+        self.output.mkdir()
+        (self.output / "index.html").write_text("<html><body>index</body></html>\n", encoding="utf-8")
 
-    def test_the_served_paths_are_read_from_origin_main(self) -> None:
-        self._add_remote_with_main()
+    def test_a_source_the_render_does_not_serve_is_not_in_the_baseline(self) -> None:
+        # `main`'s docs/ holds the site's own sources as well as what it serves;
+        # the baseline names only the paths a reader can follow (#397).
+        self._add_remote_with_main(
+            {"index.qmd": "# Overview\n", "_epics/x.yaml": "repo: test\n", "pre-render.sh": "#!/bin/sh\n"}
+        )
 
-        self.assertEqual(build.served_paths(self.repo), ["index.md"])
+        served = build.served_paths(self.repo)
 
-    def test_the_gate_fails_closed_when_origin_main_cannot_be_read(self) -> None:
-        # No remote at all: there is no origin/main to list.
-        with self.assertRaises(build.SiteCheckFailed):
+        self.assertEqual(served, ["index.html"])
+        self.assertEqual([status.state for status in check_paths(served, self.output)], ["present"])
+
+    def test_a_render_missing_a_baseline_path_is_refused_naming_the_path(self) -> None:
+        self._baseline(["index.html", "adr/0001-store-registry-boundary.md"])
+        stage = build.Stage(
+            repo=self.repo,
+            commit="0" * 40,
+            engine_commit="1" * 40,
+            clone=self.root / "engine",
+            mirror=self.root / "mirror",
+        )
+
+        with mock.patch.object(build, "stage_everything", return_value=stage), \
+                mock.patch.object(build, "collect_data", return_value=[]), \
+                mock.patch.object(build, "rewrite", return_value=staging.LinkReport()), \
+                mock.patch.object(build, "_quarto_render", return_value=None):
+            with self.assertRaises(build.SiteCheckFailed) as caught:
+                build.render_checkout("deadbeef", self.repo, self.output)
+
+        self.assertIn("adr/0001-store-registry-boundary.md", str(caught.exception))
+
+    def test_the_gate_fails_closed_when_the_baseline_is_missing(self) -> None:
+        (self.repo / BASELINE).unlink()
+
+        with self.assertRaises(build.SiteCheckFailed) as caught:
             build.served_paths(self.repo)
 
-    def _add_remote_with_main(self) -> None:
+        self.assertIn(str(BASELINE), str(caught.exception))
+
+    def test_the_gate_fails_closed_when_the_baseline_is_empty(self) -> None:
+        (self.repo / BASELINE).write_text(BASELINE_HEADER, encoding="utf-8")
+
+        with self.assertRaises(build.SiteCheckFailed) as caught:
+            build.served_paths(self.repo)
+
+        self.assertIn(str(BASELINE), str(caught.exception))
+
+    def test_the_gate_fails_closed_when_the_baseline_is_not_utf8(self) -> None:
+        # A baseline that cannot be decoded is unreadable, not an escape from
+        # the gate: `SiteCheckFailed`, like a missing one (#397 review).
+        (self.repo / BASELINE).write_bytes(b"index.html\n\xff\n")
+
+        with self.assertRaises(build.SiteCheckFailed) as caught:
+            build.served_paths(self.repo)
+
+        self.assertIn(str(BASELINE), str(caught.exception))
+
+    def _baseline(self, paths: list[str]) -> None:
+        target = self.repo / BASELINE
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(BASELINE_HEADER + "".join(f"{path}\n" for path in paths), encoding="utf-8")
+
+    def _add_remote_with_main(self, extra: dict[str, str]) -> None:
+        # Only `main` is needed: the regression is that its docs/ holds sources
+        # the render does not serve, and the baseline file ignores them (#397).
+        for relative, text in extra.items():
+            path = self.repo / "docs" / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
+        git(self.repo, "add", "-A")
+        git(self.repo, "commit", "-q", "-m", "site sources")
         bare = self.root / "origin.git"
         subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True)
         git(self.repo, "remote", "add", "origin", str(bare))
         git(self.repo, "push", "-q", "origin", "dev:main")
-        git(self.repo, "fetch", "-q", "origin")
 
 
 class PreviewWatchTest(unittest.TestCase):

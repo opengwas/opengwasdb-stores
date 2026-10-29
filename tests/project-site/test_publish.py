@@ -251,6 +251,10 @@ class PublishCollectsItsOwnData(unittest.TestCase):
         # What the site serves today: the path the publish's check must find.
         (self.repo / "docs" / "keep.md").write_text("# Kept\n", encoding="utf-8")
         (self.repo / "CONTEXT.md").write_text("# Glossary\n", encoding="utf-8")
+        # The gate's fixed baseline: the served paths the render must keep (#397).
+        baseline = self.repo / "resources" / "site" / "legacy-served-paths.txt"
+        baseline.parent.mkdir(parents=True)
+        baseline.write_text("# the legacy baseline (#397)\nkeep.html\n", encoding="utf-8")
         git(self.repo, "add", "-A")
         git(self.repo, "commit", "-q", "-m", "the served page")
         git(self.repo, "remote", "add", "origin", str(self.bare))

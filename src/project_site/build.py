@@ -181,7 +181,13 @@ def write_engine_index(dest: Path, *, revision: str, repository_url: str) -> Pat
 
 
 class SiteCheckFailed(RuntimeError):
-    """A render does not serve every path the site serves today, so it is not published."""
+    """A render does not serve every path the legacy site serves, so it is not published."""
+
+
+# The fixed set of paths the legacy Pages deployment serves (#397). It lives
+# with the code because it guards the links readers already hold, not the pages
+# the site happens to generate today.
+SERVED_PATHS_FILE = Path("resources/site/legacy-served-paths.txt")
 
 
 @dataclass
@@ -245,18 +251,19 @@ def rewrite(stage: Stage) -> LinkReport:
 
 
 def served_paths(repo: Path) -> list[str]:
-    """The paths the published site serves today, from `origin/main`.
+    """The paths the legacy site serves, from the committed baseline (#397).
 
-    The gate this feeds fails closed: if that revision cannot be read, there is
-    no list to check against, and a render that cannot be checked is not one to
-    publish. Silence here would let a publish drop real, read URLs unnoticed.
+    The baseline is fixed at the commit the legacy Pages deployment was built
+    from: it protects the links readers hold, so generated pages may come and go
+    without changing it. The gate this feeds fails closed: if the baseline cannot
+    be read, there is no list to check against, and a render that cannot be
+    checked is not one to publish. Silence here would let a publish drop real,
+    read URLs unnoticed.
     """
     try:
-        return urlcheck.paths_from_git(repo, "origin/main")
-    except subprocess.CalledProcessError as error:
-        raise SiteCheckFailed(
-            f"cannot read the paths served today from origin/main in {repo}: {error.stderr.strip()}"
-        ) from error
+        return urlcheck.paths_from_file(repo / SERVED_PATHS_FILE)
+    except urlcheck.ServedPathsUnreadable as error:
+        raise SiteCheckFailed(str(error)) from error
 
 
 def build_site(
@@ -266,7 +273,7 @@ def build_site(
     check_urls: bool = True,
     stage_dir: Path | None = None,
 ) -> BuildReport:
-    """Render the site for `repo` into `output`, and check what the site serves today."""
+    """Render the site for `repo` into `output`, and check what the legacy site serves."""
     repo = Path(repo).resolve() if repo is not None else paths.repo_root()
     output = Path(output).resolve() if output is not None else paths.output_dir(repo)
     stage = stage_everything(repo, stage_dir=stage_dir)
@@ -307,7 +314,7 @@ def render_checkout(source_commit: str, checkout: Path, output: Path) -> Path:
     missing = [status.path for status in report.served if status.state == "missing"]
     if missing:
         raise SiteCheckFailed(
-            f"the render of {source_commit} does not serve {len(missing)} path(s) the site serves today: "
+            f"the render of {source_commit} does not serve {len(missing)} path(s) the legacy site serves: "
             f"{', '.join(missing[:5])}{' ...' if len(missing) > 5 else ''}"
         )
     return report.output
