@@ -16,13 +16,32 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
+import yaml
+
 from project_site import build
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+# What the published site serves besides the pages Quarto renders, as
+# `docs/_quarto.yml` must keep copying them (`origin/main`'s docs/ holds these).
+SERVED_RESOURCES = (
+    "data/trait-mapping-summary.json",
+    "data/trait-mapping-validation-ogs00011.tsv",
+    "data/eur-panel-imputation-summary.csv",
+    "benchmark-output/opengwasdb_hm3_release_benchmark.json",
+    "diagrams/store-release-workflow.dot",
+    "diagrams/store-release-workflow.svg",
+    "readiness-evidence.yaml",
+    "adr/0039-analysis-catalog.md",
+    ".nojekyll",
+)
 
 
 def git(repo: Path, *args: str) -> str:
@@ -106,6 +125,63 @@ class PreviewWatchTest(unittest.TestCase):
         # Make the mtime move even on a coarse filesystem clock.
         stat = path.stat()
         os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
+
+
+class ServedResourcesTest(unittest.TestCase):
+    """The site copies what it serves, and not the data its pages read (#391 review, item 12)."""
+
+    def setUp(self) -> None:
+        self.config = yaml.safe_load((REPO_ROOT / "docs" / "_quarto.yml").read_text(encoding="utf-8"))
+        self.patterns = self.config["project"]["resources"]
+
+    def test_the_collected_data_is_not_copied_into_the_site(self) -> None:
+        self.assertNotIn("**/*.json", self.patterns)
+        self.assertFalse([pattern for pattern in self.patterns if "_data" in pattern], self.patterns)
+
+    def test_every_path_the_site_serves_today_is_still_copied(self) -> None:
+        for path in SERVED_RESOURCES:
+            self.assertTrue(
+                any(fnmatch.fnmatch(path, pattern) for pattern in self.patterns),
+                f"{path} is served today and no resource pattern copies it",
+            )
+
+
+class SyncTreeModeTest(unittest.TestCase):
+    """The preview tree is what Quarto runs the project's pre-render hook from (#391).
+
+    A file written fresh is 0644, so a sync that carried only the bytes left
+    `docs/pre-render.sh` unrunnable and `quarto preview` refused to start:
+    "Failed to spawn ...: Permission denied". The mode is part of what syncs.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="project-site-sync-")
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.source = self.root / "mirror"
+        self.served = self.root / "served"
+        self.source.mkdir()
+        (self.source / "pre-render.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        (self.source / "pre-render.sh").chmod(0o755)
+        (self.source / "index.qmd").write_text("# Overview\n", encoding="utf-8")
+        (self.source / "index.qmd").chmod(0o644)
+
+    def test_a_copied_hook_is_executable_and_a_copied_page_is_not(self) -> None:
+        build._sync_tree(self.source, self.served)
+
+        self.assertTrue(os.access(self.served / "pre-render.sh", os.X_OK))
+        self.assertFalse(os.access(self.served / "index.qmd", os.X_OK))
+
+    def test_the_mode_is_repaired_when_the_bytes_already_match(self) -> None:
+        self.served.mkdir()
+        (self.served / "pre-render.sh").write_bytes((self.source / "pre-render.sh").read_bytes())
+        (self.served / "pre-render.sh").chmod(0o644)  # what a sync that ignored the mode left behind
+        (self.served / "index.qmd").write_bytes((self.source / "index.qmd").read_bytes())
+
+        build._sync_tree(self.source, self.served)
+
+        self.assertTrue(os.access(self.served / "pre-render.sh", os.X_OK))
+        self.assertEqual(build._sync_tree(self.source, self.served), 0, "a settled tree needs no change")
 
 
 if __name__ == "__main__":

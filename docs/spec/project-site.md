@@ -124,14 +124,19 @@ this repository does not import the board skill. It reads project 1 of the
 `opengwas` organisation, every page of it, and then every epic's sub-issues and
 their blocked-by edges (`subIssues` and `blockedBy` in the GraphQL API) in one
 aliased query, and follows every further page of both relationships (`subIssues`
-and `blockedBy` each return `pageInfo`). The issue bodies of everything but
-Milestones are dropped. A relationship that still has a page unread when the
-response is parsed is an error, so the file is `available: false` rather than a
-short list marked complete.
+and `blockedBy` each return `pageInfo`). An issue's body is read for two things,
+and dropped otherwise: a Milestone's checklist lines, and an Epic's `purpose`,
+the first non-empty paragraph of the body that is prose -- not a heading, a
+fence, a table, a quote, or a list of bullets and boxes -- cut at a sentence (or,
+failing a sentence, at a word and an ellipsis) to at most 600 characters. A
+relationship that still has a page unread when the response is parsed is an
+error, so the file is `available: false` rather than a short list marked
+complete.
 
 | Key | Content |
 |---|---|
-| `epics` | one row per Epic: `key` (`repo#n`), `title`, `url`, `state` (the issue's, `OPEN` or `CLOSED`), `status`, `workstream`, `next`, `priority`, `sub_issues` (`{total, completed}`), and `children` |
+| `epics` | one row per Epic: `key` (`repo#n`), `title`, `url`, `state` (the issue's, `OPEN` or `CLOSED`), `status`, `workstream`, `next`, `priority`, `sub_issues` (`{total, completed}`), `purpose`, and `children` |
+| `epics[].purpose` | the epic's own first prose paragraph, cut as above, or `null` when its body has none |
 | `epics[].children` | the epic's sub-issues: `key`, `title`, `url`, `state`, and `blocked_by`, a list of `{key, state}` |
 | `milestones` | one row per Milestone, with the same fields as an epic (no `children`) and `lines` |
 | `milestones[].lines` | each `- [ ]` or `- [x]` line of the body, in order: `checked`, `text`, and `refs` (`repo#n` keys) |
@@ -165,6 +170,7 @@ A root that does not exist is an error; a root with no versions is `versions: []
 | `versions[].counts` | the `counts` table's rows as they are, in table order: `dimension`, `value`, `n_analyses` |
 | `versions[].totals` | `analyses`: `count(*)` of `listed_analyses`; `stores`: the Stores those rows belong to |
 | `versions[].changes` | `changes.tsv`'s rows tallied by change (`{added: n, ...}`), or `null` for a version without the file |
+| `versions[].selection` | the `selection` table's rows in `store_id` order -- `store_id`, `decision` (`listed`, `excluded`, `refused` or `placeholder`) and `reason` -- for the version `current` names; `null` for every other version, whose decisions the site does not show |
 
 `counts` rows are per dimension and **overlap**: an Analysis is counted once in
 each dimension, and `NULL` is a category, so a dimension's rows sum to the

@@ -25,8 +25,10 @@ WORK_ROOT_ENV = "OPENGWASDB_SITE_ROOT"
 OUTPUT_ENV = "OPENGWASDB_SITE_OUT"
 CLONE_ENV = "OPENGWASDB_SITE_ENGINE_CLONE"
 
-# The ref `site-publish` renders until the cutover moves it to `origin/main`.
-DEFAULT_PUBLISH_REF = "origin/dev"
+# The ref `site-publish` renders: every merge lands on `main`, and each is a
+# version (#386), so that is what the site publishes. Before the cutover, name
+# `--ref origin/dev` explicitly.
+DEFAULT_PUBLISH_REF = "origin/main"
 
 _PIN = re.compile(r"git\+https://github\.com/opengwas/opengwasdb\?rev=([0-9a-f]{40})")
 

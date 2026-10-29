@@ -123,10 +123,10 @@ def fetch(gh: GhRunner) -> dict[str, Any]:
         if not info["hasNextPage"]:
             break
         after = info["endCursor"]
-    for page in pages:  # only a Milestone's body is read, so no other body is kept
+    for page in pages:  # a Milestone's checklist and an Epic's purpose are read from the body
         for node in page["data"]["organization"]["projectV2"]["items"]["nodes"]:
             content = node["content"]
-            if content.get("__typename") == "Issue" and not is_milestone(content):
+            if content.get("__typename") == "Issue" and not (is_milestone(content) or is_epic(content)):
                 content.pop("body", None)
     epics = [
         node["content"]
@@ -183,6 +183,43 @@ def checklist(body: str | None, repo: str) -> list[dict[str, Any]]:
                 refs.append(ref)
         lines.append({"checked": match.group(1) != " ", "text": match.group(2), "refs": refs})
     return lines
+
+
+# How much of an Epic's first paragraph the board file keeps: enough for the
+# site's epic pages to say what the epic is for, and no more of the body.
+PURPOSE_LIMIT = 600
+
+# A paragraph that is not prose: a heading, a fence, a table, a quote, an HTML
+# comment, or a list of bullets and checkboxes.
+_NOT_PROSE = re.compile(r"^(#{1,6}\s|```|~~~|\||>|<!--|[-*+]\s|\d+[.)]\s)")
+
+
+def purpose_of(body: str | None) -> str | None:
+    """An Epic's purpose: the first non-empty paragraph that is prose, cut at a sentence.
+
+    The body is otherwise dropped, so what a page shows is the epic's own words
+    about what it is for, not a summary this repository invented.
+    """
+    for paragraph in (body or "").split("\n\n"):
+        lines = [line for line in paragraph.splitlines() if line.strip()]
+        if not lines or _NOT_PROSE.match(lines[0].strip()):
+            continue
+        text = " ".join(" ".join(lines).split())
+        if text:
+            return _shorten(text)
+    return None
+
+
+def _shorten(text: str) -> str:
+    """`text` at most `PURPOSE_LIMIT` characters, cut at a sentence, else at a word."""
+    if len(text) <= PURPOSE_LIMIT:
+        return text
+    window = text[:PURPOSE_LIMIT]
+    sentence = max(window.rfind(". "), window.rfind("! "), window.rfind("? "))
+    if sentence > 0:
+        return window[: sentence + 1]
+    word = window.rfind(" ")
+    return (window[:word] if word > 0 else window) + "…"
 
 
 def _fields(node: dict[str, Any]) -> dict[str, str | None]:
@@ -243,7 +280,7 @@ def parse(raw: dict[str, Any]) -> dict[str, Any]:
                 repo = content["repository"]["nameWithOwner"].split("/")[-1]
                 milestones.append({**item, "lines": checklist(content.get("body"), repo)})
             elif is_epic(content):
-                epics.append({**item, "children": children[item["key"]]})
+                epics.append({**item, "purpose": purpose_of(content.get("body")), "children": children[item["key"]]})
             else:
                 items.append(item)
     return {"project": f"{OWNER}/{PROJECT_NUMBER}", "epics": epics, "milestones": milestones, "items": items}

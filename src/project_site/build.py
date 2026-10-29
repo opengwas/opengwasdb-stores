@@ -27,6 +27,9 @@ from pathlib import Path
 from typing import Sequence
 
 from project_site import paths, staging, urlcheck
+from project_site.collect import __main__ as site_data
+from project_site.collect import common as collect_common
+from project_site.pages import COMMIT_ENV_VAR
 from project_site.staging import LinkReport
 
 ENGINE_SECTION = "opengwasdb"
@@ -65,7 +68,31 @@ class BuildReport:
 RENDER_MARKERS = frozenset({"index.html", "search.json", "site_libs"})
 
 
-def _quarto_render(staging: Path, output: Path) -> None:
+def collect_data(mirror: Path, repo: Path) -> list[dict]:
+    """Collect the site's data into the render's own directory (#391).
+
+    The pages are rendered from the data of the checkout being rendered, so
+    `pixi run site` and a publish of a clean worktree both collect there, and a
+    source that cannot be read is a notice on a page rather than a page that
+    says nothing else. `OPENGWASDB_SITE_DATA` names a directory that was
+    collected already, and then nothing is collected here.
+    """
+    if os.environ.get(collect_common.DATA_DIR_ENV_VAR, "").strip():
+        return []
+    return site_data.run(
+        mirror / "_data",
+        registry=repo / "stores",
+        epics_dir=repo / "docs" / "_epics",
+        yardstick_dir=repo / "docs" / "_yardstick",
+    )
+
+
+def render_env(commit: str) -> dict[str, str]:
+    """The environment a render runs in: it names the commit the pages link to (#391)."""
+    return {**os.environ, COMMIT_ENV_VAR: commit}
+
+
+def _quarto_render(staging: Path, output: Path, *, commit: str) -> None:
     if output.exists():
         import shutil
 
@@ -79,6 +106,7 @@ def _quarto_render(staging: Path, output: Path) -> None:
     subprocess.run(
         ["quarto", "render", str(staging), "--output-dir", str(output)],
         check=True,
+        env=render_env(commit),
     )
 
 
@@ -242,10 +270,11 @@ def build_site(
     repo = Path(repo).resolve() if repo is not None else paths.repo_root()
     output = Path(output).resolve() if output is not None else paths.output_dir(repo)
     stage = stage_everything(repo, stage_dir=stage_dir)
+    collect_data(stage.mirror, repo)
     links = rewrite(stage)
 
     started = time.monotonic()
-    _quarto_render(stage.mirror, output)
+    _quarto_render(stage.mirror, output, commit=stage.commit)
     _write_raw_pages(output, links.raw_pages)
     seconds = time.monotonic() - started
 
@@ -373,11 +402,19 @@ def _sync_tree(source: Path, served: Path) -> int:
         data = path.read_bytes()
         wanted.add(relative.as_posix())
         target = served / relative
+        mode = path.stat().st_mode & 0o777
         if target.is_file() and target.read_bytes() == data:
+            # The preview tree is what Quarto runs the project's `pre-render`
+            # hook from (`docs/pre-render.sh`, #391), so the mirror's mode is
+            # part of what `served` matches: a file written fresh is 0644.
+            if target.stat().st_mode & 0o777 != mode:
+                os.chmod(target, mode)
+                changed += 1
             continue
         target.parent.mkdir(parents=True, exist_ok=True)
         temporary = target.with_name(f".{target.name}.staging")
         temporary.write_bytes(data)
+        os.chmod(temporary, mode)
         os.replace(temporary, target)
         changed += 1
     for path in served.rglob("*"):
@@ -403,6 +440,7 @@ def _restage_on_change(repo: Path, served: Path, stop: "threading.Event") -> Non
         stop.wait(1.0)  # let a save settle before staging it
         try:
             stage = stage_everything(repo)
+            collect_data(stage.mirror, repo)
             rewrite(stage)
             _sync_tree(stage.mirror, served)
             print("restaged the docs mirror", flush=True)
@@ -419,13 +457,14 @@ def preview(repo: Path | None = None) -> int:
     """
     repo = Path(repo).resolve() if repo is not None else paths.repo_root()
     stage = stage_everything(repo)
+    collect_data(stage.mirror, repo)
     rewrite(stage)
     served = paths.preview_dir(repo)
     _sync_tree(stage.mirror, served)
     stop = threading.Event()
     watcher = threading.Thread(target=_restage_on_change, args=(repo, served, stop), daemon=True)
     watcher.start()
-    process = subprocess.Popen(["quarto", "preview", str(served)])
+    process = subprocess.Popen(["quarto", "preview", str(served)], env=render_env(stage.commit))
     try:
         process.wait()
     except KeyboardInterrupt:

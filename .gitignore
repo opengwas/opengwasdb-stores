@@ -92,3 +92,10 @@ stores/.staging/
 
 # The project site's collected data (#389): regenerate with `pixi run site-data`.
 docs/_data/
+
+# The project site's generated pages (#391, src/project_site/pages.py): written by
+# the render's pre-render step into the docs mirror, and by hand into these paths,
+# which a render replaces. Never committed: every page repeats the site's
+# navigation, so committed output would make parallel pull requests conflict.
+docs/epics/
+docs/stores/

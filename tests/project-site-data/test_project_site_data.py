@@ -343,7 +343,7 @@ class TestBoardCollector(unittest.TestCase):
 
 def write_catalog_version(
     root: Path, version: str, *, built_at: str, commit: str, counts: list[tuple], listed: list[tuple],
-    changes: str | None = None,
+    changes: str | None = None, selection: list[tuple] | None = None,
 ) -> Path:
     """A catalog version with only the tables the collector reads (`analysis_catalog.database` has the rest)."""
     directory = root / version
@@ -353,11 +353,13 @@ def write_catalog_version(
         "CREATE TABLE catalog_meta (key TEXT PRIMARY KEY, value TEXT);"
         "CREATE TABLE counts (dimension TEXT NOT NULL, value TEXT, n_analyses INTEGER NOT NULL);"
         "CREATE TABLE listed_analyses (id TEXT, store_id TEXT, analysis_id TEXT);"
+        "CREATE TABLE selection (store_id TEXT NOT NULL, decision TEXT NOT NULL, reason TEXT);"
     )
     db.executemany("INSERT INTO catalog_meta VALUES (?, ?)",
                    [("built_at", built_at), ("registry_commit", commit), ("builder_version", "1")])
     db.executemany("INSERT INTO counts VALUES (?, ?, ?)", counts)
     db.executemany("INSERT INTO listed_analyses VALUES (?, ?, ?)", [(f"{s}:{a}", s, a) for s, a in listed])
+    db.executemany("INSERT INTO selection VALUES (?, ?, ?)", selection or [])
     db.commit()
     db.close()
     if changes is not None:
@@ -414,6 +416,84 @@ class PagingGh:
         return json.dumps({"data": {"repository": {"issue": {"blockedBy": paged(blockers)}}}})
 
 
+class TestBoardEpicPurpose(unittest.TestCase):
+    """An Epic's first paragraph is kept as `purpose`, and the rest of its body is dropped (#391)."""
+
+    def test_an_epic_keeps_its_first_paragraph_and_no_later_one(self) -> None:
+        raw = json.loads((FIXTURES / "board-graphql.json").read_text())
+        key = raw["epics"][0]
+        node = next(
+            node
+            for page in raw["project"]
+            for node in page["data"]["organization"]["projectV2"]["items"]["nodes"]
+            if f"{node['content']['repository']['nameWithOwner'].split('/')[-1]}#{node['content']['number']}" == key
+        )
+        node["content"]["body"] = (
+            "## Why\n\nWhere OpenGWASDB stands, at a glance, for the owner.\n\n"
+            "## Detail\n\nA later paragraph nobody needs on a page.\n"
+        )
+
+        data = board.parse(raw)
+
+        epic = next(item for item in data["epics"] if item["key"] == key)
+        self.assertEqual(epic["purpose"], "Where OpenGWASDB stands, at a glance, for the owner.")
+        self.assertNotIn("A later paragraph nobody needs", json.dumps(data))
+        self.assertNotIn('"body"', json.dumps(data))
+
+    def test_a_body_of_headings_and_boxes_has_no_purpose(self) -> None:
+        self.assertIsNone(board.purpose_of("## Exit criteria\n\n- [ ] one\n- [x] two\n"))
+        self.assertIsNone(board.purpose_of(None))
+
+    def test_a_long_first_paragraph_is_cut_at_a_sentence(self) -> None:
+        body = "The catalog lists every validated Store. " * 30
+        purpose = board.purpose_of(body)
+        self.assertLessEqual(len(purpose), board.PURPOSE_LIMIT)
+        self.assertTrue(purpose.startswith("The catalog lists every validated Store."))
+        self.assertTrue(purpose.endswith("validated Store."))
+
+    def test_a_paragraph_with_no_sentence_end_is_cut_at_a_word(self) -> None:
+        purpose = board.purpose_of("word " * 300)
+        self.assertLessEqual(len(purpose), board.PURPOSE_LIMIT + 1)
+        self.assertTrue(purpose.endswith("word…"))
+
+
+class EpicBodyGh:
+    """A `gh` runner whose project page holds an Epic, an ordinary issue and a Milestone, each with a body."""
+
+    def __call__(self, args: list[str], stdin: str | None = None) -> str:
+        request = json.loads(stdin)
+        if "projectV2" in request["query"]:
+            def node(number: int, title: str, body: str, **extra) -> dict:
+                content = {
+                    "__typename": "Issue", "number": number, "title": title, "url": f"https://x/{number}",
+                    "state": "OPEN", "closedAt": None, "repository": repo_of(), "parent": None,
+                    "labels": {"nodes": []}, "subIssuesSummary": {"total": 0, "completed": 0}, "body": body,
+                    **extra,
+                }
+                return {"content": content, "fieldValues": {"nodes": []}}
+            return json.dumps({"data": {"organization": {"projectV2": {"items": {
+                "pageInfo": {"hasNextPage": False, "endCursor": None},
+                "nodes": [
+                    node(7, "Epic: one", "The epic's first paragraph.\n\nA second one.\n",
+                         issueType={"name": "Epic"}),
+                    node(8, "An ordinary issue", "Ordinary body.\n"),
+                    node(9, "Milestone: one", "## Outcome\n\n- [ ] a line\n"),
+                ],
+            }}}}})
+        return json.dumps({"data": {"e0": {"issue": {"number": 7, "subIssues": {
+            "pageInfo": {"hasNextPage": False, "endCursor": None}, "nodes": []}}}}})
+
+
+class TestBoardKeepsEpicBodiesForPurpose(unittest.TestCase):
+    def test_fetch_keeps_an_epics_body_and_drops_every_other_issue_body(self) -> None:
+        raw = board.fetch(EpicBodyGh())
+        nodes = raw["project"][0]["data"]["organization"]["projectV2"]["items"]["nodes"]
+
+        self.assertEqual(nodes[0]["content"]["body"], "The epic's first paragraph.\n\nA second one.\n")
+        self.assertNotIn("body", nodes[1]["content"])
+        self.assertIn("body", nodes[2]["content"])  # a Milestone's checklist is read from its body
+
+
 class TestBoardPagination(unittest.TestCase):
     def test_every_page_of_sub_issues_and_blockers_is_read(self) -> None:
         gh = PagingGh()
@@ -461,6 +541,10 @@ class TestCatalogHistoryCollector(unittest.TestCase):
                     ("coverage", "signals_only", 2), ("ancestry", "EUR", 5)],
             listed=[("OGS-00006", "a"), ("OGS-00006", "b"), ("OGS-00027", "g1"), ("OGS-00027", "g2"), ("OGS-00027", "g3")],
             changes="id\tchange\nOGS-00006:a\tadded\nOGS-00006:b\tadded\nOGS-00027:g3\tchanged\n",
+            selection=[
+                ("OGS-00006", "listed", "Release Status is validated, Access Posture is public"),
+                ("OGS-00027", "excluded", "Trial Store Release"),
+            ],
         )
         os.symlink("versions/bbbbbbbbbbbbbbbb", self.catalog_dir / "current")
 
@@ -505,6 +589,19 @@ class TestCatalogHistoryCollector(unittest.TestCase):
         after = {p: p.stat().st_mtime_ns for p in self.root.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
         self.assertEqual(sorted(p.name for p in self.root.rglob("*") if p.is_file() and "-journal" in p.name), [])
+
+    def test_the_current_versions_selection_names_each_stores_decision_and_reason(self) -> None:
+        older, newer = catalog.collect(self.root)["versions"]
+
+        self.assertIsNone(older["selection"])
+        self.assertEqual(
+            newer["selection"],
+            [
+                {"store_id": "OGS-00006", "decision": "listed",
+                 "reason": "Release Status is validated, Access Posture is public"},
+                {"store_id": "OGS-00027", "decision": "excluded", "reason": "Trial Store Release"},
+            ],
+        )
 
     def test_a_missing_root_is_an_error_and_an_empty_root_is_not(self) -> None:
         with self.assertRaises(catalog.CollectError):

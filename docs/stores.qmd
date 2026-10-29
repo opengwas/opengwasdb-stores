@@ -2,10 +2,17 @@
 title: "Stores"
 ---
 
-The Stores section lists every Store Release and its state: its Store Layout,
-its Association Coverage, the Store Release Builds it went through, and what it
-holds.
+Every registered Store Release and its state: its Release Status, its Store
+Layout, its Association Coverage, the counts its Validation Record observed, and
+whether the current Analysis Catalog version lists it. A count the record left
+`null` stays `not reported`, and a total over such a column is
+`unknown (k of n Stores report it)` rather than a partial sum.
 
-This page is a placeholder and is filled by #391. Until then the registry itself
-is the record: one directory per Store Release under `stores/`, and
-[`../STORES.md`](../STORES.md) is the generated index of them.
+**This page is generated at render time** by
+[`src/project_site/pages.py`](../src/project_site/pages.py) from the Release
+Bundles under `stores/` and the collected catalog versions, with one page per
+Store beside it; the render replaces this file. Run `pixi run site-data` and then
+`pixi run site` to see it.
+
+The registry itself is the record: one directory per Store Release under
+`stores/`, and [`../STORES.md`](../STORES.md) is the generated index of them.
