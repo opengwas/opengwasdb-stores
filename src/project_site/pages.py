@@ -39,7 +39,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping, NamedTuple, Sequence
 
 from project_site.collect.common import DATA_DIR_ENV_VAR
 
@@ -198,6 +198,36 @@ def _figure(value: Any) -> str:
     return f"{value:g}"
 
 
+#: Characters Markdown still reads inside an inline `<code>`: pandoc parses the text
+#: between the tags as Markdown, so a fact's own `*`, `_`, `[`, `~`, `$`, `^`, `\`
+#: or backtick would become emphasis, a link, a subscript, math, a superscript,
+#: an escape or a code span of its own. Their numeric entities render as the
+#: character and are read as neither Markdown nor a table cell's `|`.
+_CODE_ENTITIES = str.maketrans({
+    "\\": "&#92;", "`": "&#96;", "*": "&#42;", "_": "&#95;", "[": "&#91;",
+    "]": "&#93;", "^": "&#94;", "$": "&#36;", "~": "&#126;", "|": "&#124;",
+})
+#: What a Markdown code span cannot hold: a backtick closes it, and a pipe cuts the
+#: table cell it sits in. A version tag is free text -- `v`<b>x</b>` is a legal one.
+_CODE_RISKY = re.compile(r"[`|]")
+
+
+def _code(value: Any) -> str:
+    """A fact in a code span, rendered literally whatever it holds.
+
+    A plain code span is used when the value cannot close its fence or cut its
+    table cell, so the common value stays readable in the Markdown source. A
+    value that can does not fit a Markdown code span at all, so it is written as
+    HTML: `<code>` with the text escaped as HTML and its Markdown-active
+    characters as entities, which no reader turns back into markup (#391
+    review, item 2).
+    """
+    text = " ".join(str(value).split())
+    if not _CODE_RISKY.search(text):
+        return f"`{text}`"
+    return "<code>" + html.escape(text, quote=False).translate(_CODE_ENTITIES) + "</code>"
+
+
 def _link(text: Any, url: Any) -> str:
     """A Markdown link whose label is a fact: escaped, and folded onto one line."""
     label = escape(" ".join(str(text if text is not None else "").split()))
@@ -256,15 +286,26 @@ def _workstream_order(groups: Mapping[str, Any]) -> list[str]:
     return known + extra + ([NO_WORKSTREAM] if NO_WORKSTREAM in groups else [])
 
 
-def sparkline(values: Sequence[float], *, label: str, width: int = 120, height: int = 22) -> str:
+def sparkline(
+    values: Sequence[float], *, label: str, width: int = 120, height: int = 22, warned: Sequence[bool] | None = None
+) -> str:
     """A small inline SVG trend: one circle per value, and a line through them.
 
     Written in Python without a chart library, so a page needs no dependency and
-    no kernel. An empty series draws nothing.
+    no kernel. An empty series draws nothing. A value `warned` names is ringed as
+    well as dotted, so a point that was not measured under comparable conditions
+    -- the yardstick's Veeam backup window -- is visible in the figure itself
+    (#391 review, item 9).
     """
-    numbers = [float(value) for value in values if value is not None]
+    drawn = [
+        (index, float(value))
+        for index, value in enumerate(values)
+        if isinstance(value, (int, float)) and not isinstance(value, bool)
+    ]
+    numbers = [value for _, value in drawn]
     if not numbers:
         return ""
+    flags = list(warned) if warned is not None else []
     left, right, top, bottom = 2.0, width - 2.0, 3.0, height - 3.0
     low, high = min(numbers), max(numbers)
     places = []
@@ -273,7 +314,13 @@ def sparkline(values: Sequence[float], *, label: str, width: int = 120, height: 
         y = (top + bottom) / 2 if high == low else bottom - (bottom - top) * (value - low) / (high - low)
         places.append((round(x, 1), round(y, 1)))
     points = " ".join(f"{x},{y}" for x, y in places)
-    circles = "".join(f'<circle cx="{x}" cy="{y}" r="1.8"/>' for x, y in places)
+    circles = ""
+    for (index, _), (x, y) in zip(drawn, places):
+        marked = index < len(flags) and flags[index]
+        fill = ' fill="#b7791f"' if marked else ""
+        circles += f'<circle cx="{x}" cy="{y}" r="1.8"{fill}/>'
+        if marked:
+            circles += f'<circle cx="{x}" cy="{y}" r="3.4" fill="none" stroke="#b7791f" stroke-width="1"/>'
     return (
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
         f'viewBox="0 0 {width} {height}" role="img" aria-label="{html.escape(label)}">'
@@ -297,17 +344,18 @@ def _movement(values: Sequence[Any], *, unit: str = "", span: str = "versions") 
     return f"{_figure(drawn[0])}{unit} → {_figure(drawn[-1])}{unit} over {len(drawn)} {span}"
 
 
-def _trend_block(values: Sequence[Any], *, label: str, caption: str) -> list[str]:
+def _trend_block(
+    values: Sequence[Any], *, label: str, caption: str, warned: Sequence[bool] | None = None
+) -> list[str]:
     """A trend line as a raw HTML block, which Pandoc passes through untouched.
 
     An SVG written inline in a Markdown table cell loses its children in the
     render (a `<title>` child makes Pandoc drop them), so every chart is a block
     of its own, under the figure it charts (#391 review, item 6).
     """
-    numbers = _numbers(values)
-    if not numbers:
+    if not _numbers(values):
         return []
-    return [caption, "", "```{=html}", sparkline(numbers, label=label), "```", ""]
+    return [caption, "", "```{=html}", sparkline(values, label=label, warned=warned), "```", ""]
 
 
 # ---------------------------------------------------------------------------
@@ -552,15 +600,28 @@ def _yardstick_section(documents: Mapping[str, Document | None]) -> list[str]:
             )
             + " |"
         )
-    lines += ["", f"The key figures of the latest result, `{_cell(result_name(results[-1]))}`, with their trend", "across every result:", ""]
+    lines += [
+        "",
+        f"The key figures of the latest result of each workload, `{_cell(result_name(results[-1]))}` among them,",
+        "with their trend across that workload's results:",
+        "",
+    ]
     series_rows = _key_figure_series(results)
     if not series_rows:
         lines += ["No measure of the latest result was recorded.", ""]
-    for store_id, measure, series, unit in series_rows:
+    for figure in series_rows:
+        caveat = (
+            " A ringed point was measured in the Veeam backup window, so its timing is not comparable."
+            if any(figure.warned) else ""
+        )
         lines += _trend_block(
-            series,
-            label=f"{measure} on {store_id}",
-            caption=f"`{measure}` on {store_id}: {_movement(series, unit=unit, span='results')}.",
+            figure.series,
+            warned=figure.warned,
+            label=f"{figure.measure} on {figure.store_id}, workload {figure.workload_id}",
+            caption=(
+                f"{_code(figure.measure)} on {figure.store_id} under workload {_code(figure.workload_id)}: "
+                f"{_movement(figure.series, unit=figure.unit, span='results')}.{caveat}"
+            ),
         )
     return lines
 
@@ -570,18 +631,66 @@ def _yardstick_section(documents: Mapping[str, Document | None]) -> list[str]:
 KEY_MEASURES = (*TIMED_MEASURES, "peak_rss", "bytes_on_disk")
 
 
-def _key_figure_series(results: Sequence[Mapping[str, Any]]) -> list[tuple[str, str, list[Any], str]]:
-    """One series per (Store, measure) the latest result measured, across every result."""
-    rows: list[tuple[str, str, list[Any], str]] = []
-    for store in measured_stores(results[-1]["result"]):
-        store_id = str(store.get("store_id") or "?")
-        for measure in KEY_MEASURES:
-            record = measures_of(store).get(measure)
-            if record is None or record.get("status") == "not_applicable":
-                continue
-            series = [_measure_number(_measure_of(entry["result"], store_id, measure)) for entry in results]
-            rows.append((store_id, measure, series, _measure_unit(measure)))
-    return rows
+class KeyFigure(NamedTuple):
+    """One trend line: what it measured, and the points, one per result of its workload."""
+
+    workload_id: str
+    store_id: str
+    measure: str
+    series: list[Any]
+    warned: list[bool]
+    unit: str
+
+
+def workload_key(result: Mapping[str, Any]) -> str:
+    """What a result measured: the sha256 that pins the workload file, or its id where the hash is missing.
+
+    A result's `workload_sha256` is the workload file's digest, so two results
+    with the same key measured the same benchmark; two with different keys are
+    not a trend, whatever their Store and measure names say (#391 review, item 9).
+    """
+    return str(result.get("workload_sha256") or result.get("workload_id") or "?")
+
+
+def workload_id(result: Mapping[str, Any]) -> str:
+    return str(result.get("workload_id") or "?")
+
+
+def workload_groups(results: Sequence[Mapping[str, Any]]) -> list[list[Mapping[str, Any]]]:
+    """The results grouped by workload, each group in the order given (oldest first)."""
+    groups: dict[str, list[Mapping[str, Any]]] = {}
+    for entry in results:
+        groups.setdefault(workload_key(entry["result"]), []).append(entry)
+    return list(groups.values())
+
+
+def _key_figure_series(results: Sequence[Mapping[str, Any]]) -> list[KeyFigure]:
+    """One series per (workload, Store, measure) that workload's latest result measured.
+
+    Each series holds a point per result of *its own* workload and nothing else,
+    so a line never draws one workload's measurement beside another's -- the
+    change a trend shows is in the code, not in the benchmark (#391 review, item 9).
+    """
+    figures: list[KeyFigure] = []
+    for group in workload_groups(results):
+        latest = group[-1]["result"]
+        for store in measured_stores(latest):
+            store_id = str(store.get("store_id") or "?")
+            for measure in KEY_MEASURES:
+                record = measures_of(store).get(measure)
+                if record is None or record.get("status") == "not_applicable":
+                    continue
+                figures.append(
+                    KeyFigure(
+                        workload_id=workload_id(latest),
+                        store_id=store_id,
+                        measure=measure,
+                        series=[_measure_number(_measure_of(entry["result"], store_id, measure)) for entry in group],
+                        warned=[entry["result"].get("veeam_window") is True for entry in group],
+                        unit=_measure_unit(measure),
+                    )
+                )
+    return figures
 
 
 def _measure_number(record: Mapping[str, Any] | None) -> Any:
@@ -633,6 +742,31 @@ def epic_record(documents: Mapping[str, Document | None], key: str) -> Document 
         if f"{record.get('repo')}#{record.get('number')}" == key:
             return record
     return None
+
+
+def epics_to_page(documents: Mapping[str, Document | None]) -> list[Mapping[str, Any]]:
+    """Every epic the pages cover: the board's, then the ones only a committed record names.
+
+    A record outlives the board -- `gh` is offline, or the item has left the
+    project -- and the page a record backs is that epic's history, so it is
+    generated from the record with the board's own unavailable notice above it
+    rather than dropped as stale (#391 review, item 8). Only the record's own
+    `key` and `title` come from it: its `status` is the epic's lifecycle, not the
+    board's Status field, and nothing here invents one.
+    """
+    board = available(documents, "board") or {}
+    epics = [dict(epic) for epic in board.get("epics") or [] if isinstance(epic, Mapping) and epic.get("key")]
+    known = {str(epic["key"]) for epic in epics}
+    records = available(documents, "records") or {}
+    for record in records.get("epics") or []:
+        if not isinstance(record, Mapping) or record.get("repo") is None or record.get("number") is None:
+            continue
+        key = f"{record['repo']}#{record['number']}"
+        if key in known:
+            continue
+        epics.append({"key": key, "title": record.get("title") or key})
+        known.add(key)
+    return epics
 
 
 def render_epic_page(documents: Mapping[str, Document | None], epic: Mapping[str, Any]) -> str:
@@ -798,17 +932,17 @@ def _versions_section_shipped(documents: Mapping[str, Document | None], record: 
     releases = available(documents, "releases")
     if releases is None:
         lines += ["| Version | Release |", "| --- | --- |"]
-        lines += [f"| `{version}` | _Releases data unavailable, so its notes cannot be matched_ |" for version in versions]
+        lines += [f"| {_code(version)} | _Releases data unavailable, so its notes cannot be matched_ |" for version in versions]
         lines.append("")
         return lines
     lines += ["| Version | Release notes | Published |", "| --- | --- | --- |"]
     for version in versions:
         release = find_release(releases, repository, version)
         if release is None:
-            lines.append(f"| `{version}` | _no Release carries this tag_ | _not reported_ |")
+            lines.append(f"| {_code(version)} | _no Release carries this tag_ | _not reported_ |")
             continue
         lines.append(
-            f"| `{version}` | {_link(release.get('name') or release.get('tag'), release.get('url'))}"
+            f"| {_code(version)} | {_link(release.get('name') or release.get('tag'), release.get('url'))}"
             f" | {_cell(release.get('published_at'))} |"
         )
     lines.append("")
@@ -859,8 +993,8 @@ def _catalog_cell(documents: Mapping[str, Document | None], record: Document, si
         return _cell(None)
     found = _catalog_version(documents, str(version))
     if found is None:
-        return f"`{version}` (not in the collected versions)"
-    return f"{_figure((found.get('totals') or {}).get('analyses'))} (`{version}`)"
+        return f"{_code(version)} (not in the collected versions)"
+    return f"{_figure((found.get('totals') or {}).get('analyses'))} ({_code(version)})"
 
 
 def _catalog_stores_cell(documents: Mapping[str, Document | None], record: Document, side: str) -> str:
@@ -869,7 +1003,7 @@ def _catalog_stores_cell(documents: Mapping[str, Document | None], record: Docum
         return _cell(None)
     found = _catalog_version(documents, str(version))
     if found is None:
-        return f"_not collected_ (`{version}`)"
+        return f"_not collected_ ({_code(version)})"
     return _figure((found.get("totals") or {}).get("stores"))
 
 
@@ -1415,25 +1549,58 @@ def _yardstick_by_result(documents: Mapping[str, Document | None]) -> list[str]:
 
 
 def _yardstick_matrix(results: Sequence[Mapping[str, Any]]) -> list[str]:
-    columns = [_result_column(entry) for entry in results]
+    """The whole measure matrix, one table per workload.
+
+    Columns are results, so one table spanning two workloads would put one
+    workload's measurement beside another's in the same row -- the comparability
+    the yardstick exists for. Each workload therefore gets its own table, named
+    with its id, so no row ever crosses one (#391 review, item 9).
+    """
+    groups = workload_groups(results)
+    lines: list[str] = []
+    any_veeam = False
+    for group in groups:
+        if len(groups) > 1:
+            result = group[0]["result"]
+            lines += [f"Workload {_code(workload_id(result))} (`{workload_key(result)[:12]}`):", ""]
+        lines += _workload_matrix(group)
+        any_veeam = any_veeam or any(entry["result"].get("veeam_window") is True for entry in group)
+    lines += [
+        "",
+        "A timed measure is its median over the warm reads with its p95 beside it; `bytes_on_disk` is the",
+        "apparent bytes of the Store and `peak_rss` the memory of one `analysis_full` read. A measure the",
+        "result marks `unavailable` says why, and one it marks `not_applicable` is left out.",
+    ]
+    if any_veeam:
+        lines += [
+            "A `†` marks a result measured in the Veeam backup window (`veeam_window: true`), so its",
+            "timings are not comparable with the others' and no change is worked out from them.",
+        ]
+    lines.append("")
+    return lines
+
+
+def _workload_matrix(group: Sequence[Mapping[str, Any]]) -> list[str]:
+    """One workload's results as columns, and every place any of them measured as a row."""
+    columns = [_result_column(entry) for entry in group]
     places: list[tuple[str, str]] = []
-    for entry in results:
+    for entry in group:
         for place in _figure_places(entry["result"]):
             if place not in places:
                 places.append(place)
     places.sort(key=lambda place: (place[0], _measure_order(place[1])))
     lines = ["| Store | Measure | " + " | ".join(columns) + " |", "| --- | --- |" + " --- |" * len(columns)]
     for store_id, measure in places:
-        cells = [measure_value(_measure_of(entry["result"], store_id, measure)) for entry in results]
+        cells = [_matrix_cell(entry, store_id, measure) for entry in group]
         lines.append(f"| {_cell(store_id)} | `{measure}` | " + " | ".join(cells) + " |")
-    lines += [
-        "",
-        "A timed measure is its median over the warm reads with its p95 beside it; `bytes_on_disk` is the",
-        "apparent bytes of the Store and `peak_rss` the memory of one `analysis_full` read. A measure the",
-        "result marks `unavailable` says why, and one it marks `not_applicable` is left out.",
-        "",
-    ]
+    lines.append("")
     return lines
+
+
+def _matrix_cell(entry: Mapping[str, Any], store_id: str, measure: str) -> str:
+    """One measure in one result's column, marked when that result ran in the Veeam window."""
+    cell = measure_value(_measure_of(entry["result"], store_id, measure))
+    return f"{cell} †" if entry["result"].get("veeam_window") is True else cell
 
 
 def _result_column(entry: Mapping[str, Any]) -> str:
@@ -1500,7 +1667,7 @@ def render_changelog(documents: Mapping[str, Document | None]) -> str:
             ]
             tags = [tag.get("name") for tag in repo.get("tags") or [] if tag.get("name")]
             if tags:
-                lines += ["", f"Its tags so far are {', '.join(f'`{tag}`' for tag in tags)}; a tag is not a Release."]
+                lines += ["", f"Its tags so far are {', '.join(_code(tag) for tag in tags)}; a tag is not a Release."]
             lines.append("")
             continue
         lines += ["| Version | Release notes | Published | Flags |", "| --- | --- | --- | --- |"]
@@ -1508,7 +1675,7 @@ def render_changelog(documents: Mapping[str, Document | None]) -> str:
             flags = [flag for flag in ("draft" if release.get("draft") else "",
                                        "prerelease" if release.get("prerelease") else "") if flag]
             lines.append(
-                f"| `{_cell(release.get('tag'))}`"
+                f"| {_code(release.get('tag')) if release.get('tag') else _cell(None)}"
                 f" | {_link(release.get('name') or release.get('tag'), release.get('url'))}"
                 f" | {_cell(release.get('published_at'))} | {', '.join(flags) or '—'} |"
             )
@@ -1569,15 +1736,10 @@ def generate(*, docs: Path, data_dir: Path | None = None, commit: str | None = N
     written = [
         _write(docs / name, _page(title, render(documents))) for name, title, render in SECTION_PAGES
     ]
-    board = available(documents, "board") or {}
-    for epic in board.get("epics") or []:
-        if isinstance(epic, Mapping) and epic.get("key"):
-            written.append(
-                _write(
-                    docs / EPIC_PAGES / f"{epic_page_name(str(epic['key']))}.qmd",
-                    render_epic_page(documents, epic),
-                )
-            )
+    for epic in epics_to_page(documents):
+        written.append(
+            _write(docs / EPIC_PAGES / f"{epic_page_name(str(epic['key']))}.qmd", render_epic_page(documents, epic))
+        )
     stores = available(documents, "stores") or {}
     for entry in stores.get("stores") or []:
         if isinstance(entry, Mapping) and entry.get("store_id"):

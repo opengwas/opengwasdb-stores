@@ -4,7 +4,9 @@ Each Store runs in its own fresh process (`yardstick.worker`), and its peak RSS
 in another, so one Store's caches and allocations never reach the next. Nothing
 here writes under the Artifact Root: Stores are opened read-only, and the
 fixture build and the workers' spec files go to a scratch directory under
-$TMPDIR.
+`$YARDSTICK_TMPDIR`, else `$TMPDIR`, else `/data/opengwasdb/work/yardstick-tmp`
+-- never the host's `/tmp`, because everything this project writes goes under
+`/data/opengwasdb` (CONTRIBUTING, Worktrees).
 """
 
 from __future__ import annotations
@@ -30,6 +32,19 @@ from yardstick import result as result_spec
 from yardstick import workload as workload_spec
 
 BUDGET_S = 600.0
+#: Where a run's scratch lives when nothing else says. `/data` is where this
+#: project writes (CONTRIBUTING, Worktrees): a run must never fill the host's `/tmp`.
+SCRATCH_ROOT_ENV = "YARDSTICK_TMPDIR"
+DEFAULT_SCRATCH_ROOT = Path("/data/opengwasdb/work/yardstick-tmp")
+
+
+def scratch_root() -> Path:
+    """The directory a run's scratch is made under: `$YARDSTICK_TMPDIR`, `$TMPDIR`, else `/data`."""
+    for name in (SCRATCH_ROOT_ENV, "TMPDIR"):
+        configured = os.environ.get(name)
+        if configured and configured.strip():
+            return Path(configured)
+    return DEFAULT_SCRATCH_ROOT
 
 
 def _now() -> float:
@@ -185,7 +200,12 @@ def run(
     budget_s: float = BUDGET_S,
 ) -> dict[str, Any]:
     own_scratch = scratch is None
-    scratch = Path(scratch) if scratch else Path(tempfile.mkdtemp(prefix="yardstick-", dir=os.environ.get("TMPDIR")))
+    if scratch is None:
+        root = scratch_root()
+        root.mkdir(parents=True, exist_ok=True)
+        scratch = Path(tempfile.mkdtemp(prefix="yardstick-", dir=root))
+    else:
+        scratch = Path(scratch)
     scratch.mkdir(parents=True, exist_ok=True)
     start_local = datetime.now().astimezone()
     start_clock = _now()

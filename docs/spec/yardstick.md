@@ -7,7 +7,11 @@ harnesses; the yardstick is the single workload this repository re-runs.
 Run it with `pixi run yardstick`. It writes
 `docs/_yardstick/<UTC start, YYYYMMDDTHHMMSSZ>-<opengwasdb version>.json`. It
 is read-only on the Artifact Root: Stores are opened for reading, and the
-fixture build and worker files go under `$TMPDIR`.
+fixture build and worker files go to a scratch directory under
+`$YARDSTICK_TMPDIR`, else `$TMPDIR`, else `/data/opengwasdb/work/yardstick-tmp`
+-- never the host's `/tmp`, because everything this project writes goes under
+`/data/opengwasdb` (CONTRIBUTING, Worktrees). A run removes the scratch
+directory it made.
 
 ## Workload
 
@@ -125,7 +129,13 @@ on the first problem. It refuses: a wrong `schema`; a Store object without
 without `result_count`; an `analysis_hm3` record lacking any
 `measure_hm3_extract` field above; a measured `fixture_build` without `layout`; a revision that is
 not 40 lower-case hex characters; a timestamp that is not `YYYY-MM-DDTHH:MM:SSZ`;
-a load array that is not exactly three non-negative numbers; a missing `first_result_count`; and any negative timing, byte or size. With a `workload` (`yardstick.workload.load()`) it also
+a load array that is not exactly three non-negative numbers; a missing `first_result_count`; and any negative timing, byte or size.
+Every nested value is checked before it is read: the result object, `opengwasdb`,
+`ogstores`, `host`, `load_average`, `fixture_build`, `stores` and each Store,
+its `measures` and each measure record must be of the shape the schema names,
+and one that is not is a `ResultError` naming its path (`stores[0] must be an
+object`) rather than an exception escaping the validator. A value of the wrong
+shape is a refusal, never a crash (#390). With a `workload` (`yardstick.workload.load()`) it also
 requires every workload Store, with the same status, and every measure that
 Store lists. The project site's collector reads results through it. Load a
 workload with `yardstick.workload.load()`; `check()` raises `WorkloadError`.

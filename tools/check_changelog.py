@@ -26,6 +26,12 @@ Two things are checked, in this order:
    first check, because the label says "no notes are needed", not "no note may
    be read".
 
+`tools/release.py` reads the same fragment types and the same file-name pattern,
+because it publishes what this check admits; the two scripts stay independent,
+mirroring the sibling `opengwasdb` repository's, and
+`tests/release-versioning/test_release.py` asserts that the contract they define
+cannot drift.
+
 There is no `CHANGELOG.md` to edit: the history up to the cutover is in git,
 and each version's notes are the GitHub Release the workflow publishes.
 

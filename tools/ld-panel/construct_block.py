@@ -18,6 +18,8 @@ from collections import Counter
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from scratch import scratch_dir
+
 # Block-level process parallelism is the only parallel layer. Prevent each
 # scipy eigensolver from creating another large BLAS thread pool.
 for _thread_var in (
@@ -329,7 +331,7 @@ def main() -> int:
     ap.add_argument("--cumvar", type=float, default=.99); ap.add_argument("--min-k", type=int, default=250)
     ap.add_argument("--plink2", default="plink2")
     args = ap.parse_args()
-    with tempfile.TemporaryDirectory(prefix="ld-block-") as tmp:
+    with scratch_dir("ld-block-") as tmp:
         g, variants, ids = _plink_extract(args, Path(tmp))
         result = construct_block(g, variants, individual_ids=ids,
             interval=f"{args.chrom}:{args.start}-{args.end}", mac_threshold=args.mac,

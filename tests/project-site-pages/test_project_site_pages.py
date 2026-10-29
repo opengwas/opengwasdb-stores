@@ -389,12 +389,13 @@ def measured_store(store_id: str, **medians: float) -> dict:
     }
 
 
-def yardstick_result(started: str, stores: list[dict]) -> dict:
+def yardstick_result(started: str, stores: list[dict], *, workload_id: str = "w",
+                     workload_sha256: str = "0" * 64, veeam_window: bool = False) -> dict:
     """A yardstick result, in the shape `docs/spec/yardstick.md` documents."""
     return {
         "schema": 1,
-        "workload_id": "w",
-        "workload_sha256": "0" * 64,
+        "workload_id": workload_id,
+        "workload_sha256": workload_sha256,
         "opengwasdb": {"version": "0.3.0", "revision": "0d59f151c7618933747a59f825deeef6a51de9e1"},
         "ogstores": {"version": "0.1.0"},
         "host": {"name": "host", "cpu_count": 4},
@@ -403,7 +404,7 @@ def yardstick_result(started: str, stores: list[dict]) -> dict:
         "ended_utc": started,
         "duration_s": 60.0,
         "local_utc_offset_minutes": 0,
-        "veeam_window": False,
+        "veeam_window": veeam_window,
         "repetitions": {"default": 5},
         "stores": stores,
     }
@@ -543,6 +544,9 @@ class TestAnUnavailableSource(unittest.TestCase):
 # A fact a collector may hold: a title, a Next line, a release name, a note. It is
 # data, and a page must state it rather than obey the markup it happens to hold.
 NASTY = "<b>x</b> *y* [z](w) | q `c` _e_ & r"
+# A legal Git tag: it holds a backtick, which closes a one-backtick code span, and
+# a `<b>`, which every other escaping rule turns into text (#391 review, item 2).
+NASTY_TAG = "v`<b>x</b>`"
 
 
 def adversarial_documents() -> dict:
@@ -585,7 +589,7 @@ def adversarial_documents() -> dict:
                                catalog={"before": "aaaaaaaaaaaaaaaa", "after": "bbbbbbbbbbbbbbbb"},
                                test_time={"baseline": {"commit": "e6e829d", "wall_s": 1.0, "suites": None},
                                           "final": {"commit": "a84ecfb", "wall_s": 1.1, "suites": None}},
-                               versions=["v0.1.0"],
+                               versions=["v0.1.0", NASTY_TAG],
                                decisions=[{"date": "2026-10-21", "text": NASTY, "link": None}])],
             invalid={},
             yardstick={"results": [], "invalid": {}},
@@ -621,6 +625,12 @@ class TestFreeTextIsData(unittest.TestCase):
         self.assertIn("\\*y\\*", overview)
         self.assertIn("\\| q", overview)  # an unescaped pipe would cut the table cell in two
 
+    def test_a_version_in_a_code_span_is_literal_through_its_own_backtick(self) -> None:
+        """A tag is free text: its backtick must not close the code span it is written in."""
+        epic_page = self.rendered[2]
+        self.assertIn("<code>v&#96;&lt;b&gt;x&lt;/b&gt;&#96;</code>", epic_page)
+        self.assertNotIn(f"`{NASTY_TAG}`", epic_page)
+
 
 @unittest.skipUnless(QUARTO, "Quarto is not on PATH; the render assertions need it")
 class TestWhatQuartoWrites(unittest.TestCase):
@@ -640,6 +650,16 @@ class TestWhatQuartoWrites(unittest.TestCase):
         self.assertIn("&lt;b&gt;x&lt;/b&gt;", html)
         self.assertNotIn("<b>x</b>", html)
         self.assertNotIn('href="w"', html)
+
+    def test_a_version_holding_a_backtick_and_a_tag_renders_as_text(self) -> None:
+        documents = adversarial_documents()
+        with tempfile.TemporaryDirectory(prefix="project-site-render-") as tmp:
+            html = render_with_quarto(
+                pages.render_epic_page(documents, documents["board"]["epics"][0]), Path(tmp)
+            )
+
+        self.assertIn("v`&lt;b&gt;x&lt;/b&gt;`", html)
+        self.assertNotIn("<b>x</b>", html)
 
 
 class TestNoInventedCurrentVersion(unittest.TestCase):
@@ -721,6 +741,68 @@ class TestHeadlineYardstickTrends(unittest.TestCase):
 
         self.assertIn("| `20261027T100000Z-0.3.0` | 2026-10-27T10:00:00Z |", page)
         self.assertIn("| OGS-00009 | `phewas_rsid` |", page)
+
+    def test_the_series_names_the_workload_it_measured(self) -> None:
+        page = pages.render_overview(self.documents)
+
+        self.assertIn("`phewas_rsid` on OGS-00009 under workload `w`", page)
+
+
+class TestYardstickWorkloadsAndTheVeeamWindow(unittest.TestCase):
+    """A trend never mixes workloads, and a Veeam-window point is visibly marked (#391 review, item 9)."""
+
+    def documents(self, *results: tuple[str, dict]) -> dict:
+        documents_ = full_documents()
+        documents_["records"] = results_envelope(*results)
+        return documents_
+
+    def slow_and_fast(self, *, second_veeam: bool = False) -> dict:
+        first = measured_store("OGS-00009", phewas_rsid=30.0)
+        second = measured_store("OGS-00009", phewas_rsid=3.0)
+        return self.documents(
+            ("20261020T100000Z-0.3.0.json", yardstick_result(
+                "2026-10-20T10:00:00Z", [first], workload_id="w1", workload_sha256="1" * 64)),
+            ("20261027T100000Z-0.3.0.json", yardstick_result(
+                "2026-10-27T10:00:00Z", [second], workload_id="w2", workload_sha256="2" * 64,
+                veeam_window=second_veeam)),
+        )
+
+    def test_two_workloads_are_two_series_and_never_one_line(self) -> None:
+        documents = self.slow_and_fast()
+        page = pages.render_overview(documents)
+
+        first = raw_block_after(page, "`phewas_rsid` on OGS-00009 under workload `w1`")
+        second = raw_block_after(page, "`phewas_rsid` on OGS-00009 under workload `w2`")
+        self.assertEqual(first.count("<circle"), 1)
+        self.assertEqual(second.count("<circle"), 1)
+        self.assertNotIn("30 ms → 3 ms", page)
+        self.assertIn("30 ms in the one result", page)
+        self.assertIn("3 ms in the one result", page)
+
+    def test_each_workload_has_its_own_table(self) -> None:
+        page = pages.render_trends(self.slow_and_fast())
+
+        self.assertIn("Workload `w1`", page)
+        self.assertIn("Workload `w2`", page)
+        rows = [line for line in page.splitlines() if line.startswith("| OGS-00009 | `phewas_rsid` |")]
+        self.assertEqual(len(rows), 2, "a row per workload, never one row across both")
+        self.assertTrue(all(row.count(" ms (") == 1 for row in rows), rows)
+
+    def test_a_point_in_the_veeam_window_is_marked_and_explained(self) -> None:
+        documents = self.slow_and_fast(second_veeam=True)
+        overview = pages.render_overview(documents)
+        block = raw_block_after(overview, "`phewas_rsid` on OGS-00009 under workload `w2`")
+
+        self.assertEqual(block.count("<circle"), 2, "a ring around the marked point")
+        self.assertIn("Veeam backup window", overview)
+
+        trends = pages.render_trends(documents)
+        self.assertIn("Veeam backup window", trends)
+        marked = [
+            line for line in trends.splitlines()
+            if line.startswith("| OGS-00009 | `phewas_rsid` |") and "†" in line
+        ]
+        self.assertEqual(len(marked), 1, "only the result in the window is marked")
 
 
 class TestReleaseNotesByRepository(unittest.TestCase):
@@ -867,6 +949,42 @@ class TestGenerate(unittest.TestCase):
         stale.write_text("gone")
         pages.generate(docs=self.docs, data_dir=self.data)
         self.assertFalse(stale.exists())
+
+    def test_an_unavailable_board_keeps_a_page_for_every_epic_record(self) -> None:
+        """A record outlives the board: its page is generated with the notice, never removed (#391 review, item 8)."""
+        documents = full_documents()
+        documents["board"] = {
+            "source": "board", "available": False, "collected_at": COLLECTED,
+            "error": "CollectError: gh api graphql exited 4",
+        }
+        records = documents["records"]
+        documents["records"] = envelope(
+            "records",
+            epics=[
+                epic_record("opengwasdb-stores#313", title="Analysis catalog across all Stores",
+                            catalog={"before": None, "after": None},
+                            test_time={"baseline": None, "final": None}),
+                epic_record("opengwasdb-stores#282", title="Manifest Generation shared pipeline",
+                            catalog={"before": None, "after": None},
+                            test_time={"baseline": None, "final": None}),
+                epic_record("opengwasdb-stores#302", title="Single-id reference completion",
+                            catalog={"before": None, "after": None},
+                            test_time={"baseline": None, "final": None}),
+            ],
+            invalid={},
+            yardstick=records["yardstick"],
+        )
+        for source, document in documents.items():
+            (self.data / f"{source}.json").write_text(json.dumps(document))
+
+        pages.generate(docs=self.docs, data_dir=self.data)
+
+        for number in (313, 282, 302):
+            page = self.docs / "epics" / f"opengwasdb-stores-{number}.qmd"
+            with self.subTest(epic=number):
+                self.assertTrue(page.exists(), "a record-backed page is not dropped")
+                self.assertIn("Board data unavailable", page.read_text())
+                self.assertIn("CollectError: gh api graphql exited 4", page.read_text())
 
     def test_no_data_directory_still_writes_every_section_page_with_the_notices(self) -> None:
         written = pages.generate(docs=self.docs, data_dir=Path(self.docs.name) / "never-collected")

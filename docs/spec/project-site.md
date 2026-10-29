@@ -127,9 +127,13 @@ aliased query, and follows every further page of both relationships (`subIssues`
 and `blockedBy` each return `pageInfo`). An issue's body is read for two things,
 and dropped otherwise: a Milestone's checklist lines, and an Epic's `purpose`,
 the first non-empty paragraph of the body that is prose -- not a heading, a
-fence, a table, a quote, or a list of bullets and boxes -- cut at a sentence (or,
+table, a quote, or a list of bullets and boxes -- cut at a sentence (or,
 failing a sentence, at a word and an ellipsis) to at most 600 characters. A
-relationship that still has a page unread when the response is parsed is an
+fenced block is skipped whole, tracked across the paragraph split: three or more
+backticks or tildes open it and the same character in a run at least as long
+closes it, so a code sample's own blank lines never end it and its second half is
+never read as prose. A relationship that still has a page unread when the
+response is parsed is an
 error, so the file is `available: false` rather than a short list marked
 complete.
 
@@ -227,7 +231,11 @@ An invalid file is reported by name and never stops the others. An absent or
 empty `docs/_epics/` or `docs/_yardstick/` is not an error. The yardstick's
 result schema and validator are #390's (`docs/spec/yardstick.md`): the collector
 reads each result through `yardstick.result.validate`, and reports a refused one
-under `yardstick.invalid` with its `ResultError` message. `records.collect`
+under `yardstick.invalid` with its `ResultError` message. Any *other* exception
+from validating one file -- a validator that raises rather than refuses -- is
+that file's error too, recorded as `ExceptionType: message`, and the other
+results are still read: one bad file never makes the source unavailable. The
+same holds for the epic records above. `records.collect`
 takes another validator as an argument, for tests.
 
 ### The command's output and exit status

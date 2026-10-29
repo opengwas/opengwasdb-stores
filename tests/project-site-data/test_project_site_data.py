@@ -444,6 +444,29 @@ class TestBoardEpicPurpose(unittest.TestCase):
         self.assertIsNone(board.purpose_of("## Exit criteria\n\n- [ ] one\n- [x] two\n"))
         self.assertIsNone(board.purpose_of(None))
 
+    def test_a_fenced_block_is_skipped_whole_however_its_blank_lines_fall(self) -> None:
+        """A code fence is not prose, and a blank line inside it does not end the fence (#391 review, item 3)."""
+        body = (
+            "```python\n"
+            "def example():\n"
+            "\n"
+            "    print(\"example\")\n"
+            "```\n"
+            "\n"
+            "The epic makes the example run on every render.\n"
+        )
+        self.assertEqual(board.purpose_of(body), "The epic makes the example run on every render.")
+
+    def test_a_body_of_fences_alone_has_no_purpose(self) -> None:
+        for body in (
+            "```python\n\nprint(\"one\")\n```\n",
+            "~~~\n\nprint(\"two\")\n~~~\n",
+            "````\n```\n\nprint(\"three\")\n```\n````\n\n- [ ] a box, not prose\n",
+            "```\nunclosed fence\n\nprint(\"four\")\n",
+        ):
+            with self.subTest(body=body):
+                self.assertIsNone(board.purpose_of(body))
+
     def test_a_long_first_paragraph_is_cut_at_a_sentence(self) -> None:
         body = "The catalog lists every validated Store. " * 30
         purpose = board.purpose_of(body)
@@ -828,6 +851,42 @@ class TestRecordsCollectorUsesTheYardstickValidator(unittest.TestCase):
         self.assertEqual(sorted(result["invalid"]), ["negative.json", "object.json", "wrong-schema.json"])
         self.assertEqual(result["invalid"]["wrong-schema.json"], ["result schema must be 1, got 2"])
         self.assertEqual(result["invalid"]["negative.json"], ["duration_s must not be negative, got -1"])
+
+    def test_one_malformed_result_is_that_files_error_and_never_the_sources(self) -> None:
+        """A shape the validator cannot read is refused by file name; the others are still read (#389)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            epics, yardstick = Path(tmp) / "_epics", Path(tmp) / "_yardstick"
+            epics.mkdir()
+            yardstick.mkdir()
+            (yardstick / "good.json").write_text(json.dumps(minimal_yardstick_result()))
+            null_store = minimal_yardstick_result()
+            null_store["stores"] = [None]
+            (yardstick / "null-store.json").write_text(json.dumps(null_store))
+            string_engine = minimal_yardstick_result()
+            string_engine["opengwasdb"] = "0.3.0"
+            (yardstick / "string-engine.json").write_text(json.dumps(string_engine))
+            result = records_collector.collect(epics, yardstick)["yardstick"]
+        self.assertEqual([entry["name"] for entry in result["results"]], ["good.json"])
+        self.assertIn("stores[0] must be an object", result["invalid"]["null-store.json"][0])
+        self.assertIn("opengwasdb must be an object", result["invalid"]["string-engine.json"][0])
+
+    def test_a_validator_that_raises_is_that_files_error_too(self) -> None:
+        """Any exception from validating one file is that file's error, named, and the rest go on (#389)."""
+        with tempfile.TemporaryDirectory() as tmp:
+            epics, yardstick = Path(tmp) / "_epics", Path(tmp) / "_yardstick"
+            epics.mkdir()
+            yardstick.mkdir()
+            (yardstick / "good.json").write_text('{"epic": 313}')
+            (yardstick / "breaks.json").write_text('{"epic": null}')
+
+            def validator(document: dict) -> list[str]:
+                if document["epic"] is None:
+                    return [document["epic"].citation]  # AttributeError, not a refusal
+                return []
+
+            result = records_collector.collect(epics, yardstick, validator)["yardstick"]
+        self.assertEqual(result["results"], [{"name": "good.json", "result": {"epic": 313}}])
+        self.assertTrue(result["invalid"]["breaks.json"][0].startswith("AttributeError: "))
 
 
 class TestSiteData(unittest.TestCase):

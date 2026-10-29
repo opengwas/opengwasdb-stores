@@ -37,6 +37,11 @@ history. Nor does anything read the working tree for a commit's notes: a
 fragment is read with `git show <commit>:<path>`, so a later edit cannot change
 what an earlier Release said.
 
+The fragment types and the file-name pattern are the same ones
+`tools/check_changelog.py` refuses a pull request over: the two scripts stay
+independent, mirroring the sibling `opengwasdb` repository's, and
+`tests/release-versioning/test_release.py` asserts the contract cannot drift.
+
 Run it by hand, read-only, to see what a merge would release:
 
     pixi run -e dev python3 tools/release.py plan --repository opengwas/opengwasdb-stores

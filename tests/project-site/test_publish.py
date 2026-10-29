@@ -22,6 +22,7 @@ from pathlib import Path
 from unittest import mock
 
 from project_site import build, paths
+from project_site import publish as publish_module
 from project_site.collect import common as collect_common
 from project_site.publish import PublishRefused, publish
 
@@ -323,6 +324,12 @@ class DefaultRefTest(unittest.TestCase):
 
     def test_the_default_publish_ref_is_main(self) -> None:
         self.assertEqual(paths.DEFAULT_PUBLISH_REF, "origin/main")
+
+    def test_no_publish_instruction_sends_the_operator_to_dev(self) -> None:
+        """A live instruction names `main`; `dev` is not a branch work lands on any more (#386)."""
+        for module in (paths, publish_module):
+            with self.subTest(module=module.__name__):
+                self.assertNotIn("origin/dev", module.__doc__ or "")
 
     def test_a_publish_of_the_default_ref_renders_the_commit_main_names(self) -> None:
         tmp = tempfile.TemporaryDirectory(prefix="project-site-publish-main-")
