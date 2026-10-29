@@ -81,7 +81,7 @@ def merge(
     return release.Merge(
         commit=commit,
         subject=subject,
-        fragments=[str(path) for path in fragments],
+        fragments=release.read_fragments(list(fragments)),
         pr_number=pr_number,
         tag=tag,
     )
@@ -242,6 +242,27 @@ class NotesTest(TemporaryDirectoryTest):
 
 
 class ReconciliationTest(TemporaryDirectoryTest):
+    def test_numbering_never_goes_down_to_repair_an_older_release(self) -> None:
+        """The base is the highest `v*` version, whatever older Releases are repaired.
+
+        A resumed tag must not become the base for the next new merge: with
+        `v0.3.0` released and `v0.2.0` without a Release, the new merge is
+        `0.3.1`, not `0.2.1`.
+        """
+        fix = self.fragment("1-a.fixed.md", "- Fixed one.\n")
+        planned = release.plan_releases(
+            tags={"v0.2.0": "2" * 40, "v0.3.0": "3" * 40},
+            merges=[
+                merge(commit="2" * 40, fragments=(), tag="v0.2.0"),
+                merge(commit="4" * 40, fragments=(fix,)),
+            ],
+            repository=REPO,
+        )
+        self.assertEqual([(p.tag, p.needs_tag) for p in planned], [
+            ("v0.2.0", False),
+            ("v0.3.1", True),
+        ])
+
     def test_three_untagged_merges_are_three_versions_in_ancestry_order(self) -> None:
         """One run publishes every merge whose run was lost, oldest first."""
         fix = self.fragment("1-a.fixed.md", "- Fixed one.\n")
@@ -308,7 +329,12 @@ class ReconciliationTest(TemporaryDirectoryTest):
 
 
 class RepositoryTest(TemporaryDirectoryTest):
-    """A throwaway repository on `main`, one annotated tag, and a stub-free env."""
+    """A clone on `main` with an `origin`, and `v0.3.0` on both.
+
+    The remote is part of the fixture because the remote's tags are the truth
+    (#386): a plan built from local tags cannot tell a tag that was pushed from
+    one a failed push left behind.
+    """
 
     def setUp(self) -> None:
         super().setUp()
@@ -319,7 +345,13 @@ class RepositoryTest(TemporaryDirectoryTest):
         (root / "src" / "pkg.py").write_text("VALUE = 1\n", encoding="utf-8")
         git(root, "init", "-q", "-b", "main")
         self.commit("base")
-        git(root, "tag", "--annotate", "v0.3.0", "--message", "Release v0.3.0")
+        (root / "src" / "pkg.py").write_text("VALUE = 2\n", encoding="utf-8")
+        self.commit("second")
+        bare = self.tmp / "origin.git"
+        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True, env=GIT_ENV)
+        git(root, "remote", "add", "origin", str(bare))
+        git(root, "push", "-q", "-u", "origin", "main")
+        self.tag("v0.3.0")
         self.enter(root)
 
     def enter(self, directory: Path) -> None:
@@ -336,12 +368,18 @@ class RepositoryTest(TemporaryDirectoryTest):
         (self.repo / "changelog.d" / name).write_text(text, encoding="utf-8")
         return self.commit(message)
 
+    def tag(self, name: str, commit: str = "HEAD") -> None:
+        """Annotate `commit` as `name` and push the tag: the remote must carry it."""
+        git(self.repo, "tag", "--annotate", name, "--message", f"Release {name}", commit)
+        git(self.repo, "push", "-q", "origin", f"refs/tags/{name}")
+
 
 class DiscoveryTest(RepositoryTest):
-    def test_tags_are_read_from_v_star_only(self) -> None:
+    def test_remote_tags_are_read_from_v_star_only(self) -> None:
         """A stray `99.0.0` is not a version, and must not become one."""
         git(self.repo, "tag", "99.0.0")
-        self.assertEqual(list(release.tag_commits()), ["v0.3.0"])
+        git(self.repo, "push", "-q", "origin", "refs/tags/99.0.0")
+        self.assertEqual(list(release.remote_tags()), ["v0.3.0"])
 
     def test_a_git_failure_is_an_error_not_an_empty_answer(self) -> None:
         """`|| true` in the shell reads a broken repository as "no tag yet"."""
@@ -349,23 +387,62 @@ class DiscoveryTest(RepositoryTest):
         outside.mkdir()
         self.enter(outside)
         with self.assertRaises(release.ReleaseError) as caught:
-            release.tag_commits()
+            release.remote_tags()
         self.assertIn("git", str(caught.exception))
+
+    def test_the_resume_scope_is_the_newest_release_and_no_older(self) -> None:
+        tags = {"v0.2.0": "a", "v0.3.0": "b", "v0.3.2": "c"}
+        self.assertEqual(release.resume_tags(tags, {"v0.3.0"}), {"v0.3.2"})
+        self.assertEqual(release.resume_tags(tags, {"v0.3.0", "v0.3.2"}), set())
+        # no Release exists at all: only the newest tag, never the whole history
+        self.assertEqual(release.resume_tags(tags, set()), {"v0.3.2"})
+        self.assertEqual(release.resume_tags({}, set()), set())
+
+    def test_only_the_newest_tag_is_resumed_when_no_release_exists(self) -> None:
+        """A repository whose tags all predate the workflow gets one Release, not N.
+
+        At the cutover every tag on the remote is older than this machinery, so
+        resuming them all would publish a Release for each historical tag -- the
+        opposite of "the first run creates exactly the cutover's Release".
+        """
+        self.tag("v0.2.0", "HEAD~1")
+        tags = release.remote_tags()
+
+        self.assertEqual(release.pending(tags=tags, released=set()), [tags["v0.3.0"]])
+        planned = release.plan_releases(
+            tags=tags,
+            merges=[release.Merge(commit=tags["v0.3.0"], subject="cutover", tag="v0.3.0")],
+            repository=REPO,
+        )
+        self.assertEqual([(p.tag, p.needs_tag, p.needs_release) for p in planned],
+                         [("v0.3.0", False, True)])
+
+    def test_an_older_missing_release_is_left_alone(self) -> None:
+        """Only tags newer than the newest Release are repaired."""
+        first = self.add("1-a.fixed.md", "- Fixed one.\n", "fix one")
+        self.tag("v0.2.0", "HEAD~1")
+        self.tag("v0.3.1", first)
+        third = self.add("2-b.fixed.md", "- Fixed two.\n", "fix two")
+        tags = release.remote_tags()
+
+        self.assertEqual(set(tags), {"v0.2.0", "v0.3.0", "v0.3.1"})
+        self.assertEqual(release.pending(tags=tags, released={"v0.3.0", "v0.3.1"}), [third])
+        self.assertEqual(release.resume_tags(tags, {"v0.3.0", "v0.3.1"}), set())
 
     def test_pending_lists_every_first_parent_commit_after_the_latest_tag(self) -> None:
         second = self.add("1-a.fixed.md", "- Fixed one.\n", "fix")
         third = self.add("2-b.added.md", "- Added two.\n", "feature")
         self.assertEqual(
-            release.pending(tags=release.tag_commits(), released={"v0.3.0"}), [second, third]
+            release.pending(tags=release.remote_tags(), released={"v0.3.0"}), [second, third]
         )
 
     def test_a_tagged_commit_in_the_middle_is_not_published_again(self) -> None:
         """A merge that already has its tag is not re-released, and the merges
         after it are numbered from it."""
         first = self.add("1-a.fixed.md", "- Fixed one.\n", "fix one")
-        git(self.repo, "tag", "--annotate", "v0.3.1", "--message", "Release v0.3.1")
+        self.tag("v0.3.1", first)
         second = self.add("2-b.fixed.md", "- Fixed two.\n", "fix two")
-        tags = release.tag_commits()
+        tags = release.remote_tags()
 
         self.assertEqual(release.pending(tags=tags, released={"v0.3.0", "v0.3.1"}), [second])
         planned = release.plan_releases(
@@ -377,27 +454,27 @@ class DiscoveryTest(RepositoryTest):
 
     def test_a_tag_whose_release_is_missing_is_pending(self) -> None:
         second = self.add("1-a.fixed.md", "- Fixed one.\n", "fix")
-        git(self.repo, "tag", "--annotate", "v0.3.1", "--message", "Release v0.3.1")
-        self.assertEqual(release.pending(tags=release.tag_commits(), released={"v0.3.0"}), [second])
+        self.tag("v0.3.1")
+        self.assertEqual(release.pending(tags=release.remote_tags(), released={"v0.3.0"}), [second])
 
     def test_nothing_is_pending_once_every_merge_is_tagged_and_released(self) -> None:
         self.add("1-a.fixed.md", "- Fixed one.\n", "fix")
-        git(self.repo, "tag", "--annotate", "v0.3.1", "--message", "Release v0.3.1")
+        self.tag("v0.3.1")
         self.assertEqual(
-            release.pending(tags=release.tag_commits(), released={"v0.3.0", "v0.3.1"}), []
+            release.pending(tags=release.remote_tags(), released={"v0.3.0", "v0.3.1"}), []
         )
 
     def test_pending_refuses_when_the_latest_tag_is_off_the_first_parent_line(self) -> None:
         """A tag reachable only from a side branch cannot order the merges on main."""
         git(self.repo, "checkout", "-q", "-b", "side")
         side = self.add("1-a.fixed.md", "- Fixed one.\n", "fix on side")
-        git(self.repo, "tag", "--annotate", "v0.4.0", "--message", "Release v0.4.0")
+        self.tag("v0.4.0")
         git(self.repo, "checkout", "-q", "main")
         git(self.repo, "merge", "-q", "--no-ff", "side", "-m", "merge side")
 
         self.assertNotIn(side, release.first_parent_history())
         with self.assertRaises(release.ReleaseError) as caught:
-            release.pending(tags=release.tag_commits(), released=set())
+            release.pending(tags=release.remote_tags(), released=set())
         self.assertIn("v0.4.0", str(caught.exception))
 
     def test_commit_facts_read_the_subject_and_the_added_fragments(self) -> None:
@@ -476,12 +553,22 @@ else:
         state.update(changes)
         self.state.write_text(json.dumps(state), encoding="utf-8")
 
-    def remote(self) -> Path:
-        """A bare repository the test can push to, so publication is real."""
-        bare = self.tmp / "origin.git"
-        subprocess.run(["git", "init", "-q", "--bare", str(bare)], check=True, env=GIT_ENV)
-        git(self.repo, "remote", "add", "origin", str(bare))
-        return bare
+    def handwritten_plan(self, **overrides: object) -> Path:
+        """A plan file naming a commit and tag this repository does not have."""
+        entry = {
+            "commit": "9" * 40,
+            "subject": "elsewhere",
+            "pr_number": None,
+            "version": "0.3.1",
+            "tag": "v0.3.1",
+            "notes": "- Something.\n",
+            "needs_tag": True,
+            "needs_release": True,
+        }
+        entry.update(overrides)
+        out = self.tmp / "plan.json"
+        out.write_text(json.dumps([entry]), encoding="utf-8")
+        return out
 
     def plan(self, out: Path | None = None, *extra: str) -> tuple[int, list[dict], str]:
         out = out or self.tmp / "plan.json"
@@ -491,8 +578,9 @@ else:
         entries = json.loads(out.read_text(encoding="utf-8")) if status == 0 else []
         return status, entries, stderr.getvalue()
 
-    def publish(self, out: Path) -> int:
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+    def publish(self, out: Path, *, stderr: io.StringIO | None = None) -> int:
+        err = stderr if stderr is not None else io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
             return release.main(["publish", "--plan", str(out)])
 
     def test_the_plan_lists_every_merge_that_is_owed_a_release(self) -> None:
@@ -511,7 +599,7 @@ else:
 
     def test_the_plan_resumes_a_tag_whose_release_is_missing(self) -> None:
         self.add("1-a.fixed.md", "- Fixed one.\n", "Fix one (#1)")
-        git(self.repo, "tag", "--annotate", "v0.3.1", "--message", "Release v0.3.1")
+        self.tag("v0.3.1")
 
         _, (entry,), _ = self.plan()
 
@@ -544,7 +632,6 @@ else:
         self.assertEqual(len(plan), 2)
 
     def test_publish_tags_pushes_and_creates_the_release(self) -> None:
-        bare = self.remote()
         commit = self.add("1-a.fixed.md", "- Fixed one.\n", "Fix one (#1)")
         out = self.tmp / "plan.json"
         self.plan(out)
@@ -552,11 +639,26 @@ else:
         self.assertEqual(self.publish(out), 0)
 
         self.assertEqual(git(self.repo, "rev-parse", "v0.3.1^{commit}"), commit)
-        self.assertEqual(
-            git(bare, "rev-parse", "refs/tags/v0.3.1"),
-            git(self.repo, "rev-parse", "refs/tags/v0.3.1"),
-        )
+        self.assertEqual(release.remote_tags()["v0.3.1"], commit, "the tag reached the remote")
         self.assertTrue(any(call.startswith("release create v0.3.1") for call in self.gh_calls()))
+
+    def test_the_notes_are_read_from_the_commit_that_added_the_fragment(self) -> None:
+        """A later edit to a fragment must not rewrite an earlier release.
+
+        Fragments are never edited, but that is a rule people keep, not
+        something git enforces: reading the working tree meant a copy edit in a
+        later commit silently changed what an earlier version's Release said.
+        """
+        first = self.add("1-a.fixed.md", "- The original note.\n", "fix one")
+        (self.repo / "changelog.d" / "1-a.fixed.md").write_text(
+            "- Rewritten much later.\n", encoding="utf-8"
+        )
+        self.commit("rewrite the fragment")
+
+        planned = release.collect(release.remote_tags(), {"v0.3.0"}, REPO, [first])
+
+        self.assertIn("- The original note.", planned[0].notes)
+        self.assertNotIn("Rewritten much later", planned[0].notes)
 
     def test_publish_finishes_a_release_the_previous_run_could_not_create(self) -> None:
         """The tag is pushed, `gh release create` fails, and the next run completes it.
@@ -564,7 +666,6 @@ else:
         This is the partial publication the reviews found: "tag exists" was read
         as "released", so the Release could never be created afterwards.
         """
-        self.remote()
         commit = self.add("1-a.fixed.md", "- Fixed one.\n", "Fix one (#1)")
         out = self.tmp / "plan.json"
         self.plan(out)
@@ -581,23 +682,54 @@ else:
         self.assertEqual(git(self.repo, "rev-parse", "v0.3.1^{commit}"), commit, "the tag did not move")
         self.assertTrue(any(call.startswith("release create v0.3.1") for call in self.gh_calls()))
 
-    def test_publish_refuses_to_move_a_tag_on_another_commit(self) -> None:
-        self.remote()
+    def test_publish_pushes_a_tag_a_failed_push_left_behind(self) -> None:
+        """A push that failed leaves the tag locally; the retry must still push it.
+
+        Otherwise the Release cannot be created (`gh release create` needs the
+        tag on the remote, and `--verify-tag` fails), and every retry concludes
+        from the *local* tag that there is nothing to do.
+        """
+        commit = self.add("1-a.fixed.md", "- Fixed one.\n", "Fix one (#1)")
+        git(self.repo, "tag", "--annotate", "v0.3.1", "--message", "Release v0.3.1")
+        # the remote does not have it: this is what a failed `git push` leaves
+        out = self.tmp / "plan.json"
+        _, (entry,), _ = self.plan(out)
+        self.assertEqual((entry["needs_tag"], entry["commit"]), (True, commit))
+
+        self.assertEqual(self.publish(out), 0)
+
+        self.assertEqual(release.remote_tags()["v0.3.1"], commit)
+        self.assertTrue(any(call.startswith("release create v0.3.1") for call in self.gh_calls()))
+
+    def test_publish_refuses_a_remote_tag_on_another_commit(self) -> None:
+        """The remote tag's commit decides, and no Release is created for it.
+
+        `--verify-tag` checks existence, not which commit the tag names, so a
+        plan naming the wrong commit would otherwise publish that commit's notes
+        under a published tag.
+        """
+        self.add("1-a.fixed.md", "- Fixed one.\n", "Fix one (#1)")
+        git(self.repo, "tag", "--annotate", "v0.3.1", "--message", "somewhere else")
+        git(self.repo, "push", "-q", "origin", "refs/tags/v0.3.1")
+        # Only the remote has it now, so a clone-local check cannot see the problem.
+        git(self.repo, "tag", "--delete", "v0.3.1")
+
+        error = io.StringIO()
+        self.assertEqual(self.publish(self.handwritten_plan(), stderr=error), 1)
+        # Refused because the *remote's* tag names another commit -- not because
+        # some later step happened to fail.
+        self.assertIn("on the remote", error.getvalue())
+        self.assertFalse(any(call.startswith("release create") for call in self.gh_calls()))
+
+    def test_publish_refuses_a_local_tag_on_another_commit(self) -> None:
+        """A stale local tag is refused rather than silently shadowed by a new one."""
         self.add("1-a.fixed.md", "- Fixed one.\n", "Fix one (#1)")
         git(self.repo, "tag", "--annotate", "v0.3.1", "--message", "already here")
-        out = self.tmp / "plan.json"
-        out.write_text(json.dumps([{
-            "commit": "9" * 40,
-            "subject": "elsewhere",
-            "pr_number": None,
-            "version": "0.3.1",
-            "tag": "v0.3.1",
-            "notes": "- Something.\n",
-            "needs_tag": True,
-            "needs_release": True,
-        }]), encoding="utf-8")
 
-        self.assertEqual(self.publish(out), 1)
+        error = io.StringIO()
+        self.assertEqual(self.publish(self.handwritten_plan(), stderr=error), 1)
+        self.assertIn("exists locally", error.getvalue())
+        self.assertNotIn("v0.3.1", release.remote_tags())
         self.assertFalse(any(call.startswith("release create") for call in self.gh_calls()))
 
 

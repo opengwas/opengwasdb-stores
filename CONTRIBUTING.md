@@ -46,13 +46,15 @@ version.
 run per concurrency group and discards the rest, so three quick merges cannot be
 trusted to produce three runs. Each run therefore publishes every first-parent
 commit after the newest `v*` tag that has no tag yet, and any tagged commit whose
-GitHub Release was never created, oldest first. Publication is two steps — push
-the tag, create the Release — and each is skipped when it is already done, so a
-run that dies halfway is finished by the next push or by re-running the
-workflow. A tag is never moved: if one exists on another commit, the run stops
-and says so. A burst is a handful of merges; a run that finds more than 20 owed
-stops instead of publishing them, because a whole merged branch is not a burst —
-at the cutover the merge commit is tagged before it is pushed.
+GitHub Release is missing and is newer than the newest Release there is, oldest
+first. Publication is two steps — push the tag, create the Release — and each is
+decided by **the remote**, which `git ls-remote` is asked: a tag a failed push
+left behind is pushed on the retry, and a tag naming another commit is refused
+rather than moved, before anything is published about it. A run that dies
+halfway is finished by the next push or by re-running the workflow. A burst is a
+handful of merges; a run that finds more than 20 owed stops instead of publishing
+them, because a whole merged branch is not a burst — at the cutover the merge
+commit is tagged before it is pushed.
 
 Each version's release notes are the **changelog fragments** that pull request
 added, so a pull request that changes what this repository is adds one under
