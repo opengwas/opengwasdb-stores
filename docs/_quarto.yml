@@ -18,6 +18,15 @@
 
 project:
   type: website
+  # The site's data pages (#391, src/project_site/pages.py). This runs before
+  # the render, with the working directory set to the project — the docs mirror
+  # the build stages — and writes the Overview, the Stores, Epics, Trends and
+  # Changelog sections and one page per epic and per Store from the JSON files
+  # `pixi run site-data` collects. Quarto reads a page's contents after this
+  # runs, so a page it already knows is filled in here. The pages are
+  # git-ignored and never enter a checkout.
+  pre-render:
+    - "./pre-render.sh"
   resources:
     - "**/*.md"
     - "**/*.html"
@@ -42,6 +51,12 @@ website:
         href: index.qmd
       - text: Stores
         href: stores.qmd
+      - text: Epics
+        href: epics.qmd
+      - text: Trends
+        href: trends.qmd
+      - text: Changelog
+        href: changelog.qmd
       - text: Reports
         href: reports.qmd
       - text: Registry

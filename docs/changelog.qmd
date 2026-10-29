@@ -1,0 +1,11 @@
+---
+title: "Changelog"
+---
+
+Both repositories' GitHub Releases, newest first. Versions start at the cutover:
+before it, neither repository has a Release, and a tag is not a Release.
+
+**This page is generated at render time** by
+[`src/project_site/pages.py`](../src/project_site/pages.py) from the Releases the
+site's collector reads; the render replaces this file. Run `pixi run site-data`
+and then `pixi run site` to see it.

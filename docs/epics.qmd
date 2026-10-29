@@ -1,0 +1,15 @@
+---
+title: "Epics"
+---
+
+Every epic on the [OpenGWASDB project board](https://github.com/orgs/opengwas/projects/1),
+in Workstream order, with its Status, its sub-issue progress and whether it has a
+committed epic record yet. Each epic has a page of its own: its purpose, what the
+board states, its tickets as a graph with their blocked-by edges, its decisions,
+the versions it shipped, and — once its record exists — the catalog totals, the
+yardstick measures and the test time before and after.
+
+**This page is generated at render time** by
+[`src/project_site/pages.py`](../src/project_site/pages.py) from the board
+collector's output and the records under `docs/_epics/`; the render replaces this
+file. Run `pixi run site-data` and then `pixi run site` to see it.
