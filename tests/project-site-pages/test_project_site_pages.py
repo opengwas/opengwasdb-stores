@@ -12,11 +12,40 @@ Run from the repository root:
 from __future__ import annotations
 
 import json
+import re
+import shutil
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
 
 from project_site import pages
+
+# Quarto is what turns a page into a site, and some of what these tests assert --
+# that a trend line survives the render, that a fact's Markdown is not obeyed --
+# only holds in what Quarto writes. It is in the `dev` environment, which is
+# where the suites run.
+QUARTO = shutil.which("quarto")
+
+
+def raw_block_after(page: str, caption: str) -> str:
+    """The raw HTML block a page writes under `caption`: Pandoc passes it through as it is."""
+    lines = page.splitlines()
+    start = next(index for index, line in enumerate(lines) if caption in line)
+    opening = lines.index("```{=html}", start)
+    closing = lines.index("```", opening + 1)
+    return "\n".join(lines[opening + 1 : closing])
+
+
+def render_with_quarto(body: str, root: Path) -> str:
+    """Render one page with Quarto and return the HTML it wrote."""
+    docs = root / "docs"
+    docs.mkdir(parents=True)
+    (docs / "_quarto.yml").write_text("project:\n  type: website\n", encoding="utf-8")
+    (docs / "index.qmd").write_text(body, encoding="utf-8")
+    subprocess.run([QUARTO, "render", str(docs), "--output-dir", str(root / "out")],
+                   check=True, capture_output=True, text=True)
+    return (root / "out" / "index.html").read_text(encoding="utf-8")
 
 COLLECTED = "2026-10-29T12:00:00Z"
 
@@ -77,7 +106,9 @@ def child(key: str, title: str, *, state: str = "OPEN", blocked_by: list | None 
 
 
 def epic_record(key: str, *, title: str, catalog: dict, test_time: dict,
-                tickets: list | None = None, versions: list | None = None) -> dict:
+                tickets: list | None = None, versions: list | None = None,
+                summary: str = "One sentence about the epic. A second sentence about what it changed.",
+                decisions: list | None = None) -> dict:
     """An epic record, in the shape `docs/spec/project-site.md` documents."""
     repo, number = key.split("#")
     return {
@@ -88,11 +119,11 @@ def epic_record(key: str, *, title: str, catalog: dict, test_time: dict,
         "workstream": "Engineering",
         "started": "2026-10-21",
         "finished": None,
-        "summary": "One sentence about the epic. A second sentence about what it changed.",
+        "summary": summary,
         "prs": [],
         "versions": versions or [],
         "tickets": tickets or [],
-        "decisions": [],
+        "decisions": decisions or [],
         "test_time": test_time,
         "yardstick": {"before": None, "after": None},
         "catalog": catalog,
@@ -101,7 +132,8 @@ def epic_record(key: str, *, title: str, catalog: dict, test_time: dict,
 
 
 def catalog_version(version: str, *, built_at: str, analyses: int, stores: int,
-                    current: bool = False, counts: list | None = None, changes: dict | None = None) -> dict:
+                    current: bool = False, counts: list | None = None, changes: dict | None = None,
+                    selection: list | None = None) -> dict:
     """One Analysis Catalog version, as the catalog collector writes it."""
     return {
         "version": version,
@@ -115,6 +147,7 @@ def catalog_version(version: str, *, built_at: str, analyses: int, stores: int,
         "counts": counts or [],
         "totals": {"analyses": analyses, "stores": stores},
         "changes": changes,
+        "selection": selection,
     }
 
 
@@ -275,6 +308,11 @@ class TestStorePages(unittest.TestCase):
                         current=True,
                         counts=[{"dimension": "store", "value": "OGS-00006", "n_analyses": 1400},
                                 {"dimension": "store", "value": "OGS-00027", "n_analyses": 19250}],
+                        selection=[
+                            {"store_id": "OGS-00006", "decision": "listed", "reason": "validated"},
+                            {"store_id": "OGS-00027", "decision": "listed",
+                             "reason": "Release Status is validated, Access Posture is public"},
+                        ],
                     )
                 ],
             ),
@@ -294,18 +332,91 @@ class TestStorePages(unittest.TestCase):
     def test_the_page_shows_the_lifecycle_the_layout_and_the_release_notes(self) -> None:
         page = pages.render_store_page(self.documents, self.silent)
         self.assertIn("2026-10-27T20:13:36Z", page)
-        self.assertIn("observed_only", page)
+        self.assertIn("observed\\_only", page)  # a fact, so its `_` is not read as emphasis
         self.assertIn("The full eQTLGen cis-eQTL catalogue.", page)
         self.assertIn("2026-10-28: validated and scientifically accepted.", page)
 
-    def test_the_catalog_section_says_the_store_is_listed_and_that_a_decision_is_not_collected(self) -> None:
+    def test_the_catalog_section_shows_the_decision_and_the_reason_it_recorded(self) -> None:
         page = pages.render_store_page(self.documents, self.silent)
-        self.assertIn("19,250", page)
-        self.assertIn("`selection`", page)
 
-    def test_the_page_links_to_the_bundle_on_github(self) -> None:
+        self.assertIn("Its decision is **listed**, and the reason the catalog gives is:", page)
+        self.assertIn("> Release Status is validated, Access Posture is public", page)
+        self.assertIn("The version counts **19,250** of its Analyses as listed.", page)
+
+    def test_a_store_with_no_recorded_decision_says_so(self) -> None:
+        documents_ = documents(
+            stores=envelope("stores", registry="/x", stores=[self.silent]),
+            catalog=envelope("catalog", root="/x", current="bbbbbbbbbbbbbbbb", versions=[
+                catalog_version("bbbbbbbbbbbbbbbb", built_at="2026-10-28T22:57:35Z", analyses=1, stores=1,
+                                current=True, selection=[{"store_id": "OGS-00006", "decision": "listed",
+                                                          "reason": "validated"}])]),
+        )
+
+        page = pages.render_store_page(documents_, self.silent)
+
+        self.assertIn("records no decision for this Store Release", page)
+
+    def test_the_page_links_the_bundle_at_the_commit_the_render_documents(self) -> None:
+        commit = "0d59f151c7618933747a59f825deeef6a51de9e1"
+
+        page = pages.render_store_page(self.documents, self.silent, commit=commit)
+
+        self.assertIn(
+            "https://github.com/opengwas/opengwasdb-stores/blob/0d59f151c7618933747a59f825deeef6a51de9e1"
+            "/stores/OGS-00027",
+            page,
+        )
+        self.assertNotIn("/tree/dev/", page)
+
+    def test_without_a_commit_the_bundle_is_named_and_not_linked(self) -> None:
         page = pages.render_store_page(self.documents, self.silent)
-        self.assertIn(f"{pages.BUNDLES}/OGS-00027", page)
+        self.assertIn("`stores/OGS-00027`", page)
+        self.assertNotIn("github.com", page)
+
+
+def measured_store(store_id: str, **medians: float) -> dict:
+    """A measured Store of a yardstick result, with one timed record per measure given."""
+    return {
+        "store_id": store_id,
+        "layout": "dense",
+        "coverage": "gwas",
+        "status": "measured",
+        "measures": {
+            name: {"status": "measured", "median_ms": value, "p95_ms": value * 1.2, "reps": 5,
+                   "first_read_ms": value, "result_count": 3, "first_result_count": 3}
+            for name, value in medians.items()
+        },
+    }
+
+
+def yardstick_result(started: str, stores: list[dict]) -> dict:
+    """A yardstick result, in the shape `docs/spec/yardstick.md` documents."""
+    return {
+        "schema": 1,
+        "workload_id": "w",
+        "workload_sha256": "0" * 64,
+        "opengwasdb": {"version": "0.3.0", "revision": "0d59f151c7618933747a59f825deeef6a51de9e1"},
+        "ogstores": {"version": "0.1.0"},
+        "host": {"name": "host", "cpu_count": 4},
+        "load_average": {"before": [0, 0, 0], "after": [0, 0, 0]},
+        "started_utc": started,
+        "ended_utc": started,
+        "duration_s": 60.0,
+        "local_utc_offset_minutes": 0,
+        "veeam_window": False,
+        "repetitions": {"default": 5},
+        "stores": stores,
+    }
+
+
+def results_envelope(*results: tuple[str, dict]) -> dict:
+    """The records file holding the yardstick results given, oldest first."""
+    return envelope(
+        "records",
+        epics=[],
+        invalid={},
+        yardstick={"results": [{"name": name, "result": result} for name, result in results], "invalid": {}},
+    )
 
 
 def full_documents() -> dict:
@@ -429,6 +540,229 @@ class TestAnUnavailableSource(unittest.TestCase):
                     self.assertIn("was not written", text)
 
 
+# A fact a collector may hold: a title, a Next line, a release name, a note. It is
+# data, and a page must state it rather than obey the markup it happens to hold.
+NASTY = "<b>x</b> *y* [z](w) | q `c` _e_ & r"
+
+
+def adversarial_documents() -> dict:
+    """Every source available, with a fact that holds Markdown and HTML in each."""
+    site_epic = epic(
+        "opengwasdb-stores#7",
+        NASTY,
+        status="Active",
+        workstream=NASTY,
+        next_line=NASTY,
+        children=[child("opengwasdb-stores#8", NASTY)],
+    )
+    return documents(
+        board=envelope("board", project="opengwas/1", epics=[site_epic],
+                       milestones=[milestone("opengwasdb#292", NASTY, checked=1, total=2)], items=[]),
+        catalog=envelope(
+            "catalog", root="/data/opengwasdb/stores/catalog/versions", current="bbbbbbbbbbbbbbbb",
+            versions=[
+                catalog_version("aaaaaaaaaaaaaaaa", built_at="2026-10-23T18:25:29Z", analyses=1, stores=1,
+                                counts=[{"dimension": "coverage", "value": NASTY, "n_analyses": 1}]),
+                catalog_version("bbbbbbbbbbbbbbbb", built_at="2026-10-28T22:57:35Z", analyses=1, stores=1,
+                                current=True,
+                                counts=[{"dimension": "coverage", "value": NASTY, "n_analyses": 1}],
+                                selection=[{"store_id": "OGS-00009", "decision": "listed", "reason": NASTY}]),
+            ],
+        ),
+        releases=envelope("releases", repos=[
+            {"repo": "opengwasdb", "tags": [{"name": "v0.1.0", "commit": "0" * 40}], "releases": []},
+            {"repo": "opengwasdb-stores", "tags": [{"name": "v0.1.0", "commit": "1" * 40}],
+             "releases": [{"tag": "v0.1.0", "name": NASTY, "published_at": "2026-10-30T09:00:00Z",
+                           "draft": False, "prerelease": False, "url": "https://example.org/rel"}]},
+        ]),
+        stores=envelope("stores", registry="/data/opengwasdb/stores", stores=[
+            store("OGS-00009", NASTY, description=NASTY, notes=NASTY,
+                  observed={"n_analyses": 1, "n_variants": None}),
+        ]),
+        records=envelope(
+            "records",
+            epics=[epic_record("opengwasdb-stores#7", title=NASTY, summary=NASTY,
+                               catalog={"before": "aaaaaaaaaaaaaaaa", "after": "bbbbbbbbbbbbbbbb"},
+                               test_time={"baseline": {"commit": "e6e829d", "wall_s": 1.0, "suites": None},
+                                          "final": {"commit": "a84ecfb", "wall_s": 1.1, "suites": None}},
+                               versions=["v0.1.0"],
+                               decisions=[{"date": "2026-10-21", "text": NASTY, "link": None}])],
+            invalid={},
+            yardstick={"results": [], "invalid": {}},
+        ),
+    )
+
+
+class TestFreeTextIsData(unittest.TestCase):
+    """A fact that holds Markdown or HTML is shown as written, not obeyed (#391 review, item 2)."""
+
+    def setUp(self) -> None:
+        self.documents = adversarial_documents()
+        self.rendered = [
+            pages.render_overview(self.documents),
+            pages.render_epics_index(self.documents),
+            pages.render_epic_page(self.documents, self.documents["board"]["epics"][0]),
+            pages.render_stores_index(self.documents),
+            pages.render_store_page(self.documents, self.documents["stores"]["stores"][0]),
+            pages.render_trends(self.documents),
+            pages.render_changelog(self.documents),
+        ]
+
+    def test_no_page_obeys_the_markup_a_fact_holds(self) -> None:
+        for page in self.rendered:
+            markdown = re.sub(r"```\{mermaid\}.*?```", "", page, flags=re.S)  # a graph is Mermaid, not Markdown
+            for markup in ("<b>", "[z](w)", "*y*", "`c`", "_e_"):
+                self.assertNotIn(markup, markdown, markup)
+
+    def test_the_fact_is_still_readable_where_it_lands(self) -> None:
+        overview = self.rendered[0]
+        self.assertIn("&lt;b&gt;x&lt;/b&gt;", overview)
+        self.assertIn("\\[z\\](w)", overview)
+        self.assertIn("\\*y\\*", overview)
+        self.assertIn("\\| q", overview)  # an unescaped pipe would cut the table cell in two
+
+
+@unittest.skipUnless(QUARTO, "Quarto is not on PATH; the render assertions need it")
+class TestWhatQuartoWrites(unittest.TestCase):
+    """The two things that only fail in the rendered HTML (#391 review, items 2 and 6)."""
+
+    def test_each_headline_trend_line_survives_the_render(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="project-site-render-") as tmp:
+            html = render_with_quarto(pages.render_overview(full_documents()), Path(tmp))
+
+        self.assertEqual(html.count("<polyline"), 2, "the Analyses and Stores trend lines")
+        self.assertGreaterEqual(html.count("<circle"), 4, "a point per version per trend")
+
+    def test_a_fact_holding_markup_is_rendered_literally(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="project-site-render-") as tmp:
+            html = render_with_quarto(pages.render_overview(adversarial_documents()), Path(tmp))
+
+        self.assertIn("&lt;b&gt;x&lt;/b&gt;", html)
+        self.assertNotIn("<b>x</b>", html)
+        self.assertNotIn('href="w"', html)
+
+
+class TestNoInventedCurrentVersion(unittest.TestCase):
+    """A catalog that names no current version is shown as naming none (#391 review, item 1)."""
+
+    def documents(self) -> dict:
+        return documents(catalog=envelope(
+            "catalog", root="/data/opengwasdb/stores/catalog/versions", current=None,
+            versions=[
+                catalog_version("aaaaaaaaaaaaaaaa", built_at="2026-10-23T18:25:29Z", analyses=19250, stores=1),
+                catalog_version("bbbbbbbbbbbbbbbb", built_at="2026-10-28T22:57:35Z", analyses=31940, stores=9),
+            ],
+        ))
+
+    def test_the_overview_says_no_version_is_current(self) -> None:
+        page = pages.render_overview(self.documents())
+
+        self.assertIn("**No current version**", page)
+        self.assertNotIn("The current version is", page)
+
+    def test_a_store_page_says_no_version_has_decided_on_it(self) -> None:
+        documents_ = self.documents()
+        documents_["stores"] = envelope("stores", registry="/x", stores=[store("OGS-00009", "ukb-b-full")])
+
+        page = pages.render_store_page(documents_, documents_["stores"]["stores"][0])
+
+        self.assertIn("**No current version**", page)
+        self.assertNotIn("The current catalog version is", page)
+
+
+class TestRefusedFiles(unittest.TestCase):
+    """A refused file is named with its errors, never passed off as an absent one (#391 review, item 3)."""
+
+    def setUp(self) -> None:
+        self.documents = full_documents()
+        self.documents["records"] = envelope(
+            "records",
+            epics=full_documents()["records"]["epics"],
+            invalid={"opengwasdb-stores-313.yaml": ["status 'done' is not one of active, finished"]},
+            yardstick={"results": [], "invalid": {"20261020T100000Z-0.3.0.json": ["result schema must be 1, got 2"]}},
+        )
+
+    def test_an_unreadable_epic_record_is_named_on_the_epic_and_the_index(self) -> None:
+        epic = self.documents["board"]["epics"][0]
+        for page in (pages.render_epic_page(self.documents, epic), pages.render_epics_index(self.documents)):
+            self.assertIn("opengwasdb-stores-313.yaml", page)
+            self.assertIn("status 'done' is not one of active, finished", page)
+
+    def test_a_refused_yardstick_result_is_not_reported_as_no_results(self) -> None:
+        for page in (pages.render_overview(self.documents), pages.render_trends(self.documents)):
+            self.assertIn("20261020T100000Z-0.3.0.json", page)
+            self.assertIn("result schema must be 1, got 2", page)
+            self.assertNotIn("No yardstick results yet", page)
+            self.assertIn("No yardstick result could be read", page)
+
+
+class TestHeadlineYardstickTrends(unittest.TestCase):
+    """Each key figure of the latest result is charted across the results (#391 review, item 7)."""
+
+    def setUp(self) -> None:
+        self.documents = full_documents()
+        self.documents["records"] = results_envelope(
+            ("20261020T100000Z-0.3.0.json", yardstick_result("2026-10-20T10:00:00Z",
+                                                             [measured_store("OGS-00009", phewas_rsid=40.0)])),
+            ("20261027T100000Z-0.3.0.json", yardstick_result("2026-10-27T10:00:00Z",
+                                                             [measured_store("OGS-00009", phewas_rsid=30.0)])),
+        )
+
+    def test_a_key_figure_has_a_point_per_result(self) -> None:
+        page = pages.render_overview(self.documents)
+
+        block = raw_block_after(page, "`phewas_rsid` on OGS-00009")
+        self.assertEqual(block.count("<circle"), 2)
+        self.assertIn("40 ms → 30 ms over 2 results", page)
+        self.assertNotIn("No yardstick results yet", page)
+
+    def test_the_results_are_listed_with_what_each_measured(self) -> None:
+        page = pages.render_trends(self.documents)
+
+        self.assertIn("| `20261027T100000Z-0.3.0` | 2026-10-27T10:00:00Z |", page)
+        self.assertIn("| OGS-00009 | `phewas_rsid` |", page)
+
+
+class TestReleaseNotesByRepository(unittest.TestCase):
+    """A tag is unique only within its repository (#391 review, item 8)."""
+
+    def test_a_version_is_matched_inside_the_epics_own_repository(self) -> None:
+        documents_ = full_documents()
+        documents_["records"]["epics"][0]["versions"] = ["v0.1.0"]
+        own = "opengwasdb-stores"
+        documents_["releases"] = envelope("releases", repos=[
+            {"repo": "opengwasdb", "tags": [{"name": "v0.1.0", "commit": "0" * 40}],
+             "releases": [{"tag": "v0.1.0", "name": "the engine's notes", "published_at": "2026-10-29T09:00:00Z",
+                           "draft": False, "prerelease": False, "url": "https://example.org/engine"}]},
+            {"repo": own, "tags": [{"name": "v0.1.0", "commit": "1" * 40}],
+             "releases": [{"tag": "v0.1.0", "name": "the registry's notes", "published_at": "2026-10-30T09:00:00Z",
+                           "draft": False, "prerelease": False, "url": "https://example.org/registry"}]},
+        ])
+
+        page = pages.render_epic_page(documents_, documents_["board"]["epics"][0])
+
+        self.assertIn("the registry's notes", page)
+        self.assertNotIn("the engine's notes", page)
+
+
+class TestEpicPurpose(unittest.TestCase):
+    """The epic's own first paragraph comes first, then the record (#391 review, item 9)."""
+
+    def test_the_board_purpose_is_shown_before_the_records_summary(self) -> None:
+        documents_ = full_documents()
+        epic = documents_["board"]["epics"][0]
+        epic["purpose"] = "The site shows where the project stands, in one place."
+
+        page = pages.render_epic_page(documents_, epic)
+
+        section = page.split("## Purpose", 1)[1].split("\n##", 1)[0]
+        self.assertIn("The site shows where the project stands, in one place.", section)
+        self.assertLess(
+            section.index("The site shows where the project stands, in one place."),
+            section.index("One sentence about the epic."),
+        )
+
+
 class TestEpicsIndex(unittest.TestCase):
     """The Epics section's index: every epic on the board, and whether it has a record yet."""
 
@@ -517,6 +851,16 @@ class TestGenerate(unittest.TestCase):
         self.assertIn("6 of 10", overview)
         self.assertIn('title: "OGS-00027 — eqtlgen-full"', (self.docs / "stores" / "OGS-00027.qmd").read_text())
 
+    def test_every_relative_link_resolves_to_a_page_the_generator_wrote(self) -> None:
+        written = pages.generate(docs=self.docs, data_dir=self.data)
+        written_pages = {path.relative_to(self.docs).with_suffix(".html").as_posix() for path in written}
+
+        for path in written:
+            for target in re.findall(r"\]\(([^)#:]+?\.html)\)", path.read_text()):
+                resolved = (path.parent / target).resolve().relative_to(self.docs.resolve()).as_posix()
+                self.assertIn(resolved, written_pages, f"{path.relative_to(self.docs)} links {target}")
+        self.assertIn("[OGS-00027](stores/OGS-00027.html)", (self.docs / "stores.qmd").read_text())
+
     def test_a_page_for_something_the_data_no_longer_holds_is_removed(self) -> None:
         stale = self.docs / "epics" / "opengwasdb-stores-999.qmd"
         stale.parent.mkdir(parents=True)
@@ -582,12 +926,12 @@ class TestOverview(unittest.TestCase):
 
     def test_the_catalog_trend_has_a_point_for_each_version(self) -> None:
         page = pages.render_overview(self.documents)
-        analyses = next(line for line in page.splitlines() if line.startswith("| Analyses "))
+        analyses = raw_block_after(page, "Analyses, per catalog version")
         self.assertEqual(analyses.count("<circle"), 2)
-        self.assertIn("31,940", analyses)
-        stores = next(line for line in page.splitlines() if line.startswith("| Stores "))
+        stores = raw_block_after(page, "Stores, per catalog version")
         self.assertEqual(stores.count("<circle"), 2)
-        self.assertIn("9", stores)
+        self.assertIn("| Analyses | 31,940 | 19,250 → 31,940 over 2 versions |", page)
+        self.assertIn("| Stores | 9 | 1 → 9 over 2 versions |", page)
 
     def test_the_latest_tag_per_repository_or_untagged(self) -> None:
         page = pages.render_overview(self.documents)

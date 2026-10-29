@@ -108,5 +108,43 @@ class PreviewWatchTest(unittest.TestCase):
         os.utime(path, ns=(stat.st_atime_ns, stat.st_mtime_ns + 1_000_000_000))
 
 
+class SyncTreeModeTest(unittest.TestCase):
+    """The preview tree is what Quarto runs the project's pre-render hook from (#391).
+
+    A file written fresh is 0644, so a sync that carried only the bytes left
+    `docs/pre-render.sh` unrunnable and `quarto preview` refused to start:
+    "Failed to spawn ...: Permission denied". The mode is part of what syncs.
+    """
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="project-site-sync-")
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.source = self.root / "mirror"
+        self.served = self.root / "served"
+        self.source.mkdir()
+        (self.source / "pre-render.sh").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        (self.source / "pre-render.sh").chmod(0o755)
+        (self.source / "index.qmd").write_text("# Overview\n", encoding="utf-8")
+        (self.source / "index.qmd").chmod(0o644)
+
+    def test_a_copied_hook_is_executable_and_a_copied_page_is_not(self) -> None:
+        build._sync_tree(self.source, self.served)
+
+        self.assertTrue(os.access(self.served / "pre-render.sh", os.X_OK))
+        self.assertFalse(os.access(self.served / "index.qmd", os.X_OK))
+
+    def test_the_mode_is_repaired_when_the_bytes_already_match(self) -> None:
+        self.served.mkdir()
+        (self.served / "pre-render.sh").write_bytes((self.source / "pre-render.sh").read_bytes())
+        (self.served / "pre-render.sh").chmod(0o644)  # what a sync that ignored the mode left behind
+        (self.served / "index.qmd").write_bytes((self.source / "index.qmd").read_bytes())
+
+        build._sync_tree(self.source, self.served)
+
+        self.assertTrue(os.access(self.served / "pre-render.sh", os.X_OK))
+        self.assertEqual(build._sync_tree(self.source, self.served), 0, "a settled tree needs no change")
+
+
 if __name__ == "__main__":
     unittest.main()
