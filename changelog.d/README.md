@@ -67,11 +67,3 @@ the merge commit `vX.Y.Z` and publishes a GitHub Release whose notes are the
 fragments, with a link to the pull request. It never commits to `main`, and it
 publishes every merge that is still owed a version rather than only the one it
 was triggered by, so a lost run cannot lose a version.
-
-## Until the cutover
-
-While this repository still merges to `dev` (opengwas/opengwasdb-stores#386's
-cutover moves it to `main`), pull requests target `dev` and the same rule
-applies to the merge base CI passes (`origin/dev`). The fragments of a pull
-request that lands on `dev` are read when the epic merges to `main`, which is
-one version for the epic.

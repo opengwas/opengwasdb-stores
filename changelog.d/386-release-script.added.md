@@ -5,14 +5,13 @@
   and from no tag at all the first feature release is `0.1.0` -- and into the
   notes, the fragments under their type headings plus a link to the pull
   request. `plan` reconciles: a lost run is not a lost version, because each run
-  publishes every first-parent commit after the newest tag that has no tag yet
-  and any tagged commit whose Release was never created, oldest first, and
-  `publish` does only the steps still owed, and both ask the remote through
-  `git ls-remote --tags`: a tag a failed push left behind is pushed on the
-  retry, a tag naming another commit is refused, and a tag with no Release is
-  repaired only when it is newer than the newest Release there is -- so after
-  the cutover the first run creates the cutover's Release and not one for every
-  tag the project ever made. The notes of an older version are read from that
+  publishes every first-parent commit after the newest tag that has no tag yet,
+  and every tagged commit whose Release is missing and is newer than the newest
+  Release there is, oldest first; `publish` does only the steps still owed. Both
+  ask the remote through `git ls-remote --tags`: a tag a failed push left behind
+  is pushed on the retry, and a tag naming another commit is refused. Only newer
+  missing Releases are repaired, so after the cutover the first run creates the
+  cutover's Release and not one for every tag the project ever made. The notes of an older version are read from that
   commit's own tree, so a later edit to a fragment cannot rewrite a Release. It
   refuses a burst larger than 20 merges rather than replay a whole merged branch
   as versions, and it treats a git failure as an error rather than as "no tag
