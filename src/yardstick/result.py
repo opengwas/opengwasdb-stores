@@ -46,13 +46,32 @@ def _number(where: str, value: Any, *, integer: bool = False) -> None:
         raise ResultError(f"{where} must not be negative, got {value!r}")
 
 
+def _object(where: str, value: Any) -> dict[str, Any]:
+    """`value` as the object the schema requires, or a `ResultError` naming where it is not.
+
+    Every nested value is checked before it is read: a result is data from a
+    run, not a value this code built, so `"stores": [null]` is a refusal with a
+    path and never an `AttributeError` (#390 review, item 1).
+    """
+    if not isinstance(value, dict):
+        raise ResultError(f"{where} must be an object, got {value!r}")
+    return value
+
+
+def _list(where: str, value: Any) -> list[Any]:
+    if not isinstance(value, list):
+        raise ResultError(f"{where} must be a list, got {value!r}")
+    return value
+
+
 def _need(where: str, record: dict[str, Any], *keys: str) -> None:
     for key in keys:
         if key not in record:
             raise ResultError(f"{where} lacks {key}")
 
 
-def _measure(where: str, name: str, record: dict[str, Any]) -> None:
+def _measure(where: str, name: str, record: Any) -> None:
+    record = _object(where, record)
     status = record.get("status")
     if status not in STATUSES:
         raise ResultError(f"{where}.status must be one of {STATUSES}, got {status!r}")
@@ -90,27 +109,32 @@ def _measure(where: str, name: str, record: dict[str, Any]) -> None:
         raise ResultError(f"{where}: unknown measure {name!r}")
 
 
-def validate(result: dict[str, Any], workload: dict[str, Any] | None = None) -> None:
+def validate(result: Any, workload: dict[str, Any] | None = None) -> None:
+    result = _object("result", result)
     if result.get("schema") != SCHEMA_VERSION:
         raise ResultError(f"result schema must be {SCHEMA_VERSION}, got {result.get('schema')!r}")
     _need("result", result, *TOP_LEVEL)
     if not isinstance(result["veeam_window"], bool):
         raise ResultError("veeam_window must be true or false")
-    _need("opengwasdb", result["opengwasdb"], "version", "revision")
-    if not (isinstance(result["opengwasdb"]["revision"], str) and _REVISION.fullmatch(result["opengwasdb"]["revision"])):
+    opengwasdb = _object("opengwasdb", result["opengwasdb"])
+    _need("opengwasdb", opengwasdb, "version", "revision")
+    if not (isinstance(opengwasdb["revision"], str) and _REVISION.fullmatch(opengwasdb["revision"])):
         raise ResultError("opengwasdb.revision must be 40 lower-case hex characters")
     for key in ("started_utc", "ended_utc"):
         if not (isinstance(result[key], str) and _UTC.fullmatch(result[key])):
             raise ResultError(f"{key} must be UTC ISO, YYYY-MM-DDTHH:MM:SSZ, got {result[key]!r}")
-    _need("ogstores", result["ogstores"], "version", "commit", "dirty")
-    if not (isinstance(result["ogstores"]["commit"], str) and _REVISION.fullmatch(result["ogstores"]["commit"])):
+    ogstores = _object("ogstores", result["ogstores"])
+    _need("ogstores", ogstores, "version", "commit", "dirty")
+    if not (isinstance(ogstores["commit"], str) and _REVISION.fullmatch(ogstores["commit"])):
         raise ResultError("ogstores.commit must be 40 lower-case hex characters")
-    if not isinstance(result["ogstores"]["dirty"], bool):
+    if not isinstance(ogstores["dirty"], bool):
         raise ResultError("ogstores.dirty must be true or false")
+    _object("host", result["host"])
     _need("host", result["host"], "name", "cpu_count")
-    _need("load_average", result["load_average"], "before", "after")
+    load_average = _object("load_average", result["load_average"])
+    _need("load_average", load_average, "before", "after")
     for key in ("before", "after"):
-        values = result["load_average"][key]
+        values = load_average[key]
         if not isinstance(values, list) or len(values) != 3:
             raise ResultError(f"load_average.{key} must be the 1, 5 and 15 minute averages")
         for value in values:
@@ -118,19 +142,22 @@ def validate(result: dict[str, Any], workload: dict[str, Any] | None = None) -> 
     _number("duration_s", result["duration_s"])
     if "over_budget" in result and not isinstance(result["over_budget"], bool):
         raise ResultError("over_budget must be true or false")
-    for store in result["stores"]:
+    for index, value in enumerate(_list("stores", result["stores"])):
+        store = _object(f"stores[{index}]", value)
         where = f"stores[{store.get('store_id')}]"
         _need(where, store, "store_id", "layout", "coverage", "status")
         if store["status"] == "pending":
             _need(where, store, "reason")
         elif store["status"] == "measured":
             _need(where, store, "measures")
-            for name, record in store["measures"].items():
+            measures = _object(f"{where}.measures", store["measures"])
+            for name, record in measures.items():
                 _measure(f"{where}.{name}", name, record)
         else:
             raise ResultError(f"{where}.status must be measured or pending")
     build = result.get("fixture_build")
     if build is not None:
+        build = _object("fixture_build", build)
         if build.get("status") == "measured":
             _need("fixture_build", build, "layout", "seconds")
             _number("fixture_build.seconds", build.get("seconds"))

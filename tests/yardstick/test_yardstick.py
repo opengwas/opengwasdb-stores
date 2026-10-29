@@ -179,6 +179,46 @@ class ResultValidatorTest(unittest.TestCase):
             with self.subTest(key=key):
                 self.refused(lambda r, key=key: r["stores"][0].pop(key), key)
 
+    def test_a_value_of_the_wrong_shape_is_refused_by_path_not_raised_around(self) -> None:
+        """Every nested value is checked before it is read, so a bad shape is a `ResultError`.
+
+        `"stores": [null]` used to reach `store.get('store_id')` and raise
+        `AttributeError`, which made the whole Records source unavailable rather
+        than refusing one file (#390 review, item 1; #389).
+        """
+        cases = {
+            "a null Store object": (lambda r: r["stores"].__setitem__(0, None), "stores[0] must be an object"),
+            "a Store that is a string": (lambda r: r["stores"].__setitem__(0, "OGS-00099"), "stores[0] must be an object"),
+            "stores that is an object": (lambda r: r.__setitem__("stores", {"OGS-00099": {}}), "stores must be a list"),
+            "measures that is a list": (lambda r: r["stores"][0].__setitem__("measures", [1]), "stores[OGS-00099].measures must be an object"),
+            "a measure that is a string": (
+                lambda r: r["stores"][0]["measures"].__setitem__("open", "fast"),
+                "stores[OGS-00099].open must be an object",
+            ),
+            "a null measure": (
+                lambda r: r["stores"][0]["measures"].__setitem__("peak_rss", None),
+                "stores[OGS-00099].peak_rss must be an object",
+            ),
+            "opengwasdb that is a string": (lambda r: r.__setitem__("opengwasdb", "0.3.0"), "opengwasdb must be an object"),
+            "a null ogstores": (lambda r: r.__setitem__("ogstores", None), "ogstores must be an object"),
+            "host that is a list": (lambda r: r.__setitem__("host", []), "host must be an object"),
+            "load_average that is a string": (lambda r: r.__setitem__("load_average", "quiet"), "load_average must be an object"),
+            "a fixture_build that is a string": (lambda r: r.__setitem__("fixture_build", "5.8 s"), "fixture_build must be an object"),
+        }
+        for name, (mutate, where) in cases.items():
+            with self.subTest(case=name):
+                result = minimal_result()
+                mutate(result)
+                with self.assertRaises(result_spec.ResultError) as caught:
+                    result_spec.validate(result)
+                self.assertIn(where, str(caught.exception))
+
+    def test_something_that_is_not_a_result_at_all_is_refused(self) -> None:
+        for value in (None, [], "result", 7):
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(result_spec.ResultError, "result must be an object"):
+                    result_spec.validate(value)
+
     def test_timed_record_other_than_open_needs_result_count(self) -> None:
         self.refused(lambda r: r["stores"][0]["measures"]["phewas_rsid"].pop("result_count"), "result_count")
         r = minimal_result()
