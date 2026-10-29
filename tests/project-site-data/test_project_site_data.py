@@ -120,12 +120,50 @@ class TestEpicRecordValidator(unittest.TestCase):
             records.validate_epic(record),
             ["test_time.final.wall_s 'about 160' is not a number (write null when unknown)"],
         )
+
+    def test_prose_is_free_text_and_only_typed_values_are_checked_for_guesses(self) -> None:
         record = minimal_record()
-        record["summary"] = "TBD"
+        record["title"] = "About the catalog"
+        record["summary"] = "Estimated N for eQTLGen is the published NrSamples. About the catalog: it lists 9 Stores."
+        record["decisions"][0]["text"] = "Approx. 10 Stores; unknown until validated."
+        record["followups"][0]["text"] = "TBD with the owner"
+        self.assertEqual(records.validate_epic(record), [])
+
+    def test_empty_prose_is_refused(self) -> None:
+        record = minimal_record()
+        record["title"] = " "
+        record["decisions"][0]["text"] = ""
         self.assertEqual(
-            records.validate_epic(record),
-            ["summary 'TBD' is a placeholder, not a value (write null when unknown)"],
+            sorted(records.validate_epic(record)),
+            ["decisions[0].text must be non-empty text", "title must be non-empty text"],
         )
+
+    def test_nested_fields_are_always_mappings_with_null_members(self) -> None:
+        for field in ("test_time", "yardstick", "catalog"):
+            record = minimal_record()
+            record[field] = None
+            self.assertEqual(len(records.validate_epic(record)), 1, field)
+            self.assertIn(f"{field} must be a mapping with", records.validate_epic(record)[0])
+        record = minimal_record()
+        record["test_time"] = {"baseline": None, "final": None}
+        record["yardstick"] = {"before": None, "after": None}
+        record["catalog"] = {"before": None, "after": None}
+        self.assertEqual(records.validate_epic(record), [])
+
+    def test_a_yardstick_reference_is_a_json_file_under_docs_yardstick(self) -> None:
+        for good in ("docs/_yardstick/opengwasdb-stores-313-after.json", "docs/_yardstick/a/b.json"):
+            record = minimal_record()
+            record["yardstick"]["after"] = good
+            self.assertEqual(records.validate_epic(record), [], good)
+        for bad in ("docs/_epics/other.yaml", "docs/_yardstick/x.yaml", "docs/_yardstick/../x.json",
+                    "/docs/_yardstick/x.json", "_yardstick/x.json", "x.json", "docs/_yardstick/", 5):
+            record = minimal_record()
+            record["yardstick"]["before"] = bad
+            self.assertEqual(
+                records.validate_epic(record),
+                [f"yardstick.before {bad!r} is not a docs/_yardstick/*.json path"],
+                bad,
+            )
 
     def test_a_summary_of_one_or_five_sentences_is_refused(self) -> None:
         record = minimal_record()
@@ -146,7 +184,7 @@ class TestEpicRecordValidator(unittest.TestCase):
             sorted([
                 "unknown field 'owner'",
                 "catalog.after '1b3a155' is not a 16-hex catalog version",
-                "yardstick.before '../secrets.json' is not a relative path under docs/_yardstick",
+                "yardstick.before '../secrets.json' is not a docs/_yardstick/*.json path",
                 "tickets[0].merge 'abc' is not a 7 to 40 hex commit",
                 "decisions[0].link 'not a url' is not an http(s) URL",
             ]),
@@ -178,9 +216,11 @@ class TestCommittedEpicRecords(unittest.TestCase):
         self.assertEqual(self.invalid, {})
 
     def test_the_backfilled_epics_are_present(self) -> None:
-        self.assertEqual(sorted(self.by_number), [241, 282, 302, 313])
-        self.assertEqual({n: r["status"] for n, r in self.by_number.items()},
-                         {241: "finished", 282: "finished", 302: "finished", 313: "active"})
+        self.assertEqual(sorted(self.by_number), [282, 302, 313])
+
+    def test_status_follows_the_epic_issue_which_is_open_for_all_three(self) -> None:
+        self.assertEqual({n: (r["status"], r["finished"]) for n, r in self.by_number.items()},
+                         {282: ("active", None), 302: ("active", None), 313: ("active", None)})
 
     def test_313_is_active_because_ogs_00011_remains(self) -> None:
         record = self.by_number[313]

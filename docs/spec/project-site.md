@@ -14,24 +14,30 @@ The code is `src/project_site/` (ADR 0038). It imports `ogstores.bundle` and
 
 One YAML file per epic, `docs/_epics/<repo>-<number>.yaml`, named for the
 epic's repository and issue number. The leading underscore keeps Quarto from
-rendering it. The orchestrator writes it from the run's `state.json` when the
-epic finishes; an agent writes it in one pass, because every field is a scalar,
-a list of flat rows, or a mapping of two keys.
+rendering it. An epic record exists only for an issue the board counts as an
+Epic (a ticket is not one). The orchestrator writes it from the run's
+`state.json`, and an agent writes it in one pass, because every field is a
+scalar, a list of flat rows, or a mapping of two keys. `status` and `finished`
+follow the **epic issue**, not the run: open means `active` with `finished:
+null`, closed means `finished` with the date the issue closed. A run finishing
+does not finish its epic.
 
 **An unknown value is `null`, never an estimate.** Every field is required, so
-that a field left out is distinguishable from a field not known. A date, a
-number or a reference that is not the real thing is refused, and so is a text
-that reads as a guess: empty, `unknown`, `tbd`, `n/a`, `none`, `?`, anything
-starting `~`, or starting `about`, `approx`, `around`, `circa` or `est`.
+that a field left out is distinguishable from a field not known. A typed value
+that is not the real thing is refused: a date that is not an ISO date, a number
+that is not a number, a commit, `repo#n` key, `docs/_yardstick/` path or catalog
+version that does not have its form. **Prose is free text**: `title`, `summary`,
+decision text and follow-up text only have to be non-empty, so history that
+says "Estimated N for eQTLGen" is not mistaken for a guess.
 
 ```yaml
 repo: opengwasdb-stores            # the epic's repository, without the owner
 number: 313                        # the epic's issue number
 title: Analysis catalog across all Stores
-status: active                     # active | finished
+status: active                     # active while the epic issue is open, finished once closed
 workstream: Analyses               # a board Workstream, or null
 started: 2026-10-21                # ISO date, or null
-finished: null                     # ISO date; null exactly while active
+finished: null                     # ISO date the issue closed; null exactly while active
 summary: >-                        # 2 to 4 sentences, or null
   The Analysis Catalog lists every validated Store. ...
 prs:                               # repo#n keys, in merge order
@@ -46,13 +52,13 @@ decisions:
   - date: 2026-10-21
     text: Integration branch cut from dev, not stacked on #299.
     link: null                     # http(s) URL, or null
-test_time:                         # the full suite, or null when never measured
+test_time:                         # always a mapping; each member null when never measured
   baseline: {commit: e6e829d, wall_s: 158.4, suites: null}
   final: {commit: a84ecfb, wall_s: 162.05, suites: null}
-yardstick:                         # paths under docs/_yardstick/ (#390), or null
+yardstick:                         # always a mapping; each member a docs/_yardstick/*.json path (#390) or null
   before: null
   after: null
-catalog:                           # Analysis Catalog versions, 16 hex, or null
+catalog:                           # always a mapping; each member a 16-hex catalog version, or null
   before: null
   after: 1b3a155d449bb84a
 followups:
@@ -65,19 +71,19 @@ Rules `validate_epic` applies, and the order of the fields above:
 | Field | Rule |
 |---|---|
 | `repo`, `number` | a repository name; an integer of 1 or more. The file name is `<repo>-<number>.yaml` |
-| `title` | text, never null |
-| `status` | `active` or `finished` |
+| `title` | non-empty text, never null |
+| `status` | `active` or `finished`: open or closed, as the epic issue is |
 | `workstream` | one of Data architecture, Build architecture, Interface, Store builds, Tool integration, Analyses, Engineering, or null |
-| `started`, `finished` | an ISO date (`2026-10-21`, unquoted or quoted) or null. A finished epic has a `finished` date; an active one has none |
-| `summary` | 2 to 4 sentences, or null |
+| `started`, `finished` | an ISO date (`2026-10-21`, unquoted or quoted) or null. A finished epic has a `finished` date, the day the issue closed; an active one has none |
+| `summary` | non-empty text of 2 to 4 sentences, or null |
 | `prs`, `tickets[].key`, `tickets[].pr`, `followups[].key` | `repo#n`: a repository name, `#`, an integer of 1 or more |
 | `versions` | tag names. Empty until each repository merges to `main` and tags every merge (#386) |
 | `tickets[].merge` | a hex commit of 7 to 40 characters, or null. A ticket with no recorded merge commit is null, never its PR's head |
-| `decisions[].date`, `.text` | an ISO date and text, both required; `link` is an `http(s)` URL or null |
-| `test_time.baseline`, `.final` | null, or `{commit, wall_s, suites}`: a hex commit or null, seconds as a number or null, and `suites` null or a mapping of suite name to seconds. A run state records one total, so `suites` is null for every backfilled record |
-| `yardstick.before`, `.after` | a relative path under `docs/_yardstick/`, or null. Validated as a reference only; the result file is #390's |
-| `catalog.before`, `.after` | a 16-hex catalog version directory name, or null |
-| `followups[].text` | text, never null |
+| `decisions[].date`, `.text` | an ISO date and non-empty text, both required; `link` is an `http(s)` URL or null |
+| `test_time` | always a mapping with `baseline` and `final`; each is null, or `{commit, wall_s, suites}`: a hex commit or null, seconds as a number or null, and `suites` null or a mapping of suite name to seconds. A run state records one total, so `suites` is null for every backfilled record |
+| `yardstick` | always a mapping with `before` and `after`; each is null, or a relative path that starts `docs/_yardstick/`, ends `.json` and has no `..`. Validated as a reference only; the result file is #390's |
+| `catalog` | always a mapping with `before` and `after`; each is null, or a 16-hex catalog version directory name |
+| `followups[].text` | non-empty text, never null |
 | any other field | refused, by name |
 
 `records.load_epics(directory)` reads every `*.yaml` of a directory and returns
@@ -242,14 +248,17 @@ on the host (`~/.cache/orchestrate/*/state.json`,
 holds no start or finish date, no PR merge date and no per-suite test time, so
 from a state:
 
-- `started` is the earliest `decisions[].when`; `finished` is the latest, for a
-  finished epic, and `null` while it is active;
+- `status` and `finished` come from the epic **issue**, not the state: while the
+  issue is open the record is `active` with `finished: null`, however many of
+  its PRs the run has merged, and once it is closed the record is `finished`
+  with the date it closed;
+- `started` is the earliest `decisions[].when`;
 - `tickets` are the state's ticket entries, with `merge` the merge commit where
   one is recorded and `null` where only a PR is named;
 - `decisions` are the state's `decisions[]`, each with its date and no link;
 - `test_time` is the state's `baseline` and `final`, with `suites: null`;
-- `yardstick` is `null` and `versions` is `[]`: the yardstick (#390) and the
-  versions (#386) do not exist yet;
+- `yardstick` is `{before: null, after: null}` and `versions` is `[]`: the
+  yardstick (#390) and the versions (#386) do not exist yet;
 - a ticket's `key` is its issue number under the run's repository, or the
   sibling repository's when the entry is named for it (`opengwasdb#298`), and
   `null` for work with no issue of its own (a split part, an operation, a
@@ -260,13 +269,11 @@ from a state:
   cover all of them, a ticket a later stage finished replaces its earlier entry,
   and `test_time` is the last stage's, whose baseline and final are measured on
   the same test runner;
-- `catalog` is null where the run state does not name the versions.
+- `catalog` is `{before: null, after: null}` where the run state does not name
+  the versions.
 
-The backfilled records are #313 (active, because OGS-00011 is not validated),
-#282, #302 and #241. #241's run was based on a ticket branch
-(`ticket/241-amr-ld-pilot`), so its PR #356 merged there and the pilot reached
-`dev` as PR #349; its `title` is the run's, not the issue's.
-
-A run still in flight is not a record: its epic has no `finished` date to
-write and its state is still changing. The orchestrator writes the record when
-the epic finishes (opengwas/agent-skills#1).
+An epic record exists only for an issue the board counts as an Epic. A run on a
+ticket (#241, a follow-up run on a ticket branch) is not an epic and has no
+record. The backfilled records are #313, #282 and #302, all still open and so
+`active`; #313 also waits on OGS-00011, which is not validated. Runs still in
+flight (#232, #371, #385) and #312's partial run were not backfilled.

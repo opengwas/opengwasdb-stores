@@ -1,10 +1,10 @@
 repo: opengwasdb-stores
 number: 302
 title: Single-id reference completion (ADR 0037)
-status: finished
+status: active
 workstream: Build architecture
 started: 2026-10-21
-finished: 2026-10-21
+finished: null
 summary: 'Epic #302 made reference completion replace its Store under the same id (ADR 0037), so one Store
   Release is built Observed-Only and then completed in place instead of becoming two ids. It added single-id
   Dense completion in one run, completion of an already-published Observed-Only Store later, an observed-view

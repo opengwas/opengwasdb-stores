@@ -1,10 +1,10 @@
 repo: opengwasdb-stores
 number: 282
 title: Manifest Generation shared pipeline (stage 3)
-status: finished
+status: active
 workstream: Build architecture
 started: 2026-10-19
-finished: 2026-10-27
+finished: null
 summary: 'Epic #282 moved Manifest Generation onto one shared pipeline fed by per-source connectors (ADR
   0036). It merged in three stages: PR #299 on 21 October, PR #342 on 22 October and PR #365 on 28 October.
   Stage 3 moved GWAS Catalog metadata interpretation into its connectors, took Canonical Trait Mapping

@@ -1,9 +1,11 @@
-"""The epic record: one YAML file per epic, written when the epic finishes (#389).
+"""The epic record: one YAML file per epic of the board (#389).
 
 The contract is `docs/spec/project-site.md`. `validate_epic` returns the errors
 of one parsed record, as `ogstores.bundle.check` does for a Release Bundle:
 a list of strings, empty when the record is valid. An unknown value is `null`,
-never an estimate, so a string that reads as a guess is refused.
+never an estimate, so a typed value (a date, a number, a commit, a key, a path, a
+version) that is not the real thing is refused. Prose (title, summary, decision
+and follow-up text) is free text, and only has to be non-empty.
 """
 
 from __future__ import annotations
@@ -30,6 +32,7 @@ DECISION_FIELDS = ("date", "text", "link")
 FOLLOWUP_FIELDS = ("key", "text")
 TEST_RUN_FIELDS = ("commit", "wall_s", "suites")
 SUMMARY_SENTENCES = (2, 4)
+YARDSTICK_DIR = "docs/_yardstick/"
 
 REPO_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 KEY = re.compile(r"^[A-Za-z0-9._-]+#[1-9][0-9]*$")
@@ -37,14 +40,7 @@ COMMIT = re.compile(r"^[0-9a-f]{7,40}$")
 CATALOG_VERSION = re.compile(r"^[0-9a-f]{16}$")
 ISO_DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 URL = re.compile(r"^https?://\S+$")
-ESTIMATE = re.compile(r"^(about|approx\.?|approximately|around|circa|est\.?|estimated)\b", re.IGNORECASE)
-PLACEHOLDERS = frozenset({"", "unknown", "tbd", "tba", "todo", "n/a", "na", "none", "null", "?", "-"})
 HINT = "write null when unknown"
-
-
-def _is_placeholder(value: str) -> bool:
-    text = value.strip()
-    return text.lower() in PLACEHOLDERS or text.startswith("~") or bool(ESTIMATE.match(text))
 
 
 def _is_date(value: object) -> bool:
@@ -62,13 +58,11 @@ def _is_date(value: object) -> bool:
 
 
 def _text(value: object, name: str, errors: list[str], *, nullable: bool = True) -> None:
-    if value is None:
-        if not nullable:
-            errors.append(f"{name} is required")
-    elif not isinstance(value, str):
-        errors.append(f"{name} {value!r} is not text")
-    elif _is_placeholder(value):
-        errors.append(f"{name} {value!r} is a placeholder, not a value ({HINT})")
+    """Prose is free text: any non-empty string. Only typed values are checked for guesses."""
+    if value is None and nullable:
+        return
+    if not (isinstance(value, str) and value.strip()):
+        errors.append(f"{name} must be non-empty text" if value is not None else f"{name} is required")
 
 
 def _date(value: object, name: str, errors: list[str], *, nullable: bool = True) -> None:
@@ -139,17 +133,16 @@ def _test_run(value: object, name: str, errors: list[str]) -> None:
 def _yardstick_ref(value: object, name: str, errors: list[str]) -> None:
     if value is None:
         return
-    ok = isinstance(value, str) and value.strip() != ""
+    ok = isinstance(value, str) and value.startswith(YARDSTICK_DIR) and value.endswith(".json")
     if ok:
-        path = PurePosixPath(value)
-        ok = not path.is_absolute() and ".." not in path.parts
+        ok = ".." not in PurePosixPath(value).parts and len(value) > len(YARDSTICK_DIR) + len(".json")
     if not ok:
-        errors.append(f"{name} {value!r} is not a relative path under docs/_yardstick")
+        errors.append(f"{name} {value!r} is not a docs/_yardstick/*.json path")
 
 
 def _summary(value: object, errors: list[str]) -> None:
     _text(value, "summary", errors)
-    if not isinstance(value, str) or _is_placeholder(value):
+    if not isinstance(value, str) or not value.strip():
         return
     sentences = [s for s in re.split(r"(?<=[.!?])\s+", value.strip()) if s]
     low, high = SUMMARY_SENTENCES
