@@ -79,4 +79,11 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
 
 
   Review: 148 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
-  (#203); see sidecars/exclusions.tsv'
+  (#203); see sidecars/exclusions.tsv
+
+  Pre-release rebuild exception (2026-10-29, issue #371, #381): rebuilt at
+  opengwasdb commit 70340e0 with the MAF admission fix (opengwasdb#331 / PR #332),
+  dropping monomorphic (0.0/1.0) and unreadable frequency rows under the 0.005
+  threshold. The off-panel axis shrank from 101,098,177 to 34,653,805 variants with
+  100% occupancy and 0 duplicate ALIDs. Disputed rsid collisions resolved via
+  on-rsid-conflict: drop (opengwasdb#306). Receipt: docs/data/ogs00011-rebuild-receipt.json.'
