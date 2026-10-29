@@ -26,6 +26,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # The package's version comes from the `v*` tag (#386), so the
+          # editable install setup-pixi builds below needs the whole history
+          # and the tags: a shallow, tagless clone would report `0.1.dev1+…`
+          # and the tag would never be seen.
+          fetch-depth: 0
+          fetch-tags: true
 
       # Installs strictly from the committed pixi.lock; fails instead of
       # silently re-solving if pixi.toml and pixi.lock have drifted apart
@@ -73,10 +80,12 @@ jobs:
         suite: ${{ fromJSON(needs.plan.outputs.release_stack) }}
     steps:
       # Full history: the workflow suite builds a Store with the workflow as it
-      # was at an earlier revision, and a shallow clone lacks it (#305).
+      # was at an earlier revision, and a shallow clone lacks it (#305). The
+      # tags are the package version (#386).
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          fetch-tags: true
 
       - uses: prefix-dev/setup-pixi@v0.10.1
         with:
@@ -85,3 +94,26 @@ jobs:
 
       - name: Run ${{ matrix.suite }}
         run: pixi run --environment dev test --suite "${{ matrix.suite }}"
+
+  changelog:
+    name: changelog fragment
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # The gate diffs against the merge base, which needs real history.
+          fetch-depth: 0
+
+      # The labels reach the check as `--labels`, so the `no-changelog`
+      # exemption is decided and tested in tools/check_changelog.py rather than
+      # by skipping the job: a skipped job cannot report why (#386).
+      - name: A fragment added alongside source changes
+        env:
+          LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+        run: |
+          git fetch --no-tags origin "${{ github.event.pull_request.base.ref }}"
+          python3 tools/check_changelog.py \
+            --base-ref "origin/${{ github.event.pull_request.base.ref }}" \
+            --labels "$LABELS"
