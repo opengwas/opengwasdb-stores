@@ -65,6 +65,10 @@ website:
           contents: "spec/*.md"
         - section: "Benchmarks and reports"
           contents: "benchmark-output/*.md"
+        - section: "This site"
+          # site.md is staged as site.qmd: Quarto renders a Mermaid cell only in
+          # a .qmd. A page that gains or loses a diagram changes this entry.
+          contents: "site.qmd"
     - id: engine
       title: "Engine docs"
       contents:

@@ -2,8 +2,8 @@
 title: "Stores"
 ---
 
-The Stores section lists every Store Release and its state: its family, its
-Analysis Coverage, the releases and buildings it went through, and what it
+The Stores section lists every Store Release and its state: its Store Layout,
+its Association Coverage, the Store Release Builds it went through, and what it
 holds.
 
 This page is a placeholder and is filled by #391. Until then the registry itself

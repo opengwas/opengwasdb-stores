@@ -28,14 +28,16 @@ output would make parallel pull requests conflict.
 | `/data/opengwasdb/work/site/<checkout>/_stage` | The mirror of `docs/` the render reads (`$OPENGWASDB_SITE_ROOT` moves the work root). |
 | `/data/opengwasdb/work/site/<checkout>/_preview` | The synced copy `site-preview` serves; Quarto renders inside it. |
 | `/data/opengwasdb/work/site/opengwasdb.git` | The bare clone the engine's docs are staged from (`$OPENGWASDB_SITE_ENGINE_CLONE` overrides it). |
-| `docs/opengwasdb/` | The engine's docs staged at the pinned revision. Git-ignored, regenerated on every render. |
-| `docs/glossary.md` | `CONTEXT.md`, staged as the glossary page. Git-ignored, regenerated. |
 
-Nothing the site build writes goes under `/home` or `/tmp`.
+Nothing the site build writes goes under `/home` or `/tmp`, and nothing is
+written into the checkout.
 
 The render reads a mirror of `docs/`, not `docs/` itself. That is deliberate:
-the mirror is where the link rewrite and the Mermaid spelling happen, so no
-source file is ever edited, and `docs/` stays readable on GitHub.
+the mirror is where the link rewrite, the Mermaid spelling and the staged engine
+docs and glossary live, so no source file is ever edited, `docs/` stays readable
+on GitHub, and two renders — of different checkouts, or of one checkout into two
+outputs — never collide. `docs/opengwasdb/` holds the engine's docs at the pinned
+revision and `docs/glossary.md` is `CONTEXT.md`, both inside the mirror.
 
 ## Publishing
 
@@ -66,6 +68,20 @@ flowchart TD
 The default ref is `origin/dev` until the cutover, after which it becomes
 `origin/main`.
 
+## Going live
+
+The first real publish creates `gh-pages`; GitHub Pages keeps serving the legacy
+`main`/`docs` deployment until its source is switched. That switch is the owner's
+step, taken after the first real `pixi run site-publish`:
+
+```bash
+gh api -X PUT repos/opengwas/opengwasdb-stores/pages \
+  -f 'source[branch]=gh-pages' -f 'source[path]=/'
+```
+
+It sets Pages to build from the `gh-pages` branch at `/`, which is where
+`site-publish` puts the rendered site.
+
 ## Adding a page
 
 1. Add a Markdown file under `docs/` — `docs/my-page.md` — with a single `#`
@@ -74,7 +90,10 @@ The default ref is `origin/dev` until the cutover, after which it becomes
    section index, or a `sidebar`'s `contents`. A glob such as `adr/*.md` already
    covers a new ADR, so most pages need no configuration.
 3. Use ` ```mermaid ` for a diagram and it renders as one, as it does on GitHub;
-   `dot` files under `docs/diagrams/` are served as the files they are.
+   `dot` files under `docs/diagrams/` are served as the files they are. Quarto
+   renders a Mermaid cell only in a `.qmd`, so a `.md` page holding one is staged
+   as `.qmd`, its published `.md` path is filled in after the render, and links to
+   it reach its rendered page. Add it to the sidebar as `<name>.qmd`.
 4. Link to a sibling with its relative path (`../spec/release-config.md`). Link to
    anything outside `docs/` with the relative path you would use on GitHub — the
    build rewrites it to that file on GitHub at the commit being rendered. A link
