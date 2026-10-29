@@ -10,6 +10,18 @@ The code is `src/project_site/` (ADR 0038). It imports `ogstores.bundle` and
 `ogstores.paths` and nothing else from this repository, and it reads
 `/data/opengwasdb/stores` only through read-only SQLite URIs.
 
+## The served-path baseline
+
+The build's served-path check reads one fixed list,
+`resources/site/legacy-served-paths.txt` (#388, #397): the 90 paths under
+`docs/` at `ff204b619ad8a5f671f4f67dd65d234096731102`, the commit the live
+legacy Pages deployment was built from, one per line with `#` for comments. It
+is fixed because it protects the links readers already hold: a page the site
+generates may come and go without being added to it, and a path in it only goes
+when a legacy URL is retired deliberately, by a reviewed change to the file. A
+missing, empty or unreadable file fails the build rather than passing a render
+nothing checked.
+
 ## The epic record
 
 One YAML file per epic, `docs/_epics/<repo>-<number>.yaml`, named for the

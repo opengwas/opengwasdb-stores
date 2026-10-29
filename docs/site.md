@@ -161,14 +161,33 @@ It sets Pages to build from the `gh-pages` branch at `/`, which is where
 
 ## Checking a change
 
-`pixi run site` ends with the served-path check: every path `origin/main` serves
-under `docs/` today must be present or aliased in the output, and a missing path
-fails the build. Run it before opening a pull request that touches `docs/`.
+`pixi run site` ends with the served-path check: every path in
+`resources/site/legacy-served-paths.txt` must be present or aliased in the
+output, and a missing path fails the build. Run it before opening a pull request
+that touches `docs/`.
+
+That baseline is fixed, and deliberately: it is the 90 paths under `docs/` at
+`ff204b6`, the commit the live legacy Pages deployment was built from, so it
+protects the links readers already hold. A page the site generates (an epic, a
+Store, a trend) may come or go without touching it; only a legacy path that a
+reader can still follow is in it, and a path leaves it only when a legacy URL is
+retired deliberately, by a reviewed change to the file. A missing, empty or
+unreadable baseline file fails the check rather than passing an unchecked
+render (`src/project_site/build.py`).
 
 You can run the check on its own against an existing render:
 
 ```bash
 pixi run -e dev python3 -m project_site.urlcheck \
-  --git-rev origin/main \
+  --paths-file resources/site/legacy-served-paths.txt \
+  --output /data/opengwasdb/work/site/<checkout>/_site
+```
+
+For an ad-hoc answer to "does this render serve everything `main`'s `docs/`
+held at some revision?", name the revision instead:
+
+```bash
+pixi run -e dev python3 -m project_site.urlcheck \
+  --git-rev ff204b6 \
   --output /data/opengwasdb/work/site/<checkout>/_site
 ```
