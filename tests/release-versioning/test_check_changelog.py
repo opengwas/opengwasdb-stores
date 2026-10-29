@@ -99,6 +99,21 @@ class FragmentsDirectoryTest(unittest.TestCase):
         self.assertEqual(changelog.SKIP_LABEL, "no-changelog")
 
 
+class VocabularyTest(unittest.TestCase):
+    def test_both_scripts_know_one_fragment_vocabulary(self) -> None:
+        """`check_changelog` accepts exactly what `release` can classify.
+
+        The two scripts are separate entry points -- neither imports the other,
+        because either may be run alone -- so the vocabulary is stated in both
+        and held equal here. A type the check accepts but the release cannot
+        classify would fail the release workflow after the merge, where the
+        pull request's author can no longer see it.
+        """
+        release = load_script("release")
+        self.assertEqual(changelog.FRAGMENT_TYPES, release.FRAGMENT_TYPES)
+        self.assertEqual(changelog.FRAGMENT_PATTERN.pattern, release.FRAGMENT_PATTERN.pattern)
+
+
 class AcceptedTest(ChangelogCheckTest):
     def test_a_fragment_added_alongside_source_changes_is_accepted(self) -> None:
         self.write(SOURCE, "VALUE = 2\n")
