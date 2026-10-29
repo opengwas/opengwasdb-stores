@@ -311,6 +311,7 @@ def render_checkout(source_commit: str, checkout: Path, output: Path) -> Path:
     """
     report = build_site(repo=checkout, output=output, stage_dir=output.with_name(f"{output.name}-stage"))
     print(f"rendered {report.pages} pages from {source_commit} in {report.seconds:.1f}s")
+    print(f"served   {urlcheck.summarise(report.served)}")
     missing = [status.path for status in report.served if status.state == "missing"]
     if missing:
         raise SiteCheckFailed(
