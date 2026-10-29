@@ -73,14 +73,14 @@ def epic(key: str, title: str, *, status: str = "Todo", workstream: str | None =
     }
 
 
-def milestone(key: str, title: str, checked: int, total: int) -> dict:
+def milestone(key: str, title: str, checked: int, total: int, *, state: str = "OPEN") -> dict:
     """A board row for a Milestone: an epic's fields without `children`, plus its checklist lines."""
     repo, number = key.split("#")
     return {
         "key": key,
         "title": title,
         "url": f"https://github.com/opengwas/{repo}/issues/{number}",
-        "state": "OPEN",
+        "state": state,
         "status": "Active",
         "workstream": None,
         "next": None,
@@ -992,6 +992,53 @@ class TestGenerate(unittest.TestCase):
         overview = (self.docs / "index.qmd").read_text()
         self.assertIn("Board data unavailable", overview)
         self.assertIn("Catalog data unavailable", overview)
+
+
+class TestClosedMilestones(unittest.TestCase):
+    """A closed Milestone is one short line, never progress to report (#391, the superseded first release)."""
+
+    def setUp(self) -> None:
+        self.documents = documents(board=envelope(
+            "board", project="opengwas/1", epics=[], items=[],
+            milestones=[
+                milestone("opengwasdb#292", "Milestone: API-ready", checked=6, total=10),
+                milestone("opengwasdb#91", "Milestone: First release", checked=0, total=6, state="CLOSED"),
+            ],
+        ))
+
+    def milestones_section(self) -> str:
+        page = pages.render_overview(self.documents)
+        return page[page.index("## Milestones") : page.index("## Workstreams")]
+
+    def test_only_the_open_milestone_carries_a_progress_count(self) -> None:
+        section = self.milestones_section()
+
+        self.assertIn("### [Milestone: API-ready]", section)
+        self.assertIn("**6 of 10** lines met, 4 to go.", section)
+        self.assertNotIn("### [Milestone: First release]", section)
+        self.assertNotIn("0 of 6", section)
+        self.assertNotIn("6 to go", section)
+        self.assertEqual(section.count("to go"), 1, "a closed milestone is never progress")
+
+    def test_the_closed_milestone_is_one_short_line_under_the_open_ones(self) -> None:
+        section = self.milestones_section()
+
+        self.assertIn(
+            "Closed: [Milestone: First release](https://github.com/opengwas/opengwasdb/issues/91) (#91)",
+            section,
+        )
+        self.assertLess(section.index("**6 of 10**"), section.index("Closed:"))
+
+    def test_a_board_whose_milestones_are_all_closed_says_none_is_open(self) -> None:
+        self.documents["board"]["milestones"] = [
+            milestone("opengwasdb#91", "Milestone: First release", checked=0, total=6, state="CLOSED"),
+        ]
+
+        section = self.milestones_section()
+
+        self.assertIn("No Milestone on the board is open.", section)
+        self.assertIn("Closed: [Milestone: First release]", section)
+        self.assertNotIn("to go", section)
 
 
 class TestOverview(unittest.TestCase):
