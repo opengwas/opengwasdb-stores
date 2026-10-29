@@ -32,9 +32,12 @@ from __future__ import annotations
 import argparse
 import html
 import json
+import os
 import sys
 from pathlib import Path
 from typing import Any, Mapping, Sequence
+
+from project_site.collect.common import DATA_DIR_ENV_VAR
 
 Document = Mapping[str, Any]
 
@@ -1026,6 +1029,293 @@ def render_stores_index(documents: Mapping[str, Document | None]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+# ---------------------------------------------------------------------------
+# The Epics index, the trends and the changelog
+# ---------------------------------------------------------------------------
+
+
+def render_epics_index(documents: Mapping[str, Document | None]) -> str:
+    """The Epics section's index: every epic on the board, in workstream order."""
+    lines = [GENERATED, ""]
+    lines += notices(documents, ("board", "records"))
+    board = available(documents, "board")
+    if board is None:
+        return "\n".join(lines + ["No epic can be listed while the board data is unavailable.", ""])
+    epics = [entry for entry in board.get("epics") or [] if isinstance(entry, Mapping)]
+    if not epics:
+        return "\n".join(lines + ["The board holds no Epic.", ""])
+    counts: dict[str, int] = {}
+    for entry in epics:
+        counts[str(entry.get("status"))] = counts.get(str(entry.get("status")), 0) + 1
+    summary = ", ".join(f"{number} {status}" for status, number in sorted(counts.items()))
+    lines += [f"The board holds **{len(epics)}** Epics: {summary}.", ""]
+    groups: dict[str, list[Mapping[str, Any]]] = {}
+    for entry in epics:
+        groups.setdefault(entry.get("workstream") or NO_WORKSTREAM, []).append(entry)
+    lines += ["| Epic | Status | Workstream | Sub-issues | Epic record |", "| --- | --- | --- | --- | --- |"]
+    for name in _workstream_order(groups):
+        for entry in sorted(groups[name], key=lambda item: str(item.get("key") or "")):
+            key = str(entry.get("key") or "?")
+            sub_issues = entry.get("sub_issues") or {}
+            record = epic_record(documents, key)
+            lines.append(
+                "| "
+                + " | ".join(
+                    [
+                        _epic_link(entry),
+                        _cell(entry.get("status")),
+                        _cell(entry.get("workstream")),
+                        f"{_figure(sub_issues.get('completed'))} of {_figure(sub_issues.get('total'))}",
+                        _record_cell(record),
+                    ]
+                )
+                + " |"
+            )
+    lines.append("")
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _record_cell(record: Document | None) -> str:
+    if record is None:
+        return "none yet"
+    status = _cell(record.get("status"))
+    finished = record.get("finished")
+    return f"{status}, finished {_cell(finished)}" if finished else status
+
+
+# The catalog dimensions the trends page charts, under the name a reader knows
+# them by. `ancestry` is the catalog's Assigned Ancestry with `META` for an
+# unassigned Analysis whose Source Ancestry Label is exactly `META` (CONTEXT.md).
+DIMENSIONS = (
+    ("coverage", "Association Coverage"),
+    ("ancestry", "Assigned Ancestry"),
+    ("outcome_type", "Outcome type"),
+    ("trait_class", "Trait class"),
+)
+
+
+def render_trends(documents: Mapping[str, Document | None]) -> str:
+    """What moved from version to version: the catalog, the yardstick and the test time."""
+    lines = [GENERATED, ""]
+    lines += notices(documents, ("catalog", "records"))
+    lines += _catalog_by_version(documents)
+    lines += _yardstick_by_result(documents)
+    lines += _test_time_by_epic(documents)
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _catalog_by_version(documents: Mapping[str, Document | None]) -> list[str]:
+    lines = ["## The Analysis Catalog by version", ""]
+    catalog = available(documents, "catalog")
+    if catalog is None:
+        return lines + ["No catalog trend can be shown while the Catalog data is unavailable.", ""]
+    versions = [version for version in catalog.get("versions") or [] if isinstance(version, Mapping)]
+    if not versions:
+        return lines + ["No Analysis Catalog version has been built yet.", ""]
+    lines += [
+        "| Version | Built at | Listed Analyses | Stores | Changes | Current |",
+        "| --- | --- | --- | --- | --- | --- |",
+    ]
+    for version in versions:
+        totals = version.get("totals") or {}
+        changes = version.get("changes")
+        changes_cell = ", ".join(f"{_figure(number)} {name}" for name, number in changes.items()) if changes else _cell(None)
+        lines.append(
+            f"| `{_cell(version.get('version'))}` | {_cell((version.get('catalog_meta') or {}).get('built_at'))}"
+            f" | {_figure(totals.get('analyses'))} | {_figure(totals.get('stores'))} | {changes_cell}"
+            f" | {'yes' if version.get('current') else 'no'} |"
+        )
+    analyses = [(version.get("totals") or {}).get("analyses") for version in versions]
+    stores = [(version.get("totals") or {}).get("stores") for version in versions]
+    lines += [
+        "",
+        f"- **Listed Analyses**: {_trend(analyses, label='Listed Analyses per version')}",
+        f"- **Stores**: {_trend(stores, label='Stores per version')}",
+        "",
+    ]
+    for dimension, title in DIMENSIONS:
+        lines += _dimension_table(versions, dimension, title)
+    return lines
+
+
+def _dimension_table(versions: Sequence[Mapping[str, Any]], dimension: str, title: str) -> list[str]:
+    headers = []
+    for version in versions:
+        name = str(version.get("version") or "")
+        headers.append(f"`{name[:8]}`{' (current)' if version.get('current') else ''}")
+    values: list[Any] = []
+    for version in reversed(versions):  # the newest version's values first
+        for row in version.get("counts") or []:
+            if isinstance(row, Mapping) and row.get("dimension") == dimension and row.get("value") not in values:
+                values.append(row.get("value"))
+    lines = [f"### {title}", ""]
+    if not values:
+        return lines + [f"No version counts {dimension}.", ""]
+    lines.append("| Value | " + " | ".join(headers) + " |")
+    lines.append("| --- |" + " --- |" * len(headers))
+    totals = []
+    for version in versions:
+        totals.append(_figure((version.get("totals") or {}).get("analyses")))
+    lines.append("| **Listed Analyses** | " + " | ".join(totals) + " |")
+    for value in values:
+        cells = []
+        for version in versions:
+            cells.append(_dimension_count(version, dimension, value))
+        label = "unassigned" if value is None else _cell(value)
+        lines.append(f"| {label} | " + " | ".join(cells) + " |")
+    lines += [
+        "",
+        "A `—` means that version has no row for the value, not that the value counts zero: the catalog",
+        "carries a row only for a value it counted, and `NULL` is a category of its own. Each column is",
+        "the first 8 hex digits of a catalog version.",
+        "",
+    ]
+    return lines
+
+
+def _dimension_count(version: Mapping[str, Any], dimension: str, value: Any) -> str:
+    for row in version.get("counts") or []:
+        if isinstance(row, Mapping) and row.get("dimension") == dimension and row.get("value") == value:
+            return _figure(row.get("n_analyses"))
+    return "—"
+
+
+def _yardstick_by_result(documents: Mapping[str, Document | None]) -> list[str]:
+    lines = ["## The yardstick across results", ""]
+    results = yardstick_results(documents)
+    if not results:
+        if available(documents, "records") is None:
+            return lines + ["No yardstick trend can be shown while the Records data is unavailable.", ""]
+        return lines + [
+            "**No yardstick results yet.** Each epic writes one under `docs/_yardstick/` when it finishes",
+            "(`pixi run yardstick`, #390); this page charts them as they accumulate, so a change in a",
+            "measure reflects a change in the code rather than in the benchmark.",
+            "",
+        ]
+    lines += ["| Result | Started | Engine | Host | Duration | Over budget |", "| --- | --- | --- | --- | --- | --- |"]
+    for entry in results:
+        result = entry["result"]
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    f"`{_cell(result_name(entry))}`",
+                    _cell(result.get("started_utc")),
+                    _cell((result.get("opengwasdb") or {}).get("version")),
+                    _cell((result.get("host") or {}).get("name")),
+                    f"{_figure(result.get('duration_s'))} s",
+                    _cell(result.get("over_budget")),
+                ]
+            )
+            + " |"
+        )
+    lines.append("")
+    lines += _yardstick_matrix(results)
+    return lines
+
+
+def _yardstick_matrix(results: Sequence[Mapping[str, Any]]) -> list[str]:
+    columns = [_result_column(entry) for entry in results]
+    places: list[tuple[str, str]] = []
+    for entry in results:
+        for place in _figure_places(entry["result"]):
+            if place not in places:
+                places.append(place)
+    places.sort(key=lambda place: (place[0], _measure_order(place[1])))
+    lines = ["| Store | Measure | " + " | ".join(columns) + " |", "| --- | --- |" + " --- |" * len(columns)]
+    for store_id, measure in places:
+        cells = [measure_value(_measure_of(entry["result"], store_id, measure)) for entry in results]
+        lines.append(f"| {_cell(store_id)} | `{measure}` | " + " | ".join(cells) + " |")
+    lines += [
+        "",
+        "A timed measure is its median over the warm reads with its p95 beside it; `bytes_on_disk` is the",
+        "apparent bytes of the Store and `peak_rss` the memory of one `analysis_full` read. A measure the",
+        "result marks `unavailable` says why, and one it marks `not_applicable` is left out.",
+        "",
+    ]
+    return lines
+
+
+def _result_column(entry: Mapping[str, Any]) -> str:
+    started = str(entry["result"].get("started_utc") or "")
+    return started[:10] or f"`{_cell(result_name(entry))}`"
+
+
+def _measure_order(measure: str) -> int:
+    order = (*TIMED_MEASURES, "bytes_on_disk", "peak_rss")
+    return order.index(measure) if measure in order else len(order)
+
+
+def _test_time_by_epic(documents: Mapping[str, Document | None]) -> list[str]:
+    lines = ["## Test time per epic", ""]
+    records = available(documents, "records")
+    if records is None:
+        return lines + ["No test time can be shown while the Records data is unavailable.", ""]
+    epics = [record for record in records.get("epics") or [] if isinstance(record, Mapping)]
+    if not epics:
+        return lines + [
+            "**No epic record yet**, so no epic has a measured test time. A record carries one when the",
+            "orchestrated run that finished the epic measured it (`docs/spec/project-site.md`).",
+            "",
+        ]
+    lines += ["| Epic | Baseline | Final | Change |", "| --- | --- | --- | --- |"]
+    for record in sorted(epics, key=lambda item: (str(item.get("started") or ""), str(item.get("number") or ""))):
+        key = f"{record.get('repo')}#{record.get('number')}"
+        test_time = record.get("test_time") or {}
+        baseline = test_time.get("baseline") or {}
+        final = test_time.get("final") or {}
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    _link(key, f"epics/{epic_page_name(key)}.html"),
+                    _seconds_cell(baseline.get("wall_s"), baseline.get("commit")),
+                    _seconds_cell(final.get("wall_s"), final.get("commit")),
+                    _change(baseline.get("wall_s"), final.get("wall_s")).strip(" ()") or _cell(None),
+                ]
+            )
+            + " |"
+        )
+    lines += ["", "The change is the final wall time against the baseline, as a share of the baseline; a",
+              "baseline a record does not carry stays `not reported` and no change is worked out from it.", ""]
+    return lines
+
+
+def render_changelog(documents: Mapping[str, Document | None]) -> str:
+    """Both repositories' Releases, newest first, each with the notes GitHub holds for it."""
+    lines = [GENERATED, ""]
+    lines += notices(documents, ("releases",))
+    releases = available(documents, "releases")
+    if releases is None:
+        return "\n".join(lines + ["No Release can be listed while the Releases data is unavailable.", ""])
+    for repo in releases.get("repos") or []:
+        name = _cell(repo.get("repo"))
+        released = [release for release in repo.get("releases") or [] if isinstance(release, Mapping)]
+        released.sort(key=lambda release: str(release.get("published_at") or ""), reverse=True)
+        lines += [f"## {name}", ""]
+        if not released:
+            lines += [
+                "**No Release yet.** Versions start at the cutover: each merge to `main` is tagged and its",
+                "GitHub Release carries that pull request's changelog fragments (#386).",
+            ]
+            tags = [tag.get("name") for tag in repo.get("tags") or [] if tag.get("name")]
+            if tags:
+                lines += ["", f"Its tags so far are {', '.join(f'`{tag}`' for tag in tags)}; a tag is not a Release."]
+            lines.append("")
+            continue
+        lines += ["| Version | Release notes | Published | Flags |", "| --- | --- | --- | --- |"]
+        for release in released:
+            flags = [flag for flag in ("draft" if release.get("draft") else "",
+                                       "prerelease" if release.get("prerelease") else "") if flag]
+            lines.append(
+                f"| `{_cell(release.get('tag'))}`"
+                f" | {_link(release.get('name') or release.get('tag'), release.get('url'))}"
+                f" | {_cell(release.get('published_at'))} | {', '.join(flags) or '—'} |"
+            )
+        lines += ["", "The Release notes are the fragments GitHub carries for the tag; the link opens them.", ""]
+    return "\n".join(lines).rstrip() + "\n"
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--docs", type=Path, default=Path("."),
@@ -1033,14 +1323,87 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--data-dir", type=Path, default=None,
                         help="the collector files (default: $OPENGWASDB_SITE_DATA, else <docs>/_data)")
     args = parser.parse_args(argv)
-    written = generate(docs=args.docs, data_dir=args.data_dir)
-    print(f"generated {len(written)} page(s) from {args.data_dir or args.docs / '_data'}")
+    data_dir = args.data_dir if args.data_dir is not None else default_data_dir(args.docs)
+    written = generate(docs=args.docs, data_dir=data_dir)
+    print(f"generated {len(written)} page(s) from {data_dir}")
     return 0
 
 
+# The section pages, in the navbar's order: the file Quarto renders and the
+# title it shows. `index.qmd` and `stores.qmd` already have a published path, so
+# they are the pages the site has always served, filled in from the data now.
+SECTION_PAGES = (
+    ("index.qmd", "Overview", render_overview),
+    ("stores.qmd", "Stores", render_stores_index),
+    ("epics.qmd", "Epics", render_epics_index),
+    ("trends.qmd", "Trends", render_trends),
+    ("changelog.qmd", "Changelog", render_changelog),
+)
+
+# Where one page per epic and one page per Store go, beside the section pages.
+EPIC_PAGES = "epics"
+STORE_PAGES = "stores"
+
+
+def default_data_dir(docs: Path) -> Path:
+    """The collector files: `$OPENGWASDB_SITE_DATA` (the collectors' own variable), else `<docs>/_data`."""
+    configured = os.environ.get(DATA_DIR_ENV_VAR)
+    if configured and configured.strip():
+        return Path(configured)
+    return Path(docs) / "_data"
+
+
 def generate(*, docs: Path, data_dir: Path | None = None) -> list[Path]:
-    """Write every page into `docs`, the tree Quarto renders; return what was written."""
-    raise NotImplementedError("pages are written in the next slice")
+    """Write every page into `docs`, the tree Quarto renders, and return what was written.
+
+    `docs` is the docs mirror of a render, or `docs/` itself for a hand run; the
+    pages are git-ignored, and a run replaces the pages a render no longer holds
+    (an epic that left the board, a Store that left the registry) so a preview
+    never serves a page for something that is gone.
+    """
+    docs = Path(docs)
+    data_dir = Path(data_dir) if data_dir is not None else default_data_dir(docs)
+    documents = load(data_dir)
+    written = [
+        _write(docs / name, _page(title, render(documents))) for name, title, render in SECTION_PAGES
+    ]
+    board = available(documents, "board") or {}
+    for epic in board.get("epics") or []:
+        if isinstance(epic, Mapping) and epic.get("key"):
+            written.append(
+                _write(
+                    docs / EPIC_PAGES / f"{epic_page_name(str(epic['key']))}.qmd",
+                    render_epic_page(documents, epic),
+                )
+            )
+    stores = available(documents, "stores") or {}
+    for entry in stores.get("stores") or []:
+        if isinstance(entry, Mapping) and entry.get("store_id"):
+            written.append(
+                _write(docs / STORE_PAGES / f"{entry['store_id']}.qmd", render_store_page(documents, entry))
+            )
+    _remove_stale(written, docs / EPIC_PAGES, docs / STORE_PAGES)
+    return written
+
+
+def _page(title: str, body: str) -> str:
+    """A page with its Quarto front matter, so a generated section page has its title."""
+    return f"---\ntitle: {json.dumps(title, ensure_ascii=False)}\n---\n\n{body}"
+
+
+def _write(path: Path, text: str) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def _remove_stale(written: Sequence[Path], *directories: Path) -> None:
+    """Unlink the generated page of anything the data no longer holds, and nothing else."""
+    kept = {path.resolve() for path in written}
+    for directory in directories:
+        for path in sorted(directory.glob("*.qmd")):
+            if path.resolve() not in kept:
+                path.unlink()
 
 
 if __name__ == "__main__":

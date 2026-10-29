@@ -308,6 +308,230 @@ class TestStorePages(unittest.TestCase):
         self.assertIn(f"{pages.BUNDLES}/OGS-00027", page)
 
 
+def full_documents() -> dict:
+    """Every source available and holding something, for the pages that need more than one of them."""
+    site_epic = epic(
+        "opengwasdb-stores#385",
+        "Epic: The project site",
+        status="Active",
+        workstream="Engineering",
+        next_line="4 of 8 merged",
+        children=[
+            child("opengwasdb-stores#388", "One Quarto site", state="CLOSED"),
+            child("opengwasdb-stores#391", "The site's pages", state="OPEN",
+                  blocked_by=[{"key": "opengwasdb-stores#388", "state": "CLOSED"}]),
+        ],
+    )
+    return documents(
+        board=envelope(
+            "board", project="opengwas/1", epics=[
+                site_epic,
+                epic("opengwasdb-stores#214", "Epic: Indexed variant subsets", status="Todo",
+                     workstream="Build architecture"),
+            ],
+            milestones=[milestone("opengwasdb#292", "Milestone: API-ready", checked=6, total=10)],
+            items=[],
+        ),
+        catalog=envelope(
+            "catalog", root="/data/opengwasdb/stores/catalog/versions",
+            current="bbbbbbbbbbbbbbbb",
+            versions=[
+                catalog_version("aaaaaaaaaaaaaaaa", built_at="2026-10-23T18:25:29Z", analyses=19250, stores=1,
+                                counts=[{"dimension": "coverage", "value": "cis", "n_analyses": 19250}]),
+                catalog_version("bbbbbbbbbbbbbbbb", built_at="2026-10-28T22:57:35Z", analyses=31940, stores=9,
+                                current=True,
+                                counts=[
+                                    {"dimension": "store", "value": "OGS-00027", "n_analyses": 19250},
+                                    {"dimension": "coverage", "value": "cis", "n_analyses": 19250},
+                                    {"dimension": "coverage", "value": "gwas", "n_analyses": 12690},
+                                ]),
+            ],
+        ),
+        releases=envelope("releases", repos=[
+            {"repo": "opengwasdb", "tags": [{"name": "v0.2.0", "commit": "0" * 40}], "releases": []},
+            {"repo": "opengwasdb-stores", "tags": [{"name": "v0.3.0", "commit": "1" * 40}],
+             "releases": [{"tag": "v0.3.0", "name": "0.3.0", "published_at": "2026-10-30T09:00:00Z",
+                            "draft": False, "prerelease": False,
+                            "url": "https://github.com/opengwas/opengwasdb-stores/releases/tag/v0.3.0"}]},
+        ]),
+        stores=envelope("stores", registry="/data/opengwasdb/stores", stores=[
+            store("OGS-00006", "chen-2023",
+                  observed={"n_analyses": 1400, "n_variants": 12086463, "n_associations": 50}),
+            store("OGS-00027", "eqtlgen-full",
+                  observed={"n_analyses": 19250, "n_variants": 8927061, "n_associations": None},
+                  description="The full eQTLGen cis-eQTL catalogue.",
+                  notes="2026-10-28: validated and scientifically accepted."),
+        ]),
+        records=envelope(
+            "records",
+            epics=[
+                epic_record(
+                    "opengwasdb-stores#385",
+                    title="Epic: The project site",
+                    catalog={"before": "aaaaaaaaaaaaaaaa", "after": "bbbbbbbbbbbbbbbb"},
+                    test_time={
+                        "baseline": {"commit": "e6e829d", "wall_s": 158.4, "suites": None},
+                        "final": {"commit": "a84ecfb", "wall_s": 162.05, "suites": None},
+                    },
+                    versions=["v0.3.0"],
+                )
+            ],
+            invalid={},
+            yardstick={"results": [], "invalid": {}},
+        ),
+    )
+
+
+class TestAnUnavailableSource(unittest.TestCase):
+    """A source that could not be read is a visible notice, and no page fails over it."""
+
+    def page_sources(self) -> list[tuple[str, str, object]]:
+        """Each page and the sources it reads, so each can be taken away in turn."""
+        fixtures = full_documents()
+        site_epic = fixtures["board"]["epics"][0]
+        silent_store = fixtures["stores"]["stores"][1]
+        return [
+            ("the overview", pages.render_overview, ("board", "catalog", "releases", "stores", "records")),
+            ("an epic page", lambda documents: pages.render_epic_page(documents, site_epic),
+             ("board", "catalog", "releases", "records")),
+            ("a Store page", lambda documents: pages.render_store_page(documents, silent_store),
+             ("stores", "catalog")),
+            ("the Stores index", pages.render_stores_index, ("stores", "catalog")),
+            ("the Epics index", pages.render_epics_index, ("board", "records")),
+            ("the trends", pages.render_trends, ("catalog", "records")),
+            ("the changelog", pages.render_changelog, ("releases",)),
+        ]
+
+    def test_each_page_renders_with_the_notice_for_each_source_it_reads(self) -> None:
+        for name, render, sources in self.page_sources():
+            for source in sources:
+                with self.subTest(page=name, source=source):
+                    broken = full_documents()
+                    broken[source] = {
+                        "source": source,
+                        "available": False,
+                        "collected_at": COLLECTED,
+                        "error": "CollectError: gh api graphql exited 4",
+                    }
+                    text = render(broken)
+                    self.assertIn(f"{pages.TITLES[source]} unavailable", text)
+                    self.assertIn("CollectError: gh api graphql exited 4", text)
+                    self.assertIn(COLLECTED, text)
+
+    def test_a_file_that_was_never_written_is_a_notice_too(self) -> None:
+        for name, render, sources in self.page_sources():
+            for source in sources:
+                with self.subTest(page=name, source=source):
+                    missing = full_documents()
+                    missing[source] = None
+                    text = render(missing)
+                    self.assertIn(f"{pages.TITLES[source]} unavailable", text)
+                    self.assertIn("was not written", text)
+
+
+class TestEpicsIndex(unittest.TestCase):
+    """The Epics section's index: every epic on the board, and whether it has a record yet."""
+
+    def test_every_epic_is_listed_with_its_status_and_whether_a_record_exists(self) -> None:
+        page = pages.render_epics_index(full_documents())
+        self.assertIn("[Epic: The project site](epics/opengwasdb-stores-385.html)", page)
+        self.assertIn("[Epic: Indexed variant subsets](epics/opengwasdb-stores-214.html)", page)
+        self.assertIn("The board holds **2** Epics: 1 Active, 1 Todo.", page)
+        self.assertIn("none yet", page)
+
+
+class TestTrends(unittest.TestCase):
+    """What moved from version to version: the catalog, the yardstick, and the test time per epic."""
+
+    def test_the_catalog_table_lists_every_version_with_its_totals(self) -> None:
+        page = pages.render_trends(full_documents())
+        self.assertIn("| `bbbbbbbbbbbbbbbb` | 2026-10-28T22:57:35Z | 31,940 | 9 |", page)
+        self.assertIn("| `aaaaaaaaaaaaaaaa` | 2026-10-23T18:25:29Z | 19,250 | 1 |", page)
+
+    def test_a_dimension_table_says_when_a_version_has_no_row_rather_than_zero(self) -> None:
+        page = pages.render_trends(full_documents())
+        self.assertIn("| cis | 19,250 | 19,250 |", page)
+        self.assertIn("| gwas | — | 12,690 |", page)
+
+    def test_multiple_versions_are_charted_with_a_trend_of_the_listed_analyses(self) -> None:
+        page = pages.render_trends(full_documents())
+        self.assertIn("| Value | `aaaaaaaa` | `bbbbbbbb` (current) |", page)
+        self.assertIn("19,250 → 31,940 over 2 versions", page)
+
+    def test_no_yardstick_result_is_an_empty_state_not_a_blank(self) -> None:
+        page = pages.render_trends(full_documents())
+        self.assertIn("**No yardstick results yet.**", page)
+
+    def test_the_test_time_of_each_epic_that_measured_one(self) -> None:
+        page = pages.render_trends(full_documents())
+        self.assertIn("| [opengwasdb-stores#385](epics/opengwasdb-stores-385.html) | 158.4 s at `e6e829d`"
+                      " | 162.05 s at `a84ecfb` | +2.3% on the baseline |", page)
+
+
+class TestChangelog(unittest.TestCase):
+    """Both repositories' Releases, newest first, and the empty state before the cutover."""
+
+    def test_a_release_is_listed_newest_first_with_its_notes_linked(self) -> None:
+        page = pages.render_changelog(full_documents())
+        self.assertIn("| `v0.3.0` | [0.3.0](https://github.com/opengwas/opengwasdb-stores/releases/tag/v0.3.0)"
+                      " | 2026-10-30T09:00:00Z | — |", page)
+
+    def test_an_empty_repository_says_versions_start_at_the_cutover(self) -> None:
+        page = pages.render_changelog(full_documents())
+        self.assertIn("## opengwasdb", page)
+        self.assertIn("**No Release yet.** Versions start at the cutover", page)
+        self.assertIn("Its tags so far are `v0.2.0`; a tag is not a Release.", page)
+
+
+class TestGenerate(unittest.TestCase):
+    """The file boundary: what the pre-render step puts in the render tree, and what it leaves behind."""
+
+    def setUp(self) -> None:
+        opened = tempfile.TemporaryDirectory()
+        self.addCleanup(opened.cleanup)
+        self.docs = Path(opened.name) / "docs"
+        self.docs.mkdir()
+        self.data = Path(opened.name) / "_data"
+        self.data.mkdir()
+        for source, document in full_documents().items():
+            (self.data / f"{source}.json").write_text(json.dumps(document))
+
+    def test_every_section_page_and_one_page_per_epic_and_per_store_is_written(self) -> None:
+        written = pages.generate(docs=self.docs, data_dir=self.data)
+        self.assertEqual(
+            sorted(path.relative_to(self.docs).as_posix() for path in written),
+            [
+                "changelog.qmd",
+                "epics.qmd",
+                "epics/opengwasdb-stores-214.qmd",
+                "epics/opengwasdb-stores-385.qmd",
+                "index.qmd",
+                "stores.qmd",
+                "stores/OGS-00006.qmd",
+                "stores/OGS-00027.qmd",
+                "trends.qmd",
+            ],
+        )
+        overview = (self.docs / "index.qmd").read_text()
+        self.assertTrue(overview.startswith('---\ntitle: "Overview"\n---\n'))
+        self.assertIn("6 of 10", overview)
+        self.assertIn('title: "OGS-00027 — eqtlgen-full"', (self.docs / "stores" / "OGS-00027.qmd").read_text())
+
+    def test_a_page_for_something_the_data_no_longer_holds_is_removed(self) -> None:
+        stale = self.docs / "epics" / "opengwasdb-stores-999.qmd"
+        stale.parent.mkdir(parents=True)
+        stale.write_text("gone")
+        pages.generate(docs=self.docs, data_dir=self.data)
+        self.assertFalse(stale.exists())
+
+    def test_no_data_directory_still_writes_every_section_page_with_the_notices(self) -> None:
+        written = pages.generate(docs=self.docs, data_dir=Path(self.docs.name) / "never-collected")
+        self.assertEqual(len(written), 5)
+        overview = (self.docs / "index.qmd").read_text()
+        self.assertIn("Board data unavailable", overview)
+        self.assertIn("Catalog data unavailable", overview)
+
+
 class TestOverview(unittest.TestCase):
     """The home page: milestone progress, each workstream's Active epics, and trends with the data below them."""
 
