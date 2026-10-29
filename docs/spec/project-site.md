@@ -83,3 +83,58 @@ Rules `validate_epic` applies, and the order of the fields above:
 `records.load_epics(directory)` reads every `*.yaml` of a directory and returns
 the valid records and the errors by file name; an invalid file never stops the
 others.
+
+## The collectors
+
+```text
+pixi run site-data [--data-dir PATH] [--catalog-root PATH] [--registry PATH]
+```
+
+`pixi run site-data` runs every collector and prints one line per source. Each
+collector writes `<data dir>/<source>.json`. The data directory is
+`docs/_data/` of the checkout, which git ignores, unless
+`OPENGWASDB_SITE_DATA` or `--data-dir` names another. Nothing is ever written
+under `/data/opengwasdb/stores`.
+
+Every file starts with the same four keys, then the source's own:
+
+| Key | Meaning |
+|---|---|
+| `source` | `board`, `catalog`, `releases`, `stores` or `records` |
+| `available` | `true` when the source was read; `false` when it could not be |
+| `collected_at` | UTC time, `2026-10-29T12:00:00Z` |
+| `error` | `null`, or the failure as `ExceptionType: message` |
+
+A source that fails (`gh` offline, a catalog root that does not exist) writes
+`available: false` with its error and no other key, and never stops the other
+collectors. An **empty** source is not a failure: no Releases yet is
+`available: true` with empty lists. A page reads `available` before it reads
+anything else.
+
+### Board (`board.json`)
+
+The board collector has its own GraphQL query (`project_site.collect.board`);
+this repository does not import the board skill. It reads project 1 of the
+`opengwas` organisation, every page of it, and then every epic's sub-issues and
+their blocked-by edges (`subIssues` and `blockedBy` in the GraphQL API) in one
+aliased query. The issue bodies of everything but Milestones are dropped.
+
+| Key | Content |
+|---|---|
+| `epics` | one row per Epic: `key` (`repo#n`), `title`, `url`, `state` (the issue's, `OPEN` or `CLOSED`), `status`, `workstream`, `next`, `priority`, `sub_issues` (`{total, completed}`), and `children` |
+| `epics[].children` | the epic's sub-issues: `key`, `title`, `url`, `state`, and `blocked_by`, a list of `{key, state}` |
+| `milestones` | one row per Milestone, with the same fields as an epic (no `children`) and `lines` |
+| `milestones[].lines` | each `- [ ]` or `- [x]` line of the body, in order: `checked`, `text`, and `refs` (`repo#n` keys) |
+| `items` | every other project item, with the epic's fields |
+
+- `status`, `workstream`, `next` and `priority` are the board's field values as
+  written, and `null` where the item has none.
+- An Epic is an issue of type Epic, labelled `epic` or `complexity:epic`, or
+  titled `Epic:`; a Milestone is of type Milestone or titled `Milestone:`. A
+  Milestone is never an Epic. The rule is the board skill's.
+- A checklist is read from lines that begin `- [ ]`, `- [x]` or `- [X]`, after
+  any indentation, and from nothing else: a bullet without a box is prose. A
+  bare `#n` in a line is an issue of the milestone's own repository; a
+  reference into another owner is dropped.
+- `tests/project-site-data/fixtures/board-graphql.json` is a response recorded
+  once from the real API by `board.fetch`.

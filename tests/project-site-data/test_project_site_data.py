@@ -14,9 +14,14 @@ from __future__ import annotations
 
 import copy
 import datetime
+import json
 import unittest
+from pathlib import Path
 
 from project_site import records
+from project_site.collect import board
+
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
 
 
 def minimal_record() -> dict:
@@ -151,6 +156,112 @@ class TestEpicRecordValidator(unittest.TestCase):
         before = copy.deepcopy(record)
         records.validate_epic(record)
         self.assertEqual(record, before)
+
+
+class TestBoardCollector(unittest.TestCase):
+    """`board.parse` over a response recorded once from the real API (fixtures/board-graphql.json)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.data = board.parse(json.loads((FIXTURES / "board-graphql.json").read_text()))
+        cls.epics = {e["key"]: e for e in cls.data["epics"]}
+        cls.milestones = {m["key"]: m for m in cls.data["milestones"]}
+
+    def test_every_project_item_is_an_epic_a_milestone_or_other(self) -> None:
+        self.assertEqual(
+            (len(self.data["epics"]), len(self.data["milestones"]), len(self.data["items"])),
+            (17, 2, 2),
+        )
+        self.assertEqual(sorted(i["key"] for i in self.data["items"]), ["opengwasdb-stores#312", "opengwasdb-stores#314"])
+
+    def test_an_epic_carries_its_board_fields_and_sub_issue_progress(self) -> None:
+        epic = self.epics["opengwasdb-stores#313"]
+        self.assertEqual(
+            {k: epic[k] for k in ("title", "url", "state", "status", "workstream", "priority", "sub_issues")},
+            {
+                "title": "Epic: Analysis catalog across all Stores",
+                "url": "https://github.com/opengwas/opengwasdb-stores/issues/313",
+                "state": "OPEN",
+                "status": "Active",
+                "workstream": "Interface",
+                "priority": None,
+                "sub_issues": {"total": 12, "completed": 11},
+            },
+        )
+        self.assertTrue(epic["next"].startswith("9/10 merged on PR #353 · implementing #359"))
+        self.assertEqual(self.epics["opengwasdb-stores#366"]["priority"], "P2 · Medium")
+
+    def test_an_epic_without_an_issue_type_is_found_by_its_title(self) -> None:
+        self.assertIn("opengwasdb-stores#214", self.epics)
+
+    def test_an_epic_lists_its_sub_issues_and_their_blocked_by_edges(self) -> None:
+        children = {c["key"]: c for c in self.epics["opengwasdb-stores#385"]["children"]}
+        self.assertEqual(
+            list(children),
+            ["opengwasdb#333", "opengwasdb-stores#386", "opengwasdb-stores#387", "opengwasdb-stores#388",
+             "opengwasdb-stores#389", "opengwasdb-stores#390", "opengwasdb-stores#391", "agent-skills#1"],
+        )
+        self.assertEqual(children["opengwasdb-stores#389"]["blocked_by"], [])
+        self.assertEqual(
+            children["opengwasdb-stores#391"]["blocked_by"],
+            [
+                {"key": "opengwasdb-stores#390", "state": "OPEN"},
+                {"key": "opengwasdb-stores#389", "state": "OPEN"},
+                {"key": "opengwasdb-stores#388", "state": "OPEN"},
+            ],
+        )
+        self.assertEqual(
+            children["opengwasdb-stores#387"],
+            {
+                "key": "opengwasdb-stores#387",
+                "title": "Pin opengwasdb by release tag",
+                "url": "https://github.com/opengwas/opengwasdb-stores/issues/387",
+                "state": "OPEN",
+                "blocked_by": [{"key": "opengwasdb#333", "state": "OPEN"}],
+            },
+        )
+
+    def test_a_milestone_checklist_is_read_from_its_boxes_only(self) -> None:
+        lines = self.milestones["opengwasdb#292"]["lines"]
+        self.assertEqual(len(lines), 10)
+        self.assertEqual([line["checked"] for line in lines].count(True), 6)
+        self.assertEqual(
+            lines[1],
+            {
+                "checked": True,
+                "text": "opengwas/opengwasdb-stores#282 stage 1 merged to `dev` (opengwas/opengwasdb-stores#299). Stage 2 is not required.",
+                "refs": ["opengwasdb-stores#282", "opengwasdb-stores#299"],
+            },
+        )
+        self.assertEqual(lines[0]["refs"], [])
+        self.assertEqual(
+            lines[5],
+            {
+                "checked": False,
+                "text": "Hybrid: OGS-00011 (GWAS Catalog EUR) rebuilt with its 3,169 Analyses, opengwas/opengwasdb-stores#225",
+                "refs": ["opengwasdb-stores#225"],
+            },
+        )
+
+    def test_checklist_lines_follow_the_box_syntax_and_resolve_bare_refs(self) -> None:
+        body = "\n".join([
+            "Prose with a #5 reference and no box.",
+            "- plain bullet #6",
+            "* [x] star bullet #7",
+            "- [X] upper #8 and other/repo#9 and opengwas/agent-skills#1",
+            "- [ ] open",
+            "  - [x] nested #10",
+            "- [] no space",
+        ])
+        self.assertEqual(
+            board.checklist(body, "opengwasdb-stores"),
+            [
+                {"checked": True, "text": "upper #8 and other/repo#9 and opengwas/agent-skills#1",
+                 "refs": ["opengwasdb-stores#8", "agent-skills#1"]},
+                {"checked": False, "text": "open", "refs": []},
+                {"checked": True, "text": "nested #10", "refs": ["opengwasdb-stores#10"]},
+            ],
+        )
 
 
 if __name__ == "__main__":
