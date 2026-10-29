@@ -425,14 +425,25 @@ def render_overview(documents: Mapping[str, Document | None]) -> str:
 
 
 def _milestones_section(documents: Mapping[str, Document | None]) -> list[str]:
+    """The open Milestones' progress, then the closed ones as one line.
+
+    A closed Milestone is not progress to report: how many of its lines are met
+    describes a plan nobody is working to any more, so it gets one short line and
+    never a count, and a reader is not told a superseded milestone has "6 to go"
+    (#391 fix 2).
+    """
     lines = ["## Milestones", ""]
     board = available(documents, "board")
     if board is None:
         return lines + ["No milestone progress can be shown while the board data is unavailable.", ""]
-    milestones = board.get("milestones") or []
+    milestones = [item for item in board.get("milestones") or [] if isinstance(item, Mapping)]
     if not milestones:
         return lines + ["The board holds no Milestone.", ""]
-    for item in milestones:
+    open_milestones = [item for item in milestones if not _is_closed(item)]
+    closed = [item for item in milestones if _is_closed(item)]
+    if not open_milestones:
+        lines += ["No Milestone on the board is open.", ""]
+    for item in open_milestones:
         checklist = item.get("lines") or []
         met = sum(1 for line in checklist if line.get("checked"))
         lines += [f"### {_link(item.get('title') or item.get('key'), item.get('url'))}", ""]
@@ -444,7 +455,21 @@ def _milestones_section(documents: Mapping[str, Document | None]) -> list[str]:
             if unmet:
                 lines += ["", "Not met yet:", ""] + [f"- {_cell(line.get('text'))}" for line in unmet]
         lines.append("")
+    if closed:
+        lines += ["Closed: " + "; ".join(_closed_milestone(item) for item in closed), ""]
     return lines
+
+
+def _is_closed(item: Mapping[str, Any]) -> bool:
+    """Whether the board reports the item's issue closed (`state` is the issue's, `OPEN` or `CLOSED`)."""
+    return str(item.get("state") or "").upper() == "CLOSED"
+
+
+def _closed_milestone(item: Mapping[str, Any]) -> str:
+    """One closed Milestone as `Title (#n)`: its own text, and no count of what it did not finish."""
+    number = str(item.get("key") or "").rsplit("#", 1)[-1]
+    reference = _cell(f"#{number}") if number else _cell(None)
+    return f"{_link(item.get('title') or item.get('key'), item.get('url'))} ({reference})"
 
 
 def _workstreams_section(documents: Mapping[str, Document | None]) -> list[str]:

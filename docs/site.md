@@ -96,6 +96,10 @@ one per registered Store beside them
   epic record: a record outlives the board, so when `gh` is offline the
   record-backed page is still generated, carrying the board's unavailable notice,
   and a page that has a record is never removed as stale.
+- The Overview reports progress for the board's **open** Milestones only. A closed
+  Milestone is a plan nobody is working to any more, so it appears as one short
+  line under them — `Closed: Milestone: First release (#91)` — and never with a
+  count of lines met or to go.
 - A yardstick trend is drawn within one workload. Results are keyed by
   `workload_sha256` (`workload_id` where the hash is missing), each series and
   each matrix table names the workload it measured, and no line or row spans two
