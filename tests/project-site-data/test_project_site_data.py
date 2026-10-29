@@ -217,10 +217,11 @@ class TestCommittedEpicRecords(unittest.TestCase):
         self.assertEqual(self.invalid, {})
 
     def test_the_backfilled_epics_are_present(self) -> None:
-        self.assertEqual(sorted(self.by_number), [282, 302, 313])
+        # Every finished epic adds its own record, so the backfilled three are a subset.
+        self.assertLessEqual({282, 302, 313}, set(self.by_number))
 
     def test_status_follows_the_epic_issue_which_is_open_for_all_three(self) -> None:
-        self.assertEqual({n: (r["status"], r["finished"]) for n, r in self.by_number.items()},
+        self.assertEqual({n: (self.by_number[n]["status"], self.by_number[n]["finished"]) for n in (282, 302, 313)},
                          {282: ("active", None), 302: ("active", None), 313: ("active", None)})
 
     def test_313_is_active_because_ogs_00011_remains(self) -> None:
