@@ -1,0 +1,42 @@
+{
+  "store_id": "OGS-00011",
+  "rebuilt_at": "2026-10-29T08:09:35Z",
+  "runtime": {
+    "opengwasdb_version": "0.3.0",
+    "opengwasdb_commit": "70340e03d61cc0371fa5373d8406adc48cc11255"
+  },
+  "published_store": {
+    "path": "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+    "manifest_sha256": "9f735064d1009b030344f3d891b9a8503c14c4002aeca3cec5dedf4196f615c4",
+    "format_version": "0.2.0",
+    "n_analyses": 3169,
+    "n_panel_variants": 13415936,
+    "n_off_panel_variants": 34653805,
+    "n_total_variants": 48069741,
+    "n_overflow_associations": 2719408288
+  },
+  "audit_evidence": {
+    "reconciliation": {
+      "path": "/data/opengwasdb/work/epic371/orchestrate/opengwasdb-stores-371/evidence/381/reconciliation.json",
+      "sha256": "ba37c8ba413599ba92fab8d1131c3518b8428695e1098fdb310236b07a00e534",
+      "off_panel_occupancy": 1.0,
+      "unobserved_off_panel_variants": 0,
+      "duplicate_alids": 0
+    },
+    "attribution": {
+      "path": "/data/opengwasdb/work/epic371/orchestrate/opengwasdb-stores-371/evidence/381/attribution.json",
+      "sha256": "4e441dd4bcf8f9dd9a995596474022aae0c6db4246290c33148781d42f84b2cf",
+      "single_publication_exclusive_variants": 9264194,
+      "single_analysis_exclusive_variants": 5875067
+    },
+    "sample": {
+      "path": "/data/opengwasdb/work/epic371/orchestrate/opengwasdb-stores-371/evidence/381/sample.tsv",
+      "sha256": "6fb1bd51d60a70784fd986cf9f252c05bfc839e18701ba7b8dacb583231a6012",
+      "rows": 235
+    }
+  },
+  "approval": {
+    "scope": "Operator authorized force rebuild under epic #371 (#381) with opengwasdb pin 70340e0",
+    "approved_at": "2026-10-26T16:48:00Z"
+  }
+}

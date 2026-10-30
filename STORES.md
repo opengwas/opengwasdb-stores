@@ -15,7 +15,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00007` | 2018-sun-pilot-10 | true | ragged | observed_only | built | - | 10 | 0 | - | - | passed |
 | `OGS-00008` | ukb-b-pilot-10 | true | dense | observed_only | candidate | - | 10 | 0 | - | - | - |
 | `OGS-00009` | ukb-b-full | false | dense | reference_completed | validated | - | 2,514 | 0 | 11,191,070 | - | passed |
-| `OGS-00011` | eur-hybrid-full | false | hybrid | observed_only (completion pending) | accepted | - | 3,169 | 1,614 | - | - | passed_with_warnings |
+| `OGS-00011` | eur-hybrid-full | false | hybrid | observed_only (completion pending) | accepted | - | 3,169 | 1,614 | 48,069,741 | - | passed_with_warnings |
 | `OGS-00012` | mvp-phs002453-eur | false | dense | reference_completed | validated | - | 1,669 | 0 | 20,548,967 | - | passed |
 | `OGS-00013` | mvp-phs002453-afr | false | dense | observed_only | validated | - | 1,368 | 0 | 36,964,976 | - | passed |
 | `OGS-00014` | mvp-phs002453-amr | false | dense | reference_completed | validated | - | 1,053 | 0 | 30,380,465 | - | passed |

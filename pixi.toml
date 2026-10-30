@@ -310,6 +310,10 @@ threadpoolctl = ">=3.0"
 # published Store; each build ticket must supply a compatible observed parent
 # (or convert/rebuild first) before completion.
 #
+# Epic #371 pinned `70340e0` (opengwasdb#303's `dev` merge, above #332's MAF
+# admission fix) on its own branch for #380; OGS-00011's 29 Oct rebuild (#381)
+# records that commit. `0d59f151` and `v0.3.0` both contain it.
+#
 # Repinned for #387 to the release tag `v0.3.0`
 # (`bc22e8476c4378af582477f09b56af01e3f5f065`, the opengwasdb `main` merge of PR
 # #335), the first release opengwasdb's release workflow published (the earlier
@@ -449,6 +453,18 @@ generate-candidate = { cmd = "python3 -m manifest_generation.generate_candidate"
 # It also renders the summary report (#325), which needs Quarto and R beside
 # the builder, so the task runs in `dev` whichever environment is default.
 catalog = { cmd = "python3 -m analysis_catalog", default-environment = "dev" }
+
+# Read-only Store Audit (stores #372, epic #371). Reconciles a built Hybrid
+# Store Release's shared axis, its Dense Component, the off-panel remainder and
+# the observed occupancy of every axis entry against what the Store records, and
+# proves it changed no store file. It needs `opengwasdb` (the Store it reads, the
+# CSR index it validates and the variant reference it parses), so it lives in
+# the store-build environment. `--output` must be outside the Store; large
+# evidence belongs on deployment data storage, not in Git.
+#
+#   pixi run audit-store reconcile /data/opengwasdb/stores/OGS-00011/store.opengwasdb \
+#     --output /data/opengwasdb/work/.../evidence/372/reconciliation.json
+audit-store = { cmd = "python3 -m ogstores.audit" }
 
 # The project site's data (#389, docs/spec/project-site.md): run every collector
 # (the board, the catalog's versions, both repos' Releases, the Release Bundles,

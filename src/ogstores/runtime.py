@@ -118,6 +118,10 @@ from ogstores.plan import plan
 #: `build-hybrid --on-rsid-conflict`, `build-indexed-subset --overflow-only`),
 #: #328's benchmark harness and #329; there is no Store format bump.
 #:
+#: Epic #371 pinned `70340e0` (core #303's `dev` merge, above #332) on its own
+#: branch for #380; OGS-00011's 29 Oct rebuild (#381) records it, and
+#: `0d59f151` contains it.
+#:
 #: Repinned for #387 from `0d59f151` to the release tag `v0.3.0`, which resolves
 #: to `bc22e84`, the opengwasdb `main` merge of PR #335 (release tooling: the
 #: version from tags, a changelog). `v0.3.0` is the first release opengwasdb's
