@@ -1,25 +1,28 @@
 status: passed_with_warnings
-validated_at: '2026-10-29T08:34:21.766605Z'
+validated_at: '2026-11-01T09:23:29.025384Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@70340e03d61cc0371fa5373d8406adc48cc11255
+  version: opengwasdb@44f25a96fb43044a983e300a038a54ab1930e782
 build_environment:
-  opengwasdb_version: 0.3.0
-  opengwasdb_commit: 70340e03d61cc0371fa5373d8406adc48cc11255
+  opengwasdb_version: 0.3.2
+  opengwasdb_commit: 44f25a96fb43044a983e300a038a54ab1930e782
   python_version: 3.12.15
   platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
 observed:
   format_version: null
   n_analyses: 3169
-  n_variants: 48069741
+  n_variants: 48069918
   n_associations: null
-  association_coverage: null
+  association_coverage: gwas
   reference_assembly: null
   store_bytes: null
-  build_elapsed_s: 119507.0
+  build_elapsed_s: 238071.876
   validate_status: passed_with_warnings
-  completion_state: observed_only
-  variant_reference: provided
+  completion_state: reference_completed
+  rsid_conflicts:
+    policy: drop
+    n_keys: 97211
+    n_variants: 96361
 checks:
   store: passed_with_warnings
 warnings:
@@ -178,3 +181,6 @@ acceptance:
     GCST90624704+GCST90624705'
   - 148 Analysis/Analyses had no MAF floor applied and were excluded from this shared
     Store as not_maf_filtered (#203); see sidecars/exclusions.tsv
+replaced:
+  archive: /data/opengwasdb/stores/OGS-00011/replaced/20261101T092329Z
+  replaced_at: '2026-11-01T09:23:29.025384Z'
