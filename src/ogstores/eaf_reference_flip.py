@@ -29,20 +29,21 @@ global allele flip whose only in-store consequence is those three arrays.
 
 Safety, in the order it happens:
 
-1. The release lock is taken (never waited for) after the same refusals
-   `se_reencode` makes -- a registered id, a non-symlinked Store, no
-   publication or completion in progress -- and the imported *and* PATH
-   `opengwasdb` must both be the tracked pin.  A receipt that already exists
-   refuses: `1 - (1 - x)` is `x`, so a second run silently restores the bug.
+1. The release lock is taken (never waited for) -- by `--dry-run` too -- after
+   the same refusals `se_reencode` makes: a registered id, a non-symlinked
+   Store, no publication or completion in progress, and the imported *and* PATH
+   `opengwasdb` both the tracked pin.  A receipt that already exists refuses:
+   `1 - (1 - x)` is `x`, so a second run silently restores the bug.
 2. Only a Dense, format-0.2.0, Zarr-v3, `reference_completed` Store is in
    scope.  Ragged, Hybrid, Zarr v2 and Observed-Only Stores are refused with
-   the reason, never skipped.
+   the reason, never skipped; so is a top-hit tier without `eaf` or `imputed`
+   and a Store without its completion mask.
 3. **Before touching anything**, the orientation guard: on a deterministic
    sample of variants that carry both a finite `eaf_reference` and an observed
-   EAF in at least one Analysis, the Pearson r between the two must be
-   `<= -0.9` over at least 500 variants.  Observed EAF is decoded through the
-   runtime's own reader (`opengwasdb.encoding.DenseEafPlane`, the plane
-   `StoreQuery` reads), never re-derived here.  The seed, r and n are recorded.
+   EAF in at least one Analysis, the Pearson r between the two must be `< -0.9`
+   over at least 500 variants.  Observed EAF is decoded through the runtime's
+   own reader (`opengwasdb.encoding.DenseEafPlane`, the plane `StoreQuery`
+   reads), never re-derived here.  The seed, r and n are recorded.
 4. Each target is staged as a sibling `.<name>.flipping` directory: the live
    `zarr.json` is copied verbatim and whole shards are written through that
    metadata, so codecs and chunking cannot drift.  `float32(1) - x` is
@@ -50,15 +51,21 @@ Safety, in the order it happens:
    everywhere, which is what `validate` requires of the copies) and only where
    the value is finite; a NaN keeps its exact payload.
 5. The staged arrays are verified algebraically against the originals --
-   `new == 1 - old` on finite cells as raw bit patterns, NaN positions
-   unchanged, filtered rows bit-identical, and the HM3 copy equal to the staged
-   primary at its variants.  The guard is then repeated on the staged primary
-   and must read `r > 0.9`.  Only then is anything renamed.
+   `new == 1 - old` on finite cells as raw bit patterns, NaN positions and
+   payloads unchanged, filtered rows bit-identical, and the HM3 copy equal to
+   the staged primary at its variants.  The guard is then repeated on the
+   staged primary and must read `r > 0.9`.  Only then is anything renamed.
 6. The swap is `store/swap.py`'s pattern at directory level: the original array
    directory is moved into `<store-dir>/replaced/<UTC>-eaf-reference-flip/`
    (never inside the Store), then the staged directory is moved into its name.
-   A failure between the two renames puts the original back; a receipt already
-   marked `started` is recovery evidence naming the rollback directory.
+   The receipt carries each array's progress -- `pending`, `moved_aside`,
+   `swapped`, `restored` -- and is fsynced before and after every rename, so a
+   process killed between two renames leaves a readable account of which file
+   is where.  A failed run puts every original back, proves it by hashing the
+   live path against the recorded before-hashes, and only then removes the
+   receipt and `replaced/`.  Anything less restored is left in place, the
+   receipt is marked `failed_restoration`, and the run exits non-zero naming
+   each array, its original and what is live: the evidence is never destroyed.
 7. `records/eaf-reference-flip.json` is written `started` immediately before
    the first rename and `complete` after the last: per-touched-array sha256 of
    every file before and after, the flipped/NaN counts, the guard before and
@@ -75,7 +82,6 @@ from __future__ import annotations
 
 import argparse
 import contextlib
-import datetime
 import hashlib
 import json
 import os
@@ -85,7 +91,7 @@ import sys
 import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
 
 import numpy as np
 import zarr
@@ -104,8 +110,16 @@ TOOL_PATH: str = "src/ogstores/eaf_reference_flip.py"
 #: same filesystem so the swap is two `os.replace` renames.
 STAGING_SUFFIX: str = ".flipping"
 
-#: The stamp form `replaced/` uses, and the one `se_reencode`/`complete` use.
+#: The stamp suffix `replaced/` uses (`<UTC stamp>-eaf-reference-flip`).
 REPLACED_SUFFIX: str = "eaf-reference-flip"
+
+#: The receipt's per-array progress states, in the order a run passes through
+#: them.  `restored` means the live path was hashed and equals the before-hashes.
+PENDING: str = "pending"
+MOVED_ASIDE: str = "moved_aside"
+SWAPPED: str = "swapped"
+RESTORED: str = "restored"
+FAILED_RESTORATION: str = "failed_restoration"
 
 #: The guard's deterministic sample: bands of consecutive variants, `MAX_BANDS`
 #: of them at most, so a 30M-variant Store costs a bounded number of band
@@ -118,8 +132,8 @@ MAX_BANDS: int = 60
 MIN_COMPARABLE: int = 500
 
 #: An inverted Store reads strongly negative; a corrected one strongly
-#: positive.  The margins are loose on purpose: the measurement is a
-#: correlation over real frequencies, not an identity.
+#: positive.  Strict, as the issue states it: equality at the boundary is not
+#: evidence of anything and refuses.
 BEFORE_MAX_R: float = -0.9
 AFTER_MIN_R: float = 0.9
 
@@ -128,12 +142,10 @@ AFTER_MIN_R: float = 0.9
 DEFAULT_SAMPLE_SEED: int = 20261101
 
 #: Test-only fault points, after `run.fault_boundary` and relocate_store's
-#: variables: raise at a named step so a test can prove nothing is swapped.
+#: variables: raise at a named step so a test can prove what happens when a
+#: rename fails.
 FAIL_AT_ENV: str = "OGSTORES_TEST_EAF_REFERENCE_FLIP_FAIL_AT"
 VERIFY_FAULT, SWAP_FAULT = "verify", "swap"
-
-#: Environment variables a real run keeps on the artifact root (CONTRIBUTING).
-_TMPDIR_VARIABLES: tuple[str, ...] = ("TMPDIR", "TMP", "TEMP")
 
 #: The Dense / 0.2.0 / reference-completed values this tool accepts.  Literal
 #: strings, not the runtime's enums: the manifest is read before the pinned
@@ -150,16 +162,6 @@ class FlipRefusal(RuntimeError):
 
 class VerificationFailure(FlipRefusal):
     """A staged array did not verify; nothing was swapped."""
-
-
-def _utc_now() -> str:
-    """The UTC timestamp form the repository's records use."""
-    return datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
-
-
-def _utc_stamp() -> str:
-    """The stamp form `replaced/` uses: `YYYYMMDDTHHMMSSZ`."""
-    return datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
 
 
 def _tool_commit() -> str | None:
@@ -257,7 +259,9 @@ def _targets(data_zarr: Path) -> list[Target]:
     The primary plane is required; the HM3 copy and the top-hit tiers are
     taken when present.  A missing `eaf_reference` is a refusal, not an empty
     plan: a reference-completed Store that does not carry the plane is not the
-    Store this issue describes.
+    Store this issue describes.  A top-hit tier that exists but lacks `eaf` or
+    `imputed` is refused rather than skipped -- an uncorrected imputed hit is
+    exactly the defect, and skipping the tier would leave it in place.
     """
     root = zarr.open_group(data_zarr, mode="r")
     if "eaf_reference" not in root:
@@ -273,8 +277,14 @@ def _targets(data_zarr: Path) -> list[Target]:
     if "top_hits" in root:
         for threshold in sorted(root["top_hits"].group_keys()):
             tier = root["top_hits"][threshold]
-            if "eaf" in tier:
-                targets.append(Target(group=f"top_hits/{threshold}", array="eaf", imputed_filter=True))
+            missing = [name for name in ("eaf", "imputed") if name not in tier]
+            if missing:
+                raise FlipRefusal(
+                    f"data.zarr/top_hits/{threshold} carries no {' or '.join(missing)}; a "
+                    "top-hit tier this correction cannot read is not skipped, because its "
+                    "imputed hits would keep the wrong orientation"
+                )
+            targets.append(Target(group=f"top_hits/{threshold}", array="eaf", imputed_filter=True))
     return targets
 
 
@@ -347,21 +357,37 @@ def _sample_observed(root: Any, encoding: StoreEncoding, seed: int) -> _Sample:
     `DenseEafPlane.read_band` is the plane `StoreQuery` reads: it applies the
     declared encoding and substitutes the panel's frequency on imputed cells.
     Those cells are dropped here by the plane's own mask, so what remains is
-    the observed EAF and nothing re-derived from `eaf_reference`.
+    the observed EAF and nothing re-derived from `eaf_reference`.  A completed
+    Store without that mask is refused: treating every cell as observed would
+    make the guard measure the panel against itself.
     """
     n_variants = int(root["eaf_reference"].shape[0])
-    plane = DenseEafPlane.open(root, encoding)
+    try:
+        plane = DenseEafPlane.open(root, encoding)
+    except Exception as exc:
+        raise FlipRefusal(
+            f"the runtime reader cannot open this Store's observed EAF plane: {exc}"
+        ) from exc
     rows: list[np.ndarray] = []
     observed: list[np.ndarray] = []
     bands = _sampled_bands(n_variants, seed)
     band_rows = min(BAND_ROWS, n_variants)
     for r0, r1 in bands:
-        read = plane.read_band(r0, r1, want_imputed=True)
-        values = np.asarray(read.values, dtype=np.float32)
+        try:
+            read = plane.read_band(r0, r1, want_imputed=True)
+        except Exception as exc:
+            raise FlipRefusal(
+                f"the runtime reader cannot decode rows {r0}:{r1} of this Store's "
+                f"observed EAF plane: {exc}"
+            ) from exc
         if read.imputed is None:
-            mask = np.zeros(values.shape, dtype=bool)
-        else:
-            mask = np.asarray(read.imputed).astype(bool)
+            raise FlipRefusal(
+                "this Store reads no completion mask (`imputed`), so which cells are "
+                "observed cannot be known and the orientation guard cannot run. A "
+                "reference-completed Store must carry one"
+            )
+        values = np.asarray(read.values, dtype=np.float32)
+        mask = np.asarray(read.imputed).astype(bool)
         present = ~mask & np.isfinite(values)
         totals = np.where(present, values, np.float32(0.0)).sum(axis=1, dtype=np.float64)
         counts = present.sum(axis=1)
@@ -405,9 +431,9 @@ def _require_inverted(guard: Guard) -> None:
             f"(finite eaf_reference and an observed EAF in at least one Analysis); "
             f"at least {MIN_COMPARABLE} are needed to show the orientation ({guard.describe()})"
         )
-    if guard.r is None or guard.r > BEFORE_MAX_R:
+    if guard.r is None or not guard.r < BEFORE_MAX_R:
         raise FlipRefusal(
-            "the orientation guard is not inverted: expected r <= "
+            "the orientation guard is not inverted: expected r < "
             f"{BEFORE_MAX_R} between eaf_reference and the observed EAF, got {guard.describe()}. "
             "This Store does not need (or has already had) this correction."
         )
@@ -415,10 +441,10 @@ def _require_inverted(guard: Guard) -> None:
 
 def _require_corrected(guard: Guard) -> None:
     """The post-condition, on the staged primary: the flip must have worked."""
-    if guard.r is None or guard.r < AFTER_MIN_R:
+    if guard.r is None or not guard.r > AFTER_MIN_R:
         raise VerificationFailure(
             "the orientation guard on the staged primary did not read corrected: "
-            f"expected r >= {AFTER_MIN_R}, got {guard.describe()}"
+            f"expected r > {AFTER_MIN_R}, got {guard.describe()}"
         )
 
 
@@ -452,7 +478,8 @@ def _flip(values: np.ndarray, mask: np.ndarray | None) -> np.ndarray:
     The complement is taken in float32 -- the plane's own dtype -- so the same
     operation on the same input is bit-identical for every copy of it, which is
     what `validate` compares (`eaf_consistent`, the HM3 copy).  Routing through
-    float64 would send `0.99` back as `0.010000000707...` and break that.
+    float64 would send `0.99` back as `0.010000000707...` and break that.  A
+    non-finite cell is passed through untouched, NaN payload included.
     """
     flipped = np.where(np.isfinite(values), np.float32(1) - values, values)
     if mask is None:
@@ -612,8 +639,9 @@ def _verify_staged(
 
     The comparison is on raw float32 bit patterns -- not `isclose`, not
     `equal_nan` -- because the requirement is that `1 - x` was applied and that
-    everything else (NaNs included) is untouched.  For a filtered tier the
-    unflipped rows must be bit-identical, which the same comparison covers.
+    everything else (NaNs and their payloads included) is untouched.  For a
+    filtered tier the unflipped rows must be bit-identical, which the same
+    comparison covers.
     """
     n_rows = int(source.shape[0])
     nan_after = 0
@@ -664,42 +692,121 @@ def _verify_hm3(primary: Any, hm3: Any, subset: Any, *, what: str) -> None:
 
 
 # ---------------------------------------------------------------------------
-# The swap
+# The swap, its progress, and its rollback
 # ---------------------------------------------------------------------------
 
 
-def _fsync_dir(directory: Path) -> None:
-    with contextlib.suppress(OSError):
-        fd = os.open(directory, os.O_RDONLY)
+def _rename(source: Path, dest: Path) -> None:
+    """One atomic rename.  The single seam a test injects a failure through."""
+    os.replace(source, dest)
+
+
+def _entry_for(record: dict[str, Any], label: str) -> dict[str, Any]:
+    for entry in record["replaced"]["arrays"]:
+        if entry["array"] == label:
+            return entry
+    raise FlipRefusal(f"the receipt has no in-flight entry for {label}")  # pragma: no cover
+
+
+def _set_state(record: dict[str, Any], record_path: Path, label: str, state: str) -> None:
+    """Record one array's progress and fsync it, so a death leaves the truth."""
+    _entry_for(record, label)["state"] = state
+    _write_receipt(record, record_path)
+
+
+def _swap_all(
+    plan: "Plan",
+    record: dict[str, Any],
+    record_path: Path,
+    fault: str | None,
+) -> None:
+    """Rename each original aside and its staged copy in, fsyncing the receipt.
+
+    The receipt is written before the first rename touches an array (so it is
+    in flight on disk, not just in memory) and after each of the two renames,
+    with `run._fsync_dir` on the array's group around them.
+    """
+    for staged in plan.staged:
+        label = staged.target.label
+        entry = _entry_for(record, label)
+        original = Path(entry["original"])
+        if os.path.lexists(original):
+            raise FlipRefusal(f"the rollback destination {original} already exists")
+        if fault == SWAP_FAULT:
+            raise FlipRefusal(f"test fault: refusing before the swap of {label} ({FAIL_AT_ENV})")
+        original.parent.mkdir(parents=True, exist_ok=True)
+        _set_state(record, record_path, label, PENDING)
+        _rename(staged.live_dir, original)
+        run._fsync_dir(staged.live_dir.parent)
+        run._fsync_dir(original.parent)
+        _set_state(record, record_path, label, MOVED_ASIDE)
+        _rename(staged.staged_dir, staged.live_dir)
+        run._fsync_dir(staged.live_dir.parent)
+        _set_state(record, record_path, label, SWAPPED)
+
+
+def _restore(
+    plan: "Plan",
+    record: dict[str, Any],
+    record_path: Path,
+) -> list[str]:
+    """Put every original back and prove it by hash; return what could not be.
+
+    `restored` is written only when the live path hashes equal to the before
+    hashes recorded at the start of the run, so a state that merely looks
+    restored is not claimed as one.
+    """
+    failures: list[str] = []
+    for staged in reversed(plan.staged):
+        entry = _entry_for(record, staged.target.label)
+        original = Path(entry["original"])
+        if os.path.lexists(original):
+            try:
+                if os.path.lexists(staged.live_dir):
+                    # The corrected copy goes back to its staging name first,
+                    # so the live name is free for the original.
+                    _rename(staged.live_dir, staged.staged_dir)
+                _rename(original, staged.live_dir)
+                run._fsync_dir(staged.live_dir.parent)
+            except OSError as exc:
+                failures.append(f"{staged.target.label}: cannot restore it ({exc})")
+        restored = bool(staged.sha256_before) and _sha256_tree(staged.live_dir) == staged.sha256_before
         try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
+            _set_state(
+                record,
+                record_path,
+                staged.target.label,
+                RESTORED if restored else FAILED_RESTORATION,
+            )
+        except OSError as exc:
+            failures.append(f"{staged.target.label}: cannot record its state ({exc})")
+        if not restored:
+            failures.append(
+                f"{staged.target.label}: the live array does not hash to its recorded before-hashes"
+            )
+    return failures
 
 
-def _swap_in(staged: StagedArray, rollback_dir: Path, fault: str | None) -> dict[str, Any]:
-    """Move the original aside and the staged array into its name, or put it back."""
-    rollback = rollback_dir / staged.target.group / staged.target.array
-    rollback.parent.mkdir(parents=True, exist_ok=True)
-    if os.path.lexists(rollback):
-        raise FlipRefusal(f"the rollback destination {rollback} already exists")
-    if fault == SWAP_FAULT:
-        raise FlipRefusal(f"test fault: refusing before the swap of {staged.target.label} ({FAIL_AT_ENV})")
-    os.replace(staged.live_dir, rollback)
-    _fsync_dir(staged.live_dir.parent)
-    try:
-        os.replace(staged.staged_dir, staged.live_dir)
-    except BaseException:
-        os.replace(rollback, staged.live_dir)
-        _fsync_dir(staged.live_dir.parent)
-        raise
-    _fsync_dir(staged.live_dir.parent)
-    return {
-        "array": staged.target.label,
-        "original": str(rollback),
-        "staged": str(staged.live_dir),
-        "flipped": str(staged.staged_dir),
-    }
+def _failed_restoration_message(
+    plan: "Plan", record: dict[str, Any], cause: BaseException
+) -> str:
+    """Name every array, where its original is, and what is live."""
+    lines = [
+        f"the swap of {plan.store_id} failed: {cause}",
+        f"Recovery could not prove every array restored, so nothing was deleted. "
+        f"The receipt is {paths.record_path(plan.store_id, RECORD_STEP, root=plan.artifact_root)}.",
+    ]
+    for staged in plan.staged:
+        entry = _entry_for(record, staged.target.label)
+        original = Path(entry["original"])
+        lines.append(
+            f"  {staged.target.label}: {entry['state']}; "
+            f"original {'present' if os.path.lexists(original) else 'absent'} at {original}; "
+            f"live {'present' if os.path.lexists(staged.live_dir) else 'absent'} "
+            f"at {staged.live_dir}; staged {'present' if os.path.lexists(staged.staged_dir) else 'absent'} "
+            f"at {staged.staged_dir}"
+        )
+    return "\n".join(lines)
 
 
 # ---------------------------------------------------------------------------
@@ -714,16 +821,12 @@ class Plan:
     store_id: str
     artifact_root: Path
     store_path: Path
-    data_zarr: Path
-    encoding: StoreEncoding
-    targets: list[Target]
     staged: list[StagedArray]
     before: Guard
     after: Guard
     revision: str
     version: str
     replaced_dir: Path
-    stamp: str
 
 
 def _entry(staged: StagedArray) -> dict[str, Any]:
@@ -740,11 +843,25 @@ def _entry(staged: StagedArray) -> dict[str, Any]:
         "sha256_before": staged.sha256_before,
         "sha256_after": staged.sha256_after,
         "verified": "new == 1 - old on finite cells (raw float32 bits); "
-        "NaN positions and unflipped rows bit-identical",
+        "NaN positions and payloads and unflipped rows bit-identical",
     }
 
 
-def _started_record(plan: Plan, started_at: str, swap_plan: list[dict[str, Any]]) -> dict[str, Any]:
+def _in_flight(plan: Plan) -> list[dict[str, Any]]:
+    """The arrays this run may touch, each `pending` before its first rename."""
+    return [
+        {
+            "array": staged.target.label,
+            "state": PENDING,
+            "original": str(plan.replaced_dir / staged.target.group / staged.target.array),
+            "live": str(staged.live_dir),
+            "staged": str(staged.staged_dir),
+        }
+        for staged in plan.staged
+    ]
+
+
+def _started_record(plan: Plan, started_at: str) -> dict[str, Any]:
     """The receipt written immediately before the first rename.
 
     It carries every hash and count the run has proved so far, so a process
@@ -760,6 +877,7 @@ def _started_record(plan: Plan, started_at: str, swap_plan: list[dict[str, Any]]
         "artifact_root": str(plan.artifact_root),
         "started_at": started_at,
         "completed_at": None,
+        "failed_at": None,
         "opengwasdb_revision": plan.revision,
         "opengwasdb_version": plan.version,
         "tool": {"path": TOOL_PATH, "commit": _tool_commit()},
@@ -772,7 +890,7 @@ def _started_record(plan: Plan, started_at: str, swap_plan: list[dict[str, Any]]
             "after": {"r": plan.after.r, "n": plan.after.n},
         },
         "arrays": [_entry(staged) for staged in plan.staged],
-        "replaced": {"dir": str(plan.replaced_dir), "arrays": swap_plan},
+        "replaced": {"dir": str(plan.replaced_dir), "arrays": _in_flight(plan)},
     }
 
 
@@ -818,6 +936,12 @@ def _build_plan(
         ) from exc
     targets = _targets(data_zarr)
     root = zarr.open_group(data_zarr, mode="r")
+    if "imputed" not in root:
+        raise FlipRefusal(
+            f"{data_zarr} carries no `imputed` completion mask; a reference-completed "
+            "Store must have one, and without it the guard cannot tell an observed cell "
+            "from a panel-derived one"
+        )
     sample = _sample_observed(root, encoding, seed)
     before = _measure(sample, root["eaf_reference"])
     _require_inverted(before)
@@ -850,21 +974,17 @@ def _build_plan(
             shutil.rmtree(entry.staged_dir, ignore_errors=True)
         raise
 
-    stamp = f"{_utc_stamp()}-{REPLACED_SUFFIX}"
+    stamp = f"{run.utc_stamp()}-{REPLACED_SUFFIX}"
     return Plan(
         store_id=store_id,
         artifact_root=artifact_root,
         store_path=store_path,
-        data_zarr=data_zarr,
-        encoding=encoding,
-        targets=targets,
         staged=staged,
         before=before,
         after=after,
         revision=revision,
         version=version,
         replaced_dir=paths.replaced_dir(store_id, stamp, root=artifact_root),
-        stamp=stamp,
     )
 
 
@@ -880,19 +1000,41 @@ def _refuse_existing_receipt(store_id: str, artifact_root: Path) -> None:
     record_path = paths.record_path(store_id, RECORD_STEP, root=artifact_root)
     if not os.path.lexists(record_path):
         return
-    status = "unreadable"
+    receipt: dict[str, Any] = {}
     if record_path.is_file():
         with contextlib.suppress(OSError, ValueError):
-            status = str(json.loads(record_path.read_text(encoding="utf-8")).get("status"))
-    raise FlipRefusal(
-        f"{record_path} already exists (status {status!r}). A second flip would restore "
-        "the inversion this one corrects, so this tool refuses. Restore the arrays from "
-        "`replaced/` and remove the receipt only if the first run is known not to have "
-        "landed."
-    )
+            loaded = json.loads(record_path.read_text(encoding="utf-8"))
+            if isinstance(loaded, dict):
+                receipt = loaded
+    status = receipt.get("status", "unreadable")
+    states = [
+        entry.get("state")
+        for entry in (receipt.get("replaced") or {}).get("arrays", [])
+        if isinstance(entry, dict)
+    ]
+    if status == "started" and states and all(state == PENDING for state in states):
+        detail = (
+            "No array moved: every array is still `pending`, so the Store is as it was. "
+            f"Once you have checked the Store, clear the receipt deliberately (`rm {record_path}`) "
+            "and run again."
+        )
+    elif status == FAILED_RESTORATION:
+        detail = (
+            "That run could not prove every original restored, so the originals it kept are under "
+            f"{(receipt.get('replaced') or {}).get('dir', 'replaced/')}. Restore them by hand before "
+            "removing the receipt."
+        )
+    else:
+        detail = (
+            "A second flip would restore the inversion this one corrects, so this tool refuses. "
+            "Restore the arrays from `replaced/` and remove the receipt only if the first run is "
+            "known not to have landed."
+        )
+    raise FlipRefusal(f"{record_path} already exists (status {status!r}). {detail}")
 
 
 def _write_receipt(record: dict[str, Any], record_path: Path) -> None:
+    """Atomically rewrite the receipt: `run`'s writer fsyncs the file and its directory."""
     run._write_record_atomically(record, record_path)
 
 
@@ -900,60 +1042,31 @@ def _apply(plan: Plan) -> int:
     """Swap the verified arrays in, then finish the receipt.  Steps 5-6."""
     record_path = paths.record_path(plan.store_id, RECORD_STEP, root=plan.artifact_root)
     _hash_live(plan)
-    started_at = _utc_now()
-    swap_plan = [
-        {
-            "array": staged.target.label,
-            "original": str(plan.replaced_dir / staged.target.group / staged.target.array),
-            "staged": str(staged.live_dir),
-        }
-        for staged in plan.staged
-    ]
-    record = _started_record(plan, started_at, swap_plan)
+    record = _started_record(plan, _precedent._utc_now())
     _write_receipt(record, record_path)
 
-    moved: list[dict[str, Any]] = []
     try:
-        for staged in plan.staged:
-            moved.append(_swap_in(staged, plan.replaced_dir, _fault_at()))
+        _swap_all(plan, record, record_path, _fault_at())
     except BaseException as exc:
-        # Put back whatever already moved, and take the started receipt away:
-        # the Store is as it was, so blocking a later run would be a lie.
-        restored, failed = [], []
-        for entry in reversed(moved):
-            rollback = Path(entry["original"])
-            live = Path(entry["staged"])
-            flipped = Path(entry["flipped"])
-            try:
-                if os.path.lexists(rollback):
-                    if os.path.lexists(live):
-                        # The corrected copy goes back to its staging name first:
-                        # the live name must be free for the original.
-                        os.replace(live, flipped)
-                    os.replace(rollback, live)
-                    shutil.rmtree(flipped, ignore_errors=True)
-                    _fsync_dir(live.parent)
-                    restored.append(entry["array"])
-            except OSError as restore_exc:  # pragma: no cover - needs a broken filesystem
-                failed.append(f"{entry['array']}: {restore_exc}")
-        # Whatever was staged and did not land goes too: the arrays that were
-        # never swapped still have their staged copies in the Store.
+        failures = _restore(plan, record, record_path)
+        if failures:
+            record["status"] = FAILED_RESTORATION
+            record["failed_at"] = _precedent._utc_now()
+            _write_receipt(record, record_path)
+            raise FlipRefusal(_failed_restoration_message(plan, record, exc)) from exc
+        # Every array is proven restored: this run's staged copies and the
+        # receipt go, and the rollback directory with them.
         for staged in plan.staged:
             shutil.rmtree(staged.staged_dir, ignore_errors=True)
-        if not failed:
-            with contextlib.suppress(OSError):
-                record_path.unlink()
-            shutil.rmtree(plan.replaced_dir, ignore_errors=True)
-        state = (
-            f"Restored {', '.join(restored)} from {plan.replaced_dir}."
-            if restored else "No array had moved."
-        )
-        if failed:
-            state += (
-                f" Could not restore {', '.join(failed)}; {record_path} names the rollback "
-                "directory."
-            )
-        raise FlipRefusal(f"the swap of {plan.store_id} failed: {exc}. {state}") from exc
+        with contextlib.suppress(OSError):
+            record_path.unlink()
+        shutil.rmtree(plan.replaced_dir, ignore_errors=True)
+        with contextlib.suppress(OSError):
+            plan.replaced_dir.parent.rmdir()  # only when this run made it and it is empty
+        raise FlipRefusal(
+            f"the swap of {plan.store_id} failed: {exc}. Every array is restored (proven by "
+            "the recorded before-hashes), and this run's staged copies and receipt were removed."
+        ) from exc
 
     for staged in plan.staged:
         staged.sha256_after = _sha256_tree(staged.live_dir)
@@ -964,7 +1077,7 @@ def _apply(plan: Plan) -> int:
             )
 
     record["status"] = "complete"
-    record["completed_at"] = _utc_now()
+    record["completed_at"] = _precedent._utc_now()
     record["arrays"] = [_entry(staged) for staged in plan.staged]
     _write_receipt(record, record_path)
 
@@ -994,7 +1107,7 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "-n", "--dry-run",
         action="store_true",
-        help="run the guard, stage and verify in a scratch directory; change nothing",
+        help="take the lock, run the guard, stage and verify in a scratch directory; change nothing",
     )
     parser.add_argument(
         "--sample-seed",
@@ -1018,16 +1131,6 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def _resolve_paths(args: argparse.Namespace) -> tuple[Path, Path, Path]:
-    """Resolve registry root, artifact root and the published Store path via ogstores."""
-    registry_root = Path(args.registry_root) if args.registry_root else paths.REPO_ROOT / "stores"
-    if not registry_root.is_absolute():
-        registry_root = paths.REPO_ROOT / registry_root
-    artifact_root = paths.artifact_root(config_override=args.artifact_root)
-    store_path = paths.store_path(args.store_id, root=artifact_root)
-    return registry_root, artifact_root, store_path
-
-
 @contextlib.contextmanager
 def _borrowed_precedent() -> Iterator[None]:
     """Run `se_reencode`'s refusals, as this command's own.
@@ -1042,103 +1145,97 @@ def _borrowed_precedent() -> Iterator[None]:
         raise FlipRefusal(str(exc)) from exc
 
 
-def _configure_run(store_id: str, artifact_root: Path) -> None:
-    """Point temp files at the artifact root: the Store's arrays are on /data."""
-    tmp = paths.tmp_dir(store_id, root=artifact_root)
-    tmp.mkdir(parents=True, exist_ok=True)
-    for variable in _TMPDIR_VARIABLES:
-        os.environ[variable] = str(tmp)
-
-
 def _scratch_dir() -> Path:
     """A staging directory outside the Store; the caller removes it."""
     return Path(tempfile.mkdtemp(prefix="eaf-reference-flip-"))
 
 
-def _refuse_common(args: argparse.Namespace) -> tuple[Path, Path, Path, str, str]:
+def _refuse_common(args: argparse.Namespace) -> tuple[Path, Path, str, str]:
     """Steps 1-2: the Store, the runtime and the markers, all before any write."""
-    registry_root, artifact_root, store_path = _resolve_paths(args)
+    registry_root, artifact_root, store_path = _precedent._resolve_paths(args)
     with _borrowed_precedent():
-        _precedent._refuse_store_outside_contract(
-            args.store_id, registry_root, artifact_root, store_path
-        )
+        _precedent._refuse_store_outside_contract(args.store_id, registry_root, artifact_root, store_path)
         revision, version = _precedent._resolve_runtime()
         _precedent._refuse_markers(args.store_id, artifact_root)
     _refuse_existing_receipt(args.store_id, artifact_root)
-    return artifact_root, store_path, registry_root, revision, version
+    _refuse_out_of_scope(store_path, _read_manifest(store_path))
+    return artifact_root, store_path, revision, version
+
+
+def _with_lock(store_id: str, artifact_root: Path, body: Callable[[], int]) -> int:
+    """Take the release's exclusive lock for `body`, never waiting for it.
+
+    Apply and `--dry-run` both hold it: a dry run reads, stages and verifies
+    the live arrays, and another writer must not change them underneath it.
+    """
+    locks = release.ReleaseLocks(artifact_root)
+    try:
+        locks.acquire(store_id)
+    except release.ReleaseInProgressError as exc:
+        print(f"eaf-reference-flip: {exc}", file=sys.stderr)
+        return 1
+    try:
+        with _borrowed_precedent():
+            _precedent._refuse_markers(store_id, artifact_root)
+        _refuse_existing_receipt(store_id, artifact_root)
+        return body()
+    except (FlipRefusal, OSError) as exc:
+        print(f"eaf-reference-flip: {exc}", file=sys.stderr)
+        return 1
+    finally:
+        locks.release(store_id)
+
+
+def _dry_run(args: argparse.Namespace, artifact_root: Path, store_path: Path, revision: str, version: str) -> int:
+    scratch = _scratch_dir()
+    try:
+        plan = _build_plan(
+            args.store_id,
+            artifact_root,
+            store_path,
+            scratch / "data.zarr",
+            args.sample_seed,
+            revision,
+            version,
+        )
+        print(_describe(plan, dry_run=True))
+        print("Dry run: nothing in the Store or its records was written.")
+        return 0
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+def _apply_plan(args: argparse.Namespace, artifact_root: Path, store_path: Path, revision: str, version: str) -> int:
+    # `_configure_run` also pins Blosc to one thread, so the staged shards of
+    # one slice are compressed the same way on every run; the async width only
+    # affects how many inner chunks are decoded at once.
+    _precedent._configure_run(args.store_id, artifact_root, _precedent.DEFAULT_WORKERS)
+    plan = _build_plan(
+        args.store_id,
+        artifact_root,
+        store_path,
+        store_path / "data.zarr",
+        args.sample_seed,
+        revision,
+        version,
+    )
+    return _apply(plan)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     try:
-        artifact_root, store_path, _registry_root, revision, version = _refuse_common(args)
-        _refuse_out_of_scope(store_path, _read_manifest(store_path))
+        artifact_root, store_path, revision, version = _refuse_common(args)
     except FlipRefusal as exc:
         print(f"eaf-reference-flip: {exc}", file=sys.stderr)
         return 1
 
-    if args.dry_run:
-        holder = release.lock_holder(args.store_id, artifact_root)
-        if holder is not None:
-            print(
-                f"eaf-reference-flip: a run of {args.store_id} is in progress ({holder}); "
-                "the real run would refuse",
-                file=sys.stderr,
-            )
-            return 1
-        scratch = _scratch_dir()
-        try:
-            plan = _build_plan(
-                args.store_id,
-                artifact_root,
-                store_path,
-                scratch / "data.zarr",
-                args.sample_seed,
-                revision,
-                version,
-            )
-        except FlipRefusal as exc:
-            print(f"eaf-reference-flip: {exc}", file=sys.stderr)
-            return 1
-        finally:
-            shutil.rmtree(scratch, ignore_errors=True)
-        print(_describe(plan, dry_run=True))
-        print("Dry run: nothing in the Store or its records was written.")
-        return 0
-
-    locks = release.ReleaseLocks(artifact_root)
-    try:
-        locks.acquire(args.store_id)
-    except release.ReleaseInProgressError as exc:
-        print(f"eaf-reference-flip: {exc}", file=sys.stderr)
-        return 1
-    try:
-        # Re-check under the held lock, and stage beside the live arrays so the
-        # swap is two renames on one filesystem.
-        with _borrowed_precedent():
-            _precedent._refuse_markers(args.store_id, artifact_root)
-        _refuse_existing_receipt(args.store_id, artifact_root)
-        _configure_run(args.store_id, artifact_root)
-        try:
-            plan = _build_plan(
-                args.store_id,
-                artifact_root,
-                store_path,
-                store_path / "data.zarr",
-                args.sample_seed,
-                revision,
-                version,
-            )
-        except FlipRefusal as exc:
-            print(f"eaf-reference-flip: {exc}", file=sys.stderr)
-            return 1
-        try:
-            return _apply(plan)
-        except FlipRefusal as exc:
-            print(f"eaf-reference-flip: {exc}", file=sys.stderr)
-            return 1
-    finally:
-        locks.release(args.store_id)
+    body = _dry_run if args.dry_run else _apply_plan
+    return _with_lock(
+        args.store_id,
+        artifact_root,
+        lambda: body(args, artifact_root, store_path, revision, version),
+    )
 
 
 if __name__ == "__main__":

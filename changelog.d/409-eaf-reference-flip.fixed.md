@@ -12,7 +12,12 @@
   staged primary (r > 0.9), and only then swaps — the originals go to
   `replaced/<UTC>-eaf-reference-flip/` and
   `records/eaf-reference-flip.json` records both sha256 sets, the counts and
-  both r values. It refuses a second run, a Ragged, Zarr v2, Observed-Only or
-  non-0.2.0 Store, a Store that does not read inverted, and a runtime that is
-  not the pinned one; `--dry-run` stages and verifies in a scratch directory and
-  writes nothing. Observed `eaf`, `eaf_baseline`, `z` and `se` are untouched.
+  both r values, with per-array progress (`pending`, `moved_aside`, `swapped`,
+  `restored`) fsynced around every rename and `failed_restoration` left in place
+  rather than deleted when a recovery cannot be proven. It refuses a second
+  run, a Ragged, Zarr v2, Observed-Only or non-0.2.0 Store, a top-hit tier
+  without `eaf` or `imputed`, a Store without its completion mask, a Store that
+  does not read inverted (`r < -0.9` before, `r > 0.9` after), and a runtime
+  that is not the pinned one; `--dry-run` holds the release lock, stages and
+  verifies in a scratch directory and writes nothing. Observed `eaf`,
+  `eaf_baseline`, `z` and `se` are untouched.

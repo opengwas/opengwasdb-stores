@@ -29,14 +29,17 @@ observations.
    `ogstores.se_reencode` makes, called rather than copied); no
    `records/eaf-reference-flip.json`; and a Dense / `0.2.0` /
    Zarr-v3 / `reference_completed` Store Manifest. Ragged, Hybrid, Zarr v2 and
-   Observed-Only Stores are refused with the reason, never skipped.
+   Observed-Only Stores are refused with the reason, never skipped, and so is a
+   top-hit tier that carries no `eaf` or no `imputed` — its imputed hits would
+   keep the wrong orientation — and a Store with no `imputed` completion mask.
 2. **The orientation guard.** A deterministic sample of variants that carry both
    a finite `eaf_reference` and an observed EAF in at least one Analysis
    (60 bands of 200 rows, seed recorded) is read through the runtime's own published
-   `opengwasdb.encoding.DenseEafPlane`, the plane `StoreQuery` reads. The Pearson r between that
-   plane and the mean observed EAF must be ≤ −0.9 over at least 500 variants.
-   The same measurement is repeated on the staged primary and must read
-   r ≥ +0.9 before anything is renamed.
+   `opengwasdb.encoding.DenseEafPlane`, the plane `StoreQuery` reads. The
+   Pearson r between that plane and the mean observed EAF must be `< -0.9`
+   over at least 500 variants. The same measurement is repeated on the staged
+   primary and must read `r > 0.9` before anything is renamed; equality at
+   either boundary is not evidence and refuses.
 3. **Staging.** Each target array is written to `.<name>.flipping` in its own
    group, with the live `zarr.json` copied verbatim, so codecs, chunking,
    sharding and fill value cannot drift. Slices are shard-aligned, so no shard is
@@ -51,9 +54,14 @@ observations.
 5. **The swap.** `store/swap.py`'s two-rename pattern at directory level: the
    original array directory moves to
    `<root>/<id>/replaced/<UTC>-eaf-reference-flip/<group>/<array>`, then the
-   staged directory moves into its name. A failure between them, or on a later
-   array, puts every original back and removes this run's staged copies and
-   receipt.
+   staged directory moves into its name, and the receipt records each array's
+   progress — `pending`, `moved_aside`, `swapped`, `restored` — fsynced before
+   and after every rename. A failure puts every original back and proves it by
+   hashing the live path against the before-hashes; only then are this run's
+   staged copies, the receipt and `replaced/` removed. When even that proof
+   fails, nothing is deleted: the receipt is marked `failed_restoration` and
+   the run names each array, where its original is and what is live, so the
+   evidence outlives the failure.
 6. **The receipt.** `records/eaf-reference-flip.json`, written `started`
    immediately before the first rename and `complete` after the last: per touched
    array the sha256 of every file before and after, finite/NaN counts, rows
@@ -61,9 +69,12 @@ observations.
    and version, and the tool's path and commit — `tools/relocate_store.py`'s
    shape.
 
-`--dry-run` performs the guard, staging, verification and the second guard in a
-scratch directory outside the Store, prints the plan and the counts, and writes
-nothing in the Store or its records.
+`--dry-run` holds the release lock for its whole span, like apply, and performs
+the guard, staging, verification and the second guard in a scratch directory
+outside the Store, prints the plan and the counts, and writes nothing in the
+Store or its records. A receipt left at `started` with every array `pending`
+still refuses, and says that nothing moved and where the receipt is, so an
+operator can clear it deliberately.
 
 Nothing else is touched: not `manifest.json`, `index.sqlite`, `overview.html`,
 `analyses.tsv`, not another array, and not `data.zarr/indexed_subsets/hm3/eaf`
@@ -79,8 +90,11 @@ operator's step, not this tool's.
 `tests/eaf-reference-flip` builds a tiny real Store with the pinned runtime
 (Zarr v3, sharded, an int8 residual `eaf` plane with a baseline, an `imputed`
 mask, an HM3 subset and two top-hit tiers) and reads it back through the same
-plane. Its first four variants are the issue's literal example: `eaf_reference`
+plane. It builds each fixture variant once per class and copies it per test, and
+shares one completed apply across the read-only assertions. Its first four
+variants are the issue's literal example: `eaf_reference`
 `[0.1, 0.25, NaN, 0.8]` becomes `[0.9, 0.75, NaN, 0.2]`, compared as float32 bit
 patterns (`float32(1) - float32(0.8)` is `0x3E4CCCCC`, one ulp below
-`float32(0.2)`). The guard reads r = −1.0000 before and +1.0000 after over 599
+`float32(0.2)`), and a non-canonical NaN payload (`0x7FC00001`) survives
+bit-exact. The guard reads r = −1.0000 before and +1.0000 after over 599
 comparable variants.
