@@ -184,7 +184,7 @@ ul.task-list li input[type="checkbox"] {
 <section id="purpose" class="level2">
 <h2 class="anchored" data-anchor-id="purpose">Purpose</h2>
 <p>The API, the website and the R and Python clients (opengwas/opengwasdb#93, #94) need to find every Analysis across every Store Release. No single listing exists today. Each built Store carries its own `analyses.tsv`, and the Store Registry carries the Release Bundles. Several questions have no recorded answer:</p>
-<p>Epic #313 adds the Analysis Catalog: a versioned SQLite listing of every Analysis in every validated Store, built by `pixi run catalog` from the registry’s Release Bundles. Its first phase (PR #328) added the catalog package, search and counts, the summary report, and the trial and superseded_by fields of the Release Bundle. Its second phase (PR #353) gave Association Coverage one vocabulary declared in the Release Bundle, marked OGS-00027 validated, and published the catalog; version 1b3a155d449bb84a lists 9 Stores and 31,940 Analyses. The epic stays active because OGS-00011 is not validated, so the catalog does not list it.</p>
+<p>Epic #313 adds the Analysis Catalog: a versioned SQLite listing of every Analysis in every validated Store, built by `pixi run catalog` from the registry’s Release Bundles. Its first phase (PR #328) added the catalog package, search and counts, the summary report, and the trial and superseded_by fields of the Release Bundle. Its second phase (PR #353) gave Association Coverage one vocabulary declared in the Release Bundle, marked OGS-00027 validated, and published the catalog. Once OGS-00011 was validated, the final rebuild published version 9df14f8dc3cceabf, which lists 10 Stores and 35,109 Analyses.</p>
 </section>
 <section id="where-it-stands" class="level2">
 <h2 class="anchored" data-anchor-id="where-it-stands">Where it stands</h2>
@@ -202,11 +202,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>State</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 </tr>
 <tr class="odd">
 <td>Status</td>
-<td>Active</td>
+<td>Done</td>
 </tr>
 <tr class="even">
 <td>Workstream</td>
@@ -218,11 +218,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Sub-issues</td>
-<td>11 of 12 completed</td>
+<td>12 of 12 completed</td>
 </tr>
 <tr class="odd">
 <td>Next</td>
-<td>9/10 merged on PR #353 · implementing #359 · catalog 1b3a155d published: 9 Stores, 31,940 Analyses; waiting OGS-00011 (#381 validate, then #359 sweep, #332 validated, final rebuild)</td>
+<td>10/10 merged on PR #353 · done · catalog 9df14f8d current · record PR #405</td>
 </tr>
 </tbody>
 </table>
@@ -247,7 +247,7 @@ ul.task-list li input[type="checkbox"] {
   n7["opengwasdb-stores#35;326 — Bring the API-ready Stores to validated, or record what each waits on"]:::closed
   n8["opengwasdb-stores#35;341 — One Association Coverage vocabulary, declared in the Release Bundle and passed to the builder"]:::closed
   n9["opengwasdb-stores#35;352 — Mark OGS-00027 (full eQTLGen) validated"]:::closed
-  n10["opengwasdb-stores#35;359 — Edit Association Coverage in the published Stores' manifests to the declared values"]:::open
+  n10["opengwasdb-stores#35;359 — Edit Association Coverage in the published Stores' manifests to the declared values"]:::closed
   n11["opengwasdb-stores#35;362 — Analysis Catalog: SD effects with a variant-level sample size are continuous"]:::closed
   x1["opengwasdb#35;294"]:::open
   x2["opengwasdb#35;298"]:::closed
@@ -325,7 +325,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/359">Edit Association Coverage in the published Stores’ manifests to the declared values</a> (<code>opengwasdb-stores#359</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
@@ -373,6 +373,7 @@ ul.task-list li input[type="checkbox"] {
 <li><strong>2026-10-28</strong> — Owner approved making OGS-00009’s validated edit (the OGS-00009 part of #332) in this run, as #352 did for OGS-00027.</li>
 <li><strong>2026-10-28</strong> — Owner asked this session to finish PR #337 (#232’s session unreachable): merge dev into orch/232-store-releases (pin opengwasdb 0d59f15, which contains #232’s 2f308cb), correct #383’s six records, mark #337 ready.</li>
 <li><strong>2026-10-28</strong> — catalog 1b3a155d449bb84a published from dev 49d8099 after PR #337; OGS-00027 rows changed because #282 (PR #365) replaced and revalidated it with per-association N (sample_size 30907 analysis_level -&gt; 30895 variant_level for ENSG00000000419)</li>
+<li><strong>2026-11-01</strong> — #359 closed with no edit to OGS-00011: its completed Store already declares gwas. OGS-00010 (retired, no Release Bundle) still says full, so retiring the full read alias waits on its deletion. Final catalog 9df14f8dc3cceabf published from main b0d184f: +3,169 OGS-00011 Analyses, none removed or changed.</li>
 </ul>
 </section>
 <section id="versions-shipped" class="level2">
@@ -398,12 +399,12 @@ ul.task-list li input[type="checkbox"] {
 <tr class="odd">
 <td>Catalog Analyses</td>
 <td><em>not reported</em></td>
-<td>31,940 (<code>1b3a155d449bb84a</code>)</td>
+<td>35,109 (<code>9df14f8dc3cceabf</code>)</td>
 </tr>
 <tr class="even">
 <td>Catalog Stores</td>
 <td><em>not reported</em></td>
-<td>9</td>
+<td>10</td>
 </tr>
 <tr class="odd">
 <td>Test time (wall)</td>

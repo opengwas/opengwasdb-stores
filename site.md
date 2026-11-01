@@ -74,7 +74,7 @@ Five pages are generated from the site's own data rather than written by hand:
 the [Overview](index.qmd), [Stores](stores.qmd), [Epics](epics.qmd),
 [Trends](trends.qmd) and [Changelog](changelog.qmd), with one page per epic and
 one per registered Store beside them
-([`src/project_site/pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/79fbfd33ddc51027eb89e00b8e1725e10f7dc6a4/src/project_site/pages.py), #391).
+([`src/project_site/pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/src/project_site/pages.py), #391).
 
 - `pixi run site` and `site-publish` **collect the data themselves** before the
   render, into the render's own `_stage/_data`, from the `stores/` and
@@ -107,6 +107,10 @@ one per registered Store beside them
   A point measured in the Veeam backup window (`veeam_window: true`) is ringed in
   the figure and marked `†` in the table, with a caveat saying its timing is not
   comparable.
+- A Store page shows its own size and query performance from the newest yardstick
+  result that measured it, naming that result, its workload and the opengwasdb
+  version it ran on, and says so when the newest result lists the Store as
+  pending or no result names it.
 
 ## Going live
 
@@ -161,14 +165,33 @@ It sets Pages to build from the `gh-pages` branch at `/`, which is where
 
 ## Checking a change
 
-`pixi run site` ends with the served-path check: every path `origin/main` serves
-under `docs/` today must be present or aliased in the output, and a missing path
-fails the build. Run it before opening a pull request that touches `docs/`.
+`pixi run site` ends with the served-path check: every path in
+`resources/site/legacy-served-paths.txt` must be present or aliased in the
+output, and a missing path fails the build. Run it before opening a pull request
+that touches `docs/`.
+
+That baseline is fixed, and deliberately: it is the 90 paths under `docs/` at
+`ff204b6`, the commit the live legacy Pages deployment was built from, so it
+protects the links readers already hold. A page the site generates (an epic, a
+Store, a trend) may come or go without touching it; only a legacy path that a
+reader can still follow is in it, and a path leaves it only when a legacy URL is
+retired deliberately, by a reviewed change to the file. A missing, empty or
+unreadable baseline file fails the check rather than passing an unchecked
+render (`src/project_site/build.py`).
 
 You can run the check on its own against an existing render:
 
 ```bash
 pixi run -e dev python3 -m project_site.urlcheck \
-  --git-rev origin/main \
+  --paths-file resources/site/legacy-served-paths.txt \
+  --output /data/opengwasdb/work/site/<checkout>/_site
+```
+
+For an ad-hoc answer to "does this render serve everything `main`'s `docs/`
+held at some revision?", name the revision instead:
+
+```bash
+pixi run -e dev python3 -m project_site.urlcheck \
+  --git-rev ff204b6 \
   --output /data/opengwasdb/work/site/<checkout>/_site
 ```

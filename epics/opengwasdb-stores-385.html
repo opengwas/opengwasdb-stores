@@ -184,7 +184,7 @@ ul.task-list li input[type="checkbox"] {
 <section id="purpose" class="level2">
 <h2 class="anchored" data-anchor-id="purpose">Purpose</h2>
 <p>The board says what each thread of work does next, and issues and PRs say why each change was made. Nothing shows the project as a whole, or how it has moved: what each epic changed in performance, in the feature set and in the Analysis Catalog.</p>
-<p>Epic #385 adds a project site that shows where OpenGWASDB stands and what each epic changed: one Quarto site over both repositories’ docs, rendered and published locally, with an overview, a page per epic and per Store, and trends of the catalog, the yardstick and test time. It adds the data behind those pages (board, catalog history, Releases and Release Bundle collectors, and this epic record), and the yardstick, a fixed read-only benchmark on OGS-00009, OGS-00027 and OGS-00006. Both repositories move to merging PRs to main with a version per merge, taken from changelog fragments and published by a release workflow that reconciles and resumes; the cutover itself is the owner’s. The epic stays active until the cutover, the opengwasdb pin by tag, the skills’ update and the first quiet-host yardstick results.</p>
+<p>Epic #385 adds a project site that shows where OpenGWASDB stands and what each epic changed: one Quarto site over both repositories’ docs, published from this repository’s gh-pages branch, with an overview, a page per epic and per Store, and trends of the catalog, the yardstick and test time. It adds the data behind those pages (board, catalog history, Releases and Release Bundle collectors, and the epic record) and the yardstick, a fixed read-only benchmark on OGS-00009, OGS-00027 and OGS-00006. Both repositories now merge pull requests to main, each merge a version tagged from its changelog fragments, and this repository pins opengwasdb by release tag. The orchestrate and board skills now write each epic’s record at its finish and offer to publish the site.</p>
 </section>
 <section id="where-it-stands" class="level2">
 <h2 class="anchored" data-anchor-id="where-it-stands">Where it stands</h2>
@@ -202,11 +202,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>State</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 </tr>
 <tr class="odd">
 <td>Status</td>
-<td>Active</td>
+<td>Done</td>
 </tr>
 <tr class="even">
 <td>Workstream</td>
@@ -218,11 +218,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Sub-issues</td>
-<td>7 of 8 completed</td>
+<td>9 of 9 completed</td>
 </tr>
 <tr class="odd">
 <td>Next</td>
-<td>7/9 merged on PR #392 · implementing skills1 · waiting #387 · both cutovers done (v0.3.0, v0.1.0); #387 in PR #396; opengwasdb#336 fixes its Pages build</td>
+<td>10/10 merged on PR #392 · Done 2026-10-29; record merged (PR #400)</td>
 </tr>
 </tbody>
 </table>
@@ -244,7 +244,8 @@ ul.task-list li input[type="checkbox"] {
   n4["opengwasdb-stores#35;389 — Collect the project site's data, and define the epic record"]:::closed
   n5["opengwasdb-stores#35;390 — Yardstick: a fixed benchmark recorded at the end of every epic"]:::closed
   n6["opengwasdb-stores#35;391 — Project site pages: the bird's-eye home, one page per epic, trends and Store pages"]:::closed
-  n7["agent-skills#35;1 — orchestrate and board feed the project site, and follow the move to main"]:::open
+  n7["agent-skills#35;1 — orchestrate and board feed the project site, and follow the move to main"]:::closed
+  n8["opengwasdb-stores#35;397 — site-publish's served-path check compares against main's docs sources instead of what Pages serves"]:::closed
   n0 --&gt; n2
   n5 --&gt; n6
   n4 --&gt; n6
@@ -271,7 +272,7 @@ ul.task-list li input[type="checkbox"] {
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/333">Merge PRs to main, and make every merge a version tagged from its changelog fragments</a> (<code>opengwasdb#333</code>)</td>
 <td>CLOSED</td>
-<td><em>not reported</em></td>
+<td>bc22e84</td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/386">Merge PRs to main, and make every merge a version (opengwasdb-stores)</a> (<code>opengwasdb-stores#386</code>)</td>
@@ -281,7 +282,7 @@ ul.task-list li input[type="checkbox"] {
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/387">Pin opengwasdb by release tag</a> (<code>opengwasdb-stores#387</code>)</td>
 <td>CLOSED</td>
-<td><em>not reported</em></td>
+<td>79fbfd3</td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/388">Build one Quarto site over both repos’ docs, rendered and published locally</a> (<code>opengwasdb-stores#388</code>)</td>
@@ -305,8 +306,13 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/agent-skills/issues/1">orchestrate and board feed the project site, and follow the move to main</a> (<code>agent-skills#1</code>)</td>
-<td>OPEN</td>
-<td><em>not reported</em></td>
+<td>CLOSED</td>
+<td>c2b09ae</td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/397">site-publish’s served-path check compares against main’s docs sources instead of what Pages serves</a> (<code>opengwasdb-stores#397</code>)</td>
+<td>CLOSED</td>
+<td>5d0631d</td>
 </tr>
 </tbody>
 </table>
@@ -330,12 +336,58 @@ ul.task-list li input[type="checkbox"] {
 <li><strong>2026-10-29</strong> — pixi.toml, pixi.lock and pyproject.toml count as source changes (a re-pin changes every build). The yardstick records the ogstores checkout commit beside its version (an editable install’s version can be stale). Cutover tags v0.1.0 before pushing main. pixi’s workspace version and PyPI publishing are left alone.</li>
 <li><strong>2026-10-29</strong> — Cutover order for both repos: merge the epic PR (which carries release.yml) into dev; push the annotated tag on dev’s head and verify it; then fast-forward main with a separate push; protect main right after that push (requiring PRs earlier blocks the owner’s direct fast-forward); watch the release run create exactly the first tag’s Release.</li>
 <li><strong>2026-10-29</strong> — site and site-publish run the collectors into the render’s own stage directory (registry = the rendered checkout’s stores/), so a publish never renders unavailable pages; collected _data/*.json (host paths) is not published. The board collector keeps each epic’s first paragraph as purpose; the catalog collector reads the current version’s selection decisions. Generated links point at the rendered commit; site-publish defaults to origin/main. The epic’s v0.1.0 notes come from one added fragment per ticket.</li>
-<li><strong>2026-10-29</strong> — The yardstick reran at 11:04 on a quiet host (load 1.5-1.9, outside the Veeam window, 82 s per run). Run-to-run spread is under 11% on 16 of 19 timed measures; the rest are OGS-00006’s phewas by rsid (25%), by ALID (19%) and region (18%), 4-9 ms apart. Peak RSS agrees to 1.5% and bytes on disk exactly. Both results are committed; after is the first.</li>
+<li><strong>2026-10-29</strong> — PR #392 marked ready with CI green on 67eee25 (6 jobs incl.&nbsp;the new changelog-fragment check). Final suite 117/117 in 154.4 s vs 166.3 s baseline. Cutover checklist posted on #392; opengwasdb (#335) cuts over first.</li>
+<li><strong>2026-10-29</strong> — #392 merged before opengwasdb#335: no effect. The ordering only matters for the tag and main pushes (#387 needs v0.3.0); the site stages engine docs at the pinned commit, not a branch.</li>
+<li><strong>2026-10-29</strong> — Yardstick rerun 11:04, load 1.5-1.9, no Veeam: spread &lt;11% on 16/19 timed measures (worst OGS-00006 phewas rsid 25%, 4-9 ms); committed with #385 record yardstick.after in PR #395 (base dev; retarget to main if merged after cutover).</li>
+<li><strong>2026-10-29</strong> — opengwasdb cut over by fast-forward: v0.3.0 tag on dev head bc22e84, then main pushed; Release created by the workflow. #387 branches from origin/dev 8219e28 (main after the stores cutover) and its PR targets main, outside the merged integration branch.</li>
+<li><strong>2026-10-29</strong> — Review r1: fix all four. Lock parsers match the exact host and end at a 40-hex boundary, shared in one function if the packages may import it; tests cover old/new forms, absent, ambiguous, other host, 41-hex; v0.3.0 is the first release the workflow published, not the first tag (v0.2.0 exists).</li>
+<li><strong>2026-10-29</strong> — Cutovers done by the owner: opengwasdb v0.3.0 (bc22e84) and stores v0.1.0 (8219e28, includes #395) with Releases; main is the default and ruleset-protected in both repos. opengwasdb#336: docs/_config.yml excludes *.qmd (Pages Jekyll failed on Liquid in a .qmd since the cutover; reproduced and fixed with Jekyll 3.10.0 locally) plus checklist step 6 (quality.json base_ref and CI on main).</li>
+<li><strong>2026-10-29</strong> — First site publish (owner go): gh-pages bf8be5b from origin/main 79fbfd3, 245 pages; Pages built; all 90 legacy paths 200 live. The served-path gate refused because it reads origin/main:docs, which since the cutover holds the site sources (23 unserved sources: _epics, _yardstick, _quarto.yml, *.qmd, pre-render.sh, make-dashboard.r); published with the gate checked against the deployed legacy commit ff204b6 (pages/builds/latest), 90/90. Follow-up: pin the gate to the legacy served set.</li>
+<li><strong>2026-10-29</strong> — Review r1: fix undecodable-baseline escape, CLI git stderr, docs retirement policy (a legacy path leaves only by a reviewed change to the baseline file), parser refusal tests; accept +42 ms fixture cost, trimming the dev push if unused. Baseline read from the rendered checkout stands.</li>
+<li><strong>2026-10-29</strong> — Review r1: fix YAML round-trip (strings and keys); merge is a commit only when the state value starts with one, else null (no prose extraction); Finish step 3 reordered so yardstick and state keys precede the record, detail kept in the reference; the owner fills catalog.after. Rejected: board skip checking the working repo (the site covers both repos). The final row stays.</li>
+<li><strong>2026-10-29</strong> — Fix round 1 verified directly (round-trip proof re-run, #282/#302/#385 records regenerated and valid); no second review. Pushed and opened opengwas/agent-skills#2 to main. Rule 5 proposal posted on #385.</li>
+<li><strong>2026-10-29</strong> — Fix round 1 verified (logs, docs, baseline); no second review. Pushed and opened #398 to main.</li>
+<li><strong>2026-10-29</strong> — Owner merged #398 (stores v0.2.1), opengwas/agent-skills#2 and opengwas/opengwasdb#336 (opengwasdb v0.3.1); opengwasdb Pages builds again at bafea27.</li>
 </ul>
 </section>
 <section id="versions-shipped" class="level2">
 <h2 class="anchored" data-anchor-id="versions-shipped">Versions shipped</h2>
-<p>No version has shipped from this epic yet: a record’s <code>versions</code> fills once each repository tags every merge to <code>main</code> (#386).</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Version</th>
+<th>Release notes</th>
+<th>Published</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>v0.1.0</code></td>
+<td><a href="https://github.com/opengwas/opengwasdb-stores/releases/tag/v0.1.0">v0.1.0</a></td>
+<td>2026-10-29T14:38:05Z</td>
+</tr>
+<tr class="even">
+<td><code>v0.2.0</code></td>
+<td><a href="https://github.com/opengwas/opengwasdb-stores/releases/tag/v0.2.0">v0.2.0</a></td>
+<td>2026-10-29T14:56:39Z</td>
+</tr>
+<tr class="odd">
+<td><code>v0.2.1</code></td>
+<td><a href="https://github.com/opengwas/opengwasdb-stores/releases/tag/v0.2.1">v0.2.1</a></td>
+<td>2026-10-29T18:37:22Z</td>
+</tr>
+<tr class="even">
+<td><code>v0.3.0</code></td>
+<td><a href="https://github.com/opengwas/opengwasdb-stores/releases/tag/v0.3.0">v0.3.0</a></td>
+<td>2026-10-30T10:19:53Z</td>
+</tr>
+<tr class="odd">
+<td><code>v0.3.1</code></td>
+<td><a href="https://github.com/opengwas/opengwasdb-stores/releases/tag/v0.3.1">v0.3.1</a></td>
+<td>2026-10-30T10:20:35Z</td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="before-and-after" class="level2">
 <h2 class="anchored" data-anchor-id="before-and-after">Before and after</h2>

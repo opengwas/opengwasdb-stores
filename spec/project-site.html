@@ -1299,6 +1299,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../spec/store-audit.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Audit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
   </div>
@@ -1622,6 +1628,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../spec/store-audit.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Audit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
   </div>
@@ -1680,6 +1692,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#project-site-data" id="toc-project-site-data" class="nav-link active" data-scroll-target="#project-site-data">Project site data</a>
   <ul class="collapse">
+  <li><a href="#the-served-path-baseline" id="toc-the-served-path-baseline" class="nav-link" data-scroll-target="#the-served-path-baseline">The served-path baseline</a></li>
   <li><a href="#the-epic-record" id="toc-the-epic-record" class="nav-link" data-scroll-target="#the-epic-record">The epic record</a></li>
   <li><a href="#the-collectors" id="toc-the-collectors" class="nav-link" data-scroll-target="#the-collectors">The collectors</a>
   <ul class="collapse">
@@ -1705,6 +1718,10 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h1>Project site data</h1>
 <p>The specification of the project site’s data (#389, epic #385): the <strong>epic record</strong> an orchestrated epic commits when it finishes, and the <strong>collectors</strong> <code>pixi run site-data</code> runs to gather everything else the site’s pages read. The pages themselves (#391) and the site build (#388) are specified elsewhere; this file is the contract between the data and them.</p>
 <p>The code is <code>src/project_site/</code> (ADR 0038). It imports <code>ogstores.bundle</code> and <code>ogstores.paths</code> and nothing else from this repository, and it reads <code>/data/opengwasdb/stores</code> only through read-only SQLite URIs.</p>
+<section id="the-served-path-baseline" class="level2">
+<h2 class="anchored" data-anchor-id="the-served-path-baseline">The served-path baseline</h2>
+<p>The build’s served-path check reads one fixed list, <code>resources/site/legacy-served-paths.txt</code> (#388, #397): the 90 paths under <code>docs/</code> at <code>ff204b619ad8a5f671f4f67dd65d234096731102</code>, the commit the live legacy Pages deployment was built from, one per line with <code>#</code> for comments. It is fixed because it protects the links readers already hold: a page the site generates may come and go without being added to it, and a path in it only goes when a legacy URL is retired deliberately, by a reviewed change to the file. A missing, empty or unreadable file fails the build rather than passing a render nothing checked.</p>
+</section>
 <section id="the-epic-record" class="level2">
 <h2 class="anchored" data-anchor-id="the-epic-record">The epic record</h2>
 <p>One YAML file per epic, <code>docs/_epics/&lt;repo&gt;-&lt;number&gt;.yaml</code>, named for the epic’s repository and issue number. The leading underscore keeps Quarto from rendering it. An epic record exists only for an issue the board counts as an Epic (a ticket is not one). The orchestrator writes it from the run’s <code>state.json</code>, and an agent writes it in one pass, because every field is a scalar, a list of flat rows, or a mapping of two keys. <code>status</code> and <code>finished</code> follow the <strong>epic issue</strong>, not the run: open means <code>active</code> with <code>finished: null</code>, closed means <code>finished</code> with the date the issue closed. A run finishing does not finish its epic.</p>

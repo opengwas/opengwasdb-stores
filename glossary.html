@@ -1264,6 +1264,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./spec/store-audit.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Audit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
   </div>
@@ -1587,6 +1593,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="./spec/store-audit.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Audit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="./spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
   </div>
@@ -1692,6 +1704,7 @@ ul.task-list li input[type="checkbox"] {
 <p><strong>Build Recipe</strong>: A declarative description of the release shape to produce from an accepted Release Bundle, including layout, completion mode, indexing, validation, and execution parameters. <em>Avoid</em>: pipeline, script, release manifest</p>
 <p><strong>Reference Resource</strong>: An auxiliary build-time resource such as an LD reference panel or genome reference used by a Build Recipe without becoming the Source Collection for a Store Release. <em>Avoid</em>: source collection</p>
 <p><strong>Indexed Variant Subset</strong>: A named, optional, rebuildable Dense-store query index over a caller-supplied set of canonical ALIDs, built from a maintained variant-list Reference Resource as a derived artifact after the Store exists and before overview and validation (opengwas/opengwasdb ADR 0061; stores epic #214). It is not part of Store validity: deleting it leaves a valid release and no query answer changes. <em>Avoid</em>: projection, membership index, HM3 store</p>
+<p><strong>Store Audit</strong>: A read-only reconciliation of a built Store Release against what the Store itself records, run as <code>python3 -m ogstores.audit reconcile &lt;store&gt; --output &lt;evidence.json&gt;</code> (stores #372, epic #371). It reads the Store’s own artifact and its own record – <code>manifest.json</code>, its variant table, its variant-major CSR index and <code>records/build.json</code> – and never a Build Recipe, which is why it can disagree with a Store nobody can rebuild. Its words for the axis: a <strong>Dense-axis entry</strong> is a shared-axis variant the Dense Component holds; an <strong>off-panel axis entry</strong> is one it does not; and an entry’s <strong>observed occupancy</strong> is whether the Ragged Overflow holds at least one surviving observed association for it. An audit neither admits, filters, repairs nor publishes: a disagreement is evidence for the operator’s release decision, not a change to the release. <em>Avoid</em>: validation (a Store Audit reads a built Store; validation is Store Release Build’s), release gate, repair</p>
 <p><strong>Store Layout</strong>: The storage organisation used for a Store Release, such as dense observed-only, dense reference-completed, ragged observed-only, ragged reference-completed, or hybrid. <em>Avoid</em>: source format</p>
 <p><strong>Store Composition Rule</strong>: A release-level admission rule deciding which Analyses may share one Store’s variant axis, applied after every other membership decision. A shared Store admits only Analyses whose rows were MAF-filtered (ADR 0033); an otherwise admissible Analysis it refuses is excluded as <code>not_maf_filtered</code> and belongs in a separate Store Release. <em>Avoid</em>: routing rule, panel policy</p>
 <p><strong>Store Release</strong>: A versioned, validated OpenGWASDB analytical asset that Store Release Build produces from an accepted Release Bundle and material Build Recipe choices. Each published Store is immutable. A reference-completed Store Release is published twice under one id: its completed Store replaces its Observed-Only Store (ADR 0037). Before the project’s first release, issue #326 authorises one re-encode, in place, of a published format-0.2.0 Dense Store’s <code>se</code> and <code>se_exception_index</code> Blosc codecs: a physical-representation-only change (the <code>typesize</code> moves to the stored dtype’s item size) that is proven decoded-equal across the full array and recorded in a checked <code>records/se-reencode.json</code>. It sets no precedent after release. <em>Avoid</em>: database, live store</p>

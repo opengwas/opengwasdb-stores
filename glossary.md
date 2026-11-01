@@ -129,6 +129,10 @@ _Avoid_: source collection
 A named, optional, rebuildable Dense-store query index over a caller-supplied set of canonical ALIDs, built from a maintained variant-list Reference Resource as a derived artifact after the Store exists and before overview and validation (opengwas/opengwasdb ADR 0061; stores epic #214). It is not part of Store validity: deleting it leaves a valid release and no query answer changes.
 _Avoid_: projection, membership index, HM3 store
 
+**Store Audit**:
+A read-only reconciliation of a built Store Release against what the Store itself records, run as `python3 -m ogstores.audit reconcile <store> --output <evidence.json>` (stores #372, epic #371). It reads the Store's own artifact and its own record -- `manifest.json`, its variant table, its variant-major CSR index and `records/build.json` -- and never a Build Recipe, which is why it can disagree with a Store nobody can rebuild. Its words for the axis: a **Dense-axis entry** is a shared-axis variant the Dense Component holds; an **off-panel axis entry** is one it does not; and an entry's **observed occupancy** is whether the Ragged Overflow holds at least one surviving observed association for it. An audit neither admits, filters, repairs nor publishes: a disagreement is evidence for the operator's release decision, not a change to the release.
+_Avoid_: validation (a Store Audit reads a built Store; validation is Store Release Build's), release gate, repair
+
 **Store Layout**:
 The storage organisation used for a Store Release, such as dense observed-only, dense reference-completed, ragged observed-only, ragged reference-completed, or hybrid.
 _Avoid_: source format

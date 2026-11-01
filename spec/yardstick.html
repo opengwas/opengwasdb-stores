@@ -1264,6 +1264,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../spec/store-audit.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Audit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
   </div>
@@ -1587,6 +1593,12 @@ ul.task-list li input[type="checkbox"] {
 </li>
           <li class="sidebar-item">
   <div class="sidebar-item-container"> 
+  <a href="../spec/store-audit.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Store Audit</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
   <a href="../spec/store-release-workflow.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Store Release workflow</span></a>
   </div>
@@ -1704,11 +1716,12 @@ ul.task-list li input[type="checkbox"] {
 <tr class="even">
 <td>OGS-00011</td>
 <td>Hybrid</td>
-<td>gwas</td>
-<td>pending: its live <code>store.opengwasdb.partial</code> belongs to the rebuild run (#371)</td>
+<td>gwas, Reference-Completed, with <code>hm3</code></td>
+<td>measured</td>
 </tr>
 </tbody>
 </table>
+<p><code>yardstick-2</code> measures OGS-00011, which <code>yardstick-1</code> listed as pending while its rebuild and completion ran (#371). It was added on 2026-11-01, once the completed Store was published (#401). Its PheWAS ALID (row 100,000) is a panel variant on the Dense axis, and its rsid and position (row 300,000) are an off-panel variant in the Overflow, so the lookups read one component each. The other three Stores’ entries are unchanged.</p>
 <p>Measures (a Store lists the ones that apply to it):</p>
 <table class="caption-top table">
 <colgroup>
@@ -1744,7 +1757,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td><code>analysis_hm3</code></td>
-<td><code>analysis(analysis_id, indexed_subset="hm3")</code>, only where the Store has <code>hm3</code> (Dense); the record shape of opengwasdb’s <code>measure_hm3_extract</code></td>
+<td><code>analysis(analysis_id, indexed_subset="hm3")</code>, only where the Store has <code>hm3</code> (a Dense Store, or a Hybrid’s Dense Component); the record shape of opengwasdb’s <code>measure_hm3_extract</code></td>
 </tr>
 <tr class="odd">
 <td><code>region</code></td>

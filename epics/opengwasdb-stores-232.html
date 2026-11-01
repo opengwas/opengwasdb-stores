@@ -218,11 +218,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Sub-issues</td>
-<td>15 of 26 completed</td>
+<td>18 of 29 completed</td>
 </tr>
 <tr class="odd">
 <td>Next</td>
-<td>12/19 merged on PR #337 · implementing #225, #332, #334 · waiting #228, #230, #224, #348 · stalled since 24 Oct: PR #337 conflicts with dev (48 behind) and holds OGS-00006 + MVP 12-16 validated; OGS-00011 rebuild now runs in #371 (#381)</td>
+<td>15/21 merged on PR #408 · fixing #407 · implementing #348, #409 · waiting #224 · 2 blocked · #407 measures in the next quiet window (Veeam active since 20:41 GMT) · #224 waits opengwasdb#301 (owner: later)</td>
 </tr>
 </tbody>
 </table>
@@ -245,7 +245,7 @@ ul.task-list li input[type="checkbox"] {
   n5["opengwasdb-stores#35;222 — Build restored UKB observed and Reference-Completed Store Releases (#35;216)"]:::closed
   n6["opengwasdb-stores#35;223 — Rebuild FinnGen OGS-00017 at format 0.2.0 and Reference-Complete it under its own id"]:::closed
   n7["opengwasdb-stores#35;224 — Rebuild OGS-00006 at format 0.2.0 and Reference-Complete it under its own id"]:::open
-  n8["opengwasdb-stores#35;225 — Rebuild OGS-00011 with its 3,169 accepted Analyses"]:::open
+  n8["opengwasdb-stores#35;225 — Rebuild OGS-00011 with its 3,169 accepted Analyses"]:::closed
   n9["opengwasdb-stores#35;226 — Build and register full MVP META as an observed-only Store (#35;216)"]:::closed
   n10["opengwasdb-stores#35;227 — Reference-Complete MVP EUR (OGS-00012) under its own id"]:::closed
   n11["opengwasdb-stores#35;228 — Reference-Complete MVP AFR (OGS-00013) under its own id"]:::open
@@ -253,8 +253,8 @@ ul.task-list li input[type="checkbox"] {
   n13["opengwasdb-stores#35;230 — Reference-Complete MVP EAS (OGS-00015) under its own id"]:::open
   n14["opengwasdb-stores#35;231 — Rehearse bounded multi-release ingestion and report readiness (#35;216)"]:::closed
   n15["opengwasdb-stores#35;331 — Publish the MVP observed Stores OGS-00012–OGS-00016 and mark them validated"]:::closed
-  n16["opengwasdb-stores#35;332 — Bring OGS-00006, OGS-00009 and OGS-00011 to validated for the API-ready milestone"]:::open
-  n17["opengwasdb-stores#35;334 — Reference-complete OGS-00011 under its own id"]:::open
+  n16["opengwasdb-stores#35;332 — Bring OGS-00006, OGS-00009 and OGS-00011 to validated for the API-ready milestone"]:::closed
+  n17["opengwasdb-stores#35;334 — Reference-complete OGS-00011 under its own id"]:::closed
   n18["opengwasdb-stores#35;339 — A fresh registry checkout makes every published Store look out of date"]:::closed
   n19["opengwasdb-stores#35;335 — Retire gpm-hg38-eur-ld; point the dbGaP MVP EUR completion reference at ukb-hg38-eur-ld"]:::open
   n20["opengwasdb-stores#35;241 — Pilot 345-sample 1kGP AMR LD from gnomAD cache: EUR boundaries, MAF ≥ 0.01"]:::closed
@@ -263,6 +263,9 @@ ul.task-list li input[type="checkbox"] {
   n23["opengwasdb-stores#35;344 — Published 0.1.0 Ragged and Hybrid Stores lack the variant index opengwasdb dev requires"]:::open
   n24["opengwasdb-stores#35;348 — HGDP+1kGP LD panels hold duplicated variant identities in every block"]:::open
   n25["opengwasdb-stores#35;383 — Six Validation Records on #35;232's branch record matrix cells as n_associations (the pre-#35;322 fallback)"]:::closed
+  n26["opengwasdb-stores#35;407 — Benchmark the seven Stores epic #35;232 published"]:::open
+  n27["opengwasdb-stores#35;409 — OGS-00014 serves the other allele's frequency as the EAF of its imputed cells"]:::open
+  n28["opengwasdb-stores#35;403 — OGS-00011: GCST002047 and GCST004461 store statistics from mislabelled effect columns"]:::open
   x1["opengwasdb#35;301"]:::open
   x2["opengwasdb-stores#35;336"]:::closed
   x3["opengwasdb#35;324"]:::closed
@@ -361,7 +364,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/225">Rebuild OGS-00011 with its 3,169 accepted Analyses</a> (<code>opengwasdb-stores#225</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
@@ -401,12 +404,12 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/332">Bring OGS-00006, OGS-00009 and OGS-00011 to validated for the API-ready milestone</a> (<code>opengwasdb-stores#332</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/334">Reference-complete OGS-00011 under its own id</a> (<code>opengwasdb-stores#334</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="odd">
@@ -447,6 +450,21 @@ ul.task-list li input[type="checkbox"] {
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/383">Six Validation Records on #232’s branch record matrix cells as n_associations (the pre-#322 fallback)</a> (<code>opengwasdb-stores#383</code>)</td>
 <td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/407">Benchmark the seven Stores epic #232 published</a> (<code>opengwasdb-stores#407</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/409">OGS-00014 serves the other allele’s frequency as the EAF of its imputed cells</a> (<code>opengwasdb-stores#409</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/403">OGS-00011: GCST002047 and GCST004461 store statistics from mislabelled effect columns</a> (<code>opengwasdb-stores#403</code>)</td>
+<td>OPEN</td>
 <td><em>not reported</em></td>
 </tr>
 </tbody>

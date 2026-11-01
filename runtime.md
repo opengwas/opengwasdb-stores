@@ -9,10 +9,10 @@ provides, and what upgrading it does **not** do.
 | Fact | Value |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Tag | `v0.3.0`, the first release opengwasdb's release workflow published (stores #387); the earlier `v0.2.0` at `3e77ecf` was tagged by hand |
-| Revision | `bc22e8476c4378af582477f09b56af01e3f5f065`, what `v0.3.0` resolves to: the `main` merge of opengwas/opengwasdb PR #335, whose range above `0d59f151` is release tooling (the version from tags, a changelog) only |
-| Pin history | the previous pin `0d59f151` was the core `dev` merge of PR #329 (core #302: a BESD Ragged build stores each pair's published sample size, and the `.esi` allele frequency per association on request; ADR 0067); before it, PR #330's branch head `5fc0766` (stores #326), the `dev` merge of PR #298 `75f0e77` (stores #341), the `dev` merge of PR #305 `d8896e4` (stores #314), the `dev` merge of PR #291 `d405de0` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288), PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
-| Package version | `0.3.0` |
+| Tag | `v0.3.2` (stores #401), for the Observed-View Check's missing-marker fix |
+| Revision | `44f25a96fb43044a983e300a038a54ab1930e782`, what `v0.3.2` resolves to: the `main` merge of opengwas/opengwasdb PR #339 (core #337: the Observed-View Check reads Z/SE missingness through the missing markers, and `validate` warns about an infinite SE); the range above `bc22e84` is that and `v0.3.1` (CI and docs only) |
+| Pin history | before it, `v0.3.0` at `bc22e84` (stores #387), the first release opengwasdb's release workflow published, whose range above `0d59f151` is release tooling only (the earlier `v0.2.0` at `3e77ecf` was tagged by hand); the pin before that, `0d59f151` was the core `dev` merge of PR #329 (core #302: a BESD Ragged build stores each pair's published sample size, and the `.esi` allele frequency per association on request; ADR 0067); before it, PR #330's branch head `5fc0766` (stores #326), the `dev` merge of PR #298 `75f0e77` (stores #341), the `dev` merge of PR #305 `d8896e4` (stores #314), the `dev` merge of PR #291 `d405de0` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288), PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
+| Package version | `0.3.2` |
 | Writers' Store `format_version` | `0.2.0` |
 | Python floor | 3.12 |
 | Zarr / numcodecs | `zarr>=3.4,<4`, `numcodecs>=0.17` (Zarr v3 with the sharding codec) |

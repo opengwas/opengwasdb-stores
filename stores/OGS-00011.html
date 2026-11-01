@@ -149,6 +149,7 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#status-and-lifecycle" id="toc-status-and-lifecycle" class="nav-link active" data-scroll-target="#status-and-lifecycle">Status and lifecycle</a></li>
   <li><a href="#layout-coverage-and-completion" id="toc-layout-coverage-and-completion" class="nav-link" data-scroll-target="#layout-coverage-and-completion">Layout, coverage and completion</a></li>
   <li><a href="#observed-counts" id="toc-observed-counts" class="nav-link" data-scroll-target="#observed-counts">Observed counts</a></li>
+  <li><a href="#size-and-query-performance" id="toc-size-and-query-performance" class="nav-link" data-scroll-target="#size-and-query-performance">Size and query performance</a></li>
   <li><a href="#in-the-analysis-catalog" id="toc-in-the-analysis-catalog" class="nav-link" data-scroll-target="#in-the-analysis-catalog">In the Analysis Catalog</a></li>
   <li><a href="#release-notes" id="toc-release-notes" class="nav-link" data-scroll-target="#release-notes">Release notes</a></li>
   <li><a href="#the-bundle" id="toc-the-bundle" class="nav-link" data-scroll-target="#the-bundle">The bundle</a></li>
@@ -190,7 +191,7 @@ ul.task-list li input[type="checkbox"] {
 <tbody>
 <tr class="odd">
 <td>Release Status</td>
-<td>accepted</td>
+<td>validated</td>
 </tr>
 <tr class="even">
 <td>Validation status</td>
@@ -214,7 +215,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td>Validated</td>
-<td>2026-10-09T15:49:30Z</td>
+<td>2026-11-01T09:23:29.025384Z</td>
 </tr>
 <tr class="even">
 <td>Superseded by</td>
@@ -256,6 +257,10 @@ ul.task-list li input[type="checkbox"] {
 <h2 class="anchored" data-anchor-id="observed-counts">Observed counts</h2>
 <p>As its Validation Record states them, with an unknown left as an unknown:</p>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
 <thead>
 <tr class="header">
 <th>Count</th>
@@ -269,14 +274,22 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Analyses (<code>n_analyses</code>)</td>
-<td><em>not reported</em></td>
+<td>3,169</td>
 </tr>
 <tr class="odd">
 <td>Variants (<code>n_variants</code>)</td>
-<td><em>not reported</em></td>
+<td>48,069,918</td>
 </tr>
 <tr class="even">
 <td>Associations (<code>n_associations</code>)</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td>Observed association coverage (<code>association_coverage</code>)</td>
+<td>gwas</td>
+</tr>
+<tr class="even">
+<td>Reference assembly (<code>reference_assembly</code>)</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="odd">
@@ -285,22 +298,92 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Build elapsed (<code>build_elapsed_s</code>)</td>
-<td><em>not reported</em></td>
+<td>238072</td>
 </tr>
 <tr class="odd">
 <td>Validation (<code>validate_status</code>)</td>
-<td><em>not reported</em></td>
+<td>passed_with_warnings</td>
+</tr>
+<tr class="even">
+<td>Completion (<code>completion_state</code>)</td>
+<td>reference_completed</td>
+</tr>
+<tr class="odd">
+<td>rsid_conflicts (<code>rsid_conflicts</code>)</td>
+<td>{‘policy’: ‘drop’, ‘n_keys’: 97211, ‘n_variants’: 96361}</td>
 </tr>
 </tbody>
 </table>
 </section>
+<section id="size-and-query-performance" class="level2">
+<h2 class="anchored" data-anchor-id="size-and-query-performance">Size and query performance</h2>
+<p>From yardstick result <code>20261101T123629Z-0.3.2</code> (workload <code>yardstick-2</code>, opengwasdb 0.3.2), started 2026-11-01T12:36:29Z on app-dc3-ogws-p0.services.bris.ac.uk.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Measure</th>
+<th>Value</th>
+<th>Rows</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>open</code></td>
+<td>191.611 ms (p95 227.341 ms)</td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td><code>phewas_rsid</code></td>
+<td>35.235 ms (p95 44.109 ms)</td>
+<td>30</td>
+</tr>
+<tr class="odd">
+<td><code>phewas_alid</code></td>
+<td>99.54 ms (p95 144.599 ms)</td>
+<td>3,152</td>
+</tr>
+<tr class="even">
+<td><code>phewas_position</code></td>
+<td>34.795 ms (p95 34.981 ms)</td>
+<td>30</td>
+</tr>
+<tr class="odd">
+<td><code>region</code></td>
+<td>4731.61 ms (p95 5632.72 ms)</td>
+<td>12,813,313</td>
+</tr>
+<tr class="even">
+<td><code>analysis_full</code></td>
+<td>23475.2 ms (p95 24305.9 ms)</td>
+<td>9,826,754</td>
+</tr>
+<tr class="odd">
+<td><code>analysis_hm3</code></td>
+<td>903.546 ms (p95 934.559 ms)</td>
+<td>1,189,670</td>
+</tr>
+<tr class="even">
+<td><code>bytes_on_disk</code></td>
+<td>166,555,414,528 bytes (walk) ≈ 166.6 GB</td>
+<td>—</td>
+</tr>
+<tr class="odd">
+<td><code>peak_rss</code></td>
+<td>1517 MB peak (baseline 259.6 MB)</td>
+<td>9,826,754</td>
+</tr>
+</tbody>
+</table>
+<p>A timed value is the median of the warm reads with its p95 beside it, <code>bytes_on_disk</code> is the apparent bytes of the Store and <code>peak_rss</code> the memory of one <code>analysis_full</code> read: the definitions are in <code>docs/spec/yardstick.md</code>, and <a href="../trends.html">the trends page</a> holds every result.</p>
+</section>
 <section id="in-the-analysis-catalog" class="level2">
 <h2 class="anchored" data-anchor-id="in-the-analysis-catalog">In the Analysis Catalog</h2>
-<p>The current catalog version is <code>1b3a155d449bb84a</code>, built 2026-10-28T22:57:35.022003+00:00.</p>
-<p>Its decision is <strong>excluded</strong>, and the reason the catalog gives is:</p>
+<p>The current catalog version is <code>9df14f8dc3cceabf</code>, built 2026-11-01T19:50:30.316854+00:00.</p>
+<p>Its decision is <strong>listed</strong>, and the reason the catalog gives is:</p>
 <blockquote class="blockquote">
-<p>Release Status is accepted, not validated</p>
+<p>Release Status is validated, Access Posture is public</p>
 </blockquote>
+<p>The version counts <strong>3,169</strong> of its Analyses as listed.</p>
 <p>The decision and the reason are the catalog’s own, read from the <code>selection</code> table of the version <code>current</code> names (<code>docs/spec/project-site.md</code>).</p>
 </section>
 <section id="release-notes" class="level2">
@@ -319,12 +402,12 @@ ul.task-list li input[type="checkbox"] {
 <p>Review: 2 duplicate-content group(s) surfaced for review, not collapsed: GCST90565871+GCST90565872; GCST90624704+GCST90624705</p>
 <p>Review: 148 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered (#203); see sidecars/exclusions.tsv</p>
 <p>Completion under its own id (2026-10-22). The bundle now declares completion_state: reference_completed and, after its build phase, a complete block: complete-hybrid against the UKB EUR LD panel, ukb-hg38-eur-ld at /data/opengwasdb/reference/ld, for ancestry EUR at 24 workers. The owner decided this on 2026-10-21. It is the one amendment ADR 0037 Decision 1 allows an accepted bundle, and its “Clarified by #305” section says only how that rule is enforced: the build phase still plans exactly the argv that wrote the published Store, with unchanged membership, so completing this Store schedules no rebuild. Every built Analysis carries Assigned Ancestry EUR: 3,169 of the bundle’s rows are build members and all of them are EUR, so completion imputes all 3,169 and the panel vocabulary matches the Analyses exactly. This Store’s Dense axis is the gnomAD v4 EUR common-variant reference, not the UKB panel, so completion extends it: an Overflow observation at a variant the panel adds to the Dense axis crosses into the Dense Component as an observed cell and leaves the Overflow (opengwas/opengwasdb#99). Release Status is unchanged.</p>
-<p>Release Erratum (issue #225, 2026-10-22): this Store could not be rebuilt from the accepted Build Recipe. build-hybrid at the stores pin d405de0 refuses a routing key its sources name with two different rsids, and 99,577 case-folded routing keys here are named that way: 105 Analyses, every one an upper-case Source against a lower-case one, over the 79.0 M keys that carry a lower-case spelling (0.13%). On the owner decision of 2026-10-22 the recipe gains on-rsid-conflict: drop, so a variant whose sources disagree stores no rsid, and the build reports how many variants that leaves unnamed (opengwas/opengwasdb#306). The counts are carried into the Validation Record of the build that replaces this Store. Membership, the completion block and every other build option are unchanged; the build phase no longer plans the argv that wrote the published Store, and differs from it only in the flag this erratum adds. Release Status is unchanged until that rebuild publishes. Release Erratum (issue #225, 2026-10-23): the forced rebuild of 2026-10-22 then built the Store and its build step passed, but the HM3 Indexed Variant Subset refused it: 17,151 of the 1,206,903 HM3 ALIDs the subset requested were present only on the Hybrid’s shared/Overflow axis, which the subset’s Dense Component cannot index (opengwas/opengwasdb#271, #324). On the owner decision of 2026-10-23 the hm3 declaration gains overflow-only: skip, so those ALIDs stay out of the subset and it records how many it left out (opengwas/opengwasdb#324). That count is a measurement of the subset build, so it lives in the indexed-subset step’s record rather than in the Validation Record, which register assembles from the build’s. Membership, the build step, the completion block and every other build option are unchanged: a subset is a derived acceleration artifact, so its declaration is the only part of the recipe that moves. Release Status is unchanged until the rebuild publishes.</p>
+<p>Release Erratum (issue #225, 2026-10-22): this Store could not be rebuilt from the accepted Build Recipe. build-hybrid at the stores pin d405de0 refuses a routing key its sources name with two different rsids, and 99,577 case-folded routing keys here are named that way: 105 Analyses, every one an upper-case Source against a lower-case one, over the 79.0 M keys that carry a lower-case spelling (0.13%). On the owner decision of 2026-10-22 the recipe gains on-rsid-conflict: drop, so a variant whose sources disagree stores no rsid, and the build reports how many variants that leaves unnamed (opengwas/opengwasdb#306). The counts are carried into the Validation Record of the build that replaces this Store. Membership, the completion block and every other build option are unchanged; the build phase no longer plans the argv that wrote the published Store, and differs from it only in the flag this erratum adds. Release Status is unchanged until that rebuild publishes. Release Erratum (issue #225, 2026-10-23): the forced rebuild of 2026-10-22 then built the Store and its build step passed, but the HM3 Indexed Variant Subset refused it: 17,151 of the 1,206,903 HM3 ALIDs the subset requested were present only on the Hybrid’s shared/Overflow axis, which the subset’s Dense Component cannot index (opengwas/opengwasdb#271, #324). On the owner decision of 2026-10-23 the hm3 declaration gains overflow-only: skip, so those ALIDs stay out of the subset and it records how many it left out (opengwas/opengwasdb#324). That count is a measurement of the subset build, so it lives in the indexed-subset step’s record rather than in the Validation Record, which register assembles from the build’s. Membership, the build step, the completion block and every other build option are unchanged: a subset is a derived acceleration artifact, so its declaration is the only part of the recipe that moves. Release Status is unchanged until the rebuild publishes. Pre-release rebuild exception (2026-10-29, issue #371, #381): rebuilt at opengwasdb commit 70340e0 with the MAF admission fix (opengwasdb#331 / PR #332), dropping monomorphic (0.0/1.0) and unreadable frequency rows under the 0.005 threshold. The off-panel axis shrank from 101,098,177 to 34,653,805 variants with 100% occupancy and 0 duplicate ALIDs. Disputed rsid collisions resolved via on-rsid-conflict: drop (opengwasdb#306). Receipt: docs/data/ogs00011-rebuild-receipt.json. Reference completion (issue #401, epic #371, 2026-11-01): the bundle’s completion block ran on the MAF-fixed build. complete-hybrid against ukb-hg38-eur-ld at opengwasdb v0.3.0 (bc22e84) took 20.4 h and imputed 6,898,789,430 cells. The completed Store holds 48,069,918 variants: 14,267,257 on the Dense axis, 851,321 of them added from the panel, and 33,802,661 off-panel. Its validate (v0.3.0) passed with one warning, and its HM3 Indexed Variant Subset resolved 1,195,931 of 1,206,903 ALIDs. The Observed-View Check failed on 2026-10-31 (see the erratum below). At opengwasdb v0.3.2 (44f25a9), which reads Z/SE missingness through the missing markers, it passed on 2026-11-01: the 3,169 Analyses are identical, and 3,454,007,184 sampled Dense cells and 973,004,110 crossovers show no mismatch. completion_register published the completed Store on 2026-11-01. The Validation Record names v0.3.2 because register runs at the stores pin; each step’s record names the revision it ran at (build 70340e0, complete and validate bc22e84, the check 44f25a9). Release Erratum (issue #401, 2026-11-01): eight associations store an SE of +inf with a finite Z. Each source SE exceeds 65,504, the largest float16 value, and the builder narrows it to +inf (opengwas/opengwasdb#338). In the Overflow: GCST012879 at rs138973223 (source SE 67,078), and GCST90295971 at rs55671247, rs7897763 and rs192832728 (145,856, 141,528 and 197,392). In the Dense Component: GCST90295971 at rs118041704 and rs139555215 (193,677 and 220,834), and GCST90827693 at rs6805909 and rs3908969 (110,698,562 each). All eight are degenerate fits (beta -38 to -11,577, p 0.88 to 1.0). The Store published on 2026-10-29 held the same eight cells, and completion copies observed cells exactly. The first Observed-View Check failed on them because it tested missingness with isfinite, where the spec defines it by the missing marker (NaN), under which these cells are observed (opengwas/opengwasdb#337). On the owner decision of 2026-10-31 the completed Store is accepted with them: the check counts them as infinite_cells, and validate from v0.3.2 warns about them per Analysis. They are not corrected in place. StoreQuery.lookup filters on isfinite and so returns no row for them (opengwas/opengwasdb#338). Validated (issue #332, 2026-11-01): accepted -&gt; validated. Read-only checks of the published Store at opengwasdb v0.3.2: info reports format 0.2.0, hybrid layout, reference_completed and association coverage gwas, and its 3,169 Analysis IDs equal the bundle’s 3,169 admitted rows as sets. The Validation Record says passed_with_warnings, from the completion’s validate record (ok; one warning: GCST90271757’s EAF orientation is unverified, 342 variants overlapping the reference), and the completion’s Observed-View Check record passed. No fresh full validate was run: on this Store it takes about 10 h, and the completion’s own validate is the evidence. The owner approved marking it validated in this registration on 2026-10-30.</p>
 <p>These are the bundle’s own words: <code>release.yaml</code>’s <code>description</code> and <code>notes</code>, which is where a Release Erratum is recorded (<code>docs/spec/analysis-catalog.md</code>).</p>
 </section>
 <section id="the-bundle" class="level2">
 <h2 class="anchored" data-anchor-id="the-bundle">The bundle</h2>
-<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/79fbfd33ddc51027eb89e00b8e1725e10f7dc6a4/stores/OGS-00011"><code>stores/OGS-00011</code> at <code>79fbfd33ddc51027eb89e00b8e1725e10f7dc6a4</code></a></p>
+<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/stores/OGS-00011"><code>stores/OGS-00011</code> at <code>766faa9a41ef493801aafc0f3b37bd64fb0acf6b</code></a></p>
 
 
 </section>

@@ -149,6 +149,7 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#status-and-lifecycle" id="toc-status-and-lifecycle" class="nav-link active" data-scroll-target="#status-and-lifecycle">Status and lifecycle</a></li>
   <li><a href="#layout-coverage-and-completion" id="toc-layout-coverage-and-completion" class="nav-link" data-scroll-target="#layout-coverage-and-completion">Layout, coverage and completion</a></li>
   <li><a href="#observed-counts" id="toc-observed-counts" class="nav-link" data-scroll-target="#observed-counts">Observed counts</a></li>
+  <li><a href="#size-and-query-performance" id="toc-size-and-query-performance" class="nav-link" data-scroll-target="#size-and-query-performance">Size and query performance</a></li>
   <li><a href="#in-the-analysis-catalog" id="toc-in-the-analysis-catalog" class="nav-link" data-scroll-target="#in-the-analysis-catalog">In the Analysis Catalog</a></li>
   <li><a href="#release-notes" id="toc-release-notes" class="nav-link" data-scroll-target="#release-notes">Release notes</a></li>
   <li><a href="#the-bundle" id="toc-the-bundle" class="nav-link" data-scroll-target="#the-bundle">The bundle</a></li>
@@ -310,9 +311,65 @@ ul.task-list li input[type="checkbox"] {
 </tbody>
 </table>
 </section>
+<section id="size-and-query-performance" class="level2">
+<h2 class="anchored" data-anchor-id="size-and-query-performance">Size and query performance</h2>
+<p>From yardstick result <code>20261101T123629Z-0.3.2</code> (workload <code>yardstick-2</code>, opengwasdb 0.3.2), started 2026-11-01T12:36:29Z on app-dc3-ogws-p0.services.bris.ac.uk.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Measure</th>
+<th>Value</th>
+<th>Rows</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>open</code></td>
+<td>107.731 ms (p95 110.773 ms)</td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td><code>phewas_rsid</code></td>
+<td>18.582 ms (p95 19.953 ms)</td>
+<td>4</td>
+</tr>
+<tr class="odd">
+<td><code>phewas_alid</code></td>
+<td>18.709 ms (p95 19.193 ms)</td>
+<td>3</td>
+</tr>
+<tr class="even">
+<td><code>phewas_position</code></td>
+<td>19.859 ms (p95 20.454 ms)</td>
+<td>4</td>
+</tr>
+<tr class="odd">
+<td><code>region</code></td>
+<td>45.758 ms (p95 49.99 ms)</td>
+<td>24,784</td>
+</tr>
+<tr class="even">
+<td><code>analysis_full</code></td>
+<td>73.707 ms (p95 79.19 ms)</td>
+<td>77,819</td>
+</tr>
+<tr class="odd">
+<td><code>bytes_on_disk</code></td>
+<td>1,497,874,236 bytes (walk) ≈ 1.5 GB</td>
+<td>—</td>
+</tr>
+<tr class="even">
+<td><code>peak_rss</code></td>
+<td>210.5 MB peak (baseline 167.9 MB)</td>
+<td>77,819</td>
+</tr>
+</tbody>
+</table>
+<p>A timed value is the median of the warm reads with its p95 beside it, <code>bytes_on_disk</code> is the apparent bytes of the Store and <code>peak_rss</code> the memory of one <code>analysis_full</code> read: the definitions are in <code>docs/spec/yardstick.md</code>, and <a href="../trends.html">the trends page</a> holds every result.</p>
+</section>
 <section id="in-the-analysis-catalog" class="level2">
 <h2 class="anchored" data-anchor-id="in-the-analysis-catalog">In the Analysis Catalog</h2>
-<p>The current catalog version is <code>1b3a155d449bb84a</code>, built 2026-10-28T22:57:35.022003+00:00.</p>
+<p>The current catalog version is <code>9df14f8dc3cceabf</code>, built 2026-11-01T19:50:30.316854+00:00.</p>
 <p>Its decision is <strong>listed</strong>, and the reason the catalog gives is:</p>
 <blockquote class="blockquote">
 <p>Release Status is validated, Access Posture is public</p>
@@ -329,7 +386,7 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="the-bundle" class="level2">
 <h2 class="anchored" data-anchor-id="the-bundle">The bundle</h2>
-<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/79fbfd33ddc51027eb89e00b8e1725e10f7dc6a4/stores/OGS-00006"><code>stores/OGS-00006</code> at <code>79fbfd33ddc51027eb89e00b8e1725e10f7dc6a4</code></a></p>
+<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/stores/OGS-00006"><code>stores/OGS-00006</code> at <code>766faa9a41ef493801aafc0f3b37bd64fb0acf6b</code></a></p>
 
 
 </section>
