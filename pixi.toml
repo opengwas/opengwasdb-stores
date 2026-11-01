@@ -47,6 +47,7 @@ threadpoolctl = ">=3.0"
 [feature.store-build.pypi-dependencies]
 # Immutable pin (issue #41): a released version should replace this Git pin
 # once one exists; that is what #387 did, pinning the release tag `v0.3.0`.
+# #401 moved it to `v0.3.2` for OGS-00011's Observed-View Check (opengwasdb#337).
 # Pin a release tag, never a branch or a raw commit. pysam is left off the conda
 # dependency list on purpose: opengwasdb's own PyPI dependency on it collides
 # (conda + PyPI wheel installing the same compiled extension into the same
@@ -324,7 +325,7 @@ threadpoolctl = ">=3.0"
 # version. The range `0d59f151..bc22e84` is #335's release tooling -- the
 # version from tags and a changelog -- and its merge; the engine's behaviour
 # does not change, and the Store format stays 0.2.0.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", tag = "v0.3.0" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", tag = "v0.3.2" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
