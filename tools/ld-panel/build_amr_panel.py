@@ -17,7 +17,10 @@ Stages, each a subprocess whose cost is recorded:
 3. construction: run_panels with the floor and the call-rate ceiling;
 4. verification: verify_block for every built block, then
    find_underresolved_blocks at 0.9;
-5. calibration: heldout_calibration on the pilot's five blocks.
+5. calibration: heldout_calibration on the pilot's five blocks;
+6. the orientation gate: the finished panel's EAF is measured positively against
+   the UKB ancestry mixture, and a panel that fails it is never reported
+   completed (#348).
 
 Every stage resumes, and each receipt is checked before it is trusted (#354).
 Membership is frozen against the panel's own members/AMR.keep.sha256, from a
@@ -47,6 +50,9 @@ import numpy as np
 
 from acquire_hgdp1kgp import META
 from materialize_reference import VCF, conversion_command
+# sample_blocks: the one sampling policy the gate, the repair and this build
+# share, imported so the identity is visible and testable here too (#348).
+from verify_block import ANCESTRY_REFERENCE, ANCESTRY_GROUPS, gate_panel, sample_blocks  # noqa: F401
 from run_amr_pilot import (AMR, HERE, PILOT, Steps, calibration_summary, directory_bytes, environment,
                            preflight_sources, read_ids, reconcile_membership, revision, sha256, utc)
 
@@ -54,6 +60,22 @@ T = TypeVar("T")
 
 
 def block_label(row: dict[str, str]) -> str: return f"{row['chr']}_{row['start']}-{row['end']}"
+
+
+def finish_panel(out: Path, args: argparse.Namespace, receipt: dict[str, object]) -> dict[str, object]:
+    """The finished panel's orientation gate, recorded where a reader will look.
+
+    It is the last thing that can refuse the run, and it takes its sample size
+    from the same ``--orientation-blocks`` the construction gate does, so the two
+    measure a panel the same way (#348 review).
+    """
+    orientation = gate_panel(out / "panel", "AMR", reference=args.ancestry_reference,
+                             group=ANCESTRY_GROUPS["AMR"], blocks=args.orientation_blocks,
+                             min_matches=args.min_orientation_matches)
+    (out / "verify" / "orientation.json").parent.mkdir(parents=True, exist_ok=True)
+    (out / "verify" / "orientation.json").write_text(json.dumps(orientation, indent=2, sort_keys=True) + "\n")
+    receipt["orientation"] = orientation
+    return orientation
 
 
 # What a converted chromosome's .complete marker said before #354: PASS-only and
@@ -255,6 +277,10 @@ def main() -> int:
     ap.add_argument("--plink-threads", type=int, default=4); ap.add_argument("--plink-memory-mb", type=int, default=16000)
     ap.add_argument("--jobs", type=int, default=8, help="Blocks constructed or verified at once")
     ap.add_argument("--replicates", type=int, default=20); ap.add_argument("--cpus", type=int, default=16)
+    ap.add_argument("--ancestry-reference", type=Path, default=ANCESTRY_REFERENCE,
+                    help="UKB ancestry-mixture reference the orientation gate measures against")
+    ap.add_argument("--orientation-blocks", type=int, default=5)
+    ap.add_argument("--min-orientation-matches", type=int, default=1000)
     args = ap.parse_args()
     affinity = len(os.sched_getaffinity(0))
     if affinity > args.cpus:
@@ -336,7 +362,10 @@ def main() -> int:
         steps.run("construct", [py, str(HERE / "run_panels.py"), "--genotype-root", str(out / "pgen"),
                                 "--reference-root", str(out / "panel"), "--regions", str(regions_file),
                                 "--members", str(members), "--ancestries", "AMR", "--jobs", str(args.jobs),
-                                "--maf", str(args.maf), "--max-missing", str(args.max_missing)])
+                                "--maf", str(args.maf), "--max-missing", str(args.max_missing),
+                                "--ancestry-reference", str(args.ancestry_reference),
+                                "--orientation-blocks", str(args.orientation_blocks),
+                                "--min-orientation-matches", str(args.min_orientation_matches)])
         # 4. Verification of every built block not already verified clean since it was built.
         def base(row: dict[str, str]) -> Path: return out / "panel/AMR" / row["chr"] / f"{row['start']}-{row['end']}"
         def verified(row: dict[str, str]) -> bool:
@@ -373,6 +402,11 @@ def main() -> int:
                 "--end", row["end"], "--cohort", str(source / "cohort_populations.tsv"), "--maf", str(args.maf),
                 "--max-missing", str(args.max_missing), "--replicates", str(args.replicates),
                 "--out", str(result)], check=False)
+
+        # 6. The recurrence guard (#348): the finished panel's EAF must be the
+        # frequency of its EA, measured against an independent reference. This
+        # is the last thing that can refuse the run.
+        finish_panel(out, args, receipt)
 
         # The panel as it stands, over every invocation so far.
         summary = panel_summary(out, args.regions, calibration, run, maf=args.maf,
