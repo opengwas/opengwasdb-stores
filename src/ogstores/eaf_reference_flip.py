@@ -114,10 +114,16 @@ STAGING_SUFFIX: str = ".flipping"
 REPLACED_SUFFIX: str = "eaf-reference-flip"
 
 #: The receipt's per-array progress states, in the order a run passes through
-#: them.  `restored` means the live path was hashed and equals the before-hashes.
+#: them.  The three `-ing` states are written *before* the rename they announce,
+#: so a process killed mid-rename has already said what it was doing; the state
+#: after the rename is written once the directory metadata is fsynced.  The
+#: filesystem, not the receipt, decides what is described to an operator.
 PENDING: str = "pending"
+MOVING_ASIDE: str = "moving_aside"
 MOVED_ASIDE: str = "moved_aside"
+SWAPPING_IN: str = "swapping_in"
 SWAPPED: str = "swapped"
+RESTORING: str = "restoring"
 RESTORED: str = "restored"
 FAILED_RESTORATION: str = "failed_restoration"
 
@@ -701,6 +707,42 @@ def _rename(source: Path, dest: Path) -> None:
     os.replace(source, dest)
 
 
+def _fsync_path(path: Path) -> None:
+    """fsync a file or directory, raising: durability that failed must be said.
+
+    Deliberately not `run._fsync_dir`, which swallows every exception: the
+    recovery evidence is only worth keeping if a failure to persist it is loud
+    enough to stop this run from deleting it.
+    """
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _fsync_parents(source: Path, dest: Path) -> None:
+    """fsync both parents of a rename: the source's and the destination's."""
+    _fsync_path(source.parent)
+    if dest.parent != source.parent:
+        _fsync_path(dest.parent)
+
+
+def _make_directory_durable(directory: Path) -> None:
+    """`mkdir -p`, fsyncing every directory this call creates and its parent."""
+    missing: list[Path] = []
+    current = directory
+    while not os.path.lexists(current):
+        missing.append(current)
+        if current.parent == current:  # pragma: no cover - a filesystem root
+            break
+        current = current.parent
+    for created in reversed(missing):
+        created.mkdir(exist_ok=True)
+        _fsync_path(created)
+        _fsync_path(created.parent)
+
+
 def _entry_for(record: dict[str, Any], label: str) -> dict[str, Any]:
     for entry in record["replaced"]["arrays"]:
         if entry["array"] == label:
@@ -720,11 +762,12 @@ def _swap_all(
     record_path: Path,
     fault: str | None,
 ) -> None:
-    """Rename each original aside and its staged copy in, fsyncing the receipt.
+    """Rename each original aside and its staged copy in, announcing each rename.
 
-    The receipt is written before the first rename touches an array (so it is
-    in flight on disk, not just in memory) and after each of the two renames,
-    with `run._fsync_dir` on the array's group around them.
+    Every rename is preceded by an `-ing` state written and fsynced, and
+    followed by the completed state, written after both parents of the rename
+    are fsynced.  A death anywhere in between therefore leaves a receipt that
+    says what was being attempted, and a filesystem that says what happened.
     """
     for staged in plan.staged:
         label = staged.target.label
@@ -734,14 +777,14 @@ def _swap_all(
             raise FlipRefusal(f"the rollback destination {original} already exists")
         if fault == SWAP_FAULT:
             raise FlipRefusal(f"test fault: refusing before the swap of {label} ({FAIL_AT_ENV})")
-        original.parent.mkdir(parents=True, exist_ok=True)
-        _set_state(record, record_path, label, PENDING)
+        _make_directory_durable(original.parent)
+        _set_state(record, record_path, label, MOVING_ASIDE)
         _rename(staged.live_dir, original)
-        run._fsync_dir(staged.live_dir.parent)
-        run._fsync_dir(original.parent)
+        _fsync_parents(staged.live_dir, original)
         _set_state(record, record_path, label, MOVED_ASIDE)
+        _set_state(record, record_path, label, SWAPPING_IN)
         _rename(staged.staged_dir, staged.live_dir)
-        run._fsync_dir(staged.live_dir.parent)
+        _fsync_parents(staged.staged_dir, staged.live_dir)
         _set_state(record, record_path, label, SWAPPED)
 
 
@@ -750,62 +793,230 @@ def _restore(
     record: dict[str, Any],
     record_path: Path,
 ) -> list[str]:
-    """Put every original back and prove it by hash; return what could not be.
+    """Put every original back and prove it; return what could not be proven.
 
-    `restored` is written only when the live path hashes equal to the before
-    hashes recorded at the start of the run, so a state that merely looks
-    restored is not claimed as one.
+    A failure of any part -- the rename, its parent fsync, the hashing that
+    proves the result, or writing the state -- is caught per array, so one
+    unprovable array cannot stop the others being restored, and none of them is
+    reported as `restored` on a promise.
     """
     failures: list[str] = []
     for staged in reversed(plan.staged):
-        entry = _entry_for(record, staged.target.label)
+        label = staged.target.label
+        entry = _entry_for(record, label)
         original = Path(entry["original"])
+        restore_error: str | None = None
         if os.path.lexists(original):
             try:
+                _set_state(record, record_path, label, RESTORING)
                 if os.path.lexists(staged.live_dir):
                     # The corrected copy goes back to its staging name first,
                     # so the live name is free for the original.
                     _rename(staged.live_dir, staged.staged_dir)
+                    _fsync_parents(staged.live_dir, staged.staged_dir)
                 _rename(original, staged.live_dir)
-                run._fsync_dir(staged.live_dir.parent)
+                _fsync_parents(original, staged.live_dir)
             except OSError as exc:
-                failures.append(f"{staged.target.label}: cannot restore it ({exc})")
-        restored = bool(staged.sha256_before) and _sha256_tree(staged.live_dir) == staged.sha256_before
+                restore_error = f"{label}: cannot restore it ({exc})"
+                failures.append(restore_error)
+        matches = False
         try:
-            _set_state(
-                record,
-                record_path,
-                staged.target.label,
-                RESTORED if restored else FAILED_RESTORATION,
-            )
+            matches = bool(staged.sha256_before) and _sha256_tree(staged.live_dir) == staged.sha256_before
+            if not matches and restore_error is None:
+                failures.append(f"{label}: the live array does not hash to its recorded before-hashes")
         except OSError as exc:
-            failures.append(f"{staged.target.label}: cannot record its state ({exc})")
-        if not restored:
-            failures.append(
-                f"{staged.target.label}: the live array does not hash to its recorded before-hashes"
-            )
+            failures.append(f"{label}: cannot hash the live array to prove it restored ({exc})")
+        # `restored` means every step proved: the rename, its durability, and
+        # the bytes.  A rename whose parent fsync failed restored nothing that
+        # can be relied on if the machine dies, so it is not called restored.
+        restored = matches and restore_error is None
+        try:
+            _set_state(record, record_path, label, RESTORED if restored else FAILED_RESTORATION)
+        except OSError as exc:
+            failures.append(f"{label}: cannot record its state ({exc})")
     return failures
 
 
+# ---------------------------------------------------------------------------
+# Describing a Store from the filesystem
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class ArrayState:
+    """What one target array looks like on disk, and how it hashes."""
+
+    label: str
+    state: str | None
+    live_path: Path
+    staged_path: Path
+    original_path: Path | None
+    live_kind: str  # original | corrected | absent | unrecognised | unreadable
+    live_matches_before: bool | None
+    original_present: bool
+    original_matches_before: bool | None
+    staged_present: bool
+    error: str | None = None
+
+    def describe(self) -> str:
+        """One line an operator can act on: live first, then the evidence beside it."""
+        if self.live_kind == "absent":
+            text = "live missing"
+            if self.original_present:
+                text += f", original at {self.original_path}"
+                if self.original_matches_before is True:
+                    text += " (hashes to its recorded before-hashes)"
+                elif self.original_matches_before is False:
+                    text += " (does NOT hash to its recorded before-hashes)"
+            else:
+                text += ", no original in replaced/"
+        elif self.live_kind == "original":
+            text = "original live"
+        elif self.live_kind == "corrected":
+            text = "corrected live"
+        elif self.live_kind == "present":
+            text = "live present (the receipt records no hashes to compare it with)"
+        elif self.live_kind == "unreadable":
+            text = f"live present but unreadable ({self.error})"
+        else:
+            text = "live present but matches neither recorded state"
+        if self.live_kind != "absent" and self.original_present:
+            text += f", original at {self.original_path}"
+        if self.staged_present:
+            text += f", corrected copy staged at {self.staged_path}"
+        if self.state:
+            # Said last and labelled: a kill leaves the receipt one transition
+            # behind, so it is reported as what the run claimed, not as fact.
+            text += f" (receipt says: {self.state})"
+        return text
+
+
+def _recorded_arrays(record: dict[str, Any]) -> dict[str, dict[str, Any]]:
+    return {
+        entry["array"]: entry
+        for entry in record.get("arrays") or []
+        if isinstance(entry, dict) and isinstance(entry.get("array"), str)
+    }
+
+
+def _recorded_in_flight(record: dict[str, Any]) -> list[dict[str, Any]]:
+    replaced = record.get("replaced") or {}
+    return [entry for entry in replaced.get("arrays") or [] if isinstance(entry, dict)]
+
+
+def _replaced_dirs(store_path: Path) -> list[Path]:
+    """This Store's `replaced/<UTC>-eaf-reference-flip/` directories, if any."""
+    return sorted((store_path.parent / "replaced").glob(f"*-{REPLACED_SUFFIX}"))
+
+
+def _inspect_existing(store_path: Path, record: dict[str, Any]) -> list[ArrayState]:
+    """What the filesystem says about every array a receipt names.
+
+    The receipt can be one transition behind a kill (it is written before and
+    after each rename, not atomically with it), so nothing here trusts its
+    `state`: the live path, the staged sibling and the original under
+    `replaced/` are looked for, and each is hashed against the before- and
+    corrected-hashes the receipt recorded.
+    """
+    hashes = _recorded_arrays(record)
+    in_flight = _recorded_in_flight(record)
+    labels = [
+        entry["array"] for entry in in_flight if isinstance(entry.get("array"), str)
+    ] or list(hashes)
+    replaced_dirs = _replaced_dirs(store_path)
+    recorded_dir = (record.get("replaced") or {}).get("dir")
+    states: list[ArrayState] = []
+    for label in labels:
+        entry = next((e for e in in_flight if e.get("array") == label), {})
+        live = Path(entry["live"]) if entry.get("live") else store_path / "data.zarr" / label
+        staged = (
+            Path(entry["staged"])
+            if entry.get("staged")
+            else live.parent / f".{live.name}{STAGING_SUFFIX}"
+        )
+        if entry.get("original"):
+            original: Path | None = Path(entry["original"])
+        elif recorded_dir:
+            original = Path(recorded_dir) / label
+        elif len(replaced_dirs) == 1:
+            original = replaced_dirs[0] / label
+        else:
+            original = None
+        before = hashes.get(label, {}).get("sha256_before") or {}
+        corrected = (
+            hashes.get(label, {}).get("sha256_corrected")
+            or hashes.get(label, {}).get("sha256_after")
+            or {}
+        )
+        error: str | None = None
+        live_tree: dict[str, str] = {}
+        if live.exists():
+            try:
+                live_tree = _sha256_tree(live)
+            except OSError as exc:
+                error = str(exc)
+        original_present = original is not None and os.path.lexists(original)
+        original_before: bool | None = None
+        if original_present:
+            try:
+                original_before = bool(before) and _sha256_tree(original) == before
+            except OSError:
+                original_before = None
+        if error is not None:
+            kind = "unreadable"
+            matches_before: bool | None = None
+        elif not live_tree:
+            kind, matches_before = "absent", None
+        elif before and live_tree == before:
+            kind, matches_before = "original", True
+        elif corrected and live_tree == corrected:
+            kind, matches_before = "corrected", False
+        elif not before and not corrected:
+            # A receipt written by hand (or by a version that recorded none):
+            # presence is all that can be said.
+            kind, matches_before = "present", None
+        else:
+            kind, matches_before = "unrecognised", (False if before else None)
+        states.append(
+            ArrayState(
+                label=label,
+                state=entry.get("state") if isinstance(entry.get("state"), str) else None,
+                live_path=live,
+                staged_path=staged,
+                original_path=original,
+                live_kind=kind,
+                live_matches_before=matches_before,
+                original_present=original_present,
+                original_matches_before=original_before,
+                staged_present=os.path.lexists(staged),
+                error=error,
+            )
+        )
+    return states
+
+
+def _describe_store(states: list[ArrayState]) -> list[str]:
+    if not states:
+        return ["  (the receipt names no array)"]
+    return [f"  {state.label}: {state.describe()}" for state in states]
+
+
 def _failed_restoration_message(
-    plan: "Plan", record: dict[str, Any], cause: BaseException
+    plan: "Plan", record: dict[str, Any], cause: BaseException, failures: list[str]
 ) -> str:
-    """Name every array, where its original is, and what is live."""
+    """Describe the real live state of every array, then what could not be proven."""
+    record_path = paths.record_path(plan.store_id, RECORD_STEP, root=plan.artifact_root)
+    try:
+        states = _inspect_existing(plan.store_path, record)
+    except OSError:  # pragma: no cover - hashing failures are caught per array above
+        states = []
     lines = [
         f"the swap of {plan.store_id} failed: {cause}",
-        f"Recovery could not prove every array restored, so nothing was deleted. "
-        f"The receipt is {paths.record_path(plan.store_id, RECORD_STEP, root=plan.artifact_root)}.",
+        "Recovery could not prove every array restored, so nothing was deleted. "
+        f"The receipt is {record_path}; the Store, read from the filesystem:",
     ]
-    for staged in plan.staged:
-        entry = _entry_for(record, staged.target.label)
-        original = Path(entry["original"])
-        lines.append(
-            f"  {staged.target.label}: {entry['state']}; "
-            f"original {'present' if os.path.lexists(original) else 'absent'} at {original}; "
-            f"live {'present' if os.path.lexists(staged.live_dir) else 'absent'} "
-            f"at {staged.live_dir}; staged {'present' if os.path.lexists(staged.staged_dir) else 'absent'} "
-            f"at {staged.staged_dir}"
-        )
+    lines += _describe_store(states)
+    lines += [f"  {failure}" for failure in failures]
     return "\n".join(lines)
 
 
@@ -841,6 +1052,7 @@ def _entry(staged: StagedArray) -> dict[str, Any]:
         "nan_before": staged.nan_before,
         "nan_after": staged.nan_after,
         "sha256_before": staged.sha256_before,
+        "sha256_corrected": staged.sha256_staged,
         "sha256_after": staged.sha256_after,
         "verified": "new == 1 - old on finite cells (raw float32 bits); "
         "NaN positions and payloads and unflipped rows bit-identical",
@@ -995,8 +1207,17 @@ def _hash_live(plan: Plan) -> None:
         staged.sha256_staged = _sha256_tree(staged.staged_dir)
 
 
-def _refuse_existing_receipt(store_id: str, artifact_root: Path) -> None:
-    """A receipt of any status refuses: `1 - (1 - x)` is `x` (issue #409)."""
+def _refuse_existing_receipt(store_id: str, artifact_root: Path, store_path: Path) -> None:
+    """A receipt of any status refuses, and its message describes the real Store.
+
+    `1 - (1 - x)` is `x`, so a second flip is always refused.  What the operator
+    is told is read from the filesystem rather than from the receipt's own
+    `state`, which a kill can leave one transition behind: each live array is
+    hashed against the before- and corrected-hashes, and each original in
+    `replaced/` against its before-hashes.  "No array moved" is claimed only
+    when that inspection proves it, and only then is clearing the receipt
+    suggested.
+    """
     record_path = paths.record_path(store_id, RECORD_STEP, root=artifact_root)
     if not os.path.lexists(record_path):
         return
@@ -1007,30 +1228,51 @@ def _refuse_existing_receipt(store_id: str, artifact_root: Path) -> None:
             if isinstance(loaded, dict):
                 receipt = loaded
     status = receipt.get("status", "unreadable")
-    states = [
-        entry.get("state")
-        for entry in (receipt.get("replaced") or {}).get("arrays", [])
-        if isinstance(entry, dict)
+    try:
+        states = _inspect_existing(store_path, receipt)
+    except OSError as exc:  # pragma: no cover - hashing failures are caught per array
+        states = []
+        inspection_error = str(exc)
+    else:
+        inspection_error = None
+    replaced_present = bool(_replaced_dirs(store_path))
+    untouched = (
+        bool(states)
+        and not replaced_present
+        and all(state.live_kind in ("original", "unrecognised", "present") for state in states)
+        and all(state.live_matches_before is not False for state in states)
+    )
+    lines = [
+        f"{record_path} already exists (status {status!r}).",
+        "This tool refuses: a second flip would restore the inversion the first one corrects.",
+        "The Store, read from the filesystem:",
     ]
-    if status == "started" and states and all(state == PENDING for state in states):
-        detail = (
-            "No array moved: every array is still `pending`, so the Store is as it was. "
-            f"Once you have checked the Store, clear the receipt deliberately (`rm {record_path}`) "
-            "and run again."
-        )
-    elif status == FAILED_RESTORATION:
-        detail = (
-            "That run could not prove every original restored, so the originals it kept are under "
-            f"{(receipt.get('replaced') or {}).get('dir', 'replaced/')}. Restore them by hand before "
-            "removing the receipt."
+    lines += _describe_store(states)
+    if inspection_error is not None:
+        lines.append(f"  the Store could not be inspected: {inspection_error}")
+    staged = [state.staged_path for state in states if state.staged_present]
+    if untouched:
+        lines.append(
+            "No array moved: every live array is in place and no original sits in "
+            "`replaced/`, so the Store is as it was before this run. Clear the receipt "
+            f"deliberately (`rm {record_path}`)"
+            + (
+                ", remove this run's staged copies ("
+                + ", ".join(str(path) for path in staged)
+                + ")"
+                if staged
+                else ""
+            )
+            + " once you have checked the Store, then run again."
         )
     else:
-        detail = (
-            "A second flip would restore the inversion this one corrects, so this tool refuses. "
-            "Restore the arrays from `replaced/` and remove the receipt only if the first run is "
-            "known not to have landed."
+        lines.append(
+            "Do not clear the receipt: at least one array is not in the state this run "
+            "started from. Restore each array from the original named above (or the "
+            "`replaced/` directory), verify the Store, and only then remove the receipt "
+            "and re-run."
         )
-    raise FlipRefusal(f"{record_path} already exists (status {status!r}). {detail}")
+    raise FlipRefusal("\n".join(lines))
 
 
 def _write_receipt(record: dict[str, Any], record_path: Path) -> None:
@@ -1052,8 +1294,13 @@ def _apply(plan: Plan) -> int:
         if failures:
             record["status"] = FAILED_RESTORATION
             record["failed_at"] = _precedent._utc_now()
-            _write_receipt(record, record_path)
-            raise FlipRefusal(_failed_restoration_message(plan, record, exc)) from exc
+            try:
+                _write_receipt(record, record_path)
+            except OSError as write_exc:
+                failures.append(f"the receipt could not be finalised ({write_exc})")
+            raise FlipRefusal(
+                _failed_restoration_message(plan, record, exc, failures)
+            ) from exc
         # Every array is proven restored: this run's staged copies and the
         # receipt go, and the rollback directory with them.
         for staged in plan.staged:
@@ -1157,12 +1404,12 @@ def _refuse_common(args: argparse.Namespace) -> tuple[Path, Path, str, str]:
         _precedent._refuse_store_outside_contract(args.store_id, registry_root, artifact_root, store_path)
         revision, version = _precedent._resolve_runtime()
         _precedent._refuse_markers(args.store_id, artifact_root)
-    _refuse_existing_receipt(args.store_id, artifact_root)
+    _refuse_existing_receipt(args.store_id, artifact_root, store_path)
     _refuse_out_of_scope(store_path, _read_manifest(store_path))
     return artifact_root, store_path, revision, version
 
 
-def _with_lock(store_id: str, artifact_root: Path, body: Callable[[], int]) -> int:
+def _with_lock(store_id: str, artifact_root: Path, store_path: Path, body: Callable[[], int]) -> int:
     """Take the release's exclusive lock for `body`, never waiting for it.
 
     Apply and `--dry-run` both hold it: a dry run reads, stages and verifies
@@ -1177,7 +1424,7 @@ def _with_lock(store_id: str, artifact_root: Path, body: Callable[[], int]) -> i
     try:
         with _borrowed_precedent():
             _precedent._refuse_markers(store_id, artifact_root)
-        _refuse_existing_receipt(store_id, artifact_root)
+        _refuse_existing_receipt(store_id, artifact_root, store_path)
         return body()
     except (FlipRefusal, OSError) as exc:
         print(f"eaf-reference-flip: {exc}", file=sys.stderr)
@@ -1234,6 +1481,7 @@ def main(argv: list[str] | None = None) -> int:
     return _with_lock(
         args.store_id,
         artifact_root,
+        store_path,
         lambda: body(args, artifact_root, store_path, revision, version),
     )
 

@@ -260,6 +260,10 @@ def build_fixture(
     return values
 
 
+class Killed(BaseException):
+    """Stands in for SIGKILL: nothing may handle it, so no recovery runs."""
+
+
 class Library:
     """Builds each fixture variant once, then hands out pristine copies of it."""
 
@@ -337,6 +341,20 @@ class FlipTestCase(unittest.TestCase):
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     @classmethod
+    def guard_sample(cls):
+        """The fixture's guard sample, decoded once: a crash replay reuses it."""
+        if "cached_sample" not in cls.__dict__:
+            pristine, _ = cls.library.get()
+            root = zarr.open_group(
+                pristine / "artifacts" / STORE_ID / "store.opengwasdb" / "data.zarr", mode="r"
+            )
+            cls.cached_sample = eaf_reference_flip._sample_observed(
+                root, encoding_of(pristine / "artifacts" / STORE_ID / "store.opengwasdb"),
+                eaf_reference_flip.DEFAULT_SAMPLE_SEED,
+            )
+        return cls.cached_sample
+
+    @classmethod
     def applied_store_path(cls) -> Path:
         return cls.applied_root / "artifacts" / STORE_ID / "store.opengwasdb"
 
@@ -349,6 +367,7 @@ class FlipTestCase(unittest.TestCase):
         pristine, values = self.library.get(**variant)
         self.work = Path(tempfile.mkdtemp(dir=self.tmp))
         dest = self.work / "release"
+        self.root = dest
         shutil.copytree(pristine, dest)
         self.registry = dest / "stores"
         self.artifacts = dest / "artifacts"
@@ -385,6 +404,76 @@ class FlipTestCase(unittest.TestCase):
         self.assertEqual(self.store_tree(), before_store, "a refusal changed the Store")
         self.assertEqual(self.store_side(), before_side, "a refusal wrote under the Store Release")
         return out, err
+
+    @contextlib.contextmanager
+    def fast_runtime(self):
+        """Skip the pinned-runtime proof: it has tests of its own and costs a subprocess."""
+        with mock.patch.object(
+            eaf_reference_flip._precedent,
+            "_resolve_runtime",
+            return_value=(
+                runtime.PINNED_OPENGWASDB_REVISION,
+                runtime.PINNED_OPENGWASDB_TAG.removeprefix("v"),
+            ),
+        ):
+            yield
+
+    def kill_run(self, position: int) -> None:
+        """Die immediately after the `position`-th rename, as SIGKILL would.
+
+        `_restore` is made to raise the same unrecoverable exception, because a
+        killed process runs no handler: the point is to leave the Store and its
+        receipt exactly as a SIGKILL between the rename and its receipt update
+        would.
+
+        The algebraic verification and the guard's band decode are stubbed for
+        these replays only (they have their own tests, and the shared apply
+        covers them on a complete run): a crash test replays one staging and
+        swap eight times, and re-verifying every array eight times is most of
+        what that costs.
+        """
+        real = eaf_reference_flip._rename
+        calls = {"n": 0}
+
+        def kill(source, dest):
+            real(source, dest)
+            calls["n"] += 1
+            if calls["n"] == position:
+                raise Killed()
+
+        def verified(target, source, staged, imputed, nan_before):
+            return True, nan_before
+
+        with self.fast_runtime(), \
+             mock.patch.object(eaf_reference_flip, "_rename", side_effect=kill), \
+             mock.patch.object(eaf_reference_flip, "_restore", side_effect=Killed), \
+             mock.patch.object(eaf_reference_flip, "_verify_staged", side_effect=verified), \
+             mock.patch.object(eaf_reference_flip, "_verify_hm3", return_value=None), \
+             mock.patch.object(eaf_reference_flip, "_sample_observed", return_value=self.guard_sample()):
+            with self.assertRaises(Killed):
+                run_on(self.root)
+        self.assertEqual(calls["n"], position, "the kill point was never reached")
+
+    def expected_live_phrases(self, record: dict) -> dict[str, str]:
+        """What each array's live state really is, read from the filesystem."""
+        hashes = {entry["array"]: entry for entry in record["arrays"]}
+        phrases: dict[str, str] = {}
+        for entry in record["replaced"]["arrays"]:
+            label = entry["array"]
+            live = Path(entry["live"])
+            recorded = hashes.get(label, {})
+            before = recorded.get("sha256_before") or {}
+            corrected = recorded.get("sha256_corrected") or recorded.get("sha256_after") or {}
+            live_tree = tree(live) if live.exists() else {}
+            if not live_tree:
+                phrases[label] = "live missing"
+            elif before and live_tree == before:
+                phrases[label] = "original live"
+            elif corrected and live_tree == corrected:
+                phrases[label] = "corrected live"
+            else:
+                phrases[label] = "live present but matches neither recorded state"
+        return phrases
 
     def applied_receipt(self) -> dict:
         path = self.applied_root / "artifacts" / STORE_ID / "records" / "eaf-reference-flip.json"
@@ -576,6 +665,9 @@ class FlipTestCase(unittest.TestCase):
         record_check()
         self.assertIn("No array moved", err)
         self.assertIn(str(self.record_path()), err)
+        # A receipt with no recorded hashes is described by presence, not claimed
+        # to match anything.
+        self.assertIn("records no hashes to compare", err)
 
     # --- refusals ---------------------------------------------------------
 
@@ -732,7 +824,8 @@ class FlipTestCase(unittest.TestCase):
 
     def test_a_staged_verification_failure_swaps_nothing(self) -> None:
         before = self.store_tree()
-        with mock.patch.dict(os.environ, {eaf_reference_flip.FAIL_AT_ENV: eaf_reference_flip.VERIFY_FAULT}):
+        with self.fast_runtime(), \
+             mock.patch.dict(os.environ, {eaf_reference_flip.FAIL_AT_ENV: eaf_reference_flip.VERIFY_FAULT}):
             code, out, err = run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)
@@ -744,11 +837,12 @@ class FlipTestCase(unittest.TestCase):
     def test_the_algebraic_check_rejects_a_verifier_that_would_pass_anything(self) -> None:
         """A verification failure below the fault hook also swaps nothing."""
         before = self.store_tree()
-        with mock.patch.object(
-            eaf_reference_flip,
-            "_verify_staged",
-            side_effect=eaf_reference_flip.VerificationFailure("the staged array is not 1 - x"),
-        ):
+        with self.fast_runtime(), \
+             mock.patch.object(
+                 eaf_reference_flip,
+                 "_verify_staged",
+                 side_effect=eaf_reference_flip.VerificationFailure("the staged array is not 1 - x"),
+             ):
             code, out, err = run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)
@@ -759,7 +853,8 @@ class FlipTestCase(unittest.TestCase):
 
     def test_the_swap_fault_hook_moves_nothing(self) -> None:
         before = self.store_tree()
-        with mock.patch.dict(os.environ, {eaf_reference_flip.FAIL_AT_ENV: eaf_reference_flip.SWAP_FAULT}):
+        with self.fast_runtime(), \
+             mock.patch.dict(os.environ, {eaf_reference_flip.FAIL_AT_ENV: eaf_reference_flip.SWAP_FAULT}):
             code, out, err = run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)
@@ -779,7 +874,7 @@ class FlipTestCase(unittest.TestCase):
                 raise OSError("the filesystem went away")
             return real(source, dest)
 
-        with mock.patch.object(eaf_reference_flip, "_rename", side_effect=flaky):
+        with self.fast_runtime(), mock.patch.object(eaf_reference_flip, "_rename", side_effect=flaky):
             code, out, err = run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)
@@ -806,7 +901,7 @@ class FlipTestCase(unittest.TestCase):
                 raise OSError("the original could not be put back")
             return real(source, dest)
 
-        with mock.patch.object(eaf_reference_flip, "_rename", side_effect=flaky):
+        with self.fast_runtime(), mock.patch.object(eaf_reference_flip, "_rename", side_effect=flaky):
             code, out, err = run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)
@@ -826,12 +921,153 @@ class FlipTestCase(unittest.TestCase):
         states = {entry["array"]: entry["state"] for entry in record["replaced"]["arrays"]}
         self.assertEqual(states["eaf_reference"], "failed_restoration")
         self.assertEqual(states["indexed_subsets/hm3/eaf_reference"], "restored")
-        # And the message names every array, its original and what is live.
+        # And the message names every array, its original and what is live,
+        # read from the filesystem rather than from the receipt's own state.
         for label in states:
             self.assertIn(label, err)
-        self.assertIn(str(originals[0]), err)
-        self.assertIn("original present", err)
-        self.assertIn("live absent", err)
+        self.assertIn(f"live missing, original at {originals[0]}", err)
+        self.assertIn("hashes to its recorded before-hashes", err)
+        self.assertNotIn("No array moved", err)
+
+
+    # --- SIGKILL at every rename, and the recovery description -------------
+
+    def test_a_kill_at_every_rename_is_described_from_the_filesystem(self) -> None:
+        """Killed after each rename, the next run refuses and describes the real state."""
+        for position in range(1, 9):
+            with self.subTest(position=position):
+                self.use()
+                self.kill_run(position)
+                record = json.loads(self.record_path().read_text(encoding="utf-8"))
+                expected = self.expected_live_phrases(record)
+                moved = self.store_tree()
+                with self.fast_runtime():
+                    code, out, err = run_on(self.root)
+                self.assertEqual(code, 1, out + err)
+                self.assertIn("already exists", err)
+                self.assertIn("read from the filesystem", err)
+                for label, phrase in expected.items():
+                    self.assertIn(f"{label}: {phrase}", err, err)
+                # A moved array is never called safe to clear.
+                self.assertNotIn("No array moved", err)
+                self.assertEqual(self.store_tree(), moved, "the refusal wrote to the Store")
+                record_check()
+
+    def test_a_kill_after_one_rename_names_the_displaced_original(self) -> None:
+        """The reviewers' case: receipt `pending`, live gone, original in `replaced/`."""
+        self.use()
+        self.kill_run(1)
+        record = json.loads(self.record_path().read_text(encoding="utf-8"))
+        original = Path(record["replaced"]["arrays"][0]["original"])
+        self.assertTrue(original.is_dir())
+        with self.fast_runtime():
+            code, out, err = run_on(self.root)
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn(f"live missing, original at {original}", err)
+        self.assertIn("hashes to its recorded before-hashes", err)
+        self.assertNotIn("No array moved", err)
+        self.assertNotIn("Clear the receipt deliberately", err)
+        self.assertIn("Do not clear the receipt", err)
+
+    def test_safe_to_clear_advice_appears_only_when_nothing_moved(self) -> None:
+        """An untouched Store earns the advice; a moved one does not."""
+        # Untouched: a receipt whose arrays are all still where they started.
+        self.use()
+        record = {
+            "status": "started",
+            "step": "eaf-reference-flip",
+            "store_id": STORE_ID,
+            "arrays": [
+                {
+                    "array": label,
+                    "sha256_before": tree(self.store_path / "data.zarr" / label),
+                }
+                for label in ("eaf_reference", "indexed_subsets/hm3/eaf_reference")
+            ],
+            "replaced": {
+                "dir": str(self.artifacts / STORE_ID / "replaced" / "20260101T000000Z-eaf-reference-flip"),
+                "arrays": [
+                    {"array": label, "state": "pending"}
+                    for label in ("eaf_reference", "indexed_subsets/hm3/eaf_reference")
+                ],
+            },
+        }
+        self.record_path().parent.mkdir(parents=True, exist_ok=True)
+        self.record_path().write_text(json.dumps(record), encoding="utf-8")
+        out, err = self.assert_refused_unchanged(self.base_argv(), "already exists")
+        record_check()
+        self.assertIn("No array moved", err)
+        self.assertIn(f"rm {self.record_path()}", err)
+        # And a receipt left by a kill does not: see the test above.
+
+    def test_a_recovery_hash_failure_ends_as_failed_restoration(self) -> None:
+        """A hash that cannot be read leaves the evidence and records the failure."""
+        self.use()
+        real_rename = eaf_reference_flip._rename
+        real_sha = eaf_reference_flip._sha256_tree
+        state = {"swapped": False}
+
+        def flaky_rename(source, dest):
+            src, dst = Path(source), Path(dest)
+            if src.name.startswith(".eaf_reference") and dst.name == "eaf_reference" and dst.parent.name == "data.zarr":
+                raise OSError("the staged array could not be renamed into place")
+            real_rename(source, dest)
+            if "replaced" in src.parts and dst.parent.name == "data.zarr":
+                state["swapped"] = True
+
+        def flaky_sha(directory):
+            target = Path(directory)
+            if state["swapped"] and target.name == "eaf_reference" and target.parent.name == "data.zarr":
+                raise OSError("the live array could not be read")
+            return real_sha(directory)
+
+        with self.fast_runtime(), \
+             mock.patch.object(eaf_reference_flip, "_rename", side_effect=flaky_rename), \
+             mock.patch.object(eaf_reference_flip, "_sha256_tree", side_effect=flaky_sha):
+            code, out, err = run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("failed_restoration", err)
+        self.assertIn("cannot hash the live array to prove it restored", err)
+        record = json.loads(self.record_path().read_text(encoding="utf-8"))
+        self.assertEqual(record["status"], "failed_restoration")
+        states = {entry["array"]: entry["state"] for entry in record["replaced"]["arrays"]}
+        self.assertEqual(states["eaf_reference"], "failed_restoration")
+
+    def test_a_durability_failure_keeps_the_evidence(self) -> None:
+        """An fsync that fails after a restore keeps the receipt and says so."""
+        self.use()
+        real_rename = eaf_reference_flip._rename
+        real_fsync = eaf_reference_flip._fsync_path
+        state = {"swapped": False}
+
+        def flaky_rename(source, dest):
+            src, dst = Path(source), Path(dest)
+            if src.name.startswith(".eaf_reference") and dst.name == "eaf_reference" and dst.parent.name == "data.zarr":
+                raise OSError("the staged array could not be renamed into place")
+            real_rename(source, dest)
+            if "replaced" in src.parts and dst.parent.name == "data.zarr":
+                state["swapped"] = True
+
+        def flaky_fsync(path):
+            target = Path(path)
+            if state["swapped"] and target.name == "data.zarr":
+                raise OSError("the directory could not be fsynced")
+            return real_fsync(path)
+
+        with self.fast_runtime(), \
+             mock.patch.object(eaf_reference_flip, "_rename", side_effect=flaky_rename), \
+             mock.patch.object(eaf_reference_flip, "_fsync_path", side_effect=flaky_fsync):
+            code, out, err = run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("failed_restoration", err)
+        self.assertIn("could not be fsynced", err)
+        record = json.loads(self.record_path().read_text(encoding="utf-8"))
+        self.assertEqual(record["status"], "failed_restoration")
+        # The staged copies and the receipt are still there: nothing was deleted.
+        self.assertTrue((self.store_path / "data.zarr" / ".eaf_reference.flipping").is_dir())
 
 
 def main() -> None:

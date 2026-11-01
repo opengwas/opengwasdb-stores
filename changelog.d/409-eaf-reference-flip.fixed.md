@@ -12,9 +12,12 @@
   staged primary (r > 0.9), and only then swaps — the originals go to
   `replaced/<UTC>-eaf-reference-flip/` and
   `records/eaf-reference-flip.json` records both sha256 sets, the counts and
-  both r values, with per-array progress (`pending`, `moved_aside`, `swapped`,
-  `restored`) fsynced around every rename and `failed_restoration` left in place
-  rather than deleted when a recovery cannot be proven. It refuses a second
+  both r values, with each rename announced in the receipt before it happens
+  (`moving_aside`, `swapping_in`, `restoring`), both parents fsynced by a helper
+  that raises, and `failed_restoration` left in place rather than deleted when a
+  recovery cannot be proven. An existing receipt's refusal describes each array
+  from the filesystem (`original live`, `corrected live`, `live missing,
+  original at <path>`) and suggests clearing it only when nothing moved. It refuses a second
   run, a Ragged, Zarr v2, Observed-Only or non-0.2.0 Store, a top-hit tier
   without `eaf` or `imputed`, a Store without its completion mask, a Store that
   does not read inverted (`r < -0.9` before, `r > 0.9` after), and a runtime

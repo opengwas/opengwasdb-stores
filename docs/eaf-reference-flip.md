@@ -54,14 +54,19 @@ observations.
 5. **The swap.** `store/swap.py`'s two-rename pattern at directory level: the
    original array directory moves to
    `<root>/<id>/replaced/<UTC>-eaf-reference-flip/<group>/<array>`, then the
-   staged directory moves into its name, and the receipt records each array's
-   progress — `pending`, `moved_aside`, `swapped`, `restored` — fsynced before
-   and after every rename. A failure puts every original back and proves it by
-   hashing the live path against the before-hashes; only then are this run's
-   staged copies, the receipt and `replaced/` removed. When even that proof
-   fails, nothing is deleted: the receipt is marked `failed_restoration` and
-   the run names each array, where its original is and what is live, so the
-   evidence outlives the failure.
+   staged directory moves into its name. Every rename is announced in the
+   receipt before it happens (`moving_aside`, `swapping_in`, and `restoring`
+   on the way back) and its outcome written after, with every newly created
+   directory under `replaced/` and both parents of every rename fsynced — by a
+   helper that raises, so a durability failure is never silent. A failure puts
+   every original back and claims `restored` only where the rename, its fsync
+   and the live path's hashes all prove it; only then are this run's staged
+   copies, the receipt and `replaced/` removed. When even that proof fails,
+   nothing is deleted: the receipt is marked `failed_restoration` and the run
+   describes each array from the filesystem — `original live`,
+   `corrected live`, `live missing, original at <path>` — so the evidence
+   outlives the failure. A hash that cannot be read during recovery is a
+   per-array failure, not an escape from the receipt.
 6. **The receipt.** `records/eaf-reference-flip.json`, written `started`
    immediately before the first rename and `complete` after the last: per touched
    array the sha256 of every file before and after, finite/NaN counts, rows
@@ -72,9 +77,17 @@ observations.
 `--dry-run` holds the release lock for its whole span, like apply, and performs
 the guard, staging, verification and the second guard in a scratch directory
 outside the Store, prints the plan and the counts, and writes nothing in the
-Store or its records. A receipt left at `started` with every array `pending`
-still refuses, and says that nothing moved and where the receipt is, so an
-operator can clear it deliberately.
+Store or its records.
+
+An existing receipt always refuses, and the refusal is read from the filesystem
+rather than from the receipt's own `state`, which a kill can leave one
+transition behind: each live array is hashed against the recorded before- and
+corrected-hashes, and each original under `replaced/` against its
+before-hashes. The message states what each array actually is — `original live`,
+`corrected live`, `live missing, original at <path>` — and suggests clearing the
+receipt only when that inspection proves nothing moved; otherwise it says to
+restore first. A receipt that records no hashes at all is described by presence
+only, never as matching.
 
 Nothing else is touched: not `manifest.json`, `index.sqlite`, `overview.html`,
 `analyses.tsv`, not another array, and not `data.zarr/indexed_subsets/hm3/eaf`
