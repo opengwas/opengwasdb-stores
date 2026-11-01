@@ -27,7 +27,7 @@ from typing import Any
 
 from ogstores import paths
 from ogstores.runtime import lock_pin_revisions
-from yardstick import fixture, proc, veeam
+from yardstick import fixture, proc
 from yardstick import result as result_spec
 from yardstick import workload as workload_spec
 
@@ -238,7 +238,10 @@ def run(
             "duration_s": round(elapsed, 1),
             "over_budget": elapsed > budget_s,
             "local_utc_offset_minutes": int(start_local.utcoffset().total_seconds() // 60),
-            "veeam_window": veeam.overlaps_window(start_local, end_local),
+            # The Veeam snapshot no longer covers /data/opengwasdb (2026-11-02, #411), so a run is
+            # never in that window. The field stays because schema 1 requires it: a result measured
+            # before that date keeps the value that was true of it, and the site reads it as history.
+            "veeam_window": False,
             "repetitions": workload["repetitions"],
             "stores": stores,
             "guard_violations": violations,
@@ -265,8 +268,6 @@ def main(argv: list[str] | None = None) -> int:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(out)
-    if result["veeam_window"]:
-        print("warning: the run overlapped the Veeam window (00:00-11:00 local); veeam_window is true", file=sys.stderr)
     if result["guard_violations"]:
         print(f"error: the run wrote beside a Store: {result['guard_violations']}", file=sys.stderr)
         return 3
