@@ -111,3 +111,33 @@ patterns (`float32(1) - float32(0.8)` is `0x3E4CCCCC`, one ulp below
 `float32(0.2)`), and a non-canonical NaN payload (`0x7FC00001`) survives
 bit-exact. The guard reads r = −1.0000 before and +1.0000 after over 599
 comparable variants.
+
+## Applied
+
+**OGS-00014, 2026-11-01** (owner decision, issue #409), tool at stores `f281909b`,
+opengwasdb 0.3.2 (`44f25a96`). Dry run, then apply, both from a clean checkout of that
+commit.
+
+| Array | Finite values flipped |
+| --- | --- |
+| `eaf_reference` (30,380,465 rows; 17,712,408 NaN kept) | 12,668,057 |
+| `indexed_subsets/hm3/eaf_reference` (9,270 NaN kept) | 1,196,198 |
+| `top_hits/p_5e_04/eaf` (imputed rows only) | 601,392 |
+| `top_hits/p_5e_06/eaf` (imputed rows only) | 89,875 |
+| `top_hits/p_5e_08/eaf` (imputed rows only) | 38,890 |
+
+- Guard: r = −0.9958 before, +0.9958 after, n = 4,234 comparable variants (60 bands x 200
+  rows, seed 20261101).
+- Receipt `records/eaf-reference-flip.json`: `complete`, sha256
+  `cbf2d3f8e67e1d1d3ce3a72f6245eeddc0041255c5d9f2534c011ba4813c8a8d`. Originals in
+  `replaced/20261101T215514Z-eaf-reference-flip/`.
+- Read-only checks afterwards: all 84 live files match the receipt's after-hashes;
+  `eaf_reference` against mean observed EAF r = +0.992 (n = 3,980); against UKB
+  ancestry-mixture South America, oriented to the Store's effect allele, r = +0.985
+  (n = 2,217; +0.989 over the 2,112 existing variants); `hm3/eaf_reference` equals the primary at
+  all 1,205,468 variants; every imputed top-hit `eaf` equals `eaf_reference` at its variant; observed
+  top-hit `eaf` (521,290, 2,649,653 and 43,421,771 rows) is bit-identical to the originals.
+- `find -newer` on the Store lists only the five arrays, their parent directories, the receipt
+  and `replaced/`. `release-dry OGS-00014` plans no jobs ("Nothing to be done").
+- The Store was not re-validated by this step. The Release Erratum is in
+  `stores/OGS-00014/release.yaml`.

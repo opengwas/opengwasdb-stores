@@ -41,6 +41,28 @@ notes: |-
   #322); this Store was registered before that change reached this branch. The product counts matrix cells, which here include the imputed cells and the off-panel cells completion left missing, so it is not the number of observed associations.
   The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
   was rebuilt or rewritten by this registry metadata correction.
+
+  Release Erratum (issue #409, 2026-11-01): the imputed cells' reference EAF was the other allele's
+  frequency. The HGDP+1kGP AMR panel's EAF column was inverted (opengwas/opengwasdb-stores#348), and
+  completion read it as the frequency of the panel's effect allele. The Store's eaf_reference array, its
+  copy in the HM3 Indexed Variant Subset, and the eaf of each imputed top-hit row (all three tiers) held
+  1 - the effect-allele frequency. Observed EAF was right: eaf_reference against the mean observed EAF on
+  existing variants read r = -0.996 over 4,234 sampled variants. On the owner decision of 2026-11-01
+  the five arrays were corrected in place, once, with `pixi run eaf-reference-flip OGS-00014` at stores
+  f281909b (opengwasdb 0.3.2): eaf_reference 12,668,057 finite values; indexed_subsets/hm3/eaf_reference
+  1,196,198; top_hits eaf, imputed rows only, 601,392 (p_5e_04), 89,875 (p_5e_06) and 38,890 (p_5e_08).
+  NaN cells and every observed cell are bit-identical to before. The tool refuses unless the guard reads
+  r < -0.9 and swaps each array in after a staged copy checks out. The receipt is
+  /data/opengwasdb/stores/OGS-00014/records/eaf-reference-flip.json, status complete, sha256
+  cbf2d3f8e67e1d1d3ce3a72f6245eeddc0041255c5d9f2534c011ba4813c8a8d. The guard reads r = -0.9958 before
+  and +0.9958 after (n = 4,234). The originals are kept under replaced/20261101T215514Z-eaf-reference-flip/.
+  Read back afterwards: eaf_reference against the mean observed EAF r = +0.992 (n = 3,980), against the UKB
+  ancestry-mixture South America frequency, oriented to the Store's effect allele, r = +0.985 (n = 2,217).
+  Unchanged: z, SE, the observed EAF and the imputed mask, so no association statistic moved, and
+  manifest.json, index.sqlite and the Validation Record were not touched, so the Validation Record
+  still describes the pre-flip Store apart from this correction. The release workflow plans no
+  jobs for the Store. This breaks the rule that a published Store is never rewritten; it is a one-off
+  for a wrong value, not a precedent.
 accepted_at: '2026-10-14T08:39:20Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
