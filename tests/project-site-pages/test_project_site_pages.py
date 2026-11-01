@@ -374,6 +374,120 @@ class TestStorePages(unittest.TestCase):
         self.assertNotIn("github.com", page)
 
 
+class TestStoreYardstick(unittest.TestCase):
+    """A Store page shows its own size and timings, from the newest result that measured it."""
+
+    def setUp(self) -> None:
+        self.entry = store("OGS-00006", "chen-2023",
+                           observed={"n_analyses": 1400, "n_variants": 12086463, "n_associations": 50})
+        self.measured = measured_store("OGS-00006", open=80.0, phewas_rsid=66.5)
+        self.measured["measures"]["bytes_on_disk"] = {
+            "status": "measured", "bytes": 166_600_000_000, "source": "walk",
+        }
+        self.measured["measures"]["peak_rss"] = {
+            "status": "measured", "peak_mb": 512.0, "baseline_mb": 480.0,
+        }
+
+    def page(self, *results: tuple[str, dict]) -> str:
+        return pages.render_store_page(
+            documents(
+                stores=envelope("stores", registry="/data/opengwasdb/stores", stores=[self.entry]),
+                records=results_envelope(*results),
+            ),
+            self.entry,
+        )
+
+    def test_the_section_names_the_result_and_shows_every_measure_with_its_rows(self) -> None:
+        page = self.page(("20261029T110527Z-0.3.0.json",
+                          yardstick_result("2026-10-29T11:05:27Z", [self.measured])))
+
+        self.assertIn("## Size and query performance", page)
+        self.assertIn(
+            "From yardstick result `20261029T110527Z-0.3.0` (workload `w`, opengwasdb 0.3.0),"
+            " started 2026-10-29T11:05:27Z on host.",
+            page,
+        )
+        self.assertIn("| `open` | 80 ms (p95 96 ms) | 3 |", page)
+        self.assertIn("| `phewas_rsid` | 66.5 ms (p95 79.8 ms) | 3 |", page)
+        self.assertIn("| `bytes_on_disk` | 166,600,000,000 bytes (walk) ≈ 166.6 GB | — |", page)
+        self.assertIn("| `peak_rss` | 512 MB peak (baseline 480 MB) | — |", page)
+        self.assertLess(page.index("| `phewas_rsid` |"), page.index("| `bytes_on_disk` |"))
+        self.assertLess(page.index("| `bytes_on_disk` |"), page.index("| `peak_rss` |"))
+        self.assertIn("[the trends page](../trends.html)", page)
+
+    def test_the_newest_result_that_measured_the_store_is_the_one_shown(self) -> None:
+        older = measured_store("OGS-00006", open=40.0)
+        newer = measured_store("OGS-00006", open=80.0)
+
+        page = self.page(
+            ("20261029T110403Z-0.3.0.json", yardstick_result("2026-10-29T11:04:03Z", [older])),
+            ("20261029T110527Z-0.3.0.json", yardstick_result("2026-10-29T11:05:27Z", [newer])),
+        )
+
+        self.assertIn("`20261029T110527Z-0.3.0`", page)
+        self.assertIn("80 ms", page)
+        self.assertNotIn("40 ms", page)
+        self.assertNotIn("20261029T110403Z-0.3.0", page)
+
+    def test_a_store_the_newest_result_lists_as_pending_says_so_with_the_reason(self) -> None:
+        pending = {"store_id": "OGS-00006", "layout": "dense", "coverage": "gwas", "status": "pending",
+                   "reason": "its live store.opengwasdb.partial belongs to the rebuild run (epic 332)"}
+
+        page = self.page(("20261029T110527Z-0.3.0.json",
+                          yardstick_result("2026-10-29T11:05:27Z", [pending])))
+
+        self.assertIn(
+            "The yardstick lists this Store as pending: its live store.opengwasdb.partial belongs to the"
+            " rebuild run (epic 332).",
+            page,
+        )
+
+    def test_no_result_naming_the_store_says_so(self) -> None:
+        elsewhere = measured_store("OGS-00009", open=80.0)
+
+        for results in ((), (("20261029T110527Z-0.3.0.json",
+                              yardstick_result("2026-10-29T11:05:27Z", [elsewhere])),)):
+            with self.subTest(results=len(results)):
+                page = self.page(*results)
+
+                self.assertIn("No yardstick result measures this Store.", page)
+
+    def test_records_unavailable_is_a_sentence_and_the_page_still_renders(self) -> None:
+        broken = documents(
+            stores=envelope("stores", registry="/data/opengwasdb/stores", stores=[self.entry]),
+            records={"source": "records", "available": False, "collected_at": COLLECTED,
+                     "error": "CollectError: gh api graphql exited 4"},
+        )
+        for documents_ in (broken, {**broken, "records": None}):
+            with self.subTest(records_available=False):
+                page = pages.render_store_page(documents_, self.entry)
+
+                self.assertIn("## Size and query performance", page)
+                self.assertIn(
+                    "No yardstick figure can be shown while the Records data is unavailable.", page
+                )
+                self.assertIn("## Observed counts", page)
+                self.assertIn("## In the Analysis Catalog", page)
+
+    def test_a_result_from_the_veeam_window_says_its_timings_are_not_comparable(self) -> None:
+        in_window = yardstick_result("2026-10-29T11:05:27Z", [self.measured], veeam_window=True)
+        outside = yardstick_result("2026-10-29T11:05:27Z", [self.measured])
+
+        page_in_window = self.page(("20261029T110527Z-0.3.0.json", in_window))
+        page_outside = self.page(("20261029T110527Z-0.3.0.json", outside))
+
+        self.assertIn("It ran in the Veeam backup window, so its timings are not comparable.", page_in_window)
+        self.assertNotIn("Veeam", page_outside)
+
+    def test_an_unavailable_measure_says_why(self) -> None:
+        self.measured["measures"]["region"] = {"status": "unavailable", "error": "OSError: no such region file"}
+
+        page = self.page(("20261029T110527Z-0.3.0.json",
+                          yardstick_result("2026-10-29T11:05:27Z", [self.measured])))
+
+        self.assertIn("| `region` | unavailable (OSError: no such region file) | — |", page)
+
+
 def measured_store(store_id: str, **medians: float) -> dict:
     """A measured Store of a yardstick result, with one timed record per measure given."""
     return {

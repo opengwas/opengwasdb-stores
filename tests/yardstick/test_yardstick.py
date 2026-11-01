@@ -106,14 +106,16 @@ class WorkloadFileTest(unittest.TestCase):
                 ("OGS-00009", "dense", "measured"),
                 ("OGS-00027", "ragged", "measured"),
                 ("OGS-00006", "ragged", "measured"),
-                ("OGS-00011", "hybrid", "pending"),
+                ("OGS-00011", "hybrid", "measured"),
             ],
         )
 
-    def test_hm3_is_measured_only_on_the_dense_store(self) -> None:
+    def test_hm3_is_measured_only_on_the_stores_that_have_it(self) -> None:
         by_id = {s["store_id"]: s for s in workload_spec.load()["stores"]}
         self.assertIn("analysis_hm3", by_id["OGS-00009"]["measures"])
+        self.assertIn("analysis_hm3", by_id["OGS-00011"]["measures"])
         self.assertNotIn("analysis_hm3", by_id["OGS-00027"]["measures"])
+        self.assertNotIn("analysis_hm3", by_id["OGS-00006"]["measures"])
 
     def test_unknown_measure_is_refused(self) -> None:
         bad = copy.deepcopy(workload_spec.load())
@@ -123,7 +125,7 @@ class WorkloadFileTest(unittest.TestCase):
 
     def test_pending_store_with_measures_is_refused(self) -> None:
         bad = copy.deepcopy(workload_spec.load())
-        bad["stores"][3]["measures"] = ["open"]
+        bad["stores"][3] = {**PENDING, "measures": ["open"]}
         with self.assertRaisesRegex(workload_spec.WorkloadError, "OGS-00011"):
             workload_spec.check(bad)
 

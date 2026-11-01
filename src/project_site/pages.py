@@ -1154,7 +1154,7 @@ OBSERVED_LABELS = {
 def render_store_page(
     documents: Mapping[str, Document | None], entry: Mapping[str, Any], *, commit: str | None = None
 ) -> str:
-    """One registered Store Release: its lifecycle, its counts, its catalog presence and its notes."""
+    """One registered Store Release: its lifecycle, its counts, its figures, its catalog presence and its notes."""
     store_id = str(entry.get("store_id") or "?")
     label = entry.get("label")
     title = f"{store_id} — {label}" if label else store_id
@@ -1164,6 +1164,7 @@ def render_store_page(
     lines += _store_lifecycle(entry)
     lines += _store_layout(entry)
     lines += _store_counts(entry)
+    lines += _store_yardstick(documents, store_id)
     lines += _store_catalog(documents, store_id)
     lines += _store_notes(entry)
     lines += _store_bundle(store_id, commit)
@@ -1227,6 +1228,68 @@ def _store_counts(entry: Mapping[str, Any]) -> list[str]:
         lines.append(f"| {name} (`{field}`) | {_figure(value) if value is not None else _cell(None)} |")
     lines.append("")
     return lines
+
+
+# The measures a Store's own table lists, in the order the workload runs them.
+STORE_MEASURES = (*TIMED_MEASURES, "bytes_on_disk", "peak_rss")
+
+
+def _store_yardstick(documents: Mapping[str, Document | None], store_id: str) -> list[str]:
+    """This Store Release's size and query timings, from the newest result that measured it."""
+    lines = ["## Size and query performance", ""]
+    if available(documents, "records") is None:
+        return lines + ["No yardstick figure can be shown while the Records data is unavailable.", ""]
+    results = yardstick_results(documents)
+    chosen = None
+    for entry in reversed(results):
+        record = _result_store(entry["result"], store_id)
+        if record is not None and record.get("status") == "measured":
+            chosen = (entry, record)
+            break
+    if chosen is None:
+        newest = _result_store(results[-1]["result"], store_id) if results else None
+        if newest is not None and newest.get("status") == "pending":
+            reason = _cell(newest.get("reason"))
+            return lines + [f"The yardstick lists this Store as pending: {reason}.", ""]
+        return lines + ["No yardstick result measures this Store.", ""]
+    entry, record = chosen
+    result = entry["result"]
+    lines.append(
+        f"From yardstick result {_code(result_name(entry))}"
+        f" (workload {_code(workload_id(result))}, opengwasdb {_cell((result.get('opengwasdb') or {}).get('version'))}),"
+        f" started {_cell(result.get('started_utc'))} on {_cell((result.get('host') or {}).get('name'))}."
+    )
+    if result.get("veeam_window") is True:
+        lines.append("It ran in the Veeam backup window, so its timings are not comparable.")
+    lines.append("")
+    measures = measures_of(record)
+    rows = [(measure, measures.get(measure)) for measure in STORE_MEASURES if measures.get(measure) is not None]
+    if not rows:
+        return lines + ["It reports no measure for this Store Release.", ""]
+    lines += ["| Measure | Value | Rows |", "| --- | --- | --- |"]
+    for measure, values in rows:
+        value = measure_value(values)
+        if measure == "bytes_on_disk" and values.get("bytes") is not None:
+            value += f" ≈ {values['bytes'] / 1e9:.1f} GB"
+        count = _figure(values["result_count"]) if "result_count" in values else "—"
+        lines.append(f"| `{measure}` | {value} | {count} |")
+    lines += [
+        "",
+        "A timed value is the median of the warm reads with its p95 beside it, `bytes_on_disk` is the",
+        "apparent bytes of the Store and `peak_rss` the memory of one `analysis_full` read: the",
+        "definitions are in `docs/spec/yardstick.md`, and [the trends page](../trends.html) holds every",
+        "result.",
+        "",
+    ]
+    return lines
+
+
+def _result_store(result: Mapping[str, Any], store_id: str) -> Mapping[str, Any] | None:
+    """One result's record for a Store, whatever status it gives it."""
+    for store in result.get("stores") or []:
+        if isinstance(store, Mapping) and str(store.get("store_id") or "") == store_id:
+            return store
+    return None
 
 
 def _store_catalog(documents: Mapping[str, Document | None], store_id: str) -> list[str]:

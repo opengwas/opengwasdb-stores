@@ -7,7 +7,7 @@
 # Changing this file changes what every later result means: bump `workload_id`
 # and say why in docs/spec/yardstick.md.
 schema: 1
-workload_id: yardstick-1
+workload_id: yardstick-2
 # Warm repetitions behind each median. `analysis_full` is lower because one
 # full extraction of an OGS-00009 Analysis reads ~9.9 million rows.
 repetitions:
@@ -56,5 +56,14 @@ stores:
   - store_id: OGS-00011
     layout: hybrid
     coverage: gwas
-    status: pending
-    reason: its live store.opengwasdb.partial belongs to the rebuild run (epic #371); add it once that Store is published and stable
+    status: measured
+    note: Hybrid, Reference-Completed, with an hm3 Indexed Variant Subset on its Dense Component
+    # Row 100,000 is a panel variant on the Dense axis (3,152 Analyses); row
+    # 300,000 is an off-panel variant in the Overflow (30 Analyses), so the two
+    # PheWAS lookups read one component each.
+    rsid: rs778601667
+    alid: "1:4970144:A:G"
+    position: {chromosome: "1", position: 15852049}
+    analysis_id: GCST000998
+    region: {chromosome: "1", start: 15352049, end: 16352049}
+    measures: [open, phewas_rsid, phewas_alid, phewas_position, analysis_full, analysis_hm3, region, bytes_on_disk, peak_rss]

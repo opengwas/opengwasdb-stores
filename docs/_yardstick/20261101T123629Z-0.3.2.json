@@ -1,0 +1,374 @@
+{
+  "schema": 1,
+  "workload_id": "yardstick-2",
+  "workload_sha256": "6639acf042e76b7ccdcced08a58eafdeee230d7f8a771c6656dc7c1f907b6ce3",
+  "opengwasdb": {
+    "version": "0.3.2",
+    "revision": "44f25a96fb43044a983e300a038a54ab1930e782"
+  },
+  "ogstores": {
+    "version": "0.4.1.dev0+g9d3e76ccb568e1e88612c329a9632bb80ce7979a.d20261101",
+    "commit": "01afa118a8b66d75ed8e3aa7e56b4c874f1e0e69",
+    "dirty": false
+  },
+  "host": {
+    "name": "app-dc3-ogws-p0.services.bris.ac.uk",
+    "cpu_count": 224
+  },
+  "load_average": {
+    "before": [
+      6.01,
+      5.09,
+      2.98
+    ],
+    "after": [
+      3.78,
+      5.03,
+      3.54
+    ]
+  },
+  "started_utc": "2026-11-01T12:36:29Z",
+  "ended_utc": "2026-11-01T12:40:50Z",
+  "duration_s": 261.0,
+  "over_budget": false,
+  "local_utc_offset_minutes": 0,
+  "veeam_window": false,
+  "repetitions": {
+    "default": 5,
+    "analysis_full": 3
+  },
+  "stores": [
+    {
+      "store_id": "OGS-00009",
+      "layout": "dense",
+      "coverage": "gwas",
+      "status": "measured",
+      "measures": {
+        "open": {
+          "status": "measured",
+          "first_read_ms": 186.437,
+          "median_ms": 163.298,
+          "p95_ms": 186.74,
+          "reps": 5
+        },
+        "phewas_rsid": {
+          "status": "measured",
+          "first_read_ms": 120.892,
+          "median_ms": 75.301,
+          "p95_ms": 77.075,
+          "reps": 5,
+          "result_count": 2514,
+          "first_result_count": 2514
+        },
+        "phewas_alid": {
+          "status": "measured",
+          "first_read_ms": 82.597,
+          "median_ms": 76.12,
+          "p95_ms": 78.252,
+          "reps": 5,
+          "result_count": 350,
+          "first_result_count": 350
+        },
+        "phewas_position": {
+          "status": "measured",
+          "first_read_ms": 81.267,
+          "median_ms": 77.067,
+          "p95_ms": 77.944,
+          "reps": 5,
+          "result_count": 2514,
+          "first_result_count": 2514
+        },
+        "analysis_full": {
+          "status": "measured",
+          "first_read_ms": 12741.283,
+          "median_ms": 8758.444,
+          "p95_ms": 10381.125,
+          "reps": 3,
+          "result_count": 9912269,
+          "first_result_count": 9912269
+        },
+        "analysis_hm3": {
+          "subset": "hm3",
+          "detail": "",
+          "analysis_id": "ukb-b-10001",
+          "status": "measured",
+          "first_read_ms": 425.801,
+          "median_ms": 445.98,
+          "p95_ms": 488.595,
+          "reps": 5,
+          "result_count": 1189911,
+          "warm_result_count": 1189911,
+          "subset_n_variants": 1206088,
+          "subset_n_analyses": 2514,
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1206088,
+          "subset_absent_count": 815,
+          "subset_reference_assembly": "hg38",
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"
+        },
+        "region": {
+          "status": "measured",
+          "first_read_ms": 2470.755,
+          "median_ms": 2724.137,
+          "p95_ms": 2755.175,
+          "reps": 5,
+          "result_count": 11366579,
+          "first_result_count": 11366579
+        },
+        "bytes_on_disk": {
+          "status": "measured",
+          "bytes": 61882085184,
+          "source": "walk"
+        },
+        "peak_rss": {
+          "status": "measured",
+          "baseline_mb": 172.3,
+          "peak_mb": 1231.0,
+          "delta_mb": 1058.7,
+          "result_count": 9912269
+        }
+      }
+    },
+    {
+      "store_id": "OGS-00027",
+      "layout": "ragged",
+      "coverage": "cis",
+      "status": "measured",
+      "measures": {
+        "open": {
+          "status": "measured",
+          "first_read_ms": 285.993,
+          "median_ms": 242.088,
+          "p95_ms": 272.823,
+          "reps": 5
+        },
+        "phewas_rsid": {
+          "status": "measured",
+          "first_read_ms": 40.49,
+          "median_ms": 21.045,
+          "p95_ms": 23.557,
+          "reps": 5,
+          "result_count": 16,
+          "first_result_count": 16
+        },
+        "phewas_alid": {
+          "status": "measured",
+          "first_read_ms": 22.668,
+          "median_ms": 21.9,
+          "p95_ms": 22.497,
+          "reps": 5,
+          "result_count": 23,
+          "first_result_count": 23
+        },
+        "phewas_position": {
+          "status": "measured",
+          "first_read_ms": 26.772,
+          "median_ms": 26.873,
+          "p95_ms": 27.26,
+          "reps": 5,
+          "result_count": 16,
+          "first_result_count": 16
+        },
+        "analysis_full": {
+          "status": "measured",
+          "first_read_ms": 28.583,
+          "median_ms": 25.39,
+          "p95_ms": 26.359,
+          "reps": 3,
+          "result_count": 7533,
+          "first_result_count": 7533
+        },
+        "region": {
+          "status": "measured",
+          "first_read_ms": 97.629,
+          "median_ms": 68.466,
+          "p95_ms": 76.061,
+          "reps": 5,
+          "result_count": 41790,
+          "first_result_count": 41790
+        },
+        "bytes_on_disk": {
+          "status": "measured",
+          "bytes": 2632390381,
+          "source": "walk"
+        },
+        "peak_rss": {
+          "status": "measured",
+          "baseline_mb": 220.8,
+          "peak_mb": 228.9,
+          "delta_mb": 8.1,
+          "result_count": 7533
+        }
+      }
+    },
+    {
+      "store_id": "OGS-00006",
+      "layout": "ragged",
+      "coverage": "signals_only",
+      "status": "measured",
+      "measures": {
+        "open": {
+          "status": "measured",
+          "first_read_ms": 119.729,
+          "median_ms": 107.731,
+          "p95_ms": 110.773,
+          "reps": 5
+        },
+        "phewas_rsid": {
+          "status": "measured",
+          "first_read_ms": 41.331,
+          "median_ms": 18.582,
+          "p95_ms": 19.953,
+          "reps": 5,
+          "result_count": 4,
+          "first_result_count": 4
+        },
+        "phewas_alid": {
+          "status": "measured",
+          "first_read_ms": 19.365,
+          "median_ms": 18.709,
+          "p95_ms": 19.193,
+          "reps": 5,
+          "result_count": 3,
+          "first_result_count": 3
+        },
+        "phewas_position": {
+          "status": "measured",
+          "first_read_ms": 20.374,
+          "median_ms": 19.859,
+          "p95_ms": 20.454,
+          "reps": 5,
+          "result_count": 4,
+          "first_result_count": 4
+        },
+        "analysis_full": {
+          "status": "measured",
+          "first_read_ms": 90.698,
+          "median_ms": 73.707,
+          "p95_ms": 79.19,
+          "reps": 3,
+          "result_count": 77819,
+          "first_result_count": 77819
+        },
+        "region": {
+          "status": "measured",
+          "first_read_ms": 47.479,
+          "median_ms": 45.758,
+          "p95_ms": 49.99,
+          "reps": 5,
+          "result_count": 24784,
+          "first_result_count": 24784
+        },
+        "bytes_on_disk": {
+          "status": "measured",
+          "bytes": 1497874236,
+          "source": "walk"
+        },
+        "peak_rss": {
+          "status": "measured",
+          "baseline_mb": 167.9,
+          "peak_mb": 210.5,
+          "delta_mb": 42.6,
+          "result_count": 77819
+        }
+      }
+    },
+    {
+      "store_id": "OGS-00011",
+      "layout": "hybrid",
+      "coverage": "gwas",
+      "status": "measured",
+      "measures": {
+        "open": {
+          "status": "measured",
+          "first_read_ms": 268.148,
+          "median_ms": 191.611,
+          "p95_ms": 227.341,
+          "reps": 5
+        },
+        "phewas_rsid": {
+          "status": "measured",
+          "first_read_ms": 106.711,
+          "median_ms": 35.235,
+          "p95_ms": 44.109,
+          "reps": 5,
+          "result_count": 30,
+          "first_result_count": 30
+        },
+        "phewas_alid": {
+          "status": "measured",
+          "first_read_ms": 165.962,
+          "median_ms": 99.54,
+          "p95_ms": 144.599,
+          "reps": 5,
+          "result_count": 3152,
+          "first_result_count": 3152
+        },
+        "phewas_position": {
+          "status": "measured",
+          "first_read_ms": 36.246,
+          "median_ms": 34.795,
+          "p95_ms": 34.981,
+          "reps": 5,
+          "result_count": 30,
+          "first_result_count": 30
+        },
+        "analysis_full": {
+          "status": "measured",
+          "first_read_ms": 32491.43,
+          "median_ms": 23475.166,
+          "p95_ms": 24305.888,
+          "reps": 3,
+          "result_count": 9826754,
+          "first_result_count": 9826754
+        },
+        "analysis_hm3": {
+          "subset": "hm3",
+          "detail": "",
+          "analysis_id": "GCST000998",
+          "status": "measured",
+          "first_read_ms": 850.505,
+          "median_ms": 903.546,
+          "p95_ms": 934.559,
+          "reps": 5,
+          "result_count": 1189670,
+          "warm_result_count": 1189670,
+          "subset_n_variants": 1195931,
+          "subset_n_analyses": 3169,
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1195931,
+          "subset_absent_count": 152,
+          "subset_reference_assembly": "hg38",
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"
+        },
+        "region": {
+          "status": "measured",
+          "first_read_ms": 4900.818,
+          "median_ms": 4731.611,
+          "p95_ms": 5632.716,
+          "reps": 5,
+          "result_count": 12813313,
+          "first_result_count": 12813313
+        },
+        "bytes_on_disk": {
+          "status": "measured",
+          "bytes": 166555414528,
+          "source": "walk"
+        },
+        "peak_rss": {
+          "status": "measured",
+          "baseline_mb": 259.6,
+          "peak_mb": 1517.0,
+          "delta_mb": 1257.4,
+          "result_count": 9826754
+        }
+      }
+    }
+  ],
+  "guard_violations": [],
+  "fixture_build": {
+    "status": "measured",
+    "layout": "dense",
+    "seconds": 3.17
+  }
+}

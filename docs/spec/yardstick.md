@@ -25,7 +25,14 @@ result means, so a change bumps `workload_id`, and this section says why.
 | OGS-00009 | Dense | gwas, Reference-Completed, with `hm3` | measured |
 | OGS-00027 | Ragged | cis | measured |
 | OGS-00006 | Ragged | signals_only | measured |
-| OGS-00011 | Hybrid | gwas | pending: its live `store.opengwasdb.partial` belongs to the rebuild run (#371) |
+| OGS-00011 | Hybrid | gwas, Reference-Completed, with `hm3` | measured |
+
+`yardstick-2` measures OGS-00011, which `yardstick-1` listed as pending while
+its rebuild and completion ran (#371). It was added on 2026-11-01, once the
+completed Store was published (#401). Its PheWAS ALID (row 100,000) is a panel
+variant on the Dense axis, and its rsid and position (row 300,000) are an
+off-panel variant in the Overflow, so the lookups read one component each. The
+other three Stores' entries are unchanged.
 
 Measures (a Store lists the ones that apply to it):
 
@@ -36,7 +43,7 @@ Measures (a Store lists the ones that apply to it):
 | `phewas_alid` | `phewas(alid)` |
 | `phewas_position` | `range_phewas(chromosome, position, position)` |
 | `analysis_full` | `analysis(analysis_id)`, every variant of one Analysis |
-| `analysis_hm3` | `analysis(analysis_id, indexed_subset="hm3")`, only where the Store has `hm3` (Dense); the record shape of opengwasdb's `measure_hm3_extract` |
+| `analysis_hm3` | `analysis(analysis_id, indexed_subset="hm3")`, only where the Store has `hm3` (a Dense Store, or a Hybrid's Dense Component); the record shape of opengwasdb's `measure_hm3_extract` |
 | `region` | `range_phewas` over a fixed 1 Mb window |
 | `bytes_on_disk` | apparent bytes of every file under `store.opengwasdb`, from one walk (`du -sb`); the walk of the 62 GB OGS-00009 takes under a second, so the manifest figure is never needed |
 | `peak_rss` | one `analysis_full` read in a fresh interpreter, RSS sampled every 5 ms from `/proc/self/statm` (the method of opengwasdb's `benchmarks/_rss.py` at the pinned revision, copied into `yardstick.measure` because that module is not importable) |
