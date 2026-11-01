@@ -90,3 +90,11 @@ gate, becomes **Rehearsal Run**, so that no Preflight builds anything.
   history; they are not rewritten.
 - **Earlier ADRs say "Release Manifest" for the whole bundle** (ADRs 0002 and
   0003). Read those uses as "Release Bundle"; their decisions are unchanged.
+- **Amended by #253 (1 Nov 2026): both workflows share one engine identity.**
+  Manifest Generation may import `ogstores.engine` beside the contract and the
+  registry layout (`tests/packaging/test_boundary.py`). Its resolve stage and
+  Store Release Build's guard refuse an `opengwasdb` other than the commit
+  `pixi.lock` resolves, with the same check and the same words, so the two
+  workflows cannot run under different engines without saying so. The module
+  knows nothing of either workflow: it reads an executable's install and the
+  lock. The Analysis Catalog's surface is unchanged.

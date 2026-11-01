@@ -51,7 +51,7 @@ from typing import Any, Mapping
 
 import yaml
 
-from ogstores import bundle, paths, run
+from ogstores import bundle, engine, paths, run
 from ogstores.bundle import Bundle
 from ogstores.plan import (
     BUILD_PHASE,
@@ -421,6 +421,36 @@ _CANDIDATE_RUN_FIELDS: frozenset[str] = frozenset(
 )
 
 
+def _resolver_engine(build_environment: Any) -> dict[str, Any] | None:
+    """The engine a candidate's Analyses were resolved with, from its `build_environment`.
+
+    A candidate record's `build_environment` is the resolver's own identity
+    (Manifest Generation writes the commit its `index.json` names). It survives
+    acceptance as `resolver_engine` so a build can say when it ran another
+    engine (#253); a record naming no commit gives none rather than a guess.
+    """
+    if not isinstance(build_environment, Mapping):
+        return None
+    commit = build_environment.get("opengwasdb_commit")
+    if not engine.is_exact_commit_hash(commit):
+        return None
+    return {"opengwasdb_commit": commit, "opengwasdb_version": build_environment.get("opengwasdb_version")}
+
+
+def resolver_mismatch(acceptance: Mapping[str, Any] | None, ran: engine.EngineIdentity) -> str | None:
+    """A warning when the phase ran another engine than resolved its Analyses, else None."""
+    resolver = acceptance.get("resolver_engine") if isinstance(acceptance, Mapping) else None
+    if not isinstance(resolver, Mapping) or not ran.is_provable():
+        return None
+    if resolver.get("opengwasdb_commit") == ran.commit:
+        return None
+    return (
+        f"built with opengwasdb {ran.version} ({ran.commit}), but its Analyses were resolved "
+        f"with opengwasdb {resolver.get('opengwasdb_version')} ({resolver.get('opengwasdb_commit')}); "
+        "regenerate the candidate under this engine if the resolver changed between them"
+    )
+
+
 def acceptance_evidence(
     previous: Mapping[str, Any] | None, *, commit: str | None = None
 ) -> dict[str, Any] | None:
@@ -453,6 +483,9 @@ def acceptance_evidence(
             if key not in _CANDIDATE_RUN_FIELDS
         }
         dating = {"recorded_at": previous.get("validated_at"), "commit": commit}
+        resolver = _resolver_engine(previous.get("build_environment"))
+        if resolver is not None:
+            dating["resolver_engine"] = resolver
         clash = sorted(dating.keys() & evidence.keys())
         if clash:
             raise RegisterError(
@@ -1110,6 +1143,41 @@ def _unused_stamp(store_id: str, root: Path) -> str:
     return candidate
 
 
+def phase_engine(
+    store_id: str, planned_steps: list[Step], step_records: Mapping[str, Mapping[str, Any]]
+) -> engine.EngineIdentity:
+    """The one engine a phase's steps ran, read from their records (#253).
+
+    The Store-producing step's record names it: commit, version and executable
+    all come from the executable that ran, never from whichever `opengwasdb` is
+    on PATH when register runs. Records naming two different commits mean the
+    phase was built under two engines, and register refuses rather than record
+    either one as the release's.
+    """
+    commits = {
+        name: str(rec.get("opengwasdb_rev"))
+        for name, rec in step_records.items()
+        if engine.is_exact_commit_hash(rec.get("opengwasdb_rev"))
+    }
+    if len(set(commits.values())) > 1:
+        ran = "; ".join(f"{name}: {commit}" for name, commit in sorted(commits.items()))
+        raise RegisterError(
+            f"Cannot register release {store_id}: its steps ran under more than one "
+            f"opengwasdb commit ({ran}). Re-run the phase under one engine."
+        )
+    producing = [s.name for s in planned_steps if run.is_store_producing_step(s)]
+    named = producing + sorted(commits)
+    for name in named:
+        rec = step_records.get(name)
+        if rec is not None and engine.is_exact_commit_hash(rec.get("opengwasdb_rev")):
+            return engine.EngineIdentity(
+                executable=str(rec.get("opengwasdb_executable", engine.UNAVAILABLE)),
+                commit=str(rec["opengwasdb_rev"]),
+                version=str(rec.get("opengwasdb_version", engine.UNAVAILABLE)),
+            )
+    return engine.EngineIdentity(engine.UNAVAILABLE, engine.UNAVAILABLE, engine.UNAVAILABLE)
+
+
 def register_release(
     bundle_input: Bundle | str,
     *,
@@ -1235,9 +1303,14 @@ def register_release(
     # 3. Assemble validation.yaml dictionary
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
-    ogdb_exe = run.get_opengwasdb_executable()
-    ogdb_rev = run.get_opengwasdb_revision(executable=ogdb_exe)
-    ogdb_ver = run.get_opengwasdb_version()
+    ran = phase_engine(store_id, planned_steps, step_records)
+    ogdb_exe, ogdb_rev, ogdb_ver = ran.executable, ran.commit, ran.version
+    store_status = val_status  # `checks.store` is validate's own verdict
+    engine_warning = resolver_mismatch(acceptance, ran)
+    if engine_warning is not None:
+        val_warnings = [*val_warnings, engine_warning]
+        if val_status == "passed":
+            val_status = "passed_with_warnings"
 
     # Only this run's findings. The bundle's previous validation.yaml is
     # replaced, never merged: its checks, warnings, errors and reports describe
@@ -1258,7 +1331,7 @@ def register_release(
             "platform": platform.platform(),
         },
         "observed": observed,
-        "checks": {"store": val_status},
+        "checks": {"store": store_status},
         "warnings": val_warnings,
         "errors": val_errors,
     }

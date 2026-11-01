@@ -1747,6 +1747,54 @@ class TestResumingAnInterruptedCompletion(unittest.TestCase):
         self.assertTrue(self.checkpoint.is_dir())
         record_check()
 
+    def as_engine(self, commit: str) -> None:
+        """Give the fake `opengwasdb` an install that records `commit`, as a real one does."""
+        dist = self.root / "opengwasdb-9.9.9.dist-info"
+        dist.mkdir(exist_ok=True)
+        (dist / "direct_url.json").write_text(json.dumps({"vcs_info": {"commit_id": commit}}), encoding="utf-8")
+
+    def test_a_checkpoint_resumes_under_the_engine_that_started_it(self) -> None:
+        self.as_engine("a" * 40)
+        step = self.complete("--min-cor", "0.5")
+        self.interrupted(started_by=step)
+
+        execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertEqual(self.called(), ["complete-dense-resume", str(self.checkpoint)])
+        record_check()
+
+    def test_a_checkpoint_another_engine_started_is_refused_naming_both(self) -> None:
+        """An engine update between the interruption and the resume: nothing runs (#253)."""
+        self.as_engine("a" * 40)
+        step = self.complete("--min-cor", "0.5")
+        self.interrupted(started_by=step)
+        self.as_engine("b" * 40)
+
+        with self.assertRaises(ValueError) as ctx:
+            execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertIn("a" * 40, str(ctx.exception))
+        self.assertIn("b" * 40, str(ctx.exception))
+        self.assertIsNone(self.called(), "nothing ran")
+        self.assertTrue(self.checkpoint.is_dir())
+        record_check()
+
+    def test_a_checkpoint_whose_start_names_no_engine_is_refused(self) -> None:
+        """A start record written before the engine was recorded cannot prove which one made the checkpoint."""
+        step = self.complete("--min-cor", "0.5")
+        self.interrupted(started_by=step)
+        started = paths.completion_start_path(self.STORE_ID, root=self.root)
+        record = json.loads(started.read_text(encoding="utf-8"))
+        record.pop("opengwasdb_rev", None)
+        started.write_text(json.dumps(record), encoding="utf-8")
+
+        with self.assertRaises(ValueError) as ctx:
+            execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertIn("--config force=1", str(ctx.exception))
+        self.assertIsNone(self.called(), "nothing ran")
+        record_check()
+
     def test_an_unforced_run_never_discards_a_checkpoint(self) -> None:
         """A planned `--overwrite`, which would discard the checkpoint, still resumes it or is refused."""
         step = self.complete("--overwrite")
@@ -1790,6 +1838,39 @@ class TestProvenanceAndSequentialPlan(unittest.TestCase):
         # Fallback to unavailable if executable has no valid commit SHA
         (fake_dist_dir / "direct_url.json").write_text(json.dumps({"vcs_info": {"commit_id": "invalid-sha"}}))
         self.assertEqual(get_opengwasdb_revision(executable=str(fake_exe)), "unavailable")
+        record_check()
+
+    def test_step_record_names_the_version_of_the_executable_that_ran(self) -> None:
+        """A step record's commit and version both come from the executable it ran (#253).
+
+        The fake engine records version 9.9.9, which no real install carries, so
+        a version read from the interpreter running this test cannot match.
+        """
+        fake_env_dir = self.root / "fake_engine"
+        fake_bin_dir = fake_env_dir / "bin"
+        fake_bin_dir.mkdir(parents=True)
+        fake_exe = fake_bin_dir / "opengwasdb"
+        fake_exe.write_text(f"#!/bin/sh\nmkdir -p \"$2\"\n", encoding="utf-8")
+        fake_exe.chmod(0o755)
+        fake_dist_dir = fake_env_dir / "lib" / "python3.12" / "site-packages" / "opengwasdb-9.9.9.dist-info"
+        fake_dist_dir.mkdir(parents=True)
+        expected_sha = "1111222233334444555566667777888899990000"
+        (fake_dist_dir / "direct_url.json").write_text(json.dumps({"vcs_info": {"commit_id": expected_sha}}))
+        (fake_dist_dir / "METADATA").write_text("Metadata-Version: 2.1\nName: opengwasdb\nVersion: 9.9.9\n")
+        self.assertNotEqual(get_opengwasdb_version(), "9.9.9", "the fixture must differ from the ambient engine")
+        record_check()
+
+        target_store = paths.store_path(self.store_id, root=self.root)
+        step = Step(
+            name="build",
+            argv=[str(fake_exe), "build-dense", str(target_store)],
+            inputs=[],
+            outputs=[target_store],
+        )
+        res = execute_step(step, store_id=self.store_id, artifact_root=self.root, publish=False, check=True)
+
+        self.assertTrue(res.success, res.stderr)
+        self.assertEqual((res.opengwasdb_rev, res.opengwasdb_version), (expected_sha, "9.9.9"))
         record_check()
 
     def test_exact_commit_provenance_and_executable_resolution(self) -> None:

@@ -70,7 +70,6 @@ from __future__ import annotations
 
 import datetime
 import difflib
-import glob
 import json
 import os
 import re
@@ -84,7 +83,7 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
-from ogstores import paths
+from ogstores import engine, paths
 from ogstores.bundle import (
     INDEXED_SUBSET_STEP_PREFIX,
     STORE_PRODUCING_STEPS,
@@ -119,8 +118,8 @@ VALID_STEP_NAMES: frozenset[str] = frozenset({
     *REGISTER_STEPS.values(),
     "unknown",
 })
-UNAVAILABLE: str = "unavailable"
-_HEX_40_OR_64: re.Pattern[str] = re.compile(r"\A(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{64})\Z")
+UNAVAILABLE: str = engine.UNAVAILABLE
+is_exact_commit_hash = engine.is_exact_commit_hash
 
 # Bootstrap for the isolated-group supervisor (ogstores._pdeath_supervisor),
 # which imports `ogstores` from the environment it is installed in (#257).
@@ -260,148 +259,28 @@ def validate_step_name(name: str) -> str:
     )
 
 
-def is_exact_commit_hash(s: str | None) -> bool:
-    """Return True if s is an exact 40-character or 64-character hex commit SHA."""
-    return bool(isinstance(s, str) and _HEX_40_OR_64.fullmatch(s.strip()))
-
-
 def get_opengwasdb_executable(cmd: str = "opengwasdb", env: Mapping[str, str] | None = None) -> str:
     """Return the absolute path of the opengwasdb executable or 'unavailable'."""
-    path_val = env.get("PATH") if env is not None else None
-    resolved = shutil.which(cmd, path=path_val)
-    if resolved:
-        return str(Path(resolved).resolve())
-    cmd_p = Path(cmd)
-    if cmd_p.is_file():
-        return str(cmd_p.resolve())
-    return UNAVAILABLE
-
-
-def _extract_commit_from_direct_url_file(direct_url_p: Path) -> str | None:
-    """Extract and validate commit hash from a direct_url.json file."""
-    try:
-        if direct_url_p.is_file():
-            data = json.loads(direct_url_p.read_text(encoding="utf-8"))
-            vcs_info = data.get("vcs_info")
-            if isinstance(vcs_info, dict):
-                commit = vcs_info.get("commit_id")
-                if is_exact_commit_hash(commit):
-                    return str(commit).strip()
-            commit = data.get("commit_id")
-            if is_exact_commit_hash(commit):
-                return str(commit).strip()
-    except Exception:
-        pass
-    return None
-
-
-def _executable_metadata_roots(
-    executable: str, env: Mapping[str, str] | None = None
-) -> list[Path]:
-    """Candidate install-prefix roots to read `opengwasdb*.dist-info` metadata from.
-
-    An explicit executable is trusted over ambient process metadata: the guard
-    must report the runtime it will actually run, not whichever `opengwasdb`
-    happens to be importable by the current interpreter.
-    """
-    exe_p = Path(executable).resolve()
-    candidate_roots = [
-        exe_p.parents[1] if len(exe_p.parents) > 1 else exe_p.parent,
-        exe_p.parent,
-    ]
-    if env and "PYTHONPATH" in env:
-        for pth in env["PYTHONPATH"].split(os.pathsep):
-            if pth.strip():
-                candidate_roots.append(Path(pth.strip()).resolve())
-    if env and "CONDA_PREFIX" in env:
-        candidate_roots.append(Path(env["CONDA_PREFIX"]).resolve())
-    if env and "VIRTUAL_ENV" in env:
-        candidate_roots.append(Path(env["VIRTUAL_ENV"]).resolve())
-    return candidate_roots
-
-
-def _dist_info_globs(c_root: Path, filename: str) -> list[str]:
-    """The platform layouts a `opengwasdb*.dist-info` directory may use."""
-    return [
-        str(c_root / "lib" / "python*" / "site-packages" / "opengwasdb*.dist-info" / filename),
-        str(c_root / "Lib" / "site-packages" / "opengwasdb*.dist-info" / filename),
-        str(c_root / "opengwasdb*.dist-info" / filename),
-    ]
+    return engine.find_executable(cmd, env=env)
 
 
 def get_opengwasdb_revision(
     executable: str | None = None,
     env: Mapping[str, str] | None = None,
 ) -> str:
-    """Return the exact resolved 40/64-char opengwasdb git commit hash bound to executable/env."""
-    # 1. If an explicit executable is provided, search only its environment prefix
-    if executable and executable != UNAVAILABLE:
-        for c_root in _executable_metadata_roots(executable, env):
-            for pattern in _dist_info_globs(c_root, "direct_url.json"):
-                for direct_url_match in glob.glob(pattern):
-                    commit = _extract_commit_from_direct_url_file(Path(direct_url_match))
-                    if commit:
-                        return commit
-        return UNAVAILABLE
-
-    # 2. Ambient process metadata (only when no explicit executable is specified)
-    try:
-        import importlib.metadata as metadata
-
-        dist = metadata.distribution("opengwasdb")
-        direct_url_text = dist.read_text("direct_url.json")
-        if direct_url_text:
-            direct_url = json.loads(direct_url_text)
-            vcs_info = direct_url.get("vcs_info")
-            if isinstance(vcs_info, dict):
-                commit = vcs_info.get("commit_id")
-                if is_exact_commit_hash(commit):
-                    return str(commit).strip()
-            commit = direct_url.get("commit_id")
-            if is_exact_commit_hash(commit):
-                return str(commit).strip()
-    except Exception:
-        pass
-
-    return UNAVAILABLE
-
-
-def _extract_version_from_metadata_file(metadata_p: Path) -> str | None:
-    """Read `Version:` from a dist-info METADATA file, or None."""
-    try:
-        for line in metadata_p.read_text(encoding="utf-8", errors="replace").splitlines():
-            if line.startswith("Version:"):
-                version = line.split(":", 1)[1].strip()
-                return version or None
-    except OSError:
-        return None
-    return None
+    """The exact commit `executable`'s install records; the in-process engine's without one."""
+    if executable is None:
+        return engine.in_process().commit
+    return engine.executable_commit(executable, env)
 
 
 def get_opengwasdb_version(
     executable: str | None = None, env: Mapping[str, str] | None = None
 ) -> str:
-    """Return the opengwasdb version, from the given executable's install or ambient.
-
-    With `executable`, read the version from that executable's own dist-info so
-    the reported identity belongs to the runtime that will run, never to an
-    unrelated ambient environment.
-    """
-    if executable and executable != UNAVAILABLE:
-        for c_root in _executable_metadata_roots(executable, env):
-            for pattern in _dist_info_globs(c_root, "METADATA"):
-                for metadata_match in glob.glob(pattern):
-                    version = _extract_version_from_metadata_file(Path(metadata_match))
-                    if version:
-                        return version
-        return UNAVAILABLE
-    try:
-        import importlib.metadata as metadata
-
-        ver = metadata.version("opengwasdb")
-        return str(ver).strip() if ver else UNAVAILABLE
-    except Exception:
-        return UNAVAILABLE
+    """The version `executable`'s install records; the in-process engine's without one."""
+    if executable is None:
+        return engine.in_process().version
+    return engine.executable_version(executable, env)
 
 
 def is_store_producing_step(step: Step) -> bool:
@@ -542,18 +421,27 @@ COMPLETE_DENSE: str = "complete-dense"
 _RESUME_PASSES_ON: tuple[str, ...] = ("--n-workers",)
 
 
-def _started_completion_argv(store_id: str, root: Path | str) -> list[str] | None:
-    """The planned argv this workflow recorded when it started the completion whose checkpoint exists."""
+def _started_completion(store_id: str, root: Path | str) -> dict[str, Any]:
+    """What this workflow recorded when it started the completion whose checkpoint exists, or {}."""
     try:
         recorded = json.loads(paths.completion_start_path(store_id, root=root).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        return None
-    argv = recorded.get("planned_argv") if isinstance(recorded, dict) else None
+        return {}
+    return recorded if isinstance(recorded, dict) else {}
+
+
+def _started_completion_argv(store_id: str, root: Path | str) -> list[str] | None:
+    """The planned argv this workflow recorded when it started the completion whose checkpoint exists."""
+    argv = _started_completion(store_id, root).get("planned_argv")
     return argv if isinstance(argv, list) else None
 
 
 def resume_argv_for_completion(
-    step: Step, executed_argv: list[str], store_id: str, artifact_root: Path | str
+    step: Step,
+    executed_argv: list[str],
+    store_id: str,
+    artifact_root: Path | str,
+    env: Mapping[str, str] | None = None,
 ) -> list[str]:
     """Resume an interrupted `complete-dense` from its checkpoint, or return its argv unchanged (#305).
 
@@ -570,7 +458,8 @@ def resume_argv_for_completion(
     checkpoint key is interpreted here (ADR 0023). An unforced run never
     discards a checkpoint, even for a planned `--overwrite`; a forced run's
     preflight does (`prepare_release_run`). `register` accepts the
-    substitution and records the release as resumed.
+    substitution and records the release as resumed. The checkpoint is resumed
+    only by the engine that started it, as the record names it (#253).
     """
     checkpoint = paths.completion_checkpoint_path(store_id, root=artifact_root)
     if step.name != "complete" or executed_argv[1:2] != [COMPLETE_DENSE] or not _lstat_exists(checkpoint):
@@ -588,6 +477,16 @@ def resume_argv_for_completion(
             f"Step {step.name!r} for {store_id} would resume the checkpoint {checkpoint}, but it was started "
             f"from another plan: {argv_change(started, list(step.argv))}. Nothing was resumed. "
             "`--config force=1` discards it and rebuilds the release."
+        )
+    started_by = _started_completion(store_id, artifact_root).get("opengwasdb_rev")
+    current = engine.executable_commit(get_opengwasdb_executable(executed_argv[0], env=env), env)
+    if started_by != current:
+        written = f"opengwasdb {started_by}" if started_by else "an engine its start record does not name"
+        raise ValueError(
+            f"Step {step.name!r} for {store_id} would resume the checkpoint {checkpoint}, which "
+            f"{written} started, under opengwasdb {current}. One completion is written by one engine. "
+            "Nothing was resumed. Install the engine that started it, or `--config force=1` discards "
+            "the checkpoint and rebuilds the release."
         )
     resume = [executed_argv[0], "complete-dense-resume", str(checkpoint)]
     for i, token in enumerate(executed_argv):
@@ -1289,16 +1188,22 @@ def _finish_build_phase_publication(step: Step, store_id: str, root: Path) -> No
         register.finish_build_phase_publication(store_id, root)
 
 
-def _record_completion_start(step: Step, executed_argv: list[str], store_id: str, root: Path) -> None:
+def _record_completion_start(
+    step: Step, executed_argv: list[str], store_id: str, root: Path, engine_commit: str
+) -> None:
     """Record the plan a fresh `complete-dense` starts from, before it can write a checkpoint (#305).
 
     An interrupted completion is then resumed only from that plan
-    (`resume_argv_for_completion`). A resumed completion, and any other
-    step, records nothing.
+    (`resume_argv_for_completion`), and by the engine that started it. A
+    resumed completion, and any other step, records nothing.
     """
     if step.name == "complete" and executed_argv[1:2] == [COMPLETE_DENSE]:
         _write_record_atomically(
-            {"planned_argv": list(step.argv), "checkpoint": str(paths.completion_checkpoint_path(store_id, root=root))},
+            {
+                "planned_argv": list(step.argv),
+                "checkpoint": str(paths.completion_checkpoint_path(store_id, root=root)),
+                "opengwasdb_rev": engine_commit,
+            },
             paths.completion_start_path(store_id, root=root),
         )
 
@@ -1454,7 +1359,7 @@ def execute_step(
             executed_argv = rewrite_argv_for_variant_reference(step, ref_target_p)
         else:
             executed_argv = rewrite_argv_for_staging(step, store_id, artifact_root=resolved_root)
-            executed_argv = resume_argv_for_completion(step, executed_argv, store_id, resolved_root)
+            executed_argv = resume_argv_for_completion(step, executed_argv, store_id, resolved_root, env=env)
     except ValueError as rewrite_err:
         # Preflight failure record: write failed record before raising
         err_res = StepResult(
@@ -1487,7 +1392,7 @@ def execute_step(
         else UNAVAILABLE
     )
     ogdb_rev = get_opengwasdb_revision(executable=ogdb_exe, env=env)
-    ogdb_ver = get_opengwasdb_version()
+    ogdb_ver = get_opengwasdb_version(executable=ogdb_exe, env=env)
 
     # Variant-reference skip-if-provided: an artifact already on disk (a shared
     # or pre-computed reference) is used as-is, so no subprocess is launched and
@@ -1520,7 +1425,7 @@ def execute_step(
         _write_record_atomically(skip_result.to_dict(), record_p)
         return skip_result
 
-    _record_completion_start(step, executed_argv, store_id, resolved_root)
+    _record_completion_start(step, executed_argv, store_id, resolved_root, ogdb_rev)
 
     # A test-only pause or crash point: the step's record is gone and its
     # command has not started, so a run stopped here is mid-step (#195).

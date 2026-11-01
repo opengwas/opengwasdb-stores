@@ -49,7 +49,7 @@ from typing import Any
 import yaml
 
 from ogstores import bundle as bundle_module
-from ogstores import paths, run, runtime
+from ogstores import paths, run
 from ogstores.plan import (
     INDEXED_SUBSET_COMMAND,
     OBSERVED_VIEW_CHECK_COMMAND,
@@ -403,9 +403,9 @@ def verify_observed_view_check_for_releases(
             f"Release(s) {', '.join(sorted(needing))} complete their own Store, whose swap is "
             f"gated on the Observed-View Check: an opengwasdb runtime providing "
             f"`{OBSERVED_VIEW_CHECK_COMMAND}` (opengwas/opengwasdb#289). The resolved "
-            f"opengwasdb is {resolved!r}. The repository's pinned runtime "
-            f"({runtime.PINNED_OPENGWASDB_REVISION[:8]}) provides it: install the tracked lock "
-            "with `pixi install` and re-run rather than substituting an executable on PATH."
+            f"opengwasdb is {resolved!r}. The engine pixi.lock resolves provides it: install "
+            "the tracked lock with `pixi install` and re-run rather than substituting an "
+            "executable on PATH."
         )
 
 

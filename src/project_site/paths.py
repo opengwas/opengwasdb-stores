@@ -12,7 +12,7 @@ import os
 import subprocess
 from pathlib import Path
 
-from ogstores.runtime import lock_pin_revisions
+from ogstores import engine
 
 # The two repositories the site shows: this registry, and the engine whose docs
 # it stages at the pinned revision.
@@ -76,11 +76,8 @@ def engine_clone() -> Path:
 
 
 def pinned_opengwasdb_revision(lock: Path) -> str:
-    """The opengwasdb commit `pixi.lock` pins; the site documents that runtime."""
-    revisions = lock_pin_revisions(lock)
-    if len(revisions) != 1:
-        raise ValueError(f"{lock} pins {len(revisions)} opengwasdb revisions, expected 1: {sorted(revisions)}")
-    return revisions.pop()
+    """The opengwasdb commit `pixi.lock` resolves; the site documents that runtime."""
+    return engine.locked_commit(lock)
 
 
 def commit_of(repo: Path) -> str:

@@ -521,6 +521,40 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
                     self.assertIn("build", str(ctx.exception))
                     self.assertFalse((b.root / "validation.yaml").exists(), "nothing is written")
 
+    def test_build_environment_names_the_engine_the_steps_ran(self) -> None:
+        """validation.yaml names the engine the step records ran, not the one on PATH (#253).
+
+        The fixture records name commit `a9e8bc8…` at 0.3.0, which no real
+        install carries, so an identity read from PATH at register time differs.
+        """
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00051")
+        build = run.load_record("OGS-00051", "build", root=artifact_root)
+        self.assertEqual(build["opengwasdb_rev"], "a9e8bc825af692cdb5bb7cba39d56d11654fcebe")
+        self.assertNotEqual(run.get_opengwasdb_revision(executable=run.get_opengwasdb_executable()), build["opengwasdb_rev"])
+
+        register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        written = yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(
+            (written["build_environment"]["opengwasdb_commit"], written["build_environment"]["opengwasdb_version"]),
+            ("a9e8bc825af692cdb5bb7cba39d56d11654fcebe", "0.3.0"),
+        )
+        self.assertEqual(written["validator"]["version"], "opengwasdb@a9e8bc825af692cdb5bb7cba39d56d11654fcebe")
+
+    def test_a_phase_run_under_two_engines_is_refused(self) -> None:
+        """One phase's steps ran under two engine commits: register refuses, naming both (#253)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00051")
+        validate_p = paths.record_path("OGS-00051", "validate", root=artifact_root)
+        validate = json.loads(validate_p.read_text(encoding="utf-8"))
+        validate["opengwasdb_rev"] = "b" * 40
+        run._write_record_atomically(validate, validate_p)
+
+        with self.assertRaises(register.RegisterError) as ctx:
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+        self.assertIn("b" * 40, str(ctx.exception))
+        self.assertIn("a9e8bc825af692cdb5bb7cba39d56d11654fcebe", str(ctx.exception))
+        self.assertFalse((b.root / "validation.yaml").exists(), "nothing is written")
+
     def test_written_record_matches_the_documented_register_shape(self) -> None:
         """The written validation.yaml carries exactly the canonical register keys (issue #135).
 
@@ -906,6 +940,29 @@ class TestRegisterKeepsPhaseBAcceptanceApart(unittest.TestCase):
         self.assertNotIn("novel_evidence", written, "generator evidence stays inside the block")
         for envelope in ("status", "validated_at", "validator", "build_environment", "observed", "errors"):
             self.assertNotIn(envelope, written["acceptance"])
+
+    def test_the_resolvers_engine_survives_acceptance(self) -> None:
+        """The candidate's resolver commit is kept, as `resolver_engine`, not dropped with its run (#253)."""
+        resolver_run = {"build_environment": {"opengwasdb_commit": "a9e8bc825af692cdb5bb7cba39d56d11654fcebe", "opengwasdb_version": "0.3.0"}}
+        written = self.register_over("OGS-00061", {**CANDIDATE_RECORD, **resolver_run}, [])
+
+        self.assertEqual(
+            written["acceptance"]["resolver_engine"],
+            {"opengwasdb_commit": "a9e8bc825af692cdb5bb7cba39d56d11654fcebe", "opengwasdb_version": "0.3.0"},
+        )
+        self.assertEqual(written["warnings"], [], "built with the engine that resolved it: nothing to report")
+        self.assertNotIn("build_environment", written["acceptance"])
+
+    def test_a_build_under_another_engine_than_resolved_it_is_reported(self) -> None:
+        """The steps ran `a9e8bc8…`; the Analyses were resolved by `e…e`: a warning names both (#253)."""
+        resolver_run = {"build_environment": {"opengwasdb_commit": "e" * 40, "opengwasdb_version": "0.2.9"}}
+        written = self.register_over("OGS-00061", {**CANDIDATE_RECORD, **resolver_run}, [])
+
+        self.assertEqual(len(written["warnings"]), 1, written["warnings"])
+        self.assertIn("e" * 40, written["warnings"][0])
+        self.assertIn("a9e8bc825af692cdb5bb7cba39d56d11654fcebe", written["warnings"][0])
+        self.assertEqual(written["status"], "passed_with_warnings")
+        self.assertEqual(written["checks"], {"store": "passed"}, "validate's own verdict is unchanged")
 
     def test_a_candidate_block_named_like_the_dating_is_refused(self) -> None:
         """Carrying it would overwrite the date or commit the block is tied to."""

@@ -23,6 +23,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest import mock
 
+from ogstores import engine
 from yardstick import fixture, measure, proc, runner, veeam
 from yardstick import result as result_spec
 from yardstick import workload as workload_spec
@@ -506,6 +507,28 @@ class RunnerGuardTest(unittest.TestCase):
         scratch = Path(tempfile.mkdtemp(dir=self.root))
         return runner.run(fixture_workload(), store_paths={"OGS-00099": store}, scratch=scratch, **kwargs)
 
+    def test_the_result_names_the_engine_that_ran(self) -> None:
+        """Version and commit both come from the engine the workers import (#253).
+
+        The fake engine's 9.9.9 and `c…c` are on no install and in no lock, so a
+        version read from the interpreter's metadata, or a commit read from
+        pixi.lock, cannot pass for it.
+        """
+        ran = engine.EngineIdentity(executable="in-process", commit="c" * 40, version="9.9.9")
+        with mock.patch.object(runner, "_worker", stub_worker([])), mock.patch(
+            "ogstores.engine.in_process", return_value=ran
+        ):
+            result = self.go(self.copy())
+        self.assertEqual(result["opengwasdb"], {"version": "9.9.9", "revision": "c" * 40})
+
+    def test_an_engine_that_cannot_prove_its_commit_is_refused(self) -> None:
+        unproven = engine.EngineIdentity(executable="in-process", commit=engine.UNAVAILABLE, version="9.9.9")
+        with mock.patch.object(runner, "_worker", stub_worker([])), mock.patch(
+            "ogstores.engine.in_process", return_value=unproven
+        ):
+            with self.assertRaises(RuntimeError):
+                self.go(self.copy())
+
     def test_a_worker_that_writes_beside_the_store_fails_the_run(self) -> None:
         store, calls = self.copy(), []
         with mock.patch.object(runner, "_worker", stub_worker(calls, lambda m, p: (p / "stray.tmp").write_text("x"))):
@@ -684,60 +707,6 @@ class ScratchRootTest(unittest.TestCase):
             self.assertTrue(seen, "the run measured a Store")
             self.assertEqual(seen[0].parent, root / "scratch")
             self.assertEqual(list((root / "scratch").iterdir()), [], "a run removes the scratch it made")
-
-
-class PinnedRevisionTest(unittest.TestCase):
-    """The yardstick reads this checkout's pin, and refuses a lock it cannot read."""
-
-    OLD = "0d59f151c7618933747a59f825deeef6a51de9e1"
-    NEW = "bc22e8476c4378af582477f09b56af01e3f5f065"
-
-    def _lock(self, *references: str) -> Path:
-        tmp = self.enterContext(tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")))
-        path = Path(tmp) / "pixi.lock"
-        path.write_text(
-            "packages:\n" + "".join(f"  - pypi: {reference}\n" for reference in references),
-            encoding="utf-8",
-        )
-        return path
-
-    def test_the_new_tag_form_reads(self) -> None:
-        path = self._lock(f"git+https://github.com/opengwas/opengwasdb?tag=v0.3.0#{self.NEW}")
-        self.assertEqual(runner.pinned_revision(path), self.NEW)
-
-    def test_the_old_rev_form_still_reads(self) -> None:
-        path = self._lock(f"git+https://github.com/opengwas/opengwasdb?rev={self.OLD}#{self.OLD}")
-        self.assertEqual(runner.pinned_revision(path), self.OLD)
-
-    def test_no_reference_is_refused(self) -> None:
-        with self.assertRaises(RuntimeError):
-            runner.pinned_revision(self._lock())
-
-    def test_two_different_commits_are_ambiguous(self) -> None:
-        with self.assertRaises(RuntimeError):
-            runner.pinned_revision(
-                self._lock(
-                    f"git+https://github.com/opengwas/opengwasdb?rev={self.OLD}#{self.OLD}",
-                    f"git+https://github.com/opengwas/opengwasdb?tag=v0.3.0#{self.NEW}",
-                )
-            )
-
-    def test_another_host_is_not_this_pin(self) -> None:
-        with self.assertRaises(RuntimeError):
-            runner.pinned_revision(
-                self._lock(f"git+https://example.com/opengwas/opengwasdb?tag=x#{self.NEW}")
-            )
-
-    def test_a_41_character_hash_is_not_a_pin(self) -> None:
-        for fragment in (f"{self.NEW}f", f"{self.NEW}z"):
-            with self.subTest(fragment=fragment):
-                with self.assertRaises(RuntimeError):
-                    runner.pinned_revision(
-                        self._lock(
-                            f"git+https://github.com/opengwas/opengwasdb?tag=v0.3.0#{fragment}"
-                        )
-                    )
-
 
 class RunnerOnFixtureStoreTest(unittest.TestCase):
     """The one real build, and the one real end-to-end run."""

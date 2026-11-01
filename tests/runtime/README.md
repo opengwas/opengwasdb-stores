@@ -7,14 +7,18 @@ artifact is written.
 
 It asserts:
 
-- the pin is one release tag in `pixi.toml` and one immutable revision in
-  `pixi.lock` and `ogstores.runtime.PINNED_OPENGWASDB_REVISION` (the tag is
-  `PINNED_OPENGWASDB_TAG`): every `opengwasdb` reference the lock carries (one
-  per environment, per platform, plus the package entry) requests that tag and
-  resolves that commit as its `#<commit>`, so one stale entry cannot select
-  another runtime for one environment;
+- `pixi.toml` follows opengwasdb's `main`, and `pixi.lock` alone holds the
+  commit (#253): every `opengwasdb` reference the lock carries (one per
+  environment, per platform, plus the package entry) requests `main` and
+  resolves the one commit `ogstores.engine.locked_commit` returns, so one
+  stale entry cannot select another runtime for one environment;
+- the guard reads that commit from the lock it is given, and refuses a lock
+  that does not resolve exactly one;
 - a missing executable, a known different revision, and a runtime missing any
   subcommand a scheduled plan names are refused;
+- a run that would reuse a step record of a scheduled phase that another engine
+  wrote is refused, naming both commits; a scheduled step's own old record is
+  replaced, not reused, so it does not count;
 - a scheduled Reference-Completed release whose existing parent Store is format
   0.1.0 is refused, while a 0.2.0 parent or a parent that will be built in the
   same run passes;

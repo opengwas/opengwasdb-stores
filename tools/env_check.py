@@ -13,6 +13,8 @@ import shutil
 import subprocess
 import sys
 
+from ogstores import engine
+
 REQUIRED_EXECUTABLES = ["python3", "Rscript", "plink2", "bcftools", "quarto", "git", "gh", "sqlite3", "curl"]
 
 REQUIRED_PYTHON_PACKAGES = [
@@ -93,8 +95,24 @@ def check_r_packages() -> list[str]:
     return problems
 
 
+def check_engine() -> list[str]:
+    """The opengwasdb on PATH, and whether it is the commit pixi.lock resolves (#253)."""
+    print("## opengwasdb engine")
+    try:
+        expected = engine.locked_commit()
+    except engine.EnginePinError as exc:
+        print(f"  locked     {exc}")
+        return [str(exc)]
+    ran = engine.identify()
+    print(f"  locked     {expected}  [pixi.lock]")
+    print(f"  installed  {ran.commit}  v{ran.version}  [{ran.executable}]")
+    refusal = engine.mismatch(ran, expected)
+    return [refusal] if refusal else []
+
+
 def main() -> int:
     problems = []
+    problems += check_engine()
     problems += check_executables()
     problems += check_python_packages()
     problems += check_r_packages()

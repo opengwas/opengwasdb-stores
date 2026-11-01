@@ -17,6 +17,8 @@ import platform
 import subprocess
 from pathlib import Path
 
+from ogstores import engine
+
 UNAVAILABLE = "unavailable"
 
 
@@ -45,41 +47,16 @@ def _pixi_lock_sha256(root: Path) -> str:
     return digest.hexdigest()
 
 
-def _opengwasdb_commit() -> str:
-    """Best-effort: pip records the resolved Git commit of a `git+https://...`
-    dependency in the installed distribution's `direct_url.json`."""
-    try:
-        import importlib.metadata as metadata
-
-        dist = metadata.distribution("opengwasdb")
-        direct_url_text = dist.read_text("direct_url.json")
-        if not direct_url_text:
-            return UNAVAILABLE
-        direct_url = json.loads(direct_url_text)
-        commit = direct_url.get("vcs_info", {}).get("commit_id")
-        return commit or UNAVAILABLE
-    except Exception:
-        return UNAVAILABLE
-
-
-def _opengwasdb_version() -> str:
-    try:
-        import importlib.metadata as metadata
-
-        return metadata.version("opengwasdb")
-    except Exception:
-        return UNAVAILABLE
-
-
 def capture(root: Path) -> dict[str, str]:
     """Capture this process's build-environment provenance, rooted at `root`
     (the opengwasdb-stores repository root)."""
     import os
 
+    ran = engine.in_process()
     return {
         "repo_commit": _repo_commit(root),
-        "opengwasdb_version": _opengwasdb_version(),
-        "opengwasdb_commit": _opengwasdb_commit(),
+        "opengwasdb_version": ran.version,
+        "opengwasdb_commit": ran.commit,
         "pixi_lock_sha256": _pixi_lock_sha256(root),
         "pixi_environment": os.environ.get("PIXI_ENVIRONMENT_NAME", UNAVAILABLE),
         "platform": platform.platform(),
