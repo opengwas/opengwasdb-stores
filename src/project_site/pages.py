@@ -294,8 +294,8 @@ def sparkline(
     Written in Python without a chart library, so a page needs no dependency and
     no kernel. An empty series draws nothing. A value `warned` names is ringed as
     well as dotted, so a point that was not measured under comparable conditions
-    -- the yardstick's Veeam backup window -- is visible in the figure itself
-    (#391 review, item 9).
+    -- the yardstick's retired Veeam backup window (#411) -- is visible in the
+    figure itself (#391 review, item 9).
     """
     drawn = [
         (index, float(value))
@@ -636,7 +636,8 @@ def _yardstick_section(documents: Mapping[str, Document | None]) -> list[str]:
         lines += ["No measure of the latest result was recorded.", ""]
     for figure in series_rows:
         caveat = (
-            " A ringed point was measured in the Veeam backup window, so its timing is not comparable."
+            " A ringed point was measured before 2026-11-02 in the Veeam backup window, so its timing"
+            " is not comparable."
             if any(figure.warned) else ""
         )
         lines += _trend_block(
@@ -1260,7 +1261,7 @@ def _store_yardstick(documents: Mapping[str, Document | None], store_id: str) ->
         f" started {_cell(result.get('started_utc'))} on {_cell((result.get('host') or {}).get('name'))}."
     )
     if result.get("veeam_window") is True:
-        lines.append("It ran in the Veeam backup window, so its timings are not comparable.")
+        lines.append("It was measured before 2026-11-02 in the Veeam backup window, so its timings are not comparable.")
     lines.append("")
     measures = measures_of(record)
     rows = [(measure, measures.get(measure)) for measure in STORE_MEASURES if measures.get(measure) is not None]
@@ -1661,8 +1662,9 @@ def _yardstick_matrix(results: Sequence[Mapping[str, Any]]) -> list[str]:
     ]
     if any_veeam:
         lines += [
-            "A `†` marks a result measured in the Veeam backup window (`veeam_window: true`), so its",
-            "timings are not comparable with the others' and no change is worked out from them.",
+            "A `†` marks a result measured before 2026-11-02 in the Veeam backup window (`veeam_window: true`), so its",
+            "timings are not comparable with the others' and no change is worked out from them. The backup no longer",
+            "covers `/data/opengwasdb`, so no run since records the flag.",
         ]
     lines.append("")
     return lines
@@ -1686,7 +1688,7 @@ def _workload_matrix(group: Sequence[Mapping[str, Any]]) -> list[str]:
 
 
 def _matrix_cell(entry: Mapping[str, Any], store_id: str, measure: str) -> str:
-    """One measure in one result's column, marked when that result ran in the Veeam window."""
+    """One measure in one result's column, marked when that result recorded the retired Veeam flag."""
     cell = measure_value(_measure_of(entry["result"], store_id, measure))
     return f"{cell} †" if entry["result"].get("veeam_window") is True else cell
 

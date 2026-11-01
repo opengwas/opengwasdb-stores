@@ -104,9 +104,9 @@ one per registered Store beside them
   `workload_sha256` (`workload_id` where the hash is missing), each series and
   each matrix table names the workload it measured, and no line or row spans two
   workloads, so a trend shows a change in the code rather than in the benchmark.
-  A point measured in the Veeam backup window (`veeam_window: true`) is ringed in
-  the figure and marked `†` in the table, with a caveat saying its timing is not
-  comparable.
+  A point measured before 2026-11-02 in the Veeam backup window
+  (`veeam_window: true`, which no run since records) is ringed in the figure and
+  marked `†` in the table, with a caveat saying its timing is not comparable.
 - A Store page shows its own size and query performance from the newest yardstick
   result that measured it, naming that result, its workload and the opengwasdb
   version it ran on, and says so when the newest result lists the Store as
