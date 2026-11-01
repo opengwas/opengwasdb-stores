@@ -220,15 +220,16 @@ class TestCommittedEpicRecords(unittest.TestCase):
         # Every finished epic adds its own record, so the backfilled three are a subset.
         self.assertLessEqual({282, 302, 313}, set(self.by_number))
 
-    def test_status_follows_the_epic_issue_which_is_open_for_all_three(self) -> None:
+    def test_status_follows_the_epic_issue(self) -> None:
+        # #282 and #302 are open; #313 closed on 1 Nov 2026 once the catalog listed OGS-00011.
         self.assertEqual({n: (self.by_number[n]["status"], self.by_number[n]["finished"]) for n in (282, 302, 313)},
-                         {282: ("active", None), 302: ("active", None), 313: ("active", None)})
+                         {282: ("active", None), 302: ("active", None),
+                          313: ("finished", datetime.date(2026, 11, 1))})
 
-    def test_313_is_active_because_ogs_00011_remains(self) -> None:
+    def test_313_finished_with_the_catalog_that_lists_ogs_00011(self) -> None:
         record = self.by_number[313]
-        self.assertEqual(record["finished"], None)
         self.assertEqual(record["started"], datetime.date(2026, 10, 21))
-        self.assertEqual(record["catalog"], {"before": None, "after": "1b3a155d449bb84a"})
+        self.assertEqual(record["catalog"], {"before": None, "after": "9df14f8dc3cceabf"})
         self.assertEqual(record["test_time"]["final"]["commit"], "a84ecfb")
         self.assertIn("OGS-00011", record["summary"])
         tickets = {t["key"]: t for t in record["tickets"] if t["key"]}
