@@ -4,6 +4,11 @@ kind: ld_panel
 ancestry: EUR
 genome_build: GRCh38
 variant_id_convention: "chr:pos:a1:a2"
+allele_columns:
+  effect: EA
+  other: OA
+  freq: EAF
+  freq_orientation: effect_allele
 location: /data/opengwasdb/reference/hgdp1kgp-hg38/panel/EUR
 location_kind: external_directory
 ld:
@@ -14,7 +19,9 @@ ld:
 source:
   cohort: HGDP + 1kGP harmonised callset
   n_individuals: 771
-  variant_inclusion: MAC >= 50
+  variant_inclusion: >
+    MAC >= 50; of the records sharing an ALID, the one with the higher MAF,
+    ties going to the earlier record
   generator: tools/ld-panel/run_panels.py
 status: available
 description: >
@@ -22,3 +29,16 @@ description: >
   production-panel constructor and parameters. A five-block, 2,514-analysis
   paired masking comparison with gpm-hg38-eur-ld is the AFR/EAS/SAS release gate;
   see docs/eur-panel-imputation-comparison.html.
+
+  Every block's `EAF` is the frequency of the row's `EA`, not of `OA`: the
+  generator reads which allele PLINK's additive export counted from the export's
+  column suffix (plink2 counts REF, stores#348), and a block holds at most one
+  row per ALID, keeping the record with the higher MAF (ties to the earlier one).
+  As the production AFR/EAS/SAS panels do, a panel written before either rule
+  was in place is corrected in place by `tools/ld-panel/repair_panel.py`, which
+  inverts EAF, drops the losing rows of a collision from the TSV and `vectors`
+  (leaving `values` untouched), and records the edit per block; a repaired block
+  verifies against its backup instead of the exact binding identity. `run_panels`
+  gates each ancestry it builds or finishes (and `verify_block --panel` does the
+  same on demand) against the UKB ancestry mixture's "United Kingdom" column,
+  requiring r > 0.9 on matched variants, so an inverted panel cannot pass again.

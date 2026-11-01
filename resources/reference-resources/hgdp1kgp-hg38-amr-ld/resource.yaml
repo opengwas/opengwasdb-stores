@@ -8,6 +8,7 @@ allele_columns:
   effect: EA
   other: OA
   freq: EAF
+  freq_orientation: effect_allele
 location: /data/opengwasdb/reference/hgdp1kgp-hg38-amr/panel
 location_kind: external_directory
 ld:
@@ -66,3 +67,20 @@ notes: >
 
   Variants on the EUR boundaries carry more weak cross-boundary LD in AMR than in
   EUR at 7 of 10 tested edges; imputation across an edge is untested.
+
+  **EAF is the frequency of `EA`.** The generator reads which allele PLINK's
+  additive export counted from the export's column suffix -- plink2 counts REF,
+  not ALT (stores#348) -- and orients the reported frequency and the
+  eigenvectors to the canonical effect allele. A panel built before that fix
+  holds the other allele's frequency in every row, so the gate is part of the
+  build rather than an optional check: `build_amr_panel` gates the finished panel
+  as its last step, and `verify_block --panel` gates one on demand, both against
+  the UKB ancestry mixture ("South America" for AMR) and both refusing a panel
+  that does not correlate positively with it (r > 0.9 on matched variants, and
+  never on fewer matches than a sample needs to decide);
+  `tools/ld-panel/repair_panel.py`
+  corrects an inverted panel in place with `EAF := 1 - EAF`, which is exact
+  because the defect is uniform, recording the edit in each block's
+  `provenance.json` under `repairs` and adding a sha256 receipt. This panel holds
+  no duplicated ALID, so such a repair touches only the tables and every
+  `.ldeig.npz` stays byte-identical.
