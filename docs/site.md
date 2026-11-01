@@ -107,6 +107,10 @@ one per registered Store beside them
   A point measured in the Veeam backup window (`veeam_window: true`) is ringed in
   the figure and marked `†` in the table, with a caveat saying its timing is not
   comparable.
+- A Store page shows its own size and query performance from the newest yardstick
+  result that measured it, naming that result, its workload and the opengwasdb
+  version it ran on, and says so when the newest result lists the Store as
+  pending or no result names it.
 
 ## Going live
 
