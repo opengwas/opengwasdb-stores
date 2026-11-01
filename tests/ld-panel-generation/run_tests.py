@@ -1231,7 +1231,7 @@ def main() -> None:
     test_plink_raw_input()
     for script in ("acquire_hgdp1kgp.py", "construct_block.py", "run_panels.py", "verify_block.py",
                    "heldout_calibration.py", "boundary_ld.py", "run_amr_pilot.py", "build_amr_panel.py",
-                   "pilot_qc_effect.py"):
+                   "pilot_qc_effect.py", "repair_panel.py"):
         subprocess.run([sys.executable, str(SCRIPT.with_name(script)), "--help"], check=True,
                        stdout=subprocess.DEVNULL)
     print(f"ok — {checks} checks passed")

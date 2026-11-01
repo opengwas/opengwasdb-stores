@@ -1,0 +1,13 @@
+{
+  "achieved_variance": 1.0,
+  "component_floor": 2,
+  "components_retained": 5,
+  "cumulative_variance_target": 0.99,
+  "interval": "22:300-400",
+  "mac_threshold": 50,
+  "maf_threshold": null,
+  "max_missing_rate": null,
+  "n_individuals": 8,
+  "n_variants_input": 5,
+  "n_variants_retained": 5
+}
