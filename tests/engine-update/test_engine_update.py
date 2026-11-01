@@ -7,7 +7,6 @@ probe, so these tests move a written lock, never the repository's.
 
 from __future__ import annotations
 
-import importlib.util
 import json
 import os
 import subprocess
@@ -15,21 +14,12 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from ogstores import runtime
+from ogstores import engine_update, runtime
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TOOL = REPO_ROOT / "tools" / "engine_update.py"
 
 OLD = "0d59f151c7618933747a59f825deeef6a51de9e1"
 NEW = "bc22e8476c4378af582477f09b56af01e3f5f065"
-
-
-def _load_tool():
-    spec = importlib.util.spec_from_file_location("engine_update_under_test", TOOL)
-    module = importlib.util.module_from_spec(spec)
-    assert spec.loader is not None
-    spec.loader.exec_module(module)
-    return module
 
 
 def _lock_text(commit: str, version: str) -> str:
@@ -63,7 +53,7 @@ class FakeRunner:
 
 class EngineUpdateTest(unittest.TestCase):
     def setUp(self) -> None:
-        self.tool = _load_tool()
+        self.tool = engine_update
         root = Path(self.enterContext(tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR"))))
         self.lock, self.manifest = root / "pixi.lock", root / "pixi.toml"
         self.before = _lock_text(OLD, "0.3.2")
@@ -121,7 +111,7 @@ class EngineUpdateTest(unittest.TestCase):
         import tomllib
 
         tasks = tomllib.loads((REPO_ROOT / "pixi.toml").read_text(encoding="utf-8"))["feature"]["dev"]["tasks"]
-        self.assertEqual(tasks["engine-update"], {"cmd": "python3 tools/engine_update.py"})
+        self.assertEqual(tasks["engine-update"], {"cmd": "python3 -m ogstores.engine_update"})
 
 
 if __name__ == "__main__":

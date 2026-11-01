@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Move pixi.lock to opengwasdb `main`'s tip, and check what it moved to (#253).
 
     pixi run engine-update            # relock, install, check; say what moved
@@ -29,9 +28,9 @@ from pathlib import Path
 
 import yaml
 
-from ogstores import engine, runtime
+from ogstores import engine, paths, runtime
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = paths.REPO_ROOT
 RELEASES_URL = "https://github.com/opengwas/opengwasdb/releases"
 
 #: Prints the engine an environment imports: commit, version, Store format.

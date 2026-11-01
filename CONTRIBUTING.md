@@ -359,12 +359,16 @@ because Manifest Generation depends on the Release Bundle contract too: a
 generator validates what it emits with `bundle.check()`. It also holds two
 read-only command-line views of the registry, run with `python3 -m`:
 `release_readiness` (the Store Release readiness view) and
-`audit_indexed_subsets` (`pixi run audit-indexed-subsets`).
+`audit_indexed_subsets` (`pixi run audit-indexed-subsets`). `engine` says which
+opengwasdb an executable is and which commit `pixi.lock` resolves, and
+`engine_update` moves the lock (`pixi run engine-update`, #253).
 
 Store Release Build imports nothing from Manifest Generation. Manifest
 Generation imports from `ogstores` the Release Bundle contract (`bundle`) and
 the registry layout it shares with Store Release Build: Store id and Artifact
-Root paths (`paths`) and the master-list index (`index`).
+Root paths (`paths`) and the master-list index (`index`). It also imports the
+engine identity both workflows check against `pixi.lock` (`engine`; ADR 0035's
+amendment, #253).
 `tests/packaging/test_boundary.py` enforces both directions.
 
 ### `src/manifest_generation/`
