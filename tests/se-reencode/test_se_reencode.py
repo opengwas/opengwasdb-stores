@@ -222,7 +222,7 @@ class SeReencodeTestCase(unittest.TestCase):
         self.assertEqual(record["step"], "se-reencode")
         self.assertEqual(record["opengwasdb_revision"], runtime.PINNED_OPENGWASDB_REVISION)
         self.assertEqual(len(record["opengwasdb_revision"]), 40)
-        self.assertEqual(record["opengwasdb_version"], "0.3.0")
+        self.assertEqual(record["opengwasdb_version"], runtime.PINNED_OPENGWASDB_TAG.removeprefix("v"))
         self.assertRegex(record["start_time"], r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z")
         self.assertRegex(record["end_time"], r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z")
         self.assertIs(record["complete"], True)

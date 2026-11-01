@@ -130,13 +130,23 @@ from ogstores.plan import plan
 #: previous pin carried; it is still `0.3.0`. The range `0d59f151..bc22e84` adds
 #: only versioning: the engine's behaviour does not change, and the Store format
 #: stays 0.2.0.
-PINNED_OPENGWASDB_REVISION: str = "bc22e8476c4378af582477f09b56af01e3f5f065"
+#:
+#: Then to the release tag `v0.3.2` for #401, which resolves to `44f25a9`, the
+#: opengwasdb `main` merge of PR #339 (core #337): the Observed-View Check reads
+#: Z/SE missingness through each plane's missing marker, NaN, as spec §15 says,
+#: rather than `isfinite`, so a cell with a finite Z and an SE of `+inf` held
+#: identically on both sides passes and is counted as `infinite_cells`;
+#: `validate` warns about such cells per Analysis. OGS-00011's completion check
+#: failed on eight of them (source SE above float16's 65,504; core #338). The
+#: range `bc22e84..44f25a9` is `v0.3.1` (PR #336: CI and docs only) and #339;
+#: builders and the Store format (0.2.0) do not change.
+PINNED_OPENGWASDB_REVISION: str = "44f25a96fb43044a983e300a038a54ab1930e782"
 
 #: The release tag the pinned revision is asked for by. `pixi.toml` names this
 #: tag rather than the commit, so the installed version names the release it was
 #: built from; the tests hold the tag, the resolved commit above and
 #: `pixi.lock` together.
-PINNED_OPENGWASDB_TAG: str = "v0.3.0"
+PINNED_OPENGWASDB_TAG: str = "v0.3.2"
 
 #: One lock reference to the engine pin: the exact repository URL, the request
 #: (`tag=v0.3.0` since #387, `rev=<commit>` before it) and the commit the solve
