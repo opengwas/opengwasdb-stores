@@ -1,17 +1,16 @@
 repo: opengwasdb-stores
 number: 313
 title: Analysis catalog across all Stores
-status: active
+status: finished
 workstream: Interface
 started: 2026-10-21
-finished: null
+finished: 2026-11-01
 summary: 'Epic #313 adds the Analysis Catalog: a versioned SQLite listing of every Analysis in every validated
   Store, built by `pixi run catalog` from the registry''s Release Bundles. Its first phase (PR #328) added
   the catalog package, search and counts, the summary report, and the trial and superseded_by fields of
   the Release Bundle. Its second phase (PR #353) gave Association Coverage one vocabulary declared in
-  the Release Bundle, marked OGS-00027 validated, and published the catalog; version 1b3a155d449bb84a
-  lists 9 Stores and 31,940 Analyses. The epic stays active because OGS-00011 is not validated, so the
-  catalog does not list it.'
+  the Release Bundle, marked OGS-00027 validated, and published the catalog. Once OGS-00011 was validated,
+  the final rebuild published version 9df14f8dc3cceabf, which lists 10 Stores and 35,109 Analyses.'
 prs:
 - opengwasdb-stores#328
 - opengwasdb#323
@@ -263,6 +262,11 @@ decisions:
     #282 (PR #365) replaced and revalidated it with per-association N (sample_size 30907 analysis_level
     -> 30895 variant_level for ENSG00000000419)'
   link: null
+- date: 2026-11-01
+  text: '#359 closed with no edit to OGS-00011: its completed Store already declares gwas. OGS-00010 (retired,
+    no Release Bundle) still says full, so retiring the full read alias waits on its deletion. Final catalog
+    9df14f8dc3cceabf published from main b0d184f: +3,169 OGS-00011 Analyses, none removed or changed.'
+  link: null
 test_time:
   baseline:
     commit: e6e829d
@@ -277,7 +281,7 @@ yardstick:
   after: null
 catalog:
   before: null
-  after: 1b3a155d449bb84a
+  after: 9df14f8dc3cceabf
 followups:
 - key: opengwasdb#294
   text: opengwas/opengwasdb#294 builders/completion (and validate, for published Stores) print n_associations,
