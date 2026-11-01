@@ -130,3 +130,39 @@ of panel construction, and the per-Analysis completion-quality summaries are
 the measure of it.
 
 MID and NAF still have no panel and remain observed-only.
+
+## Amendment (stores#348): what a block's `EAF` means, and one row per ALID
+
+The decision above is unchanged: the panels stay, and no parameter of their
+construction moves. Two properties of the artifacts they produce were
+under-specified, and are now part of the contract.
+
+- **`EAF` is the frequency of the row's `EA`.** PLINK's `--export A` counts one
+  allele per column and names it in the column suffix, and the plink2 that built
+  these panels counts REF, not ALT. The constructor read the dosage as ALT
+  dosage, so every row's stored frequency was the *other* allele's, uniformly and
+  exactly: the alleles, the row order and the LD are unaffected (the eigenvectors
+  are uniformly sign-flipped, which no stored artifact can express), but every
+  consumer that read `EAF` — the reference allele frequencies of a completed
+  Store, and the panel's own use as an `--eaf-reference` — read the complement.
+  The constructor now reads the counted allele from the export, and a panel written
+  before that fix is corrected in place with `EAF := 1 - EAF` rather than rebuilt.
+- **A block holds one row per ALID.** The rule the AMR amendment introduced — of
+  the records sharing an ALID, keep the higher MAF, ties to the earlier record —
+  is the constructor's rule for every panel, and the tables written before it are
+  corrected by dropping the losing rows from the TSV and from `vectors`. The
+  stored LD is the rank-`k` `V diag(values) V^T`, for which restricting rows is
+  exact; `values` is left untouched so the consumer's cumulative-variance cut
+  keeps its meaning, and a row drop costs the exact `||X v_j||^2 = value_j`
+  binding identity, which is why a repaired block is verified against its backup
+  instead.
+
+Neither correction needs a rebuild, and neither changes a block definition, a
+variance target or a variant floor. What they do change is that orientation and
+one-record-per-ALID are now **checked**, not assumed. `run_panels` gates every
+ancestry it builds or finishes, `build_amr_panel` gates the finished panel as its
+last step, and `verify_block --panel` gates one on demand: each measures the
+panel's `EAF` against the UKB ancestry mixture and requires `r > 0.9` on matched
+variants, refusing a sample too small to decide on. A repair additionally refuses
+to run on a panel that does not first look inverted, so the correction cannot be
+applied twice.
