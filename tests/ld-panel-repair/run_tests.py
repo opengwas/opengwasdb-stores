@@ -18,9 +18,11 @@ Requires numpy, e.g. via `pixi run test`.
 from __future__ import annotations
 
 import csv
+import errno
 import hashlib
 import importlib.util
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -459,6 +461,94 @@ def test_no_duplicates_gets_the_flip_only() -> None:
               "the flip-only receipt's totals are wrong")
 
 
+def original_state(panel_dir: Path) -> dict[str, tuple[int, str]]:
+    """Each original's inode and sha256, before any repair."""
+    return {f"EUR/{name}{suffix}": (os.stat(panel_dir / f"EUR/{name}{suffix}").st_ino,
+                                    sha256(panel_dir / f"EUR/{name}{suffix}"))
+            for name in REPAIRED for suffix in SUFFIXES}
+
+
+def test_a_hard_link_is_the_backup() -> None:
+    # #348: the npz trees are 166 GB and every original is replaced through a
+    # temporary sibling, never written in place, so a hard link is an exact
+    # backup -- the same inode and the same bytes as before the repair.
+    with tempfile.TemporaryDirectory() as tmp_name:
+        tmp = Path(tmp_name)
+        panel_dir = panel(tmp)
+        before = original_state(panel_dir)
+        check(repair(tmp).returncode == 0, "the repair failed")
+        receipt = json.loads((tmp / "receipt.json").read_text())
+        for entry in receipt["blocks"]:
+            block = entry["block"]
+            check(entry["backup_mode"] == "hardlink",
+                  f"{block}: the backup was not hard-linked ({entry['backup_mode']})")
+            for suffix in SUFFIXES:
+                inode, digest = before[f"EUR/{block}{suffix}"]
+                backup = tmp / "backup" / f"EUR/{block}{suffix}"
+                live = panel_dir / f"EUR/{block}{suffix}"
+                check(os.stat(backup).st_ino == inode,
+                      f"{block}: the backup {suffix} is not the pre-repair inode")
+                check(sha256(backup) == digest, f"{block}: the backup {suffix} is not the pre-repair bytes")
+                untouched = suffix == ".ldeig.npz" and not entry["dropped_row_indices"]
+                if untouched:
+                    check(os.stat(live).st_ino == inode,
+                          f"{block}: an eigendecomposition the repair leaves alone was replaced")
+                else:
+                    check(os.stat(live).st_ino != inode,
+                          f"{block}: the live {suffix} kept the original inode, so it was written in place")
+
+
+def test_a_cross_device_backup_dir_is_copied_and_says_so() -> None:
+    # Only EXDEV falls back to a copy: a backup directory on another filesystem
+    # cannot be linked at all, and the fallback is announced on stderr.
+    with tempfile.TemporaryDirectory() as tmp_name:
+        tmp = Path(tmp_name)
+        panel_dir = panel(tmp)
+        before = original_state(panel_dir)
+        real_link = os.link
+        def cross_device(source, target, **kwargs):
+            raise OSError(errno.EXDEV, "Invalid cross-device link", str(source))
+        os.link = cross_device
+        try:
+            code, _, err = repair_in_process(tmp)
+        finally:
+            os.link = real_link
+        check(code == 0, f"the cross-device fallback failed: {err}")
+        check("another filesystem" in err and "copied" in err,
+              f"the copy fallback was silent: {err}")
+        receipt = json.loads((tmp / "receipt.json").read_text())
+        for entry in receipt["blocks"]:
+            block = entry["block"]
+            check(entry["backup_mode"] == "copy", f"{block}: the receipt does not say the backup was copied")
+            for suffix in SUFFIXES:
+                inode, digest = before[f"EUR/{block}{suffix}"]
+                backup = tmp / "backup" / f"EUR/{block}{suffix}"
+                check(os.stat(backup).st_ino != inode, f"{block}: a copied backup shares the original's inode")
+                check(sha256(backup) == digest, f"{block}: the copied backup is not the pre-repair bytes")
+        for name in REPAIRED: assert_repaired(panel_dir / "EUR" / name)
+
+
+def test_any_other_link_error_stops_the_run() -> None:
+    # A link failure that is not a filesystem boundary is a real error, not a
+    # reason to fall back: it must stop the run with nothing written.
+    with tempfile.TemporaryDirectory() as tmp_name:
+        tmp = Path(tmp_name)
+        panel_dir = panel(tmp)
+        before = snapshot(panel_dir)
+        real_link = os.link
+        def denied(source, target, **kwargs):
+            raise OSError(errno.EACCES, "Permission denied", str(source))
+        os.link = denied
+        try:
+            code, _, err = repair_in_process(tmp)
+        finally:
+            os.link = real_link
+        check(code != 0 and "cannot hard-link" in err, f"a non-EXDEV link error was not loud: {code} {err}")
+        check(snapshot(panel_dir) == before, "a refused backup changed a panel file")
+        check(not (tmp / "backup").exists() or not any((tmp / "backup").rglob("*.*")),
+              "a refused backup left a backup file behind")
+
+
 def main() -> None:
     subprocess.run([sys.executable, str(FIXTURES / "generate_fixtures.py")], cwd=REPO_ROOT, check=True)
     test_repair_panel()
@@ -469,6 +559,9 @@ def main() -> None:
     test_interrupted_run_resumes_without_flipping_twice()
     test_receipt_survives_a_crash_at_every_stage()
     test_a_receipt_lost_outright_is_rebuilt_from_the_backups()
+    test_a_hard_link_is_the_backup()
+    test_a_cross_device_backup_dir_is_copied_and_says_so()
+    test_any_other_link_error_stops_the_run()
     test_no_duplicates_gets_the_flip_only()
     print(f"ok — {checks} checks passed")
 

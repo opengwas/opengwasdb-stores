@@ -41,9 +41,12 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
+import shutil
+import sys
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -117,6 +120,32 @@ def _replace(path: Path, write) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def backup_file(original: Path, target: Path) -> str:
+    """Back up ``original`` at ``target`` and return how: ``hardlink`` or ``copy``.
+
+    Every replacement in this tool goes through :func:`_replace` -- a temporary
+    sibling and ``os.replace`` -- so no original inode is ever opened for
+    writing, truncated, or replaced in place. A hard link is therefore an exact
+    backup of the bytes at no cost, which matters because the shipped npz trees
+    are 166 GB and a copy of them is the slowest part of the run (#348). A backup
+    directory on another filesystem cannot be linked at all (``EXDEV``), and only
+    that case falls back to a copy -- saying so on stderr, because a silently
+    different backup is a different rollback. Any other link error is real and
+    stops the run.
+    """
+    target.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        os.link(original, target)
+        return "hardlink"
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
+            raise SystemExit(f"cannot hard-link {original} to {target}: {exc}") from exc
+        print(f"backup: {target} is on another filesystem, so {original} is copied, not linked",
+              file=sys.stderr, flush=True)
+    _replace(target, lambda temporary: shutil.copyfile(original, temporary))
+    return "copy"
+
+
 def stopped(stage: str | None, reached: str) -> None:
     """Die at ``reached`` when ``--crash-after`` asked for it.
 
@@ -160,11 +189,16 @@ def repair_block(base: Path, *, ancestry: str, backup_dir: Path, receipt: dict[s
         receipt["blocks"] = [b for b in receipt["blocks"] if b["block"] != entry["block"]] + [entry]
         write_receipt(receipt_path, receipt)
     stopped(crash_after, "receipt-pending")
-    # The backup is the rollback, so it is written before anything is replaced.
-    for suffix in SUFFIXES:
-        backup_base.parent.mkdir(parents=True, exist_ok=True)
-        source, target = base.with_suffix(suffix), backup_base.with_suffix(suffix)
-        _replace(target, lambda tmp, source=source: tmp.write_bytes(source.read_bytes()))
+    # The backup is the rollback, so it is written before anything is replaced:
+    # a hard link to each original, which costs one directory entry rather than
+    # another 166 GB of npz.
+    modes = {suffix: backup_file(base.with_suffix(suffix), backup_base.with_suffix(suffix))
+             for suffix in SUFFIXES}
+    entry["backup_mode"] = "hardlink" if set(modes.values()) == {"hardlink"} else "copy"
+    entry["backup_modes"] = modes
+    if receipt is not None:
+        receipt["blocks"] = [b for b in receipt["blocks"] if b["block"] != entry["block"]] + [entry]
+        write_receipt(receipt_path, receipt)
     stopped(crash_after, "backup")
     _replace(tsv_path, lambda tmp: tmp.write_text("".join(repaired_lines)))
     stopped(crash_after, "tsv")
@@ -192,13 +226,19 @@ def repair_block(base: Path, *, ancestry: str, backup_dir: Path, receipt: dict[s
         "alid_collision_rule": COLLISION_RULE,
         "dropped_row_indices": dropped,  # 0-based rows of the pre-repair TSV
         "n_variants_retained_before": original_rows, "n_variants_retained": kept_count,
-        "sha256_before": before,
+        "sha256_before": before, "backup_mode": entry["backup_mode"], "backup_modes": modes,
     }
     provenance["n_variants_retained"] = kept_count
     provenance["repairs"] = [*(provenance.get("repairs") or []), record]
     # Provenance is the block's completion marker, so it is renamed last.
     _replace(provenance_path, lambda tmp: tmp.write_text(
         json.dumps(provenance, indent=2, sort_keys=True) + "\n"))
+    if entry["backup_mode"] == "hardlink":
+        rewritten = [".tsv", ".provenance.json", *([".ldeig.npz"] if dropped else [])]
+        for suffix in rewritten:
+            if os.stat(backup_base.with_suffix(suffix)).st_ino == os.stat(base.with_suffix(suffix)).st_ino:
+                raise SystemExit(f"{base.with_suffix(suffix)} was written in place, so its hard-linked "
+                                 f"backup {backup_base.with_suffix(suffix)} changed with it")
     stopped(crash_after, "provenance")
     after = {s: sha256(base.with_suffix(s)) for s in SUFFIXES}
     complete = {**entry, "state": "complete", "sha256_after": after,
@@ -279,6 +319,7 @@ def reconcile(receipt: dict[str, object], blocks: list[Path], *, ancestry: str,
             "eaf_flipped_rows": int(record["eaf_flipped_rows"]),
             "sha256_before": {s: sha256(backup_base.with_suffix(s)) for s in SUFFIXES},
             "sha256_after": {s: sha256(base.with_suffix(s)) for s in SUFFIXES},
+            "backup_mode": record.get("backup_mode", "unrecorded"),
         }
         receipt["blocks"] = [b for b in receipt["blocks"] if b["block"] != key] + [entry]
         rebuilt.append(key)
