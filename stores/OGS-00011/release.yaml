@@ -2,7 +2,7 @@ store_id: OGS-00011
 label: eur-hybrid-full
 association_coverage: gwas
 access_posture: public
-status: accepted
+status: validated
 derived_from: null
 created_at: '2026-10-09T15:49:30Z'
 source_snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-09-22
@@ -124,4 +124,39 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
   dropping monomorphic (0.0/1.0) and unreadable frequency rows under the 0.005
   threshold. The off-panel axis shrank from 101,098,177 to 34,653,805 variants with
   100% occupancy and 0 duplicate ALIDs. Disputed rsid collisions resolved via
-  on-rsid-conflict: drop (opengwasdb#306). Receipt: docs/data/ogs00011-rebuild-receipt.json.'
+  on-rsid-conflict: drop (opengwasdb#306). Receipt: docs/data/ogs00011-rebuild-receipt.json.
+
+  Reference completion (issue #401, epic #371, 2026-11-01): the bundle''s completion block ran on the
+  MAF-fixed build. complete-hybrid against ukb-hg38-eur-ld at opengwasdb v0.3.0 (bc22e84) took 20.4 h
+  and imputed 6,898,789,430 cells. The completed Store holds 48,069,918 variants: 14,267,257 on the
+  Dense axis, 851,321 of them added from the panel, and 33,802,661 off-panel. Its validate (v0.3.0)
+  passed with one warning, and its HM3 Indexed Variant Subset resolved 1,195,931 of 1,206,903 ALIDs.
+  The Observed-View Check failed on 2026-10-31 (see the erratum below). At opengwasdb v0.3.2
+  (44f25a9), which reads Z/SE missingness through the missing markers, it passed on 2026-11-01: the
+  3,169 Analyses are identical, and 3,454,007,184 sampled Dense cells and 973,004,110 crossovers show
+  no mismatch. completion_register published the completed Store on 2026-11-01. The Validation Record
+  names v0.3.2 because register runs at the stores pin; each step''s record names the revision it ran
+  at (build 70340e0, complete and validate bc22e84, the check 44f25a9).
+
+  Release Erratum (issue #401, 2026-11-01): eight associations store an SE of +inf with a finite Z.
+  Each source SE exceeds 65,504, the largest float16 value, and the builder narrows it to +inf
+  (opengwas/opengwasdb#338). In the Overflow: GCST012879 at rs138973223 (source SE 67,078), and
+  GCST90295971 at rs55671247, rs7897763 and rs192832728 (145,856, 141,528 and 197,392). In the Dense
+  Component: GCST90295971 at rs118041704 and rs139555215 (193,677 and 220,834), and GCST90827693 at
+  rs6805909 and rs3908969 (110,698,562 each). All eight are degenerate fits (beta -38 to -11,577, p
+  0.88 to 1.0). The Store published on 2026-10-29 held the same eight cells, and completion copies
+  observed cells exactly. The first Observed-View Check failed on them because it tested missingness
+  with isfinite, where the spec defines it by the missing marker (NaN), under which these cells are
+  observed (opengwas/opengwasdb#337). On the owner decision of 2026-10-31 the completed Store is
+  accepted with them: the check counts them as infinite_cells, and validate from v0.3.2 warns about
+  them per Analysis. They are not corrected in place. StoreQuery.lookup filters on isfinite and so
+  returns no row for them (opengwas/opengwasdb#338).
+
+  Validated (issue #332, 2026-11-01): accepted -> validated. Read-only checks of the published Store
+  at opengwasdb v0.3.2: info reports format 0.2.0, hybrid layout, reference_completed and association
+  coverage gwas, and its 3,169 Analysis IDs equal the bundle''s 3,169 admitted rows as sets. The
+  Validation Record says passed_with_warnings, from the completion''s validate record (ok; one
+  warning: GCST90271757''s EAF orientation is unverified, 342 variants overlapping the reference), and
+  the completion''s Observed-View Check record passed. No fresh full validate was run: on this Store
+  it takes about 10 h, and the completion''s own validate is the evidence. The owner approved marking
+  it validated in this registration on 2026-10-30.'
