@@ -1,4 +1,4 @@
-"""The import graph between components, across both repositories (#418).
+"""The import graph between components, across both repositories (#418, #421).
 
 The edges are not written in any model: they are read from the code. Every
 tracked Python module a component claims is parsed, and each import that lands
@@ -10,6 +10,12 @@ An import inside the engine is `upward` when it goes to a component on a higher
 layer than the importing one (the engine's own file declares the layers, top to
 bottom); the same layer and lower layers are not. An import from this
 repository into the engine is a `registry_to_engine` edge.
+
+The same measurement is what this repository's baseline of engine imports is
+held to (#421): `imports_of` yields every import once, `import_edges` counts
+them between components, and `engine_imports` keeps the ones that reach the
+engine. One pass over the sources, so the page's seam counts and the baseline
+cannot disagree about what an import is.
 """
 
 from __future__ import annotations
@@ -72,13 +78,16 @@ def modules_of(trees: Mapping[str, Any]) -> dict[str, tuple[str, str]]:
     }
 
 
-def import_edges(
-    trees: Mapping[str, Any],
-    claims: Mapping[str, Sequence[tuple[str, str]]],
-    components: Sequence[Mapping[str, Any]],
-) -> list[Edge]:
-    """Component -> component edges with their import counts, sorted by (from, to)."""
-    by_id = {c["id"]: c for c in components}
+def imports_of(
+    trees: Mapping[str, Any], claims: Mapping[str, Sequence[tuple[str, str]]]
+) -> list[dict[str, Any]]:
+    """Every import a claimed file of either repository makes, one record per (file, imported name).
+
+    `component` is the importing file's owner; `target` is the component the name
+    resolves to, or `None` for a name no tracked module answers to. An unclaimed
+    file is not a source here: it is a gap the ownership test fails on, so its
+    imports are reported there rather than hidden in a graph.
+    """
     # Every tracked module resolves to its own owner or to none: an unclaimed
     # module is a gap, and must not inherit the owner of the package around it.
     everything = modules_of(trees)
@@ -103,16 +112,62 @@ def import_edges(
             parts.pop()
         return None
 
-    counts: dict[tuple[str, str], int] = defaultdict(int)
+    records: list[dict[str, Any]] = []
     for repo, tree in trees.items():
         mine = [(path, module) for r, path, module in sources if r == repo]
         text = tree.read([path for path, _ in mine])
         for path, module in mine:
             source = model_rules.owner(claims[repo], path)
             for name in imported_names(text.get(path, ""), module, path.endswith("__init__.py"), path):
-                target = resolve(name)
-                if target and target != source:
-                    counts[(source, target)] += 1
+                records.append(
+                    {"repo": repo, "file": path, "component": source, "name": name, "target": resolve(name)}
+                )
+    return records
+
+
+def is_engine_name(name: str) -> bool:
+    """Whether an imported name is one of the engine's: its package, or a module or name under it.
+
+    The rule needs no engine checkout and no engine model, which is what lets
+    this repository's own CI hold its engine imports to a baseline on its own.
+    `opengwasdbx` is a different package, not the engine's.
+    """
+    package = model_rules.ENGINE_PACKAGE
+    return name == package or name.startswith(f"{package}.")
+
+
+def engine_imports(imports: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """This repository's imports of engine names, sorted by (file, name), one entry per pair.
+
+    `engine_component` is the engine component the name resolves to, and is
+    `None` when the engine was not read: the measurement does not need it.
+    """
+    found = [
+        {"file": record["file"], "name": record["name"], "engine_component": record["target"]}
+        for record in imports
+        if record["repo"] == "registry" and is_engine_name(record["name"])
+    ]
+    return sorted(found, key=lambda entry: (entry["file"], entry["name"]))
+
+
+def import_edges(
+    trees: Mapping[str, Any],
+    claims: Mapping[str, Sequence[tuple[str, str]]],
+    components: Sequence[Mapping[str, Any]],
+    imports: Sequence[Mapping[str, Any]] | None = None,
+) -> list[Edge]:
+    """Component -> component edges with their import counts, sorted by (from, to).
+
+    `imports` is the measurement, when the caller already made it: the collector
+    measures once and hands the same records to the baseline it reports.
+    """
+    by_id = {c["id"]: c for c in components}
+    records = imports_of(trees, claims) if imports is None else imports
+    counts: dict[tuple[str, str], int] = defaultdict(int)
+    for record in records:
+        source, target = record["component"], record["target"]
+        if target and target != source:
+            counts[(source, target)] += 1
 
     edges = []
     for (source, target), imports in sorted(counts.items()):
