@@ -125,15 +125,17 @@ def compute(
                 not_found_rows.add((owner, item, text, cid))
 
     for key, e in epics.items():
-        home = REPO_KIND[key.split("#")[0]]
-        placed, ambiguous = place(e.get("cited") or [], home)
+        home = REPO_KIND.get(key.split("#")[0])
+        # An epic of a repository that is neither the engine nor this one has no claims to cite against.
+        placed, ambiguous = place(e.get("cited") or [], home) if home else ([], [])
         unresolved_rows |= {(key, key, text, tuple(paths)) for text, paths in ambiguous}
         cited_signals(key, key, "scope", "scope", placed)
         for child in e.get("children") or []:
             if child["state"] != "OPEN":
                 continue
             state = "waiting" if child["key"] in blocked else STATUS_STATE[e["status"]]
-            placed, ambiguous = place(child.get("cited") or [], REPO_KIND[child["key"].split("#")[0]])
+            child_home = REPO_KIND.get(child["key"].split("#")[0])
+            placed, ambiguous = place(child.get("cited") or [], child_home) if child_home else ([], [])
             unresolved_rows |= {(key, child["key"], text, tuple(paths)) for text, paths in ambiguous}
             cited_signals(key, child["key"], "cited", state, placed)
 

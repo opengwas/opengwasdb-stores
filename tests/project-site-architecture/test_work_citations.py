@@ -97,5 +97,12 @@ class WorkCitationTests(unittest.TestCase):
         self.assertEqual(result["not_found"], [])
 
 
+class OtherRepositoryTests(unittest.TestCase):
+    def test_an_epic_of_a_third_repository_places_no_citation_and_does_not_stop_the_collector(self) -> None:
+        result = compute(board(epic("opengwasdb-website#5", "Active", [ticket("opengwasdb-website#6", cited=["encoding/codec.py"])],
+                                    cited=["encoding/codec.py"])), architecture=WITH_FILES)
+        self.assertEqual(result["signals"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
