@@ -1,28 +1,28 @@
 status: passed
-validated_at: '2026-09-16T09:20:45.626197Z'
+validated_at: '2026-11-02T07:24:27.781313Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@a9e8bc825af692cdb5bb7cba39d56d11654fcebe
+  version: opengwasdb@44f25a96fb43044a983e300a038a54ab1930e782
 build_environment:
-  opengwasdb_version: 0.3.0
-  opengwasdb_commit: a9e8bc825af692cdb5bb7cba39d56d11654fcebe
-  python_version: 3.11.15
-  platform: Linux-4.18.0-553.155.1.el8_10.x86_64-x86_64-with-glibc2.28
+  opengwasdb_version: 0.3.2
+  opengwasdb_commit: 44f25a96fb43044a983e300a038a54ab1930e782
+  python_version: 3.12.15
+  platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
 observed:
-  format_version: 0.1.0
+  format_version: null
   n_analyses: 10
   n_variants: 86376
   n_associations: 86373
+  association_coverage: cis
+  reference_assembly: null
   store_bytes: null
-  build_elapsed_s: 4.677
+  build_elapsed_s: 16.8
   validate_status: passed
+  completion_state: observed_only
 checks:
-  schema: not_run
-  files: passed
-  reader_smoke_test: passed
   store: passed
-reports:
-  build_report: sidecars/build_report.tsv
-  selection: sidecars/selection.tsv
 warnings: []
 errors: []
+replaced:
+  archive: /data/opengwasdb/stores/OGS-00001/replaced/20261102T072357Z
+  replaced_at: '2026-11-02T07:24:27.781313Z'

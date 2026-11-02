@@ -62,4 +62,18 @@ notes: 'Completion adds no new Analyses -- analyses.tsv here is unchanged from p
   at 987aec1, the revision that rebuilt the published Store.
   Corrected to 0.1.0 in validation.yaml. No Store artifact was rebuilt or rewritten
   by this registry metadata correction.
+
+  Re-completed 2026-11-02 (issue #348): the completion ran again against the
+  repaired HGDP+1kGP EUR panel (/data/opengwasdb/reference/hgdp1kgp-hg38/panel),
+  consuming the rebuilt OGS-00001, at opengwasdb 0.3.2 (44f25a96). The first
+  completion read the panel before its repair, so imputed cells took the other
+  allele frequency as EAF and cells whose panel ALID was duplicated may have taken
+  the wrong row LD. Format 0.1.0 became 0.2.0. Counts before and after are
+  identical: 207,764 variants, 207,761 associations, 106,653 imputed, 14,735
+  missing. The reference EAF, read through the core and compared with UKB United
+  Kingdom frequencies oriented to the Store EA, went from r = -0.978 to r = +0.979
+  over the same 94,629 matched variants. validate passed. The previous Store and
+  records are kept in
+  /data/opengwasdb/stores/OGS-00002/replaced/20261102T073446Z. This supersedes the
+  format 0.1.0 statements in the earlier errata above, which are left as written.
   '
