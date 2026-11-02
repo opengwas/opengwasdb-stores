@@ -84,3 +84,17 @@ notes: >
   `provenance.json` under `repairs` and adding a sha256 receipt. This panel holds
   no duplicated ALID, so such a repair touches only the tables and every
   `.ldeig.npz` stays byte-identical.
+
+  **Repaired in place on 2026-11-01/02 (stores#348).**
+  `tools/ld-panel/repair_panel.py` was run on the shipped block files between
+  2026-11-01 22:52 and 2026-11-02 00:06 UTC; no panel was rebuilt.
+  - AMR: 1,357 blocks, 12,669,255 -> 12,669,255 rows (0 dropped, EAF flipped in
+  all 12,669,255); orientation gate r -0.9864 (n=20,388) before, r +0.9864
+  (n=20,388) after, against "South America"; every block verified against its
+  backup with no failures and unique ALIDs; receipt
+  `/data/opengwasdb/reference/hgdp1kgp-hg38-amr/repairs/20261101T225229Z-348-AMR.json`
+  (sha256 `ebb61dc3c35d535027a784a59d3fce4c726c955cc4b3fd9f6e7cb1740c9bd06a`).
+  The pre-repair files are kept, as hard links, under
+  `/data/opengwasdb/reference/hgdp1kgp-hg38-amr/replaced/20261101T225229Z-348/<ANC>/<ANC>/<chr>/<block>.*`.
+  No ALID was duplicated, so the TSVs and each block's `provenance.json` changed
+  and every `.ldeig.npz` stayed byte-identical.

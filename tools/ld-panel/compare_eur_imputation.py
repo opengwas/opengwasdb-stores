@@ -1,5 +1,18 @@
 #!/usr/bin/env python3
-"""Paired held-out beta comparison of UKB and HGDP+1kGP EUR LD panels."""
+"""Paired held-out beta comparison of UKB and HGDP+1kGP EUR LD panels.
+
+The truth Store may be a Reference-Completed release, whose `imputed` cells are
+panel-derived: counting one as truth, or feeding it to the imputer as training
+data, would measure the panel against itself. Every cell this script reads is
+therefore gated on the Store's own `imputed` flag -- truth and training are
+restricted to cells whose flag is 0 -- and a Store with no `imputed` plane (an
+Observed-Only release) is read with every cell observed, as before (#348).
+
+The statistic planes are read through the core's decoders, never off the raw
+array: a format-0.2.0 Store keeps `z` as int16 fixed point and, when the plan
+chose it, `se` and `eaf` as int8 residuals against the cell's frequency, so a
+raw read returns codes rather than z-scores and standard errors.
+"""
 from __future__ import annotations
 
 import argparse
@@ -8,6 +21,7 @@ import json
 import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+from typing import NamedTuple
 
 for variable in ("OMP_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
     os.environ.setdefault(variable, "1")
@@ -19,8 +33,15 @@ from scipy.stats import spearmanr
 from threadpoolctl import threadpool_limits
 
 from opengwasdb.completion.impute import impute_z_block, scalar_n_se
-from opengwasdb.encoding import DenseZPlane
+from opengwasdb.encoding import DenseEafPlane, DenseSePlane, DenseZPlane
 from opengwasdb.store.open import open_store
+
+#: What the sidecar records about the Store a run measured against.
+OBSERVED_ONLY_RULE = (
+    "truth and training cells are restricted to cells whose `imputed` flag is 0; "
+    "an imputed cell is never counted as truth nor used as training input"
+)
+NO_IMPUTED_PLANE_RULE = "this Store has no `imputed` plane; every cell it holds is observed"
 
 BLOCKS = (
     ("1", "222798680-224041489"),
@@ -64,6 +85,69 @@ def panel_alids(root: Path, chrom: str, block: str) -> set[str]:
     path = root / "EUR" / chrom / f"{block}.tsv"
     with path.open() as handle:
         return {canonical_alid(row["SNP"]) for row in csv.DictReader(handle, delimiter="\t")}
+
+
+class StoreCells(NamedTuple):
+    """One set of variants' decoded `z`, decoded `se`, and observed-cell mask.
+
+    `observed` is `True` where the cell is the Store's own observation -- i.e.
+    where its `imputed` flag is 0, or everywhere for a Store with no `imputed`
+    plane. It is the mask truth and training are both restricted to.
+    """
+
+    z: np.ndarray
+    se: np.ndarray
+    observed: np.ndarray
+
+
+def read_store_cells(store: Path, rows: np.ndarray) -> StoreCells:
+    """Decode the `z` and `se` planes at `rows`, and the observed-cell mask.
+
+    Both planes go through the core's decoders under the Store's declared plan
+    (`manifest.json`'s `encoding`), because a format-0.2.0 plane's stored bytes
+    are not its values: `z` is int16 fixed point at 1024, and `se` is an int8
+    residual against the cell's own frequency whenever the plan says so. The
+    `imputed` flag is read with the frequency plane that owns it, which is the
+    only supported route to it.
+    """
+    rows = np.asarray(rows, dtype=np.int64)
+    opened = open_store(store)
+    root = opened.arrays(mode="r")
+    encoding = opened.manifest.encoding
+    n_analyses = int(root["z"].shape[1])
+    if len(rows) == 0:
+        empty = np.empty((0, n_analyses), dtype=np.float64)
+        return StoreCells(empty, empty.copy(), np.empty((0, n_analyses), dtype=bool))
+    z = np.asarray(DenseZPlane.open(root, encoding).rows(rows), dtype=np.float64)
+    se_plane = DenseSePlane.open(root, encoding)
+    if "imputed" not in root:
+        se = np.asarray(se_plane.rows(rows), dtype=np.float64)
+        return StoreCells(z, se, np.ones(z.shape, dtype=bool))
+    frequency = DenseEafPlane.open(root, encoding).read_block(
+        rows, np.arange(n_analyses), want_imputed=True
+    )
+    # A residual `se` is coded against the frequency of its own cell, so the
+    # decoded frequencies are what the decoder needs -- read once here rather
+    # than a second time inside the plane.
+    se = np.asarray(se_plane.rows(rows, eaf=frequency.values), dtype=np.float64)
+    assert frequency.imputed is not None
+    return StoreCells(z, se, frequency.imputed == 0)
+
+
+def store_metadata(store: Path) -> dict[str, object]:
+    """What a run must record about the Store: format, state, and the rule."""
+    opened = open_store(store)
+    root = opened.arrays(mode="r")
+    has_imputed = "imputed" in root
+    return {
+        "path": str(store),
+        "format_version": opened.manifest.format_version,
+        "completion_state": opened.manifest.completion_state.value,
+        "encoding": opened.manifest.encoding.to_manifest(),
+        "n_analyses": int(root["z"].shape[1]),
+        "has_imputed_plane": has_imputed,
+        "observed_only": OBSERVED_ONLY_RULE if has_imputed else NO_IMPUTED_PLANE_RULE,
+    }
 
 
 def store_rows(store: Path, chrom: str, block: str) -> dict[str, int]:
@@ -115,27 +199,25 @@ def evaluate(task: tuple[str, str, str, str, str, str, str, float, float, int]) 
     mapping = store_rows(store, chrom, block)
     alids = panel["alids"]
     matched_local = [i for i, alid in enumerate(alids) if alid in mapping]
-    matched_store = [mapping[alids[i]] for i in matched_local]
-    # z is read through the store's declared encoding, never off the raw array:
-    # since opengwasdb#114 the plane is int16 fixed point, so `.oindex[...]`
-    # alone would hand back z-scores 1024x too large -- and this script's whole
-    # output is a comparison of imputed z against observed z.
-    opened = open_store(store)
-    root = opened.arrays(mode="r")
-    z_plane = DenseZPlane.open(root, opened.manifest.encoding)
-    n_analyses = z_plane.n_analyses
+    cells = read_store_cells(store, np.asarray([mapping[alids[i]] for i in matched_local]))
+    n_analyses = cells.z.shape[1]
     z = np.full((len(alids), n_analyses), np.nan, dtype=np.float64)
     se = np.full_like(z, np.nan)
-    z[matched_local] = z_plane.rows(np.asarray(matched_store))
-    se[matched_local] = root["se"].oindex[matched_store, :].astype(np.float64)
+    observed_cell = np.zeros((len(alids), n_analyses), dtype=bool)
+    z[matched_local] = cells.z
+    se[matched_local] = cells.se
+    observed_cell[matched_local] = cells.observed
     target = np.array([alid in heldout for alid in alids])
     positions = panel["positions"]
     output: list[dict[str, object]] = []
     for analysis in range(n_analyses):
-        truth_mask = target & np.isfinite(z[:, analysis]) & np.isfinite(se[:, analysis])
+        # A cell the Store imputed is not evidence: it is neither truth to score
+        # against nor an observation to train on.
+        available = observed_cell[:, analysis] & np.isfinite(z[:, analysis])
+        truth_mask = target & available & np.isfinite(se[:, analysis])
         n_truth = int(truth_mask.sum())
-        training_z = z[:, analysis].copy()
-        training_se = se[:, analysis].copy()
+        training_z = np.where(available, z[:, analysis], np.nan)
+        training_se = np.where(available, se[:, analysis], np.nan)
         training_z[target] = np.nan
         training_se[target] = np.nan
         observed = np.isfinite(training_z)
@@ -197,10 +279,12 @@ def main() -> int:
             print(f"finished {futures[future][0]} chr{futures[future][5]} {futures[future][6]}", flush=True)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows).sort_values(["chrom", "block", "panel", "analysis_index"]).to_csv(args.out, index=False)
-    metadata = {"store": str(args.store), "panels": {k: str(v) for k, v in panels.items()},
+    release = store_metadata(args.store)
+    metadata = {"store": str(args.store), "store_release": release,
+                "panels": {k: str(v) for k, v in panels.items()},
                 "blocks": BLOCKS, "mask_fraction": args.mask_fraction, "seed": args.seed,
                 "pca_threshold": args.thresh, "min_correlation": 0.7,
-                "n_analyses": 2514}
+                "n_analyses": release["n_analyses"]}
     args.out.with_suffix(".json").write_text(json.dumps(metadata, indent=2) + "\n")
     return 0
 
