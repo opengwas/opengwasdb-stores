@@ -1818,6 +1818,7 @@ SECTION_PAGES = (
     ("changelog.qmd", "Changelog", render_changelog),
     ("architecture.qmd", "Pipeline", render_pipeline),
     ("architecture-structure.qmd", "Structure and health", render_structure),
+    ("architecture-work.qmd", "Work map", render_work),
 )
 
 # The commit a render documents, which the build puts in the render's environment

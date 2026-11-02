@@ -118,7 +118,7 @@ Every file starts with the same four keys, then the source's own:
 
 | Key | Meaning |
 |---|---|
-| `source` | `board`, `catalog`, `releases`, `stores`, `records` or `architecture` |
+| `source` | `board`, `catalog`, `releases`, `stores`, `records`, `architecture` or `work` |
 | `available` | `true` when the source was read; `false` when it could not be |
 | `collected_at` | UTC time, `2026-10-29T12:00:00Z` |
 | `error` | `null`, or the failure as `ExceptionType: message` |
@@ -400,7 +400,8 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
 ### The command's output and exit status
 
 One line per source, in this order (the architecture line is longer: components,
-gaps, upward imports, the seam and ADRs placed), then the files are all written:
+gaps, upward imports, the seam and ADRs placed; `work` runs last, because it reads the
+board and architecture files just written, and adds `BRANCH FETCH FAILED` for a failed fetch), then the files are all written:
 
 ```text
 board: 17 epics, 2 milestones, 16 milestone lines
@@ -409,6 +410,7 @@ releases: 0 releases, 1 tags
 stores: 22 stores
 records: 0 epics, 0 invalid, 0 yardstick results, 0 invalid
 architecture: 10 registry + 15 engine components (engine model at main 1a2b3c4d), gaps ...
+work: 3 owners, 2 meets (1 coordinated, 1 uncoordinated), 2 branches
 ```
 
 An unavailable source prints `UNAVAILABLE <source>: <error>` in place of its
