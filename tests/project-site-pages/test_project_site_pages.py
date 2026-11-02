@@ -1031,6 +1031,8 @@ class TestGenerate(unittest.TestCase):
         self.assertEqual(
             sorted(path.relative_to(self.docs).as_posix() for path in written),
             [
+                "architecture-structure.qmd",
+                "architecture.qmd",
                 "changelog.qmd",
                 "epics.qmd",
                 "epics/opengwasdb-stores-214.qmd",
@@ -1102,7 +1104,7 @@ class TestGenerate(unittest.TestCase):
 
     def test_no_data_directory_still_writes_every_section_page_with_the_notices(self) -> None:
         written = pages.generate(docs=self.docs, data_dir=Path(self.docs.name) / "never-collected")
-        self.assertEqual(len(written), 5)
+        self.assertEqual(len(written), 7)
         overview = (self.docs / "index.qmd").read_text()
         self.assertIn("Board data unavailable", overview)
         self.assertIn("Catalog data unavailable", overview)

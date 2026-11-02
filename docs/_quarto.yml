@@ -62,6 +62,12 @@ website:
         href: trends.qmd
       - text: Changelog
         href: changelog.qmd
+      - text: Architecture
+        menu:
+          - text: Pipeline
+            href: architecture.qmd
+          - text: Structure and health
+            href: architecture-structure.qmd
       - text: Reports
         href: reports.qmd
       - text: Registry

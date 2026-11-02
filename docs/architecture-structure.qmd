@@ -1,0 +1,11 @@
+---
+title: "Structure and health"
+---
+
+How the system fits together: its context, containers and components, the engine drawn by layer with the imports that go against it, and the gaps in the code each component claims.
+
+**This page is generated at render time** by
+[`src/project_site/architecture_pages.py`](../src/project_site/architecture_pages.py)
+from the architecture collector's data and both repositories'
+`docs/architecture/components.yaml`; the render replaces this file. Run
+`pixi run site-data` and then `pixi run site` to see it.
