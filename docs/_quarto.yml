@@ -66,6 +66,8 @@ website:
         menu:
           - text: Pipeline
             href: architecture.qmd
+          - text: Work map
+            href: architecture-work.qmd
           - text: Structure and health
             href: architecture-structure.qmd
       - text: Reports

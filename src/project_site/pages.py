@@ -47,7 +47,7 @@ Document = Mapping[str, Any]
 
 # The collectors, in the order `pixi run site-data` runs them, and the name each
 # one's notice uses.
-SOURCES = ("board", "catalog", "releases", "stores", "records", "architecture")
+SOURCES = ("board", "catalog", "releases", "stores", "records", "architecture", "work")
 TITLES = {
     "board": "Board data",
     "catalog": "Catalog data",
@@ -55,6 +55,7 @@ TITLES = {
     "stores": "Stores data",
     "records": "Records data",
     "architecture": "Architecture data",
+    "work": "Work data",
 }
 
 # The board's Workstream values, in the order the project reads them; a
@@ -1797,6 +1798,13 @@ def render_structure(documents: Mapping[str, Document | None]) -> str:
     from project_site import architecture_pages
 
     return architecture_pages.render_structure(documents)
+
+
+def render_work(documents: Mapping[str, Document | None]) -> str:
+    """The Work map page (#419)."""
+    from project_site import architecture_pages
+
+    return architecture_pages.render_work(documents)
 
 
 # The section pages, in the navbar's order: the file Quarto renders and the

@@ -1,4 +1,4 @@
-"""The architecture pages: Pipeline, and Structure and health (#418, epic #416).
+"""The architecture pages: Pipeline, Structure and health (#418) and the Work map (#419), epic #416.
 
 Both are written from `architecture.json`, the architecture collector's file
 (`docs/spec/project-site.md`). Like every page of `pages.py` they read
@@ -9,6 +9,11 @@ The diagrams are Quarto `{dot}` cells, which Quarto draws at render time with
 its own bundled Graphviz. A `{dot}` cell is a diagram, not code: it needs no
 kernel and no new dependency, so `pages.py`'s promise of no executable code
 cells still holds, and nothing generated is ever committed.
+
+The Work map is written from `work.json`, the work collector's file, and is
+the one page that is not about the code alone: it says where live work meets,
+so it states when it was measured and that branches existing only on a build
+host are not shown (the `conflicts` command, run there, shows them).
 
 Each page states what is written by hand (the models: stages, layers, claims,
 the context and containers) and what is measured (code size, imports, ADR
@@ -130,14 +135,169 @@ def render_structure(documents: Mapping[str, Document | None]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+WORK_INTRO = (
+    "Which work is changing which part of the system right now, and where two owners' work meets on "
+    "one component. An owner is an epic, or a branch or ticket that is on no epic of the board."
+)
+STATE_ORDER = ("building", "active", "waiting", "scope", "planned", "paused", "stale")
+STATE_MEANING = (
+    ("building", "a branch's diff against the merge-base with `main`"),
+    ("active", "a file cited by an open ticket of an Active epic"),
+    ("waiting", "a file cited by an open ticket that waits for another open ticket"),
+    ("scope", "a file cited by an epic's body"),
+    ("planned", "a file cited by an open ticket of a Todo epic"),
+    ("paused", "a file cited by an open ticket of a Paused epic"),
+    ("stale", "a branch whose epic or ticket is closed"),
+)
+
+
+def render_work(documents: Mapping[str, Document | None]) -> str:
+    """The Work map: tiles, where work meets, the components by owner, and the branches."""
+    lines = [pages.GENERATED, "", WORK_INTRO, "", "See also the [Pipeline](architecture.qmd).", ""]
+    data = pages.available(documents, "work")
+    if data is None:
+        return "\n".join(lines + pages.notices(documents, ("work",))).rstrip() + "\n"
+    lines += _hand_and_measured(
+        hand="which code each component owns (the claims in each repository's `docs/architecture/components.yaml`), "
+        "the epics and tickets on the board and the blocking edges between them, and the files a ticket's text cites",
+        where="The claims are in the repositories, the rest on the project board.",
+        measured="the files each live branch changes, which component each file and each cited file falls on, "
+        "the state of each piece of work there, and the meets between owners",
+    )
+    lines += _measured_at(data)
+    lines += _fetch_failures(data)
+    summary = data.get("summary") or {}
+    lines += [
+        "| Owners | Meets | Coordinated | Uncoordinated | Branches |",
+        "|---:|---:|---:|---:|---:|",
+        "| " + " | ".join(
+            pages._figure(summary.get(k)) for k in ("owners", "meets", "coordinated", "uncoordinated", "branches")
+        ) + " |",
+        "",
+    ]
+    owners = {o["key"]: o for o in data.get("owners") or [] if isinstance(o, Mapping)}
+    names = {c["id"]: c["name"] for c in data.get("components") or [] if isinstance(c, Mapping)}
+    lines += ["## Where work meets", ""]
+    lines += _meets(data, owners, names)
+    lines += ["## Components by owner", ""]
+    lines += _matrix(data, owners, names)
+    lines += ["## Branches", ""]
+    lines += _branches(data, owners, names)
+    lines += ["## What the states mean", ""]
+    lines += [f"- **{state}**: {meaning}" for state, meaning in STATE_MEANING]
+    lines += [
+        "",
+        "A meet is two or more owners with `building` or `active` work on one component. It is "
+        "**coordinated** only when a blocking edge links two specific tickets of the owners, in either "
+        "direction; sharing an epic, or an edge between other tickets of the same epics, does not count.",
+        "",
+    ]
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _measured_at(data: Document) -> list[str]:
+    inputs = data.get("inputs") or {}
+    architecture = inputs.get("architecture") or {}
+    engine = architecture.get("engine") or {}
+    days = next((s.get("days") for s in (data.get("branches") or {}).get("sources") or [] if s.get("days")), None)
+    return [
+        f"Measured {pages._cell(data.get('collected_at'))}, from the board (collected {pages._cell((inputs.get('board') or {}).get('collected_at'))}) "
+        f"and the claims at engine {pages._code(engine.get('ref'))} ({pages._code(str(engine.get('commit'))[:12])}). "
+        f"Branches are pushed ones ahead of `main` whose newest commit is within {pages._figure(days)} days; branches that "
+        "exist only on a build host are not shown. On that host, `pixi run architecture conflicts --branch NAME --local GIT_DIR` includes them.",
+        "",
+    ]
+
+
+def _fetch_failures(data: Document) -> list[str]:
+    lines = []
+    for source in (data.get("branches") or {}).get("sources") or []:
+        fetch = source.get("fetch")
+        if isinstance(fetch, Mapping) and fetch.get("ok") is False:
+            lines += [
+                f"> **The branch fetch for {pages.escape(str(source.get('repo')))} failed**: {pages._cell(fetch.get('error'))}. "
+                "The branches shown are the ones already there, so they may be out of date.",
+                "",
+            ]
+    return lines
+
+
+def _owner(key: str, owners: Mapping[str, Mapping[str, Any]]) -> str:
+    found = owners.get(key) or {}
+    link = pages._link(key, found.get("url"))
+    title = found.get("title")
+    return f"{link} {pages.escape(str(title))}" if title and title != key else link
+
+
+def _meets(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) -> list[str]:
+    meets = [m for m in data.get("meets") or [] if isinstance(m, Mapping)]
+    if not meets:
+        return ["No two owners have building or active work on the same component.", ""]
+    signals = [s for s in data.get("signals") or [] if isinstance(s, Mapping)]
+    lines: list[str] = []
+    for meet in sorted(meets, key=lambda m: (m.get("coordinated") is True, str(m.get("component")))):
+        cid = meet["component"]
+        lines += [f"### {pages.escape(str(names.get(cid, cid)))}", ""]
+        for owner in meet["owners"]:
+            lines.append(f"- {_owner(owner, owners)}")
+            for item in meet["items"].get(owner, []):
+                found = [s for s in signals if s["component"] == cid and s["owner"] == owner and s["item"] == item
+                         and s["state"] in ("building", "active")]
+                detail = "; ".join(f"{s['state']}: " + ", ".join(pages._code(w) for w in s["what"]) for s in found)
+                lines.append(f"  - {pages.escape(item)} ({detail})")
+        lines.append("")
+        for pair in meet.get("pairs") or []:
+            a, b = pair["owners"]
+            if pair.get("coordinated"):
+                edges = "; ".join(f"{pages.escape(e['waiting'])} waits for {pages.escape(e['on'])}" for e in pair["edges"])
+                lines.append(f"**Coordinated**: {edges}.")
+            else:
+                mine, theirs = (", ".join(pages.escape(i) for i in meet["items"].get(o, [])) for o in (a, b))
+                lines.append(f"**Uncoordinated**: no blocking edge links {mine} ({pages.escape(a)}) and {theirs} ({pages.escape(b)}).")
+            lines.append("")
+    return lines
+
+
+def _matrix(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) -> list[str]:
+    signals = [s for s in data.get("signals") or [] if isinstance(s, Mapping)]
+    columns = sorted({s["owner"] for s in signals})
+    if not columns:
+        return ["No component has any work on it.", ""]
+    lines = [
+        "| Component | " + " | ".join(pages._link(o, (owners.get(o) or {}).get("url")) for o in columns) + " |",
+        "|---|" + "---|" * len(columns),
+    ]
+    for cid in sorted({s["component"] for s in signals}):
+        row = []
+        for owner in columns:
+            states = {s["state"] for s in signals if s["component"] == cid and s["owner"] == owner}
+            row.append(", ".join(s for s in STATE_ORDER if s in states))
+        lines.append(f"| {pages.escape(str(names.get(cid, cid)))} | " + " | ".join(row) + " |")
+    return lines + [""]
+
+
+def _branches(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) -> list[str]:
+    listed = [b for b in (data.get("branches") or {}).get("list") or [] if isinstance(b, Mapping)]
+    if not listed:
+        return ["No branch is ahead of `main` within the window.", ""]
+    lines = ["| Branch | Repository | Ahead | Newest commit | Files | Ticket | Owner | Components |", "|---|---|---:|---|---:|---|---|---|"]
+    for b in listed:
+        lines.append(
+            f"| {pages._code(b['name'])} | {pages.escape(str(b['repo']))} | {pages._figure(b.get('ahead'))} | "
+            f"{pages._cell(b.get('committed'))} | {pages._figure(len(b.get('files') or []))} | {pages.escape(str(b.get('item')))} | "
+            f"{pages.escape(str(b.get('owner')))} | {pages.escape(', '.join(names.get(c, c) for c in b.get('components') or []))} |"
+        )
+    return lines + [""]
+
+
 # ---------------------------------------------------------------------------
 # Text parts
 # ---------------------------------------------------------------------------
 
 
-def _hand_and_measured(*, hand: str, measured: str) -> list[str]:
+def _hand_and_measured(*, hand: str, measured: str, where: str = "Each is in a repository's `docs/architecture/components.yaml`.") -> list[str]:
     return [
-        f"> **Written by hand:** {hand}. Each is in a repository's `docs/architecture/components.yaml`.",
+        f"> **Written by hand:** {hand}. {where}",
         ">",
         f"> **Measured:** {measured}. Nothing measured is written by hand, so it cannot drift from the code.",
         "",
