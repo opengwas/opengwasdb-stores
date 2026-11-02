@@ -303,7 +303,7 @@ placement are measured.
 | `model` | `system`, `people`, `external`, `containers`, `container_relations`, `stages` (this repository's), `layers` (the engine's; `[]` without its model) |
 | `components` | this repository's, then the engine's: the model's keys plus `repo` (`registry` or `engine`), `files` and `lines` (claimed code files), `tracked` (every tracked file claimed) |
 | `files` | `{registry: [...], engine: [...]}` (#422): every tracked code file of each tree at the ref read (the files the ownership rule counts as code), sorted, read NUL-safely. A planned `adds` is told to exist from it. Added to the file; no other field changed |
-| `gaps.<repo>` | `unclaimed` (code files no component claims, by path) and `stale` (`{path, component}` claims matching no tracked file) |
+| `gaps.<repo>` | `unclaimed` (code files no component claims, by path) and `stale` (`{path, component}` claims matching no tracked file); `gaps.engine` is `null` (unknown, not `0`/`0`) when the engine has no model at the ref |
 | `baseline` | `path`, `entries` (how many imports the committed baseline lists; `null` with a `note` when it is not in this repository at the commit read, never 0) and `measured` (the engine imports the code makes) |
 | `edges` | `from`, `to`, `imports`, `scope` (`engine`, `registry`, `registry_to_engine`), `upward` |
 | `upward_imports` | each engine import that goes up a layer (#419), sorted by `file` then `name`: `file` (the importing file), `name` (the absolute imported name, a relative import resolved), `from`, `to` (component ids), `from_layer`, `to_layer`. The engine's layering baseline lists the same pairs. `null` when the engine has no model at the ref (the layering cannot be measured), like `summary.upward_imports`; never `[]` |
@@ -322,7 +322,7 @@ fail the build.** The engine's own CI fails on its unclaimed files, and this
 repository's test (`tests/project-site-architecture/test_architecture_ownership.py`)
 fails on its own; the collector only reports them, on the page. An engine ref with
 no model file is not an error either: `engine.model` is `false`, `engine.note`
-names the ref and commit, the engine has no components, edges or gaps, and this
+names the ref and commit, the engine has no components or edges and its gaps are unknown (`null`), and this
 repository's half is complete. Everything on the engine's half that its claims
 resolve is then `null` in `summary`, never 0: `edges`, `upward_edges`,
 `upward_imports` and `registry_to_engine_edges` (the seam's component pairs).
@@ -568,7 +568,7 @@ catalog: 3 versions, current 1b3a155d449bb84a
 releases: 0 releases, 1 tags
 stores: 22 stores
 records: 0 epics, 0 invalid, 0 yardstick results, 0 invalid
-architecture: 10 registry + 15 engine components (engine model at main 1a2b3c4d), gaps ...
+architecture: 10 registry + 15 engine components (engine model at main 1a2b3c4d), gaps registry 0/0 engine 0/0 (unclaimed/stale), ...
 work: 3 owners, 2 meets (1 coordinated, 1 uncoordinated), 2 branches
 ```
 

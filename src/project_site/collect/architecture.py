@@ -119,12 +119,12 @@ def collect(
     components = _components(registry_model, engine_model)
     claims = {repo: model_rules.claims_of(c for c in components if c["repo"] == repo) for repo in trees}
     is_code = {"registry": model_rules.is_registry_code, "engine": model_rules.is_engine_code}
-    # Without a model there are no claims to judge the engine's files against:
-    # the output says the model is missing, and does not list every file as a gap.
+    # Without a model there are no claims to judge the engine's files against: its gaps
+    # are unknown (`null`), never `0` unclaimed and `0` stale.
     gaps = {
         repo: model_rules.check_claims(claims[repo], trees[repo].files, is_code[repo])
         if repo == "registry" or engine_model is not None
-        else {"unclaimed": [], "stale": []}
+        else None
         for repo in trees
     }
     _measure(components, trees, claims, is_code)
