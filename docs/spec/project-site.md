@@ -155,6 +155,7 @@ complete.
 | `epics` | one row per Epic: `key` (`repo#n`), `title`, `url`, `state` (the issue's, `OPEN` or `CLOSED`), `status`, `workstream`, `next`, `priority`, `sub_issues` (`{total, completed}`), `purpose`, and `children` |
 | `epics[].purpose` | the epic's own first prose paragraph, cut as above, or `null` when its body has none |
 | `epics[].children` | the epic's sub-issues: `key`, `title`, `url`, `state`, `cited`, and `blocked_by`, a list of `{key, state}` |
+| `epics[].children[].plan` | the ticket's planned change to the architecture (#422), present only when its body has an `architecture` block: the parsed plan, or `{invalid: reason}`; see [Planned changes](#planned-changes). The body itself is not kept |
 | `epics[].cited`, `epics[].children[].cited` | the code the issue's text cites (#419): a sorted list of paths (`opengwasdb/encoding/se_range.py`, or the path of a GitHub link to a file) and dotted module names (`opengwasdb.encoding.se_range`), as written and not checked against any tree; `[]` when it cites none. The Work map resolves them through the claims. The text itself is not kept |
 | `milestones` | one row per Milestone, with the same fields as an epic (no `children`, no `cited`) and `lines` |
 | `milestones[].lines` | each `- [ ]` or `- [x]` line of the body, in order: `checked`, `text`, and `refs` (`repo#n` keys) |
@@ -442,6 +443,39 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
   (or the branch's ticket) to theirs. Exit 1 when any meet is uncoordinated or unlinkable (asking a person is the safe default; the message says which); 0 when none is;
   **2 when it cannot decide** (a source is unavailable, the branch is not in the
   collection, a git directory or branch diff cannot be read, or the work is the engine's and its model is missing). `--local GIT_DIR...` adds those clones' local branches, `--refresh` fetches first.
+
+### Planned changes
+
+A ticket that changes the structure says so in its body (#422, epic #416), in one
+fenced block whose info string is `architecture`, holding YAML. Text outside the
+fence is ignored, and a ticket without a block has no plan.
+
+````markdown
+```architecture
+adds:      # paths that will exist, and the component that will claim them
+  - paths: [opengwasdb/encoding/association.py]
+    component: encoding          # an existing component id, or a new id ...
+    name: Association encoder    # ... which then needs a name (and `container`, `layer` if engine)
+moves:     # paths whose claim changes component
+  - paths: [opengwasdb/build/eaf_orientation.py]
+    to: resolution
+drops:     # component imports that should disappear, "from -> to"
+  - dense -> encoding
+absorbs:   # free text, drawn on the map, never checked (line numbers drift)
+  - encoding/codec.py:932
+```
+````
+
+Every key is optional, but a block with none of them is invalid, and so is any
+other key. A component id (`component`, `to`, either end of a drop) must be an
+existing component or declared in `adds`; a new one needs a `name`. The board
+collector parses the block into `children[].plan` with `adds`, `moves`, `drops`
+(each `{from, to}`) and `absorbs`, every key present as a list. A block that
+cannot be used is never dropped: `plan` is `{invalid: reason}` (not YAML, unknown
+key, empty, a malformed item, more than one block, a block never closed) and the
+page shows the reason. The board collector does not know the components, so the
+`work` collector judges their ids once it knows them: when the engine's model
+is missing it cannot, and an id it does not find is not called unknown.
 
 ### The command's output and exit status
 
