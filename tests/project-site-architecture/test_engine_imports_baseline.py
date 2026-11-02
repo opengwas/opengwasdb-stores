@@ -158,6 +158,15 @@ class BaselineFileTests(unittest.TestCase):
             graph.load_baseline("imports:\n  - file: src/gen/make.py\n")
         self.assertIn("entry #0 must be a mapping with only 'file' and 'name'", str(caught.exception))
 
+    def test_yaml_that_cannot_be_loaded_is_a_collect_error_not_a_value_error(self) -> None:
+        for text in ("imports: [\n", "imports: [2026-13-32]\n"):
+            with self.assertRaises(CollectError) as caught:
+                graph.load_baseline(text)
+            self.assertIn("is not valid YAML", str(caught.exception))
+
+    def test_the_same_loader_reads_the_engines_key(self) -> None:
+        self.assertEqual(graph.load_baseline("allowed:\n  - {file: a.py, name: n}\n", key="allowed"), (("a.py", "n"),))
+
     def test_a_file_that_is_not_a_baseline_fails(self) -> None:
         with self.assertRaises(CollectError) as caught:
             graph.load_baseline("measurements: []\n")

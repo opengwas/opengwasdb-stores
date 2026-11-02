@@ -172,7 +172,7 @@ class UnlinkableTests(unittest.TestCase):
     def test_summary_counts_unlinkable_apart_from_uncoordinated(self) -> None:
         self.assertEqual(
             self.result()["summary"],
-            {"owners": 2, "meets": 1, "coordinated": 0, "uncoordinated": 0, "unlinkable": 1, "branches": 2},
+            {"owners": 2, "meets": 1, "coordinated": 0, "uncoordinated": 0, "unlinkable": 1, "branches": 2, "unresolved": 0, "not_found": 0},
         )
 
     def test_a_ticket_level_meet_without_an_edge_stays_uncoordinated(self) -> None:
@@ -259,7 +259,7 @@ class StateTests(unittest.TestCase):
     def test_the_summary_counts_what_the_lists_hold(self) -> None:
         self.assertEqual(
             self.result["summary"],
-            {"owners": 3, "meets": 0, "coordinated": 0, "uncoordinated": 0, "unlinkable": 0, "branches": 1},
+            {"owners": 3, "meets": 0, "coordinated": 0, "uncoordinated": 0, "unlinkable": 0, "branches": 1, "unresolved": 0, "not_found": 0},
         )
 
 

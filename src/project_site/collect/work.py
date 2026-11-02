@@ -29,7 +29,7 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from project_site.collect import architecture_model as model_rules, branches as branch_reader, plans as plan_reader
+from project_site.collect import architecture_model as model_rules, branches as branch_reader, citations, plans as plan_reader
 from project_site.collect.common import CollectError
 
 SCHEMA_VERSION = 1
@@ -61,16 +61,40 @@ def compute(
     if not engine.get("model"):
         unmeasured["engine"] = str(engine.get("note") or f"no architecture model at {engine.get('ref')}")
 
-    def place(strings: Sequence[str], home: str) -> dict[str, list[str]]:
-        """Component id -> the cited strings that land on it (a path, or a dotted module)."""
-        found: dict[str, list[str]] = defaultdict(list)
+    listed = architecture.get("files")
+    listings = {k: v for k, v in listed.items() if isinstance(v, list)} if isinstance(listed, Mapping) else {}
+
+    is_code = {"registry": model_rules.is_registry_code, "engine": model_rules.is_engine_code}
+
+    def place(strings: Sequence[str], home: str) -> tuple[list[tuple[str, str, str]], list[tuple[str, list[str]]]]:
+        """`(component, cited string, path status)` for each placed citation, and the ambiguous ones.
+
+        The status is `found` (a tracked file), `not found` (a code path no tracked file
+        is, nor ends with: attributed by its claim all the same), `unchecked` (no file
+        inventory, or not a code path, so existence is not known) or `n/a` (a dotted module).
+        """
+        placed: list[tuple[str, str, str]] = []
+        unresolved: list[tuple[str, list[str]]] = []
         for text in strings:
-            for kind in (home, *[k for k in claims if k != home]):
-                cid = next((c for p in _paths(text, kind) if (c := model_rules.owner(claims[kind], p))), None)
-                if cid:
-                    found[cid].append(text)
+            status = "n/a"
+            if "/" in text:
+                got = citations.resolve_path(text, home, listings)
+                if got.candidates:
+                    unresolved.append((text, sorted(path for _, path in got.candidates)))
+                    continue
+                if got.found:
+                    status, targets = "found", [got.found]
+                else:
+                    targets = [(kind, citations.without_line(text)) for kind in (home, *[k for k in claims if k != home])]
+            else:
+                targets = [(kind, path) for kind in (home, *[k for k in claims if k != home]) for path in _modules(text, kind)]
+            for kind, path in targets:
+                if cid := model_rules.owner(claims[kind], path):
+                    if "/" in text and status != "found":
+                        status = "not found" if kind in listings and is_code[kind](path) else "unchecked"
+                    placed.append((cid, text, status))
                     break
-        return found
+        return placed, unresolved
 
     epics = {e["key"]: e for e in board.get("epics") or [] if e.get("state") == "OPEN" and e.get("status") in LIVE_STATUSES}
     every_epic = {e["key"]: e for e in board.get("epics") or []}
@@ -87,21 +111,33 @@ def compute(
             waits += [(child["key"], b["key"]) for b in child.get("blocked_by") or [] if b.get("state") == "OPEN"]
     blocked = {item for item, _ in waits}
 
-    signals: dict[tuple[str, str, str, str, str], set[str]] = defaultdict(set)
+    signals: dict[tuple[str, str, str, str, str, str], set[str]] = defaultdict(set)
+    not_found_rows: set[tuple[str, str, str, str]] = set()
+    unresolved_rows: set[tuple[str, str, str, tuple[str, ...]]] = set()
 
-    def signal(cid: str, owner: str, item: str, via: str, state: str, what: Sequence[str]) -> None:
-        signals[(cid, owner, item, via, state)].update(what)
+    def signal(cid: str, owner: str, item: str, via: str, state: str, what: Sequence[str], path: str = "found") -> None:
+        signals[(cid, owner, item, via, state, path)].update(what)
+
+    def cited_signals(owner: str, item: str, via: str, state: str, placed: Sequence[tuple[str, str, str]]) -> None:
+        for cid, text, path in placed:
+            signal(cid, owner, item, via, state, [text], path)
+            if path == "not found":
+                not_found_rows.add((owner, item, text, cid))
 
     for key, e in epics.items():
-        home = REPO_KIND[key.split("#")[0]]
-        for cid, cited in place(e.get("cited") or [], home).items():
-            signal(cid, key, key, "scope", "scope", cited)
+        home = REPO_KIND.get(key.split("#")[0])
+        # An epic of a repository that is neither the engine nor this one has no claims to cite against.
+        placed, ambiguous = place(e.get("cited") or [], home) if home else ([], [])
+        unresolved_rows |= {(key, key, text, tuple(paths)) for text, paths in ambiguous}
+        cited_signals(key, key, "scope", "scope", placed)
         for child in e.get("children") or []:
             if child["state"] != "OPEN":
                 continue
             state = "waiting" if child["key"] in blocked else STATUS_STATE[e["status"]]
-            for cid, cited in place(child.get("cited") or [], REPO_KIND[child["key"].split("#")[0]]).items():
-                signal(cid, key, child["key"], "cited", state, cited)
+            child_home = REPO_KIND.get(child["key"].split("#")[0])
+            placed, ambiguous = place(child.get("cited") or [], child_home) if child_home else ([], [])
+            unresolved_rows |= {(key, child["key"], text, tuple(paths)) for text, paths in ambiguous}
+            cited_signals(key, child["key"], "cited", state, placed)
 
     # A branch can be read from two clones (pushed, and a host's own): it counts once, and the
     # copy further ahead wins, because it holds commits the other lacks; a tie keeps the first read.
@@ -123,8 +159,8 @@ def compute(
         listed.append({**b, "owner": owner, "item": item, "components": cids})
 
     rows = [
-        {"component": cid, "owner": owner, "item": item, "via": via, "state": state, "what": sorted(what)}
-        for (cid, owner, item, via, state), what in sorted(signals.items())
+        {"component": cid, "owner": owner, "item": item, "via": via, "state": state, "path": path, "what": sorted(what)}
+        for (cid, owner, item, via, state, path), what in sorted(signals.items())
     ]
     live: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
     for row in rows:
@@ -137,15 +173,8 @@ def compute(
         names = sorted(by_owner)
         pairs = []
         for a, b in combinations(names, 2):
-            edges = [
-                {"waiting": x, "on": y} for x, y in waits
-                if (x in by_owner[a] and y in by_owner[b]) or (x in by_owner[b] and y in by_owner[a])
-            ]
-            # An epic's integration branch belongs to the epic as a whole: no ticket for an edge to link.
-            epic_branches = epic_level_branches([item for o in (a, b) for item in by_owner[o]])
-            kind = "coordinated" if edges else "unlinkable" if epic_branches else "uncoordinated"
-            pairs.append({"owners": [a, b], "coordinated": bool(edges), "coordination": kind,
-                          "edges": edges, "epic_branches": [] if edges else epic_branches})
+            pair = classify_pair(waits, by_owner[a], by_owner[b])
+            pairs.append({"owners": [a, b], "coordinated": pair["coordination"] == "coordinated", **pair})
         kinds = {p["coordination"] for p in pairs}
         meets.append({"component": cid, "owners": names, "items": {o: sorted(by_owner[o]) for o in names},
                       "pairs": pairs, "coordinated": kinds == {"coordinated"},
@@ -169,6 +198,13 @@ def compute(
         ],
         "unmeasured": unmeasured,
         "signals": rows,
+        "unresolved": [
+            {"owner": o, "item": i, "cited": text, "candidates": list(paths)}
+            for o, i, text, paths in sorted(unresolved_rows)
+        ],
+        "not_found": [
+            {"owner": o, "item": i, "cited": text, "component": c} for o, i, text, c in sorted(not_found_rows)
+        ],
         "meets": meets,
         "plans": plan_reader.listed(board, architecture),
         "tickets": {c["key"]: key for key, e in epics.items() for c in e.get("children") or [] if c["state"] == "OPEN"},
@@ -181,8 +217,30 @@ def compute(
             "uncoordinated": sum(1 for m in meets if m["coordination"] == "uncoordinated"),
             "unlinkable": sum(1 for m in meets if m["coordination"] == "unlinkable"),
             "branches": len(listed),
+            "unresolved": len(unresolved_rows),
+            "not_found": len(not_found_rows),
         },
     }
+
+
+def classify_pair(waits: Sequence[tuple[str, str]], one: Sequence[str], other: Sequence[str]) -> dict[str, Any]:
+    """How two owners' items on one component are coordinated: the one classifier the collector and the CLI share.
+
+    `coordination` is `coordinated` when a blocking edge `(waiting, on)` links an item of
+    one with an item of the other, in either direction; else `unlinkable` when one side's
+    work is an epic's integration branch (no ticket an edge could link); else `uncoordinated`.
+    `edges` are the `{waiting, on}` links, and `epic_branches` the integration branches
+    involved, empty when an edge coordinates the pair.
+    """
+    one_set, other_set = set(one), set(other)
+    edges = [
+        {"waiting": x, "on": y} for x, y in waits
+        if (x in one_set and y in other_set) or (x in other_set and y in one_set)
+    ]
+    # An epic's integration branch belongs to the epic as a whole: no ticket for an edge to link.
+    epic_branches = epic_level_branches([*one_set, *other_set])
+    kind = "coordinated" if edges else "unlinkable" if epic_branches else "uncoordinated"
+    return {"coordination": kind, "edges": edges, "epic_branches": [] if edges else epic_branches}
 
 
 def epic_level_branches(items: Sequence[str]) -> list[str]:
@@ -211,10 +269,8 @@ def _title(epic: Mapping[str, Any]) -> str:
     return title[len("Epic:"):].strip() if title.lower().startswith("epic:") else title
 
 
-def _paths(cited: str, kind: str) -> list[str]:
-    """The files a cited string can mean in repository `kind`: itself, or a dotted module's file."""
-    if "/" in cited:
-        return [cited]
+def _modules(cited: str, kind: str) -> list[str]:
+    """The files a dotted module name can mean in repository `kind`, longest first."""
     parts = cited.split(".")
     root = "src/" if kind == "registry" else ""
     paths = []

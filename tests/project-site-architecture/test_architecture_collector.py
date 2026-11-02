@@ -66,6 +66,13 @@ class CombinedModelTests(unittest.TestCase):
                          [{"path": "opengwasdb/gone/", "component": "model"}])
         self.assertEqual(result["gaps"]["registry"], {"unclaimed": [], "stale": []})
 
+    def test_the_description_says_unknown_for_engine_gaps_without_a_model(self) -> None:
+        from project_site.collect import __main__ as command
+
+        engine = {k: v for k, v in fx.ENGINE_FILES.items() if k != "docs/architecture/components.yaml"}
+        line = command._describe_architecture(Fixture(self, engine_files=engine).collect())
+        self.assertIn("gaps registry 0/0 engine unknown (unclaimed/stale)", line)
+
     def test_an_engine_ref_without_a_model_says_so_and_keeps_this_repositorys_components(self) -> None:
         engine = {k: v for k, v in fx.ENGINE_FILES.items() if k != "docs/architecture/components.yaml"}
         fixture = Fixture(self, engine_files=engine)
@@ -74,7 +81,9 @@ class CombinedModelTests(unittest.TestCase):
         self.assertEqual(result["engine"]["ref"], "main")
         self.assertEqual(result["engine"]["commit"], fixture.engine_commit)
         self.assertEqual([c["id"] for c in result["components"]], ["gen", "ogs", "tools"])
-        self.assertEqual(result["gaps"]["engine"], {"unclaimed": [], "stale": []})
+        # Unknown, not "no gaps": nothing was judged against missing claims.
+        self.assertIsNone(result["gaps"]["engine"])
+        self.assertEqual(result["gaps"]["registry"], {"unclaimed": [], "stale": []})
         self.assertEqual(result["model"]["layers"], [])
         # Unknown, not empty: the layering cannot be measured without the model.
         self.assertIsNone(result["upward_imports"])

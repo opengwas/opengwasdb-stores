@@ -52,10 +52,12 @@ def _describe_architecture(result: dict[str, Any]) -> str:
     # unknown (`null`), and say so rather than reading 0 (#421 review).
     upward = "unknown" if summary["upward_edges"] is None else (
         f"{summary['upward_edges']} upward edges ({summary['upward_imports']} imports)")
+    def gap(found: dict[str, Any] | None) -> str:
+        return "unknown" if found is None else f"{len(found['unclaimed'])}/{len(found['stale'])}"
+
     return (
         f"architecture: {counts['registry']} registry + {counts['engine']} engine components ({model}), "
-        f"gaps registry {len(gaps['registry']['unclaimed'])}/{len(gaps['registry']['stale'])} "
-        f"engine {len(gaps['engine']['unclaimed'])}/{len(gaps['engine']['stale'])} (unclaimed/stale), "
+        f"gaps registry {gap(gaps['registry'])} engine {gap(gaps['engine'])} (unclaimed/stale), "
         f"{upward}, "
         f"{summary['registry_to_engine_imports']} registry->engine imports, "
         f"{summary['adrs_placed']} of {summary['adrs_total']} ADRs placed"
