@@ -111,6 +111,53 @@ notes: |
   this release still describes the published Store. Release Status stays
   validated.
 
+  Completed (2026-11-02). The completion phase ran on its own, as ADR 0037's
+  single-id rule requires: an unforced `release OGS-00015` from this registry at
+  13a2cd6f, runtime opengwasdb 0.3.2 at 44f25a96 (format 0.2.0), triggered
+  2026-11-02 08:10:13 UTC and finished 10:41:25 UTC, elapsed 2 h 31 m, exit 0.
+  `complete-dense` against the HGDP+1kGP EAS LD Reference Resource at
+  /data/opengwasdb/reference/hgdp1kgp-hg38/panel, ancestry EAS at 16 workers,
+  ran from 08:10:31 to 10:06:00 UTC (6,928.9 s) and imputed 535,277,519
+  associations, all of them in the 241 Analyses whose Assigned Ancestry is EAS.
+  The union variant axis grew from 9,335,909 to 11,650,615 variants, 2,314,706
+  of them new panel variants, leaving 5,614,211 off-panel missing cells and
+  22,844,874 imputation failures, which stay missing. The panel carries the 817
+  HGDP+1kGP East Asian individuals at a minor-allele-count floor of 50: its
+  1,120 blocks keep 460 to 694 components of a possible 816 at the 99%
+  cumulative-variance target, so they are rank-deficient where the UKB EUR panel
+  is full-rank, and ADR 0020's permanent asymmetry applies. Its per-Analysis
+  completion quality is nevertheless the highest these panels have measured in
+  this registry: median Pearson r 0.959 (0.957 to 0.961), against 0.862 for the
+  AMR panel on OGS-00014 and 0.946 for the UKB EUR panel on OGS-00012, though
+  the Analyses they were measured over differ. The completion HM3 Indexed
+  Variant Subset (1,131,466 of 1,206,903 requested variants resolved, 75,437
+  absent, none overflow-only), the overview, validate (30 m 14 s) and the
+  Observed-View Check followed, and completion register published the Store
+  under the release id OGS-00015-completed, replacing the Observed-Only Store it
+  had published. The replaced Store is archived under
+  /data/opengwasdb/stores/OGS-00015/replaced/20261102T104120Z/. The Observed-
+  View Check passed: 258,089,069 cells over 1,071 bands compared (1,000 random,
+  58 writer-band boundaries, 23 chromosome edges, 1 final partial band),
+  257,446,417 parent cells observed, no band mismatched, every failing counter
+  zero, the largest absolute difference 0.0 in z, se and eaf, and 229 cells
+  missing in the parent now imputed, reported at
+  /data/opengwasdb/stores/OGS-00015/work/observed-view-check.json. Completion
+  reached every Analysis, because every one of the 241 carries Assigned Ancestry
+  EAS: imputed cells run from 2,167,517 to 2,264,870, median 2,221,821, and none
+  is zero. Orientation was measured rather than assumed, because the AMR panel's
+  inverted EAF cost OGS-00014 a corrected re-publication (#409): the completed
+  Store's `eaf_reference` reads r +0.9781 (n 26,316) against the UKB ancestry-
+  mixture group "Asia (East)" oriented to the Store's effect allele, and r
+  +0.9864 (n 33,509) against the mean observed EAF across Analyses on variants
+  that carry one, where a panel holding the other allele's frequency would read
+  about -0.98 on both. The Validation Record was copied into this bundle
+  unchanged and reads status passed, no warnings, no errors, 241 Analyses,
+  11,650,615 variants, completion_state reference_completed and
+  `observed.n_associations` null as the Release Erratum above records, so the
+  sentence above that reference completion is not part of this release no longer
+  describes the published Store. Human scientific acceptance remains pending.
+  Release Status stays validated.
+
 accepted_at: '2026-10-14T01:27:47Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
