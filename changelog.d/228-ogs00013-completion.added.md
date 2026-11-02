@@ -1,0 +1,13 @@
+- **OGS-00013 (MVP AFR) declares reference completion under its own id, against
+  the HGDP+1kGP AFR panel (issue #228, ADR 0037).** The published bundle is
+  already an Observed-Only Store, so this is the one amendment ADR 0037's
+  Decision 1 allows: `build.yaml` becomes `completion_state: reference_completed`
+  and gains a `complete` block running `complete-dense` against
+  `hgdp1kgp-hg38-ld` at `/data/opengwasdb/reference/hgdp1kgp-hg38/panel` for
+  ancestry AFR at 32 workers, and the build phase keeps exactly the argv that
+  wrote the Store. All 1,368 Analyses carry Assigned Ancestry AFR, so completion
+  imputes every one. The declaration was held from 2026-10-22 while #348 found
+  variant identities duplicated within the panel's blocks; the panels were
+  repaired in place on 2026-11-01/02, and the released AFR receipt is
+  `repairs/20261101T225229Z-348-AFR.json`. The master list shows the row as an
+  Observed-Only Store whose completion is pending until that run registers.

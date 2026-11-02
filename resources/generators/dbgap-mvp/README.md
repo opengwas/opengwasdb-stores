@@ -89,14 +89,20 @@ AFR, AMR and EAS (one "lineage-linked completed" id each). ADR 0037 retires them
 unused: no Store is allocated those ids, and none is ever reused. They appear
 here, and in `config-candidate.yaml`'s comment, only as that record.
 
-All five configs are `completion_state: observed_only`, and the pipeline does
-not emit a reference-completed bundle. No MVP reference is qualified and active
-today: each `completion_reference` in `config-candidate.yaml` is pending, on
-hold or blocked. Once one is, its published Observed-Only Store is completed on
-the Store Release Build side: the accepted bundle gains a `complete` block, the
-one amendment ADR 0037 allows (#305), and the run completes that Store under its
-own id. The retired generator's `<observed id>.completion-plan.yaml` receipt has
-no pipeline equivalent.
+All five release configs are `completion_state: observed_only`, and the
+pipeline does not emit a reference-completed bundle: each published Observed-Only
+Store is completed on the Store Release Build side, by a `complete` block in the
+accepted bundle, the one amendment ADR 0037 allows (#305), after which the run
+completes that Store under its own id. OGS-00012 (EUR, against the UKB EUR
+panel) and OGS-00014 (AMR, against the HGDP+1kGP AMR panel) are completed;
+OGS-00013 (AFR) and OGS-00015 (EAS) declare completion against the HGDP+1kGP
+panel for their own ancestry and await that run; OGS-00016 (META) stays
+observed-only by policy, because cross-ancestry membership is not eligible for
+reference completion. `config-candidate.yaml`'s `completion_reference` entries
+are the retired #221 plan's and remain pending, on hold or blocked: what
+qualifies and activates a reference for a Store is that Store's `complete`
+block, not this file. The retired generator's `<observed
+id>.completion-plan.yaml` receipt has no pipeline equivalent.
 
 ## Regeneration against the committed bundles
 
