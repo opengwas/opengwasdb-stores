@@ -117,6 +117,23 @@ def check(args: argparse.Namespace, out: TextIO) -> int:
     return 1 if failed else 0
 
 
+def _baseline_entries(text: str) -> set[tuple[str, str]]:
+    """The `(file, name)` pairs of a baseline file; one that is not a baseline is `Unavailable`, never empty."""
+    where = BASELINE_PATH
+    try:
+        document = yaml.safe_load(text)
+    except yaml.YAMLError as error:
+        raise Unavailable(f"{where} is not valid YAML: {str(error).splitlines()[0]}") from error
+    if not isinstance(document, dict) or not isinstance(document.get("allowed"), list):
+        raise Unavailable(f"{where} must be a mapping with an `allowed` list")
+    entries = set()
+    for number, entry in enumerate(document["allowed"]):
+        if not (isinstance(entry, dict) and all(isinstance(entry.get(k), str) and entry[k] for k in ("file", "name"))):
+            raise Unavailable(f"{where}: entry #{number} must be a mapping with a `file` and a `name`, both text")
+        entries.add((entry["file"], entry["name"]))
+    return entries
+
+
 def _baseline(args: argparse.Namespace, document: Mapping[str, Any], out: TextIO) -> bool:
     """Print how the engine's baseline compares with the measured upward imports; True when it does not match."""
     engine = document["engine"]
@@ -129,7 +146,9 @@ def _baseline(args: argparse.Namespace, document: Mapping[str, Any], out: TextIO
     if text is None:
         print(f"no layering baseline at {engine['ref']} ({BASELINE_PATH} is not there)", file=out)
         return False
-    listed = {(e["file"], e["name"]) for e in (yaml.safe_load(text) or {}).get("allowed") or []}
+    listed = _baseline_entries(text)
+    if document.get("upward_imports") is None:
+        raise Unavailable("layering baseline: the upward imports were not measured, so there is nothing to compare it with")
     found = {(u["file"], u["name"]): u for u in document.get("upward_imports") or []}
     print(f"layering baseline: {len(listed)} allowed, {len(found)} measured upward imports", file=out)
     names = {c["id"]: c["name"] for c in document["components"]}
@@ -177,12 +196,7 @@ def conflicts(args: argparse.Namespace, out: TextIO) -> int:
                 print("    coordinated: " + "; ".join(f"{x} waits for {y}" for x, y in edges), file=out)
                 continue
             failed = True
-            epic_level = sorted(
-                item[len("branch:"):]
-                for who, items in ((owner, theirs), (own_owner, own_items))
-                for item in items
-                if item.startswith("branch:") and (owners.get(who) or {}).get("kind") == "epic"
-            )
+            epic_level = work.epic_level_branches([*theirs, *own_items])
             mine = ", ".join(sorted(own_items)) or "this work"
             if epic_level:
                 print("    UNLINKABLE: " + "; ".join(

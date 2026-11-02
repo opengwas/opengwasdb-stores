@@ -142,10 +142,7 @@ def compute(
                 if (x in by_owner[a] and y in by_owner[b]) or (x in by_owner[b] and y in by_owner[a])
             ]
             # An epic's integration branch belongs to the epic as a whole: no ticket for an edge to link.
-            epic_branches = sorted(
-                item[len("branch:"):] for o in (a, b) for item in by_owner[o]
-                if item.startswith("branch:") and (owners.get(o) or {}).get("kind") == "epic"
-            )
+            epic_branches = epic_level_branches([item for o in (a, b) for item in by_owner[o]])
             kind = "coordinated" if edges else "unlinkable" if epic_branches else "uncoordinated"
             pairs.append({"owners": [a, b], "coordinated": bool(edges), "coordination": kind,
                           "edges": edges, "epic_branches": [] if edges else epic_branches})
@@ -185,6 +182,27 @@ def compute(
             "branches": len(listed),
         },
     }
+
+
+def epic_level_branches(items: Sequence[str]) -> list[str]:
+    """`repo:name` of each item that is an epic's integration branch, sorted.
+
+    The one classifier the collector and the CLI share. A branch item
+    (`branch:<repo>:<name>`) is epic-level when its name maps to an epic and to no
+    ticket (`orch/<epic>-slug`): it belongs to the epic as a whole, so no blocking
+    edge can link it to a ticket. That is decided by the branch's own name, never by
+    whether the board happens to list the epic.
+    """
+    found = []
+    for item in items:
+        if not item.startswith("branch:"):
+            continue
+        label = item[len("branch:"):]
+        repo, _, name = label.partition(":")
+        epic, ticket = branch_reader.named_for(name, repo)
+        if epic and not ticket:
+            found.append(label)
+    return sorted(found)
 
 
 def _title(epic: Mapping[str, Any]) -> str:

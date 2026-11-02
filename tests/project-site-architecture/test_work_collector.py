@@ -184,6 +184,15 @@ class UnlinkableTests(unittest.TestCase):
         self.assertEqual(result["meets"][0]["coordination"], "uncoordinated")
         self.assertEqual(result["meets"][0]["pairs"][0]["epic_branches"], [])
 
+    def test_an_epic_branch_is_unlinkable_whatever_the_board_says_about_its_epic(self) -> None:
+        result = compute(
+            board(epic("opengwasdb#347", "Active", [ticket("opengwasdb#338")])),  # epic 58 is not on the board
+            branch_set(branch("orch/58-deepen-modules", ["opengwasdb/encoding/a.py"], epic="opengwasdb#58"),
+                       branch("orch/347/338", ["opengwasdb/encoding/b.py"], epic="opengwasdb#347", ticket="opengwasdb#338")),
+        )
+        self.assertEqual(result["meets"][0]["coordination"], "unlinkable")
+        self.assertEqual(result["meets"][0]["pairs"][0]["epic_branches"], ["opengwasdb:orch/58-deepen-modules"])
+
     def test_an_unlinked_branch_with_no_epic_is_not_called_unlinkable(self) -> None:
         result = compute(
             board(epic("opengwasdb#10", "Active", [ticket("opengwasdb#11")])),

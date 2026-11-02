@@ -134,6 +134,24 @@ class UnmeasuredAndUnlinkableTests(unittest.TestCase):
         self.assertNotIn("UNCOORDINATED", text)
 
 
+class OffBoardEpicBranchTests(unittest.TestCase):
+    def test_an_epic_branch_is_unlinkable_even_when_its_epic_is_not_on_the_board(self) -> None:
+        result = compute(
+            board(epic("opengwasdb#347", "Active", [ticket("opengwasdb#338")])),
+            branch_set(branch("orch/58-deepen-modules", ["opengwasdb/encoding/a.py"], epic="opengwasdb#58"),
+                       branch("orch/347/338", ["opengwasdb/encoding/b.py"], epic="opengwasdb#347", ticket="opengwasdb#338")),
+        )
+        self.assertEqual(result["meets"][0]["coordination"], "unlinkable")
+        directory = Path(tempfile.mkdtemp(prefix="cli-"))
+        self.addCleanup(shutil.rmtree, directory, True)
+        common.write_source(directory, common.envelope("work", available=True, error=None, **result))
+        common.write_source(directory, ARCHITECTURE)
+        code, text = run("conflicts", "--data", str(directory), "--branch", "orch/347/338")
+        self.assertEqual(code, 1)
+        self.assertIn("UNLINKABLE", text)
+        self.assertNotIn("UNCOORDINATED", text)
+
+
 class GitFailureTests(unittest.TestCase):
     def setUp(self) -> None:
         self.root = Path(tempfile.mkdtemp(prefix="cli-git-"))
@@ -226,6 +244,26 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("new: opengwasdb/query/facade.py opengwasdb.cli.main", text)
         self.assertNotIn("stale:", text)
+
+    def assert_undecided(self, text: str, *needles: str) -> None:
+        code, out = run("check", *self.baseline(text))
+        self.assertEqual(code, 2, out)
+        self.assertIn("layering-baseline.yaml", out)
+        for needle in needles:
+            self.assertIn(needle, out)
+        self.assertNotIn("Traceback", out)
+
+    def test_a_baseline_that_is_not_yaml_exits_2_naming_the_file(self) -> None:
+        self.assert_undecided("allowed: [\n", "not valid YAML")
+
+    def test_a_baseline_without_allowed_is_not_an_empty_baseline(self) -> None:
+        self.assert_undecided("something: else\n", "`allowed`")
+        self.assert_undecided("", "`allowed`")
+
+    def test_a_baseline_entry_of_the_wrong_shape_exits_2_naming_it(self) -> None:
+        self.assert_undecided("allowed:\n  - just-a-string\n", "entry #0")
+        self.assert_undecided("allowed:\n  - {file: a.py}\n", "entry #0")
+        self.assert_undecided("allowed:\n  - {file: a.py, name: 3}\n", "entry #0")
 
     def test_an_engine_without_a_baseline_says_so_and_still_passes(self) -> None:
         code, text = run("check", *self.fixtures())

@@ -76,6 +76,9 @@ class CombinedModelTests(unittest.TestCase):
         self.assertEqual([c["id"] for c in result["components"]], ["gen", "ogs", "tools"])
         self.assertEqual(result["gaps"]["engine"], {"unclaimed": [], "stale": []})
         self.assertEqual(result["model"]["layers"], [])
+        # Unknown, not empty: the layering cannot be measured without the model.
+        self.assertIsNone(result["upward_imports"])
+        self.assertIsNone(result["summary"]["upward_imports"])
 
     def test_component_size_is_counted_from_the_files_it_claims(self) -> None:
         result = Fixture(self).collect()
