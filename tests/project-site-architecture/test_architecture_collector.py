@@ -109,6 +109,18 @@ class CombinedModelTests(unittest.TestCase):
         edge = next(e for e in result["edges"] if (e["from"], e["to"]) == ("tools", "cli"))
         self.assertEqual(edge["imports"], 2)  # run.py's and the newline-named file's
 
+    def test_the_tracked_code_paths_of_each_tree_are_listed_whole(self) -> None:
+        registry = {**fx.REGISTRY_FILES, "tools/z.py\nignored.py": "x = 1\n"}
+        files = Fixture(self, registry_files=registry).collect()["files"]
+        self.assertEqual(files["registry"], [
+            "src/gen/__init__.py", "src/gen/make.py", "src/ogs/run.py", "tools/run.py", "tools/z.py\nignored.py",
+            "workflow/Snakefile", "workflow/run.sh"])
+        self.assertEqual(files["engine"], [
+            "opengwasdb/__init__.py", "opengwasdb/check/run.py", "opengwasdb/cli/__init__.py", "opengwasdb/cli/main.py",
+            "opengwasdb/model/__init__.py", "opengwasdb/model/enums.py", "opengwasdb/model/store/util.py",
+            "opengwasdb/query/__init__.py", "opengwasdb/query/facade.py", "opengwasdb/store/__init__.py",
+            "opengwasdb/store/paths.py", "opengwasdb/store/util.py"])
+
     def test_the_engine_commit_date_is_recorded(self) -> None:
         fixture = Fixture(self)
         committed = fx.git(fixture.engine, "show", "-s", "--format=%cI", "HEAD")

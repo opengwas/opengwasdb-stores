@@ -29,7 +29,7 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from project_site.collect import architecture_model as model_rules, branches as branch_reader
+from project_site.collect import architecture_model as model_rules, branches as branch_reader, plans as plan_reader
 from project_site.collect.common import CollectError
 
 SCHEMA_VERSION = 1
@@ -170,6 +170,7 @@ def compute(
         "unmeasured": unmeasured,
         "signals": rows,
         "meets": meets,
+        "plans": plan_reader.listed(board, architecture),
         "tickets": {c["key"]: key for key, e in epics.items() for c in e.get("children") or [] if c["state"] == "OPEN"},
         "waits": [{"item": x, "on": y} for x, y in waits],
         "branches": {"sources": sources, "list": sorted(listed, key=lambda b: (b["repo"], b["name"]))},

@@ -11,6 +11,7 @@ import json
 import re
 from typing import Any
 
+from project_site.collect import plans
 from project_site.collect.architecture_adrs import cited_strings
 from project_site.collect.common import CollectError, GhRunner
 
@@ -293,6 +294,7 @@ def parse(raw: dict[str, Any]) -> dict[str, Any]:
     children = {
         key: [
             {
+                **({"plan": plan} if (plan := plans.parse(c.get("body"))) is not None else {}),
                 "key": issue_key(c["repository"], c["number"]),
                 "title": c["title"],
                 "url": c["url"],

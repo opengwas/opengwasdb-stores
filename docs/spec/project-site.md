@@ -155,6 +155,7 @@ complete.
 | `epics` | one row per Epic: `key` (`repo#n`), `title`, `url`, `state` (the issue's, `OPEN` or `CLOSED`), `status`, `workstream`, `next`, `priority`, `sub_issues` (`{total, completed}`), `purpose`, and `children` |
 | `epics[].purpose` | the epic's own first prose paragraph, cut as above, or `null` when its body has none |
 | `epics[].children` | the epic's sub-issues: `key`, `title`, `url`, `state`, `cited`, and `blocked_by`, a list of `{key, state}` |
+| `epics[].children[].plan` | the ticket's planned change to the architecture (#422), present only when its body has an `architecture` block: the parsed plan, or `{invalid: reason}`; see [Planned changes](#planned-changes). The body itself is not kept |
 | `epics[].cited`, `epics[].children[].cited` | the code the issue's text cites (#419): a sorted list of paths (`opengwasdb/encoding/se_range.py`, or the path of a GitHub link to a file) and dotted module names (`opengwasdb.encoding.se_range`), as written and not checked against any tree; `[]` when it cites none. The Work map resolves them through the claims. The text itself is not kept |
 | `milestones` | one row per Milestone, with the same fields as an epic (no `children`, no `cited`) and `lines` |
 | `milestones[].lines` | each `- [ ]` or `- [x]` line of the body, in order: `checked`, `text`, and `refs` (`repo#n` keys) |
@@ -276,6 +277,7 @@ placement are measured.
 | `registry`, `engine` | `repo`, `ref`, `commit` read, `committed` (that commit's date), `refresh`, `model` (`true`, or `false` when the ref has no model file) and `note`. The engine's `refresh` is `null` when no fetch was asked for, else `{ok, error}` with git's own message; the pages show the commit and its date, and a visible line when the refresh failed |
 | `model` | `system`, `people`, `external`, `containers`, `container_relations`, `stages` (this repository's), `layers` (the engine's; `[]` without its model) |
 | `components` | this repository's, then the engine's: the model's keys plus `repo` (`registry` or `engine`), `files` and `lines` (claimed code files), `tracked` (every tracked file claimed) |
+| `files` | `{registry: [...], engine: [...]}` (#422): every tracked code file of each tree at the ref read (the files the ownership rule counts as code), sorted, read NUL-safely. A planned `adds` is told to exist from it. Added to the file; no other field changed |
 | `gaps.<repo>` | `unclaimed` (code files no component claims, by path) and `stale` (`{path, component}` claims matching no tracked file) |
 | `baseline` | `path`, `entries` (how many imports the committed baseline lists; `null` with a `note` when it is not in this repository at the commit read, never 0) and `measured` (the engine imports the code makes) |
 | `edges` | `from`, `to`, `imports`, `scope` (`engine`, `registry`, `registry_to_engine`), `upward` |
@@ -415,6 +417,7 @@ engine files or an engine branch exits 2. Registry-side meets are still measured
 | `signals` | as above: `component`, `owner`, `item`, `via`, `state`, `what` |
 | `unmeasured` | `{}`, or `{engine: reason}` when the engine's model is missing (see above) |
 | `meets` | `component`, `owners`, `items` (owner to its items there), `pairs` (`owners`, `coordinated`, `coordination`, `edges`, `epic_branches`), `coordinated`, `coordination` |
+| `plans` | the tickets' planned changes and, for a closed ticket, what was checked, as above (#422) |
 | `waits` | every open blocking edge among the live epics' tickets: `{item, on}` |
 | `tickets` | every open ticket of a live epic, to its owner (what `conflicts --ticket` reads) |
 | `branches.sources` | per repository read: `repo`, `git_dir`, `main`, `days`, `fetch` (`null`, or `{ok, error}`), `local`, `count` |
@@ -442,6 +445,88 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
   (or the branch's ticket) to theirs. Exit 1 when any meet is uncoordinated or unlinkable (asking a person is the safe default; the message says which); 0 when none is;
   **2 when it cannot decide** (a source is unavailable, the branch is not in the
   collection, a git directory or branch diff cannot be read, or the work is the engine's and its model is missing). `--local GIT_DIR...` adds those clones' local branches, `--refresh` fetches first.
+
+### Planned changes
+
+A ticket that changes the structure says so in its body (#422, epic #416), in one
+fenced block whose info string is `architecture`, holding YAML. Text outside the
+fence is ignored, and a ticket without a block has no plan.
+
+````markdown
+```architecture
+adds:      # paths that will exist, and the component that will claim them
+  - paths: [opengwasdb/encoding/association.py]
+    component: encoding          # an existing component id, or a new id ...
+    name: Association encoder    # ... which then needs a name (and `container`, `layer` if engine)
+moves:     # paths whose claim changes component
+  - paths: [opengwasdb/build/eaf_orientation.py]
+    to: resolution
+drops:     # component imports that should disappear, "from -> to"
+  - dense -> encoding
+absorbs:   # free text, drawn on the map, never checked (line numbers drift)
+  - encoding/codec.py:932
+```
+````
+
+Every key is optional, but a block with none of them is invalid, and so is any
+other key (`{}` is a block with none). Each key present must hold a list; `paths`
+are non-empty lists of text; `name` and `container` are text and `layer` a whole
+number. A component id (`component`, `to`, either end of a drop) is lower-case
+letters, digits and `_`, starting with a letter (the model's form, so it can never
+be markup), and must be an existing component or declared in `adds`; a new one needs a
+`name`, and a new engine component (paths under `opengwasdb/`) a `container` and a
+`layer` too. The board
+collector parses the block into `children[].plan` with `adds`, `moves`, `drops`
+(each `{from, to}`) and `absorbs`, every key present as a list. A block that
+cannot be used is never dropped: `plan` is `{invalid: reason}` (not YAML, unknown
+key, empty, a malformed item, more than one block, a block never closed) and the
+page shows the reason. The board collector does not know the components, so the
+`work` collector judges their ids once it knows them: when the engine's model
+is missing it cannot, and an id it does not find is not called unknown.
+
+**Judging a plan.** The `work` collector lists every ticket that has a plan, of
+any epic, open or closed, as `work.json`'s `plans` (sorted by epic, ticket):
+`ticket`, `epic`, `title`, `url`, `state` (`open` or `closed`), `plan`,
+`components` (each component the plan involves: `id`, `name`, `repo`, and `new`,
+true for one the plan declares) and `checks`. An open ticket's plan is carried
+as planned and `checks` is empty, as it is for an invalid plan; `absorbs` is
+carried and never checked. Once the ticket is closed each item is checked
+against what the architecture collector read (the engine at its ref, this
+repository at the site's checkout):
+
+- `adds`: for each path, `{kind: adds, path, component, held, why}`; held only when
+  the path is a tracked file (in `architecture.files`) **and** the named component
+  claims it. A path that does not exist is not held, saying so with the ref; without
+the engine's model that is still a measured fact (the tree was read), and the
+`why` says the claims were not judged.
+- `moves`: the same, with `to` as the component.
+- `drops`: `{kind: drops, from, to, imports, held, why}`; held when no import goes
+  from `from` into `to`, else not held, naming how many remain. Without `architecture.edges`
+  (absent or `null`) it is unknown: absence is never zero imports.
+
+Every check also has `repo` (`registry` or `engine`), the tree it was read in;
+the page's warning names that repository's ref and commit.
+
+`held` is `true`, `false`, or `null` for **unknown**: without the engine's model
+(`architecture.engine.model` false) an engine path that no registry claim covers,
+a path whose existence is not known (no `architecture.files`, the tree not read,
+or not a code file, since only code files are listed), and a drop with an end that is not a registry component, cannot be judged, and
+`why` says the model is missing at that ref. Missing the model is never an unmet
+item. An unmet item is a warning on the page, never a build failure: the ticket
+may have closed on an epic's integration branch whose PR has not merged to the
+ref read. The `plans` key is additive, so `schema_version` stays `1`.
+
+**The page.** The Structure and health page ends with a `## Planned changes`
+section, written from `plans` alone. Each valid plan has a heading (the ticket,
+its title and state), a Quarto `{dot}` diagram of the components it involves
+(added paths marked `+`, moved paths `→`, a declared component dashed and
+labelled `new`, a dropped import a dashed arrow), and its items: an open
+ticket's as planned, a closed one's as `held`, `not held` or `unknown` with
+`why`. `absorbs` is listed as text. A closed plan with unmet items carries a
+warning, naming the ref read and that the ticket may have closed on an
+integration branch not yet merged. An invalid plan shows its reason and no
+diagram. A `work.json` without `plans` is said to predate planned changes, never
+shown as "no plans"; with `plans` empty the page says no ticket carries a block.
 
 ### The command's output and exit status
 
