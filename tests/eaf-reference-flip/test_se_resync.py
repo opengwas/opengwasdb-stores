@@ -170,7 +170,6 @@ class ResyncTestCase(unittest.TestCase):
         base.record_check()
         self.assertEqual(code, 0, out + err)
         self.assertGreater(sum(self.flipped_mismatches.values()), 0, self.flipped_mismatches)
-        values = self.values
         before = zarr.open_group(self.pristine_store / "data.zarr", mode="r")
         after = zarr.open_group(self.flipped_store / "data.zarr", mode="r")
         for tier in ("p_5e_08", "p_5e_06"):
@@ -186,7 +185,6 @@ class ResyncTestCase(unittest.TestCase):
             # The move is far below the codec's half step.
             rel = np.abs(decoded[rows, cols].astype(np.float64) - np.asarray(group["se"][:])) / np.asarray(group["se"][:])
             self.assertLess(float(rel.max()), 1e-5)
-        self.assertIsNotNone(values)
 
     # --- the follow-on after a flip alone (the OGS-00014 path) ------------
 
@@ -397,6 +395,114 @@ class ResyncTestCase(unittest.TestCase):
             self.assert_refused_unchanged([], "test fault")
         self.assertEqual(base.tree(self.store_path), before)
         self.assertFalse(any(self.store_path.rglob("*.resyncing")), "a staged copy was left behind")
+
+    # --- the checks after the swap, unmocked -------------------------------
+
+    def run_resync_with_spies(self, *, perturb: bool = False, touch_hm3: bool = False):
+        """Resync with the real `_verify_live_se`, optionally spoiling what it checks.
+
+        `perturb` flips one bit of the SE the *second* decode returns (the one
+        `_verify_live_se` makes); `touch_hm3` appends a byte to an HM3 file right
+        after the swap.  The receipt is read back right after `_restore`, before
+        a proven restoration deletes it.
+        """
+        seen: dict = {"verifying": False}
+        real_verify = eaf_reference_flip._verify_live_se
+        real_decode = eaf_reference_flip._decode_top_hit_se
+        real_swap = eaf_reference_flip._swap_all
+        real_restore = eaf_reference_flip._restore
+
+        def verify(plan, encoding, workers):
+            seen["verifying"] = True
+            try:
+                return real_verify(plan, encoding, workers)
+            finally:
+                seen["verifying"] = False
+
+        def decode(*args, **kwargs):
+            out = real_decode(*args, **kwargs)
+            if perturb and seen["verifying"]:
+                out = out.copy()
+                out.view(np.uint32)[0] ^= 1
+            return out
+
+        def swap(plan, record, record_path, fault):
+            real_swap(plan, record, record_path, fault)
+            if touch_hm3:
+                target = plan.store_path / "data.zarr" / "indexed_subsets" / "hm3" / "variant_index" / "zarr.json"
+                with open(target, "ab") as handle:
+                    handle.write(b"\n")
+
+        def restore(plan, record, record_path):
+            failures = real_restore(plan, record, record_path)
+            seen["receipt"] = json.loads(record_path.read_text(encoding="utf-8"))
+            return failures
+
+        with mock.patch.object(eaf_reference_flip, "_verify_live_se", side_effect=verify), \
+             mock.patch.object(eaf_reference_flip, "_decode_top_hit_se", side_effect=decode), \
+             mock.patch.object(eaf_reference_flip, "_swap_all", side_effect=swap), \
+             mock.patch.object(eaf_reference_flip, "_restore", side_effect=restore):
+            result = self.resync()
+        return result, seen
+
+    def test_a_decode_that_disagrees_after_the_swap_restores_the_originals(self) -> None:
+        """The rtol-0 half of the post-swap check, real and unmocked."""
+        self.use_flipped()
+        before_store, before_side = base.tree(self.store_path), self.side_tree()
+        (code, out, err), seen = self.run_resync_with_spies(perturb=True)
+        base.record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("after the swap, top_hits/", err)
+        self.assertIn("differs from the decoded plane", err)
+        self.assertIn("Every array is restored", err)
+        states = [entry["state"] for entry in seen["receipt"]["replaced"]["arrays"]]
+        self.assertEqual(states, ["restored"] * len(states), states)
+        self.assertEqual(base.tree(self.store_path), before_store)
+        self.assertEqual(self.side_tree(), before_side)
+
+    def test_an_hm3_file_touched_during_the_swap_restores_the_originals(self) -> None:
+        """The HM3 half of the post-swap check, real and unmocked."""
+        self.use_flipped()
+        before_store = base.tree(self.store_path)
+        (code, out, err), seen = self.run_resync_with_spies(touch_hm3=True)
+        base.record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("the HM3 subset changed during the SE re-sync", err)
+        self.assertIn("Every array is restored", err)
+        states = [entry["state"] for entry in seen["receipt"]["replaced"]["arrays"]]
+        self.assertEqual(states, ["restored"] * len(states), states)
+        after = base.tree(self.store_path)
+        moved = {name for name in set(before_store) | set(after) if before_store.get(name) != after.get(name)}
+        # The originals are back; only the file the test itself touched differs.
+        self.assertEqual(moved, {"data.zarr/indexed_subsets/hm3/variant_index/zarr.json"})
+
+    def test_an_fsync_failure_on_a_staged_file_aborts_before_any_rename(self) -> None:
+        self.use_flipped()
+        before_store, before_side = base.tree(self.store_path), self.side_tree()
+        real = eaf_reference_flip._fsync_file
+
+        def flaky(path):
+            if ".se.resyncing" in str(path):
+                raise OSError("injected staged-file fsync failure")
+            return real(path)
+
+        with mock.patch.object(eaf_reference_flip, "_fsync_file", side_effect=flaky), \
+             mock.patch.object(eaf_reference_flip, "_rename") as rename:
+            code, out, err = self.resync()
+        base.record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("injected staged-file fsync failure", err)
+        rename.assert_not_called()
+        self.assertEqual(base.tree(self.store_path), before_store)
+        self.assertEqual(self.side_tree(), before_side)
+        self.assertFalse(any(self.store_path.rglob("*.resyncing")), "a staged copy was left behind")
+
+    def test_workers_above_the_326_cap_are_refused(self) -> None:
+        for bad in ("17", "0"):
+            with self.subTest(workers=bad), mock.patch("sys.stderr"), self.assertRaises(SystemExit):
+                eaf_reference_flip.parse_args([STORE_ID, "--resync-se", "--workers", bad])
+        base.record_check()
+        self.assertEqual(eaf_reference_flip.parse_args([STORE_ID, "--workers", "16"]).workers, 16)
 
     # --- failures after the first rename ----------------------------------
 

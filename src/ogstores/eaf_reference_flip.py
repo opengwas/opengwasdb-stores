@@ -96,6 +96,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -628,6 +629,7 @@ def _stage_into(
     verified, nan_after = _verify_staged(target, source, staged, imputed, nan_before)
     if (staged_dir / "zarr.json").read_bytes() != staged_meta_before:
         raise VerificationFailure(f"verifying the staged {target.label} rewrote its zarr.json")
+    _fsync_tree(staged_dir)
     return StagedArray(
         target=target,
         staged_dir=staged_dir,
@@ -726,6 +728,33 @@ def _fsync_path(path: Path) -> None:
         os.fsync(fd)
     finally:
         os.close(fd)
+
+
+def _fsync_file(path: Path) -> None:
+    """fsync a regular file, raising on failure."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _fsync_tree(staged_dir: Path) -> None:
+    """Make a staged array durable before it is swapped in.
+
+    Every file, every directory under it, the directory itself and its parent
+    are fsynced, and a failure raises: a rename of data the disk has not yet
+    got would leave a live array that a crash can truncate with the original
+    already moved aside.
+    """
+    for path in sorted(staged_dir.rglob("*")):
+        if path.is_file():
+            _fsync_file(path)
+    for path in sorted(staged_dir.rglob("*"), reverse=True):
+        if path.is_dir():
+            _fsync_path(path)
+    _fsync_path(staged_dir)
+    _fsync_path(staged_dir.parent)
 
 
 def _fsync_parents(source: Path, dest: Path) -> None:
@@ -917,7 +946,10 @@ def _replaced_dirs(store_path: Path, suffix: str = REPLACED_SUFFIX) -> list[Path
 
 
 def _inspect_existing(
-    store_path: Path, record: dict[str, Any], suffix: str = REPLACED_SUFFIX
+    store_path: Path,
+    record: dict[str, Any],
+    suffix: str = REPLACED_SUFFIX,
+    staging: str = STAGING_SUFFIX,
 ) -> list[ArrayState]:
     """What the filesystem says about every array a receipt names.
 
@@ -941,7 +973,7 @@ def _inspect_existing(
         staged = (
             Path(entry["staged"])
             if entry.get("staged")
-            else live.parent / f".{live.name}{STAGING_SUFFIX}"
+            else live.parent / f".{live.name}{staging}"
         )
         if entry.get("original"):
             original: Path | None = Path(entry["original"])
@@ -1016,7 +1048,7 @@ def _failed_restoration_message(
     """Describe the real live state of every array, then what could not be proven."""
     record_path = paths.record_path(plan.store_id, plan.step, root=plan.artifact_root)
     try:
-        states = _inspect_existing(plan.store_path, record, plan.replaced_suffix)
+        states = _inspect_existing(plan.store_path, record, plan.replaced_suffix, plan.staging_suffix)
     except OSError:  # pragma: no cover - hashing failures are caught per array above
         states = []
     lines = [
@@ -1049,6 +1081,7 @@ class Plan:
     replaced_dir: Path
     step: str = RECORD_STEP
     replaced_suffix: str = REPLACED_SUFFIX
+    staging_suffix: str = STAGING_SUFFIX
 
 
 def _entry(staged: StagedArray) -> dict[str, Any]:
@@ -1225,6 +1258,7 @@ def _refuse_existing_receipt(
     *,
     step: str = RECORD_STEP,
     suffix: str = REPLACED_SUFFIX,
+    staging: str = STAGING_SUFFIX,
     consequence: str = (
         "This tool refuses: a second flip would restore the inversion the first one corrects."
     ),
@@ -1250,7 +1284,7 @@ def _refuse_existing_receipt(
                 receipt = loaded
     status = receipt.get("status", "unreadable")
     try:
-        states = _inspect_existing(store_path, receipt, suffix)
+        states = _inspect_existing(store_path, receipt, suffix, staging)
     except OSError as exc:  # pragma: no cover - hashing failures are caught per array
         states = []
         inspection_error = str(exc)
@@ -1297,8 +1331,20 @@ def _refuse_existing_receipt(
 
 
 def _write_receipt(record: dict[str, Any], record_path: Path) -> None:
-    """Atomically rewrite the receipt: `run`'s writer fsyncs the file and its directory."""
-    run._write_record_atomically(record, record_path)
+    """Atomically rewrite the receipt, fsyncing the file and then its directory.
+
+    `run._write_record_atomically` is not used: it swallows a failure to fsync the
+    directory, and a receipt that may not have reached the disk is exactly the
+    evidence this tool must not lose without saying so.
+    """
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    temp = record_path.with_name(f".{record_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
+    with open(temp, "w", encoding="utf-8") as handle:
+        handle.write(run.record_text(record))
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temp, record_path)
+    _fsync_path(record_path.parent)
 
 
 def _apply(plan: Plan) -> int:
@@ -1388,9 +1434,11 @@ MAX_RESYNC_REL: float = 1e-5
 #: `validate`'s comparison of a tier's SE with the decoded plane.
 VALIDATE_SE_RTOL: float = 1e-6
 
-#: Cells gathered by the core's own top-hit SE collector use this many worker
-#: processes unless `--workers` says otherwise.
-DEFAULT_DECODE_WORKERS: int = 16
+#: Worker processes of the core's top-hit SE collector unless `--workers` says
+#: otherwise.  Each runs with Zarr async width and Blosc threads of one, so the
+#: concurrent decodes are `--workers` and never `--workers` times a width: the
+#: #326 cap (`se_reencode.MAX_WORKERS`) holds.
+DEFAULT_DECODE_WORKERS: int = _precedent.DEFAULT_WORKERS
 
 SE_DECODE_FAULT = "se-decode"
 RESYNC_VERIFY_FAULT = "se-resync-verify"
@@ -1430,6 +1478,9 @@ def _decode_top_hit_se(
             "the pinned runtime does not offer the top-hit writer's SE collector "
             f"(opengwasdb.layouts.dense.top_hits._collect_top_hit_se): {exc}"
         ) from exc
+    # The collector forks `workers` processes; each decodes with one thread at
+    # every level, so processes x width stays within the precedent's bound.
+    _precedent._apply_worker_config(1)
     return np.asarray(collect(store_path, rows, cols, encoding, workers), dtype=np.float32)
 
 
@@ -1570,6 +1621,7 @@ class ResyncPlan:
     hm3_before: str | None
     step: str = RESYNC_STEP
     replaced_suffix: str = RESYNC_REPLACED_SUFFIX
+    staging_suffix: str = RESYNC_STAGING_SUFFIX
 
 
 def _hm3_digest(data_zarr: Path) -> str | None:
@@ -1619,6 +1671,7 @@ def _stage_se(tier: TierSync, live_root: Path, stage_root: Path) -> StagedArray:
             raise VerificationFailure(f"the staged {target.label} changed a row that was not to change")
         if (staged_dir / "zarr.json").read_bytes() != metadata:
             raise VerificationFailure(f"verifying the staged {target.label} rewrote its zarr.json")
+        _fsync_tree(staged_dir)
     except BaseException:
         shutil.rmtree(staged_dir, ignore_errors=True)
         raise
@@ -1906,13 +1959,6 @@ def _resync_apply(
 # ---------------------------------------------------------------------------
 
 
-def _positive_int(text: str) -> int:
-    value = int(text)
-    if value < 1:
-        raise argparse.ArgumentTypeError(f"{text} is not a positive integer")
-    return value
-
-
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -1937,11 +1983,12 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--workers",
-        type=_positive_int,
+        type=_precedent._workers,
         default=DEFAULT_DECODE_WORKERS,
         help=(
-            "processes the core's top-hit SE collector decodes row chunks with "
-            f"(default {DEFAULT_DECODE_WORKERS})"
+            "processes the core's top-hit SE collector decodes row chunks with, each with "
+            f"Zarr async width and Blosc threads of one (1..{_precedent.MAX_WORKERS}, "
+            f"default {DEFAULT_DECODE_WORKERS}: #326's cap on concurrent decodes)"
         ),
     )
     parser.add_argument(
@@ -2002,6 +2049,7 @@ def _refuse_existing_receipts(
         store_path,
         step=RESYNC_STEP,
         suffix=RESYNC_REPLACED_SUFFIX,
+        staging=RESYNC_STAGING_SUFFIX,
         consequence="This tool refuses: the SE re-sync runs once, and its receipt is evidence.",
     )
 

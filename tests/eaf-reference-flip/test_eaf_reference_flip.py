@@ -100,16 +100,19 @@ TIERS = {
 SE_ENCODING = {"kind": "int8_residual", "residual_range": 1.0}
 
 
+def manifest_encoding(*, with_se: bool = False) -> dict:
+    """The fixture's encoding plan: one definition for the manifest and the build-time decode."""
+    return {
+        "version": 3,
+        "z": {"kind": "int16_fixed", "scale": 1024},
+        "se": SE_ENCODING if with_se else {"kind": "float16"},
+        "eaf": {"kind": "int8_residual", "residual_range": 0.5, "reference": True},
+    }
+
+
 def encoding_from_manifest_se() -> StoreEncoding:
     """The `with_se` fixture's encoding plan, for decoding its own planes at build time."""
-    return StoreEncoding.from_manifest(
-        {
-            "version": 3,
-            "z": {"kind": "int16_fixed", "scale": 1024},
-            "se": SE_ENCODING,
-            "eaf": {"kind": "int8_residual", "residual_range": 0.5, "reference": True},
-        }
-    )
+    return StoreEncoding.from_manifest(manifest_encoding(with_se=True))
 
 
 n_checks = 0
@@ -317,12 +320,7 @@ def build_fixture(
         "completion_state": completion_state,
         "reference_assembly": "GRCh38",
         "created_at": "2026-11-02T00:00:00Z",
-        "encoding": {
-            "version": 3,
-            "z": {"kind": "int16_fixed", "scale": 1024},
-            "se": SE_ENCODING if with_se else {"kind": "float16"},
-            "eaf": {"kind": "int8_residual", "residual_range": 0.5, "reference": True},
-        },
+        "encoding": manifest_encoding(with_se=with_se),
     }
     (store_path / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1106,6 +1104,28 @@ class FlipTestCase(unittest.TestCase):
         self.assertEqual(record["status"], "failed_restoration")
         states = {entry["array"]: entry["state"] for entry in record["replaced"]["arrays"]}
         self.assertEqual(states["eaf_reference"], "failed_restoration")
+
+    def test_an_fsync_failure_on_a_staged_file_aborts_before_any_rename(self) -> None:
+        """A staged array that may not be on disk is never swapped in."""
+        before_store, before_side = self.store_tree(), self.store_side()
+        real = eaf_reference_flip._fsync_file
+
+        def flaky(path):
+            if ".flipping" in str(path):
+                raise OSError("injected staged-file fsync failure")
+            return real(path)
+
+        with self.fast_runtime(), \
+             mock.patch.object(eaf_reference_flip, "_fsync_file", side_effect=flaky), \
+             mock.patch.object(eaf_reference_flip, "_rename") as rename:
+            code, out, err = run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("injected staged-file fsync failure", err)
+        rename.assert_not_called()
+        self.assertEqual(self.store_tree(), before_store)
+        self.assertEqual(self.store_side(), before_side)
+        self.assertFalse(any(self.store_path.rglob("*.flipping")), "a staged copy was left behind")
 
     def test_a_durability_failure_keeps_the_evidence(self) -> None:
         """An fsync that fails after a restore keeps the receipt and says so."""
