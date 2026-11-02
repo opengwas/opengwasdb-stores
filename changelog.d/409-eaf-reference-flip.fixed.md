@@ -24,4 +24,6 @@
   does not read inverted (`r < -0.9` before, `r > 0.9` after), and a runtime
   that is not the pinned one; `--dry-run` holds the release lock, stages and
   verifies in a scratch directory and writes nothing. Observed `eaf`,
-  `eaf_baseline`, `z` and `se` are untouched.
+  `eaf_baseline`, `z` and the stored SE codes are untouched; the decoded SE of
+  imputed cells moves in a residual-SE Store, which the follow-on re-sync of the
+  top-hit SE (`--resync-se`, below) brings the top-hit tiers back in line with.

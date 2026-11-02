@@ -60,7 +60,7 @@ from unittest import mock
 
 import numpy as np
 import zarr
-from opengwasdb.encoding import DenseEafPlane, StoreEncoding
+from opengwasdb.encoding import DenseEafPlane, DenseSePlane, StoreEncoding
 
 from ogstores import eaf_reference_flip, release, runtime
 
@@ -95,6 +95,25 @@ TIERS = {
     "p_5e_08": {"hits": 187, "imputed": 63},
     "p_5e_06": {"hits": 263, "imputed": 101},
 }
+
+#: The residual SE plane the `with_se` fixture declares.
+SE_ENCODING = {"kind": "int8_residual", "residual_range": 1.0}
+
+
+def manifest_encoding(*, with_se: bool = False) -> dict:
+    """The fixture's encoding plan: one definition for the manifest and the build-time decode."""
+    return {
+        "version": 3,
+        "z": {"kind": "int16_fixed", "scale": 1024},
+        "se": SE_ENCODING if with_se else {"kind": "float16"},
+        "eaf": {"kind": "int8_residual", "residual_range": 0.5, "reference": True},
+    }
+
+
+def encoding_from_manifest_se() -> StoreEncoding:
+    """The `with_se` fixture's encoding plan, for decoding its own planes at build time."""
+    return StoreEncoding.from_manifest(manifest_encoding(with_se=True))
+
 
 n_checks = 0
 
@@ -135,6 +154,7 @@ class FixtureValues:
     hit_eaf_before: dict[str, np.ndarray] = field(default_factory=dict)
     hit_imputed: dict[str, np.ndarray] = field(default_factory=dict)
     hit_variant: dict[str, np.ndarray] = field(default_factory=dict)
+    hit_analysis: dict[str, np.ndarray] = field(default_factory=dict)
     subset: np.ndarray | None = None
 
 
@@ -149,8 +169,16 @@ def build_fixture(
     zarr_format: int = 3,
     with_mask: bool = True,
     tier_without: str | None = None,
+    with_se: bool = False,
 ) -> FixtureValues:
-    """Build a tiny Dense 0.2.0 Store Release and the values it holds."""
+    """Build a tiny Dense 0.2.0 Store Release and the values it holds.
+
+    `with_se` gives the Store an `int8_residual` SE plane and top-hit tiers that
+    carry `analysis_index` and the SE decoded from it, as the core writes them,
+    with panel-only variants at rare frequencies so that a flip's float32
+    `1 - f` visibly moves the SE they decode to (`tests/eaf-reference-flip/
+    test_se_resync.py`).
+    """
     store_path = root / "artifacts" / STORE_ID / "store.opengwasdb"
     data_zarr = store_path / "data.zarr"
     store_path.mkdir(parents=True, exist_ok=True)
@@ -173,6 +201,11 @@ def build_fixture(
     if not inverted:
         # A correctly oriented Store says what the observed data says.
         reference[:4] = observed_value[:4]
+    if with_se:
+        # Panel-only variants: the first half rare (1% to 4%), the rest common.
+        # A stored `f` this small has `1 - (1 - f) != f` in float32 for many values.
+        reference[observed_variants:650] = rng.uniform(0.011, 0.04, size=650 - observed_variants)
+        reference[650:700] = rng.uniform(0.5, 0.99, size=50)
     reference[700:] = np.nan  # off-panel variants carry no panel frequency
     reference[NAN_PAYLOAD_ROW] = _payload_nan()
 
@@ -208,6 +241,24 @@ def build_fixture(
                 chunks=(100, N_ANALYSES), shards=(200, 2 * N_ANALYSES), fill_value=np.uint8(0),
             )[:] = imputed
         root_group.create_array("eaf_reference", shape=(N_VARIANTS,), **_sharding(chunks=(100,), shards=(200,)))[:] = reference
+        if with_se:
+            # The planes `DenseSePlane` needs: codes, coefficients, an empty exception table, and `z`
+            # (whose row chunk the core's top-hit gather reads).  The slope is steep so a
+            # one-ulp move of a rare frequency shows in the decoded SE.
+            root_group.create_array(
+                "z", shape=(N_VARIANTS, N_ANALYSES), dtype="int16",
+                chunks=(100, N_ANALYSES), shards=(200, 2 * N_ANALYSES), fill_value=np.int16(-32768),
+            )[:] = 0
+            se_codes = rng.integers(-12, 13, size=(N_VARIANTS, N_ANALYSES)).astype(np.int8)
+            root_group.create_array(
+                "se", shape=(N_VARIANTS, N_ANALYSES), dtype="int8",
+                chunks=(100, N_ANALYSES), shards=(200, 2 * N_ANALYSES), fill_value=np.int8(-128),
+            )[:] = se_codes
+            root_group.create_array("se_coefficients", shape=(N_ANALYSES, 2), dtype="float32", chunks=(N_ANALYSES, 2))[:] = (
+                np.array([[-3.0, -1.0]] * N_ANALYSES, dtype=np.float32)
+            )
+            root_group.create_array("se_exception_index", shape=(0,), dtype="int64", chunks=(1,))
+            root_group.create_array("se_exception_value", shape=(0,), dtype="float32", chunks=(1,))
 
         # The HM3 Indexed Variant Subset: a copy of the primary at its own
         # variant indices, which `validate` compares bit for bit.
@@ -230,8 +281,18 @@ def build_fixture(
             rng.shuffle(hit_imputed)
             variant_index = np.empty(hits, dtype=np.int64)
             imputed_hit = hit_imputed.astype(bool)
-            variant_index[imputed_hit] = rng.choice(panel_rows, size=int(imputed_hit.sum()), replace=False)
-            variant_index[~imputed_hit] = rng.choice(observed_rows, size=int((~imputed_hit).sum()), replace=False)
+            if with_se:
+                # Each hit is a distinct cell; an imputed one sits where the completion mask says so.
+                analysis_index = np.empty(hits, dtype=np.int64)
+                imputed_cells = rng.choice((700 - observed_variants) * N_ANALYSES, size=int(imputed_hit.sum()), replace=False)
+                variant_index[imputed_hit] = observed_variants + imputed_cells // N_ANALYSES
+                analysis_index[imputed_hit] = imputed_cells % N_ANALYSES
+                observed_cells = rng.choice(len(observed_rows) * N_ANALYSES, size=int((~imputed_hit).sum()), replace=False)
+                variant_index[~imputed_hit] = observed_rows[observed_cells // N_ANALYSES]
+                analysis_index[~imputed_hit] = observed_cells % N_ANALYSES
+            else:
+                variant_index[imputed_hit] = rng.choice(panel_rows, size=int(imputed_hit.sum()), replace=False)
+                variant_index[~imputed_hit] = rng.choice(observed_rows, size=int((~imputed_hit).sum()), replace=False)
             eaf = np.where(imputed_hit, panel[variant_index], observed_value[variant_index]).astype(np.float32)
             group = top_hits.require_group(tier)
             group.create_array("variant_index", shape=(hits,), dtype="int64", chunks=(64,), shards=(128,))[:] = variant_index
@@ -239,6 +300,14 @@ def build_fixture(
                 group.create_array("imputed", shape=(hits,), dtype="uint8", chunks=(64,), shards=(128,), fill_value=np.uint8(0))[:] = hit_imputed
             if not (tier_without == "eaf" and tier == next(iter(TIERS))):
                 group.create_array("eaf", shape=(hits,), **_sharding(chunks=(64,), shards=(128,)))[:] = eaf
+            if with_se:
+                group.create_array("analysis_index", shape=(hits,), dtype="int64", chunks=(64,), shards=(128,))[:] = analysis_index
+                # What the core's top-hit writer stores: the decoded plane, as float32.
+                decoded = DenseSePlane.open(root_group, encoding_from_manifest_se()).band(0, N_VARIANTS)
+                group.create_array("se", shape=(hits,), **_sharding(chunks=(64,), shards=(128,)))[:] = decoded[
+                    variant_index, analysis_index
+                ].astype(np.float32)
+                values.hit_analysis[tier] = analysis_index
             values.hit_eaf_before[tier] = eaf
             values.hit_imputed[tier] = hit_imputed
             values.hit_variant[tier] = variant_index
@@ -251,12 +320,7 @@ def build_fixture(
         "completion_state": completion_state,
         "reference_assembly": "GRCh38",
         "created_at": "2026-11-02T00:00:00Z",
-        "encoding": {
-            "version": 3,
-            "z": {"kind": "int16_fixed", "scale": 1024},
-            "se": {"kind": "float16"},
-            "eaf": {"kind": "int8_residual", "residual_range": 0.5, "reference": True},
-        },
+        "encoding": manifest_encoding(with_se=with_se),
     }
     (store_path / "manifest.json").write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1040,6 +1104,28 @@ class FlipTestCase(unittest.TestCase):
         self.assertEqual(record["status"], "failed_restoration")
         states = {entry["array"]: entry["state"] for entry in record["replaced"]["arrays"]}
         self.assertEqual(states["eaf_reference"], "failed_restoration")
+
+    def test_an_fsync_failure_on_a_staged_file_aborts_before_any_rename(self) -> None:
+        """A staged array that may not be on disk is never swapped in."""
+        before_store, before_side = self.store_tree(), self.store_side()
+        real = eaf_reference_flip._fsync_file
+
+        def flaky(path):
+            if ".flipping" in str(path):
+                raise OSError("injected staged-file fsync failure")
+            return real(path)
+
+        with self.fast_runtime(), \
+             mock.patch.object(eaf_reference_flip, "_fsync_file", side_effect=flaky), \
+             mock.patch.object(eaf_reference_flip, "_rename") as rename:
+            code, out, err = run_main(*self.base_argv())
+        record_check()
+        self.assertEqual(code, 1, out + err)
+        self.assertIn("injected staged-file fsync failure", err)
+        rename.assert_not_called()
+        self.assertEqual(self.store_tree(), before_store)
+        self.assertEqual(self.store_side(), before_side)
+        self.assertFalse(any(self.store_path.rglob("*.flipping")), "a staged copy was left behind")
 
     def test_a_durability_failure_keeps_the_evidence(self) -> None:
         """An fsync that fails after a restore keeps the receipt and says so."""

@@ -130,6 +130,8 @@ SUITE_COST: dict[str, float] = {
     "release-faults/boundaries": 45.0,
     "release-faults/interrupts": 45.0,
     "workflow": 30.0,
+    "eaf-reference-flip": 12.0,
+    "eaf-reference-flip/se-resync": 15.0,
     "phase-b-candidate": 3.0,
     "schema-validation": 12.0,
     "run": 5.0,

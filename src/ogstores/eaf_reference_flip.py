@@ -21,8 +21,11 @@ The arrays that hold the wrong orientation, and nothing else:
                                           `eaf` is the decoded observed value
                                           and is left bit-identical.
 
-Observed `eaf`, `eaf_baseline`, `z` and `se` are untouched: finishing is a
-global allele flip whose only in-store consequence is those three arrays.
+Observed `eaf`, `eaf_baseline`, `z` and the stored SE codes are untouched:
+finishing is a global allele flip whose only in-store consequence is those three
+arrays -- and, in a Store whose SE is an `int8_residual` plane, the decoded SE of
+imputed cells, which the follow-on (see `--resync-se` below) brings the top-hit
+tiers back in line with.
 
     pixi run eaf-reference-flip OGS-00014 --dry-run
     pixi run eaf-reference-flip OGS-00014
@@ -76,6 +79,10 @@ Safety, in the order it happens:
 prints the plan and the counts, and changes nothing in the Store or its
 records.  The tool never touches a Store-root file (`manifest.json`,
 `index.sqlite`, `overview.html`, ...) or any array it does not name.
+
+`--resync-se` runs only the follow-on, on a Store this tool already flipped; a
+flip of a residual-SE Store runs it by itself after the swap.  See
+`docs/eaf-reference-flip.md`, "The SE coupling".
 """
 
 from __future__ import annotations
@@ -89,6 +96,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable, Iterator
@@ -621,6 +629,7 @@ def _stage_into(
     verified, nan_after = _verify_staged(target, source, staged, imputed, nan_before)
     if (staged_dir / "zarr.json").read_bytes() != staged_meta_before:
         raise VerificationFailure(f"verifying the staged {target.label} rewrote its zarr.json")
+    _fsync_tree(staged_dir)
     return StagedArray(
         target=target,
         staged_dir=staged_dir,
@@ -721,6 +730,33 @@ def _fsync_path(path: Path) -> None:
         os.close(fd)
 
 
+def _fsync_file(path: Path) -> None:
+    """fsync a regular file, raising on failure."""
+    fd = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def _fsync_tree(staged_dir: Path) -> None:
+    """Make a staged array durable before it is swapped in.
+
+    Every file, every directory under it, the directory itself and its parent
+    are fsynced, and a failure raises: a rename of data the disk has not yet
+    got would leave a live array that a crash can truncate with the original
+    already moved aside.
+    """
+    for path in sorted(staged_dir.rglob("*")):
+        if path.is_file():
+            _fsync_file(path)
+    for path in sorted(staged_dir.rglob("*"), reverse=True):
+        if path.is_dir():
+            _fsync_path(path)
+    _fsync_path(staged_dir)
+    _fsync_path(staged_dir.parent)
+
+
 def _fsync_parents(source: Path, dest: Path) -> None:
     """fsync both parents of a rename: the source's and the destination's."""
     _fsync_path(source.parent)
@@ -757,7 +793,7 @@ def _set_state(record: dict[str, Any], record_path: Path, label: str, state: str
 
 
 def _swap_all(
-    plan: "Plan",
+    plan: "Plan | ResyncPlan",
     record: dict[str, Any],
     record_path: Path,
     fault: str | None,
@@ -789,7 +825,7 @@ def _swap_all(
 
 
 def _restore(
-    plan: "Plan",
+    plan: "Plan | ResyncPlan",
     record: dict[str, Any],
     record_path: Path,
 ) -> list[str]:
@@ -904,12 +940,17 @@ def _recorded_in_flight(record: dict[str, Any]) -> list[dict[str, Any]]:
     return [entry for entry in replaced.get("arrays") or [] if isinstance(entry, dict)]
 
 
-def _replaced_dirs(store_path: Path) -> list[Path]:
-    """This Store's `replaced/<UTC>-eaf-reference-flip/` directories, if any."""
-    return sorted((store_path.parent / "replaced").glob(f"*-{REPLACED_SUFFIX}"))
+def _replaced_dirs(store_path: Path, suffix: str = REPLACED_SUFFIX) -> list[Path]:
+    """This Store's `replaced/<UTC>-<suffix>/` directories, if any."""
+    return sorted((store_path.parent / "replaced").glob(f"*-{suffix}"))
 
 
-def _inspect_existing(store_path: Path, record: dict[str, Any]) -> list[ArrayState]:
+def _inspect_existing(
+    store_path: Path,
+    record: dict[str, Any],
+    suffix: str = REPLACED_SUFFIX,
+    staging: str = STAGING_SUFFIX,
+) -> list[ArrayState]:
     """What the filesystem says about every array a receipt names.
 
     The receipt can be one transition behind a kill (it is written before and
@@ -923,7 +964,7 @@ def _inspect_existing(store_path: Path, record: dict[str, Any]) -> list[ArraySta
     labels = [
         entry["array"] for entry in in_flight if isinstance(entry.get("array"), str)
     ] or list(hashes)
-    replaced_dirs = _replaced_dirs(store_path)
+    replaced_dirs = _replaced_dirs(store_path, suffix)
     recorded_dir = (record.get("replaced") or {}).get("dir")
     states: list[ArrayState] = []
     for label in labels:
@@ -932,7 +973,7 @@ def _inspect_existing(store_path: Path, record: dict[str, Any]) -> list[ArraySta
         staged = (
             Path(entry["staged"])
             if entry.get("staged")
-            else live.parent / f".{live.name}{STAGING_SUFFIX}"
+            else live.parent / f".{live.name}{staging}"
         )
         if entry.get("original"):
             original: Path | None = Path(entry["original"])
@@ -1002,12 +1043,12 @@ def _describe_store(states: list[ArrayState]) -> list[str]:
 
 
 def _failed_restoration_message(
-    plan: "Plan", record: dict[str, Any], cause: BaseException, failures: list[str]
+    plan: "Plan | ResyncPlan", record: dict[str, Any], cause: BaseException, failures: list[str]
 ) -> str:
     """Describe the real live state of every array, then what could not be proven."""
-    record_path = paths.record_path(plan.store_id, RECORD_STEP, root=plan.artifact_root)
+    record_path = paths.record_path(plan.store_id, plan.step, root=plan.artifact_root)
     try:
-        states = _inspect_existing(plan.store_path, record)
+        states = _inspect_existing(plan.store_path, record, plan.replaced_suffix, plan.staging_suffix)
     except OSError:  # pragma: no cover - hashing failures are caught per array above
         states = []
     lines = [
@@ -1038,6 +1079,9 @@ class Plan:
     revision: str
     version: str
     replaced_dir: Path
+    step: str = RECORD_STEP
+    replaced_suffix: str = REPLACED_SUFFIX
+    staging_suffix: str = STAGING_SUFFIX
 
 
 def _entry(staged: StagedArray) -> dict[str, Any]:
@@ -1207,7 +1251,18 @@ def _hash_live(plan: Plan) -> None:
         staged.sha256_staged = _sha256_tree(staged.staged_dir)
 
 
-def _refuse_existing_receipt(store_id: str, artifact_root: Path, store_path: Path) -> None:
+def _refuse_existing_receipt(
+    store_id: str,
+    artifact_root: Path,
+    store_path: Path,
+    *,
+    step: str = RECORD_STEP,
+    suffix: str = REPLACED_SUFFIX,
+    staging: str = STAGING_SUFFIX,
+    consequence: str = (
+        "This tool refuses: a second flip would restore the inversion the first one corrects."
+    ),
+) -> None:
     """A receipt of any status refuses, and its message describes the real Store.
 
     `1 - (1 - x)` is `x`, so a second flip is always refused.  What the operator
@@ -1218,7 +1273,7 @@ def _refuse_existing_receipt(store_id: str, artifact_root: Path, store_path: Pat
     when that inspection proves it, and only then is clearing the receipt
     suggested.
     """
-    record_path = paths.record_path(store_id, RECORD_STEP, root=artifact_root)
+    record_path = paths.record_path(store_id, step, root=artifact_root)
     if not os.path.lexists(record_path):
         return
     receipt: dict[str, Any] = {}
@@ -1229,13 +1284,13 @@ def _refuse_existing_receipt(store_id: str, artifact_root: Path, store_path: Pat
                 receipt = loaded
     status = receipt.get("status", "unreadable")
     try:
-        states = _inspect_existing(store_path, receipt)
+        states = _inspect_existing(store_path, receipt, suffix, staging)
     except OSError as exc:  # pragma: no cover - hashing failures are caught per array
         states = []
         inspection_error = str(exc)
     else:
         inspection_error = None
-    replaced_present = bool(_replaced_dirs(store_path))
+    replaced_present = bool(_replaced_dirs(store_path, suffix))
     untouched = (
         bool(states)
         and not replaced_present
@@ -1244,7 +1299,7 @@ def _refuse_existing_receipt(store_id: str, artifact_root: Path, store_path: Pat
     )
     lines = [
         f"{record_path} already exists (status {status!r}).",
-        "This tool refuses: a second flip would restore the inversion the first one corrects.",
+        consequence,
         "The Store, read from the filesystem:",
     ]
     lines += _describe_store(states)
@@ -1276,8 +1331,20 @@ def _refuse_existing_receipt(store_id: str, artifact_root: Path, store_path: Pat
 
 
 def _write_receipt(record: dict[str, Any], record_path: Path) -> None:
-    """Atomically rewrite the receipt: `run`'s writer fsyncs the file and its directory."""
-    run._write_record_atomically(record, record_path)
+    """Atomically rewrite the receipt, fsyncing the file and then its directory.
+
+    `run._write_record_atomically` is not used: it swallows a failure to fsync the
+    directory, and a receipt that may not have reached the disk is exactly the
+    evidence this tool must not lose without saying so.
+    """
+    record_path.parent.mkdir(parents=True, exist_ok=True)
+    temp = record_path.with_name(f".{record_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
+    with open(temp, "w", encoding="utf-8") as handle:
+        handle.write(run.record_text(record))
+        handle.flush()
+        os.fsync(handle.fileno())
+    os.replace(temp, record_path)
+    _fsync_path(record_path.parent)
 
 
 def _apply(plan: Plan) -> int:
@@ -1338,6 +1405,556 @@ def _apply(plan: Plan) -> int:
 
 
 # ---------------------------------------------------------------------------
+# The follow-on: re-sync the top-hit SE to the decoded plane
+# ---------------------------------------------------------------------------
+#
+# A residual SE plane is decoded against the frequency of the same cell, and an
+# imputed cell's frequency is `eaf_reference`.  The flip replaces that value
+# with `float32(1) - f`, which is not an exact inverse of the earlier
+# `float32(1) - f`: near 1 float32 resolves about 6e-8 in absolute terms, so a
+# rare variant's `1 - (1 - f)` differs from `f` in its last bits.  The
+# prediction `c0 + c1 * log(2 f (1 - f))` moves with it, and the decoded SE of an
+# imputed cell changes by up to about `|c1| * 3e-8 / f` relative -- far below the
+# codec's half step, but above `validate`'s `rtol=1e-6, atol=0` against the SE a
+# top-hit tier copied from the plane before the flip.  The top-hit SE is a
+# derived copy written from the decoded plane, so it is written again.
+
+#: The receipt and `replaced/` stamp of the follow-on.
+RESYNC_STEP: str = "eaf-reference-flip-se-resync"
+RESYNC_REPLACED_SUFFIX: str = "eaf-reference-flip-se-resync"
+
+#: The suffix a staged top-hit `se` carries inside its own tier group.
+RESYNC_STAGING_SUFFIX: str = ".resyncing"
+
+#: No decoded SE may move by more than this, relative, or the cause is not the
+#: float32 round trip this step exists for and nothing is written.  The largest
+#: possible move is about `|c1| * 3e-8 / f` at the panel's 1% frequency floor.
+MAX_RESYNC_REL: float = 1e-5
+
+#: `validate`'s comparison of a tier's SE with the decoded plane.
+VALIDATE_SE_RTOL: float = 1e-6
+
+#: Worker processes of the core's top-hit SE collector unless `--workers` says
+#: otherwise.  Each runs with Zarr async width and Blosc threads of one, so the
+#: concurrent decodes are `--workers` and never `--workers` times a width: the
+#: #326 cap (`se_reencode.MAX_WORKERS`) holds.
+DEFAULT_DECODE_WORKERS: int = _precedent.DEFAULT_WORKERS
+
+SE_DECODE_FAULT = "se-decode"
+RESYNC_VERIFY_FAULT = "se-resync-verify"
+
+
+def _se_is_residual(manifest: dict[str, Any]) -> bool:
+    """Whether the Store's SE plane is decoded against EAF (and so against the reference)."""
+    try:
+        return bool(StoreEncoding.from_manifest(manifest["encoding"]).se.is_residual)
+    except (KeyError, ValueError, TypeError) as exc:
+        raise FlipRefusal(
+            f"the Store declares no encoding plan this runtime can read ({exc}); whether "
+            "its SE depends on eaf_reference cannot be decided"
+        ) from exc
+
+
+def _decode_top_hit_se(
+    store_path: Path,
+    encoding: StoreEncoding,
+    rows: np.ndarray,
+    cols: np.ndarray,
+    workers: int,
+) -> np.ndarray:
+    """The SE `(rows[i], cols[i])` decodes to, exactly as the core writes a top-hit tier.
+
+    The core's top-hit writer takes each tier's `se` from `DenseSePlane.band`
+    gathered row chunk by row chunk and stored as float32.  That is the function
+    called here rather than a copy of it, so the value written back is the
+    value a rebuild would write.
+    """
+    try:
+        from opengwasdb.layouts.dense import top_hits as _core_top_hits
+
+        collect = _core_top_hits._collect_top_hit_se
+    except (ImportError, AttributeError) as exc:
+        raise FlipRefusal(
+            "the pinned runtime does not offer the top-hit writer's SE collector "
+            f"(opengwasdb.layouts.dense.top_hits._collect_top_hit_se): {exc}"
+        ) from exc
+    # The collector forks `workers` processes; each decodes with one thread at
+    # every level, so processes x width stays within the precedent's bound.
+    _precedent._apply_worker_config(1)
+    return np.asarray(collect(store_path, rows, cols, encoding, workers), dtype=np.float32)
+
+
+@dataclass
+class TierSync:
+    """One top-hit tier's stored SE beside the SE its decoded plane gives now."""
+
+    tier: str
+    cells: int
+    imputed_cells: int
+    stored: np.ndarray
+    decoded: np.ndarray
+    changed: np.ndarray
+    validate_mismatches: int
+    max_relative_change: float
+
+    @property
+    def rows_changed(self) -> int:
+        return int(self.changed.sum())
+
+
+def _bits(values: np.ndarray) -> np.ndarray:
+    return np.ascontiguousarray(values, dtype=np.float32).view(np.uint32)
+
+
+def _compare_tier(tier: str, stored: np.ndarray, decoded: np.ndarray, imputed: np.ndarray) -> TierSync:
+    """Which cells moved, with the guards that say the movement is the expected kind."""
+    if stored.shape != decoded.shape or stored.shape != imputed.shape:
+        raise FlipRefusal(
+            f"top_hits/{tier}: se has {stored.shape[0]} cells, its imputed mask "
+            f"{imputed.shape[0]}, and the decoded plane returned {decoded.shape[0]}"
+        )
+    changed = _bits(stored) != _bits(decoded)
+    movers = int(changed.sum())
+    outside = changed & ~imputed
+    if outside.any():
+        raise FlipRefusal(
+            f"top_hits/{tier}: {int(outside.sum())} observed (imputed == 0) cell(s) would change "
+            "their SE; only an imputed cell's SE depends on eaf_reference, so this is a "
+            "different defect and nothing was written"
+        )
+    max_rel = 0.0
+    if movers:
+        old = stored[changed].astype(np.float64)
+        new = decoded[changed].astype(np.float64)
+        with np.errstate(divide="ignore", invalid="ignore"):
+            rel = np.abs(new - old) / np.abs(old)
+        if not np.all(np.isfinite(rel)) or float(rel.max()) > MAX_RESYNC_REL:
+            worst = "non-finite" if not np.all(np.isfinite(rel)) else f"{float(rel.max()):.3g}"
+            raise FlipRefusal(
+                f"top_hits/{tier}: a decoded SE moves by {worst} relative (limit "
+                f"{MAX_RESYNC_REL:g}); a reference-frequency round trip cannot do that, so "
+                "nothing was written"
+            )
+        max_rel = float(rel.max())
+    mismatched = ~np.isclose(decoded, stored, rtol=VALIDATE_SE_RTOL, atol=0.0, equal_nan=True)
+    return TierSync(
+        tier=tier,
+        cells=int(stored.shape[0]),
+        imputed_cells=int(imputed.sum()),
+        stored=stored,
+        decoded=decoded,
+        changed=changed,
+        validate_mismatches=int(mismatched.sum()),
+        max_relative_change=max_rel,
+    )
+
+
+def _require_complete_flip(store_id: str, artifact_root: Path, store_path: Path) -> dict[str, Any]:
+    """The flip's receipt, proven complete and matched by the live arrays.
+
+    The follow-on re-reads decoded values, so it must run against the corrected
+    Store and no other: an incomplete or contradicted flip receipt means the
+    Store is in a state this step cannot reason about.
+    """
+    record_path = paths.record_path(store_id, RECORD_STEP, root=artifact_root)
+    if not record_path.is_file():
+        raise FlipRefusal(
+            f"{record_path} does not exist: the SE re-sync follows a completed flip, and "
+            f"{store_id} has not been flipped by this tool"
+        )
+    try:
+        receipt = json.loads(record_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        raise FlipRefusal(f"cannot read the flip receipt {record_path}: {exc}") from exc
+    if not isinstance(receipt, dict) or receipt.get("status") != "complete":
+        status = receipt.get("status") if isinstance(receipt, dict) else "unreadable"
+        raise FlipRefusal(
+            f"the flip receipt {record_path} has status {status!r}, not 'complete'; finish "
+            "or restore the flip before re-syncing anything that depends on it"
+        )
+    # The live array is where this Store is, not where the receipt remembers it
+    # (a Store directory can be moved or restored elsewhere after its flip).
+    for entry in _recorded_in_flight(receipt):
+        if isinstance(entry.get("array"), str):
+            entry["live"] = str(store_path / "data.zarr" / entry["array"])
+    states = _inspect_existing(store_path, receipt)
+    wrong = [state for state in states if state.live_kind != "corrected"]
+    if not states or wrong:
+        lines = [
+            f"the live arrays do not all match the flip receipt {record_path}; read from the "
+            "filesystem:"
+        ]
+        lines += _describe_store(states)
+        raise FlipRefusal("\n".join(lines))
+    return receipt
+
+
+def _resync_targets(root: Any) -> list[str]:
+    """The top-hit tiers to re-sync: every tier, each needing what the comparison reads."""
+    if "top_hits" not in root:
+        return []
+    tiers = sorted(root["top_hits"].group_keys())
+    for tier in tiers:
+        group = root["top_hits"][tier]
+        missing = [name for name in ("se", "imputed", "variant_index", "analysis_index") if name not in group]
+        if missing:
+            raise FlipRefusal(
+                f"data.zarr/top_hits/{tier} carries no {' or '.join(missing)}; a tier whose SE "
+                "cannot be compared with the decoded plane is refused, not skipped"
+            )
+    return tiers
+
+
+@dataclass(frozen=True)
+class ResyncPlan:
+    """Every change the follow-on will make, measured before it makes any."""
+
+    store_id: str
+    artifact_root: Path
+    store_path: Path
+    staged: list[StagedArray]
+    tiers: list[TierSync]
+    revision: str
+    version: str
+    replaced_dir: Path
+    flip_receipt: dict[str, Any]
+    hm3_before: str | None
+    step: str = RESYNC_STEP
+    replaced_suffix: str = RESYNC_REPLACED_SUFFIX
+    staging_suffix: str = RESYNC_STAGING_SUFFIX
+
+
+def _hm3_digest(data_zarr: Path) -> str | None:
+    """One digest over every file of the HM3 subset, or None when the Store has none."""
+    hm3 = data_zarr / "indexed_subsets" / "hm3"
+    if not hm3.is_dir():
+        return None
+    listing = _sha256_tree(hm3)
+    return hashlib.sha256(json.dumps(sorted(listing.items())).encode("utf-8")).hexdigest()
+
+
+def _stage_se(tier: TierSync, live_root: Path, stage_root: Path) -> StagedArray:
+    """Write a tier's decoded SE beside the live one, through the live metadata."""
+    target = Target(group=f"top_hits/{tier.tier}", array="se", imputed_filter=True)
+    live_dir = live_root / target.group / target.array
+    source = zarr.open_array(live_dir, mode="r")
+    if source.dtype != np.float32 or source.ndim != 1:
+        raise FlipRefusal(
+            f"{target.label} is stored as {source.ndim}-D {source.dtype}; the top-hit writer "
+            "stores a 1-D float32 and this step rewrites nothing else"
+        )
+    staged_dir = stage_root / target.group / f".{target.array}{RESYNC_STAGING_SUFFIX}"
+    if os.path.lexists(staged_dir):
+        raise FlipRefusal(
+            f"{staged_dir} already exists: a previous run left a staged {target.label} behind. "
+            "Inspect it and remove it before running again."
+        )
+    staged_dir.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        staged_dir.mkdir()
+        shutil.copyfile(live_dir / "zarr.json", staged_dir / "zarr.json")
+        staged = zarr.open_array(staged_dir, mode="r+")
+        metadata = (staged_dir / "zarr.json").read_bytes()
+        for start, stop in _slice_rows(int(source.shape[0]), _shard_rows(source)):
+            staged[start:stop] = tier.decoded[start:stop]
+        if os.environ.get(FAIL_AT_ENV) == RESYNC_VERIFY_FAULT:
+            raise VerificationFailure(
+                f"test fault: refusing before verifying the staged {target.label} ({FAIL_AT_ENV})"
+            )
+        got = np.asarray(zarr.open_array(staged_dir, mode="r")[:], dtype=np.float32)
+        if not np.array_equal(_bits(got), _bits(tier.decoded)):
+            raise VerificationFailure(
+                f"the staged {target.label} does not read back as the decoded plane (bit patterns differ)"
+            )
+        untouched = ~tier.changed
+        if not np.array_equal(_bits(got)[untouched], _bits(tier.stored)[untouched]):
+            raise VerificationFailure(f"the staged {target.label} changed a row that was not to change")
+        if (staged_dir / "zarr.json").read_bytes() != metadata:
+            raise VerificationFailure(f"verifying the staged {target.label} rewrote its zarr.json")
+        _fsync_tree(staged_dir)
+    except BaseException:
+        shutil.rmtree(staged_dir, ignore_errors=True)
+        raise
+    return StagedArray(
+        target=target,
+        staged_dir=staged_dir,
+        live_dir=live_dir,
+        shape=tuple(int(n) for n in source.shape),
+        rows_flipped=tier.rows_changed,
+        finite_before=int(np.isfinite(tier.stored).sum()),
+        nan_before=int(np.isnan(tier.stored).sum()),
+        nan_after=int(np.isnan(got).sum()),
+        verified=True,
+    )
+
+
+def _build_resync_plan(
+    store_id: str,
+    artifact_root: Path,
+    store_path: Path,
+    stage_root: Path,
+    revision: str,
+    version: str,
+    workers: int,
+) -> ResyncPlan | None:
+    """Scope, flip receipt, decode, guards, stage, verify -- writing only `stage_root`.
+
+    Returns None when the Store's SE does not depend on `eaf_reference` or no
+    top-hit SE needs to move: there is nothing to write and no receipt to leave.
+    """
+    data_zarr = store_path / "data.zarr"
+    manifest = _read_manifest(store_path)
+    _refuse_out_of_scope(store_path, manifest)
+    if not _se_is_residual(manifest):
+        return None
+    flip_receipt = _require_complete_flip(store_id, artifact_root, store_path)
+    encoding = StoreEncoding.from_manifest(manifest["encoding"])
+    root = zarr.open_group(data_zarr, mode="r")
+    tier_names = _resync_targets(root)
+
+    if os.environ.get(FAIL_AT_ENV) == SE_DECODE_FAULT:
+        raise FlipRefusal(f"test fault: refusing before decoding the top-hit SE ({FAIL_AT_ENV})")
+    tiers: list[TierSync] = []
+    for name in tier_names:
+        group = root["top_hits"][name]
+        rows = np.asarray(group["variant_index"][:], dtype=np.int64)
+        cols = np.asarray(group["analysis_index"][:], dtype=np.int64)
+        stored = np.asarray(group["se"][:], dtype=np.float32)
+        imputed = np.asarray(group["imputed"][:]).astype(bool)
+        if not (len(rows) == len(cols) == len(stored) == len(imputed)):
+            raise FlipRefusal(f"top_hits/{name}: its arrays do not have one length")
+        decoded = _decode_top_hit_se(store_path, encoding, rows, cols, workers)
+        tiers.append(_compare_tier(name, stored, decoded, imputed))
+
+    staged: list[StagedArray] = []
+    try:
+        for tier in tiers:
+            if tier.rows_changed:
+                staged.append(_stage_se(tier, data_zarr, stage_root))
+    except BaseException:
+        for entry in staged:
+            shutil.rmtree(entry.staged_dir, ignore_errors=True)
+        raise
+    if not staged:
+        return None
+    stamp = f"{run.utc_stamp()}-{RESYNC_REPLACED_SUFFIX}"
+    return ResyncPlan(
+        store_id=store_id,
+        artifact_root=artifact_root,
+        store_path=store_path,
+        staged=staged,
+        tiers=tiers,
+        revision=revision,
+        version=version,
+        replaced_dir=paths.replaced_dir(store_id, stamp, root=artifact_root),
+        flip_receipt={
+            "path": str(paths.record_path(store_id, RECORD_STEP, root=artifact_root)),
+            "sha256": _sha256_file(paths.record_path(store_id, RECORD_STEP, root=artifact_root)),
+            "status": flip_receipt.get("status"),
+            "completed_at": flip_receipt.get("completed_at"),
+        },
+        hm3_before=_hm3_digest(data_zarr),
+    )
+
+
+def _resync_entry(staged: StagedArray, tier: TierSync) -> dict[str, Any]:
+    return {
+        "array": staged.target.label,
+        "group": staged.target.group,
+        "name": staged.target.array,
+        "shape": list(staged.shape),
+        "cells": tier.cells,
+        "imputed_cells": tier.imputed_cells,
+        "rows_changed": tier.rows_changed,
+        "max_relative_change": tier.max_relative_change,
+        "validate_se_mismatches_before": tier.validate_mismatches,
+        "nan_before": staged.nan_before,
+        "nan_after": staged.nan_after,
+        "sha256_before": staged.sha256_before,
+        "sha256_corrected": staged.sha256_staged,
+        "sha256_after": staged.sha256_after,
+        "verified": "staged se reads back bit-identical to the decoded plane; unchanged rows "
+        "bit-identical to the stored se; only imputed rows changed",
+    }
+
+
+def _resync_started_record(plan: ResyncPlan, started_at: str) -> dict[str, Any]:
+    by_label = {f"top_hits/{tier.tier}/se": tier for tier in plan.tiers}
+    return {
+        "status": "started",
+        "step": RESYNC_STEP,
+        "issue": 409,
+        "store_id": plan.store_id,
+        "store_path": str(plan.store_path),
+        "artifact_root": str(plan.artifact_root),
+        "started_at": started_at,
+        "completed_at": None,
+        "failed_at": None,
+        "opengwasdb_revision": plan.revision,
+        "opengwasdb_version": plan.version,
+        "tool": {"path": TOOL_PATH, "commit": _tool_commit()},
+        "flip_receipt": plan.flip_receipt,
+        "check": {
+            "rtol": 0.0,
+            "max_allowed_relative_change": MAX_RESYNC_REL,
+            "validate_rtol": VALIDATE_SE_RTOL,
+            "tiers": [
+                {
+                    "tier": tier.tier,
+                    "cells": tier.cells,
+                    "imputed_cells": tier.imputed_cells,
+                    "rows_changed": tier.rows_changed,
+                    "max_relative_change": tier.max_relative_change,
+                    "validate_se_mismatches_before": tier.validate_mismatches,
+                }
+                for tier in plan.tiers
+            ],
+        },
+        "hm3_sha256_before": plan.hm3_before,
+        "hm3_sha256_after": None,
+        "arrays": [_resync_entry(staged, by_label[staged.target.label]) for staged in plan.staged],
+        "replaced": {"dir": str(plan.replaced_dir), "arrays": _in_flight(plan)},  # type: ignore[arg-type]
+    }
+
+
+def _describe_resync(plan: ResyncPlan, *, dry_run: bool) -> str:
+    lines = [
+        f"eaf-reference-flip SE re-sync for {plan.store_id}",
+        f"  store:         {plan.store_path}",
+        f"  core revision: {plan.revision} ({plan.version})",
+        f"  flip receipt:  {plan.flip_receipt['path']} ({plan.flip_receipt['status']})",
+    ]
+    for tier in plan.tiers:
+        lines.append(
+            f"  top_hits/{tier.tier}/se: {tier.cells} cell(s), {tier.imputed_cells} imputed; "
+            f"{tier.rows_changed} to re-sync (max relative change {tier.max_relative_change:.3g}), "
+            f"{tier.validate_mismatches} fail validate's rtol {VALIDATE_SE_RTOL:g} now"
+        )
+    lines.append(
+        f"  {'would rewrite' if dry_run else 'rewrote'} {len(plan.staged)} array(s); originals "
+        f"{'would move' if dry_run else 'moved'} to {plan.replaced_dir}"
+    )
+    return "\n".join(lines)
+
+
+def _verify_live_se(plan: ResyncPlan, encoding: StoreEncoding, workers: int) -> None:
+    """After the swap: every top-hit SE equals a fresh decode of the plane, bit for bit."""
+    root = zarr.open_group(plan.store_path / "data.zarr", mode="r")
+    for name in _resync_targets(root):
+        group = root["top_hits"][name]
+        decoded = _decode_top_hit_se(
+            plan.store_path,
+            encoding,
+            np.asarray(group["variant_index"][:], dtype=np.int64),
+            np.asarray(group["analysis_index"][:], dtype=np.int64),
+            workers,
+        )
+        live = np.asarray(group["se"][:], dtype=np.float32)
+        if not np.array_equal(_bits(live), _bits(decoded)):
+            bad = int((_bits(live) != _bits(decoded)).sum())
+            raise VerificationFailure(
+                f"after the swap, top_hits/{name}/se differs from the decoded plane in {bad} cell(s)"
+            )
+    if _hm3_digest(plan.store_path / "data.zarr") != plan.hm3_before:
+        raise VerificationFailure("the HM3 subset changed during the SE re-sync; it must not")
+
+
+def _apply_resync(plan: ResyncPlan, encoding: StoreEncoding, workers: int) -> int:
+    """Swap the verified arrays in, check the result, then finish the receipt."""
+    record_path = paths.record_path(plan.store_id, plan.step, root=plan.artifact_root)
+    _hash_live(plan)  # type: ignore[arg-type]
+    record = _resync_started_record(plan, _precedent._utc_now())
+    _write_receipt(record, record_path)
+
+    try:
+        _swap_all(plan, record, record_path, _fault_at())
+        for staged in plan.staged:
+            staged.sha256_after = _sha256_tree(staged.live_dir)
+            if staged.sha256_after != staged.sha256_staged:
+                raise VerificationFailure(
+                    f"{staged.target.label} was swapped in but its files do not match the "
+                    "verified staged copy"
+                )
+        _verify_live_se(plan, encoding, workers)
+    except BaseException as exc:
+        failures = _restore(plan, record, record_path)
+        if failures:
+            record["status"] = FAILED_RESTORATION
+            record["failed_at"] = _precedent._utc_now()
+            try:
+                _write_receipt(record, record_path)
+            except OSError as write_exc:
+                failures.append(f"the receipt could not be finalised ({write_exc})")
+            raise FlipRefusal(_failed_restoration_message(plan, record, exc, failures)) from exc
+        for staged in plan.staged:
+            shutil.rmtree(staged.staged_dir, ignore_errors=True)
+        with contextlib.suppress(OSError):
+            record_path.unlink()
+        shutil.rmtree(plan.replaced_dir, ignore_errors=True)
+        with contextlib.suppress(OSError):
+            plan.replaced_dir.parent.rmdir()
+        raise FlipRefusal(
+            f"the SE re-sync of {plan.store_id} failed: {exc}. Every array is restored (proven by "
+            "the recorded before-hashes), and this run's staged copies and receipt were removed."
+        ) from exc
+
+    by_label = {f"top_hits/{tier.tier}/se": tier for tier in plan.tiers}
+    record["status"] = "complete"
+    record["completed_at"] = _precedent._utc_now()
+    record["hm3_sha256_after"] = _hm3_digest(plan.store_path / "data.zarr")
+    record["arrays"] = [_resync_entry(staged, by_label[staged.target.label]) for staged in plan.staged]
+    _write_receipt(record, record_path)
+
+    print(_describe_resync(plan, dry_run=False))
+    print(f"eaf-reference-flip: every top-hit SE now equals the decoded plane (rtol 0); HM3 subset untouched")
+    print(f"eaf-reference-flip: originals kept in {plan.replaced_dir}")
+    print(f"eaf-reference-flip: receipt {record_path}")
+    return 0
+
+
+def _resync_dry_run(
+    args: argparse.Namespace, artifact_root: Path, store_path: Path, revision: str, version: str
+) -> int:
+    scratch = _scratch_dir()
+    try:
+        plan = _build_resync_plan(
+            args.store_id, artifact_root, store_path, scratch / "data.zarr", revision, version, args.workers
+        )
+        if plan is None:
+            print(_nothing_to_resync(store_path))
+        else:
+            print(_describe_resync(plan, dry_run=True))
+        print("Dry run: nothing in the Store or its records was written.")
+        return 0
+    finally:
+        shutil.rmtree(scratch, ignore_errors=True)
+
+
+def _nothing_to_resync(store_path: Path) -> str:
+    manifest = _read_manifest(store_path)
+    if not _se_is_residual(manifest):
+        return (
+            "eaf-reference-flip: this Store's SE is not an int8_residual plane, so it does not "
+            "depend on eaf_reference and no top-hit SE needs re-syncing"
+        )
+    return "eaf-reference-flip: every top-hit SE already equals the decoded plane; nothing to re-sync"
+
+
+def _resync_apply(
+    args: argparse.Namespace, artifact_root: Path, store_path: Path, revision: str, version: str
+) -> int:
+    _precedent._configure_run(args.store_id, artifact_root, args.workers)
+    plan = _build_resync_plan(
+        args.store_id, artifact_root, store_path, store_path / "data.zarr", revision, version, args.workers
+    )
+    if plan is None:
+        print(_nothing_to_resync(store_path))
+        return 0
+    encoding = StoreEncoding.from_manifest(_read_manifest(store_path)["encoding"])
+    return _apply_resync(plan, encoding, args.workers)
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 
@@ -1355,6 +1972,24 @@ def parse_args(argv: list[str] | None) -> argparse.Namespace:
         "-n", "--dry-run",
         action="store_true",
         help="take the lock, run the guard, stage and verify in a scratch directory; change nothing",
+    )
+    parser.add_argument(
+        "--resync-se",
+        action="store_true",
+        help=(
+            "only the follow-on: re-sync top_hits/<tier>/se to the decoded SE plane of a Store "
+            "this tool has already flipped (a flip runs it by itself)"
+        ),
+    )
+    parser.add_argument(
+        "--workers",
+        type=_precedent._workers,
+        default=DEFAULT_DECODE_WORKERS,
+        help=(
+            "processes the core's top-hit SE collector decodes row chunks with, each with "
+            f"Zarr async width and Blosc threads of one (1..{_precedent.MAX_WORKERS}, "
+            f"default {DEFAULT_DECODE_WORKERS}: #326's cap on concurrent decodes)"
+        ),
     )
     parser.add_argument(
         "--sample-seed",
@@ -1397,6 +2032,28 @@ def _scratch_dir() -> Path:
     return Path(tempfile.mkdtemp(prefix="eaf-reference-flip-"))
 
 
+def _refuse_existing_receipts(
+    store_id: str, artifact_root: Path, store_path: Path, *, resync_only: bool
+) -> None:
+    """Refuse on this operation's own receipts: the flip's and the follow-on's.
+
+    The follow-on alone runs on a flipped Store, so the flip's receipt is
+    required for it (checked when it is planned) and only its own receipt
+    refuses here.
+    """
+    if not resync_only:
+        _refuse_existing_receipt(store_id, artifact_root, store_path)
+    _refuse_existing_receipt(
+        store_id,
+        artifact_root,
+        store_path,
+        step=RESYNC_STEP,
+        suffix=RESYNC_REPLACED_SUFFIX,
+        staging=RESYNC_STAGING_SUFFIX,
+        consequence="This tool refuses: the SE re-sync runs once, and its receipt is evidence.",
+    )
+
+
 def _refuse_common(args: argparse.Namespace) -> tuple[Path, Path, str, str]:
     """Steps 1-2: the Store, the runtime and the markers, all before any write."""
     registry_root, artifact_root, store_path = _precedent._resolve_paths(args)
@@ -1404,12 +2061,19 @@ def _refuse_common(args: argparse.Namespace) -> tuple[Path, Path, str, str]:
         _precedent._refuse_store_outside_contract(args.store_id, registry_root, artifact_root, store_path)
         revision, version = _precedent._resolve_runtime()
         _precedent._refuse_markers(args.store_id, artifact_root)
-    _refuse_existing_receipt(args.store_id, artifact_root, store_path)
+    _refuse_existing_receipts(args.store_id, artifact_root, store_path, resync_only=args.resync_se)
     _refuse_out_of_scope(store_path, _read_manifest(store_path))
     return artifact_root, store_path, revision, version
 
 
-def _with_lock(store_id: str, artifact_root: Path, store_path: Path, body: Callable[[], int]) -> int:
+def _with_lock(
+    store_id: str,
+    artifact_root: Path,
+    store_path: Path,
+    body: Callable[[], int],
+    *,
+    resync_only: bool = False,
+) -> int:
     """Take the release's exclusive lock for `body`, never waiting for it.
 
     Apply and `--dry-run` both hold it: a dry run reads, stages and verifies
@@ -1424,7 +2088,7 @@ def _with_lock(store_id: str, artifact_root: Path, store_path: Path, body: Calla
     try:
         with _borrowed_precedent():
             _precedent._refuse_markers(store_id, artifact_root)
-        _refuse_existing_receipt(store_id, artifact_root, store_path)
+        _refuse_existing_receipts(store_id, artifact_root, store_path, resync_only=resync_only)
         return body()
     except (FlipRefusal, OSError) as exc:
         print(f"eaf-reference-flip: {exc}", file=sys.stderr)
@@ -1446,6 +2110,12 @@ def _dry_run(args: argparse.Namespace, artifact_root: Path, store_path: Path, re
             version,
         )
         print(_describe(plan, dry_run=True))
+        if _se_is_residual(_read_manifest(store_path)):
+            print(
+                "  then, once the flip is applied, the same run re-syncs top_hits/<tier>/se to the "
+                "decoded SE plane (its SE depends on eaf_reference); the cells it moves are "
+                "counted by `--resync-se --dry-run` on a flipped Store"
+            )
         print("Dry run: nothing in the Store or its records was written.")
         return 0
     finally:
@@ -1466,7 +2136,22 @@ def _apply_plan(args: argparse.Namespace, artifact_root: Path, store_path: Path,
         revision,
         version,
     )
-    return _apply(plan)
+    code = _apply(plan)
+    if code != 0 or not _se_is_residual(_read_manifest(store_path)):
+        return code
+    # The flip is complete and durable; the follow-on is its own operation with
+    # its own receipt.  When it cannot finish, the Store stays flipped and the
+    # operator is told how to finish it.
+    try:
+        return _resync_apply(args, artifact_root, store_path, revision, version)
+    except (FlipRefusal, OSError) as exc:
+        print(f"eaf-reference-flip: {exc}", file=sys.stderr)
+        print(
+            f"eaf-reference-flip: the flip of {args.store_id} is complete but its top-hit SE is "
+            f"not re-synced; run `eaf-reference-flip {args.store_id} --resync-se` to finish",
+            file=sys.stderr,
+        )
+        return 1
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1477,12 +2162,16 @@ def main(argv: list[str] | None = None) -> int:
         print(f"eaf-reference-flip: {exc}", file=sys.stderr)
         return 1
 
-    body = _dry_run if args.dry_run else _apply_plan
+    if args.resync_se:
+        body = _resync_dry_run if args.dry_run else _resync_apply
+    else:
+        body = _dry_run if args.dry_run else _apply_plan
     return _with_lock(
         args.store_id,
         artifact_root,
         store_path,
         lambda: body(args, artifact_root, store_path, revision, version),
+        resync_only=args.resync_se,
     )
 
 

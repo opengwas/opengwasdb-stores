@@ -1,7 +1,7 @@
 # EAF reference flip (#409)
 
-`pixi run eaf-reference-flip <store-id> [--dry-run] [--artifact-root P]
-[--registry-root P]` is the one-off, value-changing in-place correction of a
+`pixi run eaf-reference-flip <store-id> [--dry-run] [--resync-se] [--workers N]
+[--artifact-root P] [--registry-root P]` is the one-off, value-changing in-place correction of a
 Dense, format-0.2.0, Zarr-v3, Reference-Completed Store whose `eaf_reference`
 holds the other allele's frequency. It is the second in-place Store rewrite this
 project allows and the first that changes decoded values: the #326 SE re-encode
@@ -91,14 +91,86 @@ receipt only when that inspection proves nothing moved; otherwise it says to
 restore first. A receipt that records no hashes at all is described by presence
 only, never as matching.
 
-Nothing else is touched: not `manifest.json`, `index.sqlite`, `overview.html`,
-`analyses.tsv`, not another array, and not `data.zarr/indexed_subsets/hm3/eaf`
-(an int8 residual against its own baseline, unaffected by the flip). The array
+Nothing else is touched by the flip itself: not `manifest.json`, `index.sqlite`,
+`overview.html`, `analyses.tsv`, not another array, and not
+`data.zarr/indexed_subsets/hm3/eaf` (an int8 residual against its own baseline,
+unaffected by the flip). The SE of a residual-SE Store is the exception the next
+section describes. The array
 directory swap changes `data.zarr`'s and its parents' mtimes but not
 `store.opengwasdb/`'s, so the release workflow still plans nothing for the
 Store. The Store-root files a Release Erratum must report on
 (`stores/<id>/release.yaml` notes, the Validation Record, the catalog) are the
 operator's step, not this tool's.
+
+## The SE coupling
+
+A Store whose `se` plane is `int8_residual` stores each SE as a code against a
+prediction `c0 + c1 * log(2 f (1 - f))` that takes the frequency `f` of the
+*same cell*, and an imputed cell's `f` is `eaf_reference`. The flip therefore
+changes the decoded SE of imputed cells even though no SE code is rewritten.
+`float32(1) - f` is not the exact inverse of the `float32(1) - f` that the
+inverted panel had already applied: near 1, float32 resolves about 6e-8 in
+absolute terms, so for a rare variant `1 - (1 - f)` differs from `f` in its
+last bits. The decoded SE moves by about `|c1| * 3e-8 / f` relative, up to a few
+parts in a million at the panel's 1% frequency floor, and only where the
+original reference was below 0.5. That is far below the codec's own half step,
+and above `validate`'s comparison of a top-hit tier's `se` with the decoded
+plane (`rtol=1e-6`, `atol=0`). A tier copies its SE from the decoded plane when it
+is built (`opengwasdb.layouts.dense.top_hits`, `_collect_top_hit_se`: the plane
+decoded one row chunk at a time and stored as float32), so after a flip every
+tier still holds the SE decoded against the old reference, and `validate`
+refuses the Store (`top-hit index p_5e_08 contains se value inconsistent with
+decoded se plane`). It was missed in the first version of this tool, and
+found by the post-flip `validate` of `OGS-00014`.
+
+The follow-on re-syncs `top_hits/<tier>/se` to the decoded plane. It is part of
+the same operation: a flip of a residual-SE Store runs it after the swap, and
+`--resync-se` runs it alone on a Store this tool has already flipped (the path for
+`OGS-00014`, flipped before the follow-on existed). A Store whose SE is not
+residual has nothing to re-sync and the step says so.
+
+1. **Refusals.** Everything the flip refuses on, and the flip's receipt must exist,
+   read `complete`, and be matched by every live array it names: the follow-on
+   re-reads decoded values, so it runs on the corrected Store and no other. A
+   tier without `se`, `imputed`, `variant_index` or `analysis_index` is refused,
+   not skipped. The follow-on's own receipt refuses a second run.
+2. **The decode.** Each tier's SE is gathered with the core's own collector, so the
+   value written back is the value a rebuild would write, as float32.
+3. **Guards.** A cell is *changed* when its float32 bit pattern differs from the
+   decoded one. The step refuses, writing nothing, if any changed cell is not
+   imputed (only an imputed cell's SE depends on `eaf_reference`, so anything
+   else is a different defect), or if any changed cell moves by more than 1e-5
+   relative (the cause would not be the round trip this step exists for).
+4. **Staging and swap.** Only tiers with a changed cell are rewritten, each as a
+   sibling `.se.resyncing` directory with the live `zarr.json` copied verbatim and
+   whole-shard slices, checked to read back as the decoded plane bit for bit,
+   with every unchanged row identical to the stored one, then every staged file
+   and directory is fsynced (a failure aborts before any rename; the flip's staged
+   arrays get the same treatment). The swap is the flip's
+   own (`_swap_all`, `_restore`): every rename announced in the receipt before
+   it happens, both parents fsynced, a failure restoring each original and
+   proving it by hash, `failed_restoration` kept rather than deleted when it
+   cannot. Originals go to `replaced/<UTC>-eaf-reference-flip-se-resync/`; the
+   receipt is `records/eaf-reference-flip-se-resync.json`: per tier the cells,
+   imputed cells, changed rows, maximum relative change and how many cells
+   failed `validate`'s rtol before, plus every file's sha256 before and after.
+5. **After the swap.** The files must hash to the verified staged copies; then
+   every tier's SE is compared with a fresh decode of the plane at `rtol` 0, bit
+   for bit, and the HM3 subset's files must hash as they did before. Any failure
+   restores the originals.
+
+A flip run that cannot finish the follow-on leaves the flip complete and says to
+run `--resync-se`. `--dry-run` of a flip cannot count the cells the follow-on will
+move (the Store is not flipped yet) and says the follow-on follows;
+`--resync-se --dry-run` on a flipped Store takes the lock, decodes, stages in a
+scratch directory, prints the counts per tier and writes nothing. `--workers`
+(1 to 16, default 16: #326's cap) is the number of processes the collector
+decodes row chunks with, each with Zarr async width and Blosc threads of one, so
+the concurrent decodes never exceed the cap. A decode holds a row chunk of every
+Analysis at once.
+
+The same coupling would hold for any later rewrite of `eaf_reference` in a
+residual-SE Store, not only this flip.
 
 ## Measured against the fixture
 
@@ -143,3 +215,23 @@ commit.
   and `replaced/`. `release-dry OGS-00014` plans no jobs ("Nothing to be done").
 - The Store was not re-validated by this step. The Release Erratum is in
   `stores/OGS-00014/release.yaml`.
+
+**OGS-00014 SE re-sync, 2026-11-02** (tool at stores `def9e2c8`, opengwasdb 0.3.2): the
+post-flip `validate` had failed all three tiers' SE check, so `eaf-reference-flip OGS-00014
+--resync-se --workers 16` rewrote the top-hit SE (26 min; originals in
+`replaced/20261102T111229Z-eaf-reference-flip-se-resync/`, receipt
+`records/eaf-reference-flip-se-resync.json`, sha256
+`f34f054214a0b2d22570af49d979360e4aef0c6ea4cbeac285bab2386e25d8a6`).
+
+| Array | Cells | Re-synced | Failed validate's rtol before |
+| --- | --- | --- | --- |
+| `top_hits/p_5e_04/se` | 44,023,163 | 126,116 | 3,282 |
+| `top_hits/p_5e_06/se` | 2,739,528 | 16,951 | 276 |
+| `top_hits/p_5e_08/se` | 560,180 | 7,548 | 98 |
+
+- Maximum relative change 1.48e-6, all imputed cells. The tool's post-swap check (rtol 0, HM3
+  files unchanged) passed; read-only afterwards, an independent decode finds 0 mismatches in
+  every tier at rtol 1e-6 and at rtol 0, and the files match the receipt's after-hashes.
+  `release-dry OGS-00014` plans nothing.
+- `opengwasdb validate` 0.3.2 (`44f25a96`), under the release lock, started 2026-11-02
+  11:32:35 UTC, elapsed 4 h 29 m 50 s, exit 0: `{"errors": [], "ok": true, "warnings": []}`.
