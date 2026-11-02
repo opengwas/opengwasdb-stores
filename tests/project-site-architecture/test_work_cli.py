@@ -256,6 +256,13 @@ class CheckTests(unittest.TestCase):
     def test_a_baseline_that_is_not_yaml_exits_2_naming_the_file(self) -> None:
         self.assert_undecided("allowed: [\n", "not valid YAML")
 
+    def test_a_baseline_yaml_that_fails_to_construct_exits_2_not_a_traceback(self) -> None:
+        self.assert_undecided("allowed: [2026-13-32]\n", "not valid YAML")
+
+    def test_the_one_loader_refuses_a_duplicate_and_an_extra_key_in_the_engines_baseline_too(self) -> None:
+        self.assert_undecided("allowed:\n  - {file: a.py, name: n}\n  - {file: a.py, name: n}\n", "listed twice")
+        self.assert_undecided("allowed:\n  - {file: a.py, name: n, why: because}\n", "entry #0")
+
     def test_a_baseline_without_allowed_is_not_an_empty_baseline(self) -> None:
         self.assert_undecided("something: else\n", "`allowed`")
         self.assert_undecided("", "`allowed`")

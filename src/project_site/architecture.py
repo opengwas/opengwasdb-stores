@@ -29,10 +29,9 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence, TextIO
 
-import yaml
 
 from project_site import paths as site_paths
-from project_site.collect import architecture, board, branches, common, work
+from project_site.collect import architecture, architecture_graph, board, branches, common, work
 
 BASELINE_PATH = "docs/architecture/layering-baseline.yaml"
 LIVE = ("building", "active")
@@ -124,23 +123,6 @@ def check(args: argparse.Namespace, out: TextIO) -> int:
     return 1 if failed else UNDECIDED if unknown else 0
 
 
-def _baseline_entries(text: str) -> set[tuple[str, str]]:
-    """The `(file, name)` pairs of a baseline file; one that is not a baseline is `Unavailable`, never empty."""
-    where = BASELINE_PATH
-    try:
-        document = yaml.safe_load(text)
-    except yaml.YAMLError as error:
-        raise Unavailable(f"{where} is not valid YAML: {str(error).splitlines()[0]}") from error
-    if not isinstance(document, dict) or not isinstance(document.get("allowed"), list):
-        raise Unavailable(f"{where} must be a mapping with an `allowed` list")
-    entries = set()
-    for number, entry in enumerate(document["allowed"]):
-        if not (isinstance(entry, dict) and all(isinstance(entry.get(k), str) and entry[k] for k in ("file", "name"))):
-            raise Unavailable(f"{where}: entry #{number} must be a mapping with a `file` and a `name`, both text")
-        entries.add((entry["file"], entry["name"]))
-    return entries
-
-
 def _baseline(args: argparse.Namespace, document: Mapping[str, Any], out: TextIO) -> bool:
     """Print how the engine's baseline compares with the measured upward imports; True when it does not match."""
     engine = document["engine"]
@@ -153,7 +135,10 @@ def _baseline(args: argparse.Namespace, document: Mapping[str, Any], out: TextIO
     if text is None:
         print(f"no layering baseline at {engine['ref']} ({BASELINE_PATH} is not there)", file=out)
         return False
-    listed = _baseline_entries(text)
+    try:
+        listed = set(architecture_graph.load_baseline(text, BASELINE_PATH, key="allowed"))
+    except common.CollectError as error:
+        raise Unavailable(str(error)) from error
     if document.get("upward_imports") is None:
         raise Unavailable("layering baseline: the upward imports were not measured, so there is nothing to compare it with")
     found = {(u["file"], u["name"]): u for u in document.get("upward_imports") or []}

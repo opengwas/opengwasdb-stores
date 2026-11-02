@@ -463,8 +463,8 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
   cannot hide behind a fixed one): each `new:` import not in the baseline and each `stale:` entry no longer
   imported is named; no baseline file is not a failure. What cannot be measured is
   printed with its reason and is **unknown, never a pass**: an engine ref with no model, a repository or file
-  that cannot be read, a file that is not YAML, has no `allowed` list or has an entry that is not a `file`
-  and a `name` of text. Exit **1** if anything measured has a problem (an unclaimed or stale claim, a new or
+  that cannot be read, a file YAML cannot load (any constructor failure too), one with no `allowed` list, an entry that is not
+  exactly a `file` and a `name` of text, or an entry listed twice (this repository's own baseline is read by the same loader, with the same refusals). Exit **1** if anything measured has a problem (an unclaimed or stale claim, a new or
   stale baseline entry), whatever else is unknown; otherwise **2** if any part could not be measured;
   otherwise 0.
 - `conflicts --branch B [--repo engine|registry]` or `--files PATH... [--ticket repo#n]`:

@@ -156,18 +156,26 @@ def engine_imports(imports: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]
 BASELINE_PATH = "docs/architecture/engine-imports-baseline.yaml"
 
 
-def load_baseline(text: str, where: str = BASELINE_PATH) -> tuple[tuple[str, str], ...]:
+def load_baseline(text: str, where: str = BASELINE_PATH, key: str = "imports") -> tuple[tuple[str, str], ...]:
     """A baseline file's `(file, name)` entries, sorted; a malformed or duplicated one is an error.
+
+    The one loader of both baselines: this repository's (`imports`) and the engine's
+    layering baseline (`allowed`, read by `check`), with the same refusals: YAML that
+    cannot be loaded, a mapping without the list, an entry that is not exactly a
+    `file` and a `name` of text, and a duplicate.
 
     A baseline that cannot be read must not pass for an empty one: an empty
     baseline would turn every listed import into a failure, and a silently
     truncated one would let a new import through.
     """
-    document = yaml.safe_load(text)
-    if not isinstance(document, dict) or not isinstance(document.get("imports"), list):
-        raise CollectError(f"{where}: a baseline is a mapping with an `imports` list")
+    try:
+        document = yaml.safe_load(text)
+    except Exception as error:  # a YAMLError, or a constructor's ValueError (`2026-13-32`)
+        raise CollectError(f"{where} is not valid YAML: {str(error).splitlines()[0] if str(error) else type(error).__name__}") from error
+    if not isinstance(document, dict) or not isinstance(document.get(key), list):
+        raise CollectError(f"{where}: a baseline is a mapping with an `{key}` list")
     entries: list[tuple[str, str]] = []
-    for number, entry in enumerate(document["imports"]):
+    for number, entry in enumerate(document[key]):
         if (
             not isinstance(entry, Mapping)
             or set(entry) != {"file", "name"}
