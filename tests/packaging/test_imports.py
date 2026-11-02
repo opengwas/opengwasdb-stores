@@ -52,6 +52,8 @@ GENERATION_AND_TESTS = ("src/manifest_generation/", "resources/generators/", "te
 # one exercises. Each may load that script by path or put its directory on
 # sys.path.
 EXEMPT_TESTS: dict[str, str] = {
+    "tests/ld-panel-comparison/run_tests.py":
+        "the EUR-panel imputation comparison (tools/ld-panel), a script whose directory is not a package",
     "tests/ld-panel-generation/run_tests.py": "LD-panel Reference Resource scripts (tools/ld-panel)",
     "tests/ld-panel-repair/run_tests.py": "the #348 in-place panel repair and block verifier (tools/ld-panel)",
     "tests/hapmap3-resource/test_hapmap3_resource.py": "the HapMap3 Reference Resource verifier (tools/reference-resources)",
