@@ -316,7 +316,8 @@ A claimed script under `tools/` or `workflow/` is a source of imports even thoug
 no one can import it.
 
 Code is a tracked `.py` under `opengwasdb/` in the engine, and a `.py`, `.smk`,
-`.sh` or `Snakefile` under `src/`, `workflow/` or `tools/` here. **Gaps never
+`.sh`, `.R`, `.r` or `Snakefile` under `src/`, `workflow/` or `tools/` here (R counts for
+ownership and lines, not for the Python import graph). **Gaps never
 fail the build.** The engine's own CI fails on its unclaimed files, and this
 repository's test (`tests/project-site-architecture/test_architecture_ownership.py`)
 fails on its own; the collector only reports them, on the page. An engine ref with

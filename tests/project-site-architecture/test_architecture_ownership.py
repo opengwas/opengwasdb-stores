@@ -54,6 +54,12 @@ class OwnershipTests(unittest.TestCase):
         self.assertEqual(gaps["unclaimed"], ["src/newpkg/thing.py", "tools/check.sh", "workflow/new.smk"])
         self.assertEqual(gaps["stale"], [])
 
+    def test_an_unclaimed_r_file_is_reported_in_either_case(self) -> None:
+        claims = model.claims_of(COMPONENTS)
+        tracked = [*TRACKED, "tools/new.R", "src/newpkg/script.r"]
+        self.assertEqual(model.check_claims(claims, tracked, model.is_registry_code)["unclaimed"],
+                         ["src/newpkg/script.r", "tools/new.R"])
+
     def test_files_that_are_not_code_need_no_claim(self) -> None:
         claims = model.claims_of(COMPONENTS)
         tracked = [*TRACKED, "src/ogstores/README.md", "workflow/profiles/slurm/config.yaml", "docs/x.md"]

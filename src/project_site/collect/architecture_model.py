@@ -20,7 +20,7 @@ Claims = list[tuple[str, str]]
 
 # What this repository counts as code, which every claim must keep covered.
 REGISTRY_CODE_ROOTS = ("src", "workflow", "tools")
-REGISTRY_CODE_SUFFIXES = (".py", ".smk", ".sh")
+REGISTRY_CODE_SUFFIXES = (".py", ".smk", ".sh", ".R", ".r")
 ENGINE_PACKAGE = "opengwasdb"
 
 
