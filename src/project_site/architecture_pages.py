@@ -612,16 +612,16 @@ def _context(model: Mapping[str, Any]) -> str:
     system = model.get("system") or {}
     lines = ["digraph context {", HEAD, "rankdir=TB;"]
     for p in model.get("people") or []:
-        lines.append(f'"{p["id"]}" [label={_label(p["name"], "Person", p.get("summary"))} fillcolor="#dbe9f7"];')
+        lines.append(f'"{_dq(p["id"])}" [label={_label(p["name"], "Person", p.get("summary"))} fillcolor="#dbe9f7"];')
     lines.append(f'"system" [label={_label(system.get("name", "System"), "Software system", system.get("summary"), 36)} fillcolor="#c5dcf2"];')
     for x in model.get("external") or []:
-        lines.append(f'"{x["id"]}" [label={_label(x["name"], "External system", x.get("summary"))} fillcolor="#eeeeee"];')
+        lines.append(f'"{_dq(x["id"])}" [label={_label(x["name"], "External system", x.get("summary"))} fillcolor="#eeeeee"];')
     seen = set()
     for a, b, text in model.get("container_relations") or []:
         a, b = ("system" if a in inside else a), ("system" if b in inside else b)
         if a != b and (a, b) not in seen:
             seen.add((a, b))
-            lines.append(f'"{a}" -> "{b}" [label="{_esc(text)}"];')
+            lines.append(f'"{_dq(a)}" -> "{_dq(b)}" [label="{_dq(text)}"];')
     lines.append("}")
     return "\n".join(lines)
 
@@ -630,16 +630,16 @@ def _containers(model: Mapping[str, Any]) -> str:
     system = model.get("system") or {}
     lines = ["digraph containers {", HEAD, "rankdir=TB; compound=true;"]
     for p in model.get("people") or []:
-        lines.append(f'"{p["id"]}" [label={_label(p["name"], "Person", None)} fillcolor="#dbe9f7"];')
-    lines.append(f'subgraph cluster_system {{ label="{_esc(system.get("name", "System"))}"; fontname="Arial"; fontsize=11; margin=16; color="{GREY}";')
+        lines.append(f'"{_dq(p["id"])}" [label={_label(p["name"], "Person", None)} fillcolor="#dbe9f7"];')
+    lines.append(f'subgraph cluster_system {{ label="{_dq(system.get("name", "System"))}"; fontname="Arial"; fontsize=11; margin=16; color="{GREY}";')
     for c in model.get("containers") or []:
         shape = ' shape=cylinder style="filled"' if c.get("repo") is None else ""
-        lines.append(f'"{c["id"]}" [{shape.strip()} label={_label(c["name"], c.get("tech"), c.get("summary"), 28)} fillcolor="#c5dcf2"];')
+        lines.append(f'"{_dq(c["id"])}" [{shape.strip()} label={_label(c["name"], c.get("tech"), c.get("summary"), 28)} fillcolor="#c5dcf2"];')
     lines.append("}")
     for x in model.get("external") or []:
-        lines.append(f'"{x["id"]}" [label={_label(x["name"], "External", None)} fillcolor="#eeeeee"];')
+        lines.append(f'"{_dq(x["id"])}" [label={_label(x["name"], "External", None)} fillcolor="#eeeeee"];')
     for a, b, text in model.get("container_relations") or []:
-        lines.append(f'"{a}" -> "{b}" [label="{_esc(textwrap.fill(text, 22))}"];')
+        lines.append(f'"{_dq(a)}" -> "{_dq(b)}" [label="{_dq(textwrap.fill(text, 22))}"];')
     lines.append("}")
     return "\n".join(lines)
 
@@ -647,7 +647,7 @@ def _containers(model: Mapping[str, Any]) -> str:
 def _node(component: Mapping[str, Any]) -> str:
     sub = _size(component)
     return (
-        f'"{component["id"]}" [label=<<FONT POINT-SIZE="12"><B>{_esc(component["name"])}</B></FONT><BR/>'
+        f'"{_dq(component["id"])}" [label=<<FONT POINT-SIZE="12"><B>{_esc(component["name"])}</B></FONT><BR/>'
         f'<FONT POINT-SIZE="9">{_esc(sub)}</FONT>>];'
     )
 
@@ -667,25 +667,25 @@ def _engine(components: list, edges: list, model: Mapping[str, Any]) -> str:
         lines.append(f'"L{upper["layer"]}" -> "L{lower["layer"]}" [style=invis];')
     for layer in layers:
         members = [c["id"] for c in engine if c["layer"] == layer["layer"]]
-        lines.append("{ rank=same; " + f'"L{layer["layer"]}"; ' + "".join(f'"{i}"; ' for i in members) + "}")
+        lines.append("{ rank=same; " + f'"L{layer["layer"]}"; ' + "".join(f'"{_dq(i)}"; ' for i in members) + "}")
     lines += [_node(c) for c in engine]
     # An invisible spine from each layer to the next keeps the rows in order.
     for upper, lower in pairwise(layers):
         top = next((c["id"] for c in engine if c["layer"] == upper["layer"]), None)
         bottom = next((c["id"] for c in engine if c["layer"] == lower["layer"]), None)
         if top and bottom:
-            lines.append(f'"{top}" -> "{bottom}" [style=invis weight=0];')
+            lines.append(f'"{_dq(top)}" -> "{_dq(bottom)}" [style=invis weight=0];')
     for e in edges:
         if e.get("scope") != "engine" or e["from"] not in by_id or e["to"] not in by_id:
             continue
         a, b, n = by_id[e["from"]], by_id[e["to"]], e["imports"]
         if e.get("upward"):
             lines.append(
-                f'"{e["from"]}" -> "{e["to"]}" [color="{UPWARD}" fontcolor="{UPWARD}" penwidth=1.4 constraint=false '
-                f'label=" {n}" tooltip="{_esc(a["name"])} imports {_esc(b["name"])}, a higher layer ({n})"];'
+                f'"{_dq(e["from"])}" -> "{_dq(e["to"])}" [color="{UPWARD}" fontcolor="{UPWARD}" penwidth=1.4 constraint=false '
+                f'label=" {n}" tooltip="{_dq(a["name"])} imports {_dq(b["name"])}, a higher layer ({n})"];'
             )
         elif a["layer"] == b["layer"]:
-            lines.append(f'"{e["from"]}" -> "{e["to"]}" [style=dashed constraint=false label=" {n}"];')
+            lines.append(f'"{_dq(e["from"])}" -> "{_dq(e["to"])}" [style=dashed constraint=false label=" {n}"];')
     lines.append("}")
     return "\n".join(lines)
 
@@ -701,7 +701,7 @@ def _registry(components: list, edges: list, model: Mapping[str, Any], engine_mo
     lines = ["digraph registry {", HEAD, "rankdir=TB; newrank=true;"]
     for container, ids in by_container.items():
         name = containers.get(container, {}).get("name", container)
-        lines.append(f'subgraph cluster_{container} {{ label="{_esc(name)}"; fontname="Arial"; fontsize=11; margin=12; color="{GREY}";')
+        lines.append(f'subgraph "cluster_{_dq(container)}" {{ label="{_dq(name)}"; fontname="Arial"; fontsize=11; margin=12; color="{GREY}";')
         lines += [_node(by_id[i]) for i in ids]
         lines.append("}")
     engine_ids = {c["id"] for c in components if c["repo"] == "engine"}
@@ -714,12 +714,12 @@ def _registry(components: list, edges: list, model: Mapping[str, Any], engine_mo
     )
     for e in edges:
         if e.get("scope") == "registry" and e["from"] in by_id and e["to"] in by_id:
-            lines.append(f'"{e["from"]}" -> "{e["to"]}";')
+            lines.append(f'"{_dq(e["from"])}" -> "{_dq(e["to"])}";')
     seam: dict[str, int] = defaultdict(int)
     for e in edges:
         if e.get("scope") == "registry_to_engine" and e["from"] in by_id:
             seam[e["from"]] += e["imports"]
     for source, n in sorted(seam.items()):
-        lines.append(f'"{source}" -> "engine" [label="{n}" penwidth={0.6 + min(n, 30) / 30:.2f}];')
+        lines.append(f'"{_dq(source)}" -> "engine" [label="{n}" penwidth={0.6 + min(n, 30) / 30:.2f}];')
     lines.append("}")
     return "\n".join(lines)

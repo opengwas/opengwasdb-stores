@@ -238,6 +238,40 @@ class HostileFactTests(unittest.TestCase):
         self.assertIn("engine <code>ma&#96;in</code> at", structure)
 
 
+DOT = shutil.which("dot")
+
+
+class DotEscapingTests(unittest.TestCase):
+    """A fact inside a quoted DOT string or identifier is escaped for DOT, not for HTML (docs/site.md, Adding a page 8)."""
+
+    def cells(self) -> list[str]:
+        doc = architecture()
+        doc["model"]["system"]["name"] = 'Sys "x" \\'
+        doc["model"]["containers"][0]["id"] = 'en"g\\'
+        doc["model"]["containers"][0]["name"] = 'Eng \\ "q"'
+        doc["model"]["container_relations"] = [["curator", "generation", "ends in a backslash \\"],
+                                               ["generation", 'en"g\\', 'says "hi" & <b>']]
+        doc["components"][0]["container"] = 'en"g\\'
+        return dot_cells(render(pages.render_structure, doc))
+
+    def test_a_relation_label_ending_in_a_backslash_or_holding_a_quote_is_escaped_for_dot(self) -> None:
+        containers = self.cells()[1]
+        self.assertIn('label="ends in a backslash \\\\"', containers)
+        self.assertIn('label="says \\"hi\\" & <b>"', containers)
+        self.assertNotIn("&amp;", containers)
+        self.assertIn('label="Sys \\"x\\" \\\\"', containers)
+
+    def test_a_cluster_name_made_from_an_id_is_quoted_and_escaped(self) -> None:
+        self.assertIn('subgraph "cluster_en\\"g\\\\" {', self.cells()[3])
+        self.assertIn('"en\\"g\\\\" [', self.cells()[1])
+
+    @unittest.skipUnless(DOT, "Graphviz `dot` is not on PATH")
+    def test_every_diagram_is_valid_dot(self) -> None:
+        for cell in self.cells():
+            done = subprocess.run([DOT, "-Tcanon"], input=cell, capture_output=True, text=True)
+            self.assertEqual(done.returncode, 0, done.stderr)
+
+
 @unittest.skipUnless(QUARTO, "Quarto is not on PATH; the render assertion needs it")
 class QuartoRenderTests(unittest.TestCase):
     def test_the_dot_cells_become_drawings(self) -> None:
