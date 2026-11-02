@@ -242,6 +242,25 @@ def import_edges(
     return edges
 
 
+def upward_imports(imports: Sequence[Mapping[str, Any]], components: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Each engine import that goes up a layer, sorted by (file, name): file, name, components and layers (#419).
+
+    The engine's layering baseline lists the same (file, name) pairs, so `check`
+    can compare entries rather than counts.
+    """
+    by_id = {c["id"]: c for c in components}
+    found = []
+    for record in imports:
+        source, target = record["component"], record["target"]
+        if not target or target == source:
+            continue
+        a, b = by_id[source], by_id[target]
+        if a["repo"] == b["repo"] == "engine" and None not in (a["layer"], b["layer"]) and b["layer"] > a["layer"]:
+            found.append({"file": record["file"], "name": record["name"], "from": source, "to": target,
+                          "from_layer": a["layer"], "to_layer": b["layer"]})
+    return sorted(found, key=lambda u: (u["file"], u["name"]))
+
+
 def summarise(edges: Sequence[Edge]) -> dict[str, int]:
     """The figures the pages state: upward edges and imports, and the registry's reach into the engine."""
     upward = [e for e in edges if e["upward"]]

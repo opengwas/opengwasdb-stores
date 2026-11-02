@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-from project_site.collect import architecture, board, catalog, common, records, releases, stores
+from project_site.collect import architecture, board, catalog, common, records, releases, stores, work
 
 
 def describe(result: dict[str, Any]) -> str:
@@ -34,6 +34,8 @@ def describe(result: dict[str, Any]) -> str:
         return f"stores: {len(result['stores'])} stores"
     if source == "architecture":
         return _describe_architecture(result)
+    if source == "work":
+        return _describe_work(result)
     return (
         f"records: {len(result['epics'])} epics, {len(result['invalid'])} invalid, "
         f"{len(result['yardstick']['results'])} yardstick results, {len(result['yardstick']['invalid'])} invalid"
@@ -60,6 +62,17 @@ def _describe_architecture(result: dict[str, Any]) -> str:
     )
 
 
+def _describe_work(result: dict[str, Any]) -> str:
+    summary = result["summary"]
+    failed = [s["repo"] for s in result["branches"]["sources"] if (s.get("fetch") or {}).get("ok") is False]
+    return (
+        f"work: {summary['owners']} owners, {summary['meets']} meets ({summary['coordinated']} coordinated, "
+        f"{summary['uncoordinated']} uncoordinated, {summary['unlinkable']} unlinkable), {summary['branches']} branches"
+        + (f", ENGINE SIDE NOT MEASURED" if result.get("unmeasured", {}).get("engine") else "")
+        + (f", BRANCH FETCH FAILED for {', '.join(failed)}" if failed else "")
+    )
+
+
 def run(
     data_dir: Path,
     *,
@@ -82,6 +95,9 @@ def run(
         ("records", lambda: records.collect(epics_dir, yardstick_dir)),
         ("architecture", lambda: architecture.collect(
             repo_root, engine_git=engine_git, engine_ref=engine_ref, refresh_engine=refresh_engine)),
+        # After board and architecture: it reads the files those two just wrote to `data_dir`.
+        ("work", lambda: work.collect(
+            data_dir, registry_root=repo_root, engine_git=engine_git, refresh=refresh_engine)),
     ]
     results = []
     for source, collect in collectors:
@@ -105,7 +121,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--engine-ref", default=architecture.DEFAULT_ENGINE_REF,
                         help="the engine ref the architecture is read at (default: main)")
     parser.add_argument("--refresh-engine", action="store_true",
-                        help="fetch the engine ref into its git directory first, and record whether that worked")
+                        help="fetch the engine ref (and the branches of both repositories) first, and record whether that worked")
     parser.add_argument("--strict", action="store_true", help="exit 1 when any source is unavailable")
     args = parser.parse_args(argv)
     results = run(args.data_dir or common.data_dir(), catalog_root=args.catalog_root,

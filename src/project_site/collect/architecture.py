@@ -171,6 +171,8 @@ def collect(
         "components": components,
         "gaps": gaps,
         "edges": edges,
+        # Unknown without the engine's model, like `summary.upward_imports`: never an empty list.
+        "upward_imports": None if engine_model is None else architecture_graph.upward_imports(imports, components),
         "adrs": adrs,
         "summary": summary
         | {"adrs_total": len(adrs), "adrs_placed": sum(1 for a in adrs if a["components"])},

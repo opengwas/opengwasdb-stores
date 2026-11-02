@@ -83,23 +83,57 @@ def _status(text: str) -> str:
     return "current"
 
 
+# A dotted name whose first segment may be any package: the board collector keeps these
+# unresolved, and the Work map keeps only the ones its claims cover. A name ending in a
+# file extension or a domain (`pixi.toml`, `github.com`) is not a module.
+GENERIC_DOTTED = re.compile(r"(?<![\w./-])([a-z_][a-z0-9_]{2,}(?:\.[A-Za-z_][A-Za-z_0-9]*)+)")
+NOT_MODULE_SUFFIX = frozenset(
+    "py md yaml yml json toml txt sh smk qmd html tsv gz csv lock com org io net ai uk".split()
+)
+
+
+def _extract(text: str, dotted: re.Pattern | None) -> tuple[list[str], list[tuple[str, str]], list[str]]:
+    """What a text cites, unresolved: dotted names, `(repository slug, path)` links, and paths."""
+    names = list(dotted.findall(text)) if dotted else []
+    return names, URL_CITE.findall(text), PATH_CITE.findall(text)
+
+
+def cited_strings(text: str | None) -> list[str]:
+    """The paths and dotted module names a text cites, sorted, as the board collector keeps them.
+
+    A path is as written (a GitHub link to a file gives its path); a dotted name is any
+    that is not a file name or a domain. Whether each names real code is decided later,
+    against the claims, by the work collector.
+    """
+    names, urls, paths = _extract(text or "", GENERIC_DOTTED)
+    names = [n for n in names if n.rsplit(".", 1)[1] not in NOT_MODULE_SUFFIX]
+    return sorted({*names, *(path.rstrip(".,;:!") for _, path in urls), *paths})
+
+
 def _cited_files(
     text: str, home: str, trees: Mapping[str, Any], modules: Mapping[str, tuple[str, str]], dotted: re.Pattern | None
 ) -> set[tuple[str, str]]:
     """The `(repository, file)` pairs a text cites, by dotted module, GitHub link or path."""
+    return _resolve(*_extract(text, dotted), home, trees, modules)
+
+
+def _resolve(
+    names: Sequence[str], urls: Sequence[tuple[str, str]], paths: Sequence[str], home: str,
+    trees: Mapping[str, Any], modules: Mapping[str, tuple[str, str]],
+) -> set[tuple[str, str]]:
     found: set[tuple[str, str]] = set()
-    for name in dotted.findall(text) if dotted else []:
+    for name in names:
         parts = name.split(".")
         while parts and ".".join(parts) not in modules:
             parts.pop()
         if parts:
             found.add(modules[".".join(parts)])
-    for slug, path in URL_CITE.findall(text):
+    for slug, path in urls:
         repo = REPO_OF_URL[slug]
         if path in set(trees[repo].files):
             found.add((repo, path))
     order = [home, *[r for r in trees if r != home]]
-    for raw in PATH_CITE.findall(text):
+    for raw in paths:
         for repo in order:
             if raw in set(trees[repo].files):
                 found.add((repo, raw))

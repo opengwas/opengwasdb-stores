@@ -76,13 +76,18 @@ the [Overview](index.qmd), [Stores](stores.qmd), [Epics](epics.qmd),
 one per registered Store beside them
 ([`src/project_site/pages.py`](../src/project_site/pages.py), #391).
 
-Two more, under **Architecture** in the navbar, draw how OpenGWASDB fits together
+Three more, under **Architecture** in the navbar, draw how OpenGWASDB fits together
 from both repositories' `docs/architecture/components.yaml` and their code
 ([`src/project_site/architecture_pages.py`](../src/project_site/architecture_pages.py),
 #418): [Pipeline](architecture.qmd) (the stages, their components and ADRs) and
 [Structure and health](architecture-structure.qmd) (context, containers and
 components, the engine by layer with its upward imports, and the gaps in the
-claims). The engine is read at its `main` from the same bare clone the docs come
+claims). The third, [Work map](architecture-work.qmd) (#419), shows where live work
+meets: which epics', tickets' and branches' files fall on the same component, and
+whether a blocking edge between the specific tickets coordinates it. It shows
+pushed branches and the files tickets cite, says when it was measured, and says
+that branches existing only on a build host are not shown; `pixi run architecture conflicts`
+run on that host includes them. The engine is read at its `main` from the same bare clone the docs come
 from; the docs stay at the pinned tag. The diagrams are Quarto `{dot}` cells,
 drawn at render time, so no SVG is committed. Each page says what is written by
 hand and what is measured, and `docs/spec/project-site.md` (Architecture) is the

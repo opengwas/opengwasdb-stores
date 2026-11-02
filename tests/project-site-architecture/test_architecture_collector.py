@@ -76,6 +76,9 @@ class CombinedModelTests(unittest.TestCase):
         self.assertEqual([c["id"] for c in result["components"]], ["gen", "ogs", "tools"])
         self.assertEqual(result["gaps"]["engine"], {"unclaimed": [], "stale": []})
         self.assertEqual(result["model"]["layers"], [])
+        # Unknown, not empty: the layering cannot be measured without the model.
+        self.assertIsNone(result["upward_imports"])
+        self.assertIsNone(result["summary"]["upward_imports"])
 
     def test_component_size_is_counted_from_the_files_it_claims(self) -> None:
         result = Fixture(self).collect()
@@ -110,6 +113,22 @@ class CombinedModelTests(unittest.TestCase):
         fixture = Fixture(self)
         committed = fx.git(fixture.engine, "show", "-s", "--format=%cI", "HEAD")
         self.assertEqual(fixture.collect()["engine"]["committed"], committed)
+
+
+class UpwardImportTests(unittest.TestCase):
+    def test_each_upward_import_is_listed_by_file_and_name_with_components_and_layers(self) -> None:
+        result = Fixture(self).collect()
+        self.assertEqual(
+            result["upward_imports"],
+            [
+                {"file": "opengwasdb/model/enums.py", "name": "opengwasdb.store.util",
+                 "from": "model", "to": "store", "from_layer": 0, "to_layer": 1},
+                {"file": "opengwasdb/query/facade.py", "name": "opengwasdb.cli.main",
+                 "from": "query", "to": "cli", "from_layer": 2, "to_layer": 3},
+                {"file": "opengwasdb/store/paths.py", "name": "opengwasdb.query.facade",
+                 "from": "store", "to": "query", "from_layer": 1, "to_layer": 2},
+            ],
+        )
 
 
 class RefreshTests(unittest.TestCase):
