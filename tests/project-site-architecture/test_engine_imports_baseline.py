@@ -329,6 +329,18 @@ class CollectorTests(unittest.TestCase):
         self.assertEqual(summary["registry_to_engine_imports"], 5)
         self.assertEqual(summary["registry_to_engine_edges"], 4)  # gen->store, gen->model, ogs->cli, tools->cli
 
+    def test_the_engines_layering_is_unknown_without_its_model_not_zero(self) -> None:
+        """Without the engine's layers no import can be called upward, so there is no figure to give."""
+        summary = Fixture(self, engine_model=False).collect()["summary"]
+        self.assertIsNone(summary["upward_edges"])
+        self.assertIsNone(summary["upward_imports"])
+        self.assertIsNone(summary["edges"])  # the whole graph's edges, engine half included
+
+    def test_with_the_engines_model_the_layering_is_counted(self) -> None:
+        summary = Fixture(self).collect()["summary"]
+        # The fixture graph is 13 edges, 3 of them upward, in #418's own test.
+        self.assertEqual((summary["edges"], summary["upward_edges"], summary["upward_imports"]), (13, 3, 3))
+
 
 class StructurePageTests(unittest.TestCase):
     def test_the_page_states_the_baselines_size_next_to_the_seam_counts(self) -> None:
@@ -353,6 +365,19 @@ class StructurePageTests(unittest.TestCase):
         self.assertIn("lists 5 imports of engine modules", page)
         self.assertNotIn("0 imports", page)
         self.assertNotIn("0 component pairs", page)
+
+    def test_without_the_engines_model_the_layering_is_said_to_be_unmeasurable(self) -> None:
+        page = Fixture(self, engine_model=False).page()
+        self.assertIn(
+            "The engine's layering cannot be measured until its model is at the ref read", page
+        )
+        self.assertNotIn("0 upward", page)
+        self.assertNotIn("0 edges", page)
+
+    def test_with_the_engines_model_the_layering_is_drawn_and_counted(self) -> None:
+        page = Fixture(self).page()
+        self.assertIn("3 edges (3 imports) go against the layering", page)
+        self.assertNotIn("cannot be measured", page)
 
 
 if __name__ == "__main__":

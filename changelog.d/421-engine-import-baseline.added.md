@@ -12,4 +12,6 @@
   baseline's size next to those counts. The seam's import count is measured from
   the imported names, so it is 91 with or without the engine's model at the ref
   read; the component pairs behind it need that model, and are reported as
-  unknown rather than as zero until it is there.
+  unknown rather than as zero until it is there. So are the engine's upward
+  imports: with no layers at the ref read, the page says the layering cannot be
+  measured yet instead of drawing an empty one.

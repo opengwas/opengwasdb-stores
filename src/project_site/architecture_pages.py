@@ -250,8 +250,14 @@ def _health(data: Document, components: list, edges: list, summary: Mapping[str,
             lines.append("")
     by_id = {c["id"]: c for c in components}
     upward = [e for e in edges if e.get("upward")]
-    if (data.get("engine") or {}).get("model"):
-        lines += ["### The engine's layering", ""]
+    lines += ["### The engine's layering", ""]
+    if not (data.get("engine") or {}).get("model"):
+        lines += [
+            "The engine's layering cannot be measured until its model is at the ref read: a component "
+            "without a layer has no upward for an import to cross, so there is no figure to give.",
+            "",
+        ]
+    else:
         lines.append(
             f"{summary.get('upward_edges', 0)} edges ({summary.get('upward_imports', 0)} imports) go against the layering, "
             f"of {sum(1 for e in edges if e.get('scope') == 'engine')} edges between engine components."

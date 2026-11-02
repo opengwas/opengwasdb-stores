@@ -278,7 +278,7 @@ placement are measured.
 | `baseline` | `path`, `entries` (how many imports the committed baseline lists; `null` with a `note` when it is not in this repository at the commit read, never 0) and `measured` (the engine imports the code makes) |
 | `edges` | `from`, `to`, `imports`, `scope` (`engine`, `registry`, `registry_to_engine`), `upward` |
 | `adrs` | every `docs/adr/NNNN-*.md` of both repositories: `repo`, `number`, `path`, `title`, `status`, `url`, `components` |
-| `summary` | `edges`, `upward_edges`, `upward_imports`, `registry_to_engine_edges`, `registry_to_engine_imports`, `adrs_total`, `adrs_placed` |
+| `summary` | `edges`, `upward_edges`, `upward_imports`, `registry_to_engine_edges`, `registry_to_engine_imports`, `adrs_total`, `adrs_placed`; the engine's half of the graph is `null` without its model (see below) |
 
 A code file that cannot be read, or a Python file that does not parse, makes the
 source unavailable with an error naming the path; a count is never a guess of 0.
@@ -292,7 +292,12 @@ repository's test (`tests/project-site-architecture/test_architecture_ownership.
 fails on its own; the collector only reports them, on the page. An engine ref with
 no model file is not an error either: `engine.model` is `false`, `engine.note`
 names the ref and commit, the engine has no components, edges or gaps, and this
-repository's half is complete. A ref that cannot be read at all makes the source
+repository's half is complete. Everything on the engine's half that its claims
+resolve is then `null` in `summary`, never 0: `edges`, `upward_edges`,
+`upward_imports` and `registry_to_engine_edges` (the seam's component pairs).
+`registry_to_engine_imports` stands, because it is measured from the names, and
+the page says the layering cannot be measured until the engine's model is at the
+ref read. A ref that cannot be read at all makes the source
 unavailable.
 
 Files are read by object id, so a path holding a newline is its own file. An
