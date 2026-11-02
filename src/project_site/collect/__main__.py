@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 from typing import Any, Callable
 
-from project_site.collect import board, catalog, common, records, releases, stores
+from project_site.collect import architecture, board, catalog, common, records, releases, stores
 
 
 def describe(result: dict[str, Any]) -> str:
@@ -32,9 +32,26 @@ def describe(result: dict[str, Any]) -> str:
         return f"releases: {sum(len(r['releases']) for r in result['repos'])} releases, {tags} tags"
     if source == "stores":
         return f"stores: {len(result['stores'])} stores"
+    if source == "architecture":
+        return _describe_architecture(result)
     return (
         f"records: {len(result['epics'])} epics, {len(result['invalid'])} invalid, "
         f"{len(result['yardstick']['results'])} yardstick results, {len(result['yardstick']['invalid'])} invalid"
+    )
+
+
+def _describe_architecture(result: dict[str, Any]) -> str:
+    engine, summary, gaps = result["engine"], result["summary"], result["gaps"]
+    counts = {repo: sum(1 for c in result["components"] if c["repo"] == repo) for repo in ("registry", "engine")}
+    model = f"engine model at {engine['ref']} {engine['commit'][:8]}" if engine["model"] else (
+        f"NO engine model at {engine['ref']} {engine['commit'][:8]}")
+    return (
+        f"architecture: {counts['registry']} registry + {counts['engine']} engine components ({model}), "
+        f"gaps registry {len(gaps['registry']['unclaimed'])}/{len(gaps['registry']['stale'])} "
+        f"engine {len(gaps['engine']['unclaimed'])}/{len(gaps['engine']['stale'])} (unclaimed/stale), "
+        f"{summary['upward_edges']} upward edges ({summary['upward_imports']} imports), "
+        f"{summary['registry_to_engine_imports']} registry->engine imports, "
+        f"{summary['adrs_placed']} of {summary['adrs_total']} ADRs placed"
     )
 
 
@@ -46,6 +63,9 @@ def run(
     registry: Path | None = None,
     epics_dir: Path | None = None,
     yardstick_dir: Path | None = None,
+    repo_root: Path | None = None,
+    engine_git: Path | None = None,
+    engine_ref: str = architecture.DEFAULT_ENGINE_REF,
     out: Callable[[str], Any] = print,
 ) -> list[dict[str, Any]]:
     collectors: list[tuple[str, Callable[[], dict[str, Any]]]] = [
@@ -54,6 +74,7 @@ def run(
         ("releases", lambda: releases.collect(gh)),
         ("stores", lambda: stores.collect(registry)),
         ("records", lambda: records.collect(epics_dir, yardstick_dir)),
+        ("architecture", lambda: architecture.collect(repo_root, engine_git=engine_git, engine_ref=engine_ref)),
     ]
     results = []
     for source, collect in collectors:
@@ -72,9 +93,14 @@ def main(argv: list[str] | None = None) -> int:
                         help="the catalog's versions directory (default: <artifact root>/catalog/versions)")
     parser.add_argument("--registry", type=Path, default=None,
                         help="directory of Release Bundles (default: stores/ of this checkout)")
+    parser.add_argument("--engine-git", type=Path, default=None,
+                        help="the engine's git directory (default: the site's bare clone under the work root)")
+    parser.add_argument("--engine-ref", default=architecture.DEFAULT_ENGINE_REF,
+                        help="the engine ref the architecture is read at (default: main)")
     parser.add_argument("--strict", action="store_true", help="exit 1 when any source is unavailable")
     args = parser.parse_args(argv)
-    results = run(args.data_dir or common.data_dir(), catalog_root=args.catalog_root, registry=args.registry)
+    results = run(args.data_dir or common.data_dir(), catalog_root=args.catalog_root,
+                  registry=args.registry, engine_git=args.engine_git, engine_ref=args.engine_ref)
     return 1 if args.strict and not all(r["available"] for r in results) else 0
 
 

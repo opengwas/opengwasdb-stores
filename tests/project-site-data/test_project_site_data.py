@@ -924,7 +924,7 @@ class TestSiteData(unittest.TestCase):
         self.catalog_root = self.tmp / "versions"
         results, lines = self.run_all(gh)
         by_source = {r["source"]: r for r in results}
-        self.assertEqual(list(by_source), ["board", "catalog", "releases", "stores", "records"])
+        self.assertEqual(list(by_source), ["board", "catalog", "releases", "stores", "records", "architecture"])
         self.assertFalse(by_source["board"]["available"])
         self.assertEqual(by_source["board"]["error"], "CollectError: gh api graphql exited 4: could not resolve host")
         self.assertEqual(
@@ -936,9 +936,9 @@ class TestSiteData(unittest.TestCase):
         self.assertEqual(by_source["catalog"]["versions"][0]["totals"], {"analyses": 1, "stores": 1})
         # Every source has its file, and the file is the result.
         self.assertEqual(sorted(p.name for p in self.data.iterdir()),
-                         ["board.json", "catalog.json", "records.json", "releases.json", "stores.json"])
+                         ["architecture.json", "board.json", "catalog.json", "records.json", "releases.json", "stores.json"])
         self.assertEqual(json.loads((self.data / "board.json").read_text())["available"], False)
-        self.assertEqual(len(lines), 5)
+        self.assertEqual(len(lines), 6)
         self.assertEqual(lines[0], "UNAVAILABLE board: CollectError: gh api graphql exited 4: could not resolve host")
         self.assertEqual(lines[1], "catalog: 1 versions, current none")
 
