@@ -46,11 +46,15 @@ def _describe_architecture(result: dict[str, Any]) -> str:
     stale = " REFRESH FAILED" if (engine.get("refresh") or {}).get("ok") is False else ""
     model = f"engine model at {engine['ref']} {engine['commit'][:8]}{stale}" if engine["model"] else (
         f"NO engine model at {engine['ref']} {engine['commit'][:8]}")
+    # Without the engine's model the figures that need its layers and claims are
+    # unknown (`null`), and say so rather than reading 0 (#421 review).
+    upward = "unknown" if summary["upward_edges"] is None else (
+        f"{summary['upward_edges']} upward edges ({summary['upward_imports']} imports)")
     return (
         f"architecture: {counts['registry']} registry + {counts['engine']} engine components ({model}), "
         f"gaps registry {len(gaps['registry']['unclaimed'])}/{len(gaps['registry']['stale'])} "
         f"engine {len(gaps['engine']['unclaimed'])}/{len(gaps['engine']['stale'])} (unclaimed/stale), "
-        f"{summary['upward_edges']} upward edges ({summary['upward_imports']} imports), "
+        f"{upward}, "
         f"{summary['registry_to_engine_imports']} registry->engine imports, "
         f"{summary['adrs_placed']} of {summary['adrs_total']} ADRs placed"
     )

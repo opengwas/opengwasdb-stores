@@ -275,9 +275,10 @@ placement are measured.
 | `model` | `system`, `people`, `external`, `containers`, `container_relations`, `stages` (this repository's), `layers` (the engine's; `[]` without its model) |
 | `components` | this repository's, then the engine's: the model's keys plus `repo` (`registry` or `engine`), `files` and `lines` (claimed code files), `tracked` (every tracked file claimed) |
 | `gaps.<repo>` | `unclaimed` (code files no component claims, by path) and `stale` (`{path, component}` claims matching no tracked file) |
+| `baseline` | `path`, `entries` (how many imports the committed baseline lists; `null` with a `note` when it is not in this repository at the commit read, never 0) and `measured` (the engine imports the code makes) |
 | `edges` | `from`, `to`, `imports`, `scope` (`engine`, `registry`, `registry_to_engine`), `upward` |
 | `adrs` | every `docs/adr/NNNN-*.md` of both repositories: `repo`, `number`, `path`, `title`, `status`, `url`, `components` |
-| `summary` | `edges`, `upward_edges`, `upward_imports`, `registry_to_engine_edges`, `registry_to_engine_imports`, `adrs_total`, `adrs_placed` |
+| `summary` | `edges`, `upward_edges`, `upward_imports`, `registry_to_engine_edges`, `registry_to_engine_imports`, `adrs_total`, `adrs_placed`; the engine's half of the graph is `null` without its model (see below) |
 
 A code file that cannot be read, or a Python file that does not parse, makes the
 source unavailable with an error naming the path; a count is never a guess of 0.
@@ -291,7 +292,12 @@ repository's test (`tests/project-site-architecture/test_architecture_ownership.
 fails on its own; the collector only reports them, on the page. An engine ref with
 no model file is not an error either: `engine.model` is `false`, `engine.note`
 names the ref and commit, the engine has no components, edges or gaps, and this
-repository's half is complete. A ref that cannot be read at all makes the source
+repository's half is complete. Everything on the engine's half that its claims
+resolve is then `null` in `summary`, never 0: `edges`, `upward_edges`,
+`upward_imports` and `registry_to_engine_edges` (the seam's component pairs).
+`registry_to_engine_imports` stands, because it is measured from the names, and
+the page says the layering cannot be measured until the engine's model is at the
+ref read. A ref that cannot be read at all makes the source
 unavailable.
 
 Files are read by object id, so a path holding a newline is its own file. An
@@ -301,6 +307,21 @@ package's owner. An import is counted per (file, imported name) between modules 
 claim, relative imports resolved. An edge is `upward` when it is inside the engine
 and goes to a component on a higher layer; the same layer and lower layers are not.
 `registry_to_engine` is the seam between the repositories.
+
+An **engine import** is a name that is `opengwasdb` or starts with
+`opengwasdb.`, counted per (importing file, imported name) over this
+repository's claimed Python files. The name alone decides it, so the seam does
+not need an engine checkout or the engine's model: `registry_to_engine_imports`
+is that count, and it stands whether or not the engine's model is there.
+`registry_to_engine_edges` is the number of component pairs those imports make,
+which the engine's claims resolve, so it is `null` when the engine has no model
+at the ref read — unknown, never 0. `baseline` reports
+`docs/architecture/engine-imports-baseline.yaml`, which lists those imports and
+only shrinks: `tests/project-site-architecture/test_engine_imports_baseline.py`
+fails on an import the file does not list (naming the file, the name and, when
+the engine was read, the engine component it lands in) and on a listed import
+that is gone. One measurement feeds both the seam counts and the baseline, so
+they cannot disagree.
 
 An **ADR** is placed by the code it cites (a path, a dotted module name such as
 `opengwasdb.store.paths`, or a GitHub link to a file, resolved through the

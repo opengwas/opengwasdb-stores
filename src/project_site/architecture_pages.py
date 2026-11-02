@@ -193,6 +193,43 @@ def _as_of(data: Document) -> str:
     )
 
 
+def _seam(summary: Mapping[str, Any]) -> str:
+    """The seam's import count, and the component pairs when the engine's model says which they are (#421).
+
+    The count is measured from the names, so it stands with or without the
+    engine's model; the pairs are resolved through the engine's claims, and an
+    unknown number of them is said to be unknown, never 0.
+    """
+    imports = f"{pages._figure(summary.get('registry_to_engine_imports'))} imports from this repository into the engine"
+    pairs = summary.get("registry_to_engine_edges")
+    if pairs is None:
+        return imports + "; the component pairs cannot be drawn until the engine's model is at the ref read."
+    return imports + f", across {pages._figure(pairs)} component pairs."
+
+
+def _baseline(baseline: Any) -> list[str]:
+    """The engine-import baseline's size, and what this repository makes, as one line (#421).
+
+    The size is the committed file's entry count, which the collector read from
+    this repository; a file that is not there is unknown, never zero.
+    """
+    if not isinstance(baseline, Mapping):
+        return []
+    entries, measured = baseline.get("entries"), baseline.get("measured")
+    if not isinstance(entries, int) or isinstance(entries, bool):
+        return [
+            f"**The engine-import baseline is unknown**: {pages._cell(baseline.get('note'))}. "
+            f"This repository makes {pages._figure(measured)} imports of engine modules.",
+            "",
+        ]
+    return [
+        f"**The engine-import baseline** ({pages._code(baseline.get('path'))}) lists "
+        f"{pages._figure(entries)} imports of engine modules, one per importing file and imported name; "
+        f"this repository makes {pages._figure(measured)} of them.",
+        "",
+    ]
+
+
 def _health(data: Document, components: list, edges: list, summary: Mapping[str, Any]) -> list[str]:
     lines = ["## Health", ""]
     gaps = data.get("gaps") or {}
@@ -213,8 +250,14 @@ def _health(data: Document, components: list, edges: list, summary: Mapping[str,
             lines.append("")
     by_id = {c["id"]: c for c in components}
     upward = [e for e in edges if e.get("upward")]
-    if (data.get("engine") or {}).get("model"):
-        lines += ["### The engine's layering", ""]
+    lines += ["### The engine's layering", ""]
+    if not (data.get("engine") or {}).get("model"):
+        lines += [
+            "The engine's layering cannot be measured until its model is at the ref read: a component "
+            "without a layer has no upward for an import to cross, so there is no figure to give.",
+            "",
+        ]
+    else:
         lines.append(
             f"{summary.get('upward_edges', 0)} edges ({summary.get('upward_imports', 0)} imports) go against the layering, "
             f"of {sum(1 for e in edges if e.get('scope') == 'engine')} edges between engine components."
@@ -227,11 +270,9 @@ def _health(data: Document, components: list, edges: list, summary: Mapping[str,
                 lines.append(f"| {pages.escape(a['name'])} (layer {a['layer']}) | {pages.escape(b['name'])} (layer {b['layer']}) | {e['imports']} |")
             lines.append("")
     lines += ["### The seam between the repositories", ""]
-    lines.append(
-        f"{summary.get('registry_to_engine_imports', 0)} imports from this repository into the engine, "
-        f"across {summary.get('registry_to_engine_edges', 0)} component pairs."
-    )
+    lines.append(_seam(summary))
     lines.append("")
+    lines += _baseline(data.get("baseline"))
     lines += ["### ADRs", ""]
     lines.append(f"{summary.get('adrs_placed', 0)} of {summary.get('adrs_total', 0)} ADRs are placed on a component.")
     lines.append("")
