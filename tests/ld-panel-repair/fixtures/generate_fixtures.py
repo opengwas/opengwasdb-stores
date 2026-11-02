@@ -21,9 +21,13 @@ are literals below, so the frequencies the tests assert on are hand-computable:
 8 individuals, so every REF-dosage mean is a multiple of 1/16 and ``1 - f`` is
 exact (which is what lets a MAF tie be a real tie).
 
-Run from the repository root:
+Run from the repository root, writing the set to `FIXTURES_OUT` when it is set:
 
     python3 tests/ld-panel-repair/fixtures/generate_fixtures.py
+
+The suite always sets `FIXTURES_OUT` to a directory of its own. Nothing is
+committed: a `.npz` is a zip archive, so its members' timestamps differ on every
+write and a committed set would leave the checkout dirty after every test run.
 """
 from __future__ import annotations
 
@@ -31,11 +35,12 @@ import csv
 import gzip
 import io
 import json
+import os
 from pathlib import Path
 
 import numpy as np
 
-HERE = Path(__file__).resolve().parent
+HERE = Path(os.environ.get("FIXTURES_OUT") or Path(__file__).resolve().parent)
 PANEL = HERE / "panel"
 REFERENCE = HERE / "reference.tsv.gz"
 RECORDS = HERE / "records.json"
