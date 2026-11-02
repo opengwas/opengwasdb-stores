@@ -34,9 +34,10 @@ from construct_block import _plink_extract, canonical_alid, standardised_ea_dosa
 from find_underresolved_blocks import components_needed
 from scratch import scratch_dir
 
-# The UKB ancestry-mixture reference, and the group that stands in for each
-# panel's ancestry (ADR 0020's panels are the HGDP+1kGP super-populations; the
-# groups are the ones notes/348 used).
+# The UKB ancestry-mixture reference, and the super-population group that stands
+# in for each panel's ancestry (ADR 0020's panels are the HGDP+1kGP
+# super-populations, so each is measured against its own mixture column, whose
+# group labels name regions in the reference, e.g. "Africa (West)").
 ANCESTRY_REFERENCE = Path("/data/opengwasdb/reference/ancestry-mixture/ref_freqs.hg38.tsv.gz")
 ANCESTRY_GROUPS = {"AFR": "Africa (West)", "EAS": "Asia (East)", "SAS": "Pakistan",
                    "EUR": "United Kingdom", "AMR": "South America"}
@@ -73,7 +74,7 @@ def repaired_failures(backup: Path | None, rows: list[dict[str, str]], *, base: 
     original_npz, original_tsv = backup.with_suffix(".ldeig.npz"), backup.with_suffix(".tsv")
     if not (original_npz.exists() and original_tsv.exists()): return ["repair_backup"]
     # No float cast: a repaired block must be the backup's bytes, so a dtype
-    # change that leaves every number alone is still a mismatch (#348 review).
+    # change that leaves every number alone is still a mismatch (#348).
     with np.load(original_npz) as data:
         before_values, before_vectors = data["values"], data["vectors"]
     with np.load(base.with_suffix(".ldeig.npz")) as data:
@@ -272,7 +273,7 @@ def sample_blocks(blocks: list[Path], count: int) -> list[Path]:
 
     This is the one sampling policy: the verifier's panel mode, the build paths
     and the repair all draw their sample here, so they gate on comparable
-    evidence (#348 review).
+    evidence (#348).
     """
     if count <= 0 or not blocks: return []
     step = max(1, len(blocks) // count)

@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Repair a shipped LD Reference Panel in place: invert EAF, drop duplicated ALIDs (#348).
 
-The panels written before #348 hold two defects, both fixed here without a
-rebuild, for the reason proven in the epic run's ``notes/348-panels.md``:
+The panels written before #348 hold two defects. Both are corrected in place
+rather than by a rebuild, because each is exact for every stored artifact:
 
 * **EAF is the other allele's frequency.** plink2's ``--export A`` counts REF
   and names it in the column suffix, and the shipped constructor read it as ALT
@@ -13,7 +13,11 @@ rebuild, for the reason proven in the epic run's ``notes/348-panels.md``:
   can express, and the LD -- ``V diag(values) V^T`` -- is unchanged).
 * **An ALID can name two source records**, an insertion and a deletion at one
   position, and both rows were kept. One is dropped, the one with the higher
-  MAF (ties to the earlier row), the rule the AMR build has. Dropping a row
+  MAF as the table stores it, a tie going to the earlier row. A table records no
+  call rate, so unlike the constructor (:mod:`construct_block`, which settles a
+  tie on call rate and then input order) this tool can only fall back on row
+  order. Either row is an exact LD row for the variant its own source record
+  describes, and such ties are rare. Dropping a row
   from the TSV *and* from ``vectors`` is exact for the stored LD; ``values`` is
   untouched, so the consumer's cumulative-variance cut keeps its meaning.
 
@@ -92,7 +96,12 @@ def plan_repair(base: Path) -> tuple[list[str], list[int], int, list[int]]:
     snp, eaf = fields.index("SNP"), fields.index("EAF")
     rows = [_split(line) for line in lines[1:]]
     # The higher-MAF record wins, and a tie goes to the earlier row (#241, #348).
-    # MAF is min(EAF, 1 - EAF), so the flip changes no decision.
+    # MAF is min(EAF, 1 - EAF), so the flip changes no decision. This is the
+    # repair's own rule, not the constructor's: a block table records no call
+    # rate, so a tie on the stored MAF can only be settled by row order. The
+    # constructor settles the same tie on call rate, then input order, so the
+    # two tools can keep different rows of one collision, and either row is an
+    # exact LD row for the variant its own source record describes.
     best: dict[str, int] = {}
     maf: list[float] = []
     for i, row in enumerate(rows):
@@ -100,7 +109,8 @@ def plan_repair(base: Path) -> tuple[list[str], list[int], int, list[int]]:
         current = best.get(row[snp])
         if current is None or maf[i] > maf[current]: best[row[snp]] = i
     kept = sorted(best.values())
-    dropped = [i for i in range(len(rows)) if i not in set(kept)]
+    keeping = set(kept)  # once: one membership test per row, not a rebuilt set
+    dropped = [i for i in range(len(rows)) if i not in keeping]
     repaired = [lines[0]]
     for i in kept:
         row = rows[i]
@@ -151,7 +161,7 @@ def stopped(stage: str | None, reached: str) -> None:
 
     A test hook, so the receipt's crash windows can be walked through: a run
     that dies between two file replacements must be resumable without a second
-    flip, and must never lose what it already did (#348 review).
+    flip, and must never lose what it already did (#348).
     """
     if stage is not None and stage == reached:
         raise SystemExit(f"stopped at {reached} as --crash-after asked (a test hook)")
@@ -298,7 +308,7 @@ def reconcile(receipt: dict[str, object], blocks: list[Path], *, ancestry: str,
     rebuilt from them: before-hashes from the backup, after-hashes from the
     files, and ``rebuilt: true`` saying the run that repaired the block did not
     get to write it. Without this, a resume that skips the block would leave a
-    repaired panel with no receipt for it (#348 review).
+    repaired panel with no receipt for it (#348).
     """
     rebuilt: list[str] = []
     known = {entry["block"] for entry in receipt["blocks"] if entry.get("state") == "complete"}

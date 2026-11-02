@@ -27,7 +27,8 @@ source:
   variant_inclusion: >
     FILTER PASS, biallelic; at least 80% of members called; MAF >= 0.01 over
     called members, with no MAC floor; of the records sharing an ALID, the one
-    with the higher MAF
+    with the higher MAF, then the higher call rate, then the earlier input
+    record
   acquisition: tools/ld-panel/acquire_hgdp1kgp.py
   generator: tools/ld-panel/build_amr_panel.py
   build_receipt: /data/opengwasdb/reference/hgdp1kgp-hg38-amr/runs/20261022T183214Z/receipt.json

@@ -5,7 +5,7 @@ A run is not a success until the panel it built or finished is oriented the way
 every consumer assumes: the last step gates each ancestry's EAF positively
 against the UKB ancestry mixture (``orientation_gate``), so the inverted panel
 #348 found cannot be produced and declared done again. The gate is part of the
-run, not a flag an operator may leave out (#348 review).
+run, not a flag an operator may leave out (#348).
 """
 from __future__ import annotations
 
@@ -102,7 +102,7 @@ def main() -> int:
     # Last, and unconditionally: a panel that is not oriented correctly is not a
     # panel this run may call finished, and neither is one with nothing built to
     # gate -- an ancestry this run was asked for but produced no built block
-    # ends it non-zero instead of passing silently (#348 review). A single failed
+    # ends it non-zero instead of passing silently (#348). A single failed
     # block among successful ones is still the per-block policy's business: it is
     # recorded in failures.tsv (as EAS's declared empty block is) and the gate
     # decides on what was built.

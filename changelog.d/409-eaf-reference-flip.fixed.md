@@ -1,9 +1,10 @@
 - **`pixi run eaf-reference-flip <store-id>` corrects a completed Store whose
   `eaf_reference` holds the other allele's frequency, in place and once (issue
-  #409).** The HGDP+1kGP panel used for completion carries the panel's *other*
-  allele frequency, so `_orient_row` wrote `1 - f` into `eaf_reference` and every
-  imputed cell served the complement of the effect-allele frequency (OGS-00014:
-  r = −0.9964 against observed EAF, where a correct Store reads +0.99). On the
+  #409).** The HGDP+1kGP panel that completed `OGS-00014` carried the panel's
+  *other* allele frequency until it was repaired in place under #348, so
+  `_orient_row` wrote `1 - f` into `eaf_reference` and, until this correction,
+  every imputed cell served the complement of the effect-allele frequency (r =
+  −0.9964 against observed EAF before, +0.992 after). On the
   owner's decision of 2026-11-01 the tool rewrites `data.zarr/eaf_reference`,
   `data.zarr/indexed_subsets/hm3/eaf_reference` and the `eaf` of imputed
   `top_hits/<tier>` rows only, stages every array beside the live one through

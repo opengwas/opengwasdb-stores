@@ -12,14 +12,16 @@ on 2026-11-01 (issue #409) for `OGS-00014`.
 ## What is wrong
 
 Completion writes `eaf_reference` from the LD panel's own EAF through
-`panel_a1_eaf` and `_orient_row`. The HGDP+1kGP panel used for `OGS-00014`
-carries the frequency of the panel's *other* allele, so every finite value in
-the plane is `1 - f`. `StoreQuery` substitutes that plane into imputed cells at
-read time (`_apply_eaf_reference`), so every imputed cell served the complement
-of the effect-allele frequency. Observed cells never read the plane, which is
-why the observed data reads correctly (r = +0.99 against an independent
-reference) while the panel-derived values read r = −0.9964 against the same
-observations.
+`panel_a1_eaf` and `_orient_row`. At the time `OGS-00014` was completed, the
+HGDP+1kGP panel it used carried the frequency of the panel's *other* allele (the
+panels were corrected in place under #348), so every finite value in that plane
+was `1 - f`. `StoreQuery` substitutes the plane into imputed cells at read time
+(`_apply_eaf_reference`), so until the Store's correction every imputed cell
+served the complement of the effect-allele frequency. Observed cells never read
+the plane, which is why the observed data read correctly (r = +0.99 against an
+independent reference) while the panel-derived values read r = −0.9964 against
+the same observations. The Applied section records the correction; after it the
+same comparison reads r = +0.992.
 
 ## What the tool does
 
