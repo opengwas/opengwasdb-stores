@@ -67,27 +67,40 @@ def _work(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
         if document is None:
             raise Unavailable(why)
         return document, _architecture(args)
-    # Scratch under the site's work root (/data), never the host's /tmp (CONTRIBUTING, Worktrees).
+    if args.data:
+        return _collected(args, Path(args.data))
+    # Collecting on the spot needs scratch under the site's work root (/data), never the host's /tmp
+    # (CONTRIBUTING, Worktrees). A host without it can still ask over a collection with --data.
     scratch_root = site_paths.work_root()
-    scratch_root.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory(prefix="architecture-cli-", dir=scratch_root) as scratch:
-        directory = Path(args.data) if args.data else Path(scratch)
-        if not args.data:
-            for source, collect in (("board", lambda: board.collect(common.gh_runner)),
-                                    ("architecture", lambda: architecture.collect(
-                                        args.registry_root, engine_git=args.engine_git, engine_ref=args.engine_ref,
-                                        refresh_engine=args.refresh))):
-                common.write_source(directory, common.collect_source(source, collect))
-        try:
-            document = work.collect(
-                directory, registry_root=args.registry_root, engine_git=args.engine_git,
-                refresh=args.refresh, local=[Path(p) for p in args.local], days=args.days)
-        except common.CollectError as error:
-            raise Unavailable(f"work is unavailable: {error}") from error
-        architecture_doc, why = work._read(directory, "architecture")
-        if architecture_doc is None:
-            raise Unavailable(why)
-        return document, architecture_doc
+    try:
+        scratch_root.mkdir(parents=True, exist_ok=True)
+        scratch = tempfile.TemporaryDirectory(prefix="architecture-cli-", dir=scratch_root)
+    except OSError as error:
+        raise Unavailable(
+            f"cannot make scratch under {scratch_root} ({error.strerror or type(error).__name__}); "
+            f"set {site_paths.WORK_ROOT_ENV} to a writable directory, or read a collection with --data") from error
+    with scratch:
+        directory = Path(scratch.name)
+        for source, collect in (("board", lambda: board.collect(common.gh_runner)),
+                                ("architecture", lambda: architecture.collect(
+                                    args.registry_root, engine_git=args.engine_git, engine_ref=args.engine_ref,
+                                    refresh_engine=args.refresh))):
+            common.write_source(directory, common.collect_source(source, collect))
+        return _collected(args, directory)
+
+
+def _collected(args: argparse.Namespace, directory: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """`(work, architecture)` computed from the collection in `directory` and the branches read now."""
+    try:
+        document = work.collect(
+            directory, registry_root=args.registry_root, engine_git=args.engine_git,
+            refresh=args.refresh, local=[Path(p) for p in args.local], days=args.days)
+    except common.CollectError as error:
+        raise Unavailable(f"work is unavailable: {error}") from error
+    architecture_doc, why = work._read(directory, "architecture")
+    if architecture_doc is None:
+        raise Unavailable(why)
+    return document, architecture_doc
 
 
 # ---------------------------------------------------------------------------

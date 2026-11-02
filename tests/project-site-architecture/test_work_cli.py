@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import io
 import json
+import os
 import shutil
 import tempfile
 import unittest
@@ -176,6 +177,33 @@ class GitFailureTests(unittest.TestCase):
         self.assertIn("cannot decide", text)
         self.assertIn("no-such-clone", text)
         self.assertNotIn("Traceback", text)
+
+    def unusable_work_root(self) -> Path:
+        """A work root that cannot be created, on any host: a path below a regular file."""
+        blocker = self.root / "blocker"
+        blocker.write_text("a file, not a directory\n")
+        old = os.environ.get(cli.site_paths.WORK_ROOT_ENV)
+        os.environ[cli.site_paths.WORK_ROOT_ENV] = str(blocker / "site")
+        self.addCleanup(lambda: os.environ.pop(cli.site_paths.WORK_ROOT_ENV, None) if old is None
+                        else os.environ.__setitem__(cli.site_paths.WORK_ROOT_ENV, old))
+        return blocker / "site"
+
+    def test_conflicts_over_a_collection_never_touches_the_work_root(self) -> None:
+        root = self.unusable_work_root()
+        code, text = run("conflicts", *self.args, "--local", str(self.root / "no-such-clone"))
+        self.assertEqual(code, 2)
+        self.assertIn("no-such-clone", text)
+        self.assertNotIn(str(root), text)
+        self.assertNotIn("Traceback", text)
+
+    def test_collecting_on_the_spot_with_no_usable_work_root_exits_2_naming_the_path_and_the_variable(self) -> None:
+        root = self.unusable_work_root()
+        code, text = run("conflicts", "--registry-root", str(self.root / "registry"), "--engine-git", str(self.root / "engine"),
+                         "--repo", "registry", "--files", "src/gen/x.py")
+        self.assertEqual(code, 2)
+        self.assertEqual(len(text.strip().splitlines()), 1)
+        self.assertIn(str(root), text)
+        self.assertIn("OPENGWASDB_SITE_ROOT", text)
 
     def test_a_local_branch_whose_diff_fails_exits_2(self) -> None:
         clone = self.root / "clone"
