@@ -157,3 +157,83 @@ def _checked(plan: dict[str, Any], known: Collection[str]) -> dict[str, Any]:
         if cid not in known and cid not in declared:
             raise Invalid(f"component `{cid}` is neither an existing component nor declared in `adds`")
     return plan
+
+
+# ---------------------------------------------------------------------------
+# Judging a plan against what the architecture collector read
+# ---------------------------------------------------------------------------
+
+
+def listed(board: Mapping[str, Any], architecture: Mapping[str, Any]) -> list[dict[str, Any]]:
+    """Every ticket's plan for the `work` source: the plan, the components it involves, and, once closed, its checks.
+
+    A closed ticket's items are `held` true or false, or `None` (unknown) when
+    the engine's model is missing and the item needs it: absence of the model is
+    not an unmet item. An open ticket's plan is carried and nothing is checked,
+    and so is an invalid one. `absorbs` is carried and never checked.
+    """
+    from project_site.collect import architecture_model as rules
+
+    components = [c for c in architecture.get("components") or [] if isinstance(c, Mapping)]
+    by_id = {c["id"]: c for c in components}
+    engine = architecture.get("engine") or {}
+    model = bool(engine.get("model"))
+    claims = {kind: rules.claims_of(c for c in components if c["repo"] == kind and c.get("paths")) for kind in ("registry", "engine")}
+    stale = {
+        (s.get("path"), s.get("component"))
+        for repo in (architecture.get("gaps") or {}).values() for s in (repo or {}).get("stale") or []
+    }
+    missing = f"the engine's model is missing at {engine.get('ref')} ({str(engine.get('commit'))[:12]})"
+    edges = {(e["from"], e["to"]): e["imports"] for e in architecture.get("edges") or [] if isinstance(e, Mapping)}
+
+    def claimed(path: str, target: str, kind: str) -> dict[str, Any]:
+        found = next((o for k in ("registry", "engine") if (o := rules.owner(claims[k], path))), None)
+        if found == target and (path, target) in stale:
+            held, why = False, f"claimed by `{target}`, but the claim matches no tracked file"
+        elif found == target:
+            held, why = True, f"claimed by `{target}`"
+        elif found:
+            held, why = False, f"claimed by `{found}`, not `{target}`"
+        elif model or path.split("/", 1)[0] in rules.REGISTRY_CODE_ROOTS:
+            held, why = False, "no component claims it"
+        else:
+            held, why = None, missing
+        return {"kind": kind, "path": path, "component": target, "held": held, "why": why}
+
+    def dropped(a: str, b: str) -> dict[str, Any]:
+        if not model and not all(by_id.get(x, {}).get("repo") == "registry" for x in (a, b)):
+            return {"kind": "drops", "from": a, "to": b, "imports": None, "held": None, "why": missing}
+        n = edges.get((a, b), 0)
+        why = f"no import from `{a}` into `{b}`" if not n else f"{n} import{'s' if n != 1 else ''} from `{a}` into `{b}` remain{'s' if n == 1 else ''}"
+        return {"kind": "drops", "from": a, "to": b, "imports": n, "held": not n, "why": why}
+
+    found: list[dict[str, Any]] = []
+    for epic in board.get("epics") or []:
+        for ticket in epic.get("children") or []:
+            plan = ticket.get("plan")
+            if plan is None:
+                continue
+            if model:
+                plan = check_components(plan, set(by_id))
+            closed = ticket.get("state") == "CLOSED"
+            checks: list[dict[str, Any]] = []
+            involved: list[dict[str, Any]] = []
+            if "invalid" not in plan:
+                declared = {a["component"]: a for a in plan["adds"]}
+                ids = sorted({*declared, *(m["to"] for m in plan["moves"]), *(x for d in plan["drops"] for x in (d["from"], d["to"]))})
+                involved = [
+                    {"id": i, "name": by_id[i]["name"], "repo": by_id[i]["repo"], "new": False} if i in by_id
+                    else {"id": i, "name": declared[i].get("name") or i if i in declared else i, "repo": None, "new": i in declared}
+                    for i in ids
+                ]
+                if closed:
+                    checks = (
+                        [claimed(p, a["component"], "adds") for a in plan["adds"] for p in a["paths"]]
+                        + [claimed(p, m["to"], "moves") for m in plan["moves"] for p in m["paths"]]
+                        + [dropped(d["from"], d["to"]) for d in plan["drops"]]
+                    )
+            found.append({
+                "ticket": ticket["key"], "epic": epic["key"], "title": ticket.get("title"), "url": ticket.get("url"),
+                "state": "closed" if closed else "open", "plan": plan, "components": involved, "checks": checks,
+            })
+    return sorted(found, key=lambda p: (p["epic"], p["ticket"]))

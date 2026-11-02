@@ -416,6 +416,7 @@ engine files or an engine branch exits 2. Registry-side meets are still measured
 | `signals` | as above: `component`, `owner`, `item`, `via`, `state`, `what` |
 | `unmeasured` | `{}`, or `{engine: reason}` when the engine's model is missing (see above) |
 | `meets` | `component`, `owners`, `items` (owner to its items there), `pairs` (`owners`, `coordinated`, `coordination`, `edges`, `epic_branches`), `coordinated`, `coordination` |
+| `plans` | the tickets' planned changes and, for a closed ticket, what was checked, as above (#422) |
 | `waits` | every open blocking edge among the live epics' tickets: `{item, on}` |
 | `tickets` | every open ticket of a live epic, to its owner (what `conflicts --ticket` reads) |
 | `branches.sources` | per repository read: `repo`, `git_dir`, `main`, `days`, `fetch` (`null`, or `{ok, error}`), `local`, `count` |
@@ -476,6 +477,32 @@ key, empty, a malformed item, more than one block, a block never closed) and the
 page shows the reason. The board collector does not know the components, so the
 `work` collector judges their ids once it knows them: when the engine's model
 is missing it cannot, and an id it does not find is not called unknown.
+
+**Judging a plan.** The `work` collector lists every ticket that has a plan, of
+any epic, open or closed, as `work.json`'s `plans` (sorted by epic, ticket):
+`ticket`, `epic`, `title`, `url`, `state` (`open` or `closed`), `plan`,
+`components` (each component the plan involves: `id`, `name`, `repo`, and `new`,
+true for one the plan declares) and `checks`. An open ticket's plan is carried
+as planned and `checks` is empty, as it is for an invalid plan; `absorbs` is
+carried and never checked. Once the ticket is closed each item is checked
+against what the architecture collector read (the engine at its ref, this
+repository at the site's checkout):
+
+- `adds`: for each path, `{kind: adds, path, component, held, why}`; held when the
+  named component claims the path and the claim matches a tracked file.
+- `moves`: the same, with `to` as the component.
+- `drops`: `{kind: drops, from, to, imports, held, why}`; held when no import goes
+  from `from` into `to`, else not held, naming how many remain.
+
+`held` is `true`, `false`, or `null` for **unknown**: without the engine's model
+(`architecture.engine.model` false) an engine path that no registry claim covers,
+and a drop with an end that is not a registry component, cannot be judged, and
+`why` says the model is missing at that ref. Missing the model is never an unmet
+item. An unmet item is a warning on the page, never a build failure: the ticket
+may have closed on an epic's integration branch whose PR has not merged to the
+ref read. A path under a directory claim is not looked up in the tree, so a
+planned file that was never created is not seen; an exact-file claim that matches
+nothing is. The `plans` key is additive, so `schema_version` stays `1`.
 
 ### The command's output and exit status
 
