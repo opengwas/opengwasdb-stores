@@ -297,6 +297,7 @@ class TestBoardCollector(unittest.TestCase):
                 "title": "Pin opengwasdb by release tag",
                 "url": "https://github.com/opengwas/opengwasdb-stores/issues/387",
                 "state": "OPEN",
+                "cited": ["src/ogstores/paths.py"],
                 "blocked_by": [{"key": "opengwasdb#333", "state": "OPEN"}],
             },
         )

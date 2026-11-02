@@ -136,8 +136,9 @@ this repository does not import the board skill. It reads project 1 of the
 `opengwas` organisation, every page of it, and then every epic's sub-issues and
 their blocked-by edges (`subIssues` and `blockedBy` in the GraphQL API) in one
 aliased query, and follows every further page of both relationships (`subIssues`
-and `blockedBy` each return `pageInfo`). An issue's body is read for two things,
-and dropped otherwise: a Milestone's checklist lines, and an Epic's `purpose`,
+and `blockedBy` each return `pageInfo`). An issue's body is read for three things,
+and dropped otherwise: a Milestone's checklist lines, an Epic's `purpose`, and the paths and module names an
+Epic or sub-issue cites (`cited`),
 the first non-empty paragraph of the body that is prose -- not a heading, a
 table, a quote, or a list of bullets and boxes -- cut at a sentence (or,
 failing a sentence, at a word and an ellipsis) to at most 600 characters. A
@@ -153,8 +154,9 @@ complete.
 |---|---|
 | `epics` | one row per Epic: `key` (`repo#n`), `title`, `url`, `state` (the issue's, `OPEN` or `CLOSED`), `status`, `workstream`, `next`, `priority`, `sub_issues` (`{total, completed}`), `purpose`, and `children` |
 | `epics[].purpose` | the epic's own first prose paragraph, cut as above, or `null` when its body has none |
-| `epics[].children` | the epic's sub-issues: `key`, `title`, `url`, `state`, and `blocked_by`, a list of `{key, state}` |
-| `milestones` | one row per Milestone, with the same fields as an epic (no `children`) and `lines` |
+| `epics[].children` | the epic's sub-issues: `key`, `title`, `url`, `state`, `cited`, and `blocked_by`, a list of `{key, state}` |
+| `epics[].cited`, `epics[].children[].cited` | the code the issue's text cites (#419): a sorted list of paths (`opengwasdb/encoding/se_range.py`, or the path of a GitHub link to a file) and dotted module names (`opengwasdb.encoding.se_range`), as written and not checked against any tree; `[]` when it cites none. The Work map resolves them through the claims. The text itself is not kept |
+| `milestones` | one row per Milestone, with the same fields as an epic (no `children`, no `cited`) and `lines` |
 | `milestones[].lines` | each `- [ ]` or `- [x]` line of the body, in order: `checked`, `text`, and `refs` (`repo#n` keys) |
 | `items` | every other project item, with the epic's fields |
 
