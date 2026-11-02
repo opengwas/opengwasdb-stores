@@ -122,6 +122,75 @@ class ParseTests(unittest.TestCase):
                          {"invalid": "more than one `architecture` block"})
 
 
+class MalformedBlockTests(unittest.TestCase):
+    """Every unusable block ends as `{invalid: reason}` for its ticket, never as an exception."""
+
+    def invalid(self, text: str, known=KNOWN) -> str:
+        plan = plans.parse(block(text), known)
+        self.assertEqual(list(plan), ["invalid"], plan)
+        return plan["invalid"]
+
+    def test_mixed_key_types_do_not_raise(self) -> None:
+        self.assertEqual(self.invalid("adds:\n  - paths: [a.py]\n    component: encoding\n    1: x\n    typo: y"),
+                         "unknown key `1` in an add")
+
+    def test_a_yaml_date_that_cannot_exist_does_not_raise(self) -> None:
+        self.assertTrue(self.invalid("absorbs: [2026-13-32]").startswith("the block is not valid YAML"))
+
+    def test_a_block_with_no_recognised_key_is_invalid(self) -> None:
+        self.assertEqual(self.invalid("{}"), "the block has none of `adds`, `moves`, `drops` or `absorbs`")
+
+    def test_a_key_that_is_present_but_not_a_list_is_invalid(self) -> None:
+        self.assertEqual(self.invalid("adds: null"), "`adds` must be a list")
+        self.assertEqual(self.invalid("drops: dense -> encoding"), "`drops` must be a list")
+
+    def test_a_name_must_be_text(self) -> None:
+        self.assertEqual(self.invalid("adds:\n  - paths: [a.py]\n    component: fresh\n    name: 42"),
+                         "`name` of an add must be text")
+        self.assertEqual(self.invalid("adds:\n  - paths: [a.py]\n    component: fresh\n    name: [Fresh]"),
+                         "`name` of an add must be text")
+
+    def test_a_path_must_be_text(self) -> None:
+        self.assertEqual(self.invalid("adds:\n  - paths: [1]\n    component: encoding"), "an add needs a non-empty `paths` list")
+        self.assertEqual(self.invalid("moves:\n  - paths: [{a: b}]\n    to: encoding"), "a move needs a non-empty `paths` list")
+
+    def test_a_move_target_must_be_text(self) -> None:
+        self.assertEqual(self.invalid("moves:\n  - paths: [a.py]\n    to: 5"), "a move needs a `to` component")
+
+    def test_adds_and_moves_refuse_alike(self) -> None:
+        self.assertEqual(self.invalid("moves:\n  - paths: [a.py]\n    to: encoding\n    extra: 1"), "unknown key `extra` in a move")
+        self.assertEqual(self.invalid("moves:\n  - encoding"), "a move must be a mapping with `paths` and `to`")
+
+    def test_a_new_engine_component_needs_a_container_and_a_layer(self) -> None:
+        self.assertEqual(
+            self.invalid("adds:\n  - paths: [opengwasdb/new/a.py]\n    component: fresh\n    name: Fresh"),
+            "component `fresh` is a new engine component, so its add needs a `container` and a `layer`")
+        ok = plans.parse(block("adds:\n  - paths: [opengwasdb/new/a.py]\n    component: fresh\n    name: Fresh\n"
+                               "    container: engine\n    layer: 2"), KNOWN)
+        self.assertNotIn("invalid", ok)
+        registry = plans.parse(block("adds:\n  - paths: [src/new/a.py]\n    component: fresh\n    name: Fresh"), KNOWN)
+        self.assertNotIn("invalid", registry)
+
+    def test_a_component_id_that_could_inject_diagram_markup_is_invalid(self) -> None:
+        hostile = 'fresh"; injected [label="UNTRUSTED"]; "tail'
+        reason = "component id must be lower-case letters, digits and `_`, starting with a letter"
+        text = "adds:\n  - paths: [src/a.py]\n    component: '" + hostile + "'\n    name: Fresh"
+        self.assertEqual(self.invalid(text), reason)
+        self.assertEqual(self.invalid(text, None), reason)
+        self.assertEqual(self.invalid("moves:\n  - paths: [a.py]\n    to: Bad-Id"), reason)
+        self.assertEqual(self.invalid("drops:\n  - dense -> Bad.Id"), "drop `dense -> Bad.Id` is not `from -> to`")
+
+    def test_one_bad_ticket_does_not_stop_the_board(self) -> None:
+        raw = copy.deepcopy(json.loads(FIXTURE.read_text()))
+        nodes = {n["number"]: n for n in raw["children"]["e0"]["issue"]["subIssues"]["nodes"]}
+        nodes[53]["body"] = block("absorbs: [2026-13-32]")
+        nodes[54]["body"] = block("drops:\n  - dense -> encoding")
+        children = {e["key"]: e for e in board.parse(raw)["epics"]}["opengwasdb#58"]["children"]
+        by = {c["key"]: c for c in children}
+        self.assertEqual(list(by["opengwasdb#53"]["plan"]), ["invalid"])
+        self.assertEqual(by["opengwasdb#54"]["plan"]["drops"], [{"from": "dense", "to": "encoding"}])
+
+
 class BoardCarriesThePlanTests(unittest.TestCase):
     def test_the_plan_is_on_the_child_and_no_body_is_kept(self) -> None:
         raw = copy.deepcopy(json.loads(FIXTURE.read_text()))

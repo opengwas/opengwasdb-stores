@@ -469,8 +469,13 @@ absorbs:   # free text, drawn on the map, never checked (line numbers drift)
 ````
 
 Every key is optional, but a block with none of them is invalid, and so is any
-other key. A component id (`component`, `to`, either end of a drop) must be an
-existing component or declared in `adds`; a new one needs a `name`. The board
+other key (`{}` is a block with none). Each key present must hold a list; `paths`
+are non-empty lists of text; `name` and `container` are text and `layer` a whole
+number. A component id (`component`, `to`, either end of a drop) is lower-case
+letters, digits and `_`, starting with a letter (the model's form, so it can never
+be markup), and must be an existing component or declared in `adds`; a new one needs a
+`name`, and a new engine component (paths under `opengwasdb/`) a `container` and a
+`layer` too. The board
 collector parses the block into `children[].plan` with `adds`, `moves`, `drops`
 (each `{from, to}`) and `absorbs`, every key present as a list. A block that
 cannot be used is never dropped: `plan` is `{invalid: reason}` (not YAML, unknown
@@ -491,10 +496,16 @@ repository at the site's checkout):
 
 - `adds`: for each path, `{kind: adds, path, component, held, why}`; held only when
   the path is a tracked file (in `architecture.files`) **and** the named component
-  claims it. A path that does not exist is not held, saying so with the ref.
+  claims it. A path that does not exist is not held, saying so with the ref; without
+the engine's model that is still a measured fact (the tree was read), and the
+`why` says the claims were not judged.
 - `moves`: the same, with `to` as the component.
 - `drops`: `{kind: drops, from, to, imports, held, why}`; held when no import goes
-  from `from` into `to`, else not held, naming how many remain.
+  from `from` into `to`, else not held, naming how many remain. Without `architecture.edges`
+  (absent or `null`) it is unknown: absence is never zero imports.
+
+Every check also has `repo` (`registry` or `engine`), the tree it was read in;
+the page's warning names that repository's ref and commit.
 
 `held` is `true`, `false`, or `null` for **unknown**: without the engine's model
 (`architecture.engine.model` false) an engine path that no registry claim covers,

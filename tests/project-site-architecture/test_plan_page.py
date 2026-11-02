@@ -153,6 +153,23 @@ class PlannedChangesTests(unittest.TestCase):
         self.assertIn("Work data unavailable", text)
         self.assertIn("board is unavailable", text)
 
+    def test_a_component_id_cannot_inject_a_diagram_statement(self) -> None:
+        hostile = 'fresh"; injected [label="UNTRUSTED"]; "tail'
+        plan = entry(364, "open", {"adds": [{"paths": ['a"b\\c.py'], "component": hostile, "name": 'N"x'}]},
+                     [{"id": hostile, "name": 'N"x', "repo": None, "new": True}], [])
+        source = dots(planned(work(plan)))[0]
+        self.assertIn('"fresh\\"; injected [label=\\"UNTRUSTED\\"]; \\"tail" [', source)
+        self.assertEqual(sum(1 for line in source.splitlines() if "UNTRUSTED" in line), 1)
+
+    def test_the_warning_names_the_ref_of_the_repository_the_item_was_read_in(self) -> None:
+        registry = entry(365, "closed", {"adds": [{"paths": ["src/x.py"], "component": "pages"}]}, [comp("pages", "Pages", "registry")],
+                         [{"kind": "adds", "path": "src/x.py", "component": "pages", "held": False, "why": "no such file", "repo": "registry"}])
+        block = planned(work(registry)).split("opengwasdb#365", 1)[1]
+        self.assertIn("registry `HEAD`, `rrrrrrrrrrrr`", block)
+        self.assertNotIn("engine `main`", block)
+        engine = planned(work(CLOSED)).split("opengwasdb#361", 1)[1]
+        self.assertIn("engine `main`, `eeeeeeeeeeee`", engine)
+
 
 @unittest.skipUnless(QUARTO, "Quarto is not on PATH; the render assertion needs it")
 class QuartoRenderTests(unittest.TestCase):

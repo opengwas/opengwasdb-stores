@@ -345,7 +345,7 @@ def _planned(documents: Mapping[str, Document | None]) -> list[str]:
     plans = [p for p in data["plans"] if isinstance(p, Mapping)]
     if not plans:
         return lines + ["No ticket carries an `architecture` block yet.", ""]
-    engine = ((data.get("inputs") or {}).get("architecture") or {}).get("engine") or {}
+    reads = (data.get("inputs") or {}).get("architecture") or {}
     for plan in plans:
         lines += [f"### {pages._link(plan.get('ticket'), plan.get('url'))} {pages.escape(str(plan.get('title') or ''))} ({pages.escape(str(plan.get('state')))})", ""]
         body = plan.get("plan") or {}
@@ -355,16 +355,18 @@ def _planned(documents: Mapping[str, Document | None]) -> list[str]:
         lines += [_cell(_plan_dot(plan)), *_plan_items(plan)]
         if body.get("absorbs"):
             lines += ["Absorbs (drawn here, not checked): " + "; ".join(pages._code(a) for a in body["absorbs"]), ""]
-        unmet = [c for c in plan.get("checks") or [] if c.get("held") is False]
-        if unmet:
-            n = len(unmet)
-            lines += [
-                f"> **Warning**: {pages._figure(n)} item{'s' if n != 1 else ''} of this closed ticket "
-                f"{'are' if n != 1 else 'is'} not held on the ref read (engine {pages._code(engine.get('ref'))}, "
-                f"{pages._code(str(engine.get('commit'))[:12])}). The ticket may have closed on an epic's "
-                "integration branch whose pull request has not merged to that ref yet.",
-                "",
-            ]
+        for repo in ("registry", "engine"):
+            unmet = [c for c in plan.get("checks") or [] if c.get("held") is False and (c.get("repo") or "engine") == repo]
+            if unmet:
+                n = len(unmet)
+                read = reads.get(repo) or {}
+                lines += [
+                    f"> **Warning**: {pages._figure(n)} item{'s' if n != 1 else ''} of this closed ticket "
+                    f"{'are' if n != 1 else 'is'} not held on the ref read ({repo} {pages._code(read.get('ref'))}, "
+                    f"{pages._code(str(read.get('commit'))[:12])}). The ticket may have closed on an epic's "
+                    "integration branch whose pull request has not merged to that ref yet.",
+                    "",
+                ]
     return lines
 
 
@@ -389,6 +391,11 @@ def _plan_items(plan: Mapping[str, Any]) -> list[str]:
     return lines + [""]
 
 
+def _dq(text: Any) -> str:
+    """A string for a quoted DOT identifier or attribute: `\\` and `"` escaped, so it cannot end the string."""
+    return str(text).replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+
+
 def _plan_dot(plan: Mapping[str, Any]) -> str:
     body = plan["plan"]
     added: dict[str, list[str]] = defaultdict(list)
@@ -405,9 +412,9 @@ def _plan_dot(plan: Mapping[str, Any]) -> str:
         rows += [f'<FONT POINT-SIZE="9">+ {_esc(p)}</FONT>' for p in added.get(c["id"], [])]
         rows += [f'<FONT POINT-SIZE="9">→ {_esc(p)}</FONT>' for p in moved.get(c["id"], [])]
         style = ' style="rounded,filled,dashed" fillcolor="#e8f5e9"' if c.get("new") else ""
-        lines.append(f'"{c["id"]}" [label=<{"<BR/>".join(rows)}>{style}];')
+        lines.append(f'"{_dq(c["id"])}" [label=<{"<BR/>".join(rows)}>{style}];')
     for d in body.get("drops") or []:
-        lines.append(f'"{d["from"]}" -> "{d["to"]}" [style=dashed color="{UPWARD}" fontcolor="{UPWARD}" label="dropped"];')
+        lines.append(f'"{_dq(d["from"])}" -> "{_dq(d["to"])}" [style=dashed color="{UPWARD}" fontcolor="{UPWARD}" label="dropped"];')
     lines.append("}")
     return "\n".join(lines)
 

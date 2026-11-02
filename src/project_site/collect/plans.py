@@ -21,7 +21,8 @@ import yaml
 KEYS = ("adds", "moves", "drops", "absorbs")
 ADD_KEYS = {"paths", "component", "name", "container", "layer"}
 MOVE_KEYS = {"paths", "to"}
-DROP = re.compile(r"\s*([\w.-]+)\s*->\s*([\w.-]+)\s*")
+ENGINE_ROOT = "opengwasdb"
+DROP = re.compile(r"\s*([a-z][a-z0-9_]*)\s*->\s*([a-z][a-z0-9_]*)\s*")
 _FENCE = re.compile(r"^\s*(?P<fence>`{3,}|~{3,})\s*(?P<info>[^`]*?)\s*$")
 
 
@@ -68,6 +69,8 @@ def parse(body: str | None, known: Collection[str] | None = None) -> dict[str, A
         return plan if known is None else _checked(plan, known)
     except Invalid as error:
         return {"invalid": str(error)}
+    except Exception as error:  # whatever else a strange block does, it stays that ticket's problem
+        return {"invalid": f"the block could not be read: {type(error).__name__}: {error}"}
 
 
 def check_components(plan: Mapping[str, Any], known: Collection[str]) -> dict[str, Any]:
@@ -83,55 +86,70 @@ def check_components(plan: Mapping[str, Any], known: Collection[str]) -> dict[st
 def _read(text: str) -> dict[str, Any]:
     try:
         document = yaml.safe_load(text)
-    except yaml.YAMLError as error:
-        raise Invalid(f"the block is not valid YAML: {str(error).splitlines()[0] if str(error) else error}") from error
+    except Exception as error:  # YAML errors, and the ValueError of a date that cannot exist
+        first = (str(error).splitlines() or [type(error).__name__])[0]
+        raise Invalid(f"the block is not valid YAML: {first}") from error
     if document is None:
         raise Invalid("the block is empty")
     if not isinstance(document, dict):
         raise Invalid("the block must be a mapping of `adds`, `moves`, `drops` and `absorbs`")
-    for key in document:
+    for key in sorted(document, key=str):
         if key not in KEYS:
             raise Invalid(f"unknown key `{key}`")
+    if not document:
+        raise Invalid("the block has none of `adds`, `moves`, `drops` or `absorbs`")
     for key in KEYS:
-        if document.get(key) is not None and not isinstance(document[key], list):
+        if key in document and not isinstance(document[key], list):
             raise Invalid(f"`{key}` must be a list")
     return {
-        "adds": [_add(item) for item in document.get("adds") or []],
-        "moves": [_move(item) for item in document.get("moves") or []],
-        "drops": [_drop(item) for item in document.get("drops") or []],
-        "absorbs": [_text(item) for item in document.get("absorbs") or []],
+        "adds": [_add(item) for item in document.get("adds", [])],
+        "moves": [_move(item) for item in document.get("moves", [])],
+        "drops": [_drop(item) for item in document.get("drops", [])],
+        "absorbs": [_text(item) for item in document.get("absorbs", [])],
     }
 
 
-def _paths(item: Mapping[str, Any], what: str) -> list[str]:
+ID_FORM = re.compile(r"[a-z][a-z0-9_]*")
+
+
+def _id(value: Any, missing: str) -> str:
+    """A component id: text in the model's form, so it can never be markup."""
+    if not isinstance(value, str) or not value:
+        raise Invalid(missing)
+    if not ID_FORM.fullmatch(value):
+        raise Invalid("component id must be lower-case letters, digits and `_`, starting with a letter")
+    return value
+
+
+def _item(item: Any, *, what: str, label: str, target: str, allowed: set[str]) -> dict[str, Any]:
+    """An `adds` or `moves` item: one validator, so the two cannot refuse differently."""
+    if not isinstance(item, dict):
+        raise Invalid(f"{what} must be a mapping with `paths` and `{target}`")
+    for key in sorted(item, key=str):
+        if key not in allowed:
+            raise Invalid(f"unknown key `{key}` in {what}")
     paths = item.get("paths")
     if not isinstance(paths, list) or not paths or not all(isinstance(p, str) and p for p in paths):
         raise Invalid(f"{what} needs a non-empty `paths` list")
-    return list(paths)
+    out: dict[str, Any] = {"paths": list(paths), target: _id(item.get(target), f"{what} needs {label}")}
+    for key in ("name", "container"):
+        if key in item:
+            if not isinstance(item[key], str) or not item[key]:
+                raise Invalid(f"`{key}` of {what} must be text")
+            out[key] = item[key]
+    if "layer" in item:
+        if not isinstance(item["layer"], int) or isinstance(item["layer"], bool):
+            raise Invalid(f"`layer` of {what} must be a whole number")
+        out["layer"] = item["layer"]
+    return out
 
 
 def _add(item: Any) -> dict[str, Any]:
-    if not isinstance(item, dict):
-        raise Invalid("an add must be a mapping with `paths` and `component`")
-    unknown = sorted(set(item) - ADD_KEYS)
-    if unknown:
-        raise Invalid(f"unknown key `{unknown[0]}` in an add")
-    paths = _paths(item, "an add")
-    if not isinstance(item.get("component"), str) or not item["component"]:
-        raise Invalid("an add needs a `component`")
-    return {"paths": paths, **{k: item[k] for k in ("component", "name", "container", "layer") if k in item}}
+    return _item(item, what="an add", label="a `component`", target="component", allowed=ADD_KEYS)
 
 
 def _move(item: Any) -> dict[str, Any]:
-    if not isinstance(item, dict):
-        raise Invalid("a move must be a mapping with `paths` and `to`")
-    unknown = sorted(set(item) - MOVE_KEYS)
-    if unknown:
-        raise Invalid(f"unknown key `{unknown[0]}` in a move")
-    paths = _paths(item, "a move")
-    if not isinstance(item.get("to"), str) or not item["to"]:
-        raise Invalid("a move needs a `to` component")
-    return {"paths": paths, "to": item["to"]}
+    return _item(item, what="a move", label="a `to` component", target="to", allowed=MOVE_KEYS)
 
 
 def _drop(item: Any) -> dict[str, str]:
@@ -150,8 +168,12 @@ def _text(item: Any) -> str:
 def _checked(plan: dict[str, Any], known: Collection[str]) -> dict[str, Any]:
     declared = {a["component"] for a in plan["adds"]}
     for add in plan["adds"]:
-        if add["component"] not in known and not add.get("name"):
+        if add["component"] in known:
+            continue
+        if not add.get("name"):
             raise Invalid(f"component `{add['component']}` is new, so its add needs a `name`")
+        if any(p.startswith(f"{ENGINE_ROOT}/") for p in add["paths"]) and not ("container" in add and "layer" in add):
+            raise Invalid(f"component `{add['component']}` is a new engine component, so its add needs a `container` and a `layer`")
     mentioned = [m["to"] for m in plan["moves"]] + [d[k] for d in plan["drops"] for k in ("from", "to")]
     for cid in mentioned:
         if cid not in known and cid not in declared:
@@ -182,7 +204,9 @@ def listed(board: Mapping[str, Any], architecture: Mapping[str, Any]) -> list[di
     files = architecture.get("files")
     registry_ref = architecture.get("registry") or {}
     missing = f"the engine's model is missing at {engine.get('ref')} ({str(engine.get('commit'))[:12]})"
-    edges = {(e["from"], e["to"]): e["imports"] for e in architecture.get("edges") or [] if isinstance(e, Mapping)}
+    edge_list = architecture.get("edges")
+    edges = None if not isinstance(edge_list, list) else {
+        (e["from"], e["to"]): e["imports"] for e in edge_list if isinstance(e, Mapping)}
 
     def exists(path: str) -> tuple[bool | None, str]:
         """Whether `path` is a tracked file: only code files are listed, and only where the tree was read."""
@@ -197,7 +221,10 @@ def listed(board: Mapping[str, Any], architecture: Mapping[str, Any]) -> list[di
         if path in listing:
             return True, ""
         ref = registry_ref if kind == "registry" else engine
-        return False, f"no such file at {ref.get('ref')} ({str(ref.get('commit'))[:12]})"
+        why = f"no such file at {ref.get('ref')} ({str(ref.get('commit'))[:12]})"
+        if kind == "engine" and not model:
+            why += "; the tree was read, the claims were not judged (the engine's model is missing)"
+        return False, why
 
     def claimed(path: str, target: str, kind: str) -> dict[str, Any]:
         present, why = exists(path)
@@ -214,14 +241,20 @@ def listed(board: Mapping[str, Any], architecture: Mapping[str, Any]) -> list[di
             held, why = False, "no component claims it"
         else:
             held, why = None, missing
-        return {"kind": kind, "path": path, "component": target, "held": held, "why": why}
+        repo = (next((k for k in ("registry", "engine") if rules.owner(claims[k], path)), None)
+                or ("registry" if rules.is_registry_code(path) else "engine"))
+        return {"kind": kind, "path": path, "component": target, "held": held, "why": why, "repo": repo}
 
     def dropped(a: str, b: str) -> dict[str, Any]:
+        repo = "registry" if by_id.get(a, {}).get("repo") == "registry" else "engine"
+        if edges is None:
+            return {"kind": "drops", "from": a, "to": b, "imports": None, "held": None, "repo": repo,
+                    "why": "this architecture collection lists no import edges"}
         if not model and not all(by_id.get(x, {}).get("repo") == "registry" for x in (a, b)):
-            return {"kind": "drops", "from": a, "to": b, "imports": None, "held": None, "why": missing}
+            return {"kind": "drops", "from": a, "to": b, "imports": None, "held": None, "why": missing, "repo": repo}
         n = edges.get((a, b), 0)
         why = f"no import from `{a}` into `{b}`" if not n else f"{n} import{'s' if n != 1 else ''} from `{a}` into `{b}` remain{'s' if n == 1 else ''}"
-        return {"kind": "drops", "from": a, "to": b, "imports": n, "held": not n, "why": why}
+        return {"kind": "drops", "from": a, "to": b, "imports": n, "held": not n, "why": why, "repo": repo}
 
     found: list[dict[str, Any]] = []
     for epic in board.get("epics") or []:
