@@ -430,9 +430,12 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
   claims that match no tracked file, and the engine's `docs/architecture/layering-baseline.yaml`
   at the ref read, entry by entry (importing file and imported name, never a count, so a new import
   cannot hide behind a fixed one): each `new:` import not in the baseline and each `stale:` entry no longer
-  imported is named; no baseline file is not a failure, but a repository or file that
-  cannot be read, a file that is not YAML, has no `allowed` list or has an entry that is not a
-  `file` and a `name` of text is: exit 2, never a pass. Exit 1 on any gap or any disagreement.
+  imported is named; no baseline file is not a failure. What cannot be measured is
+  printed with its reason and is **unknown, never a pass**: an engine ref with no model, a repository or file
+  that cannot be read, a file that is not YAML, has no `allowed` list or has an entry that is not a `file`
+  and a `name` of text. Exit **1** if anything measured has a problem (an unclaimed or stale claim, a new or
+  stale baseline entry), whatever else is unknown; otherwise **2** if any part could not be measured;
+  otherwise 0.
 - `conflicts --branch B [--repo engine|registry]` or `--files PATH... [--ticket repo#n]`:
   the components the work touches, the other owners' `building` or `active` work on each
   with its ticket, epic, branch and cited files, and whether a blocking edge links `--ticket`

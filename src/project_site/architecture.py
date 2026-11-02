@@ -6,7 +6,8 @@
 
 `check` reports the code files no component claims and the claims that match no
 file, in both repositories, and compares the engine's layering baseline with the
-upward imports measured, entry by entry (file and imported name), naming new and stale ones. It exits 1 on any of them.
+upward imports measured, entry by entry (file and imported name), naming new and stale ones. It exits 1 on any of them, else 2 when a part could not be checked
+(no engine model at the ref, an unreadable baseline), else 0.
 
 `conflicts` says which components a piece of work touches, which other owners have
 live work (`building` or `active`) on each, and whether a blocking edge links its
@@ -97,12 +98,13 @@ def _work(args: argparse.Namespace) -> tuple[dict[str, Any], dict[str, Any]]:
 
 def check(args: argparse.Namespace, out: TextIO) -> int:
     document = _architecture(args)
-    failed = False
+    failed = unknown = False
     names = (("registry", "this repository"), ("engine", "the engine"))
     engine = document["engine"]
     for repo, label in names:
         if repo == "engine" and not engine.get("model"):
             print(f"{label} ({engine['ref']} {str(engine['commit'])[:8]}): no architecture model there, so nothing to check", file=out)
+            unknown = True
             continue
         gap = document["gaps"][repo]
         suffix = f" ({engine['ref']} {str(engine['commit'])[:8]})" if repo == "engine" else ""
@@ -113,8 +115,13 @@ def check(args: argparse.Namespace, out: TextIO) -> int:
             print(f"  stale: {claim['path']} (claimed by {claim['component']})", file=out)
         failed |= bool(gap["unclaimed"] or gap["stale"])
     if engine.get("model"):
-        failed |= _baseline(args, document, out)
-    return 1 if failed else 0
+        try:
+            failed |= _baseline(args, document, out)
+        except Unavailable as error:
+            print(f"cannot check: {error}", file=out)
+            unknown = True
+    # A problem in anything measured is 1; otherwise a part that could not be measured is 2, never a pass.
+    return 1 if failed else UNDECIDED if unknown else 0
 
 
 def _baseline_entries(text: str) -> set[tuple[str, str]]:

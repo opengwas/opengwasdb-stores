@@ -265,6 +265,26 @@ class CheckTests(unittest.TestCase):
         self.assert_undecided("allowed:\n  - {file: a.py}\n", "entry #0")
         self.assert_undecided("allowed:\n  - {file: a.py, name: 3}\n", "entry #0")
 
+    NO_MODEL = {k: v for k, v in afx.ENGINE_FILES.items() if k != "docs/architecture/components.yaml"}
+
+    def test_no_engine_model_and_a_clean_registry_is_undecided_not_a_pass(self) -> None:
+        code, text = run("check", *self.fixtures(engine=self.NO_MODEL))
+        self.assertEqual(code, 2, text)
+        self.assertIn("this repository: 0 unclaimed, 0 stale", text)
+        self.assertIn("no architecture model there, so nothing to check", text)
+
+    def test_no_engine_model_and_an_unclaimed_registry_file_still_exits_1(self) -> None:
+        code, text = run("check", *self.fixtures(registry={**afx.REGISTRY_FILES, "src/extra/new.py": "x = 1\n"}, engine=self.NO_MODEL))
+        self.assertEqual(code, 1)
+        self.assertIn("unclaimed: src/extra/new.py", text)
+
+    def test_a_malformed_baseline_with_a_registry_gap_exits_1_and_still_says_what_was_unreadable(self) -> None:
+        code, text = run("check", *self.fixtures(
+            registry={**afx.REGISTRY_FILES, "src/extra/new.py": "x = 1\n"},
+            engine={**afx.ENGINE_FILES, "docs/architecture/layering-baseline.yaml": "allowed: [\n"}))
+        self.assertEqual(code, 1)
+        self.assertIn("not valid YAML", text)
+
     def test_an_engine_without_a_baseline_says_so_and_still_passes(self) -> None:
         code, text = run("check", *self.fixtures())
         self.assertEqual(code, 0)
