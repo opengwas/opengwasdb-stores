@@ -29,7 +29,7 @@ from itertools import combinations
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
-from project_site.collect import architecture_model as model_rules, branches as branch_reader, plans as plan_reader
+from project_site.collect import architecture_model as model_rules, branches as branch_reader, citations, plans as plan_reader
 from project_site.collect.common import CollectError
 
 SCHEMA_VERSION = 1
@@ -61,16 +61,29 @@ def compute(
     if not engine.get("model"):
         unmeasured["engine"] = str(engine.get("note") or f"no architecture model at {engine.get('ref')}")
 
-    def place(strings: Sequence[str], home: str) -> dict[str, list[str]]:
-        """Component id -> the cited strings that land on it (a path, or a dotted module)."""
+    listed = architecture.get("files")
+    listings = {k: v for k, v in listed.items() if isinstance(v, list)} if isinstance(listed, Mapping) else {}
+
+    def place(strings: Sequence[str], home: str) -> tuple[dict[str, list[str]], list[tuple[str, list[str]]]]:
+        """Component id -> the cited strings that land on it, and the citations that stayed ambiguous."""
         found: dict[str, list[str]] = defaultdict(list)
+        unresolved: list[tuple[str, list[str]]] = []
         for text in strings:
-            for kind in (home, *[k for k in claims if k != home]):
-                cid = next((c for p in _paths(text, kind) if (c := model_rules.owner(claims[kind], p))), None)
-                if cid:
+            if "/" in text:
+                got = citations.resolve_path(text, home, listings)
+                if got.candidates:
+                    unresolved.append((text, sorted(path for _, path in got.candidates)))
+                    continue
+                # A file tracked as such is that file; a path no listing has (a non-code file,
+                # or an older collection) is judged as written.
+                targets = [got.found] if got.found else [(kind, citations.without_line(text)) for kind in (home, *[k for k in claims if k != home])]
+            else:
+                targets = [(kind, path) for kind in (home, *[k for k in claims if k != home]) for path in _modules(text, kind)]
+            for kind, path in targets:
+                if cid := model_rules.owner(claims[kind], path):
                     found[cid].append(text)
                     break
-        return found
+        return found, unresolved
 
     epics = {e["key"]: e for e in board.get("epics") or [] if e.get("state") == "OPEN" and e.get("status") in LIVE_STATUSES}
     every_epic = {e["key"]: e for e in board.get("epics") or []}
@@ -88,19 +101,24 @@ def compute(
     blocked = {item for item, _ in waits}
 
     signals: dict[tuple[str, str, str, str, str], set[str]] = defaultdict(set)
+    unresolved_rows: set[tuple[str, str, str, tuple[str, ...]]] = set()
 
     def signal(cid: str, owner: str, item: str, via: str, state: str, what: Sequence[str]) -> None:
         signals[(cid, owner, item, via, state)].update(what)
 
     for key, e in epics.items():
         home = REPO_KIND[key.split("#")[0]]
-        for cid, cited in place(e.get("cited") or [], home).items():
+        placed, ambiguous = place(e.get("cited") or [], home)
+        unresolved_rows |= {(key, key, text, tuple(paths)) for text, paths in ambiguous}
+        for cid, cited in placed.items():
             signal(cid, key, key, "scope", "scope", cited)
         for child in e.get("children") or []:
             if child["state"] != "OPEN":
                 continue
             state = "waiting" if child["key"] in blocked else STATUS_STATE[e["status"]]
-            for cid, cited in place(child.get("cited") or [], REPO_KIND[child["key"].split("#")[0]]).items():
+            placed, ambiguous = place(child.get("cited") or [], REPO_KIND[child["key"].split("#")[0]])
+            unresolved_rows |= {(key, child["key"], text, tuple(paths)) for text, paths in ambiguous}
+            for cid, cited in placed.items():
                 signal(cid, key, child["key"], "cited", state, cited)
 
     # A branch can be read from two clones (pushed, and a host's own): it counts once, and the
@@ -169,6 +187,10 @@ def compute(
         ],
         "unmeasured": unmeasured,
         "signals": rows,
+        "unresolved": [
+            {"owner": o, "item": i, "cited": text, "candidates": list(paths)}
+            for o, i, text, paths in sorted(unresolved_rows)
+        ],
         "meets": meets,
         "plans": plan_reader.listed(board, architecture),
         "tickets": {c["key"]: key for key, e in epics.items() for c in e.get("children") or [] if c["state"] == "OPEN"},
@@ -181,6 +203,7 @@ def compute(
             "uncoordinated": sum(1 for m in meets if m["coordination"] == "uncoordinated"),
             "unlinkable": sum(1 for m in meets if m["coordination"] == "unlinkable"),
             "branches": len(listed),
+            "unresolved": len(unresolved_rows),
         },
     }
 
@@ -211,10 +234,8 @@ def _title(epic: Mapping[str, Any]) -> str:
     return title[len("Epic:"):].strip() if title.lower().startswith("epic:") else title
 
 
-def _paths(cited: str, kind: str) -> list[str]:
-    """The files a cited string can mean in repository `kind`: itself, or a dotted module's file."""
-    if "/" in cited:
-        return [cited]
+def _modules(cited: str, kind: str) -> list[str]:
+    """The files a dotted module name can mean in repository `kind`, longest first."""
     parts = cited.split(".")
     root = "src/" if kind == "registry" else ""
     paths = []

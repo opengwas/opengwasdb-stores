@@ -136,13 +136,20 @@ this repository does not import the board skill. It reads project 1 of the
 `opengwas` organisation, every page of it, and then every epic's sub-issues and
 their blocked-by edges (`subIssues` and `blockedBy` in the GraphQL API) in one
 aliased query, and follows every further page of both relationships (`subIssues`
-and `blockedBy` each return `pageInfo`). An issue's body is read for three things,
-and dropped otherwise: a Milestone's checklist lines, an Epic's `purpose`, and the paths and module names an
-Epic or sub-issue cites (`cited`),
-the first non-empty paragraph of the body that is prose -- not a heading, a
-table, a quote, or a list of bullets and boxes -- cut at a sentence (or,
-failing a sentence, at a word and an ellipsis) to at most 600 characters. A
-fenced block is skipped whole, tracked across the paragraph split: three or more
+and `blockedBy` each return `pageInfo`). An issue's body is read for what the site
+needs and dropped otherwise:
+
+- a Milestone's checklist lines;
+- an Epic's `purpose`, the first non-empty paragraph of the body that is prose
+  (not a heading, a table, a quote, or a list of bullets and boxes), cut at a
+  sentence (or, failing a sentence, at a word and an ellipsis) to at most 600
+  characters;
+- the paths and module names an Epic or sub-issue cites (`cited`), as written
+  (see [Citations](#citations));
+- a sub-issue's planned change to the architecture (`plan`; see
+  [Planned changes](#planned-changes)).
+
+A fenced block is skipped whole, tracked across the paragraph split: three or more
 backticks or tildes open it and the same character in a run at least as long
 closes it, so a code sample's own blank lines never end it and its second half is
 never read as prose. A relationship that still has a page unread when the
@@ -172,6 +179,24 @@ complete.
   reference into another owner is dropped.
 - `tests/project-site-data/fixtures/board-graphql.json` is a response recorded
   once from the real API by `board.fetch`.
+
+### Citations
+
+One extractor and one resolver serve the tickets (Work) and the ADRs
+(Architecture): `project_site.collect.architecture_adrs.cited_strings` finds what a
+text cites and `project_site.collect.citations` says which tracked file a path means.
+
+- **What is cited.** A path with a directory and a code extension (`.py`, `.smk`,
+  `.sh`, `.toml`), the path of a GitHub link to a file, or a dotted module name. A
+  trailing `:line` (`:551`, `:10-20`) is not part of the path.
+- **Which file a path means.** The file itself when it is tracked (in the issue's own
+  repository first); otherwise the one tracked file of either repository that ends
+  with `/<path>`, so `encoding/codec.py` means `opengwasdb/encoding/codec.py`. When
+  **more than one** file ends that way the citation is **unresolved**: it places
+  nothing, is never guessed, and is listed with its candidates (`work.json`
+  `unresolved`, a count on the Work page).
+- **Dotted names.** A module name means `a/b/c.py` (`src/a/b/c.py` in this
+  repository) or its package's `__init__.py`, shortened a name at a time.
 
 ### Catalog history (`catalog.json`)
 
@@ -378,10 +403,11 @@ branches (`repo:name`) or cited strings behind it. `via` is `branch`, `cited`
 | `planned`, `paused` | an open ticket of a Todo or Paused epic cites it, not blocked |
 | `stale` | a branch whose epic is closed or not live, or whose ticket is closed |
 
-A cited string is resolved through the claims alone, in the repository its text
-is in first: a path as written, a dotted module name as `a/b/c.py` (`src/a/b/c.py`
-here) or its package's `__init__.py`, shortened a name at a time until a claim
-covers it. A string no claim covers places nothing. Closed tickets add nothing.
+A cited string is placed through the claims, in the repository its text is in first,
+after it is resolved to a tracked file as [Citations](#citations) say (from
+`architecture.json`'s `files`). A path that is no tracked code file is judged as
+written; a citation that is ambiguous is `unresolved`, and one no claim covers places
+nothing. Closed tickets add nothing.
 
 **Meets.** A component is a meet when two or more owners have `building` or
 `active` signals on it. For every pair of its owners there is a `pairs` entry,
@@ -416,13 +442,14 @@ engine files or an engine branch exits 2. Registry-side meets are still measured
 | `components` | the components with at least one signal: `id`, `name`, `repo` |
 | `signals` | as above: `component`, `owner`, `item`, `via`, `state`, `what` |
 | `unmeasured` | `{}`, or `{engine: reason}` when the engine's model is missing (see above) |
+| `unresolved` | the citations of live tickets and epics that more than one tracked file ends with: `owner`, `item`, `cited`, `candidates` (the paths) |
 | `meets` | `component`, `owners`, `items` (owner to its items there), `pairs` (`owners`, `coordinated`, `coordination`, `edges`, `epic_branches`), `coordinated`, `coordination` |
 | `plans` | the tickets' planned changes and, for a closed ticket, what was checked, as above (#422) |
 | `waits` | every open blocking edge among the live epics' tickets: `{item, on}` |
 | `tickets` | every open ticket of a live epic, to its owner (what `conflicts --ticket` reads) |
 | `branches.sources` | per repository read: `repo`, `git_dir`, `main`, `days`, `fetch` (`null`, or `{ok, error}`), `local`, `count` |
 | `branches.list` | `repo`, `name`, `ahead`, `committed`, `files`, `epic`, `ticket` (from the name), `local`, and the resolved `owner`, `item`, `components` |
-| `summary` | `owners`, `meets`, `coordinated`, `uncoordinated`, `unlinkable` (these three add up to `meets`), `branches` |
+| `summary` | `owners`, `meets`, `coordinated`, `uncoordinated`, `unlinkable` (these three add up to `meets`), `branches`, `unresolved` (the length of `unresolved`) |
 
 The page's tiles are `summary`; every other figure on it is a count of these rows.
 

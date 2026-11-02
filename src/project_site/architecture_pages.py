@@ -168,6 +168,7 @@ def render_work(documents: Mapping[str, Document | None]) -> str:
     lines += _measured_at(data)
     lines += _fetch_failures(data)
     lines += _unmeasured(data)
+    lines += _unresolved(data)
     summary = data.get("summary") or {}
     lines += [
         "| Owners | Meets | Coordinated | Uncoordinated | Unlinkable | Branches |",
@@ -237,6 +238,23 @@ def _unmeasured(data: Document) -> list[str]:
         "belongs to a component, so the meets shown are this repository's only; an engine meet is not ruled out.",
         "",
     ]
+
+
+def _unresolved(data: Document) -> list[str]:
+    """Cited paths that matched more than one tracked file: counted and listed, never guessed."""
+    rows = [r for r in data.get("unresolved") or [] if isinstance(r, Mapping)]
+    if not rows:
+        return []
+    plural = "citation" if len(rows) == 1 else "citations"
+    lines = [
+        f"> **{len(rows)} {plural} could not be placed**: each names a path that more than one tracked file ends with, "
+        "so it is not guessed, and the work that cites it is not on the map. Cite the full path to place it.",
+        "",
+    ]
+    for r in rows:
+        candidates = ", ".join(pages._code(str(c)) for c in r.get("candidates") or [])
+        lines.append(f"- {pages.escape(str(r.get('item')))} cites {pages._code(r.get('cited'))}: {candidates}")
+    return lines + [""]
 
 
 def _owner(key: str, owners: Mapping[str, Mapping[str, Any]]) -> str:

@@ -21,7 +21,7 @@ from __future__ import annotations
 import re
 from typing import Any, Mapping, Sequence
 
-from project_site.collect import architecture_model as model_rules
+from project_site.collect import architecture_model as model_rules, citations
 
 ADR_PATH = re.compile(r"docs/adr/(\d{4})-.*\.md$")
 PATH_CITE = re.compile(r"(?<![\w./:-])((?:[\w.-]+/)+[\w.-]+\.(?:py|smk|sh|toml))\b")
@@ -132,14 +132,9 @@ def _resolve(
         repo = REPO_OF_URL[slug]
         if path in set(trees[repo].files):
             found.add((repo, path))
-    order = [home, *[r for r in trees if r != home]]
+    listings = {repo: tree.files for repo, tree in trees.items()}
     for raw in paths:
-        for repo in order:
-            if raw in set(trees[repo].files):
-                found.add((repo, raw))
-                break
-        else:
-            hits = [(repo, f) for repo in order for f in trees[repo].files if f.endswith("/" + raw)]
-            if len(hits) == 1:
-                found.add(hits[0])
+        resolved = citations.resolve_path(raw, home, listings).found
+        if resolved:
+            found.add(resolved)
     return found
