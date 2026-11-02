@@ -71,19 +71,20 @@ notes: |-
   value moved. Each top-hit tier still held the SE decoded before the flip, so opengwasdb 0.3.2
   validate failed all three tiers at its rtol of 1e-6 (se value inconsistent with decoded se
   plane). The top-hit SE was written again from the decoded plane with
-  `pixi run eaf-reference-flip OGS-00014 --resync-se`: 126,116 of
-  44,023,163 top-hit cells in p_5e_04, 16,951 of 2,739,528 in p_5e_06 and 7,548 of 560,180 in
-  p_5e_08 (all imputed), run 2026-11-02 at stores def9e2c8. The receipt is /data/opengwasdb/stores/OGS-00014/records/eaf-reference-flip-se-resync.json
-  status complete, sha256 f34f054214a0b2d22570af49d979360e4aef0c6ea4cbeac285bab2386e25d8a6. The
-  originals are kept under replaced/20261102T111229Z-eaf-reference-flip-se-resync/. The HM3
+  `pixi run eaf-reference-flip OGS-00014 --resync-se`: 126,116 of 44,023,163 top-hit cells in
+  p_5e_04, 16,951 of 2,739,528 in p_5e_06 and 7,548 of 560,180 in p_5e_08 (all imputed), run
+  2026-11-02 at stores def9e2c8. The receipt is
+  /data/opengwasdb/stores/OGS-00014/records/eaf-reference-flip-se-resync.json, status complete,
+  sha256 f34f054214a0b2d22570af49d979360e4aef0c6ea4cbeac285bab2386e25d8a6. The originals are kept
+  under replaced/20261102T111229Z-eaf-reference-flip-se-resync/. The HM3
   Indexed Variant Subset was not touched: its SE codes and eaf_reference decode to the primary's
   values at every row.
 
   Validation after the correction: `opengwasdb validate` 0.3.2 (44f25a96) of the corrected Store,
   started 2026-11-02 11:32:35 UTC, elapsed 4 h 29 m 50 s, exit 0, printed
   {"errors": [], "ok": true, "warnings": []}. It is not a new Validation Record: validation.yaml is
-  unchanged and still describes the pre-flip Store. This breaks the rule that a published Store is never rewritten; it is a one-off
-  for a wrong value, not a precedent.
+  unchanged and still describes the pre-flip Store. This breaks the rule that a published Store is
+  never rewritten; it is a one-off for a wrong value, not a precedent.
 accepted_at: '2026-10-14T08:39:20Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
