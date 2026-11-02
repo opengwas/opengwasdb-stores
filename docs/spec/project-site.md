@@ -257,8 +257,8 @@ hand-written model files `docs/architecture/components.yaml` and the code they
 claim. It reads **git, not checkouts**: this repository at `HEAD` (tracked files
 only) and the engine at its `main` through the bare clone the site build already
 keeps (`/data/opengwasdb/work/site/opengwasdb.git`, or `--engine-git`; `--engine-ref`
-names another ref). `pixi run site` fetches `main` into that clone first, and
-a failed fetch leaves the `main` it has. The site's *docs* mirror stays at the
+names another ref). `pixi run site` fetches `main` into that clone first (`--refresh-engine`);
+a failed fetch leaves the `main` the clone has and is recorded in `engine.refresh`. The site's *docs* mirror stays at the
 engine revision `pixi.lock` pins; the map shows current work, so it does not.
 
 The model files. Each has `repo` and `components`: `id`, `name`, `container`,
@@ -271,13 +271,18 @@ placement are measured.
 
 | Key | Content |
 |---|---|
-| `registry`, `engine` | `repo`, `ref`, `commit` read, `model` (`true`, or `false` when the ref has no model file) and `note` |
+| `registry`, `engine` | `repo`, `ref`, `commit` read, `committed` (that commit's date), `refresh`, `model` (`true`, or `false` when the ref has no model file) and `note`. The engine's `refresh` is `null` when no fetch was asked for, else `{ok, error}` with git's own message; the pages show the commit and its date, and a visible line when the refresh failed |
 | `model` | `system`, `people`, `external`, `containers`, `container_relations`, `stages` (this repository's), `layers` (the engine's; `[]` without its model) |
 | `components` | this repository's, then the engine's: the model's keys plus `repo` (`registry` or `engine`), `files` and `lines` (claimed code files), `tracked` (every tracked file claimed) |
 | `gaps.<repo>` | `unclaimed` (code files no component claims, by path) and `stale` (`{path, component}` claims matching no tracked file) |
 | `edges` | `from`, `to`, `imports`, `scope` (`engine`, `registry`, `registry_to_engine`), `upward` |
 | `adrs` | every `docs/adr/NNNN-*.md` of both repositories: `repo`, `number`, `path`, `title`, `status`, `url`, `components` |
 | `summary` | `edges`, `upward_edges`, `upward_imports`, `registry_to_engine_edges`, `registry_to_engine_imports`, `adrs_total`, `adrs_placed` |
+
+A code file that cannot be read, or a Python file that does not parse, makes the
+source unavailable with an error naming the path; a count is never a guess of 0.
+A claimed script under `tools/` or `workflow/` is a source of imports even though
+no one can import it.
 
 Code is a tracked `.py` under `opengwasdb/` in the engine, and a `.py`, `.smk`,
 `.sh` or `Snakefile` under `src/`, `workflow/` or `tools/` here. **Gaps never
@@ -297,7 +302,7 @@ and goes to a component on a higher layer; the same layer and lower layers are n
 An **ADR** is placed by the code it cites (a path, a dotted module name such as
 `opengwasdb.store.paths`, or a GitHub link to a file, resolved through the
 claims; a bare suffix such as `store/paths.py` only when exactly one tracked file
-ends with it) and by a component's `name` in its title (case-insensitive). A
+ends with it) and by a component's `name` in its title (case-insensitive, at the start of a word, with no boundary at its end). A
 component's name that appears only in the body places nothing, however often.
 `components` maps a component id to `code` or `title`; an ADR placed nowhere has
 `{}` and is listed on the page.

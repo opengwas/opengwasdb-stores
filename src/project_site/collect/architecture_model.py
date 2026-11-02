@@ -24,6 +24,15 @@ REGISTRY_CODE_SUFFIXES = (".py", ".smk", ".sh")
 ENGINE_PACKAGE = "opengwasdb"
 
 
+def split_nul(listing: str) -> list[str]:
+    """The paths of a NUL-separated git listing (`ls-files -z`, `ls-tree -z`), each whole.
+
+    Git quotes a path holding a tab or newline in its line-separated form, which
+    would stop it matching any code root; the NUL form never does.
+    """
+    return listing.split("\0")[:-1] if listing.endswith("\0") else [p for p in listing.split("\0") if p]
+
+
 def load_model(text: str) -> dict[str, Any]:
     """A model file's content as a mapping; a file that is not one is an error."""
     model = yaml.safe_load(text)

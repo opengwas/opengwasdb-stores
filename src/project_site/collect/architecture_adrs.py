@@ -6,7 +6,9 @@ An ADR belongs to a component for one of two reasons, and no other:
   name (`opengwasdb.store.paths`, `project_site.pages`) or a GitHub link to a file.
   A bare suffix such as `store/paths.py` counts only when exactly one tracked file
   ends with it; an ambiguous one is skipped, never guessed;
-- **title**: a component's `name` appears in the ADR's title (case-insensitive).
+- **title**: a component's `name` appears in the ADR's title, case-insensitive,
+  at the start of a word and with no boundary at its end ("Analysis Catalog" places
+  "Analysis Catalogue ..."; "Query" does not match inside "subquery").
 
 A component's name that appears only in the body, however often, places
 nothing: counting words rewarded long ADRs and wrongly placed ones that merely
@@ -40,7 +42,7 @@ def place(
     packages = sorted({module.split(".")[0] for module in modules})
     dotted = re.compile(r"\b((?:" + "|".join(map(re.escape, packages)) + r")(?:\.[A-Za-z_0-9]+)+)") if packages else None
     names = {
-        c["id"]: re.compile(r"(?<![\w-])" + re.escape(c["name"]) + r"(?![\w-])", re.IGNORECASE) for c in components
+        c["id"]: re.compile(r"(?<!\w)" + re.escape(c["name"]), re.IGNORECASE) for c in components
     }
     adrs: list[dict[str, Any]] = []
     for repo in ("registry", "engine"):

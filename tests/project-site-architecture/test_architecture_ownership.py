@@ -76,10 +76,15 @@ class OwnershipTests(unittest.TestCase):
         self.assertFalse(model.is_engine_code("opengwasdb/data.json"))
         self.assertFalse(model.is_engine_code("tests/test_x.py"))
 
+    def test_a_nul_separated_list_returns_a_path_with_a_tab_or_newline_whole(self) -> None:
+        listing = "src/a\tb.py\0src/c\nd.py\0src/e.py\0"
+        self.assertEqual(model.split_nul(listing), ["src/a\tb.py", "src/c\nd.py", "src/e.py"])
+        self.assertEqual(model.split_nul(""), [])
+
     def test_this_repositorys_model_claims_every_code_file_and_nothing_stale(self) -> None:
-        tracked = subprocess.run(
-            ["git", "-C", str(REPO), "ls-files"], capture_output=True, text=True, check=True
-        ).stdout.splitlines()
+        tracked = model.split_nul(
+            subprocess.run(["git", "-C", str(REPO), "ls-files", "-z"], capture_output=True, check=True).stdout.decode()
+        )
         loaded = model.load_model((REPO / "docs/architecture/components.yaml").read_text(encoding="utf-8"))
         gaps = model.check_claims(model.claims_of(loaded["components"]), tracked, model.is_registry_code)
         self.assertEqual(gaps, {"unclaimed": [], "stale": []})

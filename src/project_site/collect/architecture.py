@@ -43,7 +43,8 @@ class Tree:
             self.commit = self._run(["rev-parse", "--verify", "--quiet", f"{ref}^{{commit}}"]).decode().strip()
         except CollectError as error:
             raise CollectError(f"{git_dir} has no ref {ref}: {error}") from error
-        self.files = self._run(["ls-tree", "-r", "--name-only", "-z", self.commit]).decode().split("\0")[:-1]
+        self.files = model_rules.split_nul(self._run(["ls-tree", "-r", "--name-only", "-z", self.commit]).decode())
+        self.committed = self._run(["show", "-s", "--format=%cI", self.commit]).decode().strip()
 
     def _run(self, args: list[str], stdin: bytes | None = None) -> bytes:
         done = subprocess.run([*self.git, *args], input=stdin, capture_output=True, check=False)
@@ -77,6 +78,7 @@ def collect(
     engine_git: Path | None = None,
     engine_ref: str = DEFAULT_ENGINE_REF,
     registry_ref: str = DEFAULT_REGISTRY_REF,
+    refresh_engine: bool = False,
 ) -> dict[str, Any]:
     """Both repositories' components, gaps, import graph and ADRs, as the site's `architecture` source."""
     if registry_root is None or engine_git is None:
@@ -85,6 +87,7 @@ def collect(
         registry_root = registry_root or paths.REPO_ROOT
         engine_git = engine_git or _default_engine_clone()
     registry = Tree(registry_root, registry_ref)
+    refresh = _refresh(engine_git, engine_ref) if refresh_engine else None
     engine = Tree(engine_git, engine_ref)
 
     registry_text = registry.read([MODEL_PATH]).get(MODEL_PATH)
@@ -116,6 +119,7 @@ def collect(
             ENGINE_REPO, engine, engine_model is not None,
             None if engine_model is not None
             else f"{MODEL_PATH} is not in {ENGINE_REPO} at {engine.ref} ({engine.commit[:12]})",
+            refresh,
         ),
         "model": {
             key: registry_model.get(key) or [] for key in ("people", "external", "containers", "container_relations", "stages")
@@ -138,8 +142,32 @@ def _default_engine_clone() -> Path:
     return paths.engine_clone()
 
 
-def _repository(repo: str, tree: Tree, model: bool, note: str | None) -> dict[str, Any]:
-    return {"repo": repo, "ref": tree.ref, "commit": tree.commit, "model": model, "note": note}
+def _repository(
+    repo: str, tree: Tree, model: bool, note: str | None, refresh: dict[str, Any] | None = None
+) -> dict[str, Any]:
+    return {
+        "repo": repo, "ref": tree.ref, "commit": tree.commit, "committed": tree.committed,
+        "refresh": refresh, "model": model, "note": note,
+    }
+
+
+def _refresh(git_dir: Path, ref: str) -> dict[str, Any]:
+    """Fetch the engine's `ref` into the clone, and say whether that worked.
+
+    The clone is bare and has no fetch refspec, so the branch is named. A failure
+    (offline, no access) is recorded with git's own message and the ref the clone
+    already has is read: the page shows both, so a stale `main` is never silent.
+    """
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(git_dir), "fetch", "--quiet", "origin", f"+refs/heads/{ref}:refs/heads/{ref}"],
+            capture_output=True, text=True, check=False, timeout=300,
+        )
+    except (OSError, subprocess.TimeoutExpired) as error:
+        return {"ok": False, "error": f"{type(error).__name__}: {error}"}
+    if done.returncode != 0:
+        return {"ok": False, "error": done.stderr.strip() or f"git fetch exited {done.returncode}"}
+    return {"ok": True, "error": None}
 
 
 def _components(registry_model: Mapping[str, Any], engine_model: Mapping[str, Any] | None) -> list[dict[str, Any]]:
@@ -174,7 +202,7 @@ def _measure(components: list[dict[str, Any]], trees: Mapping[str, Tree], claims
     by_id = {c["id"]: c for c in components}
     for repo, tree in trees.items():
         code = [f for f in tree.files if is_code[repo](f)]
-        text = tree.read([f for f in code if f.endswith(".py")])
+        text = tree.read(code)
         for path in tree.files:
             cid = model_rules.owner(claims[repo], path)
             if cid:
@@ -183,4 +211,6 @@ def _measure(components: list[dict[str, Any]], trees: Mapping[str, Tree], claims
             cid = model_rules.owner(claims[repo], path)
             if cid:
                 by_id[cid]["files"] += 1
-                by_id[cid]["lines"] += text.get(path, "").count("\n")
+                if path not in text:
+                    raise CollectError(f"{path} is a code file of {repo} but git could not read it")
+                by_id[cid]["lines"] += len(text[path].splitlines())

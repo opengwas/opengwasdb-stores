@@ -72,14 +72,8 @@ def render_pipeline(documents: Mapping[str, Document | None]) -> str:
             continue
         for c in members:
             lines.append(f"- **{pages.escape(str(c['name']))}** ({c['repo']}; {_size(c)}): {pages.escape(str(c['summary']))}")
+            lines += [f"  - {_adr_link(a, [c])}" for a in _adrs_for(data, {c["id"]})]
         lines.append("")
-        placed = _adrs_for(data, {c["id"] for c in members})
-        if placed:
-            lines += ["ADRs:", ""]
-            lines += [f"- {_adr_link(a, members)}" for a in placed]
-            lines.append("")
-        else:
-            lines += ["_No ADR is placed on these components._", ""]
     lines += ["## ADRs the map cannot place", ""]
     unplaced = [a for a in data.get("adrs") or [] if not a["components"]]
     summary = data.get("summary") or {}
@@ -152,9 +146,21 @@ def _hand_and_measured(*, hand: str, measured: str) -> list[str]:
 
 def _engine_notice(data: Document) -> list[str]:
     engine = data.get("engine") or {}
+    lines = [
+        f"Read from engine `{engine.get('ref')}` at `{str(engine.get('commit'))[:12]}`, "
+        f"committed {pages._cell(engine.get('committed'))}.",
+        "",
+    ]
+    refresh = engine.get("refresh")
+    if isinstance(refresh, Mapping) and refresh.get("ok") is False:
+        lines += [
+            f"> **The engine refresh failed**: {pages._cell(refresh.get('error'))}. "
+            f"This is the `{engine.get('ref')}` this clone already had, so it may be behind.",
+            "",
+        ]
     if engine.get("model"):
-        return []
-    return [
+        return lines
+    return lines + [
         f"> **The engine has no architecture model yet**: no architecture model at `{engine.get('ref')}` "
         f"(commit `{str(engine.get('commit'))[:12]}`) of `{engine.get('repo')}`. Its components, layers and "
         "imports are not drawn; this repository's are.",
@@ -173,6 +179,7 @@ def _adrs_for(data: Document, ids: set[str]) -> list[Mapping[str, Any]]:
 
 
 def _adr_link(adr: Mapping[str, Any], members: list[Mapping[str, Any]]) -> str:
+    """An ADR as a link, with how it was placed on `members` (code it cites, or a name in its title)."""
     note = "" if adr.get("status") in (None, "current") else f" _{adr['status']}_"
     via = sorted({adr["components"][c["id"]] for c in members if c["id"] in adr["components"]})
     return f"[{pages.escape(str(adr['title']))}]({adr['url']}) ({adr['repo']}; placed by {' and '.join(via)}){note}"

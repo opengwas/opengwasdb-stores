@@ -51,6 +51,7 @@ class ImportGraphTests(unittest.TestCase):
                 edge("query", "store", 1, "engine"),  # 2 -> 1
                 edge("store", "model", 1, "engine"),  # 1 -> 0; `from opengwasdb.store import util` is inside store
                 edge("store", "query", 1, "engine", upward=True),  # 1 -> 2
+                edge("tools", "cli", 1, "registry_to_engine"),  # tools/run.py is a script, not an importable module
             ],
         )
 
@@ -62,7 +63,7 @@ class ImportGraphTests(unittest.TestCase):
         summary = architecture.collect(root / "registry", engine_git=root / "engine")["summary"]
         self.assertEqual(summary["upward_edges"], 3)
         self.assertEqual(summary["upward_imports"], 3)
-        self.assertEqual(summary["registry_to_engine_imports"], 4)
+        self.assertEqual(summary["registry_to_engine_imports"], 5)
 
 
 if __name__ == "__main__":

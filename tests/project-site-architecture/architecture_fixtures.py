@@ -57,7 +57,13 @@ components:
     container: generation
     stages: [build]
     summary: Runs releases.
-    paths: [src/ogs/]
+    paths: [src/ogs/, workflow/run.sh, workflow/Snakefile]
+  - id: tools
+    name: Scripts
+    container: generation
+    stages: [build]
+    summary: Developer scripts.
+    paths: [tools/]
 """
 
 ENGINE_MODEL = """\
@@ -110,6 +116,9 @@ REGISTRY_FILES = {
     "src/gen/__init__.py": "",
     "src/gen/make.py": "from opengwasdb.store import paths\nfrom opengwasdb.model import enums\nimport opengwasdb.store.util\nimport os\n",
     "src/ogs/run.py": "from gen import make\nfrom opengwasdb.cli import main\n",
+    "tools/run.py": "from opengwasdb.cli import main\n",
+    "workflow/run.sh": "#!/bin/sh\necho hi\n",
+    "workflow/Snakefile": "rule a:\n    shell: 'x'\n\nrule b:\n    shell: 'y'\n",
     "README.md": "readme\n",
 }
 
@@ -140,10 +149,14 @@ REGISTRY_ADRS = {
     # a component's name only in the body, however often
     "docs/adr/0004-body.md": "# 0004. Something else\n\n" + "Manifest Generation. " * 12 + "\n",
     # a bare suffix places only when exactly one tracked file ends with it
+    # a name matches at the start of a word, with no boundary at its end
+    "docs/adr/0006-plural.md": "# 0006. Release orchestrations are staged\n\nBody.\n",
     "docs/adr/0005-suffix.md": "# 0005. Suffixes\n\nSee store/paths.py but not store/util.py.\n",
 }
 ENGINE_ADRS = {
     "docs/adr/0001-query.md": "# 0001. Query is layer free\n\nBody.\n",
     "docs/adr/0002-cites.md": "# 0002. Layers\n\nopengwasdb/cli/main.py and opengwasdb/check/run.py\n\nSuperseded by 0009.\n",
     "docs/adr/0003-none.md": "# 0003. Nothing\n\nNo cites.\n",
+    # inside a word is not the start of a word
+    "docs/adr/0004-inside.md": "# 0004. Subquery planning\n\nBody.\n",
 }

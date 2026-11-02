@@ -40,17 +40,19 @@ class AdrPlacementTests(unittest.TestCase):
                 ("registry", "0003"): {"ogs": "title"},
                 ("registry", "0004"): {},
                 ("registry", "0005"): {"store": "code"},
+                ("registry", "0006"): {"ogs": "title"},
                 ("engine", "0001"): {"query": "title"},
                 ("engine", "0002"): {"check": "code", "cli": "code"},
                 ("engine", "0003"): {},
+                ("engine", "0004"): {},
             },
         )
 
     def test_the_summary_counts_adrs_placed_of_all_and_lists_the_rest(self) -> None:
         result = collect(self)
-        self.assertEqual((result["summary"]["adrs_placed"], result["summary"]["adrs_total"]), (6, 8))
+        self.assertEqual((result["summary"]["adrs_placed"], result["summary"]["adrs_total"]), (7, 10))
         unplaced = [(a["repo"], a["number"]) for a in result["adrs"] if not a["components"]]
-        self.assertEqual(unplaced, [("registry", "0004"), ("engine", "0003")])
+        self.assertEqual(unplaced, [("registry", "0004"), ("engine", "0003"), ("engine", "0004")])
 
     def test_an_adr_carries_its_title_status_and_link(self) -> None:
         by_key = {(a["repo"], a["number"]): a for a in collect(self)["adrs"]}

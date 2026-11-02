@@ -19,6 +19,7 @@ from collections import defaultdict
 from typing import Any, Mapping, Sequence
 
 from project_site.collect import architecture_model as model_rules
+from project_site.collect.common import CollectError
 
 Edge = dict[str, Any]
 
@@ -36,12 +37,16 @@ def module_name(repo: str, path: str) -> str | None:
     return relative[: -len(".py")].replace("/", ".").removesuffix(".__init__")
 
 
-def imported_names(source: str, module: str, is_package: bool) -> set[str]:
-    """Every absolute name a module imports; relative imports are resolved against `module`."""
+def imported_names(source: str, module: str, is_package: bool, path: str = "?") -> set[str]:
+    """Every absolute name a module imports; relative imports are resolved against `module`.
+
+    A file that does not parse is an error naming it: dropping its imports would
+    leave the graph looking complete.
+    """
     try:
         tree = ast.parse(source)
-    except SyntaxError:
-        return set()
+    except SyntaxError as error:
+        raise CollectError(f"{path} does not parse: {error}") from error
     package = module if is_package else module.rpartition(".")[0]
     names: set[str] = set()
     for node in ast.walk(tree):
@@ -81,6 +86,12 @@ def import_edges(
         if component:
             module_owner[module] = component
             sources.append((repo, path, module))
+    # A claimed script (`tools/`, `workflow/`) is not importable, but it imports:
+    # it is a source of edges, never a target.
+    importable = {path for _, path, _ in sources}
+    for path in trees["registry"].files:
+        if path.endswith(".py") and path not in importable and model_rules.owner(claims["registry"], path):
+            sources.append(("registry", path, ""))
 
     def resolve(name: str) -> str | None:
         parts = name.split(".")
@@ -96,8 +107,8 @@ def import_edges(
         mine = [(path, module) for r, path, module in sources if r == repo]
         text = tree.read([path for path, _ in mine])
         for path, module in mine:
-            source = module_owner[module]
-            for name in imported_names(text.get(path, ""), module, path.endswith("__init__.py")):
+            source = model_rules.owner(claims[repo], path)
+            for name in imported_names(text.get(path, ""), module, path.endswith("__init__.py"), path):
                 target = resolve(name)
                 if target and target != source:
                     counts[(source, target)] += 1

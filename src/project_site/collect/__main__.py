@@ -43,7 +43,8 @@ def describe(result: dict[str, Any]) -> str:
 def _describe_architecture(result: dict[str, Any]) -> str:
     engine, summary, gaps = result["engine"], result["summary"], result["gaps"]
     counts = {repo: sum(1 for c in result["components"] if c["repo"] == repo) for repo in ("registry", "engine")}
-    model = f"engine model at {engine['ref']} {engine['commit'][:8]}" if engine["model"] else (
+    stale = " REFRESH FAILED" if (engine.get("refresh") or {}).get("ok") is False else ""
+    model = f"engine model at {engine['ref']} {engine['commit'][:8]}{stale}" if engine["model"] else (
         f"NO engine model at {engine['ref']} {engine['commit'][:8]}")
     return (
         f"architecture: {counts['registry']} registry + {counts['engine']} engine components ({model}), "
@@ -66,6 +67,7 @@ def run(
     repo_root: Path | None = None,
     engine_git: Path | None = None,
     engine_ref: str = architecture.DEFAULT_ENGINE_REF,
+    refresh_engine: bool = False,
     out: Callable[[str], Any] = print,
 ) -> list[dict[str, Any]]:
     collectors: list[tuple[str, Callable[[], dict[str, Any]]]] = [
@@ -74,7 +76,8 @@ def run(
         ("releases", lambda: releases.collect(gh)),
         ("stores", lambda: stores.collect(registry)),
         ("records", lambda: records.collect(epics_dir, yardstick_dir)),
-        ("architecture", lambda: architecture.collect(repo_root, engine_git=engine_git, engine_ref=engine_ref)),
+        ("architecture", lambda: architecture.collect(
+            repo_root, engine_git=engine_git, engine_ref=engine_ref, refresh_engine=refresh_engine)),
     ]
     results = []
     for source, collect in collectors:
@@ -97,10 +100,13 @@ def main(argv: list[str] | None = None) -> int:
                         help="the engine's git directory (default: the site's bare clone under the work root)")
     parser.add_argument("--engine-ref", default=architecture.DEFAULT_ENGINE_REF,
                         help="the engine ref the architecture is read at (default: main)")
+    parser.add_argument("--refresh-engine", action="store_true",
+                        help="fetch the engine ref into its git directory first, and record whether that worked")
     parser.add_argument("--strict", action="store_true", help="exit 1 when any source is unavailable")
     args = parser.parse_args(argv)
     results = run(args.data_dir or common.data_dir(), catalog_root=args.catalog_root,
-                  registry=args.registry, engine_git=args.engine_git, engine_ref=args.engine_ref)
+                  registry=args.registry, engine_git=args.engine_git, engine_ref=args.engine_ref,
+                  refresh_engine=args.refresh_engine)
     return 1 if args.strict and not all(r["available"] for r in results) else 0
 
 

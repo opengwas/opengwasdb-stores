@@ -53,7 +53,8 @@ def architecture(*, engine_model: bool = True) -> dict:
     return {
         "source": "architecture", "available": True, "collected_at": COLLECTED, "error": None,
         "registry": {"repo": "opengwas/opengwasdb-stores", "ref": "HEAD", "commit": "1111111111111111", "model": True, "note": None},
-        "engine": {"repo": "opengwas/opengwasdb", "ref": "main", "commit": ENGINE_COMMIT, "model": engine_model,
+        "engine": {"repo": "opengwas/opengwasdb", "ref": "main", "commit": ENGINE_COMMIT, "committed": "2026-11-01T09:30:00+00:00",
+                   "refresh": {"ok": True, "error": None}, "model": engine_model,
                    "note": None if engine_model else f"docs/architecture/components.yaml is not in opengwas/opengwasdb at main ({ENGINE_COMMIT[:12]})"},
         "model": {
             "system": {"name": "OpenGWASDB", "summary": "The system."},
@@ -91,6 +92,12 @@ def architecture(*, engine_model: bool = True) -> dict:
     }
 
 
+def failed_refresh() -> dict:
+    doc = architecture()
+    doc["engine"]["refresh"] = {"ok": False, "error": "fatal: unable to access 'https://github.com/opengwas/opengwasdb/'"}
+    return doc
+
+
 def render(function, doc: dict | None) -> str:
     return function({"architecture": doc})
 
@@ -110,14 +117,17 @@ class PipelineTests(unittest.TestCase):
     def setUp(self) -> None:
         self.page = render(pages.render_pipeline, architecture())
 
-    def test_each_stage_lists_its_components_and_their_adrs(self) -> None:
+    def test_each_stage_lists_its_components_and_each_components_own_adrs(self) -> None:
         build = section(self.page, "Build")
         for name in ("Manifest Generation", "Checks", "Store envelope", "Store contract model"):
             self.assertIn(name, build)
-        self.assertIn("[0001. Manifest Generation is one pipeline](https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0001-x.md)", build)
+        link = "[0001. Manifest Generation is one pipeline](https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0001-x.md)"
+        # nested under its component, before the next component starts
+        self.assertIn(f"- **Manifest Generation** (registry; 3 files, 100 lines): Manifest Generation summary.\n  - {link}", build)
+        self.assertLess(build.index(link), build.index("**Checks**"))
         self.assertNotIn("Query is layer free", build)
         query = section(self.page, "Query")
-        self.assertIn("Query is layer free", query)
+        self.assertIn("- **Query** (engine; 3 files, 100 lines): Query summary.\n  - [0001. Query is layer free]", query)
         self.assertIn("Store contract model", query)
 
     def test_an_adr_placed_nowhere_is_listed(self) -> None:
@@ -135,6 +145,18 @@ class PipelineTests(unittest.TestCase):
         self.assertIn("main", page.split("no architecture model", 1)[1][:200])
         self.assertIn("abcdef012345", page)
         self.assertIn("Manifest Generation", section(page, "Build"))
+
+    def test_the_engine_commit_and_its_date_are_stated(self) -> None:
+        for function in (pages.render_pipeline, pages.render_structure):
+            page = render(function, architecture())
+            self.assertIn("engine `main` at `abcdef012345`, committed 2026-11-01T09:30:00+00:00", page)
+            self.assertNotIn("refresh failed", page)
+
+    def test_a_failed_refresh_is_a_visible_line_with_gits_error(self) -> None:
+        for function in (pages.render_pipeline, pages.render_structure):
+            page = render(function, failed_refresh())
+            self.assertIn("> **The engine refresh failed**: fatal: unable to access", page)
+            self.assertIn("the `main` this clone already had", page)
 
     def test_an_unavailable_source_is_the_sites_usual_notice(self) -> None:
         failed = {"source": "architecture", "available": False, "collected_at": COLLECTED,
