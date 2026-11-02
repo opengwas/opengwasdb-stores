@@ -109,7 +109,8 @@ def plan_repair(base: Path) -> tuple[list[str], list[int], int, list[int]]:
         current = best.get(row[snp])
         if current is None or maf[i] > maf[current]: best[row[snp]] = i
     kept = sorted(best.values())
-    dropped = [i for i in range(len(rows)) if i not in set(kept)]
+    keeping = set(kept)  # once: one membership test per row, not a rebuilt set
+    dropped = [i for i in range(len(rows)) if i not in keeping]
     repaired = [lines[0]]
     for i in kept:
         row = rows[i]
