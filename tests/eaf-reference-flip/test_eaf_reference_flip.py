@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""The stores lane of the #409 EAF orientation correction (`ogstores.eaf_reference_flip`).
+"""The Store-side EAF orientation correction (`ogstores.eaf_reference_flip`).
+
+A Reference-Completed Store carries its reference allele frequencies in an
+`eaf_reference` plane, and a completing panel that names the other allele leaves
+every imputed cell with the complement of the effect-allele frequency. This tool
+rewrites that plane in place, once per Store, with an orientation guard before
+and after and a receipt of every file's sha256.
 
 The fixture is a real tiny Dense 0.2.0 Reference-Completed Store -- Zarr v3,
 sharded, an `int8_residual` `eaf` plane with its baseline and completion mask,
@@ -13,9 +19,9 @@ every read-only assertion, so the suite pays for one flip, not one per test.
 
 The fixture's first four variants carry the issue's literal example:
 `eaf_reference` `[0.1, 0.25, NaN, 0.8]` must become `[0.9, 0.75, NaN, 0.2]`,
-compared as float32 bit patterns (0.2 is the one value the brief's decimal
-spelling cannot express: `float32(1) - float32(0.8)` is one ulp below
-`float32(0.2)`, which is why the flip is done in float32).
+compared as float32 bit patterns (0.2 is the one value a decimal literal cannot
+express here: `float32(1) - float32(0.8)` is one ulp below `float32(0.2)`, which
+is why the flip is done in float32).
 
 Covered:
 
@@ -885,7 +891,7 @@ class FlipTestCase(unittest.TestCase):
         self.assertFalse((self.artifacts / STORE_ID / "replaced").exists())
 
     def test_a_double_rename_failure_keeps_the_original_and_says_so(self) -> None:
-        """The reviewers' case: the staged rename and its restoration both fail.
+        """The staged rename and its restoration both fail: the hardest recovery.
 
         Nothing may be deleted: the original must survive in `replaced/` and the
         receipt must say `failed_restoration` so the next operator knows why.
@@ -954,7 +960,7 @@ class FlipTestCase(unittest.TestCase):
                 record_check()
 
     def test_a_kill_after_one_rename_names_the_displaced_original(self) -> None:
-        """The reviewers' case: receipt `pending`, live gone, original in `replaced/`."""
+        """Receipt `pending`, live gone, original in `replaced/`: a kill after one rename."""
         self.use()
         self.kill_run(1)
         record = json.loads(self.record_path().read_text(encoding="utf-8"))
