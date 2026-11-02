@@ -306,7 +306,11 @@ and goes to a component on a higher layer; the same layer and lower layers are n
 An **engine import** is a name that is `opengwasdb` or starts with
 `opengwasdb.`, counted per (importing file, imported name) over this
 repository's claimed Python files. The name alone decides it, so the seam does
-not need an engine checkout or the engine's model. `baseline` reports
+not need an engine checkout or the engine's model: `registry_to_engine_imports`
+is that count, and it stands whether or not the engine's model is there.
+`registry_to_engine_edges` is the number of component pairs those imports make,
+which the engine's claims resolve, so it is `null` when the engine has no model
+at the ref read — unknown, never 0. `baseline` reports
 `docs/architecture/engine-imports-baseline.yaml`, which lists those imports and
 only shrinks: `tests/project-site-architecture/test_engine_imports_baseline.py`
 fails on an import the file does not list (naming the file, the name and, when

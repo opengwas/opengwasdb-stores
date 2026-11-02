@@ -193,6 +193,20 @@ def _as_of(data: Document) -> str:
     )
 
 
+def _seam(summary: Mapping[str, Any]) -> str:
+    """The seam's import count, and the component pairs when the engine's model says which they are (#421).
+
+    The count is measured from the names, so it stands with or without the
+    engine's model; the pairs are resolved through the engine's claims, and an
+    unknown number of them is said to be unknown, never 0.
+    """
+    imports = f"{pages._figure(summary.get('registry_to_engine_imports'))} imports from this repository into the engine"
+    pairs = summary.get("registry_to_engine_edges")
+    if pairs is None:
+        return imports + "; the component pairs cannot be drawn until the engine's model is at the ref read."
+    return imports + f", across {pages._figure(pairs)} component pairs."
+
+
 def _baseline(baseline: Any) -> list[str]:
     """The engine-import baseline's size, and what this repository makes, as one line (#421).
 
@@ -250,10 +264,7 @@ def _health(data: Document, components: list, edges: list, summary: Mapping[str,
                 lines.append(f"| {pages.escape(a['name'])} (layer {a['layer']}) | {pages.escape(b['name'])} (layer {b['layer']}) | {e['imports']} |")
             lines.append("")
     lines += ["### The seam between the repositories", ""]
-    lines.append(
-        f"{summary.get('registry_to_engine_imports', 0)} imports from this repository into the engine, "
-        f"across {summary.get('registry_to_engine_edges', 0)} component pairs."
-    )
+    lines.append(_seam(summary))
     lines.append("")
     lines += _baseline(data.get("baseline"))
     lines += ["### ADRs", ""]

@@ -10,6 +10,12 @@
 # between components (the real import graph of both repositories), the ADRs that
 # cite a component's code, and the gaps below.
 #
+# Two readers hold this repository's imports of engine modules, one per
+# (importing file, imported name): `docs/architecture/engine-imports-baseline.yaml`
+# lists them, and tests/project-site-architecture/test_engine_imports_baseline.py
+# fails on a new one and on a listed one that has gone. It measures them with the
+# same import graph, so the page's seam counts and the baseline cannot disagree.
+#
 # The ownership rule. A path ending in `/` claims a directory; any other path
 # claims one file. The longest claimed prefix wins, so a file belongs to exactly
 # one component. A tracked code file under src/, workflow/ or tools/ that no

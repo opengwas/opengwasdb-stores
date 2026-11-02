@@ -134,6 +134,15 @@ def collect(
     imports = architecture_graph.imports_of(trees, claims)
     edges = architecture_graph.import_edges(trees, claims, components, imports)
     found = architecture_graph.engine_imports(imports)
+    # The seam's import count is the name-based measurement, so it is the same
+    # with or without the engine's model; the component pairs are what needs the
+    # model's claims, and are unknown without them, never 0 (#421 review).
+    summary = architecture_graph.summarise(edges) | {
+        "registry_to_engine_imports": len(found),
+        "registry_to_engine_edges": (
+            None if engine_model is None else sum(1 for e in edges if e["scope"] == "registry_to_engine")
+        ),
+    }
     adrs = architecture_adrs.place(trees, claims, components, architecture_graph.modules_of(trees))
     return {
         "registry": _repository(REGISTRY_REPO, registry, True, None),
@@ -161,7 +170,7 @@ def collect(
         "gaps": gaps,
         "edges": edges,
         "adrs": adrs,
-        "summary": architecture_graph.summarise(edges)
+        "summary": summary
         | {"adrs_total": len(adrs), "adrs_placed": sum(1 for a in adrs if a["components"])},
     }
 

@@ -238,13 +238,17 @@ def this_repository() -> list[dict]:
     """What this checkout imports from the engine, measured the way the collector measures it."""
     loaded = model.load_model((REPO / "docs/architecture/components.yaml").read_text(encoding="utf-8"))
     claims = {"registry": model.claims_of(loaded["components"])}
-    return graph.engine_imports(graph.imports_of({"registry": WorkingTree(REPO)}, claims))
+    return graph.imports_of({"registry": WorkingTree(REPO)}, claims)
 
 
 class ThisRepositoryTests(unittest.TestCase):
     def test_every_engine_import_is_in_the_baseline_and_every_entry_is_still_imported(self) -> None:
-        found = this_repository()
-        self.assertGreater(len(found), 50)  # the seam is wide, not a corner of it
+        records = this_repository()
+        # The guard is on the code that was read, not on the imports: the ratchet
+        # must allow the seam to shrink to nothing, and this only catches a wrong
+        # directory or ref, which would measure a corner of the repository.
+        self.assertGreater(len({record["file"] for record in records}), 100)
+        found = graph.engine_imports(records)
         baseline = graph.load_baseline((REPO / BASELINE).read_text(encoding="utf-8"))
         self.assertEqual(graph.check_engine_imports(found, baseline), [])
 
@@ -267,16 +271,25 @@ imports:
 class Fixture:
     """This repository and the engine as two small git repositories, with a baseline in this one."""
 
-    def __init__(self, test: unittest.TestCase, *, baseline: str | None = BASELINE_FOR_THE_FIXTURE) -> None:
+    def __init__(
+        self,
+        test: unittest.TestCase,
+        *,
+        baseline: str | None = BASELINE_FOR_THE_FIXTURE,
+        engine_model: bool = True,
+    ) -> None:
         root = Path(tempfile.mkdtemp(prefix="baseline-"))
         test.addCleanup(shutil.rmtree, root, True)
         registry = dict(fx.REGISTRY_FILES)
         if baseline is not None:
             registry[BASELINE] = baseline
+        engine = dict(fx.ENGINE_FILES)
+        if not engine_model:  # the engine's `main` today: the code, and no model
+            engine.pop("docs/architecture/components.yaml")
         self.registry = root / "registry"
         self.engine = root / "engine"
         self.registry_commit = fx.make_repo(self.registry, registry)
-        fx.make_repo(self.engine, fx.ENGINE_FILES)
+        fx.make_repo(self.engine, engine)
 
     def collect(self) -> dict:
         return architecture.collect(self.registry, engine_git=self.engine, engine_ref="main")
@@ -305,6 +318,17 @@ class CollectorTests(unittest.TestCase):
         self.assertIn(f"{BASELINE} is not in opengwas/opengwasdb-stores at", baseline["note"])
         self.assertIn(fixture.registry_commit[:12], baseline["note"])
 
+    def test_the_seam_is_counted_without_the_engines_model(self) -> None:
+        """The engine at `main` has no model yet; the seam is still 5 imports, and its pairs are unknown."""
+        summary = Fixture(self, engine_model=False).collect()["summary"]
+        self.assertEqual(summary["registry_to_engine_imports"], 5)
+        self.assertIsNone(summary["registry_to_engine_edges"])
+
+    def test_with_the_engines_model_the_component_pairs_are_counted(self) -> None:
+        summary = Fixture(self).collect()["summary"]
+        self.assertEqual(summary["registry_to_engine_imports"], 5)
+        self.assertEqual(summary["registry_to_engine_edges"], 4)  # gen->store, gen->model, ogs->cli, tools->cli
+
 
 class StructurePageTests(unittest.TestCase):
     def test_the_page_states_the_baselines_size_next_to_the_seam_counts(self) -> None:
@@ -321,6 +345,14 @@ class StructurePageTests(unittest.TestCase):
         self.assertIn(f"**The engine-import baseline is unknown**: {BASELINE} is not in opengwas/opengwasdb-stores at", page)
         self.assertIn("This repository makes 5 imports of engine modules.", page)
         self.assertNotIn("lists 0 imports", page)
+
+    def test_without_the_engines_model_the_pairs_are_said_to_be_undrawable_not_zero(self) -> None:
+        page = Fixture(self, engine_model=False).page()
+        self.assertIn("5 imports from this repository into the engine", page)
+        self.assertIn("cannot be drawn until the engine's model is at the ref read", page)
+        self.assertIn("lists 5 imports of engine modules", page)
+        self.assertNotIn("0 imports", page)
+        self.assertNotIn("0 component pairs", page)
 
 
 if __name__ == "__main__":
