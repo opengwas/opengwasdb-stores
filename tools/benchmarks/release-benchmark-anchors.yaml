@@ -29,8 +29,21 @@ stores:
   OGS-00008:
     exposure: ukb-b-19953
   OGS-00009:
-    exposure: ukb-b-13414
+    # anchor ukb-b-13414 has no genome-wide hit; the harness derives the PheWAS variant from one
+    exposure: ukb-b-10003
   OGS-00011:
     exposure: GCST000028
+  OGS-00012:
+    exposure: GCST90475091
+  OGS-00013:
+    exposure: GCST90475090
+  OGS-00014:
+    exposure: GCST90475089
+  OGS-00015:
+    # first row GCST90476550 has no genome-wide hit; the harness derives the PheWAS variant from one
+    exposure: GCST90476556
+  OGS-00016:
+    exposure: GCST90479500
   OGS-00017:
-    exposure: finngen-r13-AB1_ACTINOMYCOSIS
+    # first row finngen-r13-AB1_ACTINOMYCOSIS has no genome-wide hit; the harness derives the PheWAS variant from one
+    exposure: finngen-r13-AB1_ARTHROPOD_WIDE
