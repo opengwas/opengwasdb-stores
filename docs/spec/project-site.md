@@ -312,6 +312,77 @@ component's name that appears only in the body places nothing, however often.
 `components` maps a component id to `code` or `title`; an ADR placed nowhere has
 `{}` and is listed on the page.
 
+### Work (`work.json`)
+
+Where live work meets (#419, epic #416). It reads the `board.json` and
+`architecture.json` the same run just wrote to the data directory, so it runs
+after them and is **unavailable, naming which, when either is**
+(`work is unavailable: board is unavailable: ...`). From those two files and the
+branches it places every piece of live work on the components the claims name.
+Agents read this file, not the page; `schema_version` is `1` and changes when a
+key is removed or its meaning changes. Keys are only ever added within a version.
+
+**Owners.** An owner is an open epic whose board `status` is Active, Todo or
+Paused (`kind: epic`); otherwise the epic or ticket a branch's name points at
+that the board does not list (`kind: issue`, status `Off board`, or the status
+of a closed epic); otherwise the branch itself (`kind: branch`, labelled by its
+name). A branch's owner is the epic its name gives (`orch/<epic>/<ticket>`, with an
+optional `-slug` after the ticket; `orch/<epic>-...`), looked up in either repository, else its ticket's epic
+(`fix/issue-345`, `345-...`), else the ticket, else the branch.
+
+**Branches.** A branch counts when it is ahead of `main` and its newest commit
+is within `days` (21) days. Its files are `git diff --name-only -z main...<branch>`.
+The published page reads **pushed** branches only: the engine's bare clone after
+`git fetch origin +refs/heads/*:refs/heads/*`, this repository's checkout as
+`refs/remotes/origin/*` after `git fetch origin`. A failed fetch is recorded in
+`branches.sources[].fetch` and shown on the page, and the refs already there are
+read. The `conflicts` command can add the local branches of other git
+directories (`--local`), which the page never shows. A branch read from two clones
+counts once, as the copy further ahead (a tie keeps the pushed one), and
+`branches.sources[].count` is what each read found.
+
+**Signals.** One row per (component, owner, item, via, state), with `what`, the
+branches (`repo:name`) or cited strings behind it. `via` is `branch`, `cited`
+(an open ticket) or `scope` (an epic's body). The `state` is:
+
+| State | When |
+|---|---|
+| `building` | a branch's diff touches a file the component claims |
+| `active` | an open ticket of an Active epic cites it, and the ticket is not blocked |
+| `waiting` | an open ticket cites it and waits for an open ticket (a blocking edge whose blocker is still open) |
+| `scope` | an epic's body cites it |
+| `planned`, `paused` | an open ticket of a Todo or Paused epic cites it, not blocked |
+| `stale` | a branch whose epic is closed or not live, or whose ticket is closed |
+
+A cited string is resolved through the claims alone, in the repository its text
+is in first: a path as written, a dotted module name as `a/b/c.py` (`src/a/b/c.py`
+here) or its package's `__init__.py`, shortened a name at a time until a claim
+covers it. A string no claim covers places nothing. Closed tickets add nothing.
+
+**Meets.** A component is a meet when two or more owners have `building` or
+`active` signals on it. For every pair of its owners there is a `pairs` entry,
+`coordinated` only when a blocking edge `{waiting, on}` links a specific item of
+one with a specific item of the other, in either direction. A shared epic, or an
+edge between other tickets of the same epics, does not coordinate it, and an
+epic-only branch (`orch/<epic>-integration`), whose item is the branch, has no
+ticket an edge could link. The meet is `coordinated` when all its pairs are.
+
+| Key | Content |
+|---|---|
+| `schema_version` | `1` |
+| `inputs` | `board.collected_at`; `architecture.collected_at` and the `ref`/`commit` read of each repository |
+| `owners` | the owners with at least one signal: `key`, `kind`, `title`, `url`, `status`, `workstream` |
+| `components` | the components with at least one signal: `id`, `name`, `repo` |
+| `signals` | as above: `component`, `owner`, `item`, `via`, `state`, `what` |
+| `meets` | `component`, `owners`, `items` (owner to its items there), `pairs` (`owners`, `coordinated`, `edges`), `coordinated` |
+| `waits` | every open blocking edge among the live epics' tickets: `{item, on}` |
+| `tickets` | every open ticket of a live epic, to its owner (what `conflicts --ticket` reads) |
+| `branches.sources` | per repository read: `repo`, `git_dir`, `main`, `days`, `fetch` (`null`, or `{ok, error}`), `local`, `count` |
+| `branches.list` | `repo`, `name`, `ahead`, `committed`, `files`, `epic`, `ticket` (from the name), `local`, and the resolved `owner`, `item`, `components` |
+| `summary` | `owners`, `meets`, `coordinated`, `uncoordinated`, `branches` |
+
+The page's tiles are `summary`; every other figure on it is a count of these rows.
+
 ### The command's output and exit status
 
 One line per source, in this order (the architecture line is longer: components,
