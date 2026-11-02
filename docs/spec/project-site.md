@@ -195,6 +195,13 @@ text cites and `project_site.collect.citations` says which tracked file a path m
   **more than one** file ends that way the citation is **unresolved**: it places
   nothing, is never guessed, and is listed with its candidates (`work.json`
   `unresolved`, a count on the Work page).
+- **A path that is not found.** A cited *code* path that is no tracked file and has no
+  unique suffix match is attributed by the claims all the same, and its signal has
+  `path: "not found"`; it is also listed in `work.json` `not_found` (owner, item, cited,
+  component), counted in `summary.not_found`, and listed on the Work page as "cited paths
+  not found (attributed to a component by its claim)", so a typo is visible. Without
+  `files` (an older collection), or for a non-code path (only code files are listed),
+  existence was not checked and the signal says `unchecked`, never `found`.
 - **Dotted names.** A module name means `a/b/c.py` (`src/a/b/c.py` in this
   repository) or its package's `__init__.py`, shortened a name at a time.
 
@@ -406,9 +413,10 @@ branches (`repo:name`) or cited strings behind it. `via` is `branch`, `cited`
 
 A cited string is placed through the claims, in the repository its text is in first,
 after it is resolved to a tracked file as [Citations](#citations) say (from
-`architecture.json`'s `files`). A path that is no tracked code file is judged as
-written; a citation that is ambiguous is `unresolved`, and one no claim covers places
-nothing. Closed tickets add nothing.
+`architecture.json`'s `files`). A citation that is ambiguous is `unresolved`, and one
+no claim covers places nothing. A cited path that matches no tracked file keeps its
+signal on the component that claims it (a ticket may mean to create the file), but is
+**marked**: see `path` below. Closed tickets add nothing.
 
 **Meets.** A component is a meet when two or more owners have `building` or
 `active` signals on it. For every pair of its owners there is a `pairs` entry,
@@ -441,8 +449,9 @@ engine files or an engine branch exits 2. Registry-side meets are still measured
 | `inputs` | `board.collected_at`; `architecture.collected_at` and the `ref`/`commit` read of each repository |
 | `owners` | the owners with at least one signal: `key`, `kind`, `title`, `url`, `status`, `workstream` |
 | `components` | the components with at least one signal: `id`, `name`, `repo` |
-| `signals` | as above: `component`, `owner`, `item`, `via`, `state`, `what` |
+| `signals` | as above: `component`, `owner`, `item`, `via`, `state`, `path`, `what`; `path` is `found` (a tracked file, or a branch's file), `not found`, `unchecked` (existence not known) or `n/a` (a dotted module) |
 | `unmeasured` | `{}`, or `{engine: reason}` when the engine's model is missing (see above) |
+| `not_found` | the cited code paths no tracked file matches, attributed by claim: `owner`, `item`, `cited`, `component` |
 | `unresolved` | the citations of live tickets and epics that more than one tracked file ends with: `owner`, `item`, `cited`, `candidates` (the paths) |
 | `meets` | `component`, `owners`, `items` (owner to its items there), `pairs` (`owners`, `coordinated`, `coordination`, `edges`, `epic_branches`), `coordinated`, `coordination` |
 | `plans` | the tickets' planned changes and, for a closed ticket, what was checked, as above (#422) |
@@ -450,7 +459,7 @@ engine files or an engine branch exits 2. Registry-side meets are still measured
 | `tickets` | every open ticket of a live epic, to its owner (what `conflicts --ticket` reads) |
 | `branches.sources` | per repository read: `repo`, `git_dir`, `main`, `days`, `fetch` (`null`, or `{ok, error}`), `local`, `count` |
 | `branches.list` | `repo`, `name`, `ahead`, `committed`, `files`, `epic`, `ticket` (from the name), `local`, and the resolved `owner`, `item`, `components` |
-| `summary` | `owners`, `meets`, `coordinated`, `uncoordinated`, `unlinkable` (these three add up to `meets`), `branches`, `unresolved` (the length of `unresolved`) |
+| `summary` | `owners`, `meets`, `coordinated`, `uncoordinated`, `unlinkable` (these three add up to `meets`), `branches`, `unresolved`, `not_found` (the lengths of those lists) |
 
 The page's tiles are `summary`; every other figure on it is a count of these rows.
 

@@ -73,8 +73,28 @@ class WorkCitationTests(unittest.TestCase):
         result = work_of("encoding/codec.py")
         self.assertEqual((result["unresolved"], result["summary"]["unresolved"]), ([], 0))
 
-    def test_a_path_in_no_listing_still_resolves_through_the_claims_as_written(self) -> None:
-        self.assertEqual(states(work_of("opengwasdb/encoding/new_file.py"), "enc"), {("opengwasdb#58", "opengwasdb#350"): "active"})
+    def test_a_nonexistent_code_path_keeps_its_claimed_signal_marked_not_found(self) -> None:
+        result = work_of("opengwasdb/encoding/new_file.py")
+        self.assertEqual(states(result, "enc"), {("opengwasdb#58", "opengwasdb#350"): "active"})
+        self.assertEqual([s["path"] for s in result["signals"]], ["not found"])
+        self.assertEqual(result["not_found"], [{"owner": "opengwasdb#58", "item": "opengwasdb#350",
+                                                 "cited": "opengwasdb/encoding/new_file.py", "component": "enc"}])
+        self.assertEqual(result["summary"]["not_found"], 1)
+
+    def test_an_existing_file_is_an_unmarked_signal(self) -> None:
+        result = work_of("opengwasdb/encoding/codec.py")
+        self.assertEqual([s["path"] for s in result["signals"]], ["found"])
+        self.assertEqual((result["not_found"], result["summary"]["not_found"]), ([], 0))
+
+    def test_without_a_file_inventory_existence_is_unchecked_not_found(self) -> None:
+        result = compute(board(epic("opengwasdb#58", "Active", [ticket("opengwasdb#350", cited=["opengwasdb/encoding/new_file.py"])])))
+        self.assertEqual([s["path"] for s in result["signals"]], ["unchecked"])
+        self.assertEqual(result["not_found"], [])
+
+    def test_a_non_code_path_is_unchecked_because_only_code_files_are_listed(self) -> None:
+        result = work_of("opengwasdb/encoding/README.md")
+        self.assertEqual([s["path"] for s in result["signals"]], ["unchecked"])
+        self.assertEqual(result["not_found"], [])
 
 
 if __name__ == "__main__":

@@ -169,6 +169,7 @@ def render_work(documents: Mapping[str, Document | None]) -> str:
     lines += _fetch_failures(data)
     lines += _unmeasured(data)
     lines += _unresolved(data)
+    lines += _not_found(data)
     summary = data.get("summary") or {}
     lines += [
         "| Owners | Meets | Coordinated | Uncoordinated | Unlinkable | Branches |",
@@ -254,6 +255,26 @@ def _unresolved(data: Document) -> list[str]:
     for r in rows:
         candidates = ", ".join(pages._code(str(c)) for c in r.get("candidates") or [])
         lines.append(f"- {pages.escape(str(r.get('item')))} cites {pages._code(r.get('cited'))}: {candidates}")
+    return lines + [""]
+
+
+def _not_found(data: Document) -> list[str]:
+    """Cited code paths no tracked file matches: still attributed by claim, but a typo must be visible."""
+    rows = [r for r in data.get("not_found") or [] if isinstance(r, Mapping)]
+    if not rows:
+        return []
+    names = {c["id"]: c["name"] for c in data.get("components") or [] if isinstance(c, Mapping)}
+    plural = "path was" if len(rows) == 1 else "paths were"
+    lines = [
+        f"> **{len(rows)} cited {plural} not found**: no tracked file is, or ends with, each path. The work is "
+        "still shown on the component that claims the path, in case the ticket means to create the file.",
+        "",
+        "Cited paths not found (attributed to a component by its claim):",
+        "",
+    ]
+    for r in rows:
+        cid = str(r.get("component"))
+        lines.append(f"- {pages.escape(str(r.get('item')))} cites {pages._code(r.get('cited'))}: {pages.escape(str(names.get(cid, cid)))}")
     return lines + [""]
 
 

@@ -139,6 +139,16 @@ class WorkPageTests(unittest.TestCase):
         self.assertIn("opengwasdb/a/x/dup.py", page)
         self.assertNotIn("could not be placed", self.page)
 
+    def test_not_found_citations_are_listed_with_their_claimed_component(self) -> None:
+        document = work()
+        document["not_found"] = [{"owner": "opengwasdb#58", "item": "opengwasdb#350", "cited": "encoding/typo.py", "component": "enc"}]
+        document["summary"]["not_found"] = 1
+        page = render(document)
+        self.assertIn("**1 cited path was not found**", page)
+        self.assertIn("Cited paths not found (attributed to a component by its claim)", page)
+        self.assertIn("opengwasdb#350 cites `encoding/typo.py`: Store Encoding", page)
+        self.assertNotIn("not found", self.page)
+
     def test_uncoordinated_meets_come_first(self) -> None:
         self.assertLess(self.page.index("### Query"), self.page.index("### Store Encoding"))
 

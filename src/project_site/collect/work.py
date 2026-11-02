@@ -64,26 +64,37 @@ def compute(
     listed = architecture.get("files")
     listings = {k: v for k, v in listed.items() if isinstance(v, list)} if isinstance(listed, Mapping) else {}
 
-    def place(strings: Sequence[str], home: str) -> tuple[dict[str, list[str]], list[tuple[str, list[str]]]]:
-        """Component id -> the cited strings that land on it, and the citations that stayed ambiguous."""
-        found: dict[str, list[str]] = defaultdict(list)
+    is_code = {"registry": model_rules.is_registry_code, "engine": model_rules.is_engine_code}
+
+    def place(strings: Sequence[str], home: str) -> tuple[list[tuple[str, str, str]], list[tuple[str, list[str]]]]:
+        """`(component, cited string, path status)` for each placed citation, and the ambiguous ones.
+
+        The status is `found` (a tracked file), `not found` (a code path no tracked file
+        is, nor ends with: attributed by its claim all the same), `unchecked` (no file
+        inventory, or not a code path, so existence is not known) or `n/a` (a dotted module).
+        """
+        placed: list[tuple[str, str, str]] = []
         unresolved: list[tuple[str, list[str]]] = []
         for text in strings:
+            status = "n/a"
             if "/" in text:
                 got = citations.resolve_path(text, home, listings)
                 if got.candidates:
                     unresolved.append((text, sorted(path for _, path in got.candidates)))
                     continue
-                # A file tracked as such is that file; a path no listing has (a non-code file,
-                # or an older collection) is judged as written.
-                targets = [got.found] if got.found else [(kind, citations.without_line(text)) for kind in (home, *[k for k in claims if k != home])]
+                if got.found:
+                    status, targets = "found", [got.found]
+                else:
+                    targets = [(kind, citations.without_line(text)) for kind in (home, *[k for k in claims if k != home])]
             else:
                 targets = [(kind, path) for kind in (home, *[k for k in claims if k != home]) for path in _modules(text, kind)]
             for kind, path in targets:
                 if cid := model_rules.owner(claims[kind], path):
-                    found[cid].append(text)
+                    if "/" in text and status != "found":
+                        status = "not found" if kind in listings and is_code[kind](path) else "unchecked"
+                    placed.append((cid, text, status))
                     break
-        return found, unresolved
+        return placed, unresolved
 
     epics = {e["key"]: e for e in board.get("epics") or [] if e.get("state") == "OPEN" and e.get("status") in LIVE_STATUSES}
     every_epic = {e["key"]: e for e in board.get("epics") or []}
@@ -100,26 +111,31 @@ def compute(
             waits += [(child["key"], b["key"]) for b in child.get("blocked_by") or [] if b.get("state") == "OPEN"]
     blocked = {item for item, _ in waits}
 
-    signals: dict[tuple[str, str, str, str, str], set[str]] = defaultdict(set)
+    signals: dict[tuple[str, str, str, str, str, str], set[str]] = defaultdict(set)
+    not_found_rows: set[tuple[str, str, str, str]] = set()
     unresolved_rows: set[tuple[str, str, str, tuple[str, ...]]] = set()
 
-    def signal(cid: str, owner: str, item: str, via: str, state: str, what: Sequence[str]) -> None:
-        signals[(cid, owner, item, via, state)].update(what)
+    def signal(cid: str, owner: str, item: str, via: str, state: str, what: Sequence[str], path: str = "found") -> None:
+        signals[(cid, owner, item, via, state, path)].update(what)
+
+    def cited_signals(owner: str, item: str, via: str, state: str, placed: Sequence[tuple[str, str, str]]) -> None:
+        for cid, text, path in placed:
+            signal(cid, owner, item, via, state, [text], path)
+            if path == "not found":
+                not_found_rows.add((owner, item, text, cid))
 
     for key, e in epics.items():
         home = REPO_KIND[key.split("#")[0]]
         placed, ambiguous = place(e.get("cited") or [], home)
         unresolved_rows |= {(key, key, text, tuple(paths)) for text, paths in ambiguous}
-        for cid, cited in placed.items():
-            signal(cid, key, key, "scope", "scope", cited)
+        cited_signals(key, key, "scope", "scope", placed)
         for child in e.get("children") or []:
             if child["state"] != "OPEN":
                 continue
             state = "waiting" if child["key"] in blocked else STATUS_STATE[e["status"]]
             placed, ambiguous = place(child.get("cited") or [], REPO_KIND[child["key"].split("#")[0]])
             unresolved_rows |= {(key, child["key"], text, tuple(paths)) for text, paths in ambiguous}
-            for cid, cited in placed.items():
-                signal(cid, key, child["key"], "cited", state, cited)
+            cited_signals(key, child["key"], "cited", state, placed)
 
     # A branch can be read from two clones (pushed, and a host's own): it counts once, and the
     # copy further ahead wins, because it holds commits the other lacks; a tie keeps the first read.
@@ -141,8 +157,8 @@ def compute(
         listed.append({**b, "owner": owner, "item": item, "components": cids})
 
     rows = [
-        {"component": cid, "owner": owner, "item": item, "via": via, "state": state, "what": sorted(what)}
-        for (cid, owner, item, via, state), what in sorted(signals.items())
+        {"component": cid, "owner": owner, "item": item, "via": via, "state": state, "path": path, "what": sorted(what)}
+        for (cid, owner, item, via, state, path), what in sorted(signals.items())
     ]
     live: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
     for row in rows:
@@ -184,6 +200,9 @@ def compute(
             {"owner": o, "item": i, "cited": text, "candidates": list(paths)}
             for o, i, text, paths in sorted(unresolved_rows)
         ],
+        "not_found": [
+            {"owner": o, "item": i, "cited": text, "component": c} for o, i, text, c in sorted(not_found_rows)
+        ],
         "meets": meets,
         "plans": plan_reader.listed(board, architecture),
         "tickets": {c["key"]: key for key, e in epics.items() for c in e.get("children") or [] if c["state"] == "OPEN"},
@@ -197,6 +216,7 @@ def compute(
             "unlinkable": sum(1 for m in meets if m["coordination"] == "unlinkable"),
             "branches": len(listed),
             "unresolved": len(unresolved_rows),
+            "not_found": len(not_found_rows),
         },
     }
 
