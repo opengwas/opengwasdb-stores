@@ -279,7 +279,7 @@ placement are measured.
 | `gaps.<repo>` | `unclaimed` (code files no component claims, by path) and `stale` (`{path, component}` claims matching no tracked file) |
 | `baseline` | `path`, `entries` (how many imports the committed baseline lists; `null` with a `note` when it is not in this repository at the commit read, never 0) and `measured` (the engine imports the code makes) |
 | `edges` | `from`, `to`, `imports`, `scope` (`engine`, `registry`, `registry_to_engine`), `upward` |
-| `upward_imports` | each engine import that goes up a layer (#419), sorted by `file` then `name`: `file` (the importing file), `name` (the absolute imported name, a relative import resolved), `from`, `to` (component ids), `from_layer`, `to_layer`. The engine's layering baseline lists the same pairs |
+| `upward_imports` | each engine import that goes up a layer (#419), sorted by `file` then `name`: `file` (the importing file), `name` (the absolute imported name, a relative import resolved), `from`, `to` (component ids), `from_layer`, `to_layer`. The engine's layering baseline lists the same pairs. `null` when the engine has no model at the ref (the layering cannot be measured), like `summary.upward_imports`; never `[]` |
 | `adrs` | every `docs/adr/NNNN-*.md` of both repositories: `repo`, `number`, `path`, `title`, `status`, `url`, `components` |
 | `summary` | `edges`, `upward_edges`, `upward_imports`, `registry_to_engine_edges`, `registry_to_engine_imports`, `adrs_total`, `adrs_placed`; the engine's half of the graph is `null` without its model (see below) |
 
@@ -389,7 +389,7 @@ with a `coordination`:
   specific item of the other, in either direction. A shared epic, or an edge between
   other tickets of the same epics, does not coordinate it.
 - `unlinkable`: no edge links them, and one side's work is an **epic's integration
-  branch** (`orch/<epic>-slug`), whose item is the branch (`branch:<repo>:<name>`):
+  branch** (`orch/<epic>-slug`), whose item is the branch (`branch:<repo>:<name>`; decided by the branch's own name, so it holds whether or not the board lists the epic):
   it belongs to the epic as a whole and has no ticket an edge could link, so the
   absence of an edge proves nothing. `epic_branches` names those branches.
 - `uncoordinated`: no edge, and every item is a ticket (or a branch on no epic).
@@ -430,7 +430,9 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
   claims that match no tracked file, and the engine's `docs/architecture/layering-baseline.yaml`
   at the ref read, entry by entry (importing file and imported name, never a count, so a new import
   cannot hide behind a fixed one): each `new:` import not in the baseline and each `stale:` entry no longer
-  imported is named; no baseline file is not a failure. Exit 1 on any gap or any disagreement.
+  imported is named; no baseline file is not a failure, but a repository or file that
+  cannot be read, a file that is not YAML, has no `allowed` list or has an entry that is not a
+  `file` and a `name` of text is: exit 2, never a pass. Exit 1 on any gap or any disagreement.
 - `conflicts --branch B [--repo engine|registry]` or `--files PATH... [--ticket repo#n]`:
   the components the work touches, the other owners' `building` or `active` work on each
   with its ticket, epic, branch and cited files, and whether a blocking edge links `--ticket`
