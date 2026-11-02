@@ -84,7 +84,7 @@ def _status(text: str) -> str:
 
 
 # A dotted name whose first segment may be any package: the board collector keeps these
-# unresolved, and `resolve_cited` keeps only the ones that are modules. A name ending in a
+# unresolved, and the Work map keeps only the ones its claims cover. A name ending in a
 # file extension or a domain (`pixi.toml`, `github.com`) is not a module.
 GENERIC_DOTTED = re.compile(r"(?<![\w./-])([a-z_][a-z0-9_]{2,}(?:\.[A-Za-z_][A-Za-z_0-9]*)+)")
 NOT_MODULE_SUFFIX = frozenset(
@@ -103,20 +103,11 @@ def cited_strings(text: str | None) -> list[str]:
 
     A path is as written (a GitHub link to a file gives its path); a dotted name is any
     that is not a file name or a domain. Whether each names real code is decided later,
-    against the trees, by `resolve_cited`.
+    against the claims, by the work collector.
     """
     names, urls, paths = _extract(text or "", GENERIC_DOTTED)
     names = [n for n in names if n.rsplit(".", 1)[1] not in NOT_MODULE_SUFFIX]
     return sorted({*names, *(path.rstrip(".,;:!") for _, path in urls), *paths})
-
-
-def resolve_cited(
-    cited: Sequence[str], home: str, trees: Mapping[str, Any], modules: Mapping[str, tuple[str, str]]
-) -> set[tuple[str, str]]:
-    """The `(repository, file)` pairs `cited_strings` names that exist, searching `home` first."""
-    names = [c for c in cited if "/" not in c]
-    paths = [c for c in cited if "/" in c]
-    return _resolve(names, [], paths, home, trees, modules)
 
 
 def _cited_files(

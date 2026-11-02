@@ -67,7 +67,8 @@ def _describe_work(result: dict[str, Any]) -> str:
     failed = [s["repo"] for s in result["branches"]["sources"] if (s.get("fetch") or {}).get("ok") is False]
     return (
         f"work: {summary['owners']} owners, {summary['meets']} meets ({summary['coordinated']} coordinated, "
-        f"{summary['uncoordinated']} uncoordinated), {summary['branches']} branches"
+        f"{summary['uncoordinated']} uncoordinated, {summary['unlinkable']} unlinkable), {summary['branches']} branches"
+        + (f", ENGINE SIDE NOT MEASURED" if result.get("unmeasured", {}).get("engine") else "")
         + (f", BRANCH FETCH FAILED for {', '.join(failed)}" if failed else "")
     )
 

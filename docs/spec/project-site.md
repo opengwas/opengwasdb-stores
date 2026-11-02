@@ -383,11 +383,28 @@ covers it. A string no claim covers places nothing. Closed tickets add nothing.
 
 **Meets.** A component is a meet when two or more owners have `building` or
 `active` signals on it. For every pair of its owners there is a `pairs` entry,
-`coordinated` only when a blocking edge `{waiting, on}` links a specific item of
-one with a specific item of the other, in either direction. A shared epic, or an
-edge between other tickets of the same epics, does not coordinate it, and an
-epic-only branch (`orch/<epic>-integration`), whose item is the branch, has no
-ticket an edge could link. The meet is `coordinated` when all its pairs are.
+with a `coordination`:
+
+- `coordinated`: a blocking edge `{waiting, on}` links a specific item of one with a
+  specific item of the other, in either direction. A shared epic, or an edge between
+  other tickets of the same epics, does not coordinate it.
+- `unlinkable`: no edge links them, and one side's work is an **epic's integration
+  branch** (`orch/<epic>-slug`), whose item is the branch (`branch:<repo>:<name>`):
+  it belongs to the epic as a whole and has no ticket an edge could link, so the
+  absence of an edge proves nothing. `epic_branches` names those branches.
+- `uncoordinated`: no edge, and every item is a ticket (or a branch on no epic).
+
+`coordinated` on a pair stays `true` only for `coordinated`. The meet's `coordination`
+is `uncoordinated` if any pair is, else `unlinkable` if any pair is, else `coordinated`;
+its `coordinated` is `true` only for the last. The page and `conflicts` never call an
+`unlinkable` meet uncoordinated.
+
+**Unmeasured.** Without the engine's architecture model at the ref read
+(`architecture.engine.model` false) no engine file belongs to a component, so
+engine-side work is **unknown**, never "no work": `unmeasured` is
+`{"engine": <reason>}` (empty otherwise), engine signals and meets are not
+produced, the page says engine-side work was not measured, and `conflicts` on
+engine files or an engine branch exits 2. Registry-side meets are still measured.
 
 | Key | Content |
 |---|---|
@@ -396,12 +413,13 @@ ticket an edge could link. The meet is `coordinated` when all its pairs are.
 | `owners` | the owners with at least one signal: `key`, `kind`, `title`, `url`, `status`, `workstream` |
 | `components` | the components with at least one signal: `id`, `name`, `repo` |
 | `signals` | as above: `component`, `owner`, `item`, `via`, `state`, `what` |
-| `meets` | `component`, `owners`, `items` (owner to its items there), `pairs` (`owners`, `coordinated`, `edges`), `coordinated` |
+| `unmeasured` | `{}`, or `{engine: reason}` when the engine's model is missing (see above) |
+| `meets` | `component`, `owners`, `items` (owner to its items there), `pairs` (`owners`, `coordinated`, `coordination`, `edges`, `epic_branches`), `coordinated`, `coordination` |
 | `waits` | every open blocking edge among the live epics' tickets: `{item, on}` |
 | `tickets` | every open ticket of a live epic, to its owner (what `conflicts --ticket` reads) |
 | `branches.sources` | per repository read: `repo`, `git_dir`, `main`, `days`, `fetch` (`null`, or `{ok, error}`), `local`, `count` |
 | `branches.list` | `repo`, `name`, `ahead`, `committed`, `files`, `epic`, `ticket` (from the name), `local`, and the resolved `owner`, `item`, `components` |
-| `summary` | `owners`, `meets`, `coordinated`, `uncoordinated`, `branches` |
+| `summary` | `owners`, `meets`, `coordinated`, `uncoordinated`, `unlinkable` (these three add up to `meets`), `branches` |
 
 The page's tiles are `summary`; every other figure on it is a count of these rows.
 
@@ -416,9 +434,9 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
 - `conflicts --branch B [--repo engine|registry]` or `--files PATH... [--ticket repo#n]`:
   the components the work touches, the other owners' `building` or `active` work on each
   with its ticket, epic, branch and cited files, and whether a blocking edge links `--ticket`
-  (or the branch's ticket) to theirs. Exit 1 when any meet is uncoordinated; 0 when none is;
-  **2 when it cannot decide** (a source is unavailable, or the branch is not in the
-  collection). `--local GIT_DIR...` adds those clones' local branches, `--refresh` fetches first.
+  (or the branch's ticket) to theirs. Exit 1 when any meet is uncoordinated or unlinkable (asking a person is the safe default; the message says which); 0 when none is;
+  **2 when it cannot decide** (a source is unavailable, the branch is not in the
+  collection, a git directory or branch diff cannot be read, or the work is the engine's and its model is missing). `--local GIT_DIR...` adds those clones' local branches, `--refresh` fetches first.
 
 ### The command's output and exit status
 

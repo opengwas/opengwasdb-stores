@@ -166,12 +166,14 @@ def render_work(documents: Mapping[str, Document | None]) -> str:
     )
     lines += _measured_at(data)
     lines += _fetch_failures(data)
+    lines += _unmeasured(data)
     summary = data.get("summary") or {}
     lines += [
-        "| Owners | Meets | Coordinated | Uncoordinated | Branches |",
-        "|---:|---:|---:|---:|---:|",
+        "| Owners | Meets | Coordinated | Uncoordinated | Unlinkable | Branches |",
+        "|---:|---:|---:|---:|---:|---:|",
         "| " + " | ".join(
-            pages._figure(summary.get(k)) for k in ("owners", "meets", "coordinated", "uncoordinated", "branches")
+            pages._figure(summary.get(k))
+            for k in ("owners", "meets", "coordinated", "uncoordinated", "unlinkable", "branches")
         ) + " |",
         "",
     ]
@@ -189,7 +191,9 @@ def render_work(documents: Mapping[str, Document | None]) -> str:
         "",
         "A meet is two or more owners with `building` or `active` work on one component. It is "
         "**coordinated** only when a blocking edge links two specific tickets of the owners, in either "
-        "direction; sharing an epic, or an edge between other tickets of the same epics, does not count.",
+        "direction; sharing an epic, or an edge between other tickets of the same epics, does not count. "
+        "A meet that involves an epic's integration branch is **unlinkable**: the branch belongs to the epic "
+        "as a whole, so no edge can link it to one ticket, and \"uncoordinated\" would claim more than was checked.",
         "",
     ]
     return "\n".join(lines).rstrip() + "\n"
@@ -222,11 +226,26 @@ def _fetch_failures(data: Document) -> list[str]:
     return lines
 
 
+def _unmeasured(data: Document) -> list[str]:
+    """Work that could not be placed: unknown, so the page says so instead of showing no meets."""
+    reason = (data.get("unmeasured") or {}).get("engine")
+    if not reason:
+        return []
+    return [
+        f"> **Engine-side work was not measured**: {pages._cell(reason)}. Without the engine's claims no engine file "
+        "belongs to a component, so the meets shown are this repository's only; an engine meet is not ruled out.",
+        "",
+    ]
+
+
 def _owner(key: str, owners: Mapping[str, Mapping[str, Any]]) -> str:
     found = owners.get(key) or {}
     link = pages._link(key, found.get("url"))
     title = found.get("title")
     return f"{link} {pages.escape(str(title))}" if title and title != key else link
+
+
+_ORDER = {"uncoordinated": 0, "unlinkable": 1, "coordinated": 2}
 
 
 def _meets(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) -> list[str]:
@@ -235,7 +254,7 @@ def _meets(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) 
         return ["No two owners have building or active work on the same component.", ""]
     signals = [s for s in data.get("signals") or [] if isinstance(s, Mapping)]
     lines: list[str] = []
-    for meet in sorted(meets, key=lambda m: (m.get("coordinated") is True, str(m.get("component")))):
+    for meet in sorted(meets, key=lambda m: (_ORDER.get(m.get("coordination"), 0), str(m.get("component")))):
         cid = meet["component"]
         lines += [f"### {pages.escape(str(names.get(cid, cid)))}", ""]
         for owner in meet["owners"]:
@@ -248,9 +267,16 @@ def _meets(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) 
         lines.append("")
         for pair in meet.get("pairs") or []:
             a, b = pair["owners"]
-            if pair.get("coordinated"):
+            kind = pair.get("coordination") or ("coordinated" if pair.get("coordinated") else "uncoordinated")
+            if kind == "coordinated":
                 edges = "; ".join(f"{pages.escape(e['waiting'])} waits for {pages.escape(e['on'])}" for e in pair["edges"])
                 lines.append(f"**Coordinated**: {edges}.")
+            elif kind == "unlinkable":
+                why = "; ".join(
+                    f"{pages._code(name)} belongs to an epic as a whole, so no blocking edge can link it to a single ticket"
+                    for name in pair.get("epic_branches") or [])
+                lines.append(f"**Unlinkable**: {why}. Whether {pages.escape(a)} and {pages.escape(b)} are coordinated "
+                             "can't be checked ticket by ticket, so ask a person.")
             else:
                 mine, theirs = (", ".join(pages.escape(i) for i in meet["items"].get(o, [])) for o in (a, b))
                 lines.append(f"**Uncoordinated**: no blocking edge links {mine} ({pages.escape(a)}) and {theirs} ({pages.escape(b)}).")

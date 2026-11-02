@@ -17,7 +17,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from work_fixtures import ARCHITECTURE, ENGINE, STORES, board, branch, branch_set, compute, epic, states, ticket
+from work_fixtures import ARCHITECTURE, ENGINE, NO_ENGINE_MODEL, STORES, board, branch, branch_set, compute, epic, states, ticket
 
 from project_site.collect import work
 from project_site.collect.common import CollectError
@@ -39,8 +39,10 @@ class MeetTests(unittest.TestCase):
                 "component": "enc",
                 "owners": ["opengwasdb#10", "opengwasdb#20"],
                 "items": {"opengwasdb#10": ["opengwasdb#11"], "opengwasdb#20": ["opengwasdb#21"]},
-                "pairs": [{"owners": ["opengwasdb#10", "opengwasdb#20"], "coordinated": False, "edges": []}],
+                "pairs": [{"owners": ["opengwasdb#10", "opengwasdb#20"], "coordinated": False, "coordination": "uncoordinated",
+                           "edges": [], "epic_branches": []}],
                 "coordinated": False,
+                "coordination": "uncoordinated",
             }],
         )
         self.assertEqual(states(result, "query"), {("opengwasdb#20", "opengwasdb#21"): "building"})
@@ -70,8 +72,8 @@ class MeetTests(unittest.TestCase):
         self.assertTrue(meet["coordinated"])
         self.assertEqual(
             meet["pairs"],
-            [{"owners": ["opengwasdb#347", "opengwasdb#58"], "coordinated": True,
-              "edges": [{"waiting": "opengwasdb#338", "on": "opengwasdb#350"}]}],
+            [{"owners": ["opengwasdb#347", "opengwasdb#58"], "coordinated": True, "coordination": "coordinated",
+              "edges": [{"waiting": "opengwasdb#338", "on": "opengwasdb#350"}], "epic_branches": []}],
         )
 
     def test_an_edge_in_the_other_direction_coordinates_it_too(self) -> None:
@@ -115,6 +117,89 @@ class MeetTests(unittest.TestCase):
             branch_set(branch("orch/10/12", ["opengwasdb/encoding/b.py"], epic="opengwasdb#10", ticket="opengwasdb#12")),
         )
         self.assertEqual(result["meets"], [])
+
+
+class UnmeasuredEngineTests(unittest.TestCase):
+    """Without the engine's model no engine file belongs to a component: unknown, never "no meets"."""
+
+    def result(self) -> dict:
+        return compute(
+            board(epic("opengwasdb#10", "Active", [ticket("opengwasdb#11", cited=["opengwasdb/encoding/a.py"])]),
+                  epic("opengwasdb#20", "Active", [ticket("opengwasdb#21", cited=["opengwasdb/encoding/a.py"])]),
+                  epic("opengwasdb-stores#30", "Active", [ticket("opengwasdb-stores#31"), ticket("opengwasdb-stores#32")])),
+            branch_set(
+                branch("orch/30/31", ["src/project_site/a.py"], repo=STORES, epic="opengwasdb-stores#30", ticket="opengwasdb-stores#31"),
+                branch("orch/30/32", ["src/project_site/b.py"], repo=STORES, epic="opengwasdb-stores#30", ticket="opengwasdb-stores#32"),
+                repo=STORES),
+            architecture=NO_ENGINE_MODEL,
+        )
+
+    def test_engine_side_work_is_reported_unmeasured_with_the_reason(self) -> None:
+        self.assertEqual(
+            self.result()["unmeasured"],
+            {"engine": "docs/architecture/components.yaml is not in opengwas/opengwasdb at main (eeeeeeeeeeee)"},
+        )
+
+    def test_a_measured_engine_has_nothing_unmeasured(self) -> None:
+        self.assertEqual(compute(board()) ["unmeasured"], {})
+
+    def test_engine_signals_are_not_invented_and_registry_work_is_still_measured(self) -> None:
+        result = self.result()
+        self.assertEqual({s["component"] for s in result["signals"]}, {"pages"})
+
+    def test_two_engine_tickets_citing_one_file_are_no_meet_but_say_why_not(self) -> None:
+        self.assertEqual(self.result()["meets"], [])  # one owner on `pages`; the engine's two are unknown
+
+
+class UnlinkableTests(unittest.TestCase):
+    def result(self, *, edge: bool = False) -> dict:
+        return compute(
+            board(epic("opengwasdb#58", "Active", [ticket("opengwasdb#57")]),
+                  epic("opengwasdb#347", "Active", [ticket("opengwasdb#338", blocked_by=["opengwasdb#57"] if edge else None)])),
+            branch_set(
+                branch("orch/58-deepen-modules", ["opengwasdb/encoding/a.py"], epic="opengwasdb#58"),
+                branch("orch/347/338", ["opengwasdb/encoding/b.py"], epic="opengwasdb#347", ticket="opengwasdb#338"),
+            ),
+        )
+
+    def test_a_meet_with_an_epic_integration_branch_is_unlinkable_not_uncoordinated(self) -> None:
+        meet = self.result()["meets"][0]
+        self.assertEqual(meet["coordination"], "unlinkable")
+        self.assertFalse(meet["coordinated"])
+        self.assertEqual(meet["pairs"][0]["coordination"], "unlinkable")
+        self.assertEqual(meet["pairs"][0]["epic_branches"], ["opengwasdb:orch/58-deepen-modules"])
+
+    def test_summary_counts_unlinkable_apart_from_uncoordinated(self) -> None:
+        self.assertEqual(
+            self.result()["summary"],
+            {"owners": 2, "meets": 1, "coordinated": 0, "uncoordinated": 0, "unlinkable": 1, "branches": 2},
+        )
+
+    def test_a_ticket_level_meet_without_an_edge_stays_uncoordinated(self) -> None:
+        result = compute(
+            board(epic("opengwasdb#10", "Active", [ticket("opengwasdb#11")]), epic("opengwasdb#20", "Active", [ticket("opengwasdb#21")])),
+            branch_set(branch("orch/10/11", ["opengwasdb/encoding/a.py"], epic="opengwasdb#10", ticket="opengwasdb#11"),
+                       branch("orch/20/21", ["opengwasdb/encoding/b.py"], epic="opengwasdb#20", ticket="opengwasdb#21")),
+        )
+        self.assertEqual(result["meets"][0]["coordination"], "uncoordinated")
+        self.assertEqual(result["meets"][0]["pairs"][0]["epic_branches"], [])
+
+    def test_an_unlinked_branch_with_no_epic_is_not_called_unlinkable(self) -> None:
+        result = compute(
+            board(epic("opengwasdb#10", "Active", [ticket("opengwasdb#11")])),
+            branch_set(branch("orch/10/11", ["opengwasdb/encoding/a.py"], epic="opengwasdb#10", ticket="opengwasdb#11"),
+                       branch("scratch", ["opengwasdb/encoding/b.py"])),
+        )
+        self.assertEqual(result["meets"][0]["coordination"], "uncoordinated")
+
+    def test_an_edge_between_tickets_still_coordinates_a_meet_that_has_an_epic_branch(self) -> None:
+        result = compute(
+            board(epic("opengwasdb#58", "Active", [ticket("opengwasdb#57", cited=["opengwasdb/encoding/c.py"])]),
+                  epic("opengwasdb#347", "Active", [ticket("opengwasdb#338", blocked_by=["opengwasdb#57"])])),
+            branch_set(branch("orch/58-deepen-modules", ["opengwasdb/encoding/a.py"], epic="opengwasdb#58"),
+                       branch("orch/347/338", ["opengwasdb/encoding/b.py"], epic="opengwasdb#347", ticket="opengwasdb#338")),
+        )
+        self.assertEqual(result["meets"][0]["coordination"], "coordinated")
 
 
 class StateTests(unittest.TestCase):
@@ -165,7 +250,7 @@ class StateTests(unittest.TestCase):
     def test_the_summary_counts_what_the_lists_hold(self) -> None:
         self.assertEqual(
             self.result["summary"],
-            {"owners": 3, "meets": 0, "coordinated": 0, "uncoordinated": 0, "branches": 1},
+            {"owners": 3, "meets": 0, "coordinated": 0, "uncoordinated": 0, "unlinkable": 0, "branches": 1},
         )
 
 

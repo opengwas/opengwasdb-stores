@@ -23,6 +23,7 @@ from pathlib import Path
 import architecture_fixtures as fx
 
 from project_site.collect import branches
+from project_site.collect.common import CollectError
 
 NOW = dt.datetime(2026, 11, 2, 12, 0, tzinfo=dt.timezone.utc)
 
@@ -127,6 +128,25 @@ class BranchTests(unittest.TestCase):
                                   fetch="+refs/heads/*:refs/heads/*", remote=str(fixture.repo))
         self.assertEqual(result["fetch"], {"ok": True, "error": None})
         self.assertEqual([b["name"] for b in result["branches"]], ["fix/issue-345", "orch/302-integration", "orch/416/419"])
+
+
+class GitFailureTests(unittest.TestCase):
+    """A git failure is the collector's error, so the CLI exits 2 and a collector run marks `work` unavailable."""
+
+    def test_a_directory_that_is_not_a_repository_raises_the_collectors_error(self) -> None:
+        missing = Path(tempfile.mkdtemp(prefix="branches-")) / "no-such-repo"
+        self.addCleanup(shutil.rmtree, missing.parent, True)
+        with self.assertRaises(CollectError) as caught:
+            branches.collect(missing, "opengwasdb-stores", main_ref="main", now=NOW)
+        self.assertIn("no-such-repo", str(caught.exception))
+
+    def test_a_branch_whose_diff_cannot_be_read_raises_naming_it(self) -> None:
+        fixture = Fixture(self)
+        fx.git(fixture.repo, "checkout", "-q", "--orphan", "unrelated")
+        commit(fixture.repo, {"other.txt": "x\n"}, "2026-11-02T08:00:00+00:00")  # no merge base with main
+        with self.assertRaises(CollectError) as caught:
+            fixture.collect()
+        self.assertIn("diff", str(caught.exception))
 
 
 if __name__ == "__main__":

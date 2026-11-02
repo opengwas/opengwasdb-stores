@@ -34,7 +34,7 @@ def component(cid: str, name: str, repo: str, paths: list[str]) -> dict:
 
 ARCHITECTURE = {
     "source": "architecture", "available": True, "collected_at": "2026-11-02T12:00:00Z", "error": None,
-    "engine": {"ref": "main", "commit": "e" * 40}, "registry": {"ref": "HEAD", "commit": "r" * 40},
+    "engine": {"ref": "main", "commit": "e" * 40, "model": True, "note": None}, "registry": {"ref": "HEAD", "commit": "r" * 40},
     "components": [
         component("enc", "Store Encoding", "engine", ["opengwasdb/encoding/"]),
         component("query", "Query", "engine", ["opengwasdb/query/"]),
@@ -53,8 +53,17 @@ def branch_set(*found: dict, repo: str = ENGINE, fetch: dict | None = None) -> d
     return {"repo": repo, "git_dir": f"/git/{repo}", "main": "main", "days": 21, "fetch": fetch, "branches": list(found)}
 
 
-def compute(board_doc: dict, *sets: dict) -> dict:
-    return work.compute(board_doc, ARCHITECTURE, list(sets))
+# The engine ref has no architecture model yet: no engine components, and `engine.model` is false.
+NO_ENGINE_MODEL = {
+    **ARCHITECTURE,
+    "engine": {"ref": "main", "commit": "e" * 40, "model": False,
+               "note": "docs/architecture/components.yaml is not in opengwas/opengwasdb at main (eeeeeeeeeeee)"},
+    "components": [c for c in ARCHITECTURE["components"] if c["repo"] == "registry"],
+}
+
+
+def compute(board_doc: dict, *sets: dict, architecture: dict | None = None) -> dict:
+    return work.compute(board_doc, architecture or ARCHITECTURE, list(sets))
 
 
 def states(result: dict, component_id: str) -> dict[tuple[str, str], str]:

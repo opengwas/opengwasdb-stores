@@ -20,10 +20,10 @@ import unittest
 from pathlib import Path
 
 import architecture_fixtures as afx
-from work_fixtures import ARCHITECTURE, board, branch, branch_set, compute, epic, ticket
+from work_fixtures import ARCHITECTURE, NO_ENGINE_MODEL, board, branch, branch_set, compute, epic, ticket
 
 from project_site import architecture as cli
-from project_site.collect import common
+from project_site.collect import architecture as architecture_collector, common
 
 CITED = ["opengwasdb/encoding/se_range.py"]
 
@@ -85,6 +85,91 @@ class ConflictsTests(unittest.TestCase):
         code, text = run("conflicts", "--data", self.data(blocked=False), "--branch", "no/such-branch")
         self.assertEqual(code, 2)
         self.assertIn("no/such-branch", text)
+
+
+class UnmeasuredAndUnlinkableTests(unittest.TestCase):
+    def collection(self, result: dict, architecture: dict = ARCHITECTURE) -> str:
+        directory = Path(tempfile.mkdtemp(prefix="cli-"))
+        self.addCleanup(shutil.rmtree, directory, True)
+        common.write_source(directory, common.envelope("work", available=True, error=None, **result))
+        common.write_source(directory, architecture)
+        return str(directory)
+
+    def test_engine_files_without_the_engines_model_cannot_be_decided(self) -> None:
+        result = compute(
+            board(epic("opengwasdb#10", "Active", [ticket("opengwasdb#11", cited=["opengwasdb/encoding/a.py"])])),
+            architecture=NO_ENGINE_MODEL,
+        )
+        code, text = run("conflicts", "--data", self.collection(result, NO_ENGINE_MODEL), "--files", "opengwasdb/encoding/a.py")
+        self.assertEqual(code, 2)
+        self.assertIn("cannot decide", text)
+        self.assertIn("engine", text)
+        self.assertNotIn("meets no other work", text)
+
+    def test_registry_files_are_still_decided_without_the_engines_model(self) -> None:
+        result = compute(board(), architecture=NO_ENGINE_MODEL)
+        code, text = run("conflicts", "--data", self.collection(result, NO_ENGINE_MODEL), "--files", "src/project_site/x.py")
+        self.assertEqual((code, "meets no other work" in text), (0, True))
+
+    def test_an_engine_branch_without_the_engines_model_cannot_be_decided(self) -> None:
+        result = compute(
+            board(epic("opengwasdb#10", "Active", [ticket("opengwasdb#11")])),
+            branch_set(branch("orch/10/11", ["opengwasdb/encoding/a.py"], epic="opengwasdb#10", ticket="opengwasdb#11")),
+            architecture=NO_ENGINE_MODEL,
+        )
+        code, _ = run("conflicts", "--data", self.collection(result, NO_ENGINE_MODEL), "--branch", "orch/10/11")
+        self.assertEqual(code, 2)
+
+    def test_a_meet_with_an_epic_branch_exits_1_calling_it_unlinkable(self) -> None:
+        result = compute(
+            board(epic("opengwasdb#58", "Active", [ticket("opengwasdb#57")]),
+                  epic("opengwasdb#347", "Active", [ticket("opengwasdb#338")])),
+            branch_set(branch("orch/58-deepen-modules", ["opengwasdb/encoding/a.py"], epic="opengwasdb#58"),
+                       branch("orch/347/338", ["opengwasdb/encoding/b.py"], epic="opengwasdb#347", ticket="opengwasdb#338")),
+        )
+        code, text = run("conflicts", "--data", self.collection(result), "--branch", "orch/347/338")
+        self.assertEqual(code, 1)
+        self.assertIn("UNLINKABLE", text)
+        self.assertIn("opengwasdb:orch/58-deepen-modules belongs to an epic as a whole", text)
+        self.assertNotIn("UNCOORDINATED", text)
+
+
+class GitFailureTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.root = Path(tempfile.mkdtemp(prefix="cli-git-"))
+        self.addCleanup(shutil.rmtree, self.root, True)
+        afx.make_repo(self.root / "registry", afx.REGISTRY_FILES, branch="trunk")
+        afx.make_repo(self.root / "engine", afx.ENGINE_FILES)
+        self.data = self.root / "data"
+        common.write_source(self.data, board())
+        common.write_source(self.data, common.collect_source("architecture", lambda: architecture_collector.collect(
+            self.root / "registry", engine_git=self.root / "engine", engine_ref="main")))
+        self.args = ["--data", str(self.data), "--registry-root", str(self.root / "registry"),
+                     "--engine-git", str(self.root / "engine"), "--files", "src/gen/x.py"]
+
+    def test_an_inaccessible_local_directory_exits_2_with_a_reason(self) -> None:
+        code, text = run("conflicts", *self.args, "--local", str(self.root / "no-such-clone"))
+        self.assertEqual(code, 2)
+        self.assertIn("cannot decide", text)
+        self.assertIn("no-such-clone", text)
+        self.assertNotIn("Traceback", text)
+
+    def test_a_local_branch_whose_diff_fails_exits_2(self) -> None:
+        clone = self.root / "clone"
+        afx.make_repo(clone, {"a.txt": "x\n"})
+        afx.git(clone, "checkout", "-q", "--orphan", "unrelated")
+        (clone / "b.txt").write_text("y\n")
+        afx.git(clone, "add", "b.txt")
+        afx.git(clone, "-c", "user.name=t", "-c", "user.email=t@e.org", "commit", "-q", "-m", "unrelated")
+        code, text = run("conflicts", *self.args, "--local", str(clone))
+        self.assertEqual(code, 2)
+        self.assertIn("diff", text)
+
+    def test_check_with_an_unreadable_engine_exits_2_naming_it(self) -> None:
+        code, text = run("check", "--data", str(self.data), "--engine-git", str(self.root / "no-such-engine.git"))
+        self.assertEqual(code, 2)
+        self.assertIn("no-such-engine.git", text)
+        self.assertIn("layering baseline", text)
 
 
 class CheckTests(unittest.TestCase):

@@ -123,9 +123,9 @@ def _baseline(args: argparse.Namespace, document: Mapping[str, Any], out: TextIO
     try:
         git_dir = args.engine_git or architecture._default_engine_clone()
         text = architecture.Tree(Path(git_dir), engine["commit"]).read([BASELINE_PATH]).get(BASELINE_PATH)
-    except common.CollectError as error:
-        print(f"layering baseline: not read ({error})", file=out)
-        return False
+    except (common.CollectError, OSError) as error:
+        # An unreadable repository is not an absent baseline: never certify the check.
+        raise Unavailable(f"layering baseline: not read ({error})") from error
     if text is None:
         print(f"no layering baseline at {engine['ref']} ({BASELINE_PATH} is not there)", file=out)
         return False
@@ -154,7 +154,7 @@ def conflicts(args: argparse.Namespace, out: TextIO) -> int:
     print(label, file=out)
     waits = [(w["item"], w["on"]) for w in document["waits"]]
     owners = {o["key"]: o for o in document["owners"]}
-    uncoordinated = False
+    failed = False
     any_meet = False
     for cid in sorted(touched):
         name = components[cid]["name"] if cid in components else cid
@@ -175,13 +175,24 @@ def conflicts(args: argparse.Namespace, out: TextIO) -> int:
             edges = [(x, y) for x, y in waits if (x in own_items and y in theirs) or (y in own_items and x in theirs)]
             if edges:
                 print("    coordinated: " + "; ".join(f"{x} waits for {y}" for x, y in edges), file=out)
+                continue
+            failed = True
+            epic_level = sorted(
+                item[len("branch:"):]
+                for who, items in ((owner, theirs), (own_owner, own_items))
+                for item in items
+                if item.startswith("branch:") and (owners.get(who) or {}).get("kind") == "epic"
+            )
+            mine = ", ".join(sorted(own_items)) or "this work"
+            if epic_level:
+                print("    UNLINKABLE: " + "; ".join(
+                    f"{name} belongs to an epic as a whole, so no blocking edge can link it to a single ticket"
+                    for name in epic_level) + "; asking a person is the safe default", file=out)
             else:
-                uncoordinated = True
-                mine = ", ".join(sorted(own_items)) or "this work"
                 print(f"    UNCOORDINATED: no blocking edge links {mine} and {', '.join(sorted(theirs))}", file=out)
     if not any_meet:
         print("meets no other work", file=out)
-    return 1 if uncoordinated else 0
+    return 1 if failed else 0
 
 
 def _candidate(
@@ -189,6 +200,7 @@ def _candidate(
 ) -> tuple[str | None, set[str], set[str], str]:
     """`(owner, items, components touched, a heading)` of the work being asked about."""
     ticket = args.ticket
+    reason = (document.get("unmeasured") or {}).get("engine")
     if args.branch:
         found = [b for b in document["branches"]["list"]
                  if b["name"] == args.branch and (not args.repo or work.REPO_KIND.get(b["repo"]) == args.repo)]
@@ -197,6 +209,8 @@ def _candidate(
                 f"{args.branch}: no live branch of that name in the collection (ahead of main, within its window); "
                 "add its git directory with --local, or give --files")
         b = found[0]
+        if reason and work.REPO_KIND.get(b["repo"]) == "engine":
+            raise Unavailable(f"engine-side work was not measured: {reason}")
         items = {ticket} if ticket else {b["item"]}
         owner = document["tickets"].get(ticket) if ticket else b["owner"]
         return owner, items, set(b["components"]), (
@@ -207,6 +221,8 @@ def _candidate(
         for kind in ("registry", "engine")
     }
     kinds = [args.repo] if args.repo else ["registry", "engine"]
+    if reason and (args.repo == "engine" or any(f.startswith(f"{work.model_rules.ENGINE_PACKAGE}/") for f in args.files)):
+        raise Unavailable(f"engine-side work was not measured: {reason}")
     touched = {cid for f in args.files for kind in kinds if (cid := work.model_rules.owner(claims[kind], f))}
     owner = document["tickets"].get(ticket) if ticket else None
     return owner, {ticket} if ticket else set(), touched, (

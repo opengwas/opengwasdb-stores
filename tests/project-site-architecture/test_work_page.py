@@ -46,7 +46,8 @@ def work(*, registry_fetch: dict | None = None) -> dict:
                                     "registry": {"ref": "HEAD", "commit": "r" * 40}}},
         "owners": [owner("opengwasdb#347", "Encoding rework", "Active"), owner("opengwasdb#58", "Hybrid layout", "Active"),
                    owner("opengwasdb-stores#232", "Phase 2", "Active")],
-        "components": [{"id": "enc", "name": "Store Encoding", "repo": "engine"}, {"id": "query", "name": "Query", "repo": "engine"}],
+        "components": [{"id": "enc", "name": "Store Encoding", "repo": "engine"}, {"id": "query", "name": "Query", "repo": "engine"},
+                       {"id": "store", "name": "Store envelope", "repo": "engine"}],
         "signals": [
             signal("enc", "opengwasdb#347", "opengwasdb#338", "branch", "building", ["opengwasdb:orch/347/338"]),
             signal("enc", "opengwasdb#58", "opengwasdb#350", "cited", "active", ["opengwasdb/encoding/se_range.py"]),
@@ -54,14 +55,21 @@ def work(*, registry_fetch: dict | None = None) -> dict:
             signal("query", "opengwasdb-stores#232", "opengwasdb-stores#240", "branch", "building", ["opengwasdb:orch/232/240"]),
             signal("query", "opengwasdb-stores#232", "opengwasdb-stores#241", "cited", "waiting", ["opengwasdb/query/x.py"]),
         ],
+        "unmeasured": {},
         "meets": [
+            {"component": "store", "owners": ["opengwasdb#58", "opengwasdb#347"],
+             "items": {"opengwasdb#58": ["branch:opengwasdb:orch/58-deepen-modules"], "opengwasdb#347": ["opengwasdb#338"]},
+             "pairs": [{"owners": ["opengwasdb#58", "opengwasdb#347"], "coordinated": False, "coordination": "unlinkable",
+                        "edges": [], "epic_branches": ["opengwasdb:orch/58-deepen-modules"]}],
+             "coordinated": False, "coordination": "unlinkable"},
             {"component": "enc", "owners": ["opengwasdb#347", "opengwasdb#58"],
              "items": {"opengwasdb#347": ["opengwasdb#338"], "opengwasdb#58": ["opengwasdb#350"]},
-             "pairs": [{"owners": ["opengwasdb#347", "opengwasdb#58"], "coordinated": True,
-                        "edges": [{"waiting": "opengwasdb#338", "on": "opengwasdb#350"}]}], "coordinated": True},
+             "pairs": [{"owners": ["opengwasdb#347", "opengwasdb#58"], "coordinated": True, "coordination": "coordinated",
+                        "edges": [{"waiting": "opengwasdb#338", "on": "opengwasdb#350"}]}], "coordinated": True, "coordination": "coordinated"},
             {"component": "query", "owners": ["opengwasdb#58", "opengwasdb-stores#232"],
              "items": {"opengwasdb#58": ["opengwasdb#57"], "opengwasdb-stores#232": ["opengwasdb-stores#240"]},
-             "pairs": [{"owners": ["opengwasdb#58", "opengwasdb-stores#232"], "coordinated": False, "edges": []}], "coordinated": False},
+             "pairs": [{"owners": ["opengwasdb#58", "opengwasdb-stores#232"], "coordinated": False, "coordination": "uncoordinated",
+                        "edges": [], "epic_branches": []}], "coordinated": False, "coordination": "uncoordinated"},
         ],
         "waits": [{"item": "opengwasdb#338", "on": "opengwasdb#350"}],
         "tickets": {},
@@ -73,7 +81,7 @@ def work(*, registry_fetch: dict | None = None) -> dict:
             "list": [branch("orch/232/240", "opengwasdb", "opengwasdb-stores#232", "opengwasdb-stores#240", ["query"], 3),
                      branch("orch/347/338", "opengwasdb", "opengwasdb#347", "opengwasdb#338", ["enc"], 44)],
         },
-        "summary": {"owners": 3, "meets": 2, "coordinated": 1, "uncoordinated": 1, "branches": 2},
+        "summary": {"owners": 3, "meets": 3, "coordinated": 1, "uncoordinated": 1, "unlinkable": 1, "branches": 2},
     }
 
 
@@ -91,8 +99,8 @@ class WorkPageTests(unittest.TestCase):
 
     def test_the_tiles_are_the_summary_figures(self) -> None:
         lines = self.page.splitlines()
-        head = lines.index("| Owners | Meets | Coordinated | Uncoordinated | Branches |")
-        self.assertEqual(cells(lines[head + 2]), ["3", "2", "1", "1", "2"])
+        head = lines.index("| Owners | Meets | Coordinated | Uncoordinated | Unlinkable | Branches |")
+        self.assertEqual(cells(lines[head + 2]), ["3", "3", "1", "1", "1", "2"])
 
     def test_each_meet_lists_its_owners_items_and_coordination(self) -> None:
         self.assertIn("### Store Encoding", self.page)
@@ -104,6 +112,21 @@ class WorkPageTests(unittest.TestCase):
         query = self.page.split("### Query", 1)[1].split("###", 1)[0]
         self.assertIn("**Uncoordinated**", query)
         self.assertIn("no blocking edge links", query)
+
+    def test_a_meet_with_an_epic_branch_says_why_it_cannot_be_linked_and_is_not_called_uncoordinated(self) -> None:
+        store = self.page.split("### Store envelope", 1)[1].split("###", 1)[0]
+        self.assertIn("**Unlinkable**", store)
+        self.assertIn("`opengwasdb:orch/58-deepen-modules` belongs to an epic as a whole, so no blocking edge can link it to a single ticket", store)
+        self.assertNotIn("Uncoordinated", store)
+
+    def test_engine_side_work_that_was_not_measured_is_said_on_the_page(self) -> None:
+        document = work()
+        document["unmeasured"] = {"engine": "docs/architecture/components.yaml is not in opengwas/opengwasdb at main (abc)"}
+        page = render(document)
+        self.assertIn("**Engine-side work was not measured**", page)
+        self.assertIn("is not in opengwas/opengwasdb at main (abc)", page)
+        self.assertIn("meets shown are this repository's only", page)
+        self.assertNotIn("Engine-side work was not measured", self.page)
 
     def test_uncoordinated_meets_come_first(self) -> None:
         self.assertLess(self.page.index("### Query"), self.page.index("### Store Encoding"))

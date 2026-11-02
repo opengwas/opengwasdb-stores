@@ -23,6 +23,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 from project_site.collect.architecture_model import split_nul
+from project_site.collect.common import CollectError
 
 WINDOW_DAYS = 21
 SKIPPED = frozenset({"main", "HEAD", "gh-pages"})
@@ -52,7 +53,7 @@ def named_for(name: str, repo: str) -> tuple[str | None, str | None]:
 def _git(git_dir: Path, *args: str) -> str:
     done = subprocess.run(["git", "-C", str(git_dir), *args], capture_output=True, check=False)
     if done.returncode != 0:
-        raise RuntimeError(f"git {args[0]} exited {done.returncode}: {done.stderr.decode(errors='replace').strip()}")
+        raise CollectError(f"git {args[0]} exited {done.returncode}: {done.stderr.decode(errors='replace').strip()}")
     return done.stdout.decode("utf-8", "replace")
 
 

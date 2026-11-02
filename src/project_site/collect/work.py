@@ -54,6 +54,12 @@ def compute(
         for kind in ("engine", "registry")
     }
     by_id = {c["id"]: c for c in components}
+    # Without the engine's model no engine file belongs to any component, so engine-side
+    # work is unknown: it is said to be, never turned into "no work" or "no meets".
+    engine = architecture.get("engine") or {}
+    unmeasured: dict[str, str] = {}
+    if not engine.get("model"):
+        unmeasured["engine"] = str(engine.get("note") or f"no architecture model at {engine.get('ref')}")
 
     def place(strings: Sequence[str], home: str) -> dict[str, list[str]]:
         """Component id -> the cited strings that land on it (a path, or a dotted module)."""
@@ -135,9 +141,19 @@ def compute(
                 {"waiting": x, "on": y} for x, y in waits
                 if (x in by_owner[a] and y in by_owner[b]) or (x in by_owner[b] and y in by_owner[a])
             ]
-            pairs.append({"owners": [a, b], "coordinated": bool(edges), "edges": edges})
+            # An epic's integration branch belongs to the epic as a whole: no ticket for an edge to link.
+            epic_branches = sorted(
+                item[len("branch:"):] for o in (a, b) for item in by_owner[o]
+                if item.startswith("branch:") and (owners.get(o) or {}).get("kind") == "epic"
+            )
+            kind = "coordinated" if edges else "unlinkable" if epic_branches else "uncoordinated"
+            pairs.append({"owners": [a, b], "coordinated": bool(edges), "coordination": kind,
+                          "edges": edges, "epic_branches": [] if edges else epic_branches})
+        kinds = {p["coordination"] for p in pairs}
         meets.append({"component": cid, "owners": names, "items": {o: sorted(by_owner[o]) for o in names},
-                      "pairs": pairs, "coordinated": all(p["coordinated"] for p in pairs)})
+                      "pairs": pairs, "coordinated": kinds == {"coordinated"},
+                      "coordination": "uncoordinated" if "uncoordinated" in kinds
+                      else "unlinkable" if "unlinkable" in kinds else "coordinated"})
     with_signals = {row["owner"] for row in rows}
     return {
         "schema_version": SCHEMA_VERSION,
@@ -154,6 +170,7 @@ def compute(
             {"id": cid, "name": by_id[cid]["name"], "repo": by_id[cid]["repo"]}
             for cid in sorted({r["component"] for r in rows})
         ],
+        "unmeasured": unmeasured,
         "signals": rows,
         "meets": meets,
         "tickets": {c["key"]: key for key, e in epics.items() for c in e.get("children") or [] if c["state"] == "OPEN"},
@@ -163,7 +180,8 @@ def compute(
             "owners": len(with_signals),
             "meets": len(meets),
             "coordinated": sum(1 for m in meets if m["coordinated"]),
-            "uncoordinated": sum(1 for m in meets if not m["coordinated"]),
+            "uncoordinated": sum(1 for m in meets if m["coordination"] == "uncoordinated"),
+            "unlinkable": sum(1 for m in meets if m["coordination"] == "unlinkable"),
             "branches": len(listed),
         },
     }
