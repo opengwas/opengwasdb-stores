@@ -1,0 +1,315 @@
+# PROTOTYPE (architecture map epic): the OpenGWASDB architecture model.
+#
+# One file describes the system at the three C4 levels this project needs.
+# - context and containers are written by hand: they change rarely.
+# - components are written by hand too, but each one claims code paths, and
+#   src/project_site/architecture_prototype.py checks every claim against both
+#   repositories at origin/main. A path that matches nothing, or a source file no
+#   component claims, is reported on the page. The longest matching prefix wins,
+#   so a file belongs to exactly one component.
+# - terms are glossary terms (CONTEXT.md) used to place ADRs that cite no code.
+# - Edges between components are not written here. They are the real import
+#   graph, read from the code.
+#
+# Vocabulary follows both CONTEXT.md files (Store Release, Release Bundle,
+# Manifest Generation, Analysis Resolution, Reference Completion, ...).
+
+system:
+  name: OpenGWASDB
+  summary: Harmonised GWAS summary statistics, built into versioned Store Releases and queried by variant, Analysis or top hit.
+
+people:
+  - id: researcher
+    name: Researcher
+    summary: Queries Store Releases by variant, Analysis or top hit, from R, Python or the CLI (MR, PheWAS, colocalisation).
+  - id: curator
+    name: Curator / operator
+    summary: Selects sources, maps traits, runs and approves builds, publishes Store Releases.
+
+external:
+  - id: sources
+    name: Summary-statistic sources
+    summary: GWAS Catalog (GWAS-SSF), FinnGen, OpenGWAS/UKB (GWAS-VCF), eQTLGen and pQTL (BESD), dbGaP MVP.
+  - id: references
+    name: Reference panels
+    summary: LD Reference Panels (UKB, HGDP+1KGP), Ancestry Reference Panels and variant references (gnomAD).
+  - id: tools
+    name: Analysis tools
+    summary: ieugwasr, ieugwaspy, TwoSampleMR and local R/Python sessions.
+  - id: github
+    name: GitHub
+    summary: Issues, the project board, CI, releases and the published project site (gh-pages).
+
+containers:
+  - id: engine
+    name: Engine (opengwasdb)
+    repo: opengwasdb
+    tech: Python package + CLI
+    summary: Reads sources, resolves Analyses, builds, validates, completes and queries Store Releases. Owns the store format.
+  - id: registry
+    name: Store Registry
+    repo: opengwasdb-stores
+    tech: Release Bundles in git
+    summary: The accepted Release Bundle of every Store Release, its lineage and status.
+  - id: generation
+    name: Manifest Generation
+    repo: opengwasdb-stores
+    tech: Python + Snakemake
+    summary: Source Inventory to candidate Release Bundle, through source connectors and curation.
+  - id: orchestration
+    name: Release orchestration
+    repo: opengwasdb-stores
+    tech: ogstores + Snakemake
+    summary: Plans and runs the engine's argv for a Release Bundle, records each step, registers and publishes.
+  - id: catalog
+    name: Analysis Catalog
+    repo: opengwasdb-stores
+    tech: SQLite
+    summary: A generated, versioned database over every Release Bundle.
+  - id: site
+    name: Project site
+    repo: opengwasdb-stores
+    tech: Quarto website
+    summary: Where OpenGWASDB stands; the stores, epics, trends and both repositories' docs.
+  - id: releases
+    name: Store Releases
+    repo: null
+    tech: Zarr v3 + SQLite + TSV on /data
+    summary: Built and Reference-Completed Store Releases (OGS-*), the format the engine writes and reads.
+
+container_relations:
+  - [curator, generation, "selects sources and maps traits with"]
+  - [curator, orchestration, "runs and approves builds with"]
+  - [generation, sources, "inventories and downloads"]
+  - [generation, registry, "proposes Release Bundles to"]
+  - [generation, engine, "resolves Analyses with"]
+  - [orchestration, registry, "reads accepted bundles from"]
+  - [orchestration, engine, "runs build, validate and complete through"]
+  - [engine, sources, "reads"]
+  - [engine, references, "completes and assigns ancestry against"]
+  - [engine, releases, "writes and reads"]
+  - [catalog, registry, "is generated from"]
+  - [site, catalog, "reports"]
+  - [site, github, "publishes to"]
+  - [researcher, tools, "analyses with"]
+  - [tools, engine, "query through"]
+  - [researcher, site, "browses"]
+
+# The data's path through the system, left to right. A component may sit in
+# more than one stage; `cross` is for those that serve every stage.
+stages:
+  - {id: acquire, name: Acquire, summary: "Source Inventories, downloads and reference resources"}
+  - {id: generate, name: Generate, summary: "Manifest Generation and curation: a candidate Release Bundle"}
+  - {id: resolve, name: Resolve, summary: "Analysis Resolution: one scan per Analysis, one Resolution Record"}
+  - {id: build, name: Build, summary: "Store Release Build: layouts, encoding, variants"}
+  - {id: validate, name: Validate, summary: "Structural validation, source fidelity, the Observed-View Check"}
+  - {id: complete, name: Complete, summary: "Reference Completion against an LD Reference Panel"}
+  - {id: publish, name: Publish, summary: "Register, publish, catalogue"}
+  - {id: query, name: Query, summary: "Variant, Analysis and top-hit lookups"}
+  - {id: cross, name: Every stage, summary: "The store contract, the CLI and the project's own tooling"}
+
+# The engine's intended layering, top to bottom: a component may import from its
+# own layer or below. Written by hand (it is a decision, not a measurement); the
+# page draws every import that goes against it.
+engine_layers:
+  - {layer: 5, name: Entry}
+  - {layer: 4, name: Use and check}
+  - {layer: 3, name: Layouts}
+  - {layer: 2, name: Analysis}
+  - {layer: 1, name: Storage and input}
+  - {layer: 0, name: Foundations}
+
+components:
+  # --- Engine (opengwas/opengwasdb) ---
+  - id: readers
+    name: Source Readers
+    container: engine
+    layer: 1
+    stages: [resolve, build]
+    summary: The Source Reader seam and Column Maps; GWAS-SSF, GWAS-VCF, FinnGen and BESD readers.
+    paths: [opengwasdb/readers/, opengwasdb/build/source.py, opengwasdb/build/vcf_source.py, opengwasdb/layouts/ragged/besd_reader.py]
+    terms: ["Source Reader", "Column Map", "GWAS-SSF", "GWAS-VCF", "BESD"]
+  - id: resolution
+    name: Analysis Resolution
+    container: engine
+    layer: 2
+    stages: [resolve]
+    summary: One scan per Analysis to its Analytical Metadata and Resolution Record; row admission, INFO and SD.
+    paths: [opengwasdb/build/resolve.py, opengwasdb/build/resolve_manifest.py, opengwasdb/build/resolve_besd.py, opengwasdb/build/row_admission.py, opengwasdb/build/info_score_filter.py, opengwasdb/build/phenotype_sd.py, opengwasdb/build/phenotype_sd_pipeline.py]
+    terms: ["Analysis Resolution", "Resolution Record", "resolver", "row admission"]
+  - id: ancestry
+    name: Ancestry Assignment
+    container: engine
+    layer: 2
+    stages: [resolve]
+    summary: Assigned Ancestry from allele frequencies (NNLS mixture, admission gates) and store routing.
+    paths: [opengwasdb/ancestry/]
+    terms: ["Assigned Ancestry", "Ancestry Reference Panel", "Source Ancestry Measurement", "Ancestry Composition"]
+  - id: variants
+    name: Variant Identity
+    container: engine
+    layer: 0
+    stages: [build, query]
+    summary: Canonical variant identity, orientation, rsids, the Store Variant Axis and liftover.
+    paths: [opengwasdb/variants/, opengwasdb/build/liftover.py]
+    terms: ["Variant Identity", "Store Variant Table", "Variant Index", "liftover", "rsid"]
+  - id: dense
+    name: Dense Layout
+    container: engine
+    layer: 3
+    stages: [build]
+    summary: Dense Observed-Only builders (tabular and GWAS-VCF), top hits, Indexed Variant Subsets, Rho.
+    paths: [opengwasdb/layouts/dense/, opengwasdb/build/observed/, opengwasdb/build/eaf_orientation.py, opengwasdb/build/ordered_pool.py, opengwasdb/build/__init__.py]
+    terms: ["Dense Layout", "Indexed Variant Subset", "Rho Matrix"]
+  - id: ragged
+    name: Ragged Layout
+    container: engine
+    layer: 3
+    stages: [build]
+    summary: Ragged builders (GWAS-SSF, BESD), Zarr CSR storage, the By-Variant Index and top hits.
+    paths: [opengwasdb/layouts/ragged/]
+    terms: ["Ragged Layout", "By-Variant Index", "CSR"]
+  - id: hybrid
+    name: Hybrid Layout
+    container: engine
+    layer: 3
+    stages: [build]
+    summary: One read per study, routed to the Dense Component or the Ragged Overflow Component; checkpointed.
+    paths: [opengwasdb/layouts/hybrid/]
+    terms: ["Hybrid Layout", "Dense Component", "Ragged Overflow Component"]
+  - id: encoding
+    name: Store Encoding
+    container: engine
+    layer: 1
+    stages: [build, complete]
+    summary: The encoding plan, StoreCodec and decoded statistic planes (z, se, eaf, imputed).
+    paths: [opengwasdb/encoding/]
+    terms: ["Store Encoding", "StoreCodec", "int8_residual", "EAF Baseline", "float16"]
+  - id: store
+    name: Store Release envelope
+    container: engine
+    layer: 1
+    stages: [build, publish]
+    summary: Paths, manifest, format versions, the array-creation seam, conversion, SQLite indexes.
+    paths: [opengwasdb/store/, opengwasdb/index/, opengwasdb/layouts/release_manifest.py, opengwasdb/layouts/__init__.py]
+    terms: ["Format Version", "format_version", "Staged Release", "Zarr"]
+  - id: completion
+    name: Reference Completion
+    container: engine
+    layer: 4
+    stages: [complete]
+    summary: The LD-block imputation kernel and the Dense, Ragged and Hybrid completion pipelines.
+    paths: [opengwasdb/completion/, opengwasdb/build/complete/, opengwasdb/layouts/dense/complete.py, opengwasdb/layouts/ragged/complete.py, opengwasdb/layouts/hybrid/complete.py]
+    terms: ["Reference Completion", "LD Reference Panel", "Imputed Association", "Completion State"]
+  - id: validation
+    name: Validation
+    container: engine
+    layer: 4
+    stages: [validate]
+    summary: Store validation, source fidelity, the EAF audit and the Observed-View Check.
+    paths: [opengwasdb/validation/]
+    terms: ["Observed-View Check", "Validation Record", "source fidelity", "validate_store"]
+  - id: query
+    name: Query
+    container: engine
+    layer: 4
+    stages: [query]
+    summary: The layout-independent query facade and result resolution.
+    paths: [opengwasdb/query/]
+    terms: ["Top-Hit Query", "Observed-Only Query", "Top-Hit Index", "StoreQuery"]
+  - id: model
+    name: Store contract model
+    container: engine
+    layer: 0
+    stages: [cross]
+    summary: analyses.tsv, manifest and enum contracts; statistic helpers shared by builders, validators and queries.
+    paths: [opengwasdb/model/, opengwasdb/stats.py]
+    terms: ["analyses.tsv", "Analytical Metadata", "Stored Effect Scale", "Sample Size Kind"]
+  - id: maintenance
+    name: Repair and re-encode
+    container: engine
+    layer: 4
+    stages: [cross]
+    summary: Representation-only repairs and the SE re-encode of existing Store Releases.
+    paths: [opengwasdb/repair.py, opengwasdb/reencode.py]
+    terms: ["re-encode", "Representation-only"]
+  - id: cli
+    name: Engine CLI
+    container: engine
+    layer: 5
+    stages: [cross]
+    summary: The opengwasdb command line, the surface opengwasdb-stores and users call.
+    paths: [opengwasdb/cli/, opengwasdb/__init__.py, opengwasdb/version.py]
+    terms: ["CLI"]
+
+  # --- Registry side (opengwas/opengwasdb-stores) ---
+  - id: connectors
+    name: Source connectors
+    container: generation
+    stages: [acquire]
+    summary: One connector per Source Provider (GWAS Catalog, FinnGen, OpenGWAS, UKB-B, eQTLGen, dbGaP MVP).
+    paths: [src/manifest_generation/providers/]
+    terms: ["source connector", "Source Provider", "Source Inventory", "Acquisition Manifest"]
+  - id: manifest_generation
+    name: Manifest Generation
+    container: generation
+    stages: [generate]
+    summary: The one pipeline from a frozen Source Inventory to a candidate Release Bundle (ADR 0035, 0036).
+    paths: [src/manifest_generation/, workflow/generate.smk]
+    terms: ["Manifest Generation", "Manifest Generator", "Release Manifest"]
+  - id: curation
+    name: Curation
+    container: generation
+    stages: [generate]
+    summary: Trait Ontology Mapping, candidate review and promotion into the Canonical Trait Mapping Table.
+    paths: [src/curation/]
+    terms: ["Trait Ontology Mapping", "Canonical Trait Mapping Table", "curation round", "trait mapping"]
+  - id: reference_resources
+    name: Reference resources
+    container: orchestration
+    stages: [acquire, complete]
+    summary: Builders for LD Reference Panels and other Reference Resources.
+    paths: [tools/ld-panel/, tools/reference-resources/]
+    terms: ["Reference Resource", "ld-panel"]
+  - id: release_orchestration
+    name: Release orchestration
+    container: orchestration
+    stages: [build, validate, complete, publish]
+    summary: Release Bundle to engine argv, staged runs, registration and publication (ogstores).
+    paths: [src/ogstores/, workflow/Snakefile, workflow/release.py, tools/release.py, tools/relocate_store.py, tools/build-finngen-r13-full.sh]
+    terms: ["Store Release Build", "Preflight", "Rehearsal Run", "Build Recipe", "ogstores"]
+  - id: registry_data
+    name: Release Bundles
+    container: registry
+    stages: [publish]
+    summary: The accepted Release Bundles and the master list of Store Releases.
+    paths: [stores/, stores.tsv, STORES.md, ogstores.yaml]
+    terms: ["Release Bundle", "Store Registry", "Release Lineage", "Release Status"]
+  - id: analysis_catalog
+    name: Analysis Catalog
+    container: catalog
+    stages: [publish]
+    summary: A generated, versioned SQLite database over Release Bundles.
+    paths: [src/analysis_catalog/]
+    terms: ["Analysis Catalog"]
+  - id: project_site
+    name: Project site
+    container: site
+    stages: [cross]
+    summary: Collectors, generated pages and the Quarto build of the project site.
+    paths: [src/project_site/, tools/build-site.sh, docs/_quarto.yml, docs/pre-render.sh]
+    terms: ["project site", "Quarto"]
+  - id: yardstick
+    name: Yardstick
+    container: site
+    stages: [cross]
+    summary: One fixed benchmark, recorded at the end of every epic.
+    paths: [src/yardstick/]
+    terms: ["yardstick"]
+  - id: dev_tools
+    name: Developer tools
+    container: orchestration
+    stages: [cross]
+    summary: Benchmarks, spikes and repository checks.
+    paths: [tools/]
+    terms: ["benchmark harness"]
