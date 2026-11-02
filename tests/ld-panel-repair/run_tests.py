@@ -123,7 +123,7 @@ def repair_in_process(tmp: Path, *extra: str) -> tuple[int, str, str]:
 
     ``test_repair_panel`` drives the command line as a subprocess, as a run
     does; the behaviour tests around it would pay a process start each time for
-    no extra fidelity (#348 review).
+    no extra fidelity (#348).
     """
     import contextlib, io
     argv = [str(SCRIPTS / "repair_panel.py"), str(tmp / "panel"),
@@ -359,7 +359,7 @@ def entries(path: Path) -> dict[str, dict[str, object]]:
 
 
 def test_receipt_survives_a_crash_at_every_stage() -> None:
-    # #348 review (hard): a crash must never leave a repaired block without a
+    # #348: a crash must never leave a repaired block without a
     # receipt entry, and a resume must never flip a block twice. Before the table
     # is replaced the backup is the only evidence, so the half-done block is
     # refused by name rather than repaired again.
@@ -468,6 +468,51 @@ def test_no_duplicates_gets_the_flip_only() -> None:
               "the flip-only receipt's totals are wrong")
 
 
+def test_each_tool_keeps_its_own_row_of_an_equal_maf_pair() -> None:
+    """The constructor and the repair settle an MAF tie differently, by design.
+
+    An insertion and a deletion at one position share an ALID (22:101:G:GA).
+    Both records have MAF 0.25: the first is called in four of eight
+    individuals, the second in all eight. The constructor keeps the
+    better-called record (REF=GA, the later one) and reports the frequency of
+    the shared EA, 0.75. The repair sees only the shipped table, which records
+    no call rate, so it keeps the higher stored MAF with a tie going to the
+    earlier row (REF=G) and inverts that row's stored EAF to 0.25. Either row is
+    an exact LD row for the variant its own source record describes,
+    which is why the two rules can differ without either panel being wrong.
+    """
+    genotypes = np.array([[0, 0], [0, 0], [0, 0], [2, 0],
+                          [np.nan, 0], [np.nan, 0], [np.nan, 2], [np.nan, 2]], dtype=np.float64)
+    variants = [
+        {"chrom": "22", "pos": 101, "allele1": "G", "allele2": "GA", "counted": "G"},
+        {"chrom": "22", "pos": 101, "allele1": "GA", "allele2": "G", "counted": "GA"},
+    ]
+    built = sys.modules["construct_block"].construct_block(
+        genotypes, variants, mac_threshold=0, component_floor=1)
+    check(built.provenance["n_variants_alid_collision"] == 1,
+          f"the constructor found no collision: {built.provenance}")
+    check([(r["REF"], r["ALT"], r["EA"], r["EAF"]) for r in built.variant_table]
+          == [("GA", "G", "G", 0.75)],
+          f"the constructor kept the wrong record: {built.variant_table}")
+
+    with tempfile.TemporaryDirectory() as tmp_name:
+        base = Path(tmp_name) / "22-101"
+        # The shipped table for the same pair: EA is the canonical smaller
+        # allele in both rows, and each EAF is the other allele's frequency.
+        base.with_suffix(".tsv").write_text(
+            "CHR\tBP\tSNP\tOA\tEA\tEAF\tMAC\tREF\tALT\n"
+            "22\t101\t22:101:G:GA\tGA\tG\t0.75\t4\tG\tGA\n"
+            "22\t101\t22:101:G:GA\tGA\tG\t0.25\t4\tGA\tG\n")
+        repaired, dropped, kept, _ = repair_tool.plan_repair(base)
+        check(dropped == [1] and kept == 1, f"the repair kept {kept} rows and dropped {dropped}")
+        with base.with_suffix(".tsv").open("w") as fh:
+            fh.writelines(repaired)
+        table = rows(base)
+        check([(r["REF"], r["ALT"], r["EA"], float(r["EAF"])) for r in table]
+              == [("G", "GA", "G", 0.25)],
+              f"the repair kept the wrong record: {table}")
+
+
 def original_state(panel_dir: Path) -> dict[str, tuple[int, str]]:
     """Each original's inode and sha256, before any repair."""
     return {f"EUR/{name}{suffix}": (os.stat(panel_dir / f"EUR/{name}{suffix}").st_ino,
@@ -572,6 +617,7 @@ def main() -> None:
     test_a_cross_device_backup_dir_is_copied_and_says_so()
     test_any_other_link_error_stops_the_run()
     test_no_duplicates_gets_the_flip_only()
+    test_each_tool_keeps_its_own_row_of_an_equal_maf_pair()
     print(f"ok — {checks} checks passed")
 
 

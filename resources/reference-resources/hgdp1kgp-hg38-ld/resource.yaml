@@ -24,7 +24,7 @@ source:
     SAS: 783
   variant_inclusion: >
     MAC >= 50; of the records sharing an ALID, the one with the higher MAF,
-    ties going to the earlier record
+    then the higher call rate, then the earlier input record
   population_map: populations_to_superpop.tsv
   acquisition: tools/ld-panel/acquire_hgdp1kgp.py
   generator: tools/ld-panel/
@@ -91,11 +91,15 @@ notes: >
 
   **A block holds at most one row per ALID.** gnomAD splits multi-allelic
   sites, so an insertion and a deletion at one position can canonicalise to the
-  same ALID; of the records that pass every filter, the one with the higher MAF
-  is kept, a tie going to the earlier record. That rule is part of
-  `variant_inclusion` now, and tables built before it are corrected by the same
-  tool, which drops the losing rows from the TSV and from `vectors` (row i of
-  the eigenvectors is row i of the table, so a drop is a row selection).
+  same ALID. Of the records that pass every filter, the constructor keeps the
+  one with the higher MAF, then the higher call rate, then the earlier input
+  record, and that rule is part of `variant_inclusion` now. A table written
+  before it was in place was corrected by dropping the losing rows from the TSV
+  and from `vectors` (row i of the eigenvectors is row i of the table, so a drop
+  is a row selection). Such a table records no call rate, so `repair_panel.py`
+  keeps the higher MAF as the table stores it, a tie going to the earlier row;
+  a tie at equal stored MAF is rare, and either record is an exact LD row for
+  the variant its own source record describes.
   `values` is left untouched: it is the full spectrum, and the consumer's
   cumulative-variance cut must keep its meaning. Dropping a row is exact for the
   stored LD, `V diag(values) V^T`.

@@ -27,9 +27,12 @@ what a rebuild or an in-place repair must reproduce (stores#348):
   block whose `EAF` is the other allele's frequency is a defect, not a variant
   of the contract.
 - **One row per ALID within a block.** gnomAD splits multi-allelic sites, so a
-  deletion and an insertion at one position can canonicalise to one ALID; of the
-  records that pass every filter, the one with the higher MAF is kept, a tie
-  going to the earlier record. Rows sharing an ALID across two adjacent blocks
+  deletion and an insertion at one position can canonicalise to one ALID. Of the
+  records that pass every filter, the constructor keeps the one with the higher
+  MAF, then the higher call rate, then the earlier input record; a table written
+  before that rule was in place and repaired in place under stores#348 records no
+  call rate, so `repair_panel.py` keeps the higher MAF as the table stores it and
+  gives a tie to the earlier row. Rows sharing an ALID across two adjacent blocks
   are by design (both blocks include their boundary positions).
 - **Row order is the only tie between the files.** TSV row *i* is eigenvector
   row *i*, so dropping a row is a row selection from `vectors`; `values` is the

@@ -135,7 +135,7 @@ def write_block(name: str, records: list[tuple[int, str, str, list[int]]]) -> No
 
 
 def surviving(records: list[tuple[int, str, str, list[int]]], chrom: str) -> list[tuple[int, str, str, list[int]]]:
-    """The records the one-record-per-ALID rule keeps: highest MAF, ties to the earlier row."""
+    """The records the repair's one-record-per-ALID rule keeps: highest MAF, ties to the earlier row."""
     best: dict[str, tuple[float, int]] = {}
     for i, (pos, ref, alt, dosages) in enumerate(records):
         frequency = ea_frequency(dosages, ref, alt)

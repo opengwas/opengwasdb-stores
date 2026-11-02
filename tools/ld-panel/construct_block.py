@@ -182,9 +182,11 @@ def construct_block(
     # An ALID naming two source records is ambiguous to every consumer: gnomAD
     # splits multi-allelic sites, so the deletion GA>G and the insertion G>GA
     # at one position both become pos:G:GA (#241, #348). Of the eligible
-    # records sharing an ALID, keep the one with the higher MAF (then call
-    # rate, then input order): the record a GWAS reporting that ALID most
-    # likely means.
+    # records sharing an ALID, keep the one with the higher MAF, then the
+    # higher call rate, then the earlier input record: the record a GWAS
+    # reporting that ALID most likely means, and a well-called one where two
+    # tie on MAF. `repair_panel` settles such a tie on row order instead,
+    # because a shipped block table records no call rate.
     best: dict[str, int] = {}
     for i in np.flatnonzero(eligible):
         alid = alids[i]

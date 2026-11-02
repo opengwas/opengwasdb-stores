@@ -27,4 +27,5 @@ Variant QC (owner decision, 2026-10-22):
 - PASS records only, filtered at conversion;
 - at least 80% of members called;
 - MAF ≥ 0.01 over called individuals, with no MAC floor;
-- of the records sharing an ALID, the one with the higher MAF is kept.
+- of the records sharing an ALID, the one with the higher MAF is kept, then the
+  higher call rate, then the earlier input record.

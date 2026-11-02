@@ -67,7 +67,7 @@ def finish_panel(out: Path, args: argparse.Namespace, receipt: dict[str, object]
 
     It is the last thing that can refuse the run, and it takes its sample size
     from the same ``--orientation-blocks`` the construction gate does, so the two
-    measure a panel the same way (#348 review).
+    measure a panel the same way (#348).
     """
     orientation = gate_panel(out / "panel", "AMR", reference=args.ancestry_reference,
                              group=ANCESTRY_GROUPS["AMR"], blocks=args.orientation_blocks,

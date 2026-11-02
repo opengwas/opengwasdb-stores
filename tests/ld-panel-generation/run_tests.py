@@ -792,7 +792,7 @@ def refused(export: str) -> bool:
 
 
 def test_no_silent_allele() -> None:
-    # #348 review: a suffix that is absent, empty or foreign used to be read as
+    # #348: a suffix that is absent, empty or foreign used to be read as
     # ALT. Every one of them is now a malformed export, not an assumption.
     check(refused(""), "a suffix-free export column was read as ALT")
     check(refused("_"), "an empty suffix was read as ALT")
@@ -1019,7 +1019,7 @@ def test_verify_block_duplicate_alid_and_repair() -> None:
               "a repaired block whose values changed passed")
 
         # Byte identity, not numerical equality: a dtype change that leaves every
-        # number alone is still not the backup's file (#348 review).
+        # number alone is still not the backup's file (#348).
         def byte_swap_values(copy_: Path, arrays: dict) -> None:
             arrays["values"] = arrays["values"].astype(">f8")
         check("repair_values" in with_arrays(byte_swap_values),
@@ -1060,7 +1060,7 @@ def legacy_afr_repair(tmp: Path) -> tuple[Path, Path]:
     AFR/EAS/SAS/EUR tables predate the REF/ALT columns, and the builder kept
     both records of an ALID that names an insertion and a deletion, so a
     surviving ALID can still name two source records -- which is why repairing
-    one cannot be checked against genotypes (#348 review).
+    one cannot be checked against genotypes (#348).
     """
     base, _, _ = real_export_block(tmp)
     header, *lines = base.with_suffix(".tsv").read_text().splitlines()
@@ -1102,7 +1102,7 @@ def legacy_afr_repair(tmp: Path) -> tuple[Path, Path]:
 
 
 def test_repaired_block_needs_no_genotypes() -> None:
-    # #348 review P1: repairing a shipped AFR-style block cannot be checked
+    # #348: repairing a shipped AFR-style block cannot be checked
     # against genotypes -- the surviving ALID still names two source records and
     # the table has no REF/ALT to tell them apart -- so a repaired block is held
     # to its backup, and the CLI asks for no genotype extraction.
@@ -1145,7 +1145,7 @@ def test_repaired_block_needs_no_genotypes() -> None:
 
 
 def test_build_paths_gate_the_panel() -> None:
-    # #348 review P1: the recurrence guard is part of building and finishing a
+    # #348: the recurrence guard is part of building and finishing a
     # panel, not an optional CLI flag. run_panels gates what it built, and
     # build_amr_panel gates the finished panel, both on the UKB reference.
     with tempfile.TemporaryDirectory() as tmp_name:
@@ -1185,7 +1185,7 @@ def test_build_paths_gate_the_panel() -> None:
               "the failing block was not reported per-block before the refusal")
         regions.write_text("chr\tstart\tend\tancestry\n")
         # ... and the shared gate is the one both build scripts use, so both
-        # answer the same way and take the same sample size (#348 review).
+        # answer the same way and take the same sample size (#348).
         check(run_panels_module.gate_panel is panel.gate_panel,
               "the two build scripts keep separate gate wrappers")
         sampled = panel.gate_panel(tmp / "panel", "EUR", reference=reference, group="United Kingdom",

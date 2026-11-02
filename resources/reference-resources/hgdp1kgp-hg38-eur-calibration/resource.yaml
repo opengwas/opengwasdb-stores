@@ -21,7 +21,7 @@ source:
   n_individuals: 771
   variant_inclusion: >
     MAC >= 50; of the records sharing an ALID, the one with the higher MAF,
-    ties going to the earlier record
+    then the higher call rate, then the earlier input record
   generator: tools/ld-panel/run_panels.py
 status: available
 description: >
@@ -33,7 +33,8 @@ description: >
   Every block's `EAF` is the frequency of the row's `EA`, not of `OA`: the
   generator reads which allele PLINK's additive export counted from the export's
   column suffix (plink2 counts REF, stores#348), and a block holds at most one
-  row per ALID, keeping the record with the higher MAF (ties to the earlier one).
+  row per ALID, keeping the record with the higher MAF, then the higher call
+  rate, then the earlier input record.
   As the production AFR/EAS/SAS panels do, a panel written before either rule
   was in place is corrected in place by `tools/ld-panel/repair_panel.py`, which
   inverts EAF, drops the losing rows of a collision from the TSV and `vectors`
