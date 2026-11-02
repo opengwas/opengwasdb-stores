@@ -294,7 +294,10 @@ names the ref and commit, the engine has no components, edges or gaps, and this
 repository's half is complete. A ref that cannot be read at all makes the source
 unavailable.
 
-An **import** is counted per (file, imported name) between modules that components
+Files are read by object id, so a path holding a newline is its own file. An
+**import** is resolved against every tracked module first, then to that module's
+owner: an unclaimed module gives no edge (it is a gap), and never takes its
+package's owner. An import is counted per (file, imported name) between modules that components
 claim, relative imports resolved. An edge is `upward` when it is inside the engine
 and goes to a component on a higher layer; the same layer and lower layers are not.
 `registry_to_engine` is the seam between the repositories.

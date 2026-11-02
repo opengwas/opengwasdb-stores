@@ -147,7 +147,7 @@ def _hand_and_measured(*, hand: str, measured: str) -> list[str]:
 def _engine_notice(data: Document) -> list[str]:
     engine = data.get("engine") or {}
     lines = [
-        f"Read from engine `{engine.get('ref')}` at `{str(engine.get('commit'))[:12]}`, "
+        f"Read from engine {pages._code(engine.get('ref'))} at {pages._code(str(engine.get('commit'))[:12])}, "
         f"committed {pages._cell(engine.get('committed'))}.",
         "",
     ]
@@ -155,14 +155,14 @@ def _engine_notice(data: Document) -> list[str]:
     if isinstance(refresh, Mapping) and refresh.get("ok") is False:
         lines += [
             f"> **The engine refresh failed**: {pages._cell(refresh.get('error'))}. "
-            f"This is the `{engine.get('ref')}` this clone already had, so it may be behind.",
+            f"This is the {pages._code(engine.get('ref'))} this clone already had, so it may be behind.",
             "",
         ]
     if engine.get("model"):
         return lines
     return lines + [
-        f"> **The engine has no architecture model yet**: no architecture model at `{engine.get('ref')}` "
-        f"(commit `{str(engine.get('commit'))[:12]}`) of `{engine.get('repo')}`. Its components, layers and "
+        f"> **The engine has no architecture model yet**: no architecture model at {pages._code(engine.get('ref'))} "
+        f"(commit {pages._code(str(engine.get('commit'))[:12])}) of {pages._code(engine.get('repo'))}. Its components, layers and "
         "imports are not drawn; this repository's are.",
         "",
     ]
@@ -188,8 +188,8 @@ def _adr_link(adr: Mapping[str, Any], members: list[Mapping[str, Any]]) -> str:
 def _as_of(data: Document) -> str:
     registry, engine = data.get("registry") or {}, data.get("engine") or {}
     return (
-        f"_Read from this repository at `{registry.get('ref')}` (`{str(registry.get('commit'))[:12]}`) and the engine at "
-        f"`{engine.get('ref')}` (`{str(engine.get('commit'))[:12]}`); collected {pages._cell(data.get('collected_at'))}._"
+        f"Read from this repository at {pages._code(registry.get('ref'))} ({pages._code(str(registry.get('commit'))[:12])}) and the engine at "
+        f"{pages._code(engine.get('ref'))} ({pages._code(str(engine.get('commit'))[:12])}); collected {pages._cell(data.get('collected_at'))}."
     )
 
 
@@ -207,8 +207,8 @@ def _health(data: Document, components: list, edges: list, summary: Mapping[str,
             continue
         lines.append(f"{len(unclaimed)} code files no component claims; {len(stale)} claims that match no tracked file.")
         lines.append("")
-        lines += [f"- Unclaimed: `{path}`" for path in unclaimed]
-        lines += [f"- Stale: `{c['path']}` (claimed by `{c['component']}`)" for c in stale]
+        lines += [f"- Unclaimed: {pages._code(path)}" for path in unclaimed]
+        lines += [f"- Stale: {pages._code(c['path'])} (claimed by {pages._code(c['component'])})" for c in stale]
         if unclaimed or stale:
             lines.append("")
     by_id = {c["id"]: c for c in components}

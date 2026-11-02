@@ -94,6 +94,18 @@ class CombinedModelTests(unittest.TestCase):
             Fixture(self, engine_files=engine).collect()
         self.assertIn("opengwasdb/store/broken.py", str(caught.exception))
 
+    def test_a_path_holding_a_newline_is_read_as_its_own_file(self) -> None:
+        registry = {
+            **fx.REGISTRY_FILES,
+            "tools/z.py": "x = 1\n",
+            "tools/z.py\nignored.py": "import os\nfrom opengwasdb.cli import main\nx = 1\n",
+        }
+        result = Fixture(self, registry_files=registry).collect()
+        tools = next(c for c in result["components"] if c["id"] == "tools")
+        self.assertEqual((tools["files"], tools["lines"]), (3, 5))  # run.py 1, z.py 1, the newline-named file 3
+        edge = next(e for e in result["edges"] if (e["from"], e["to"]) == ("tools", "cli"))
+        self.assertEqual(edge["imports"], 2)  # run.py's and the newline-named file's
+
     def test_the_engine_commit_date_is_recorded(self) -> None:
         fixture = Fixture(self)
         committed = fx.git(fixture.engine, "show", "-s", "--format=%cI", "HEAD")

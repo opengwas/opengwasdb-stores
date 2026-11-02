@@ -55,6 +55,21 @@ class ImportGraphTests(unittest.TestCase):
             ],
         )
 
+    def test_an_unclaimed_module_gives_no_edge_through_its_claimed_package(self) -> None:
+        engine = {
+            **fx.ENGINE_FILES,
+            "opengwasdb/orphan.py": "",  # unclaimed: a gap, and no component
+            "opengwasdb/check/run.py": "from opengwasdb.query import facade\nfrom opengwasdb import orphan\n",
+        }
+        root = Path(tempfile.mkdtemp(prefix="arch-"))
+        self.addCleanup(__import__("shutil").rmtree, root, True)
+        fx.make_repo(root / "registry", fx.REGISTRY_FILES)
+        fx.make_repo(root / "engine", engine)
+        edges = architecture.collect(root / "registry", engine_git=root / "engine")["edges"]
+        # `opengwasdb` (the package) is claimed by cli, but `opengwasdb.orphan` is a module of its own
+        self.assertNotIn(("check", "cli"), [(e["from"], e["to"]) for e in edges])
+        self.assertEqual([e for e in edges if e["from"] == "check"], [edge("check", "query", 1, "engine")])
+
     def test_the_summary_counts_upward_edges_imports_and_the_seam(self) -> None:
         root = Path(tempfile.mkdtemp(prefix="arch-"))
         self.addCleanup(__import__("shutil").rmtree, root, True)

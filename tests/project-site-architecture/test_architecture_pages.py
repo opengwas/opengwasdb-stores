@@ -215,6 +215,29 @@ class StructureTests(unittest.TestCase):
         self.assertIn("8 imports", self.page)
 
 
+class HostileFactTests(unittest.TestCase):
+    """A ref, path or error is data: shown as text, never obeyed as Markdown or HTML (docs/site.md, Adding a page 8)."""
+
+    def pages(self) -> list[str]:
+        doc = architecture()
+        doc["engine"]["ref"] = "ma`in"
+        doc["gaps"]["engine"]["unclaimed"] = ["opengwasdb/a`|<b>.py"]
+        doc["gaps"]["engine"]["stale"] = [{"path": "opengwasdb/<i>x`/", "component": "mo`del"}]
+        doc["engine"]["refresh"] = {"ok": False, "error": "bad `<b>` | thing"}
+        return [re.sub(r"```\{dot\}.*?```", "", render(f, doc), flags=re.S)
+                for f in (pages.render_pipeline, pages.render_structure)]
+
+    def test_no_fact_reaches_the_page_as_raw_html(self) -> None:
+        for page in self.pages():
+            self.assertNotIn("<b>", page)
+            self.assertNotIn("<i>", page)
+
+    def test_a_path_with_a_backtick_and_a_pipe_is_shown_whole(self) -> None:
+        structure = self.pages()[1]
+        self.assertIn("<code>opengwasdb/a&#96;&#124;&lt;b&gt;.py</code>", structure)
+        self.assertIn("engine <code>ma&#96;in</code> at", structure)
+
+
 @unittest.skipUnless(QUARTO, "Quarto is not on PATH; the render assertion needs it")
 class QuartoRenderTests(unittest.TestCase):
     def test_the_dot_cells_become_drawings(self) -> None:

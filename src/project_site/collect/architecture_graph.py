@@ -79,13 +79,15 @@ def import_edges(
 ) -> list[Edge]:
     """Component -> component edges with their import counts, sorted by (from, to)."""
     by_id = {c["id"]: c for c in components}
-    module_owner: dict[str, str] = {}
-    sources: list[tuple[str, str, str]] = []
-    for module, (repo, path) in modules_of(trees).items():
-        component = model_rules.owner(claims[repo], path)
-        if component:
-            module_owner[module] = component
-            sources.append((repo, path, module))
+    # Every tracked module resolves to its own owner or to none: an unclaimed
+    # module is a gap, and must not inherit the owner of the package around it.
+    everything = modules_of(trees)
+    module_owner: dict[str, str | None] = {
+        module: model_rules.owner(claims[repo], path) for module, (repo, path) in everything.items()
+    }
+    sources: list[tuple[str, str, str]] = [
+        (repo, path, module) for module, (repo, path) in everything.items() if module_owner[module]
+    ]
     # A claimed script (`tools/`, `workflow/`) is not importable, but it imports:
     # it is a source of edges, never a target.
     importable = {path for _, path, _ in sources}
@@ -96,9 +98,8 @@ def import_edges(
     def resolve(name: str) -> str | None:
         parts = name.split(".")
         while parts:
-            hit = module_owner.get(".".join(parts))
-            if hit:
-                return hit
+            if ".".join(parts) in module_owner:
+                return module_owner[".".join(parts)]
             parts.pop()
         return None
 
