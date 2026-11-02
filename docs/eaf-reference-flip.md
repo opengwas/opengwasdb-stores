@@ -215,3 +215,23 @@ commit.
   and `replaced/`. `release-dry OGS-00014` plans no jobs ("Nothing to be done").
 - The Store was not re-validated by this step. The Release Erratum is in
   `stores/OGS-00014/release.yaml`.
+
+**OGS-00014 SE re-sync, 2026-11-02** (tool at stores `def9e2c8`, opengwasdb 0.3.2): the
+post-flip `validate` had failed all three tiers' SE check, so `eaf-reference-flip OGS-00014
+--resync-se --workers 16` rewrote the top-hit SE (26 min; originals in
+`replaced/20261102T111229Z-eaf-reference-flip-se-resync/`, receipt
+`records/eaf-reference-flip-se-resync.json`, sha256
+`f34f054214a0b2d22570af49d979360e4aef0c6ea4cbeac285bab2386e25d8a6`).
+
+| Array | Cells | Re-synced | Failed validate's rtol before |
+| --- | --- | --- | --- |
+| `top_hits/p_5e_04/se` | 44,023,163 | 126,116 | 3,282 |
+| `top_hits/p_5e_06/se` | 2,739,528 | 16,951 | 276 |
+| `top_hits/p_5e_08/se` | 560,180 | 7,548 | 98 |
+
+- Maximum relative change 1.48e-6, all imputed cells. The tool's post-swap check (rtol 0, HM3
+  files unchanged) passed; read-only afterwards, an independent decode finds 0 mismatches in
+  every tier at rtol 1e-6 and at rtol 0, and the files match the receipt's after-hashes.
+  `release-dry OGS-00014` plans nothing.
+- `opengwasdb validate` 0.3.2 (`44f25a96`), under the release lock, started 2026-11-02
+  11:32:35 UTC, elapsed 4 h 29 m 50 s, exit 0: `{"errors": [], "ok": true, "warnings": []}`.
