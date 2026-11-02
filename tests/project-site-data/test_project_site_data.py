@@ -17,6 +17,7 @@ import datetime
 import json
 import os
 import sqlite3
+import subprocess
 import tempfile
 import unittest
 from unittest import mock
@@ -902,12 +903,23 @@ class TestSiteData(unittest.TestCase):
         self.epics = self.tmp / "_epics"
         self.epics.mkdir()
         self.catalog_root = self.tmp / "no-catalog"
+        # The architecture collector reads git, never the host's clone: a fixture repository for each side.
+        self.checkout = self.tmp / "checkout"
+        self.engine = self.tmp / "engine"
+        for repo, model in ((self.checkout, "repo: opengwas/opengwasdb-stores\ncomponents: []\n"),
+                            (self.engine, "repo: opengwas/opengwasdb\nlayers: []\ncomponents: []\n")):
+            (repo / "docs" / "architecture").mkdir(parents=True)
+            (repo / "docs" / "architecture" / "components.yaml").write_text(model)
+            for args in (["init", "-q", "-b", "main"], ["add", "-A"],
+                         ["-c", "user.name=t", "-c", "user.email=t@e.org", "commit", "-q", "-m", "x"]):
+                subprocess.run(["git", "-C", str(repo), *args], check=True)
 
     def run_all(self, gh: common.GhRunner) -> tuple[list[dict], list[str]]:
         lines: list[str] = []
         results = site_data.run(
             self.data, gh=gh, catalog_root=self.catalog_root, registry=self.registry,
             epics_dir=self.epics, yardstick_dir=self.tmp / "_yardstick", out=lines.append,
+            repo_root=self.checkout, engine_git=self.engine,
         )
         return results, lines
 
@@ -924,21 +936,21 @@ class TestSiteData(unittest.TestCase):
         self.catalog_root = self.tmp / "versions"
         results, lines = self.run_all(gh)
         by_source = {r["source"]: r for r in results}
-        self.assertEqual(list(by_source), ["board", "catalog", "releases", "stores", "records"])
+        self.assertEqual(list(by_source), ["board", "catalog", "releases", "stores", "records", "architecture"])
         self.assertFalse(by_source["board"]["available"])
         self.assertEqual(by_source["board"]["error"], "CollectError: gh api graphql exited 4: could not resolve host")
         self.assertEqual(
             sorted(k for k in by_source["board"] if k not in ("source", "available", "collected_at", "error")), []
         )
-        for source in ("catalog", "releases", "stores", "records"):
+        for source in ("catalog", "releases", "stores", "records", "architecture"):
             self.assertTrue(by_source[source]["available"], source)
             self.assertIsNone(by_source[source]["error"], source)
         self.assertEqual(by_source["catalog"]["versions"][0]["totals"], {"analyses": 1, "stores": 1})
         # Every source has its file, and the file is the result.
         self.assertEqual(sorted(p.name for p in self.data.iterdir()),
-                         ["board.json", "catalog.json", "records.json", "releases.json", "stores.json"])
+                         ["architecture.json", "board.json", "catalog.json", "records.json", "releases.json", "stores.json"])
         self.assertEqual(json.loads((self.data / "board.json").read_text())["available"], False)
-        self.assertEqual(len(lines), 5)
+        self.assertEqual(len(lines), 6)
         self.assertEqual(lines[0], "UNAVAILABLE board: CollectError: gh api graphql exited 4: could not resolve host")
         self.assertEqual(lines[1], "catalog: 1 versions, current none")
 

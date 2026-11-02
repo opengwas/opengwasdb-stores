@@ -118,7 +118,7 @@ Every file starts with the same four keys, then the source's own:
 
 | Key | Meaning |
 |---|---|
-| `source` | `board`, `catalog`, `releases`, `stores` or `records` |
+| `source` | `board`, `catalog`, `releases`, `stores`, `records` or `architecture` |
 | `available` | `true` when the source was read; `false` when it could not be |
 | `collected_at` | UTC time, `2026-10-29T12:00:00Z` |
 | `error` | `null`, or the failure as `ExceptionType: message` |
@@ -250,9 +250,70 @@ results are still read: one bad file never makes the source unavailable. The
 same holds for the epic records above. `records.collect`
 takes another validator as an argument, for tests.
 
+### Architecture (`architecture.json`)
+
+The architecture of both repositories (#418, epic #416), from the two
+hand-written model files `docs/architecture/components.yaml` and the code they
+claim. It reads **git, not checkouts**: this repository at `HEAD` (tracked files
+only) and the engine at its `main` through the bare clone the site build already
+keeps (`/data/opengwasdb/work/site/opengwasdb.git`, or `--engine-git`; `--engine-ref`
+names another ref). `pixi run site` fetches `main` into that clone first (`--refresh-engine`);
+a failed fetch leaves the `main` the clone has and is recorded in `engine.refresh`. The site's *docs* mirror stays at the
+engine revision `pixi.lock` pins; the map shows current work, so it does not.
+
+The model files. Each has `repo` and `components`: `id`, `name`, `container`,
+`stages`, `summary`, `paths`. The engine's has `layers` (top to bottom, `layer`
+and `name`) and a `layer` on every component. This repository's has `system`,
+`people`, `external`, `containers`, `container_relations` and `stages`. A path
+ending in `/` claims a directory; any other path claims one file; the longest
+claimed prefix wins. Nothing else is written by hand: edges, counts and ADR
+placement are measured.
+
+| Key | Content |
+|---|---|
+| `registry`, `engine` | `repo`, `ref`, `commit` read, `committed` (that commit's date), `refresh`, `model` (`true`, or `false` when the ref has no model file) and `note`. The engine's `refresh` is `null` when no fetch was asked for, else `{ok, error}` with git's own message; the pages show the commit and its date, and a visible line when the refresh failed |
+| `model` | `system`, `people`, `external`, `containers`, `container_relations`, `stages` (this repository's), `layers` (the engine's; `[]` without its model) |
+| `components` | this repository's, then the engine's: the model's keys plus `repo` (`registry` or `engine`), `files` and `lines` (claimed code files), `tracked` (every tracked file claimed) |
+| `gaps.<repo>` | `unclaimed` (code files no component claims, by path) and `stale` (`{path, component}` claims matching no tracked file) |
+| `edges` | `from`, `to`, `imports`, `scope` (`engine`, `registry`, `registry_to_engine`), `upward` |
+| `adrs` | every `docs/adr/NNNN-*.md` of both repositories: `repo`, `number`, `path`, `title`, `status`, `url`, `components` |
+| `summary` | `edges`, `upward_edges`, `upward_imports`, `registry_to_engine_edges`, `registry_to_engine_imports`, `adrs_total`, `adrs_placed` |
+
+A code file that cannot be read, or a Python file that does not parse, makes the
+source unavailable with an error naming the path; a count is never a guess of 0.
+A claimed script under `tools/` or `workflow/` is a source of imports even though
+no one can import it.
+
+Code is a tracked `.py` under `opengwasdb/` in the engine, and a `.py`, `.smk`,
+`.sh` or `Snakefile` under `src/`, `workflow/` or `tools/` here. **Gaps never
+fail the build.** The engine's own CI fails on its unclaimed files, and this
+repository's test (`tests/project-site-architecture/test_architecture_ownership.py`)
+fails on its own; the collector only reports them, on the page. An engine ref with
+no model file is not an error either: `engine.model` is `false`, `engine.note`
+names the ref and commit, the engine has no components, edges or gaps, and this
+repository's half is complete. A ref that cannot be read at all makes the source
+unavailable.
+
+Files are read by object id, so a path holding a newline is its own file. An
+**import** is resolved against every tracked module first, then to that module's
+owner: an unclaimed module gives no edge (it is a gap), and never takes its
+package's owner. An import is counted per (file, imported name) between modules that components
+claim, relative imports resolved. An edge is `upward` when it is inside the engine
+and goes to a component on a higher layer; the same layer and lower layers are not.
+`registry_to_engine` is the seam between the repositories.
+
+An **ADR** is placed by the code it cites (a path, a dotted module name such as
+`opengwasdb.store.paths`, or a GitHub link to a file, resolved through the
+claims; a bare suffix such as `store/paths.py` only when exactly one tracked file
+ends with it) and by a component's `name` in its title (case-insensitive, at the start of a word, with no boundary at its end). A
+component's name that appears only in the body places nothing, however often.
+`components` maps a component id to `code` or `title`; an ADR placed nowhere has
+`{}` and is listed on the page.
+
 ### The command's output and exit status
 
-One line per source, in this order, then the files are all written:
+One line per source, in this order (the architecture line is longer: components,
+gaps, upward imports, the seam and ADRs placed), then the files are all written:
 
 ```text
 board: 17 epics, 2 milestones, 16 milestone lines
@@ -260,6 +321,7 @@ catalog: 3 versions, current 1b3a155d449bb84a
 releases: 0 releases, 1 tags
 stores: 22 stores
 records: 0 epics, 0 invalid, 0 yardstick results, 0 invalid
+architecture: 10 registry + 15 engine components (engine model at main 1a2b3c4d), gaps ...
 ```
 
 An unavailable source prints `UNAVAILABLE <source>: <error>` in place of its

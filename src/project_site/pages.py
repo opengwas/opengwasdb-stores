@@ -47,13 +47,14 @@ Document = Mapping[str, Any]
 
 # The collectors, in the order `pixi run site-data` runs them, and the name each
 # one's notice uses.
-SOURCES = ("board", "catalog", "releases", "stores", "records")
+SOURCES = ("board", "catalog", "releases", "stores", "records", "architecture")
 TITLES = {
     "board": "Board data",
     "catalog": "Catalog data",
     "releases": "Releases data",
     "stores": "Stores data",
     "records": "Records data",
+    "architecture": "Architecture data",
 }
 
 # The board's Workstream values, in the order the project reads them; a
@@ -1784,6 +1785,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
+def render_pipeline(documents: Mapping[str, Document | None]) -> str:
+    """The Architecture landing page (#418); written in `architecture_pages`, which reads this module's helpers."""
+    from project_site import architecture_pages
+
+    return architecture_pages.render_pipeline(documents)
+
+
+def render_structure(documents: Mapping[str, Document | None]) -> str:
+    """The Structure and health page (#418)."""
+    from project_site import architecture_pages
+
+    return architecture_pages.render_structure(documents)
+
+
 # The section pages, in the navbar's order: the file Quarto renders and the
 # title it shows. `index.qmd` and `stores.qmd` already have a published path, so
 # they are the pages the site has always served, filled in from the data now.
@@ -1793,6 +1808,8 @@ SECTION_PAGES = (
     ("epics.qmd", "Epics", render_epics_index),
     ("trends.qmd", "Trends", render_trends),
     ("changelog.qmd", "Changelog", render_changelog),
+    ("architecture.qmd", "Pipeline", render_pipeline),
+    ("architecture-structure.qmd", "Structure and health", render_structure),
 )
 
 # The commit a render documents, which the build puts in the render's environment

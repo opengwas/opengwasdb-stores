@@ -68,7 +68,7 @@ class BuildReport:
 RENDER_MARKERS = frozenset({"index.html", "search.json", "site_libs"})
 
 
-def collect_data(mirror: Path, repo: Path) -> list[dict]:
+def collect_data(mirror: Path, repo: Path, engine_clone: Path | None = None) -> list[dict]:
     """Collect the site's data into the render's own directory (#391).
 
     The pages are rendered from the data of the checkout being rendered, so
@@ -84,6 +84,9 @@ def collect_data(mirror: Path, repo: Path) -> list[dict]:
         registry=repo / "stores",
         epics_dir=repo / "docs" / "_epics",
         yardstick_dir=repo / "docs" / "_yardstick",
+        repo_root=repo,
+        engine_git=engine_clone,
+        refresh_engine=True,
     )
 
 
@@ -277,7 +280,7 @@ def build_site(
     repo = Path(repo).resolve() if repo is not None else paths.repo_root()
     output = Path(output).resolve() if output is not None else paths.output_dir(repo)
     stage = stage_everything(repo, stage_dir=stage_dir)
-    collect_data(stage.mirror, repo)
+    collect_data(stage.mirror, repo, stage.clone)
     links = rewrite(stage)
 
     started = time.monotonic()
