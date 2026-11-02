@@ -19,7 +19,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00012` | mvp-phs002453-eur | false | dense | reference_completed | validated | - | 1,669 | 0 | 20,548,967 | - | passed |
 | `OGS-00013` | mvp-phs002453-afr | false | dense | observed_only (completion pending) | validated | - | 1,368 | 0 | 36,964,976 | - | passed |
 | `OGS-00014` | mvp-phs002453-amr | false | dense | reference_completed | validated | - | 1,053 | 0 | 30,380,465 | - | passed |
-| `OGS-00015` | mvp-phs002453-eas | false | dense | observed_only | validated | - | 241 | 0 | 9,335,909 | - | passed |
+| `OGS-00015` | mvp-phs002453-eas | false | dense | observed_only (completion pending) | validated | - | 241 | 0 | 9,335,909 | - | passed |
 | `OGS-00016` | mvp-phs002453-meta-observed-only | false | dense | observed_only | validated | - | 1,691 | 0 | 27,929,380 | - | passed |
 | `OGS-00017` | r13-full | false | dense | reference_completed | validated | - | 2,754 | 0 | 21,549,493 | - | passed |
 | `OGS-00022` | eur-hybrid-pilot-10-completed | true | hybrid | reference_completed | validated | - | 9 | 1 | - | - | passed |
