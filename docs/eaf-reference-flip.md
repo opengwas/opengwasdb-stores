@@ -144,7 +144,9 @@ residual has nothing to re-sync and the step says so.
 4. **Staging and swap.** Only tiers with a changed cell are rewritten, each as a
    sibling `.se.resyncing` directory with the live `zarr.json` copied verbatim and
    whole-shard slices, checked to read back as the decoded plane bit for bit,
-   with every unchanged row identical to the stored one. The swap is the flip's
+   with every unchanged row identical to the stored one, then every staged file
+   and directory is fsynced (a failure aborts before any rename; the flip's staged
+   arrays get the same treatment). The swap is the flip's
    own (`_swap_all`, `_restore`): every rename announced in the receipt before
    it happens, both parents fsynced, a failure restoring each original and
    proving it by hash, `failed_restoration` kept rather than deleted when it
@@ -162,8 +164,10 @@ run `--resync-se`. `--dry-run` of a flip cannot count the cells the follow-on wi
 move (the Store is not flipped yet) and says the follow-on follows;
 `--resync-se --dry-run` on a flipped Store takes the lock, decodes, stages in a
 scratch directory, prints the counts per tier and writes nothing. `--workers`
-(default 16) is the number of processes the collector decodes row chunks with; a
-decode holds a row chunk of every Analysis at once, so size it to the host.
+(1 to 16, default 16: #326's cap) is the number of processes the collector
+decodes row chunks with, each with Zarr async width and Blosc threads of one, so
+the concurrent decodes never exceed the cap. A decode holds a row chunk of every
+Analysis at once.
 
 The same coupling would hold for any later rewrite of `eaf_reference` in a
 residual-SE Store, not only this flip.
