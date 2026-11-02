@@ -49,7 +49,7 @@ class ConflictsTests(unittest.TestCase):
         return str(directory)
 
     def test_files_that_meet_uncoordinated_work_exit_1_and_name_it(self) -> None:
-        code, text = run("conflicts", "--data", self.data(blocked=False), "--files", "opengwasdb/encoding/new.py")
+        code, text = run("conflicts", "--data", self.data(blocked=False), "--repo", "engine", "--files", "opengwasdb/encoding/new.py")
         self.assertEqual(code, 1)
         self.assertIn("Store Encoding", text)
         for named in ("opengwasdb#350", "opengwasdb#58", "opengwasdb/encoding/se_range.py", "orch/347/338", "opengwasdb#338",
@@ -73,11 +73,16 @@ class ConflictsTests(unittest.TestCase):
 
     def test_a_ticket_given_with_files_is_judged_by_its_edges(self) -> None:
         code, _ = run("conflicts", "--data", self.data(blocked=True), "--ticket", "opengwasdb#338",
-                      "--files", "opengwasdb/encoding/dense.py")
+                      "--repo", "engine", "--files", "opengwasdb/encoding/dense.py")
         self.assertEqual(code, 0)
 
+    def test_files_without_a_repo_exit_2_with_a_one_line_reason(self) -> None:
+        code, text = run("conflicts", "--data", self.data(blocked=False), "--files", "opengwasdb/encoding/new.py")
+        self.assertEqual(code, 2)
+        self.assertEqual(text.strip(), "cannot decide: --files needs --repo engine or --repo registry: a bare path can mean a file of either repository")
+
     def test_files_that_meet_nothing_exit_0(self) -> None:
-        code, text = run("conflicts", "--data", self.data(blocked=False), "--files", "opengwasdb/store/x.py", "README.md")
+        code, text = run("conflicts", "--data", self.data(blocked=False), "--repo", "engine", "--files", "opengwasdb/store/x.py", "README.md")
         self.assertEqual(code, 0)
         self.assertIn("meets no other work", text)
 
@@ -100,7 +105,7 @@ class UnmeasuredAndUnlinkableTests(unittest.TestCase):
             board(epic("opengwasdb#10", "Active", [ticket("opengwasdb#11", cited=["opengwasdb/encoding/a.py"])])),
             architecture=NO_ENGINE_MODEL,
         )
-        code, text = run("conflicts", "--data", self.collection(result, NO_ENGINE_MODEL), "--files", "opengwasdb/encoding/a.py")
+        code, text = run("conflicts", "--data", self.collection(result, NO_ENGINE_MODEL), "--repo", "engine", "--files", "opengwasdb/encoding/a.py")
         self.assertEqual(code, 2)
         self.assertIn("cannot decide", text)
         self.assertIn("engine", text)
@@ -108,7 +113,7 @@ class UnmeasuredAndUnlinkableTests(unittest.TestCase):
 
     def test_registry_files_are_still_decided_without_the_engines_model(self) -> None:
         result = compute(board(), architecture=NO_ENGINE_MODEL)
-        code, text = run("conflicts", "--data", self.collection(result, NO_ENGINE_MODEL), "--files", "src/project_site/x.py")
+        code, text = run("conflicts", "--data", self.collection(result, NO_ENGINE_MODEL), "--repo", "registry", "--files", "src/project_site/x.py")
         self.assertEqual((code, "meets no other work" in text), (0, True))
 
     def test_an_engine_branch_without_the_engines_model_cannot_be_decided(self) -> None:
@@ -163,7 +168,7 @@ class GitFailureTests(unittest.TestCase):
         common.write_source(self.data, common.collect_source("architecture", lambda: architecture_collector.collect(
             self.root / "registry", engine_git=self.root / "engine", engine_ref="main")))
         self.args = ["--data", str(self.data), "--registry-root", str(self.root / "registry"),
-                     "--engine-git", str(self.root / "engine"), "--files", "src/gen/x.py"]
+                     "--engine-git", str(self.root / "engine"), "--repo", "registry", "--files", "src/gen/x.py"]
 
     def test_an_inaccessible_local_directory_exits_2_with_a_reason(self) -> None:
         code, text = run("conflicts", *self.args, "--local", str(self.root / "no-such-clone"))

@@ -1,7 +1,7 @@
 """`python3 -m project_site.architecture`: ask the architecture map from a terminal (#419, epic #416).
 
     check      [--registry-root P] [--engine-git P] [--engine-ref R] [--data DIR]
-    conflicts  (--branch B [--repo engine|registry] | --files PATH... [--ticket repo#n])
+    conflicts  (--branch B [--repo engine|registry] | --files PATH... --repo engine|registry [--ticket repo#n])
                [--local GIT_DIR...] [--data DIR] [--refresh] [--days N]
 
 `check` reports the code files no component claims and the claims that match no
@@ -159,6 +159,8 @@ def _baseline(args: argparse.Namespace, document: Mapping[str, Any], out: TextIO
 
 
 def conflicts(args: argparse.Namespace, out: TextIO) -> int:
+    if args.files and not args.repo:
+        raise Unavailable("--files needs --repo engine or --repo registry: a bare path can mean a file of either repository")
     document, architecture_doc = _work(args)
     components = {c["id"]: c for c in architecture_doc["components"]}
     own_owner, own_items, touched, label = _candidate(args, document, architecture_doc)
@@ -183,17 +185,16 @@ def conflicts(args: argparse.Namespace, out: TextIO) -> int:
             for s in signals:
                 print(f"    {s['item']} [{s['state']}, {s['via']}] {', '.join(s['what'])}", file=out)
             theirs = {s["item"] for s in signals}
-            edges = [(x, y) for x, y in waits if (x in own_items and y in theirs) or (y in own_items and x in theirs)]
-            if edges:
-                print("    coordinated: " + "; ".join(f"{x} waits for {y}" for x, y in edges), file=out)
+            pair = work.classify_pair(waits, sorted(own_items), sorted(theirs))
+            if pair["coordination"] == "coordinated":
+                print("    coordinated: " + "; ".join(f"{e['waiting']} waits for {e['on']}" for e in pair["edges"]), file=out)
                 continue
             failed = True
-            epic_level = work.epic_level_branches([*theirs, *own_items])
             mine = ", ".join(sorted(own_items)) or "this work"
-            if epic_level:
+            if pair["coordination"] == "unlinkable":
                 print("    UNLINKABLE: " + "; ".join(
                     f"{name} belongs to an epic as a whole, so no blocking edge can link it to a single ticket"
-                    for name in epic_level) + "; asking a person is the safe default", file=out)
+                    for name in pair["epic_branches"]) + "; asking a person is the safe default", file=out)
             else:
                 print(f"    UNCOORDINATED: no blocking edge links {mine} and {', '.join(sorted(theirs))}", file=out)
     if not any_meet:
@@ -226,10 +227,9 @@ def _candidate(
         kind: work.model_rules.claims_of(c for c in architecture_doc["components"] if c["repo"] == kind and c.get("paths"))
         for kind in ("registry", "engine")
     }
-    kinds = [args.repo] if args.repo else ["registry", "engine"]
-    if reason and (args.repo == "engine" or any(f.startswith(f"{work.model_rules.ENGINE_PACKAGE}/") for f in args.files)):
+    if reason and args.repo == "engine":
         raise Unavailable(f"engine-side work was not measured: {reason}")
-    touched = {cid for f in args.files for kind in kinds if (cid := work.model_rules.owner(claims[kind], f))}
+    touched = {cid for f in args.files if (cid := work.model_rules.owner(claims[args.repo], f))}
     owner = document["tickets"].get(ticket) if ticket else None
     return owner, {ticket} if ticket else set(), touched, (
         f"{len(args.files)} files on {len(touched)} components" + (f" for {ticket}" if ticket else ""))

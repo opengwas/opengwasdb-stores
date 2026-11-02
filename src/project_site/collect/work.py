@@ -155,15 +155,8 @@ def compute(
         names = sorted(by_owner)
         pairs = []
         for a, b in combinations(names, 2):
-            edges = [
-                {"waiting": x, "on": y} for x, y in waits
-                if (x in by_owner[a] and y in by_owner[b]) or (x in by_owner[b] and y in by_owner[a])
-            ]
-            # An epic's integration branch belongs to the epic as a whole: no ticket for an edge to link.
-            epic_branches = epic_level_branches([item for o in (a, b) for item in by_owner[o]])
-            kind = "coordinated" if edges else "unlinkable" if epic_branches else "uncoordinated"
-            pairs.append({"owners": [a, b], "coordinated": bool(edges), "coordination": kind,
-                          "edges": edges, "epic_branches": [] if edges else epic_branches})
+            pair = classify_pair(waits, by_owner[a], by_owner[b])
+            pairs.append({"owners": [a, b], "coordinated": pair["coordination"] == "coordinated", **pair})
         kinds = {p["coordination"] for p in pairs}
         meets.append({"component": cid, "owners": names, "items": {o: sorted(by_owner[o]) for o in names},
                       "pairs": pairs, "coordinated": kinds == {"coordinated"},
@@ -206,6 +199,26 @@ def compute(
             "unresolved": len(unresolved_rows),
         },
     }
+
+
+def classify_pair(waits: Sequence[tuple[str, str]], one: Sequence[str], other: Sequence[str]) -> dict[str, Any]:
+    """How two owners' items on one component are coordinated: the one classifier the collector and the CLI share.
+
+    `coordination` is `coordinated` when a blocking edge `(waiting, on)` links an item of
+    one with an item of the other, in either direction; else `unlinkable` when one side's
+    work is an epic's integration branch (no ticket an edge could link); else `uncoordinated`.
+    `edges` are the `{waiting, on}` links, and `epic_branches` the integration branches
+    involved, empty when an edge coordinates the pair.
+    """
+    one_set, other_set = set(one), set(other)
+    edges = [
+        {"waiting": x, "on": y} for x, y in waits
+        if (x in one_set and y in other_set) or (x in other_set and y in one_set)
+    ]
+    # An epic's integration branch belongs to the epic as a whole: no ticket for an edge to link.
+    epic_branches = epic_level_branches([*one_set, *other_set])
+    kind = "coordinated" if edges else "unlinkable" if epic_branches else "uncoordinated"
+    return {"coordination": kind, "edges": edges, "epic_branches": [] if edges else epic_branches}
 
 
 def epic_level_branches(items: Sequence[str]) -> list[str]:

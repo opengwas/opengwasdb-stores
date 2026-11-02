@@ -467,7 +467,7 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
   exactly a `file` and a `name` of text, or an entry listed twice (this repository's own baseline is read by the same loader, with the same refusals). Exit **1** if anything measured has a problem (an unclaimed or stale claim, a new or
   stale baseline entry), whatever else is unknown; otherwise **2** if any part could not be measured;
   otherwise 0.
-- `conflicts --branch B [--repo engine|registry]` or `--files PATH... [--ticket repo#n]`:
+- `conflicts --branch B [--repo engine|registry]` or `--files PATH... --repo engine|registry [--ticket repo#n]` (`--files` without `--repo` exits 2: a bare path can mean a file of either repository):
   the components the work touches, the other owners' `building` or `active` work on each
   with its ticket, epic, branch and cited files, and whether a blocking edge links `--ticket`
   (or the branch's ticket) to theirs. Exit 1 when any meet is uncoordinated or unlinkable (asking a person is the safe default; the message says which); 0 when none is;
