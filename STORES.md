@@ -6,8 +6,8 @@ Generated master list of Store Releases in this registry.
 
 | Store ID | Label | Trial | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Validated |
 |:---|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|
-| `OGS-00001` | pilot-10 | true | ragged | observed_only | built | 0.1.0 | 10 | 0 | 86,376 | 86,373 | passed |
-| `OGS-00002` | pilot-10-completed | true | ragged | reference_completed | validated | 0.1.0 | 10 | 0 | 207,764 | 207,761 | passed |
+| `OGS-00001` | pilot-10 | true | ragged | observed_only | built | - | 10 | 0 | 86,376 | 86,373 | passed |
+| `OGS-00002` | pilot-10-completed | true | ragged | reference_completed | validated | - | 10 | 0 | 207,764 | 207,761 | passed |
 | `OGS-00003` | r13-pilot-20 | true | dense | observed_only | built | 0.1.0 | 10 | 0 | 21,230,615 | - | passed |
 | `OGS-00004` | eur-hybrid-pilot-10 | true | hybrid | observed_only | built | - | 9 | 1 | - | - | passed_with_warnings |
 | `OGS-00005` | eur-hybrid-quant-pilot-10 | true | hybrid | observed_only | validated | - | 10 | 0 | 14,763,864 | - | passed_with_warnings |
