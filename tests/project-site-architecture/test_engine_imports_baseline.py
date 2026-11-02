@@ -300,7 +300,7 @@ class CollectorTests(unittest.TestCase):
     def test_a_repository_without_a_baseline_reports_an_unknown_size_not_zero(self) -> None:
         fixture = Fixture(self, baseline=None)
         baseline = fixture.collect()["baseline"]
-        self.assertEqual(baseline["entries"], None)
+        self.assertIsNone(baseline["entries"])
         self.assertEqual(baseline["measured"], 5)
         self.assertIn(f"{BASELINE} is not in opengwas/opengwasdb-stores at", baseline["note"])
         self.assertIn(fixture.registry_commit[:12], baseline["note"])
