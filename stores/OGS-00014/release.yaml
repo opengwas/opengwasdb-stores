@@ -58,10 +58,25 @@ notes: |-
   and +0.9958 after (n = 4,234). The originals are kept under replaced/20261101T215514Z-eaf-reference-flip/.
   Read back afterwards: eaf_reference against the mean observed EAF r = +0.992 (n = 3,980), against the UKB
   ancestry-mixture South America frequency, oriented to the Store's effect allele, r = +0.985 (n = 2,217).
-  Unchanged: z, SE, the observed EAF and the imputed mask, so no association statistic moved, and
-  manifest.json, index.sqlite and the Validation Record were not touched, so the Validation Record
-  still describes the pre-flip Store apart from this correction. The release workflow plans no
-  jobs for the Store. This breaks the rule that a published Store is never rewritten; it is a one-off
+  Unchanged: z, the stored SE codes, the observed EAF and the imputed mask, and manifest.json,
+  index.sqlite and the Validation Record were not touched, so the Validation Record still describes
+  the pre-flip Store apart from this correction. The release workflow plans no jobs for the Store.
+
+  Correction to the line above (SE): the decoded SE of imputed cells is not unchanged. SE is an
+  int8 residual against the cell's own frequency, and an imputed cell's frequency is eaf_reference;
+  float32 `1 - (1 - f)` is not exactly `f`, so the SE decoded from an imputed cell whose original
+  reference was below 0.5 moved by at most 1.6e-6 relative (1.5e-6 over every top-hit cell; 1.55e-6
+  over a random 3.0 million imputed cells, 39% of which moved and none with an original reference
+  of 0.5 or more). That is 0.04% of the codec's half step of 0.39%, and no cell with an observed
+  value moved. Each top-hit tier still held the SE decoded before the flip, so opengwasdb 0.3.2
+  validate failed all three tiers at its rtol of 1e-6 (se value inconsistent with decoded se
+  plane). The top-hit SE was written again from the decoded plane with
+  `pixi run eaf-reference-flip OGS-00014 --resync-se`: <rows re-synced per tier: to be filled from the
+  receipt by the operator>. The receipt is <receipt path: to be filled by the operator>
+  (records/eaf-reference-flip-se-resync.json), status complete, sha256 <to be filled by the
+  operator>. The originals are kept under replaced/<UTC>-eaf-reference-flip-se-resync/. The HM3
+  Indexed Variant Subset was not touched: its SE codes and eaf_reference decode to the primary's
+  values at every row. This breaks the rule that a published Store is never rewritten; it is a one-off
   for a wrong value, not a precedent.
 accepted_at: '2026-10-14T08:39:20Z'
 source_snapshot:
