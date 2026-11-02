@@ -11,12 +11,16 @@ one duplicated ALID whose higher-MAF record is the earlier row, one whose two
 records are an exact MAF tie, and one block with no duplicated ALID and no
 REF/ALT columns. Every literal asserted here -- the surviving rows, the flipped
 frequencies, the dropped indices and the counts -- is computed by hand from the
-fixture genotypes, never by the tool under test.
+fixture genotypes, never by the tool under test. The set is generated into a
+directory of this run's own and nothing is committed: a `.npz` is a zip archive,
+so its members' timestamps differ on every write and a committed panel would
+leave the checkout dirty after every run.
 
 Requires numpy, e.g. via `pixi run test`.
 """
 from __future__ import annotations
 
+import atexit
 import csv
 import errno
 import hashlib
@@ -34,9 +38,12 @@ import numpy as np
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO_ROOT / "tools" / "ld-panel"
-FIXTURES = REPO_ROOT / "tests" / "ld-panel-repair" / "fixtures"
+GENERATOR = REPO_ROOT / "tests" / "ld-panel-repair" / "fixtures" / "generate_fixtures.py"
+#: Where this run writes the fixture set, and removes it again at exit.
+FIXTURES = Path(tempfile.mkdtemp(prefix="ld-panel-repair-"))
 PANEL = FIXTURES / "panel"
 REFERENCE = FIXTURES / "reference.tsv.gz"
+atexit.register(shutil.rmtree, FIXTURES, ignore_errors=True)
 
 # The panel's repaired form, from the fixture genotypes: 8 individuals, so every
 # frequency is a multiple of 1/16 and the flip is exact.
@@ -550,7 +557,9 @@ def test_any_other_link_error_stops_the_run() -> None:
 
 
 def main() -> None:
-    subprocess.run([sys.executable, str(FIXTURES / "generate_fixtures.py")], cwd=REPO_ROOT, check=True)
+    subprocess.run(
+        [sys.executable, str(GENERATOR)], cwd=REPO_ROOT, check=True,
+        env={**os.environ, "FIXTURES_OUT": str(FIXTURES)})
     test_repair_panel()
     test_rerun_is_idempotent()
     test_positively_oriented_panel_is_refused()
