@@ -12,13 +12,10 @@ Run from the repository root:
 
 from __future__ import annotations
 
-import sys
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-
-import work_fixtures as fx  # noqa: E402
+import work_fixtures as fx
 
 ARCH = {
     **fx.ARCHITECTURE,

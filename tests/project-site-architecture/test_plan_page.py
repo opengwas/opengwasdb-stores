@@ -14,15 +14,13 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
+from test_architecture_pages import architecture
 
-from project_site import pages  # noqa: E402
-from test_architecture_pages import architecture  # noqa: E402
+from project_site import pages
 
 QUARTO = shutil.which("quarto")
 URL = "https://github.com/opengwas/opengwasdb/issues/{}"
