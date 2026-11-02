@@ -383,6 +383,20 @@ ticket an edge could link. The meet is `coordinated` when all its pairs are.
 
 The page's tiles are `summary`; every other figure on it is a count of these rows.
 
+**The command line.** `pixi run architecture` (`python3 -m project_site.architecture`)
+runs the same collectors on the spot, or reads a collection with `--data DIR`:
+
+- `check`: for each repository, the code files no component claims and the
+  claims that match no tracked file, and the engine's `docs/architecture/layering-baseline.yaml`
+  at the ref read (the entries it allows against the upward imports measured; no file is
+  not a failure). Exit 1 on any gap or any disagreement.
+- `conflicts --branch B [--repo engine|registry]` or `--files PATH... [--ticket repo#n]`:
+  the components the work touches, the other owners' `building` or `active` work on each
+  with its ticket, epic, branch and cited files, and whether a blocking edge links `--ticket`
+  (or the branch's ticket) to theirs. Exit 1 when any meet is uncoordinated; 0 when none is;
+  **2 when it cannot decide** (a source is unavailable, or the branch is not in the
+  collection). `--local GIT_DIR...` adds those clones' local branches, `--refresh` fetches first.
+
 ### The command's output and exit status
 
 One line per source, in this order (the architecture line is longer: components,
