@@ -131,6 +131,7 @@ def render_structure(documents: Mapping[str, Document | None]) -> str:
         _cell(_registry(components, edges, model, engine_model)),
     ]
     lines += _health(data, components, edges, summary)
+    lines += _planned(documents)
     lines += [_as_of(data), ""]
     return "\n".join(lines).rstrip() + "\n"
 
@@ -317,6 +318,100 @@ def _branches(data: Document, owners: Mapping[str, Any], names: Mapping[str, str
 
 
 # ---------------------------------------------------------------------------
+# Planned changes (#422)
+# ---------------------------------------------------------------------------
+
+VERDICT = {True: "held", False: "not held", None: "unknown"}
+ACTION = {"adds": "added", "moves": "moved"}
+
+
+def _planned(documents: Mapping[str, Document | None]) -> list[str]:
+    """The tickets' planned changes, from `work.json`: a diagram per plan, and what a closed one achieved."""
+    lines = [
+        "## Planned changes",
+        "",
+        "A ticket that changes the structure says how in an `architecture` block of its body. The plan is "
+        "**written by hand** in the ticket; whether a closed ticket's plan **held** is **measured** against the "
+        "claims and imports on the ref read. An open ticket's plan is drawn as planned and not checked. In the "
+        "diagrams `+` marks a path added to a component, `→` a path moved into it, a dashed box a component the "
+        "plan declares, and a dashed arrow an import the plan drops. `absorbs` is listed, never checked.",
+        "",
+    ]
+    data = pages.available(documents, "work")
+    if data is None:
+        return lines + pages.notices(documents, ("work",))
+    if "plans" not in data:
+        return lines + ["> This `work.json` predates planned changes (no `plans` key), so none were measured.", ""]
+    plans = [p for p in data["plans"] if isinstance(p, Mapping)]
+    if not plans:
+        return lines + ["No ticket carries an `architecture` block yet.", ""]
+    engine = ((data.get("inputs") or {}).get("architecture") or {}).get("engine") or {}
+    for plan in plans:
+        lines += [f"### {pages._link(plan.get('ticket'), plan.get('url'))} {pages.escape(str(plan.get('title') or ''))} ({pages.escape(str(plan.get('state')))})", ""]
+        body = plan.get("plan") or {}
+        if "invalid" in body:
+            lines += [f"**Invalid plan**, not drawn or checked: {pages._code(body['invalid'])}", ""]
+            continue
+        lines += [_cell(_plan_dot(plan)), *_plan_items(plan)]
+        if body.get("absorbs"):
+            lines += ["Absorbs (drawn here, not checked): " + "; ".join(pages._code(a) for a in body["absorbs"]), ""]
+        unmet = [c for c in plan.get("checks") or [] if c.get("held") is False]
+        if unmet:
+            n = len(unmet)
+            lines += [
+                f"> **Warning**: {pages._figure(n)} item{'s' if n != 1 else ''} of this closed ticket "
+                f"{'are' if n != 1 else 'is'} not held on the ref read (engine {pages._code(engine.get('ref'))}, "
+                f"{pages._code(str(engine.get('commit'))[:12])}). The ticket may have closed on an epic's "
+                "integration branch whose pull request has not merged to that ref yet.",
+                "",
+            ]
+    return lines
+
+
+def _plan_items(plan: Mapping[str, Any]) -> list[str]:
+    body = plan["plan"]
+    if plan.get("state") != "closed":
+        lines = ["**Planned**: not checked until the ticket closes.", ""]
+        for a in body.get("adds") or []:
+            lines += [f"- added {', '.join(pages._code(p) for p in a['paths'])} to {pages._code(a['component'])}"]
+        for m in body.get("moves") or []:
+            lines += [f"- moved {', '.join(pages._code(p) for p in m['paths'])} to {pages._code(m['to'])}"]
+        for d in body.get("drops") or []:
+            lines += [f"- drop the import from {pages._code(d['from'])} into {pages._code(d['to'])}"]
+        return lines + [""]
+    lines = []
+    for c in plan.get("checks") or []:
+        what = (
+            f"drop the import from {pages._code(c['from'])} into {pages._code(c['to'])}" if c["kind"] == "drops"
+            else f"{ACTION[c['kind']]} {pages._code(c['path'])} to {pages._code(c['component'])}"
+        )
+        lines.append(f"- **{VERDICT[c.get('held')]}** — {what}: {pages._code(c.get('why'))}")
+    return lines + [""]
+
+
+def _plan_dot(plan: Mapping[str, Any]) -> str:
+    body = plan["plan"]
+    added: dict[str, list[str]] = defaultdict(list)
+    moved: dict[str, list[str]] = defaultdict(list)
+    for a in body.get("adds") or []:
+        added[a["component"]] += a["paths"]
+    for m in body.get("moves") or []:
+        moved[m["to"]] += m["paths"]
+    lines = ["digraph plan {", HEAD, "rankdir=LR;"]
+    for c in plan.get("components") or []:
+        rows = [f'<FONT POINT-SIZE="12"><B>{_esc(c["name"])}</B></FONT>']
+        if c.get("new"):
+            rows.append('<FONT POINT-SIZE="9">new</FONT>')
+        rows += [f'<FONT POINT-SIZE="9">+ {_esc(p)}</FONT>' for p in added.get(c["id"], [])]
+        rows += [f'<FONT POINT-SIZE="9">→ {_esc(p)}</FONT>' for p in moved.get(c["id"], [])]
+        style = ' style="rounded,filled,dashed" fillcolor="#e8f5e9"' if c.get("new") else ""
+        lines.append(f'"{c["id"]}" [label=<{"<BR/>".join(rows)}>{style}];')
+    for d in body.get("drops") or []:
+        lines.append(f'"{d["from"]}" -> "{d["to"]}" [style=dashed color="{UPWARD}" fontcolor="{UPWARD}" label="dropped"];')
+    lines.append("}")
+    return "\n".join(lines)
+
+
 # Text parts
 # ---------------------------------------------------------------------------
 

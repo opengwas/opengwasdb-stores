@@ -504,6 +504,18 @@ ref read. A path under a directory claim is not looked up in the tree, so a
 planned file that was never created is not seen; an exact-file claim that matches
 nothing is. The `plans` key is additive, so `schema_version` stays `1`.
 
+**The page.** The Structure and health page ends with a `## Planned changes`
+section, written from `plans` alone. Each valid plan has a heading (the ticket,
+its title and state), a Quarto `{dot}` diagram of the components it involves
+(added paths marked `+`, moved paths `→`, a declared component dashed and
+labelled `new`, a dropped import a dashed arrow), and its items: an open
+ticket's as planned, a closed one's as `held`, `not held` or `unknown` with
+`why`. `absorbs` is listed as text. A closed plan with unmet items carries a
+warning, naming the ref read and that the ticket may have closed on an
+integration branch not yet merged. An invalid plan shows its reason and no
+diagram. A `work.json` without `plans` is said to predate planned changes, never
+shown as "no plans"; with `plans` empty the page says no ticket carries a block.
+
 ### The command's output and exit status
 
 One line per source, in this order (the architecture line is longer: components,
