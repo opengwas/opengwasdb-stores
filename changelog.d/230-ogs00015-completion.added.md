@@ -1,7 +1,8 @@
 - **OGS-00015 (MVP EAS) declares reference completion under its own id, against
-  the HGDP+1kGP EAS panel (issue #230, ADR 0037).** The published bundle is
-  already an Observed-Only Store, so this is the one amendment ADR 0037's
-  Decision 1 allows: `build.yaml` becomes `completion_state: reference_completed`
+  the HGDP+1kGP EAS panel (issue #230, ADR 0037).** The Store is already
+  published as Observed-Only, and its accepted Release Bundle gains the
+  completion declaration, the one amendment ADR 0037's Decision 1 allows:
+  `build.yaml` becomes `completion_state: reference_completed`
   and gains a `complete` block running `complete-dense` against
   `hgdp1kgp-hg38-ld` at `/data/opengwasdb/reference/hgdp1kgp-hg38/panel` for
   ancestry EAS at 16 workers, and the build phase keeps exactly the argv that
