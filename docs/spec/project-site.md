@@ -277,6 +277,7 @@ placement are measured.
 | `registry`, `engine` | `repo`, `ref`, `commit` read, `committed` (that commit's date), `refresh`, `model` (`true`, or `false` when the ref has no model file) and `note`. The engine's `refresh` is `null` when no fetch was asked for, else `{ok, error}` with git's own message; the pages show the commit and its date, and a visible line when the refresh failed |
 | `model` | `system`, `people`, `external`, `containers`, `container_relations`, `stages` (this repository's), `layers` (the engine's; `[]` without its model) |
 | `components` | this repository's, then the engine's: the model's keys plus `repo` (`registry` or `engine`), `files` and `lines` (claimed code files), `tracked` (every tracked file claimed) |
+| `files` | `{registry: [...], engine: [...]}` (#422): every tracked code file of each tree at the ref read (the files the ownership rule counts as code), sorted, read NUL-safely. A planned `adds` is told to exist from it. Added to the file; no other field changed |
 | `gaps.<repo>` | `unclaimed` (code files no component claims, by path) and `stale` (`{path, component}` claims matching no tracked file) |
 | `baseline` | `path`, `entries` (how many imports the committed baseline lists; `null` with a `note` when it is not in this repository at the commit read, never 0) and `measured` (the engine imports the code makes) |
 | `edges` | `from`, `to`, `imports`, `scope` (`engine`, `registry`, `registry_to_engine`), `upward` |
@@ -488,21 +489,21 @@ carried and never checked. Once the ticket is closed each item is checked
 against what the architecture collector read (the engine at its ref, this
 repository at the site's checkout):
 
-- `adds`: for each path, `{kind: adds, path, component, held, why}`; held when the
-  named component claims the path and the claim matches a tracked file.
+- `adds`: for each path, `{kind: adds, path, component, held, why}`; held only when
+  the path is a tracked file (in `architecture.files`) **and** the named component
+  claims it. A path that does not exist is not held, saying so with the ref.
 - `moves`: the same, with `to` as the component.
 - `drops`: `{kind: drops, from, to, imports, held, why}`; held when no import goes
   from `from` into `to`, else not held, naming how many remain.
 
 `held` is `true`, `false`, or `null` for **unknown**: without the engine's model
 (`architecture.engine.model` false) an engine path that no registry claim covers,
-and a drop with an end that is not a registry component, cannot be judged, and
+a path whose existence is not known (no `architecture.files`, the tree not read,
+or not a code file, since only code files are listed), and a drop with an end that is not a registry component, cannot be judged, and
 `why` says the model is missing at that ref. Missing the model is never an unmet
 item. An unmet item is a warning on the page, never a build failure: the ticket
 may have closed on an epic's integration branch whose PR has not merged to the
-ref read. A path under a directory claim is not looked up in the tree, so a
-planned file that was never created is not seen; an exact-file claim that matches
-nothing is. The `plans` key is additive, so `schema_version` stays `1`.
+ref read. The `plans` key is additive, so `schema_version` stays `1`.
 
 **The page.** The Structure and health page ends with a `## Planned changes`
 section, written from `plans` alone. Each valid plan has a heading (the ticket,

@@ -179,21 +179,37 @@ def listed(board: Mapping[str, Any], architecture: Mapping[str, Any]) -> list[di
     engine = architecture.get("engine") or {}
     model = bool(engine.get("model"))
     claims = {kind: rules.claims_of(c for c in components if c["repo"] == kind and c.get("paths")) for kind in ("registry", "engine")}
-    stale = {
-        (s.get("path"), s.get("component"))
-        for repo in (architecture.get("gaps") or {}).values() for s in (repo or {}).get("stale") or []
-    }
+    files = architecture.get("files")
+    registry_ref = architecture.get("registry") or {}
     missing = f"the engine's model is missing at {engine.get('ref')} ({str(engine.get('commit'))[:12]})"
     edges = {(e["from"], e["to"]): e["imports"] for e in architecture.get("edges") or [] if isinstance(e, Mapping)}
 
+    def exists(path: str) -> tuple[bool | None, str]:
+        """Whether `path` is a tracked file: only code files are listed, and only where the tree was read."""
+        kind = "registry" if rules.is_registry_code(path) else "engine" if rules.is_engine_code(path) else None
+        if not isinstance(files, Mapping):
+            return None, "this architecture collection lists no tracked files"
+        if kind is None:
+            return None, "only code files are listed, so a non-code path's existence is not known"
+        listing = files.get(kind)
+        if listing is None:
+            return None, f"the {kind} tree was not read"
+        if path in listing:
+            return True, ""
+        ref = registry_ref if kind == "registry" else engine
+        return False, f"no such file at {ref.get('ref')} ({str(ref.get('commit'))[:12]})"
+
     def claimed(path: str, target: str, kind: str) -> dict[str, Any]:
+        present, why = exists(path)
         found = next((o for k in ("registry", "engine") if (o := rules.owner(claims[k], path))), None)
-        if found == target and (path, target) in stale:
-            held, why = False, f"claimed by `{target}`, but the claim matches no tracked file"
+        if present is False:
+            held = False
+        elif found and found != target:
+            held, why = False, f"claimed by `{found}`, not `{target}`"
+        elif present is None:
+            held = None
         elif found == target:
             held, why = True, f"claimed by `{target}`"
-        elif found:
-            held, why = False, f"claimed by `{found}`, not `{target}`"
         elif model or path.split("/", 1)[0] in rules.REGISTRY_CODE_ROOTS:
             held, why = False, "no component claims it"
         else:

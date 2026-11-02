@@ -169,6 +169,8 @@ def collect(
             "layers": (engine_model or {}).get("layers") or [],
         },
         "components": components,
+        # Every tracked code file of each tree (#422), so a plan's `adds` can be told to exist.
+        "files": {repo: sorted(f for f in trees[repo].files if is_code[repo](f)) for repo in trees},
         "gaps": gaps,
         "edges": edges,
         # Unknown without the engine's model, like `summary.upward_imports`: never an empty list.

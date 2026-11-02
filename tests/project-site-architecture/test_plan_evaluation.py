@@ -23,10 +23,13 @@ ARCH = {
         {"from": "query", "to": "enc", "imports": 3, "scope": "engine", "upward": False},
         {"from": "pages", "to": "enc", "imports": 2, "scope": "registry_to_engine", "upward": False},
     ],
-    "gaps": {"registry": {"unclaimed": [], "stale": []}, "engine": {"unclaimed": [], "stale": []}},
+    "files": {
+        "engine": ["opengwasdb/encoding/association.py", "opengwasdb/query/association.py", "opengwasdb/nowhere/x.py",
+                   "opengwasdb/store/paths.py", "opengwasdb/query/facade.py"],
+        "registry": ["src/project_site/new.py"],
+    },
 }
-NO_MODEL = {**fx.NO_ENGINE_MODEL, "edges": [], "gaps": {"registry": {"unclaimed": [], "stale": []},
-                                                          "engine": {"unclaimed": [], "stale": []}}}
+NO_MODEL = {**fx.NO_ENGINE_MODEL, "edges": [], "files": ARCH["files"]}
 
 
 def planned(plan: dict, *, state: str = "CLOSED", key: str = "opengwasdb#350") -> dict:
@@ -81,15 +84,35 @@ class ClosedTicketTests(unittest.TestCase):
         entry = only(fx.compute(planned(plan(drops=[{"from": "query", "to": "store"}])), architecture=arch))
         self.assertEqual(entry["checks"][0]["why"], "1 import from `query` into `store` remains")
 
-    def test_an_exact_claim_that_matches_no_file_is_not_held(self) -> None:
-        arch = {**ARCH, "gaps": {**ARCH["gaps"], "engine": {"unclaimed": [], "stale": [
-            {"path": "opengwasdb/store/gone.py", "component": "store"}]}},
-                "components": [*ARCH["components"][:2], fx.component("store", "Store envelope", "engine",
-                                                                     ["opengwasdb/store/gone.py"]), ARCH["components"][3]]}
-        entry = only(fx.compute(planned(plan(adds=[{"paths": ["opengwasdb/store/gone.py"], "component": "store"}])),
+    def test_an_added_path_under_a_directory_claim_that_does_not_exist_is_not_held(self) -> None:
+        entry = only(fx.compute(planned(plan(adds=[{"paths": ["opengwasdb/encoding/missing.py"], "component": "enc"}])),
+                                architecture=ARCH))
+        self.assertEqual((entry["checks"][0]["held"], entry["checks"][0]["why"]),
+                         (False, "no such file at main (eeeeeeeeeeee)"))
+
+    def test_a_moved_path_that_does_not_exist_is_not_held(self) -> None:
+        entry = only(fx.compute(planned(plan(moves=[{"paths": ["opengwasdb/store/missing.py"], "to": "store"}])),
+                                architecture=ARCH))
+        self.assertEqual((entry["checks"][0]["held"], entry["checks"][0]["why"]),
+                         (False, "no such file at main (eeeeeeeeeeee)"))
+
+    def test_without_a_files_field_existence_is_unknown_never_held(self) -> None:
+        arch = {k: v for k, v in ARCH.items() if k != "files"}
+        entry = only(fx.compute(planned(plan(adds=[{"paths": ["opengwasdb/encoding/association.py"], "component": "enc"}])),
                                 architecture=arch))
         self.assertEqual((entry["checks"][0]["held"], entry["checks"][0]["why"]),
-                         (False, "claimed by `store`, but the claim matches no tracked file"))
+                         (None, "this architecture collection lists no tracked files"))
+
+    def test_a_tree_that_was_not_read_leaves_its_paths_unknown(self) -> None:
+        arch = {**ARCH, "files": {"engine": None, "registry": ARCH["files"]["registry"]}}
+        entry = only(fx.compute(planned(plan(adds=[{"paths": ["opengwasdb/encoding/association.py"], "component": "enc"}])),
+                                architecture=arch))
+        self.assertEqual(entry["checks"][0]["held"], None)
+
+    def test_a_path_that_is_not_code_has_no_recorded_existence(self) -> None:
+        entry = only(fx.compute(planned(plan(adds=[{"paths": ["docs/new.md"], "component": "pages"}])), architecture=ARCH))
+        self.assertEqual((entry["checks"][0]["held"], entry["checks"][0]["why"]),
+                         (None, "only code files are listed, so a non-code path's existence is not known"))
 
     def test_without_the_engine_model_engine_items_are_unknown_not_unmet(self) -> None:
         entry = only(fx.compute(planned(plan(
@@ -103,7 +126,7 @@ class ClosedTicketTests(unittest.TestCase):
         ])
 
     def test_a_component_the_plan_declares_is_not_unknown_to_it(self) -> None:
-        entry = only(fx.compute(planned(plan(adds=[{"paths": ["opengwasdb/encoding/b.py"], "component": "fresh",
+        entry = only(fx.compute(planned(plan(adds=[{"paths": ["opengwasdb/encoding/association.py"], "component": "fresh",
                                                      "name": "Fresh"}])), architecture=ARCH))
         self.assertEqual(entry["checks"][0]["held"], False)
         self.assertEqual(entry["checks"][0]["why"], "claimed by `enc`, not `fresh`")
@@ -133,7 +156,7 @@ class OpenAndInvalidTests(unittest.TestCase):
         self.assertEqual(entry["checks"], [])
 
     def test_without_the_engine_model_an_unfound_component_is_not_called_unknown(self) -> None:
-        entry = only(fx.compute(planned(plan(moves=[{"paths": ["opengwasdb/a.py"], "to": "ghost"}])), architecture=NO_MODEL))
+        entry = only(fx.compute(planned(plan(moves=[{"paths": ["opengwasdb/encoding/association.py"], "to": "ghost"}])), architecture=NO_MODEL))
         self.assertNotIn("invalid", entry["plan"])
         self.assertEqual(entry["checks"][0]["held"], None)
 
