@@ -8,6 +8,7 @@ allele_columns:
   effect: EA
   other: OA
   freq: EAF
+  freq_orientation: effect_allele
 location: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
 location_kind: external_directory
 ld:
@@ -21,7 +22,9 @@ source:
     AFR: 804
     EAS: 817
     SAS: 783
-  variant_inclusion: MAC >= 50
+  variant_inclusion: >
+    MAC >= 50; of the records sharing an ALID, the one with the higher MAF,
+    ties going to the earlier record
   population_map: populations_to_superpop.tsv
   acquisition: tools/ld-panel/acquire_hgdp1kgp.py
   generator: tools/ld-panel/
@@ -62,3 +65,31 @@ notes: >
   and EAS has 1,120 populated blocks. The remaining declared EAS interval,
   chr14:16038675-16100330, lies before the first MAC-filtered chr14 variant
   (18,223,583) and is explicitly empty rather than a failed decomposition.
+
+  **EAF is the frequency of `EA`, and never of `OA`.** The generator reads which
+  allele PLINK's additive export counted from the export's own column suffix --
+  plink2 counts REF, not ALT (stores#348) -- and orients both the reported
+  frequency and the eigenvectors to the canonical effect allele. A panel built
+  before that fix holds the other allele's frequency in every row, so the gate is
+  part of building one rather than an optional check: `run_panels` gates every
+  ancestry it builds or finishes before a run may succeed, `verify_block --panel`
+  gates a panel on demand, and both measure its EAF against the UKB ancestry
+  mixture and refuse a panel that does not correlate positively with it (r > 0.9
+  on matched variants, and never on fewer matches than a sample needs to decide).
+  `tools/ld-panel/repair_panel.py`
+  corrects such a panel in place with `EAF := 1 - EAF`, which is exact because
+  the defect is uniform; it writes the originals to a backup directory, records
+  the edit in each block's `provenance.json` under `repairs`, and adds a sha256
+  receipt. A repaired block is verified against its backup, because a row drop
+  (below) invalidates the exact `||X v_j||^2 = value_j` identity.
+
+  **A block holds at most one row per ALID.** gnomAD splits multi-allelic
+  sites, so an insertion and a deletion at one position can canonicalise to the
+  same ALID; of the records that pass every filter, the one with the higher MAF
+  is kept, a tie going to the earlier record. That rule is part of
+  `variant_inclusion` now, and tables built before it are corrected by the same
+  tool, which drops the losing rows from the TSV and from `vectors` (row i of
+  the eigenvectors is row i of the table, so a drop is a row selection).
+  `values` is left untouched: it is the full spectrum, and the consumer's
+  cumulative-variance cut must keep its meaning. Dropping a row is exact for the
+  stored LD, `V diag(values) V^T`.

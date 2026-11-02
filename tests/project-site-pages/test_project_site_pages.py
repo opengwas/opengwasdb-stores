@@ -470,13 +470,16 @@ class TestStoreYardstick(unittest.TestCase):
                 self.assertIn("## In the Analysis Catalog", page)
 
     def test_a_result_from_the_veeam_window_says_its_timings_are_not_comparable(self) -> None:
-        in_window = yardstick_result("2026-10-29T11:05:27Z", [self.measured], veeam_window=True)
+        in_window = yardstick_result("2026-10-29T03:05:27Z", [self.measured], veeam_window=True)
         outside = yardstick_result("2026-10-29T11:05:27Z", [self.measured])
 
-        page_in_window = self.page(("20261029T110527Z-0.3.0.json", in_window))
+        page_in_window = self.page(("20261029T030527Z-0.3.0.json", in_window))
         page_outside = self.page(("20261029T110527Z-0.3.0.json", outside))
 
-        self.assertIn("It ran in the Veeam backup window, so its timings are not comparable.", page_in_window)
+        self.assertIn(
+            "It was measured before 2026-11-02 in the Veeam backup window, so its timings are not comparable.",
+            page_in_window,
+        )
         self.assertNotIn("Veeam", page_outside)
 
     def test_an_unavailable_measure_says_why(self) -> None:
@@ -863,7 +866,7 @@ class TestHeadlineYardstickTrends(unittest.TestCase):
 
 
 class TestYardstickWorkloadsAndTheVeeamWindow(unittest.TestCase):
-    """A trend never mixes workloads, and a Veeam-window point is visibly marked (#391 review, item 9)."""
+    """A trend never mixes workloads, and a retired-window point stays visibly marked (#391, #411)."""
 
     def documents(self, *results: tuple[str, dict]) -> dict:
         documents_ = full_documents()
@@ -917,6 +920,33 @@ class TestYardstickWorkloadsAndTheVeeamWindow(unittest.TestCase):
             if line.startswith("| OGS-00009 | `phewas_rsid` |") and "†" in line
         ]
         self.assertEqual(len(marked), 1, "only the result in the window is marked")
+
+    def committed_history(self) -> dict:
+        """Two results of one workload, the second measured before 2026-11-02 at 03:00 local."""
+        before = measured_store("OGS-00009", phewas_rsid=30.0)
+        in_window = measured_store("OGS-00009", phewas_rsid=3.0)
+        return self.documents(
+            ("20261020T100000Z-0.3.0.json", yardstick_result("2026-10-20T10:00:00Z", [before])),
+            ("20261028T030000Z-0.3.0.json", yardstick_result(
+                "2026-10-28T03:00:00Z", [in_window], veeam_window=True)),
+        )
+
+    def test_a_committed_result_keeps_its_flag_ringed_and_daggered(self) -> None:
+        """A result measured in the old window keeps its recorded value, and the site still rings it (#411)."""
+        documents = self.committed_history()
+        overview = pages.render_overview(documents)
+        block = raw_block_after(overview, "`phewas_rsid` on OGS-00009 under workload `w`")
+
+        self.assertEqual(block.count("<circle"), 3, "two points, and a ring around the historical one")
+        self.assertIn("measured before 2026-11-02", overview)
+
+        trends = pages.render_trends(documents)
+        marked = [
+            line for line in trends.splitlines()
+            if line.startswith("| OGS-00009 | `phewas_rsid` |") and "†" in line
+        ]
+        self.assertEqual(len(marked), 1, "the historical result, and only it, is daggered")
+        self.assertIn("measured before 2026-11-02", trends)
 
 
 class TestReleaseNotesByRepository(unittest.TestCase):

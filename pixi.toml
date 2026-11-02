@@ -489,6 +489,22 @@ site-data = { cmd = "python3 -m project_site.collect", default-environment = "de
 #   pixi run se-reencode OGS-00009 --artifact-root /path --registry-root stores
 se-reencode = { cmd = "python3 -m ogstores.se_reencode" }
 
+# One-off, value-changing in-place correction of a Dense Store's EAF
+# orientation (#409). The HGDP+1kGP panel used for completion carries the other
+# allele's frequency, so a completed Dense Store's `eaf_reference`, its HM3 copy
+# and the `eaf` of its imputed top hits serve 1 - f. On the owner's decision of
+# 2026-11-01 this rewrites those three arrays in place, once, and records it as
+# a Release Erratum: it refuses a Zarr v2, Ragged or Observed-Only Store, a
+# receipt that already exists, a Store whose orientation guard is not actually
+# inverted, and a runtime that is not the tracked pin. Its `--dry-run` runs the
+# guard, stages and verifies into a scratch directory, and writes nothing in
+# the Store or its records.
+#
+#   pixi run eaf-reference-flip OGS-00014 --dry-run
+#   pixi run eaf-reference-flip OGS-00014
+#   pixi run eaf-reference-flip OGS-00014 --artifact-root /path --registry-root stores
+eaf-reference-flip = { cmd = "python3 -m ogstores.eaf_reference_flip" }
+
 [feature.python.tasks]
 # Manifest Generation: freeze the Source Inventory a release config selects,
 # with the shared freeze over the Source Collection's connector files (#283),
