@@ -1,4 +1,4 @@
-"""The architecture of both repositories, drawn from their claims (#418, epic #416).
+"""The architecture of both repositories, drawn from their claims (#418, #421, epic #416).
 
 Each repository keeps a hand-written `docs/architecture/components.yaml` whose
 components claim code paths (`architecture_model` holds the one ownership rule).
@@ -11,7 +11,11 @@ This collector reads both through git, without a checkout of either:
 
 It reports the components of both repositories with their measured size, the
 files nobody claims and the claims that match nothing (gaps, reported never
-raised), and the commit it read in each repository. An engine ref that has no
+raised), the commit it read in each repository, and the baseline of this
+repository's imports of engine modules (#421): how many entries the committed
+`docs/architecture/engine-imports-baseline.yaml` holds, and how many engine
+imports the code makes. Whether a name is the engine's is decided by the name
+alone, so that figure needs no engine model. An engine ref that has no
 model yet is not an error: the output says so, with the ref and commit, and
 this repository's half is still there.
 """
@@ -105,6 +109,9 @@ def collect(
     if registry_text is None:
         raise CollectError(f"{MODEL_PATH} is not in {REGISTRY_REPO} at {registry.commit[:12]}")
     registry_model = model_rules.load_model(registry_text)
+    baseline_path = architecture_graph.BASELINE_PATH
+    baseline_text = registry.read([baseline_path]).get(baseline_path)
+    baseline = architecture_graph.load_baseline(baseline_text) if baseline_text is not None else None
     engine_text = engine.read([MODEL_PATH]).get(MODEL_PATH)
     engine_model = model_rules.load_model(engine_text) if engine_text is not None else None
 
@@ -122,9 +129,22 @@ def collect(
     }
     _measure(components, trees, claims, is_code)
 
-    upward_imports: list[dict[str, Any]] = []
-    edges = architecture_graph.import_edges(trees, claims, components, upward_imports)
-    upward_imports.sort(key=lambda u: (u["file"], u["name"]))
+    # One measurement of the imports, for both the graph's counts and the
+    # baseline this repository is held to (#421): they can never disagree.
+    imports = architecture_graph.imports_of(trees, claims)
+    edges = architecture_graph.import_edges(trees, claims, components, imports)
+    found = architecture_graph.engine_imports(imports)
+    # The seam's import count is the name-based measurement, so it is the same
+    # with or without the engine's model. Every other figure on the engine's half
+    # of the graph is resolved through the engine's claims -- what the layers
+    # make upward, which component pairs the seam has, how many edges there are
+    # in all -- so without the model those are unknown, never 0 (#421 review).
+    summary = architecture_graph.summarise(edges) | {"registry_to_engine_imports": len(found)}
+    if engine_model is None:
+        summary |= {
+            key: None
+            for key in ("edges", "upward_edges", "upward_imports", "registry_to_engine_edges")
+        }
     adrs = architecture_adrs.place(trees, claims, components, architecture_graph.modules_of(trees))
     return {
         "registry": _repository(REGISTRY_REPO, registry, True, None),
@@ -134,6 +154,14 @@ def collect(
             else f"{MODEL_PATH} is not in {ENGINE_REPO} at {engine.ref} ({engine.commit[:12]})",
             refresh,
         ),
+        "baseline": {
+            "path": baseline_path,
+            "entries": len(baseline) if baseline is not None else None,
+            "measured": len(found),
+            "note": None if baseline is not None else (
+                f"{baseline_path} is not in {REGISTRY_REPO} at {registry.commit[:12]}"
+            ),
+        },
         "model": {
             key: registry_model.get(key) or [] for key in ("people", "external", "containers", "container_relations", "stages")
         } | {
@@ -143,9 +171,9 @@ def collect(
         "components": components,
         "gaps": gaps,
         "edges": edges,
-        "upward_imports": upward_imports,
+        "upward_imports": architecture_graph.upward_imports(imports, components),
         "adrs": adrs,
-        "summary": architecture_graph.summarise(edges)
+        "summary": summary
         | {"adrs_total": len(adrs), "adrs_placed": sum(1 for a in adrs if a["components"])},
     }
 
