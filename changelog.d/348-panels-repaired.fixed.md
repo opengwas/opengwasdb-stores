@@ -5,5 +5,7 @@
   AMR none). Every block was verified against its pre-repair backup with no
   failure, and each panel's EAF now correlates r > 0.97 with the UKB ancestry
   mixture (it was r < -0.96). Counts, receipts and their sha256 are in the three
-  `hgdp1kgp-*` resource declarations. Stores completed against these panels
-  (OGS-00002, OGS-00014) still hold the old values until they are re-completed.
+  `hgdp1kgp-*` resource declarations. OGS-00014's imputed EAF was already
+  corrected in place under #409, so the completions still affected are OGS-00002
+  (to be re-completed), and OGS-00022 and OGS-00023, which are registry entries
+  only -- their Store files are no longer on disk.
