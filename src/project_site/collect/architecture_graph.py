@@ -24,6 +24,8 @@ import ast
 from collections import defaultdict
 from typing import Any, Mapping, Sequence
 
+import yaml
+
 from project_site.collect import architecture_model as model_rules
 from project_site.collect.common import CollectError
 
@@ -150,6 +152,63 @@ def engine_imports(imports: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]
     return sorted(found, key=lambda entry: (entry["file"], entry["name"]))
 
 
+#: Where this repository commits the engine imports it lives with (#416 decision 14).
+BASELINE_PATH = "docs/architecture/engine-imports-baseline.yaml"
+
+
+def load_baseline(text: str, where: str = BASELINE_PATH) -> tuple[tuple[str, str], ...]:
+    """A baseline file's `(file, name)` entries, sorted; a malformed or duplicated one is an error.
+
+    A baseline that cannot be read must not pass for an empty one: an empty
+    baseline would turn every listed import into a failure, and a silently
+    truncated one would let a new import through.
+    """
+    document = yaml.safe_load(text)
+    if not isinstance(document, dict) or not isinstance(document.get("imports"), list):
+        raise CollectError(f"{where}: a baseline is a mapping with an `imports` list")
+    entries: list[tuple[str, str]] = []
+    for number, entry in enumerate(document["imports"]):
+        if (
+            not isinstance(entry, Mapping)
+            or set(entry) != {"file", "name"}
+            or not all(isinstance(entry[key], str) and entry[key] for key in ("file", "name"))
+        ):
+            raise CollectError(f"{where}: entry #{number} must be a mapping with only 'file' and 'name'")
+        pair = (entry["file"], entry["name"])
+        if pair in entries:
+            raise CollectError(f"{where}: {pair[0]} imports {pair[1]} is listed twice")
+        entries.append(pair)
+    return tuple(sorted(entries))
+
+
+def check_engine_imports(
+    found: Sequence[Mapping[str, Any]], baseline: Sequence[tuple[str, str]]
+) -> list[str]:
+    """The lines CI fails on: an engine import the baseline does not list, and a listed one that is gone.
+
+    The unit is the pair, so the same name imported by a second file is a new
+    import, and an entry whose file still imports something else is stale. The
+    engine component is named when the measurement carries it, which is when the
+    engine was read.
+    """
+    listed = set(baseline)
+    measured = {(entry["file"], entry["name"]) for entry in found}
+    problems = [
+        f"{entry['file']}: imports {entry['name']}"
+        f"{' from the engine component ' + entry['engine_component'] if entry.get('engine_component') else ''}"
+        f", which {BASELINE_PATH} does not list; a new engine import is a coupling nobody decided on,"
+        " and that file only shrinks"
+        for entry in found
+        if (entry["file"], entry["name"]) not in listed
+    ]
+    problems += [
+        f"{file}: imports {name}, listed in {BASELINE_PATH}, is gone; delete the entry"
+        for file, name in baseline
+        if (file, name) not in measured
+    ]
+    return problems
+
+
 def import_edges(
     trees: Mapping[str, Any],
     claims: Mapping[str, Sequence[tuple[str, str]]],
@@ -170,7 +229,7 @@ def import_edges(
             counts[(source, target)] += 1
 
     edges = []
-    for (source, target), imports in sorted(counts.items()):
+    for (source, target), count in sorted(counts.items()):
         a, b = by_id[source], by_id[target]
         if a["repo"] == "engine" and b["repo"] == "engine":
             scope = "engine"
@@ -179,7 +238,7 @@ def import_edges(
         else:
             scope = "registry"
         upward = scope == "engine" and None not in (a["layer"], b["layer"]) and b["layer"] > a["layer"]
-        edges.append({"from": source, "to": target, "imports": imports, "scope": scope, "upward": upward})
+        edges.append({"from": source, "to": target, "imports": count, "scope": scope, "upward": upward})
     return edges
 
 

@@ -193,6 +193,29 @@ def _as_of(data: Document) -> str:
     )
 
 
+def _baseline(baseline: Any) -> list[str]:
+    """The engine-import baseline's size, and what this repository makes, as one line (#421).
+
+    The size is the committed file's entry count, which the collector read from
+    this repository; a file that is not there is unknown, never zero.
+    """
+    if not isinstance(baseline, Mapping):
+        return []
+    entries, measured = baseline.get("entries"), baseline.get("measured")
+    if not isinstance(entries, int) or isinstance(entries, bool):
+        return [
+            f"**The engine-import baseline is unknown**: {pages._cell(baseline.get('note'))}. "
+            f"This repository makes {pages._figure(measured)} imports of engine modules.",
+            "",
+        ]
+    return [
+        f"**The engine-import baseline** ({pages._code(baseline.get('path'))}) lists "
+        f"{pages._figure(entries)} imports of engine modules, one per importing file and imported name; "
+        f"this repository makes {pages._figure(measured)} of them.",
+        "",
+    ]
+
+
 def _health(data: Document, components: list, edges: list, summary: Mapping[str, Any]) -> list[str]:
     lines = ["## Health", ""]
     gaps = data.get("gaps") or {}
@@ -232,6 +255,7 @@ def _health(data: Document, components: list, edges: list, summary: Mapping[str,
         f"across {summary.get('registry_to_engine_edges', 0)} component pairs."
     )
     lines.append("")
+    lines += _baseline(data.get("baseline"))
     lines += ["### ADRs", ""]
     lines.append(f"{summary.get('adrs_placed', 0)} of {summary.get('adrs_total', 0)} ADRs are placed on a component.")
     lines.append("")
