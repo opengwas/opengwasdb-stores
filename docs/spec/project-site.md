@@ -278,6 +278,7 @@ placement are measured.
 | `components` | this repository's, then the engine's: the model's keys plus `repo` (`registry` or `engine`), `files` and `lines` (claimed code files), `tracked` (every tracked file claimed) |
 | `gaps.<repo>` | `unclaimed` (code files no component claims, by path) and `stale` (`{path, component}` claims matching no tracked file) |
 | `edges` | `from`, `to`, `imports`, `scope` (`engine`, `registry`, `registry_to_engine`), `upward` |
+| `upward_imports` | each engine import that goes up a layer (#419), sorted by `file` then `name`: `file` (the importing file), `name` (the absolute imported name, a relative import resolved), `from`, `to` (component ids), `from_layer`, `to_layer`. The engine's layering baseline lists the same pairs |
 | `adrs` | every `docs/adr/NNNN-*.md` of both repositories: `repo`, `number`, `path`, `title`, `status`, `url`, `components` |
 | `summary` | `edges`, `upward_edges`, `upward_imports`, `registry_to_engine_edges`, `registry_to_engine_imports`, `adrs_total`, `adrs_placed` |
 
@@ -388,8 +389,9 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
 
 - `check`: for each repository, the code files no component claims and the
   claims that match no tracked file, and the engine's `docs/architecture/layering-baseline.yaml`
-  at the ref read (the entries it allows against the upward imports measured; no file is
-  not a failure). Exit 1 on any gap or any disagreement.
+  at the ref read, entry by entry (importing file and imported name, never a count, so a new import
+  cannot hide behind a fixed one): each `new:` import not in the baseline and each `stale:` entry no longer
+  imported is named; no baseline file is not a failure. Exit 1 on any gap or any disagreement.
 - `conflicts --branch B [--repo engine|registry]` or `--files PATH... [--ticket repo#n]`:
   the components the work touches, the other owners' `building` or `active` work on each
   with its ticket, epic, branch and cited files, and whether a blocking edge links `--ticket`

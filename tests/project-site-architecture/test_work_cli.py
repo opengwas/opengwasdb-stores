@@ -110,15 +110,37 @@ class CheckTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("unclaimed: opengwasdb/other/x.py", text)
 
-    def test_the_layering_baseline_is_compared_with_the_measured_upward_imports(self) -> None:
-        listed = "allowed:\n" + "".join(f"  - {{file: f{i}.py, name: n{i}}}\n" for i in range(3))
-        code, text = run("check", *self.fixtures(engine={**afx.ENGINE_FILES, "docs/architecture/layering-baseline.yaml": listed}))
+    BASELINE = (
+        "allowed:\n"
+        "  - {file: opengwasdb/model/enums.py, name: opengwasdb.store.util}\n"
+        "  - {file: opengwasdb/query/facade.py, name: opengwasdb.cli.main}\n"
+        "  - {file: opengwasdb/store/paths.py, name: opengwasdb.query.facade}\n"
+    )
+
+    def baseline(self, text: str) -> list[str]:
+        return self.fixtures(engine={**afx.ENGINE_FILES, "docs/architecture/layering-baseline.yaml": text})
+
+    def test_a_baseline_listing_exactly_the_upward_imports_passes(self) -> None:
+        code, text = run("check", *self.baseline(self.BASELINE))
         self.assertEqual(code, 0, text)
         self.assertIn("layering baseline: 3 allowed, 3 measured", text)
-        short = "allowed:\n  - {file: f0.py, name: n0}\n"
-        code, text = run("check", *self.fixtures(engine={**afx.ENGINE_FILES, "docs/architecture/layering-baseline.yaml": short}))
+
+    def test_one_import_fixed_and_one_new_with_equal_counts_exits_1_naming_both(self) -> None:
+        listed = self.BASELINE.replace(
+            "  - {file: opengwasdb/store/paths.py, name: opengwasdb.query.facade}\n",
+            "  - {file: opengwasdb/store/gone.py, name: opengwasdb.query.old}\n",
+        )
+        code, text = run("check", *self.baseline(listed))
         self.assertEqual(code, 1)
-        self.assertIn("layering baseline: 1 allowed, 3 measured", text)
+        self.assertIn("layering baseline: 3 allowed, 3 measured", text)
+        self.assertIn("new: opengwasdb/store/paths.py opengwasdb.query.facade (Store envelope, layer 1 -> Query, layer 2)", text)
+        self.assertIn("stale: opengwasdb/store/gone.py opengwasdb.query.old", text)
+
+    def test_a_baseline_missing_entries_reports_each_new_import(self) -> None:
+        code, text = run("check", *self.baseline("allowed:\n  - {file: opengwasdb/model/enums.py, name: opengwasdb.store.util}\n"))
+        self.assertEqual(code, 1)
+        self.assertIn("new: opengwasdb/query/facade.py opengwasdb.cli.main", text)
+        self.assertNotIn("stale:", text)
 
     def test_an_engine_without_a_baseline_says_so_and_still_passes(self) -> None:
         code, text = run("check", *self.fixtures())

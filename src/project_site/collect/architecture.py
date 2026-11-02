@@ -122,7 +122,9 @@ def collect(
     }
     _measure(components, trees, claims, is_code)
 
-    edges = architecture_graph.import_edges(trees, claims, components)
+    upward_imports: list[dict[str, Any]] = []
+    edges = architecture_graph.import_edges(trees, claims, components, upward_imports)
+    upward_imports.sort(key=lambda u: (u["file"], u["name"]))
     adrs = architecture_adrs.place(trees, claims, components, architecture_graph.modules_of(trees))
     return {
         "registry": _repository(REGISTRY_REPO, registry, True, None),
@@ -141,6 +143,7 @@ def collect(
         "components": components,
         "gaps": gaps,
         "edges": edges,
+        "upward_imports": upward_imports,
         "adrs": adrs,
         "summary": architecture_graph.summarise(edges)
         | {"adrs_total": len(adrs), "adrs_placed": sum(1 for a in adrs if a["components"])},

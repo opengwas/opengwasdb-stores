@@ -112,6 +112,22 @@ class CombinedModelTests(unittest.TestCase):
         self.assertEqual(fixture.collect()["engine"]["committed"], committed)
 
 
+class UpwardImportTests(unittest.TestCase):
+    def test_each_upward_import_is_listed_by_file_and_name_with_components_and_layers(self) -> None:
+        result = Fixture(self).collect()
+        self.assertEqual(
+            result["upward_imports"],
+            [
+                {"file": "opengwasdb/model/enums.py", "name": "opengwasdb.store.util",
+                 "from": "model", "to": "store", "from_layer": 0, "to_layer": 1},
+                {"file": "opengwasdb/query/facade.py", "name": "opengwasdb.cli.main",
+                 "from": "query", "to": "cli", "from_layer": 2, "to_layer": 3},
+                {"file": "opengwasdb/store/paths.py", "name": "opengwasdb.query.facade",
+                 "from": "store", "to": "query", "from_layer": 1, "to_layer": 2},
+            ],
+        )
+
+
 class RefreshTests(unittest.TestCase):
     def clone(self, fixture: Fixture, origin: str) -> Path:
         bare = fixture.engine.parent / "engine.git"

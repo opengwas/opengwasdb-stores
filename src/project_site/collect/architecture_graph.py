@@ -76,8 +76,13 @@ def import_edges(
     trees: Mapping[str, Any],
     claims: Mapping[str, Sequence[tuple[str, str]]],
     components: Sequence[Mapping[str, Any]],
+    upward_list: list[dict[str, Any]] | None = None,
 ) -> list[Edge]:
-    """Component -> component edges with their import counts, sorted by (from, to)."""
+    """Component -> component edges with their import counts, sorted by (from, to).
+
+    When `upward_list` is given, each engine import that goes up a layer is
+    appended to it by importing file and imported name (#419).
+    """
     by_id = {c["id"]: c for c in components}
     # Every tracked module resolves to its own owner or to none: an unclaimed
     # module is a gap, and must not inherit the owner of the package around it.
@@ -113,6 +118,9 @@ def import_edges(
                 target = resolve(name)
                 if target and target != source:
                     counts[(source, target)] += 1
+                    if upward_list is not None and _goes_up(by_id[source], by_id[target]):
+                        upward_list.append({"file": path, "name": name, "from": source, "to": target,
+                                            "from_layer": by_id[source]["layer"], "to_layer": by_id[target]["layer"]})
 
     edges = []
     for (source, target), imports in sorted(counts.items()):
@@ -123,9 +131,16 @@ def import_edges(
             scope = "registry_to_engine"
         else:
             scope = "registry"
-        upward = scope == "engine" and None not in (a["layer"], b["layer"]) and b["layer"] > a["layer"]
+        upward = scope == "engine" and _goes_up(a, b)
         edges.append({"from": source, "to": target, "imports": imports, "scope": scope, "upward": upward})
     return edges
+
+
+def _goes_up(a: Mapping[str, Any], b: Mapping[str, Any]) -> bool:
+    return (
+        a["repo"] == "engine" and b["repo"] == "engine"
+        and None not in (a["layer"], b["layer"]) and b["layer"] > a["layer"]
+    )
 
 
 def summarise(edges: Sequence[Edge]) -> dict[str, int]:

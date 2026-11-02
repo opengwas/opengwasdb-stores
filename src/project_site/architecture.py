@@ -6,7 +6,7 @@
 
 `check` reports the code files no component claims and the claims that match no
 file, in both repositories, and compares the engine's layering baseline with the
-upward imports measured. It exits 1 on any of them.
+upward imports measured, entry by entry (file and imported name), naming new and stale ones. It exits 1 on any of them.
 
 `conflicts` says which components a piece of work touches, which other owners have
 live work (`building` or `active`) on each, and whether a blocking edge links its
@@ -129,12 +129,17 @@ def _baseline(args: argparse.Namespace, document: Mapping[str, Any], out: TextIO
     if text is None:
         print(f"no layering baseline at {engine['ref']} ({BASELINE_PATH} is not there)", file=out)
         return False
-    allowed = len((yaml.safe_load(text) or {}).get("allowed") or [])
-    measured = document["summary"]["upward_imports"]
-    print(f"layering baseline: {allowed} allowed, {measured} measured upward imports", file=out)
-    if allowed != measured:
-        print("  the baseline and the code disagree: a new upward import, or a listed one that has gone", file=out)
-    return allowed != measured
+    listed = {(e["file"], e["name"]) for e in (yaml.safe_load(text) or {}).get("allowed") or []}
+    found = {(u["file"], u["name"]): u for u in document.get("upward_imports") or []}
+    print(f"layering baseline: {len(listed)} allowed, {len(found)} measured upward imports", file=out)
+    names = {c["id"]: c["name"] for c in document["components"]}
+    for key in sorted(set(found) - listed):
+        u = found[key]
+        print(f"  new: {key[0]} {key[1]} ({names.get(u['from'], u['from'])}, layer {u['from_layer']} -> "
+              f"{names.get(u['to'], u['to'])}, layer {u['to_layer']}): not in the baseline", file=out)
+    for key in sorted(listed - set(found)):
+        print(f"  stale: {key[0]} {key[1]}: listed but no longer imported upward", file=out)
+    return listed != set(found)
 
 
 # ---------------------------------------------------------------------------
