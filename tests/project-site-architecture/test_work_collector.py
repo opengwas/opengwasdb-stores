@@ -17,59 +17,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from work_fixtures import ARCHITECTURE, ENGINE, STORES, board, branch, branch_set, compute, epic, states, ticket
+
 from project_site.collect import work
 from project_site.collect.common import CollectError
-
-ENGINE, STORES = "opengwasdb", "opengwasdb-stores"
-
-
-def ticket(key: str, *, cited: list[str] | None = None, blocked_by: list[str] | None = None, state: str = "OPEN") -> dict:
-    return {"key": key, "title": f"Ticket {key}", "url": f"https://example.org/{key}", "state": state,
-            "cited": cited or [], "blocked_by": [{"key": b, "state": "OPEN"} for b in blocked_by or []]}
-
-
-def epic(key: str, status: str, children: list[dict], *, cited: list[str] | None = None, state: str = "OPEN") -> dict:
-    return {"key": key, "title": f"Epic: {key}", "url": f"https://example.org/{key}", "state": state, "status": status,
-            "workstream": "Engineering", "cited": cited or [], "children": children}
-
-
-def board(*epics: dict) -> dict:
-    return {"source": "board", "available": True, "collected_at": "2026-11-02T12:00:00Z", "error": None,
-            "project": "opengwas/1", "epics": list(epics), "milestones": [], "items": []}
-
-
-def component(cid: str, name: str, repo: str, paths: list[str]) -> dict:
-    return {"id": cid, "name": name, "repo": repo, "paths": paths}
-
-
-ARCHITECTURE = {
-    "source": "architecture", "available": True, "collected_at": "2026-11-02T12:00:00Z", "error": None,
-    "engine": {"ref": "main", "commit": "e" * 40}, "registry": {"ref": "HEAD", "commit": "r" * 40},
-    "components": [
-        component("enc", "Store Encoding", "engine", ["opengwasdb/encoding/"]),
-        component("query", "Query", "engine", ["opengwasdb/query/"]),
-        component("store", "Store envelope", "engine", ["opengwasdb/store/"]),
-        component("pages", "Site pages", "registry", ["src/project_site/"]),
-    ],
-}
-
-
-def branch(name: str, files: list[str], *, repo: str = ENGINE, epic: str | None = None, ticket: str | None = None) -> dict:
-    return {"repo": repo, "name": name, "ahead": 1, "committed": "2026-11-01T10:00:00Z", "files": files,
-            "epic": epic, "ticket": ticket, "local": False}
-
-
-def branch_set(*found: dict, repo: str = ENGINE, fetch: dict | None = None) -> dict:
-    return {"repo": repo, "git_dir": f"/git/{repo}", "main": "main", "days": 21, "fetch": fetch, "branches": list(found)}
-
-
-def compute(board_doc: dict, *sets: dict) -> dict:
-    return work.compute(board_doc, ARCHITECTURE, list(sets))
-
-
-def states(result: dict, component_id: str) -> dict[tuple[str, str], str]:
-    """`(owner, item)` -> state of every signal on one component."""
-    return {(s["owner"], s["item"]): s["state"] for s in result["signals"] if s["component"] == component_id}
 
 
 class MeetTests(unittest.TestCase):
@@ -203,6 +154,13 @@ class StateTests(unittest.TestCase):
 
     def test_only_signals_of_building_or_active_work_make_a_meet(self) -> None:
         self.assertEqual(self.result["meets"], [])  # paused, planned, waiting and scope never meet
+
+    def test_every_open_ticket_of_a_live_epic_is_listed_with_its_owner(self) -> None:
+        self.assertEqual(
+            self.result["tickets"],
+            {"opengwasdb#11": "opengwasdb#10", "opengwasdb#12": "opengwasdb#10", "opengwasdb#21": "opengwasdb#20",
+             "opengwasdb#31": "opengwasdb#30"},
+        )
 
     def test_the_summary_counts_what_the_lists_hold(self) -> None:
         self.assertEqual(

@@ -156,6 +156,7 @@ def compute(
         ],
         "signals": rows,
         "meets": meets,
+        "tickets": {c["key"]: key for key, e in epics.items() for c in e.get("children") or [] if c["state"] == "OPEN"},
         "waits": [{"item": x, "on": y} for x, y in waits],
         "branches": {"sources": sources, "list": sorted(listed, key=lambda b: (b["repo"], b["name"]))},
         "summary": {
