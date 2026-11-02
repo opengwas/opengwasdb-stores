@@ -1,19 +1,25 @@
 {
   "artifact_root": "/data/opengwasdb/stores",
   "core": {
-    "checkout": "/home/gh13047/repo/opengwasdb-worktrees/hm3-272",
-    "opengwasdb_fingerprint": "982840eb581bc35c20c46a77f62d7aa03c7ee072efddab317f757a4db8902a74",
-    "opengwasdb_path": "/home/gh13047/repo/opengwasdb-worktrees/hm3-272/opengwasdb",
-    "revision": "1c2c85dfa8ec567bad3624962c4972aefb361215"
+    "checkout": "/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2",
+    "opengwasdb_fingerprint": "e8938731ac790ddf24d00936400e43bc04750aaa97c33ee2e1bd7939c49ca2d7",
+    "opengwasdb_path": "/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/opengwasdb",
+    "revision": "44f25a96fb43044a983e300a038a54ab1930e782"
   },
   "epic": "opengwas/opengwasdb-stores#214",
   "harness": "release_benchmark_report",
-  "hm3_only": true,
+  "hm3_only": false,
   "hm3_source": "benchmarks._query_shapes.measure_hm3_extract",
   "issue": "opengwas/opengwasdb-stores#212",
-  "measured_at": "2026-10-11T16:53:46.161810+00:00",
+  "measured_at": "2026-11-02T02:41:28.639632+00:00",
   "reps": 5,
-  "shape_errors": [],
+  "shape_errors": [
+    "OGS-00003",
+    "OGS-00004",
+    "OGS-00005",
+    "OGS-00008",
+    "OGS-00011"
+  ],
   "shapes_source": "benchmarks.benchmark_store_comparison (one Store per run)",
   "stores": [
     {
@@ -59,8 +65,11 @@
       },
       "layout": "dense",
       "shapes": {
-        "detail": "--hm3-only",
-        "status": "not_configured"
+        "detail": "generic harness exited 1; see stderr for the first failing shape",
+        "returncode": 1,
+        "status": "error",
+        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 1238, in <module>\n    main()\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 1172, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 299, in _resolve_selection\n    random_alids, random_analyses = _query_shapes.resolve_axis_selections(\n                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/_query_shapes.py\", line 74, in resolve_axis_selections\n    for a in rng.choice(n_analyses, size=RANDOM_AXIS_SIZE, replace=False)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"numpy/random/_generator.pyx\", line 917, in numpy.random._generator.Generator.choice\nValueError: Cannot take a larger sample than population when replace is False\n",
+        "stdout_tail": ""
       },
       "store_id": "OGS-00003"
     },
@@ -75,8 +84,11 @@
       },
       "layout": "hybrid",
       "shapes": {
-        "detail": "--hm3-only",
-        "status": "not_configured"
+        "detail": "generic harness exited 1; see stderr for the first failing shape",
+        "returncode": 1,
+        "status": "error",
+        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 1238, in <module>\n    main()\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 1172, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 270, in _resolve_selection\n    q, _plan = _query_shapes.open_benchmark_store(spec.path)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/_query_shapes.py\", line 269, in open_benchmark_store\n    return query_store(store), StoreManifest.load(store)\n           ^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/opengwasdb/query/facade.py\", line 1578, in query_store\n    return HybridStoreQuery(store)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/opengwasdb/query/facade.py\", line 1228, in __init__\n    self._by_variant: ByVariantReader = _open_by_variant(store, self._variant_axis)\n                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/opengwasdb/query/facade.py\", line 196, in _open_by_variant\n    raise VariantIndexError(\nopengwasdb.layouts.ragged.by_variant.VariantIndexError: Store at /data/opengwasdb/stores/OGS-00004/store.opengwasdb carries no variant index (ragged/by_variant); build it with 'ogdb build-variant-index /data/opengwasdb/stores/OGS-00004/store.opengwasdb'\n",
+        "stdout_tail": ""
       },
       "store_id": "OGS-00004"
     },
@@ -91,8 +103,11 @@
       },
       "layout": "hybrid",
       "shapes": {
-        "detail": "--hm3-only",
-        "status": "not_configured"
+        "detail": "generic harness exited 1; see stderr for the first failing shape",
+        "returncode": 1,
+        "status": "error",
+        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 1238, in <module>\n    main()\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 1172, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 270, in _resolve_selection\n    q, _plan = _query_shapes.open_benchmark_store(spec.path)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/_query_shapes.py\", line 269, in open_benchmark_store\n    return query_store(store), StoreManifest.load(store)\n           ^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/opengwasdb/query/facade.py\", line 1578, in query_store\n    return HybridStoreQuery(store)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/opengwasdb/query/facade.py\", line 1228, in __init__\n    self._by_variant: ByVariantReader = _open_by_variant(store, self._variant_axis)\n                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/opengwasdb/query/facade.py\", line 196, in _open_by_variant\n    raise VariantIndexError(\nopengwasdb.layouts.ragged.by_variant.VariantIndexError: Store at /data/opengwasdb/stores/OGS-00005/store.opengwasdb carries no variant index (ragged/by_variant); build it with 'ogdb build-variant-index /data/opengwasdb/stores/OGS-00005/store.opengwasdb'\n",
+        "stdout_tail": ""
       },
       "store_id": "OGS-00005"
     },
@@ -139,78 +154,1828 @@
       },
       "layout": "dense",
       "shapes": {
-        "detail": "--hm3-only",
-        "status": "not_configured"
+        "detail": "generic harness exited 1; see stderr for the first failing shape",
+        "returncode": 1,
+        "status": "error",
+        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 1238, in <module>\n    main()\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 1172, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/benchmark_store_comparison.py\", line 299, in _resolve_selection\n    random_alids, random_analyses = _query_shapes.resolve_axis_selections(\n                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.2/benchmarks/_query_shapes.py\", line 74, in resolve_axis_selections\n    for a in rng.choice(n_analyses, size=RANDOM_AXIS_SIZE, replace=False)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"numpy/random/_generator.pyx\", line 917, in numpy.random._generator.Generator.choice\nValueError: Cannot take a larger sample than population when replace is False\n",
+        "stdout_tail": ""
       },
       "store_id": "OGS-00008"
     },
     {
-      "analysis_id": "ukb-b-13414",
+      "analysis_id": "ukb-b-10001",
       "artifact_path": "/data/opengwasdb/stores/OGS-00009/store.opengwasdb",
       "dense_component": true,
       "hm3_extract": {
-        "detail": "no Indexed Variant Subset named 'hm3' is published",
-        "status": "missing",
-        "subset": "hm3"
+        "analysis_id": "ukb-b-10001",
+        "detail": "",
+        "first_read_ms": 562.262,
+        "median_ms": 621.852,
+        "p95_ms": 664.029,
+        "reps": 5,
+        "result_count": 1189911,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 815,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 2514,
+        "subset_n_variants": 1206088,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1206088,
+        "warm_result_count": 1189911
       },
       "layout": "dense",
       "shapes": {
-        "detail": "--hm3-only",
-        "status": "not_configured"
+        "harness": "benchmark_store_comparison",
+        "harness_hm3_extract": {
+          "analysis_id": "ukb-b-10003",
+          "detail": "",
+          "first_read_ms": 438.308,
+          "median_ms": 455.797,
+          "p95_ms": 461.043,
+          "reps": 5,
+          "result_count": 1187986,
+          "status": "measured",
+          "subset": "hm3",
+          "subset_absent_count": 815,
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+          "subset_n_analyses": 2514,
+          "subset_n_variants": 1206088,
+          "subset_reference_assembly": "hg38",
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1206088,
+          "warm_result_count": 1187986
+        },
+        "status": "measured",
+        "timings": [
+          {
+            "first_call_ms": 11251.177,
+            "load_average_after": [
+              3.08,
+              2.72,
+              3.02
+            ],
+            "load_average_before": [
+              2.75,
+              2.59,
+              3.0
+            ],
+            "median_ms": 8016.405,
+            "p95_ms": 10345.758,
+            "query": "bulk",
+            "repetitions": 5,
+            "result_count": 9883147,
+            "timed_out": false,
+            "warm_ms": [
+              10345.758,
+              8016.405,
+              8790.517,
+              7811.534,
+              7267.944
+            ],
+            "warmup_ms": 16453.526
+          },
+          {
+            "first_call_ms": 62.575,
+            "load_average_after": [
+              3.08,
+              2.72,
+              3.02
+            ],
+            "load_average_before": [
+              3.08,
+              2.72,
+              3.02
+            ],
+            "median_ms": 58.518,
+            "p95_ms": 59.731,
+            "query": "phewas",
+            "repetitions": 5,
+            "result_count": 2450,
+            "timed_out": false,
+            "warm_ms": [
+              59.731,
+              57.82,
+              59.482,
+              58.512,
+              58.518
+            ],
+            "warmup_ms": 65.374
+          },
+          {
+            "first_call_ms": 2046.868,
+            "load_average_after": [
+              3.15,
+              2.76,
+              3.03
+            ],
+            "load_average_before": [
+              3.08,
+              2.72,
+              3.02
+            ],
+            "median_ms": 2331.683,
+            "p95_ms": 2359.043,
+            "query": "regional",
+            "repetitions": 5,
+            "result_count": 9669654,
+            "timed_out": false,
+            "warm_ms": [
+              2126.755,
+              2331.683,
+              2359.043,
+              2342.681,
+              2124.511
+            ],
+            "warmup_ms": 6922.865
+          },
+          {
+            "first_call_ms": 90.035,
+            "load_average_after": [
+              3.15,
+              2.76,
+              3.03
+            ],
+            "load_average_before": [
+              3.15,
+              2.76,
+              3.03
+            ],
+            "median_ms": 48.48,
+            "p95_ms": 49.27,
+            "query": "regional_one_analysis",
+            "repetitions": 5,
+            "result_count": 3786,
+            "timed_out": false,
+            "warm_ms": [
+              46.252,
+              49.27,
+              48.506,
+              47.859,
+              48.48
+            ],
+            "warmup_ms": 92.87
+          },
+          {
+            "first_call_ms": 26.708,
+            "load_average_after": [
+              3.15,
+              2.76,
+              3.03
+            ],
+            "load_average_before": [
+              3.15,
+              2.76,
+              3.03
+            ],
+            "median_ms": 11.339,
+            "p95_ms": 12.048,
+            "query": "tophits",
+            "repetitions": 5,
+            "result_count": 669,
+            "timed_out": false,
+            "warm_ms": [
+              12.048,
+              11.373,
+              11.274,
+              11.339,
+              10.736
+            ],
+            "warmup_ms": 27.711
+          },
+          {
+            "first_call_ms": 332.325,
+            "load_average_after": [
+              3.15,
+              2.76,
+              3.03
+            ],
+            "load_average_before": [
+              3.15,
+              2.76,
+              3.03
+            ],
+            "median_ms": 349.881,
+            "p95_ms": 412.294,
+            "query": "random_lookup_10_variants_100_analyses",
+            "repetitions": 5,
+            "result_count": 999,
+            "timed_out": false,
+            "warm_ms": [
+              346.681,
+              405.612,
+              412.294,
+              323.917,
+              349.881
+            ],
+            "warmup_ms": 333.619
+          },
+          {
+            "first_call_ms": 1258.568,
+            "load_average_after": [
+              3.38,
+              2.82,
+              3.04
+            ],
+            "load_average_before": [
+              3.15,
+              2.76,
+              3.03
+            ],
+            "median_ms": 1252.303,
+            "p95_ms": 1254.474,
+            "query": "random_lookup_100_variants_10_analyses",
+            "repetitions": 5,
+            "result_count": 916,
+            "timed_out": false,
+            "warm_ms": [
+              1253.064,
+              983.311,
+              1037.795,
+              1252.303,
+              1254.474
+            ],
+            "warmup_ms": 1259.895
+          }
+        ]
       },
       "store_id": "OGS-00009"
-    },
-    {
-      "analysis_id": "ukb-b-13414",
-      "artifact_path": "/data/opengwasdb/stores/OGS-00010/store.opengwasdb",
-      "dense_component": true,
-      "hm3_extract": {
-        "detail": "no Indexed Variant Subset named 'hm3' is published",
-        "status": "missing",
-        "subset": "hm3"
-      },
-      "layout": "dense",
-      "shapes": {
-        "detail": "--hm3-only",
-        "status": "not_configured"
-      },
-      "store_id": "OGS-00010"
     },
     {
       "analysis_id": "GCST000028",
       "artifact_path": "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
       "dense_component": true,
       "hm3_extract": {
-        "detail": "no Indexed Variant Subset named 'hm3' is published",
-        "status": "missing",
-        "subset": "hm3"
+        "analysis_id": "GCST000028",
+        "detail": "",
+        "first_read_ms": 233.482,
+        "median_ms": 233.592,
+        "p95_ms": 246.025,
+        "reps": 5,
+        "result_count": 0,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 152,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 3169,
+        "subset_n_variants": 1195931,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1195931,
+        "warm_result_count": 0
       },
       "layout": "hybrid",
       "shapes": {
-        "detail": "--hm3-only",
-        "status": "not_configured"
+        "detail": "generic harness exited 1; see stderr for the first failing shape",
+        "returncode": 1,
+        "status": "error",
+        "stderr_tail": "/data/opengwasdb/stores/OGS-00011/store.opengwasdb: exposure Analysis 'GCST000028' is absent, so the shared selection cannot be resolved. Refusing to guess one; pass --exposure with an Analysis this store carries.\n",
+        "stdout_tail": ""
       },
       "store_id": "OGS-00011"
     },
     {
-      "analysis_id": "finngen-r13-AB1_ACTINOMYCOSIS",
-      "artifact_path": "/data/opengwasdb/stores/OGS-00016/store.opengwasdb",
+      "analysis_id": "GCST90475091",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00012/store.opengwasdb",
       "dense_component": true,
       "hm3_extract": {
-        "detail": "no Indexed Variant Subset named 'hm3' is published",
-        "status": "missing",
-        "subset": "hm3"
+        "analysis_id": "GCST90475091",
+        "detail": "",
+        "first_read_ms": 642.93,
+        "median_ms": 625.766,
+        "p95_ms": 744.577,
+        "reps": 5,
+        "result_count": 1202902,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 4001,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 1669,
+        "subset_n_variants": 1202902,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1202902,
+        "warm_result_count": 1202902
       },
       "layout": "dense",
       "shapes": {
-        "detail": "--hm3-only",
-        "status": "not_configured"
+        "harness": "benchmark_store_comparison",
+        "harness_hm3_extract": {
+          "analysis_id": "GCST90475091",
+          "detail": "",
+          "first_read_ms": 655.019,
+          "median_ms": 747.904,
+          "p95_ms": 776.285,
+          "reps": 5,
+          "result_count": 1202902,
+          "status": "measured",
+          "subset": "hm3",
+          "subset_absent_count": 4001,
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+          "subset_n_analyses": 1669,
+          "subset_n_variants": 1202902,
+          "subset_reference_assembly": "hg38",
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1202902,
+          "warm_result_count": 1202902
+        },
+        "status": "measured",
+        "timings": [
+          {
+            "first_call_ms": 17522.247,
+            "load_average_after": [
+              3.32,
+              2.98,
+              3.06
+            ],
+            "load_average_before": [
+              2.61,
+              2.85,
+              3.04
+            ],
+            "median_ms": 16668.304,
+            "p95_ms": 18058.826,
+            "query": "bulk",
+            "repetitions": 5,
+            "result_count": 20131241,
+            "timed_out": false,
+            "warm_ms": [
+              17197.466,
+              16650.205,
+              18058.826,
+              16668.304,
+              15484.957
+            ],
+            "warmup_ms": 28423.959
+          },
+          {
+            "first_call_ms": 58.949,
+            "load_average_after": [
+              3.32,
+              2.98,
+              3.06
+            ],
+            "load_average_before": [
+              3.32,
+              2.98,
+              3.06
+            ],
+            "median_ms": 56.415,
+            "p95_ms": 58.942,
+            "query": "phewas",
+            "repetitions": 5,
+            "result_count": 1669,
+            "timed_out": false,
+            "warm_ms": [
+              53.914,
+              55.932,
+              56.445,
+              56.415,
+              58.942
+            ],
+            "warmup_ms": 60.961
+          },
+          {
+            "first_call_ms": 2571.904,
+            "load_average_after": [
+              3.09,
+              2.95,
+              3.04
+            ],
+            "load_average_before": [
+              3.32,
+              2.98,
+              3.06
+            ],
+            "median_ms": 2882.903,
+            "p95_ms": 2905.13,
+            "query": "regional",
+            "repetitions": 5,
+            "result_count": 12459718,
+            "timed_out": false,
+            "warm_ms": [
+              2641.246,
+              2894.103,
+              2905.13,
+              2882.903,
+              2638.682
+            ],
+            "warmup_ms": 8925.061
+          },
+          {
+            "first_call_ms": 87.152,
+            "load_average_after": [
+              3.09,
+              2.95,
+              3.04
+            ],
+            "load_average_before": [
+              3.09,
+              2.95,
+              3.04
+            ],
+            "median_ms": 61.298,
+            "p95_ms": 78.827,
+            "query": "regional_one_analysis",
+            "repetitions": 5,
+            "result_count": 7530,
+            "timed_out": false,
+            "warm_ms": [
+              56.697,
+              61.298,
+              65.185,
+              55.144,
+              78.827
+            ],
+            "warmup_ms": 90.29
+          },
+          {
+            "first_call_ms": 46.687,
+            "load_average_after": [
+              2.92,
+              2.91,
+              3.03
+            ],
+            "load_average_before": [
+              3.09,
+              2.95,
+              3.04
+            ],
+            "median_ms": 30.941,
+            "p95_ms": 34.026,
+            "query": "tophits",
+            "repetitions": 5,
+            "result_count": 103886,
+            "timed_out": false,
+            "warm_ms": [
+              30.941,
+              25.067,
+              26.234,
+              32.168,
+              34.026
+            ],
+            "warmup_ms": 81.282
+          },
+          {
+            "first_call_ms": 299.604,
+            "load_average_after": [
+              2.92,
+              2.91,
+              3.03
+            ],
+            "load_average_before": [
+              2.92,
+              2.91,
+              3.03
+            ],
+            "median_ms": 295.203,
+            "p95_ms": 298.803,
+            "query": "random_lookup_10_variants_100_analyses",
+            "repetitions": 5,
+            "result_count": 992,
+            "timed_out": false,
+            "warm_ms": [
+              298.803,
+              294.647,
+              294.061,
+              295.203,
+              296.148
+            ],
+            "warmup_ms": 300.858
+          },
+          {
+            "first_call_ms": 1273.312,
+            "load_average_after": [
+              3.09,
+              2.95,
+              3.04
+            ],
+            "load_average_before": [
+              2.92,
+              2.91,
+              3.03
+            ],
+            "median_ms": 1252.789,
+            "p95_ms": 1256.544,
+            "query": "random_lookup_100_variants_10_analyses",
+            "repetitions": 5,
+            "result_count": 951,
+            "timed_out": false,
+            "warm_ms": [
+              1252.828,
+              1256.544,
+              1248.698,
+              1246.106,
+              1252.789
+            ],
+            "warmup_ms": 1274.765
+          }
+        ]
+      },
+      "store_id": "OGS-00012"
+    },
+    {
+      "analysis_id": "GCST90475090",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00013/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "analysis_id": "GCST90475090",
+        "detail": "",
+        "first_read_ms": 690.796,
+        "median_ms": 703.753,
+        "p95_ms": 765.612,
+        "reps": 5,
+        "result_count": 1200247,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 6656,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 1368,
+        "subset_n_variants": 1200247,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1200247,
+        "warm_result_count": 1200247
+      },
+      "layout": "dense",
+      "shapes": {
+        "harness": "benchmark_store_comparison",
+        "harness_hm3_extract": {
+          "analysis_id": "GCST90475090",
+          "detail": "",
+          "first_read_ms": 738.83,
+          "median_ms": 685.025,
+          "p95_ms": 695.344,
+          "reps": 5,
+          "result_count": 1200247,
+          "status": "measured",
+          "subset": "hm3",
+          "subset_absent_count": 6656,
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+          "subset_n_analyses": 1368,
+          "subset_n_variants": 1200247,
+          "subset_reference_assembly": "hg38",
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1200247,
+          "warm_result_count": 1200247
+        },
+        "status": "measured",
+        "timings": [
+          {
+            "first_call_ms": 24411.977,
+            "load_average_after": [
+              3.1,
+              2.96,
+              3.02
+            ],
+            "load_average_before": [
+              2.89,
+              2.9,
+              3.03
+            ],
+            "median_ms": 22846.899,
+            "p95_ms": 25413.192,
+            "query": "bulk",
+            "repetitions": 5,
+            "result_count": 36951662,
+            "timed_out": false,
+            "warm_ms": [
+              25413.192,
+              24878.913,
+              22360.369,
+              22846.899,
+              22358.895
+            ],
+            "warmup_ms": 44706.322
+          },
+          {
+            "first_call_ms": 34.645,
+            "load_average_after": [
+              3.1,
+              2.96,
+              3.02
+            ],
+            "load_average_before": [
+              3.1,
+              2.96,
+              3.02
+            ],
+            "median_ms": 30.693,
+            "p95_ms": 32.226,
+            "query": "phewas",
+            "repetitions": 5,
+            "result_count": 1368,
+            "timed_out": false,
+            "warm_ms": [
+              32.226,
+              29.323,
+              26.291,
+              30.693,
+              31.03
+            ],
+            "warmup_ms": 36.561
+          },
+          {
+            "first_call_ms": 3993.067,
+            "load_average_after": [
+              3.73,
+              3.1,
+              3.06
+            ],
+            "load_average_before": [
+              3.1,
+              2.96,
+              3.02
+            ],
+            "median_ms": 4527.718,
+            "p95_ms": 4610.314,
+            "query": "regional",
+            "repetitions": 5,
+            "result_count": 20191522,
+            "timed_out": false,
+            "warm_ms": [
+              4527.718,
+              4349.512,
+              4069.341,
+              4610.314,
+              4571.977
+            ],
+            "warmup_ms": 14748.858
+          },
+          {
+            "first_call_ms": 125.768,
+            "load_average_after": [
+              3.73,
+              3.1,
+              3.06
+            ],
+            "load_average_before": [
+              3.73,
+              3.1,
+              3.06
+            ],
+            "median_ms": 84.531,
+            "p95_ms": 103.245,
+            "query": "regional_one_analysis",
+            "repetitions": 5,
+            "result_count": 14938,
+            "timed_out": false,
+            "warm_ms": [
+              84.183,
+              103.245,
+              83.988,
+              101.883,
+              84.531
+            ],
+            "warmup_ms": 130.433
+          },
+          {
+            "first_call_ms": 25.695,
+            "load_average_after": [
+              3.73,
+              3.1,
+              3.06
+            ],
+            "load_average_before": [
+              3.73,
+              3.1,
+              3.06
+            ],
+            "median_ms": 10.596,
+            "p95_ms": 10.842,
+            "query": "tophits",
+            "repetitions": 5,
+            "result_count": 1709,
+            "timed_out": false,
+            "warm_ms": [
+              10.842,
+              10.596,
+              10.652,
+              10.327,
+              10.074
+            ],
+            "warmup_ms": 27.723
+          },
+          {
+            "first_call_ms": 280.721,
+            "load_average_after": [
+              3.84,
+              3.13,
+              3.07
+            ],
+            "load_average_before": [
+              3.73,
+              3.1,
+              3.06
+            ],
+            "median_ms": 242.305,
+            "p95_ms": 244.391,
+            "query": "random_lookup_10_variants_100_analyses",
+            "repetitions": 5,
+            "result_count": 995,
+            "timed_out": false,
+            "warm_ms": [
+              229.215,
+              242.305,
+              243.164,
+              244.391,
+              240.312
+            ],
+            "warmup_ms": 281.333
+          },
+          {
+            "first_call_ms": 1121.655,
+            "load_average_after": [
+              3.77,
+              3.13,
+              3.07
+            ],
+            "load_average_before": [
+              3.84,
+              3.13,
+              3.07
+            ],
+            "median_ms": 1133.013,
+            "p95_ms": 1401.968,
+            "query": "random_lookup_100_variants_10_analyses",
+            "repetitions": 5,
+            "result_count": 991,
+            "timed_out": false,
+            "warm_ms": [
+              1096.071,
+              1095.201,
+              1133.013,
+              1396.503,
+              1401.968
+            ],
+            "warmup_ms": 1122.923
+          }
+        ]
+      },
+      "store_id": "OGS-00013"
+    },
+    {
+      "analysis_id": "GCST90475089",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00014/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "analysis_id": "GCST90475089",
+        "detail": "",
+        "first_read_ms": 757.401,
+        "median_ms": 793.743,
+        "p95_ms": 820.143,
+        "reps": 5,
+        "result_count": 1205394,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 1435,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 1053,
+        "subset_n_variants": 1205468,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1205468,
+        "warm_result_count": 1205394
+      },
+      "layout": "dense",
+      "shapes": {
+        "harness": "benchmark_store_comparison",
+        "harness_hm3_extract": {
+          "analysis_id": "GCST90475089",
+          "detail": "",
+          "first_read_ms": 459.452,
+          "median_ms": 482.185,
+          "p95_ms": 488.202,
+          "reps": 5,
+          "result_count": 1205394,
+          "status": "measured",
+          "subset": "hm3",
+          "subset_absent_count": 1435,
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+          "subset_n_analyses": 1053,
+          "subset_n_variants": 1205468,
+          "subset_reference_assembly": "hg38",
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1205468,
+          "warm_result_count": 1205394
+        },
+        "status": "measured",
+        "timings": [
+          {
+            "first_call_ms": 24033.043,
+            "load_average_after": [
+              3.21,
+              3.07,
+              3.06
+            ],
+            "load_average_before": [
+              3.16,
+              3.06,
+              3.05
+            ],
+            "median_ms": 21210.896,
+            "p95_ms": 22055.648,
+            "query": "bulk",
+            "repetitions": 5,
+            "result_count": 30340760,
+            "timed_out": false,
+            "warm_ms": [
+              22055.648,
+              21210.896,
+              21146.791,
+              21200.141,
+              21380.421
+            ],
+            "warmup_ms": 40243.508
+          },
+          {
+            "first_call_ms": 37.868,
+            "load_average_after": [
+              3.21,
+              3.07,
+              3.06
+            ],
+            "load_average_before": [
+              3.21,
+              3.07,
+              3.06
+            ],
+            "median_ms": 36.699,
+            "p95_ms": 36.977,
+            "query": "phewas",
+            "repetitions": 5,
+            "result_count": 1053,
+            "timed_out": false,
+            "warm_ms": [
+              36.314,
+              33.576,
+              36.977,
+              36.869,
+              36.699
+            ],
+            "warmup_ms": 39.275
+          },
+          {
+            "first_call_ms": 2909.017,
+            "load_average_after": [
+              2.59,
+              2.93,
+              3.01
+            ],
+            "load_average_before": [
+              3.21,
+              3.07,
+              3.06
+            ],
+            "median_ms": 2985.221,
+            "p95_ms": 3000.95,
+            "query": "regional",
+            "repetitions": 5,
+            "result_count": 12792334,
+            "timed_out": false,
+            "warm_ms": [
+              2995.648,
+              3000.95,
+              2985.221,
+              2746.51,
+              2984.342
+            ],
+            "warmup_ms": 9275.55
+          },
+          {
+            "first_call_ms": 142.139,
+            "load_average_after": [
+              2.59,
+              2.93,
+              3.01
+            ],
+            "load_average_before": [
+              2.59,
+              2.93,
+              3.01
+            ],
+            "median_ms": 101.239,
+            "p95_ms": 128.233,
+            "query": "regional_one_analysis",
+            "repetitions": 5,
+            "result_count": 12636,
+            "timed_out": false,
+            "warm_ms": [
+              98.185,
+              128.233,
+              99.574,
+              101.239,
+              127.268
+            ],
+            "warmup_ms": 146.649
+          },
+          {
+            "first_call_ms": 25.831,
+            "load_average_after": [
+              2.59,
+              2.93,
+              3.01
+            ],
+            "load_average_before": [
+              2.59,
+              2.93,
+              3.01
+            ],
+            "median_ms": 11.4,
+            "p95_ms": 11.692,
+            "query": "tophits",
+            "repetitions": 5,
+            "result_count": 752,
+            "timed_out": false,
+            "warm_ms": [
+              11.692,
+              11.4,
+              11.013,
+              10.908,
+              11.498
+            ],
+            "warmup_ms": 26.907
+          },
+          {
+            "first_call_ms": 245.085,
+            "load_average_after": [
+              2.46,
+              2.9,
+              3.0
+            ],
+            "load_average_before": [
+              2.59,
+              2.93,
+              3.01
+            ],
+            "median_ms": 230.066,
+            "p95_ms": 235.298,
+            "query": "random_lookup_10_variants_100_analyses",
+            "repetitions": 5,
+            "result_count": 880,
+            "timed_out": false,
+            "warm_ms": [
+              225.558,
+              235.298,
+              230.091,
+              222.058,
+              230.066
+            ],
+            "warmup_ms": 246.259
+          },
+          {
+            "first_call_ms": 994.783,
+            "load_average_after": [
+              2.42,
+              2.88,
+              2.99
+            ],
+            "load_average_before": [
+              2.46,
+              2.9,
+              3.0
+            ],
+            "median_ms": 984.257,
+            "p95_ms": 1006.001,
+            "query": "random_lookup_100_variants_10_analyses",
+            "repetitions": 5,
+            "result_count": 947,
+            "timed_out": false,
+            "warm_ms": [
+              938.468,
+              1006.001,
+              984.257,
+              965.901,
+              998.492
+            ],
+            "warmup_ms": 996.029
+          }
+        ]
+      },
+      "store_id": "OGS-00014"
+    },
+    {
+      "analysis_id": "GCST90476550",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00015/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "analysis_id": "GCST90476550",
+        "detail": "",
+        "first_read_ms": 363.637,
+        "median_ms": 361.718,
+        "p95_ms": 374.47,
+        "reps": 5,
+        "result_count": 1127187,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 79566,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 241,
+        "subset_n_variants": 1127337,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1127337,
+        "warm_result_count": 1127187
+      },
+      "layout": "dense",
+      "shapes": {
+        "harness": "benchmark_store_comparison",
+        "harness_hm3_extract": {
+          "analysis_id": "GCST90476556",
+          "detail": "",
+          "first_read_ms": 421.631,
+          "median_ms": 422.986,
+          "p95_ms": 443.83,
+          "reps": 5,
+          "result_count": 1127267,
+          "status": "measured",
+          "subset": "hm3",
+          "subset_absent_count": 79566,
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+          "subset_n_analyses": 241,
+          "subset_n_variants": 1127337,
+          "subset_reference_assembly": "hg38",
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1127337,
+          "warm_result_count": 1127267
+        },
+        "status": "measured",
+        "timings": [
+          {
+            "first_call_ms": 7618.647,
+            "load_average_after": [
+              2.69,
+              2.91,
+              3.0
+            ],
+            "load_average_before": [
+              2.52,
+              2.89,
+              2.99
+            ],
+            "median_ms": 6000.639,
+            "p95_ms": 6346.228,
+            "query": "bulk",
+            "repetitions": 5,
+            "result_count": 9335731,
+            "timed_out": false,
+            "warm_ms": [
+              6040.777,
+              6346.228,
+              6000.639,
+              5306.74,
+              5278.854
+            ],
+            "warmup_ms": 12306.543
+          },
+          {
+            "first_call_ms": 18.072,
+            "load_average_after": [
+              2.69,
+              2.91,
+              3.0
+            ],
+            "load_average_before": [
+              2.69,
+              2.91,
+              3.0
+            ],
+            "median_ms": 16.348,
+            "p95_ms": 16.669,
+            "query": "phewas",
+            "repetitions": 5,
+            "result_count": 241,
+            "timed_out": false,
+            "warm_ms": [
+              16.637,
+              16.348,
+              16.669,
+              16.052,
+              16.297
+            ],
+            "warmup_ms": 18.559
+          },
+          {
+            "first_call_ms": 194.847,
+            "load_average_after": [
+              2.69,
+              2.91,
+              3.0
+            ],
+            "load_average_before": [
+              2.69,
+              2.91,
+              3.0
+            ],
+            "median_ms": 178.941,
+            "p95_ms": 185.498,
+            "query": "regional",
+            "repetitions": 5,
+            "result_count": 781022,
+            "timed_out": false,
+            "warm_ms": [
+              178.941,
+              185.498,
+              182.167,
+              170.346,
+              172.737
+            ],
+            "warmup_ms": 504.732
+          },
+          {
+            "first_call_ms": 48.371,
+            "load_average_after": [
+              2.69,
+              2.91,
+              3.0
+            ],
+            "load_average_before": [
+              2.69,
+              2.91,
+              3.0
+            ],
+            "median_ms": 49.339,
+            "p95_ms": 74.182,
+            "query": "regional_one_analysis",
+            "repetitions": 5,
+            "result_count": 3251,
+            "timed_out": false,
+            "warm_ms": [
+              74.182,
+              49.605,
+              48.049,
+              49.339,
+              48.077
+            ],
+            "warmup_ms": 51.435
+          },
+          {
+            "first_call_ms": 21.935,
+            "load_average_after": [
+              2.69,
+              2.91,
+              3.0
+            ],
+            "load_average_before": [
+              2.69,
+              2.91,
+              3.0
+            ],
+            "median_ms": 7.972,
+            "p95_ms": 8.381,
+            "query": "tophits",
+            "repetitions": 5,
+            "result_count": 18,
+            "timed_out": false,
+            "warm_ms": [
+              7.687,
+              8.381,
+              8.105,
+              7.972,
+              7.761
+            ],
+            "warmup_ms": 22.355
+          },
+          {
+            "first_call_ms": 102.24,
+            "load_average_after": [
+              2.55,
+              2.88,
+              2.99
+            ],
+            "load_average_before": [
+              2.69,
+              2.91,
+              3.0
+            ],
+            "median_ms": 83.877,
+            "p95_ms": 90.03,
+            "query": "random_lookup_10_variants_100_analyses",
+            "repetitions": 5,
+            "result_count": 1000,
+            "timed_out": false,
+            "warm_ms": [
+              83.877,
+              89.413,
+              90.03,
+              83.87,
+              81.552
+            ],
+            "warmup_ms": 103.56
+          },
+          {
+            "first_call_ms": 410.799,
+            "load_average_after": [
+              2.55,
+              2.88,
+              2.99
+            ],
+            "load_average_before": [
+              2.55,
+              2.88,
+              2.99
+            ],
+            "median_ms": 400.787,
+            "p95_ms": 412.183,
+            "query": "random_lookup_100_variants_10_analyses",
+            "repetitions": 5,
+            "result_count": 999,
+            "timed_out": false,
+            "warm_ms": [
+              409.218,
+              356.858,
+              344.569,
+              400.787,
+              412.183
+            ],
+            "warmup_ms": 412.012
+          }
+        ]
+      },
+      "store_id": "OGS-00015"
+    },
+    {
+      "analysis_id": "GCST90479500",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00016/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "analysis_id": "GCST90479500",
+        "detail": "",
+        "first_read_ms": 512.342,
+        "median_ms": 522.569,
+        "p95_ms": 590.916,
+        "reps": 5,
+        "result_count": 1201645,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 5258,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 1691,
+        "subset_n_variants": 1201645,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1201645,
+        "warm_result_count": 1201645
+      },
+      "layout": "dense",
+      "shapes": {
+        "harness": "benchmark_store_comparison",
+        "harness_hm3_extract": {
+          "analysis_id": "GCST90479500",
+          "detail": "",
+          "first_read_ms": 367.102,
+          "median_ms": 385.824,
+          "p95_ms": 394.483,
+          "reps": 5,
+          "result_count": 1201645,
+          "status": "measured",
+          "subset": "hm3",
+          "subset_absent_count": 5258,
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+          "subset_n_analyses": 1691,
+          "subset_n_variants": 1201645,
+          "subset_reference_assembly": "hg38",
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1201645,
+          "warm_result_count": 1201645
+        },
+        "status": "measured",
+        "timings": [
+          {
+            "first_call_ms": 23857.37,
+            "load_average_after": [
+              2.63,
+              2.74,
+              2.91
+            ],
+            "load_average_before": [
+              2.35,
+              2.82,
+              2.96
+            ],
+            "median_ms": 21148.984,
+            "p95_ms": 21713.161,
+            "query": "bulk",
+            "repetitions": 5,
+            "result_count": 27891092,
+            "timed_out": false,
+            "warm_ms": [
+              21206.406,
+              21713.161,
+              20767.806,
+              20728.966,
+              21148.984
+            ],
+            "warmup_ms": 38668.396
+          },
+          {
+            "first_call_ms": 45.353,
+            "load_average_after": [
+              2.63,
+              2.74,
+              2.91
+            ],
+            "load_average_before": [
+              2.63,
+              2.74,
+              2.91
+            ],
+            "median_ms": 36.817,
+            "p95_ms": 37.848,
+            "query": "phewas",
+            "repetitions": 5,
+            "result_count": 1691,
+            "timed_out": false,
+            "warm_ms": [
+              37.057,
+              34.583,
+              36.817,
+              37.848,
+              36.518
+            ],
+            "warmup_ms": 47.581
+          },
+          {
+            "first_call_ms": 3354.294,
+            "load_average_after": [
+              2.73,
+              2.76,
+              2.91
+            ],
+            "load_average_before": [
+              2.63,
+              2.74,
+              2.91
+            ],
+            "median_ms": 3514.868,
+            "p95_ms": 3943.688,
+            "query": "regional",
+            "repetitions": 5,
+            "result_count": 16861437,
+            "timed_out": false,
+            "warm_ms": [
+              3485.808,
+              3529.669,
+              3488.283,
+              3943.688,
+              3514.868
+            ],
+            "warmup_ms": 11936.495
+          },
+          {
+            "first_call_ms": 162.868,
+            "load_average_after": [
+              2.73,
+              2.76,
+              2.91
+            ],
+            "load_average_before": [
+              2.73,
+              2.76,
+              2.91
+            ],
+            "median_ms": 122.27,
+            "p95_ms": 152.498,
+            "query": "regional_one_analysis",
+            "repetitions": 5,
+            "result_count": 11103,
+            "timed_out": false,
+            "warm_ms": [
+              122.346,
+              119.722,
+              152.498,
+              117.605,
+              122.27
+            ],
+            "warmup_ms": 166.958
+          },
+          {
+            "first_call_ms": 20.369,
+            "load_average_after": [
+              2.73,
+              2.76,
+              2.91
+            ],
+            "load_average_before": [
+              2.73,
+              2.76,
+              2.91
+            ],
+            "median_ms": 9.367,
+            "p95_ms": 11.402,
+            "query": "tophits",
+            "repetitions": 5,
+            "result_count": 24491,
+            "timed_out": false,
+            "warm_ms": [
+              11.402,
+              8.741,
+              8.186,
+              9.396,
+              9.367
+            ],
+            "warmup_ms": 30.995
+          },
+          {
+            "first_call_ms": 158.286,
+            "load_average_after": [
+              2.73,
+              2.76,
+              2.91
+            ],
+            "load_average_before": [
+              2.73,
+              2.76,
+              2.91
+            ],
+            "median_ms": 152.09,
+            "p95_ms": 154.319,
+            "query": "random_lookup_10_variants_100_analyses",
+            "repetitions": 5,
+            "result_count": 905,
+            "timed_out": false,
+            "warm_ms": [
+              154.319,
+              152.668,
+              151.734,
+              152.09,
+              151.576
+            ],
+            "warmup_ms": 159.456
+          },
+          {
+            "first_call_ms": 688.963,
+            "load_average_after": [
+              2.59,
+              2.73,
+              2.9
+            ],
+            "load_average_before": [
+              2.73,
+              2.76,
+              2.91
+            ],
+            "median_ms": 666.786,
+            "p95_ms": 667.46,
+            "query": "random_lookup_100_variants_10_analyses",
+            "repetitions": 5,
+            "result_count": 910,
+            "timed_out": false,
+            "warm_ms": [
+              667.46,
+              666.786,
+              664.677,
+              666.669,
+              666.924
+            ],
+            "warmup_ms": 690.127
+          }
+        ]
       },
       "store_id": "OGS-00016"
+    },
+    {
+      "analysis_id": "finngen-r13-AB1_ACTINOMYCOSIS",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00017/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "analysis_id": "finngen-r13-AB1_ACTINOMYCOSIS",
+        "detail": "",
+        "first_read_ms": 635.415,
+        "median_ms": 634.408,
+        "p95_ms": 650.365,
+        "reps": 5,
+        "result_count": 1201363,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 5530,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 2754,
+        "subset_n_variants": 1201373,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1201373,
+        "warm_result_count": 1201363
+      },
+      "layout": "dense",
+      "shapes": {
+        "harness": "benchmark_store_comparison",
+        "harness_hm3_extract": {
+          "analysis_id": "finngen-r13-AB1_ARTHROPOD_WIDE",
+          "detail": "",
+          "first_read_ms": 452.842,
+          "median_ms": 484.612,
+          "p95_ms": 494.97,
+          "reps": 5,
+          "result_count": 1201373,
+          "status": "measured",
+          "subset": "hm3",
+          "subset_absent_count": 5530,
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+          "subset_n_analyses": 2754,
+          "subset_n_variants": 1201373,
+          "subset_reference_assembly": "hg38",
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1201373,
+          "warm_result_count": 1201373
+        },
+        "status": "measured",
+        "timings": [
+          {
+            "first_call_ms": 14763.896,
+            "load_average_after": [
+              2.67,
+              2.7,
+              2.87
+            ],
+            "load_average_before": [
+              2.73,
+              2.75,
+              2.91
+            ],
+            "median_ms": 13524.599,
+            "p95_ms": 14916.177,
+            "query": "bulk",
+            "repetitions": 5,
+            "result_count": 21549493,
+            "timed_out": false,
+            "warm_ms": [
+              14666.968,
+              13422.933,
+              13524.599,
+              14916.177,
+              13349.743
+            ],
+            "warmup_ms": 26429.26
+          },
+          {
+            "first_call_ms": 52.724,
+            "load_average_after": [
+              2.67,
+              2.7,
+              2.87
+            ],
+            "load_average_before": [
+              2.67,
+              2.7,
+              2.87
+            ],
+            "median_ms": 70.238,
+            "p95_ms": 71.808,
+            "query": "phewas",
+            "repetitions": 5,
+            "result_count": 2754,
+            "timed_out": false,
+            "warm_ms": [
+              69.247,
+              71.808,
+              70.238,
+              64.863,
+              71.792
+            ],
+            "warmup_ms": 55.991
+          },
+          {
+            "first_call_ms": 4702.461,
+            "load_average_after": [
+              2.83,
+              2.74,
+              2.88
+            ],
+            "load_average_before": [
+              2.67,
+              2.7,
+              2.87
+            ],
+            "median_ms": 4692.273,
+            "p95_ms": 4848.565,
+            "query": "regional",
+            "repetitions": 5,
+            "result_count": 21802695,
+            "timed_out": false,
+            "warm_ms": [
+              4704.18,
+              4848.565,
+              4397.525,
+              4692.273,
+              4633.034
+            ],
+            "warmup_ms": 16254.096
+          },
+          {
+            "first_call_ms": 97.861,
+            "load_average_after": [
+              2.83,
+              2.74,
+              2.88
+            ],
+            "load_average_before": [
+              2.83,
+              2.74,
+              2.88
+            ],
+            "median_ms": 65.847,
+            "p95_ms": 79.116,
+            "query": "regional_one_analysis",
+            "repetitions": 5,
+            "result_count": 7917,
+            "timed_out": false,
+            "warm_ms": [
+              61.816,
+              65.847,
+              59.465,
+              79.116,
+              66.291
+            ],
+            "warmup_ms": 101.591
+          },
+          {
+            "first_call_ms": 23.454,
+            "load_average_after": [
+              2.83,
+              2.74,
+              2.88
+            ],
+            "load_average_before": [
+              2.83,
+              2.74,
+              2.88
+            ],
+            "median_ms": 9.79,
+            "p95_ms": 10.305,
+            "query": "tophits",
+            "repetitions": 5,
+            "result_count": 1848,
+            "timed_out": false,
+            "warm_ms": [
+              10.305,
+              10.301,
+              9.202,
+              9.79,
+              9.286
+            ],
+            "warmup_ms": 25.606
+          },
+          {
+            "first_call_ms": 245.488,
+            "load_average_after": [
+              2.68,
+              2.71,
+              2.87
+            ],
+            "load_average_before": [
+              2.83,
+              2.74,
+              2.88
+            ],
+            "median_ms": 249.936,
+            "p95_ms": 257.367,
+            "query": "random_lookup_10_variants_100_analyses",
+            "repetitions": 5,
+            "result_count": 1000,
+            "timed_out": false,
+            "warm_ms": [
+              252.334,
+              249.936,
+              243.598,
+              237.339,
+              257.367
+            ],
+            "warmup_ms": 246.758
+          },
+          {
+            "first_call_ms": 846.368,
+            "load_average_after": [
+              2.87,
+              2.75,
+              2.88
+            ],
+            "load_average_before": [
+              2.68,
+              2.71,
+              2.87
+            ],
+            "median_ms": 828.912,
+            "p95_ms": 831.477,
+            "query": "random_lookup_100_variants_10_analyses",
+            "repetitions": 5,
+            "result_count": 997,
+            "timed_out": false,
+            "warm_ms": [
+              830.509,
+              828.912,
+              826.682,
+              826.671,
+              831.477
+            ],
+            "warmup_ms": 847.629
+          }
+        ]
+      },
+      "store_id": "OGS-00017"
+    },
+    {
+      "analysis_id": "GCST003566",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00022/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "/data/opengwasdb/stores/OGS-00022/store.opengwasdb is not a built Store Release; the report records absence rather than opening a non-Store",
+        "status": "artifact_absent",
+        "subset": "hm3"
+      },
+      "layout": "hybrid",
+      "shapes": {
+        "detail": "artifact absent",
+        "status": "not_run"
+      },
+      "store_id": "OGS-00022"
+    },
+    {
+      "analysis_id": "GCST002047",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00023/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "/data/opengwasdb/stores/OGS-00023/store.opengwasdb is not a built Store Release; the report records absence rather than opening a non-Store",
+        "status": "artifact_absent",
+        "subset": "hm3"
+      },
+      "layout": "hybrid",
+      "shapes": {
+        "detail": "artifact absent",
+        "status": "not_run"
+      },
+      "store_id": "OGS-00023"
+    },
+    {
+      "analysis_id": "GCST90201021",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00024/store.opengwasdb",
+      "dense_component": false,
+      "hm3_extract": {
+        "detail": "/data/opengwasdb/stores/OGS-00024/store.opengwasdb is not a built Store Release; the report records absence rather than opening a non-Store",
+        "status": "artifact_absent",
+        "subset": "hm3"
+      },
+      "layout": "ragged",
+      "shapes": {
+        "detail": "artifact absent",
+        "status": "not_run"
+      },
+      "store_id": "OGS-00024"
+    },
+    {
+      "analysis_id": "GCST90202055",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00025/store.opengwasdb",
+      "dense_component": false,
+      "hm3_extract": {
+        "detail": "/data/opengwasdb/stores/OGS-00025/store.opengwasdb is not a built Store Release; the report records absence rather than opening a non-Store",
+        "status": "artifact_absent",
+        "subset": "hm3"
+      },
+      "layout": "ragged",
+      "shapes": {
+        "detail": "artifact absent",
+        "status": "not_run"
+      },
+      "store_id": "OGS-00025"
+    },
+    {
+      "analysis_id": "GCST90203093",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00026/store.opengwasdb",
+      "dense_component": false,
+      "hm3_extract": {
+        "detail": "/data/opengwasdb/stores/OGS-00026/store.opengwasdb is not a built Store Release; the report records absence rather than opening a non-Store",
+        "status": "artifact_absent",
+        "subset": "hm3"
+      },
+      "layout": "ragged",
+      "shapes": {
+        "detail": "artifact absent",
+        "status": "not_run"
+      },
+      "store_id": "OGS-00026"
+    },
+    {
+      "analysis_id": "ENSG00000000419",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00027/store.opengwasdb",
+      "dense_component": false,
+      "hm3_extract": {
+        "detail": "Ragged layout carries no Dense Component; an Indexed Variant Subset is Dense-only (ADR 0061)",
+        "status": "not_applicable",
+        "subset": "hm3"
+      },
+      "layout": "ragged",
+      "shapes": {
+        "detail": "Ragged-only Store: no Dense query shapes",
+        "status": "not_applicable"
+      },
+      "store_id": "OGS-00027"
     }
   ],
   "summary": {
-    "missing": 8,
-    "not_applicable": 4
+    "artifact_absent": 5,
+    "measured": 8,
+    "missing": 4,
+    "not_applicable": 5
   }
 }
