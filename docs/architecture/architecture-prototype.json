@@ -1,0 +1,6369 @@
+{
+ "generated": "2026-11-02 09:54 UTC",
+ "revisions": {
+  "opengwasdb": "2ef556c6d2946a4330cd31ab2523e8dbe4342d73",
+  "opengwasdb-stores": "766faa9a41ef493801aafc0f3b37bd64fb0acf6b"
+ },
+ "window_days": 21,
+ "model": {
+  "system": {
+   "name": "OpenGWASDB",
+   "summary": "Harmonised GWAS summary statistics, built into versioned Store Releases and queried by variant, Analysis or top hit."
+  },
+  "people": [
+   {
+    "id": "researcher",
+    "name": "Researcher",
+    "summary": "Queries Store Releases by variant, Analysis or top hit, from R, Python or the CLI (MR, PheWAS, colocalisation)."
+   },
+   {
+    "id": "curator",
+    "name": "Curator / operator",
+    "summary": "Selects sources, maps traits, runs and approves builds, publishes Store Releases."
+   }
+  ],
+  "external": [
+   {
+    "id": "sources",
+    "name": "Summary-statistic sources",
+    "summary": "GWAS Catalog (GWAS-SSF), FinnGen, OpenGWAS/UKB (GWAS-VCF), eQTLGen and pQTL (BESD), dbGaP MVP."
+   },
+   {
+    "id": "references",
+    "name": "Reference panels",
+    "summary": "LD Reference Panels (UKB, HGDP+1KGP), Ancestry Reference Panels and variant references (gnomAD)."
+   },
+   {
+    "id": "tools",
+    "name": "Analysis tools",
+    "summary": "ieugwasr, ieugwaspy, TwoSampleMR and local R/Python sessions."
+   },
+   {
+    "id": "github",
+    "name": "GitHub",
+    "summary": "Issues, the project board, CI, releases and the published project site (gh-pages)."
+   }
+  ],
+  "containers": [
+   {
+    "id": "engine",
+    "name": "Engine (opengwasdb)",
+    "repo": "opengwasdb",
+    "tech": "Python package + CLI",
+    "summary": "Reads sources, resolves Analyses, builds, validates, completes and queries Store Releases. Owns the store format."
+   },
+   {
+    "id": "registry",
+    "name": "Store Registry",
+    "repo": "opengwasdb-stores",
+    "tech": "Release Bundles in git",
+    "summary": "The accepted Release Bundle of every Store Release, its lineage and status."
+   },
+   {
+    "id": "generation",
+    "name": "Manifest Generation",
+    "repo": "opengwasdb-stores",
+    "tech": "Python + Snakemake",
+    "summary": "Source Inventory to candidate Release Bundle, through source connectors and curation."
+   },
+   {
+    "id": "orchestration",
+    "name": "Release orchestration",
+    "repo": "opengwasdb-stores",
+    "tech": "ogstores + Snakemake",
+    "summary": "Plans and runs the engine's argv for a Release Bundle, records each step, registers and publishes."
+   },
+   {
+    "id": "catalog",
+    "name": "Analysis Catalog",
+    "repo": "opengwasdb-stores",
+    "tech": "SQLite",
+    "summary": "A generated, versioned database over every Release Bundle."
+   },
+   {
+    "id": "site",
+    "name": "Project site",
+    "repo": "opengwasdb-stores",
+    "tech": "Quarto website",
+    "summary": "Where OpenGWASDB stands; the stores, epics, trends and both repositories' docs."
+   },
+   {
+    "id": "releases",
+    "name": "Store Releases",
+    "repo": null,
+    "tech": "Zarr v3 + SQLite + TSV on /data",
+    "summary": "Built and Reference-Completed Store Releases (OGS-*), the format the engine writes and reads."
+   }
+  ],
+  "container_relations": [
+   [
+    "curator",
+    "generation",
+    "selects sources and maps traits with"
+   ],
+   [
+    "curator",
+    "orchestration",
+    "runs and approves builds with"
+   ],
+   [
+    "generation",
+    "sources",
+    "inventories and downloads"
+   ],
+   [
+    "generation",
+    "registry",
+    "proposes Release Bundles to"
+   ],
+   [
+    "generation",
+    "engine",
+    "resolves Analyses with"
+   ],
+   [
+    "orchestration",
+    "registry",
+    "reads accepted bundles from"
+   ],
+   [
+    "orchestration",
+    "engine",
+    "runs build, validate and complete through"
+   ],
+   [
+    "engine",
+    "sources",
+    "reads"
+   ],
+   [
+    "engine",
+    "references",
+    "completes and assigns ancestry against"
+   ],
+   [
+    "engine",
+    "releases",
+    "writes and reads"
+   ],
+   [
+    "catalog",
+    "registry",
+    "is generated from"
+   ],
+   [
+    "site",
+    "catalog",
+    "reports"
+   ],
+   [
+    "site",
+    "github",
+    "publishes to"
+   ],
+   [
+    "researcher",
+    "tools",
+    "analyses with"
+   ],
+   [
+    "tools",
+    "engine",
+    "query through"
+   ],
+   [
+    "researcher",
+    "site",
+    "browses"
+   ]
+  ],
+  "stages": [
+   {
+    "id": "acquire",
+    "name": "Acquire",
+    "summary": "Source Inventories, downloads and reference resources"
+   },
+   {
+    "id": "generate",
+    "name": "Generate",
+    "summary": "Manifest Generation and curation: a candidate Release Bundle"
+   },
+   {
+    "id": "resolve",
+    "name": "Resolve",
+    "summary": "Analysis Resolution: one scan per Analysis, one Resolution Record"
+   },
+   {
+    "id": "build",
+    "name": "Build",
+    "summary": "Store Release Build: layouts, encoding, variants"
+   },
+   {
+    "id": "validate",
+    "name": "Validate",
+    "summary": "Structural validation, source fidelity, the Observed-View Check"
+   },
+   {
+    "id": "complete",
+    "name": "Complete",
+    "summary": "Reference Completion against an LD Reference Panel"
+   },
+   {
+    "id": "publish",
+    "name": "Publish",
+    "summary": "Register, publish, catalogue"
+   },
+   {
+    "id": "query",
+    "name": "Query",
+    "summary": "Variant, Analysis and top-hit lookups"
+   },
+   {
+    "id": "cross",
+    "name": "Every stage",
+    "summary": "The store contract, the CLI and the project's own tooling"
+   }
+  ],
+  "engine_layers": [
+   {
+    "layer": 5,
+    "name": "Entry"
+   },
+   {
+    "layer": 4,
+    "name": "Use and check"
+   },
+   {
+    "layer": 3,
+    "name": "Layouts"
+   },
+   {
+    "layer": 2,
+    "name": "Analysis"
+   },
+   {
+    "layer": 1,
+    "name": "Storage and input"
+   },
+   {
+    "layer": 0,
+    "name": "Foundations"
+   }
+  ],
+  "components": [
+   {
+    "id": "readers",
+    "name": "Source Readers",
+    "container": "engine",
+    "layer": 1,
+    "stages": [
+     "resolve",
+     "build"
+    ],
+    "summary": "The Source Reader seam and Column Maps; GWAS-SSF, GWAS-VCF, FinnGen and BESD readers.",
+    "paths": [
+     "opengwasdb/readers/",
+     "opengwasdb/build/source.py",
+     "opengwasdb/build/vcf_source.py",
+     "opengwasdb/layouts/ragged/besd_reader.py"
+    ],
+    "terms": [
+     "Source Reader",
+     "Column Map",
+     "GWAS-SSF",
+     "GWAS-VCF",
+     "BESD"
+    ]
+   },
+   {
+    "id": "resolution",
+    "name": "Analysis Resolution",
+    "container": "engine",
+    "layer": 2,
+    "stages": [
+     "resolve"
+    ],
+    "summary": "One scan per Analysis to its Analytical Metadata and Resolution Record; row admission, INFO and SD.",
+    "paths": [
+     "opengwasdb/build/resolve.py",
+     "opengwasdb/build/resolve_manifest.py",
+     "opengwasdb/build/resolve_besd.py",
+     "opengwasdb/build/row_admission.py",
+     "opengwasdb/build/info_score_filter.py",
+     "opengwasdb/build/phenotype_sd.py",
+     "opengwasdb/build/phenotype_sd_pipeline.py"
+    ],
+    "terms": [
+     "Analysis Resolution",
+     "Resolution Record",
+     "resolver",
+     "row admission"
+    ]
+   },
+   {
+    "id": "ancestry",
+    "name": "Ancestry Assignment",
+    "container": "engine",
+    "layer": 2,
+    "stages": [
+     "resolve"
+    ],
+    "summary": "Assigned Ancestry from allele frequencies (NNLS mixture, admission gates) and store routing.",
+    "paths": [
+     "opengwasdb/ancestry/"
+    ],
+    "terms": [
+     "Assigned Ancestry",
+     "Ancestry Reference Panel",
+     "Source Ancestry Measurement",
+     "Ancestry Composition"
+    ]
+   },
+   {
+    "id": "variants",
+    "name": "Variant Identity",
+    "container": "engine",
+    "layer": 0,
+    "stages": [
+     "build",
+     "query"
+    ],
+    "summary": "Canonical variant identity, orientation, rsids, the Store Variant Axis and liftover.",
+    "paths": [
+     "opengwasdb/variants/",
+     "opengwasdb/build/liftover.py"
+    ],
+    "terms": [
+     "Variant Identity",
+     "Store Variant Table",
+     "Variant Index",
+     "liftover",
+     "rsid"
+    ]
+   },
+   {
+    "id": "dense",
+    "name": "Dense Layout",
+    "container": "engine",
+    "layer": 3,
+    "stages": [
+     "build"
+    ],
+    "summary": "Dense Observed-Only builders (tabular and GWAS-VCF), top hits, Indexed Variant Subsets, Rho.",
+    "paths": [
+     "opengwasdb/layouts/dense/",
+     "opengwasdb/build/observed/",
+     "opengwasdb/build/eaf_orientation.py",
+     "opengwasdb/build/ordered_pool.py",
+     "opengwasdb/build/__init__.py"
+    ],
+    "terms": [
+     "Dense Layout",
+     "Indexed Variant Subset",
+     "Rho Matrix"
+    ]
+   },
+   {
+    "id": "ragged",
+    "name": "Ragged Layout",
+    "container": "engine",
+    "layer": 3,
+    "stages": [
+     "build"
+    ],
+    "summary": "Ragged builders (GWAS-SSF, BESD), Zarr CSR storage, the By-Variant Index and top hits.",
+    "paths": [
+     "opengwasdb/layouts/ragged/"
+    ],
+    "terms": [
+     "Ragged Layout",
+     "By-Variant Index",
+     "CSR"
+    ]
+   },
+   {
+    "id": "hybrid",
+    "name": "Hybrid Layout",
+    "container": "engine",
+    "layer": 3,
+    "stages": [
+     "build"
+    ],
+    "summary": "One read per study, routed to the Dense Component or the Ragged Overflow Component; checkpointed.",
+    "paths": [
+     "opengwasdb/layouts/hybrid/"
+    ],
+    "terms": [
+     "Hybrid Layout",
+     "Dense Component",
+     "Ragged Overflow Component"
+    ]
+   },
+   {
+    "id": "encoding",
+    "name": "Store Encoding",
+    "container": "engine",
+    "layer": 1,
+    "stages": [
+     "build",
+     "complete"
+    ],
+    "summary": "The encoding plan, StoreCodec and decoded statistic planes (z, se, eaf, imputed).",
+    "paths": [
+     "opengwasdb/encoding/"
+    ],
+    "terms": [
+     "Store Encoding",
+     "StoreCodec",
+     "int8_residual",
+     "EAF Baseline",
+     "float16"
+    ]
+   },
+   {
+    "id": "store",
+    "name": "Store Release envelope",
+    "container": "engine",
+    "layer": 1,
+    "stages": [
+     "build",
+     "publish"
+    ],
+    "summary": "Paths, manifest, format versions, the array-creation seam, conversion, SQLite indexes.",
+    "paths": [
+     "opengwasdb/store/",
+     "opengwasdb/index/",
+     "opengwasdb/layouts/release_manifest.py",
+     "opengwasdb/layouts/__init__.py"
+    ],
+    "terms": [
+     "Format Version",
+     "format_version",
+     "Staged Release",
+     "Zarr"
+    ]
+   },
+   {
+    "id": "completion",
+    "name": "Reference Completion",
+    "container": "engine",
+    "layer": 4,
+    "stages": [
+     "complete"
+    ],
+    "summary": "The LD-block imputation kernel and the Dense, Ragged and Hybrid completion pipelines.",
+    "paths": [
+     "opengwasdb/completion/",
+     "opengwasdb/build/complete/",
+     "opengwasdb/layouts/dense/complete.py",
+     "opengwasdb/layouts/ragged/complete.py",
+     "opengwasdb/layouts/hybrid/complete.py"
+    ],
+    "terms": [
+     "Reference Completion",
+     "LD Reference Panel",
+     "Imputed Association",
+     "Completion State"
+    ]
+   },
+   {
+    "id": "validation",
+    "name": "Validation",
+    "container": "engine",
+    "layer": 4,
+    "stages": [
+     "validate"
+    ],
+    "summary": "Store validation, source fidelity, the EAF audit and the Observed-View Check.",
+    "paths": [
+     "opengwasdb/validation/"
+    ],
+    "terms": [
+     "Observed-View Check",
+     "Validation Record",
+     "source fidelity",
+     "validate_store"
+    ]
+   },
+   {
+    "id": "query",
+    "name": "Query",
+    "container": "engine",
+    "layer": 4,
+    "stages": [
+     "query"
+    ],
+    "summary": "The layout-independent query facade and result resolution.",
+    "paths": [
+     "opengwasdb/query/"
+    ],
+    "terms": [
+     "Top-Hit Query",
+     "Observed-Only Query",
+     "Top-Hit Index",
+     "StoreQuery"
+    ]
+   },
+   {
+    "id": "model",
+    "name": "Store contract model",
+    "container": "engine",
+    "layer": 0,
+    "stages": [
+     "cross"
+    ],
+    "summary": "analyses.tsv, manifest and enum contracts; statistic helpers shared by builders, validators and queries.",
+    "paths": [
+     "opengwasdb/model/",
+     "opengwasdb/stats.py"
+    ],
+    "terms": [
+     "analyses.tsv",
+     "Analytical Metadata",
+     "Stored Effect Scale",
+     "Sample Size Kind"
+    ]
+   },
+   {
+    "id": "maintenance",
+    "name": "Repair and re-encode",
+    "container": "engine",
+    "layer": 4,
+    "stages": [
+     "cross"
+    ],
+    "summary": "Representation-only repairs and the SE re-encode of existing Store Releases.",
+    "paths": [
+     "opengwasdb/repair.py",
+     "opengwasdb/reencode.py"
+    ],
+    "terms": [
+     "re-encode",
+     "Representation-only"
+    ]
+   },
+   {
+    "id": "cli",
+    "name": "Engine CLI",
+    "container": "engine",
+    "layer": 5,
+    "stages": [
+     "cross"
+    ],
+    "summary": "The opengwasdb command line, the surface opengwasdb-stores and users call.",
+    "paths": [
+     "opengwasdb/cli/",
+     "opengwasdb/__init__.py",
+     "opengwasdb/version.py"
+    ],
+    "terms": [
+     "CLI"
+    ]
+   },
+   {
+    "id": "connectors",
+    "name": "Source connectors",
+    "container": "generation",
+    "stages": [
+     "acquire"
+    ],
+    "summary": "One connector per Source Provider (GWAS Catalog, FinnGen, OpenGWAS, UKB-B, eQTLGen, dbGaP MVP).",
+    "paths": [
+     "src/manifest_generation/providers/"
+    ],
+    "terms": [
+     "source connector",
+     "Source Provider",
+     "Source Inventory",
+     "Acquisition Manifest"
+    ]
+   },
+   {
+    "id": "manifest_generation",
+    "name": "Manifest Generation",
+    "container": "generation",
+    "stages": [
+     "generate"
+    ],
+    "summary": "The one pipeline from a frozen Source Inventory to a candidate Release Bundle (ADR 0035, 0036).",
+    "paths": [
+     "src/manifest_generation/",
+     "workflow/generate.smk"
+    ],
+    "terms": [
+     "Manifest Generation",
+     "Manifest Generator",
+     "Release Manifest"
+    ]
+   },
+   {
+    "id": "curation",
+    "name": "Curation",
+    "container": "generation",
+    "stages": [
+     "generate"
+    ],
+    "summary": "Trait Ontology Mapping, candidate review and promotion into the Canonical Trait Mapping Table.",
+    "paths": [
+     "src/curation/"
+    ],
+    "terms": [
+     "Trait Ontology Mapping",
+     "Canonical Trait Mapping Table",
+     "curation round",
+     "trait mapping"
+    ]
+   },
+   {
+    "id": "reference_resources",
+    "name": "Reference resources",
+    "container": "orchestration",
+    "stages": [
+     "acquire",
+     "complete"
+    ],
+    "summary": "Builders for LD Reference Panels and other Reference Resources.",
+    "paths": [
+     "tools/ld-panel/",
+     "tools/reference-resources/"
+    ],
+    "terms": [
+     "Reference Resource",
+     "ld-panel"
+    ]
+   },
+   {
+    "id": "release_orchestration",
+    "name": "Release orchestration",
+    "container": "orchestration",
+    "stages": [
+     "build",
+     "validate",
+     "complete",
+     "publish"
+    ],
+    "summary": "Release Bundle to engine argv, staged runs, registration and publication (ogstores).",
+    "paths": [
+     "src/ogstores/",
+     "workflow/Snakefile",
+     "workflow/release.py",
+     "tools/release.py",
+     "tools/relocate_store.py",
+     "tools/build-finngen-r13-full.sh"
+    ],
+    "terms": [
+     "Store Release Build",
+     "Preflight",
+     "Rehearsal Run",
+     "Build Recipe",
+     "ogstores"
+    ]
+   },
+   {
+    "id": "registry_data",
+    "name": "Release Bundles",
+    "container": "registry",
+    "stages": [
+     "publish"
+    ],
+    "summary": "The accepted Release Bundles and the master list of Store Releases.",
+    "paths": [
+     "stores/",
+     "stores.tsv",
+     "STORES.md",
+     "ogstores.yaml"
+    ],
+    "terms": [
+     "Release Bundle",
+     "Store Registry",
+     "Release Lineage",
+     "Release Status"
+    ]
+   },
+   {
+    "id": "analysis_catalog",
+    "name": "Analysis Catalog",
+    "container": "catalog",
+    "stages": [
+     "publish"
+    ],
+    "summary": "A generated, versioned SQLite database over Release Bundles.",
+    "paths": [
+     "src/analysis_catalog/"
+    ],
+    "terms": [
+     "Analysis Catalog"
+    ]
+   },
+   {
+    "id": "project_site",
+    "name": "Project site",
+    "container": "site",
+    "stages": [
+     "cross"
+    ],
+    "summary": "Collectors, generated pages and the Quarto build of the project site.",
+    "paths": [
+     "src/project_site/",
+     "tools/build-site.sh",
+     "docs/_quarto.yml",
+     "docs/pre-render.sh"
+    ],
+    "terms": [
+     "project site",
+     "Quarto"
+    ]
+   },
+   {
+    "id": "yardstick",
+    "name": "Yardstick",
+    "container": "site",
+    "stages": [
+     "cross"
+    ],
+    "summary": "One fixed benchmark, recorded at the end of every epic.",
+    "paths": [
+     "src/yardstick/"
+    ],
+    "terms": [
+     "yardstick"
+    ]
+   },
+   {
+    "id": "dev_tools",
+    "name": "Developer tools",
+    "container": "orchestration",
+    "stages": [
+     "cross"
+    ],
+    "summary": "Benchmarks, spikes and repository checks.",
+    "paths": [
+     "tools/"
+    ],
+    "terms": [
+     "benchmark harness"
+    ]
+   }
+  ]
+ },
+ "check": {
+  "stale": [],
+  "unclaimed": {
+   "opengwasdb": [],
+   "opengwasdb-stores": []
+  },
+  "counts": {
+   "cli": {
+    "files": 4,
+    "lines": 2133,
+    "tracked": 4
+   },
+   "ancestry": {
+    "files": 8,
+    "lines": 1533,
+    "tracked": 8
+   },
+   "dense": {
+    "files": 12,
+    "lines": 11176,
+    "tracked": 12
+   },
+   "completion": {
+    "files": 15,
+    "lines": 5125,
+    "tracked": 15
+   },
+   "resolution": {
+    "files": 7,
+    "lines": 3874,
+    "tracked": 7
+   },
+   "variants": {
+    "files": 7,
+    "lines": 2830,
+    "tracked": 7
+   },
+   "readers": {
+    "files": 16,
+    "lines": 5565,
+    "tracked": 18
+   },
+   "encoding": {
+    "files": 7,
+    "lines": 5676,
+    "tracked": 7
+   },
+   "store": {
+    "files": 10,
+    "lines": 4592,
+    "tracked": 10
+   },
+   "hybrid": {
+    "files": 7,
+    "lines": 5785,
+    "tracked": 7
+   },
+   "ragged": {
+    "files": 10,
+    "lines": 4958,
+    "tracked": 10
+   },
+   "model": {
+    "files": 8,
+    "lines": 1623,
+    "tracked": 8
+   },
+   "query": {
+    "files": 4,
+    "lines": 1734,
+    "tracked": 4
+   },
+   "maintenance": {
+    "files": 2,
+    "lines": 579,
+    "tracked": 2
+   },
+   "validation": {
+    "files": 7,
+    "lines": 6870,
+    "tracked": 7
+   },
+   "registry_data": {
+    "files": 0,
+    "lines": 0,
+    "tracked": 354
+   },
+   "project_site": {
+    "files": 18,
+    "lines": 4362,
+    "tracked": 20
+   },
+   "analysis_catalog": {
+    "files": 10,
+    "lines": 1241,
+    "tracked": 10
+   },
+   "curation": {
+    "files": 18,
+    "lines": 15750,
+    "tracked": 18
+   },
+   "manifest_generation": {
+    "files": 35,
+    "lines": 15383,
+    "tracked": 35
+   },
+   "connectors": {
+    "files": 32,
+    "lines": 8436,
+    "tracked": 39
+   },
+   "release_orchestration": {
+    "files": 23,
+    "lines": 19908,
+    "tracked": 23
+   },
+   "yardstick": {
+    "files": 10,
+    "lines": 942,
+    "tracked": 10
+   },
+   "dev_tools": {
+    "files": 7,
+    "lines": 3776,
+    "tracked": 10
+   },
+   "reference_resources": {
+    "files": 23,
+    "lines": 3688,
+    "tracked": 25
+   }
+  },
+  "code_files": {
+   "opengwasdb": 124,
+   "opengwasdb-stores": 176
+  }
+ },
+ "edges": [
+  {
+   "from": "analysis_catalog",
+   "to": "model",
+   "imports": 2
+  },
+  {
+   "from": "analysis_catalog",
+   "to": "release_orchestration",
+   "imports": 6
+  },
+  {
+   "from": "ancestry",
+   "to": "dense",
+   "imports": 2
+  },
+  {
+   "from": "ancestry",
+   "to": "hybrid",
+   "imports": 1
+  },
+  {
+   "from": "ancestry",
+   "to": "model",
+   "imports": 8
+  },
+  {
+   "from": "ancestry",
+   "to": "readers",
+   "imports": 11
+  },
+  {
+   "from": "ancestry",
+   "to": "store",
+   "imports": 1
+  },
+  {
+   "from": "cli",
+   "to": "ancestry",
+   "imports": 7
+  },
+  {
+   "from": "cli",
+   "to": "completion",
+   "imports": 4
+  },
+  {
+   "from": "cli",
+   "to": "dense",
+   "imports": 14
+  },
+  {
+   "from": "cli",
+   "to": "hybrid",
+   "imports": 2
+  },
+  {
+   "from": "cli",
+   "to": "maintenance",
+   "imports": 1
+  },
+  {
+   "from": "cli",
+   "to": "model",
+   "imports": 6
+  },
+  {
+   "from": "cli",
+   "to": "query",
+   "imports": 4
+  },
+  {
+   "from": "cli",
+   "to": "ragged",
+   "imports": 5
+  },
+  {
+   "from": "cli",
+   "to": "readers",
+   "imports": 1
+  },
+  {
+   "from": "cli",
+   "to": "resolution",
+   "imports": 7
+  },
+  {
+   "from": "cli",
+   "to": "store",
+   "imports": 3
+  },
+  {
+   "from": "cli",
+   "to": "validation",
+   "imports": 4
+  },
+  {
+   "from": "cli",
+   "to": "variants",
+   "imports": 6
+  },
+  {
+   "from": "completion",
+   "to": "dense",
+   "imports": 14
+  },
+  {
+   "from": "completion",
+   "to": "encoding",
+   "imports": 28
+  },
+  {
+   "from": "completion",
+   "to": "hybrid",
+   "imports": 4
+  },
+  {
+   "from": "completion",
+   "to": "model",
+   "imports": 24
+  },
+  {
+   "from": "completion",
+   "to": "ragged",
+   "imports": 11
+  },
+  {
+   "from": "completion",
+   "to": "resolution",
+   "imports": 1
+  },
+  {
+   "from": "completion",
+   "to": "store",
+   "imports": 22
+  },
+  {
+   "from": "completion",
+   "to": "variants",
+   "imports": 20
+  },
+  {
+   "from": "connectors",
+   "to": "manifest_generation",
+   "imports": 126
+  },
+  {
+   "from": "connectors",
+   "to": "readers",
+   "imports": 10
+  },
+  {
+   "from": "dense",
+   "to": "cli",
+   "imports": 1
+  },
+  {
+   "from": "dense",
+   "to": "encoding",
+   "imports": 53
+  },
+  {
+   "from": "dense",
+   "to": "hybrid",
+   "imports": 1
+  },
+  {
+   "from": "dense",
+   "to": "model",
+   "imports": 33
+  },
+  {
+   "from": "dense",
+   "to": "readers",
+   "imports": 16
+  },
+  {
+   "from": "dense",
+   "to": "store",
+   "imports": 36
+  },
+  {
+   "from": "dense",
+   "to": "variants",
+   "imports": 37
+  },
+  {
+   "from": "encoding",
+   "to": "dense",
+   "imports": 1
+  },
+  {
+   "from": "encoding",
+   "to": "store",
+   "imports": 17
+  },
+  {
+   "from": "hybrid",
+   "to": "completion",
+   "imports": 2
+  },
+  {
+   "from": "hybrid",
+   "to": "dense",
+   "imports": 40
+  },
+  {
+   "from": "hybrid",
+   "to": "encoding",
+   "imports": 6
+  },
+  {
+   "from": "hybrid",
+   "to": "model",
+   "imports": 13
+  },
+  {
+   "from": "hybrid",
+   "to": "ragged",
+   "imports": 4
+  },
+  {
+   "from": "hybrid",
+   "to": "readers",
+   "imports": 6
+  },
+  {
+   "from": "hybrid",
+   "to": "resolution",
+   "imports": 3
+  },
+  {
+   "from": "hybrid",
+   "to": "store",
+   "imports": 4
+  },
+  {
+   "from": "hybrid",
+   "to": "variants",
+   "imports": 14
+  },
+  {
+   "from": "maintenance",
+   "to": "encoding",
+   "imports": 3
+  },
+  {
+   "from": "maintenance",
+   "to": "hybrid",
+   "imports": 2
+  },
+  {
+   "from": "maintenance",
+   "to": "model",
+   "imports": 2
+  },
+  {
+   "from": "maintenance",
+   "to": "store",
+   "imports": 16
+  },
+  {
+   "from": "manifest_generation",
+   "to": "ancestry",
+   "imports": 4
+  },
+  {
+   "from": "manifest_generation",
+   "to": "model",
+   "imports": 11
+  },
+  {
+   "from": "manifest_generation",
+   "to": "readers",
+   "imports": 4
+  },
+  {
+   "from": "manifest_generation",
+   "to": "release_orchestration",
+   "imports": 30
+  },
+  {
+   "from": "manifest_generation",
+   "to": "resolution",
+   "imports": 7
+  },
+  {
+   "from": "model",
+   "to": "encoding",
+   "imports": 2
+  },
+  {
+   "from": "model",
+   "to": "readers",
+   "imports": 3
+  },
+  {
+   "from": "model",
+   "to": "store",
+   "imports": 1
+  },
+  {
+   "from": "project_site",
+   "to": "release_orchestration",
+   "imports": 6
+  },
+  {
+   "from": "project_site",
+   "to": "yardstick",
+   "imports": 1
+  },
+  {
+   "from": "query",
+   "to": "dense",
+   "imports": 8
+  },
+  {
+   "from": "query",
+   "to": "encoding",
+   "imports": 4
+  },
+  {
+   "from": "query",
+   "to": "hybrid",
+   "imports": 2
+  },
+  {
+   "from": "query",
+   "to": "model",
+   "imports": 4
+  },
+  {
+   "from": "query",
+   "to": "ragged",
+   "imports": 4
+  },
+  {
+   "from": "query",
+   "to": "store",
+   "imports": 4
+  },
+  {
+   "from": "query",
+   "to": "variants",
+   "imports": 3
+  },
+  {
+   "from": "ragged",
+   "to": "dense",
+   "imports": 21
+  },
+  {
+   "from": "ragged",
+   "to": "encoding",
+   "imports": 46
+  },
+  {
+   "from": "ragged",
+   "to": "model",
+   "imports": 29
+  },
+  {
+   "from": "ragged",
+   "to": "readers",
+   "imports": 6
+  },
+  {
+   "from": "ragged",
+   "to": "store",
+   "imports": 18
+  },
+  {
+   "from": "ragged",
+   "to": "variants",
+   "imports": 21
+  },
+  {
+   "from": "readers",
+   "to": "model",
+   "imports": 17
+  },
+  {
+   "from": "readers",
+   "to": "variants",
+   "imports": 20
+  },
+  {
+   "from": "release_orchestration",
+   "to": "cli",
+   "imports": 1
+  },
+  {
+   "from": "release_orchestration",
+   "to": "encoding",
+   "imports": 3
+  },
+  {
+   "from": "release_orchestration",
+   "to": "hybrid",
+   "imports": 2
+  },
+  {
+   "from": "release_orchestration",
+   "to": "maintenance",
+   "imports": 2
+  },
+  {
+   "from": "release_orchestration",
+   "to": "model",
+   "imports": 6
+  },
+  {
+   "from": "release_orchestration",
+   "to": "ragged",
+   "imports": 1
+  },
+  {
+   "from": "release_orchestration",
+   "to": "readers",
+   "imports": 3
+  },
+  {
+   "from": "release_orchestration",
+   "to": "resolution",
+   "imports": 1
+  },
+  {
+   "from": "release_orchestration",
+   "to": "store",
+   "imports": 3
+  },
+  {
+   "from": "release_orchestration",
+   "to": "variants",
+   "imports": 9
+  },
+  {
+   "from": "resolution",
+   "to": "ancestry",
+   "imports": 10
+  },
+  {
+   "from": "resolution",
+   "to": "cli",
+   "imports": 1
+  },
+  {
+   "from": "resolution",
+   "to": "dense",
+   "imports": 2
+  },
+  {
+   "from": "resolution",
+   "to": "model",
+   "imports": 25
+  },
+  {
+   "from": "resolution",
+   "to": "readers",
+   "imports": 30
+  },
+  {
+   "from": "resolution",
+   "to": "variants",
+   "imports": 2
+  },
+  {
+   "from": "store",
+   "to": "dense",
+   "imports": 1
+  },
+  {
+   "from": "store",
+   "to": "encoding",
+   "imports": 1
+  },
+  {
+   "from": "store",
+   "to": "model",
+   "imports": 10
+  },
+  {
+   "from": "store",
+   "to": "query",
+   "imports": 2
+  },
+  {
+   "from": "store",
+   "to": "resolution",
+   "imports": 1
+  },
+  {
+   "from": "store",
+   "to": "validation",
+   "imports": 1
+  },
+  {
+   "from": "validation",
+   "to": "completion",
+   "imports": 10
+  },
+  {
+   "from": "validation",
+   "to": "dense",
+   "imports": 11
+  },
+  {
+   "from": "validation",
+   "to": "encoding",
+   "imports": 34
+  },
+  {
+   "from": "validation",
+   "to": "hybrid",
+   "imports": 3
+  },
+  {
+   "from": "validation",
+   "to": "model",
+   "imports": 25
+  },
+  {
+   "from": "validation",
+   "to": "query",
+   "imports": 1
+  },
+  {
+   "from": "validation",
+   "to": "ragged",
+   "imports": 4
+  },
+  {
+   "from": "validation",
+   "to": "readers",
+   "imports": 2
+  },
+  {
+   "from": "validation",
+   "to": "store",
+   "imports": 28
+  },
+  {
+   "from": "validation",
+   "to": "variants",
+   "imports": 20
+  },
+  {
+   "from": "variants",
+   "to": "dense",
+   "imports": 9
+  },
+  {
+   "from": "variants",
+   "to": "readers",
+   "imports": 2
+  },
+  {
+   "from": "yardstick",
+   "to": "dense",
+   "imports": 1
+  },
+  {
+   "from": "yardstick",
+   "to": "query",
+   "imports": 1
+  },
+  {
+   "from": "yardstick",
+   "to": "release_orchestration",
+   "imports": 2
+  }
+ ],
+ "adrs": [
+  {
+   "repo": "opengwasdb",
+   "number": "0001",
+   "title": "Use a hybrid SQLite, tabix, and Zarr store envelope",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0001-hybrid-sqlite-zarr-store-envelope.md",
+   "components": {
+    "store": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0002",
+   "title": "Use store-local variant indices",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0002-store-local-variant-indices.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0003",
+   "title": "Use one reference assembly per Store Release",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0003-one-reference-assembly-per-store-release.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0004",
+   "title": "Use a controlled stored effect scale and loose original effect scale",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0004-controlled-stored-effect-scale.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0005",
+   "title": "Store Z and SE as canonical association statistics",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0005-store-z-and-se-as-canonical-statistics.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0006",
+   "title": "Use a layout-independent query engine",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0006-layout-independent-query-engine.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0007",
+   "title": "Use a layout-independent build pipeline",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0007-layout-independent-build-pipeline.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0008",
+   "title": "Implement Dense Observed-Only first",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0008-implement-dense-observed-only-first.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0009",
+   "title": "Separate layout, coverage, and completion",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0009-separate-layout-coverage-completion.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0010",
+   "title": "Model EAF and INFO scope explicitly",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0010-model-eaf-and-info-scope.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0011",
+   "title": "Make reference completion an optional release enhancement",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0011-reference-completion-release-enhancement.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0012",
+   "title": "Include imputed associations by default in reference-completed queries",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0012-reference-completed-query-semantics.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0013",
+   "title": "Encode association status with NaN and an imputed mask",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0013-association-status-nan-plus-imputed-mask.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0014",
+   "title": "Complete ragged regions within retained boundaries",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0014-ragged-reference-completed-regions.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0015",
+   "title": "Use ragged overflow for off-panel observations in dense completed stores",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0015-dense-reference-completed-overflow.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0016",
+   "title": "Factor sample-size kind and scope",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0016-sample-size-kind-and-scope.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0017",
+   "title": "Retain full normalised long alleles",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0017-long-allele-normalisation-and-hashing.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0018",
+   "title": "Use explicit local store paths and keep catalogues external",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0018-local-path-cli-and-external-catalogue.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0019",
+   "title": "Two-pass VCF build path with inline liftover",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0019-two-pass-vcf-build-with-inline-liftover.md",
+   "components": {
+    "readers": "code",
+    "variants": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0020",
+   "title": "ADR-0020: Sparse flat array query contract",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0020-sparse-array-query-contract.md",
+   "components": {
+    "dense": "code",
+    "query": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0021",
+   "title": "ADR-0021: Clip zarr chunk shape to actual array dimensions at write time",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0021-clip-zarr-chunk-shape-to-array-dimensions.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0022",
+   "title": "Dense Reference-Completed variant axis is source \u222a reference panel, not panel-only",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0022-dense-completed-axis-is-source-union-panel.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0023",
+   "title": "Dense Reference-Completion build: process pool over LD blocks, no thread layer, checkpointed resume",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0023-dense-completion-block-parallel-build.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0024",
+   "title": "Parallel Dense VCF build: serial Pass 1, disk-spill Pass 2, no large IPC",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0024-parallel-dense-vcf-build-disk-spill.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0025",
+   "title": "Dense Rho Matrix: distance-thinned self-axis, observed-only null Z, pleiodb CML estimator",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0025-dense-rho-matrix.md",
+   "components": {
+    "dense": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0026",
+   "title": "Hybrid Layout: Dense Component + Ragged Overflow for heterogeneous genome-wide collections",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0026-hybrid-layout-dense-ragged-overflow.md",
+   "components": {
+    "hybrid": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0027",
+   "title": "Analysis Catalogue as the ingestion hub; stores are subset views",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0027-analysis-catalogue-ingestion-hub.md",
+   "components": {
+    "ancestry": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0028",
+   "title": "Ancestry assignment from allele frequencies; ancestry-matched completion",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0028-ancestry-assignment-from-allele-frequencies.md",
+   "components": {
+    "ancestry": "text",
+    "dense": "code",
+    "readers": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0029",
+   "title": "Standardise continuous-trait effects to SD units via phenotype-SD rescaling",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0029-standardise-continuous-effects-via-phenotype-sd.md",
+   "components": {
+    "completion": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0030",
+   "title": "Analytical Metadata travels with the Store Release; `analyses.tsv` replaces the SQLite `analyses` table",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0030-analytical-metadata-travels-with-the-store.md",
+   "components": {
+    "model": "title",
+    "query": "code",
+    "ragged": "code",
+    "store": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0031",
+   "title": "LD Reference Panels store eigendecompositions, not LD matrices",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0031-ld-panels-store-eigendecompositions.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0032",
+   "title": "`overview.html` is one tabbed page; Top-Hit Counts are persisted `analyses.tsv` columns, not rendered on the fly",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0032-overview-html-is-a-single-tabbed-page-with-persisted-hit-counts.md",
+   "components": {
+    "completion": "code",
+    "dense": "code",
+    "hybrid": "code",
+    "model": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0033",
+   "title": "Query facade stays three adapters behind one documented contract",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0033-query-facade-adapter-contract.md",
+   "components": {
+    "dense": "code",
+    "query": "code",
+    "ragged": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0034",
+   "title": "One `analyses.tsv` schema for every layout; retire `phenotype_id`/`phenotype_label`; add Attribution Metadata",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0034-unify-analysestsv-across-layouts-retire-phenotype-id.md",
+   "components": {
+    "dense": "code",
+    "model": "code",
+    "query": "code",
+    "readers": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0035",
+   "title": "Retire `gene_id`/`gene_name`; keep `tissue`/`context` scoped to what was measured",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0035-retire-gene-id-gene-name-scope-tissue-context.md",
+   "components": {
+    "model": "text",
+    "ragged": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0036",
+   "title": "Store effect allele frequency as a per-association array, per-Analysis opt-in",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0036-store-effect-allele-frequency-per-association.md",
+   "components": {
+    "completion": "code",
+    "encoding": "text",
+    "model": "code",
+    "readers": "code",
+    "resolution": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0037",
+   "title": "Statistic array encodings: fixed-point z, residual-coded EAF, reference EAF for imputed cells",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0037-statistic-array-encodings.md",
+   "components": {
+    "completion": "code",
+    "encoding": "text",
+    "model": "text",
+    "store": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0038",
+   "title": "Store format versioning, reader obligations, and migration expectations",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0038-store-format-versioning-and-migration-policy.md",
+   "components": {
+    "model": "text",
+    "store": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0039",
+   "title": "Reference Completion: what identifies a region, and what happens when a panel matches nothing",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0039-completion-region-identity-and-ancestry-refusal.md",
+   "components": {
+    "completion": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0040",
+   "title": "Top-hit indexes carry decoded effect allele frequency",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0040-top-hit-index-carries-decoded-eaf.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0041",
+   "title": "Reset `format_version` to 0.1.0 and drop the pre-release formats",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0041-reset-format-version-and-drop-pre-release-formats.md",
+   "components": {
+    "store": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0042",
+   "title": "Registry-orchestration seam, canonical manifest column aliases, per-release option precedence, machine-readable evidence, and phenotype-SD computation",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0042-registry-orchestration-seam-and-manifest-precedence.md",
+   "components": {
+    "cli": "code",
+    "model": "code",
+    "readers": "code",
+    "resolution": "code",
+    "variants": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0043",
+   "title": "Staged Release work isolation and parent-directory commit locking",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0043-staging-work-isolation-and-commit-locking.md",
+   "components": {
+    "store": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0044",
+   "title": "One-pass pre-build Analysis resolution, with evidence bounded by configuration",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0044-one-pass-analysis-resolution-with-bounded-evidence.md",
+   "components": {
+    "readers": "text",
+    "resolution": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0045",
+   "title": "Resumable manifest Analysis resolution with atomic per-Analysis records",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0045-resumable-manifest-resolver-with-atomic-records.md",
+   "components": {
+    "resolution": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0046",
+   "title": "Retain the full source scan: a prefix is not a substitute for one-pass Analysis resolution",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0046-retain-full-source-scan-over-prefix.md",
+   "components": {
+    "resolution": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0047",
+   "title": "Adopt a 50,000-site ancestry bound for the full-catalog release",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0047-adopt-50k-ancestry-site-bound.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0048",
+   "title": "Decouple the ancestry-site bound from quantitative phenotype-SD evidence",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0048-decouple-ancestry-site-bound-from-quantitative-phenotype-sd.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0049",
+   "title": "Resolve an Analysis's effect source rather than assuming `beta`",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0049-resolve-effect-source-over-assuming-beta.md",
+   "components": {
+    "readers": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0050",
+   "title": "Enumerate accepted effect-column spellings",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0050-enumerate-effect-column-spellings.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0051",
+   "title": "Derive an effect from a signed z-score, EAF and per-variant N",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0051-derive-effect-from-signed-z-score.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0052",
+   "title": "Canonicalise non-autosomal chromosome labels",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0052-canonicalise-non-autosomal-chromosome-labels.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0053",
+   "title": "Phase-granularity checkpoint and resume for the Hybrid build tail",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0053-hybrid-build-phase-checkpoint-and-resume.md",
+   "components": {
+    "completion": "code",
+    "ragged": "text",
+    "store": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0054",
+   "title": "Whole-stream evidence and one row-admission rule",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0054-whole-stream-evidence-and-one-row-admission-rule.md",
+   "components": {
+    "resolution": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0055",
+   "title": "Recover a row's effect and standard error from its own columns",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0055-recover-effect-and-standard-error-from-row-columns.md",
+   "components": {
+    "readers": "code",
+    "resolution": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0056",
+   "title": "zarr's process-wide runtime configuration is owned by the array seam",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0056-zarr-runtime-configuration-owned-by-the-array-seam.md",
+   "components": {
+    "store": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0057",
+   "title": "Store format 0.2.0: Zarr v3 with sharding",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0057-store-format-0-2-0-zarr-v3-with-sharding.md",
+   "components": {
+    "store": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0058",
+   "title": "Dense chunk and shard shapes for format 0.2.0",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0058-dense-chunk-and-shard-shapes.md",
+   "components": {
+    "store": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0059",
+   "title": "Convert every layout to 0.2.0, and bound the Ragged shards",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0059-convert-remaining-layouts-and-ragged-shards.md",
+   "components": {
+    "store": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0060",
+   "title": "A variant-centric index for the Ragged and Hybrid Overflow components",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0060-variant-centric-index.md",
+   "components": {
+    "encoding": "text",
+    "ragged": "text",
+    "store": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0061",
+   "title": "Indexed Variant Subsets are optional full-statistic Dense query indexes",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0061-indexed-variant-subsets.md",
+   "components": {
+    "dense": "text",
+    "hybrid": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0062",
+   "title": "Resolve BESD probes from one per-file `.esi` measurement",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0062-resolve-besd-probes-from-one-per-file-esi-measurement.md",
+   "components": {
+    "cli": "code",
+    "readers": "title",
+    "resolution": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0063",
+   "title": "Read tabular collections through a Column Map",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0063-read-tabular-collections-through-a-column-map.md",
+   "components": {
+    "cli": "code",
+    "readers": "code",
+    "variants": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0064",
+   "title": "Association Coverage is a build input, not a layout constant",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0064-association-coverage-is-a-build-input.md",
+   "components": {
+    "completion": "code",
+    "dense": "code",
+    "hybrid": "code",
+    "model": "code",
+    "ragged": "code",
+    "store": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0065",
+   "title": "Leave an Overflow-only ALID out of a Hybrid's Indexed Variant Subset on request, and count it",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0065-count-overflow-only-alids-a-hybrid-index-skips.md",
+   "components": {
+    "dense": "title",
+    "hybrid": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0066",
+   "title": "Withhold an rsid its sources dispute, and read compound ids as their rs identifier",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0066-withhold-an-rsid-its-sources-dispute.md",
+   "components": {
+    "readers": "code",
+    "variants": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb",
+   "number": "0067",
+   "title": "Store per-association sample size, and the BESD allele frequency, in Ragged Stores",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0067-per-association-sample-size-and-besd-allele-frequency.md",
+   "components": {
+    "dense": "code",
+    "encoding": "text",
+    "ragged": "text",
+    "readers": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0001",
+   "title": "Store registry boundary",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0001-store-registry-boundary.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0002",
+   "title": "Custom manifest generators with standard release manifests",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0002-custom-manifest-generators-standard-release-manifests.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0003",
+   "title": "Separate release manifests from build recipes",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0003-separate-release-manifests-from-build-recipes.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0004",
+   "title": "Store release identity",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0004-store-release-identity.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0005",
+   "title": "Release errata",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0005-release-errata.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0006",
+   "title": "Family-scoped release IDs",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0006-family-scoped-release-ids.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0007",
+   "title": "Reference completion as release lineage",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0007-reference-completion-as-release-lineage.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0008",
+   "title": "Registry and service catalogue boundary",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0008-registry-service-catalogue-boundary.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0009",
+   "title": "Source formats and reader capabilities",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0009-source-formats-and-reader-capabilities.md",
+   "components": {
+    "readers": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0010",
+   "title": "Single-source store families",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0010-single-source-store-families.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0011",
+   "title": "Reference resources are build resources",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0011-reference-resources-are-build-resources.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0012",
+   "title": "Manifest generators own orchestration only",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0012-manifest-generators-own-orchestration-only.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0013",
+   "title": "YAML metadata and TSV tables",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0013-yaml-metadata-tsv-tables.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0014",
+   "title": "Release manifest bundles",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0014-release-manifest-bundles.md",
+   "components": {
+    "release_orchestration": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0015",
+   "title": "Registry not artifact store",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0015-registry-not-artifact-store.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0016",
+   "title": "Infer variant-axis policy",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0016-infer-variant-axis-policy.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0017",
+   "title": "OpenGWASDB owns the shared analysis schema",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0017-opengwasdb-owns-shared-analysis-schema.md",
+   "components": {
+    "model": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0018",
+   "title": "Family-first external artifact layout",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0018-family-first-external-artifact-layout.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0019",
+   "title": "Reference-AF effect-scale validation as a generator stage",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0019-reference-af-effect-scale-validation.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0020",
+   "title": "Non-EUR LD Reference Panels are built from HGDP+1kGP, at structurally lower power",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0020-non-eur-ld-panels-from-hgdp-1kgp.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0021",
+   "title": "Trait Ontology Mapping lookup lives in the registry, not OpenGWASDB",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md",
+   "components": {
+    "curation": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0022",
+   "title": "Flat opaque Store Release IDs",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0022-flat-opaque-store-ids.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0023",
+   "title": "The registry/store seam is a command line",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0023-the-registry-store-seam-is-a-command-line.md",
+   "components": {
+    "model": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0024",
+   "title": "One family record, and no Source Collection tier",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0024-one-family-record-no-source-collection-tier.md",
+   "components": {
+    "cli": "code",
+    "readers": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0025",
+   "title": "The registry filters excluded analyses before build",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0025-registry-filters-excluded-analyses.md",
+   "components": {
+    "model": "text",
+    "release_orchestration": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0026",
+   "title": "Detached builds die with their orchestrator",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0026-detached-builds-die-with-their-orchestrator.md",
+   "components": {
+    "cli": "code",
+    "release_orchestration": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0027",
+   "title": "Build Recipes carry only what differs between Store Releases",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0027-build-recipes-carry-only-what-differs.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0028",
+   "title": "Store Family tier retired",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0028-store-family-tier-retired.md",
+   "components": {
+    "model": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0029",
+   "title": "Release identity file trimmed to identity, lineage, status and prose",
+   "status": "superseded",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0029-release-identity-file-trimmed.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0030",
+   "title": "Artifact path is the identifier; the migration block is retired",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0030-artifact-path-is-the-identifier-migration-retired.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0031",
+   "title": "Planning is pure; artifact existence is a runtime fact",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0031-pure-planning-runtime-artifact-existence.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0032",
+   "title": "Phase B candidate generation invokes the OpenGWASDB resolver",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0032-phase-b-candidate-workflow.md",
+   "components": {
+    "manifest_generation": "code",
+    "resolution": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0033",
+   "title": "A shared Store admits only MAF-filtered Analyses",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0033-shared-stores-admit-only-maf-filtered-analyses.md",
+   "components": {
+    "release_orchestration": "code",
+    "resolution": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0034",
+   "title": "Indexed Variant Subsets are optional, declared in the Build Recipe",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0034-indexed-variant-subsets-in-release-planning.md",
+   "components": {
+    "release_orchestration": "code"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0035",
+   "title": "Manifest Generation and Store Release Build meet at the Release Bundle",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0035-manifest-generation-and-store-release-build.md",
+   "components": {
+    "manifest_generation": "title",
+    "registry_data": "title",
+    "release_orchestration": "title"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0036",
+   "title": "Manifest Generation is one pipeline fed by source connectors",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md",
+   "components": {
+    "ancestry": "text",
+    "connectors": "text",
+    "manifest_generation": "code",
+    "readers": "text",
+    "registry_data": "text",
+    "resolution": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0037",
+   "title": "Reference completion replaces its Store under the same id",
+   "status": "amended",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0037-reference-completion-replaces-its-store.md",
+   "components": {
+    "cli": "code",
+    "dev_tools": "code",
+    "hybrid": "text",
+    "release_orchestration": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0038",
+   "title": "One home per kind of thing",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0038-one-home-per-kind-of-thing.md",
+   "components": {}
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0039",
+   "title": "The Analysis Catalog is a generated, versioned database over Release Bundles",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0039-analysis-catalog.md",
+   "components": {
+    "analysis_catalog": "title",
+    "manifest_generation": "text",
+    "registry_data": "text",
+    "release_orchestration": "text",
+    "validation": "text"
+   }
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "number": "0040",
+   "title": "Association Coverage is declared in the Release Bundle, in one vocabulary",
+   "status": "current",
+   "url": "https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0040-association-coverage-is-declared-in-the-release-bundle.md",
+   "components": {
+    "manifest_generation": "code",
+    "registry_data": "title",
+    "release_orchestration": "code"
+   }
+  }
+ ],
+ "epics": [
+  {
+   "key": "opengwasdb#58",
+   "repo": "opengwasdb",
+   "number": 58,
+   "title": "Shallow-module cleanup ledger (delete first, then deepen)",
+   "url": "https://github.com/opengwas/opengwasdb/issues/58",
+   "status": "Active",
+   "workstream": "Engineering",
+   "next": "2/8 merged on PR #353 \u00b7 needs your decision #350, #351, #352 \u00b7 in review #53 \u00b7 2 blocked \u00b7 #350-#352 stop at interface proposals for owner approval",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb#53",
+     "repo": "opengwasdb",
+     "number": 53,
+     "title": "The Top-Hit Index has a format but no module",
+     "url": "https://github.com/opengwas/opengwasdb/issues/53",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#54",
+     "repo": "opengwasdb",
+     "number": 54,
+     "title": "The two-pass VCF build is one module written twice",
+     "url": "https://github.com/opengwas/opengwasdb/issues/54",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#55",
+     "repo": "opengwasdb",
+     "number": 55,
+     "title": "Make a validation rule addressable",
+     "url": "https://github.com/opengwas/opengwasdb/issues/55",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#351"
+     ]
+    },
+    {
+     "key": "opengwasdb#56",
+     "repo": "opengwasdb",
+     "number": 56,
+     "title": "The Source Reader seam has one user and four bypasses",
+     "url": "https://github.com/opengwas/opengwasdb/issues/56",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#352"
+     ]
+    },
+    {
+     "key": "opengwasdb#57",
+     "repo": "opengwasdb",
+     "number": 57,
+     "title": "The overview renderer should take data, not a path",
+     "url": "https://github.com/opengwas/opengwasdb/issues/57",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#350",
+     "repo": "opengwasdb",
+     "number": 350,
+     "title": "One module owns how an association is encoded",
+     "url": "https://github.com/opengwas/opengwasdb/issues/350",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#351",
+     "repo": "opengwasdb",
+     "number": 351,
+     "title": "One reader decodes associations and decides whether each is present",
+     "url": "https://github.com/opengwas/opengwasdb/issues/351",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#352",
+     "repo": "opengwasdb",
+     "number": 352,
+     "title": "Variant routing becomes its own module",
+     "url": "https://github.com/opengwas/opengwasdb/issues/352",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#354",
+     "repo": "opengwasdb",
+     "number": 354,
+     "title": "Variant Reference extraction routes a reverse-strand lift to the wrong ALID",
+     "url": "https://github.com/opengwas/opengwasdb/issues/354",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#355",
+     "repo": "opengwasdb",
+     "number": 355,
+     "title": "Dense SE exceptions are stored float16-rounded, not exact",
+     "url": "https://github.com/opengwas/opengwasdb/issues/355",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#356",
+     "repo": "opengwasdb",
+     "number": 356,
+     "title": "regenerate-overview crashes on a subset group written before overflow_only_count",
+     "url": "https://github.com/opengwas/opengwasdb/issues/356",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb#299",
+   "repo": "opengwasdb",
+   "number": 299,
+   "title": "Builders accept and report what the registry records",
+   "url": "https://github.com/opengwas/opengwasdb/issues/299",
+   "status": "Todo",
+   "workstream": "Data architecture",
+   "next": "Not started. #298 and #294 let the Analysis Catalog show true Association Coverage and association counts (stores #341, #313)",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb#290",
+     "repo": "opengwasdb",
+     "number": 290,
+     "title": "build-dense-vcf ignores bcftools query's exit status: a VCF without FORMAT/EZ builds an empty Store",
+     "url": "https://github.com/opengwas/opengwasdb/issues/290",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#294",
+     "repo": "opengwasdb",
+     "number": 294,
+     "title": "Print n_associations, association_coverage and reference_assembly in every builder and completion command",
+     "url": "https://github.com/opengwas/opengwasdb/issues/294",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#297",
+     "repo": "opengwasdb",
+     "number": 297,
+     "title": "Builders write temporary data beside their output, never to $TMPDIR or /tmp by default (a full UKB-B build filled /)",
+     "url": "https://github.com/opengwas/opengwasdb/issues/297",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#298",
+     "repo": "opengwasdb",
+     "number": 298,
+     "title": "Association Coverage is a build input: gwas, cis, cis_and_signals or signals_only",
+     "url": "https://github.com/opengwas/opengwasdb/issues/298",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#181",
+     "repo": "opengwasdb",
+     "number": 181,
+     "title": "Allow builders to record a human-readable Store label in manifest provenance",
+     "url": "https://github.com/opengwas/opengwasdb/issues/181",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#406",
+     "repo": "opengwasdb-stores",
+     "number": 406,
+     "title": "Validation Records leave reference_assembly, format_version and store_bytes null, so the Analysis Catalog does too",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/406",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb#200",
+   "repo": "opengwasdb",
+   "number": 200,
+   "title": "Cut reference completion's temporary disk footprint without losing checkpointed resume",
+   "url": "https://github.com/opengwas/opengwasdb/issues/200",
+   "status": "Todo",
+   "workstream": "Data architecture",
+   "next": "Not started; tickets #201-#206",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb#201",
+     "repo": "opengwasdb",
+     "number": 201,
+     "title": "Pin reference completion's scratch footprint with a bytes-per-imputed-cell assertion",
+     "url": "https://github.com/opengwas/opengwasdb/issues/201",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#202",
+     "repo": "opengwasdb",
+     "number": 202,
+     "title": "Refuse to resume a checkpoint directory whose format version is absent or mismatched",
+     "url": "https://github.com/opengwas/opengwasdb/issues/202",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#203",
+     "repo": "opengwasdb",
+     "number": 203,
+     "title": "Publish the union variant axis so completion workers can resolve ALIDs to union rows",
+     "url": "https://github.com/opengwas/opengwasdb/issues/203",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#204",
+     "repo": "opengwasdb",
+     "number": 204,
+     "title": "Store each LD block's distinct ALIDs once, referenced by index",
+     "url": "https://github.com/opengwas/opengwasdb/issues/204",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#205",
+     "repo": "opengwasdb",
+     "number": 205,
+     "title": "Have completion workers write band-partitioned shards, and drop the merge pass",
+     "url": "https://github.com/opengwas/opengwasdb/issues/205",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#206",
+     "repo": "opengwasdb",
+     "number": 206,
+     "title": "Compress the staged fill arrays with a fast codec, or prove it isn't worth it",
+     "url": "https://github.com/opengwas/opengwasdb/issues/206",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb#300",
+   "repo": "opengwasdb",
+   "number": 300,
+   "title": "Variant-reference builds keep rsids, coordinates and provenance",
+   "url": "https://github.com/opengwas/opengwasdb/issues/300",
+   "status": "Todo",
+   "workstream": "Data architecture",
+   "next": "Not started; #152, #257, #258, #260, #261 and lift-collision #325 cover supplied-axis identity and provenance.",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb#152",
+     "repo": "opengwasdb",
+     "number": 152,
+     "title": "GRCh37 sources lift inside Pass 2 against a supplied axis",
+     "url": "https://github.com/opengwas/opengwasdb/issues/152",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#257",
+     "repo": "opengwasdb",
+     "number": 257,
+     "title": "Single-pass and two-pass Hybrid builds disagree on association-less off-reference variants",
+     "url": "https://github.com/opengwas/opengwasdb/issues/257",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#258",
+     "repo": "opengwasdb",
+     "number": 258,
+     "title": "A --variant-reference that names some rsids leaves the rest blank, even when sources name them",
+     "url": "https://github.com/opengwas/opengwasdb/issues/258",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#260",
+     "repo": "opengwasdb",
+     "number": 260,
+     "title": "A plain-ALID --variant-reference stores an hg19 source's associations on the wrong locus; lift hg19 sources instead",
+     "url": "https://github.com/opengwas/opengwasdb/issues/260",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#261",
+     "repo": "opengwasdb",
+     "number": 261,
+     "title": "A plain-ALID single-pass build records a source_alid for reference rows no source observed",
+     "url": "https://github.com/opengwas/opengwasdb/issues/261",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#325",
+     "repo": "opengwasdb",
+     "number": 325,
+     "title": "build-dense-vcf: two hg19 variants lifting to one hg38 ALID are silently merged (3 rows in rebuilt OGS-00009)",
+     "url": "https://github.com/opengwas/opengwasdb/issues/325",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb#307",
+   "repo": "opengwasdb",
+   "number": 307,
+   "title": "Cut Store Release Build, validation and Reference Completion wall time by removing repeated and single-process work",
+   "url": "https://github.com/opengwas/opengwasdb/issues/307",
+   "status": "Todo",
+   "workstream": "Data architecture",
+   "next": "17 tickets filed; ready now: #308\u2013#313, #316, #320 (phase timings, harness, Top-Hit Index proof, key join, EAF encode)",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb#308",
+     "repo": "opengwasdb",
+     "number": 308,
+     "title": "Validation logs each check as a timed phase",
+     "url": "https://github.com/opengwas/opengwasdb/issues/308",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#309",
+     "repo": "opengwasdb",
+     "number": 309,
+     "title": "Attribute Reference Completion's wall time to its phases",
+     "url": "https://github.com/opengwas/opengwasdb/issues/309",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#310",
+     "repo": "opengwasdb",
+     "number": 310,
+     "title": "Attribute the EAF survey and orientation check's wall time",
+     "url": "https://github.com/opengwas/opengwasdb/issues/310",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#311",
+     "repo": "opengwasdb",
+     "number": 311,
+     "title": "A committed harness reproduces the epic's timing evidence",
+     "url": "https://github.com/opengwas/opengwasdb/issues/311",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#312",
+     "repo": "opengwasdb",
+     "number": 312,
+     "title": "Prove a Dense build's inline Top-Hit Index equals a standalone rebuild",
+     "url": "https://github.com/opengwas/opengwasdb/issues/312",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#313",
+     "repo": "opengwasdb",
+     "number": 313,
+     "title": "build-dense-top-hits accepts --n-workers",
+     "url": "https://github.com/opengwas/opengwasdb/issues/313",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#314",
+     "repo": "opengwasdb",
+     "number": 314,
+     "title": "Validation reads each statistic plane once",
+     "url": "https://github.com/opengwas/opengwasdb/issues/314",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#308"
+     ]
+    },
+    {
+     "key": "opengwasdb#315",
+     "repo": "opengwasdb",
+     "number": 315,
+     "title": "Validation spreads bands across --n-workers",
+     "url": "https://github.com/opengwas/opengwasdb/issues/315",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#314"
+     ]
+    },
+    {
+     "key": "opengwasdb#316",
+     "repo": "opengwasdb",
+     "number": 316,
+     "title": "Dense Pass 2 matches associations with an integer key join",
+     "url": "https://github.com/opengwas/opengwasdb/issues/316",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#317",
+     "repo": "opengwasdb",
+     "number": 317,
+     "title": "Hybrid Pass 2 uses the integer key join",
+     "url": "https://github.com/opengwas/opengwasdb/issues/317",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#316"
+     ]
+    },
+    {
+     "key": "opengwasdb#318",
+     "repo": "opengwasdb",
+     "number": 318,
+     "title": "FinnGen sources stream to Pass 2 as columns",
+     "url": "https://github.com/opengwas/opengwasdb/issues/318",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#316"
+     ]
+    },
+    {
+     "key": "opengwasdb#319",
+     "repo": "opengwasdb",
+     "number": 319,
+     "title": "GWAS-SSF sources stream to Pass 2 as columns",
+     "url": "https://github.com/opengwas/opengwasdb/issues/319",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#318"
+     ]
+    },
+    {
+     "key": "opengwasdb#320",
+     "repo": "opengwasdb",
+     "number": 320,
+     "title": "The residual EAF encode runs across workers",
+     "url": "https://github.com/opengwas/opengwasdb/issues/320",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#321",
+     "repo": "opengwasdb",
+     "number": 321,
+     "title": "Completion's post-block band write uses more than one process",
+     "url": "https://github.com/opengwas/opengwasdb/issues/321",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#309"
+     ]
+    },
+    {
+     "key": "opengwasdb-stores#357",
+     "repo": "opengwasdb-stores",
+     "number": 357,
+     "title": "A Dense build meets its declared top_hits itself",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/357",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#312"
+     ]
+    },
+    {
+     "key": "opengwasdb-stores#358",
+     "repo": "opengwasdb-stores",
+     "number": 358,
+     "title": "The Store Release Build passes a worker count to validate",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/358",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#315"
+     ]
+    },
+    {
+     "key": "opengwasdb#322",
+     "repo": "opengwasdb",
+     "number": 322,
+     "title": "Re-measure OGS-00009 end to end and record the second-language decision",
+     "url": "https://github.com/opengwas/opengwasdb/issues/322",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#321",
+      "opengwasdb#320",
+      "opengwasdb#319",
+      "opengwasdb#317",
+      "opengwasdb-stores#358",
+      "opengwasdb-stores#357",
+      "opengwasdb#311",
+      "opengwasdb#310"
+     ]
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb#340",
+   "repo": "opengwasdb",
+   "number": 340,
+   "title": "A Hybrid lookup costs what its Dense Component costs",
+   "url": "https://github.com/opengwas/opengwasdb/issues/340",
+   "status": "Todo",
+   "workstream": "Data architecture",
+   "next": "Not started; #341 (batch identifier resolve) and #342 (by-variant routing) first: small changes, 3-37x on OGS-00011's lookups",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb#341",
+     "repo": "opengwasdb",
+     "number": 341,
+     "title": "Hybrid lookup resolves its identifiers one at a time on the shared axis",
+     "url": "https://github.com/opengwas/opengwasdb/issues/341",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#342",
+     "repo": "opengwasdb",
+     "number": 342,
+     "title": "Route named-Analysis Overflow lookups through the by-variant index",
+     "url": "https://github.com/opengwas/opengwasdb/issues/342",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#343",
+     "repo": "opengwasdb",
+     "number": 343,
+     "title": "OGS-00011's Dense Component answers lookups 2\u20136\u00d7 slower than OGS-00009's",
+     "url": "https://github.com/opengwas/opengwasdb/issues/343",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#344",
+     "repo": "opengwasdb",
+     "number": 344,
+     "title": "Benchmarks flag a Hybrid shape far slower than its Dense-only twin",
+     "url": "https://github.com/opengwas/opengwasdb/issues/344",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb#347",
+   "repo": "opengwasdb",
+   "number": 347,
+   "title": "Builds never store a statistic that contradicts its source",
+   "url": "https://github.com/opengwas/opengwasdb/issues/347",
+   "status": "Active",
+   "workstream": "Data architecture",
+   "next": "1/2 merged on PR #349 \u00b7 waiting #338 \u00b7 ready for your review \u00b7 #338 waits for #350 (epic #58)",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb#345",
+     "repo": "opengwasdb",
+     "number": 345,
+     "title": "Check a source's effect against its own p-value when resolving an Analysis",
+     "url": "https://github.com/opengwas/opengwasdb/issues/345",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#338",
+     "repo": "opengwasdb",
+     "number": 338,
+     "title": "An SE above float16's range is stored as +inf with a finite Z",
+     "url": "https://github.com/opengwas/opengwasdb/issues/338",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#350"
+     ]
+    },
+    {
+     "key": "opengwasdb-stores#413",
+     "repo": "opengwasdb-stores",
+     "number": 413,
+     "title": "Document the resolver's effect-consistency check and move the pin past it",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/413",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb-stores#282",
+   "repo": "opengwasdb-stores",
+   "number": 282,
+   "title": "Manifest Generation as one pipeline fed by source connectors",
+   "url": "https://github.com/opengwas/opengwasdb-stores/issues/282",
+   "status": "Paused",
+   "workstream": "Build architecture",
+   "next": "5/5 merged on PR #365 \u00b7 Stage 3 merged to dev (PR #365, 2026-10-28). Open: opengwasdb#285 (built-in Column Maps after parity run) and opengwasdb#287 (multi-CURIE trait_ontology_id), outside stage 3",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb-stores#283",
+     "repo": "opengwasdb-stores",
+     "number": 283,
+     "title": "Freeze from a Source Metadata Table and an Acquisition Manifest, by Selection",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/283",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#284",
+     "repo": "opengwasdb-stores",
+     "number": 284,
+     "title": "Resolution Records kept per Source Collection and reused across Selections",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/284",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#285",
+     "repo": "opengwasdb-stores",
+     "number": 285,
+     "title": "Quality Checks: one framework for exclusions and warnings",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/285",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#286",
+     "repo": "opengwasdb-stores",
+     "number": 286,
+     "title": "Trait Ontology Mapping as a shared pipeline step",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/286",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#287",
+     "repo": "opengwasdb-stores",
+     "number": 287,
+     "title": "One release config and one entry point; GWAS Catalog end to end",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/287",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#288",
+     "repo": "opengwasdb-stores",
+     "number": 288,
+     "title": "FinnGen onto the pipeline",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/288",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#289",
+     "repo": "opengwasdb-stores",
+     "number": 289,
+     "title": "ukb-b onto the pipeline",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/289",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#290",
+     "repo": "opengwasdb-stores",
+     "number": 290,
+     "title": "dbGaP MVP onto the pipeline",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/290",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#291",
+     "repo": "opengwasdb-stores",
+     "number": 291,
+     "title": "eQTLGen onto the pipeline; its generator stops building Stores",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/291",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#292",
+     "repo": "opengwasdb-stores",
+     "number": 292,
+     "title": "The Release Bundle carries the Column Map",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/292",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#300",
+     "repo": "opengwasdb-stores",
+     "number": 300,
+     "title": "Region-filtered ragged releases (Chen 2023, Sun 2018) on the shared pipeline; retire the R gwas-ssf generators",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/300",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#281",
+     "repo": "opengwasdb",
+     "number": 281,
+     "title": "Generic tabular reader driven by a Column Map",
+     "url": "https://github.com/opengwas/opengwasdb/issues/281",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#282",
+     "repo": "opengwasdb",
+     "number": 282,
+     "title": "Resolve BESD Analyses",
+     "url": "https://github.com/opengwas/opengwasdb/issues/282",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#317",
+     "repo": "opengwasdb-stores",
+     "number": 317,
+     "title": "Repository layout: one home per kind of thing (src/, resources/ inputs only, tools/, docs/reports/)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/317",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#252",
+     "repo": "opengwasdb-stores",
+     "number": 252,
+     "title": "Retire families/ and .rebuild133/: one home for Release Bundles",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/252",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#340",
+     "repo": "opengwasdb-stores",
+     "number": 340,
+     "title": "Pipeline emits a reference-completed bundle (ADR 0037)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/340",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#285",
+     "repo": "opengwasdb",
+     "number": 285,
+     "title": "Move gwas-ssf and finngen-r13 capabilities onto their built-in Column Maps after a real-data parity run",
+     "url": "https://github.com/opengwas/opengwasdb/issues/285",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#287",
+     "repo": "opengwasdb",
+     "number": 287,
+     "title": "trait_ontology_id: allow a \", \"-joined CURIE list for multi-term source mappings, and define matching on it",
+     "url": "https://github.com/opengwas/opengwasdb/issues/287",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#347",
+     "repo": "opengwasdb-stores",
+     "number": 347,
+     "title": "Move GWAS Catalog metadata interpretation out of shared pipeline code (ADR 0036)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/347",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#350",
+     "repo": "opengwasdb-stores",
+     "number": 350,
+     "title": "Move Canonical Trait Mapping curation off the last two R ontology helpers",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/350",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#302",
+     "repo": "opengwasdb",
+     "number": 302,
+     "title": "Store per-association sample size (and BESD allele frequency) in Ragged Stores",
+     "url": "https://github.com/opengwas/opengwasdb/issues/302",
+     "state": "CLOSED",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb-stores#302",
+   "repo": "opengwasdb-stores",
+   "number": 302,
+   "title": "Single-id reference completion: completion replaces its Store under the same id",
+   "url": "https://github.com/opengwas/opengwasdb-stores/issues/302",
+   "status": "Paused",
+   "workstream": "Build architecture",
+   "next": "10/10 merged on PR #311 \u00b7 PR #311 merged 23 Oct; #333/#336 done \u00b7 left: #316, #318 (interrupt handling), opengwasdb#301 (blocks #224), opengwasdb#327",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb-stores#303",
+     "repo": "opengwasdb-stores",
+     "number": 303,
+     "title": "Fixture LD panel, and an end-to-end test of today's reference completion",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/303",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#289",
+     "repo": "opengwasdb",
+     "number": 289,
+     "title": "Observed-view check: verify a Reference-Completed Store reproduces its Observed-Only source",
+     "url": "https://github.com/opengwas/opengwasdb/issues/289",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#304",
+     "repo": "opengwasdb-stores",
+     "number": 304,
+     "title": "Single-id Dense completion: build, publish, complete and replace the Store in one run",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/304",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#305",
+     "repo": "opengwasdb-stores",
+     "number": 305,
+     "title": "Complete an already-published Observed-Only Store in a later run",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/305",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#306",
+     "repo": "opengwasdb-stores",
+     "number": 306,
+     "title": "Gate the completion swap on the observed-view check",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/306",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#307",
+     "repo": "opengwasdb-stores",
+     "number": 307,
+     "title": "The master list reports the Store actually published",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/307",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#308",
+     "repo": "opengwasdb-stores",
+     "number": 308,
+     "title": "Manifest Generation emits single-id completed bundles",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/308",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#309",
+     "repo": "opengwasdb-stores",
+     "number": 309,
+     "title": "Delete the replaced Observed-Only Store at the completion swap",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/309",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#295",
+     "repo": "opengwasdb",
+     "number": 295,
+     "title": "check-observed-view: check a Hybrid Store across its Dense Component and Overflow",
+     "url": "https://github.com/opengwas/opengwasdb/issues/295",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#333",
+     "repo": "opengwasdb-stores",
+     "number": 333,
+     "title": "Single-id completion for Hybrid Stores",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/333",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#296",
+     "repo": "opengwasdb",
+     "number": 296,
+     "title": "check-observed-view: check a Ragged Store",
+     "url": "https://github.com/opengwas/opengwasdb/issues/296",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#336",
+     "repo": "opengwasdb-stores",
+     "number": 336,
+     "title": "Single-id completion for Ragged Stores",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/336",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#316",
+     "repo": "opengwasdb-stores",
+     "number": 316,
+     "title": "An interrupted store-producing step leaves its staging directory (.store.opengwasdb.partial.tmp.*) behind",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/316",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#318",
+     "repo": "opengwasdb-stores",
+     "number": 318,
+     "title": "Entry point did not exit after SIGTERM to every process mid completion post step (release-faults/interrupts, once under load)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/318",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#301",
+     "repo": "opengwasdb",
+     "number": 301,
+     "title": "complete-ragged re-quantises observed SE when SE is stored int8_residual",
+     "url": "https://github.com/opengwas/opengwasdb/issues/301",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb#327",
+     "repo": "opengwasdb",
+     "number": 327,
+     "title": "Completed Store manifests record a constant ld_panel_id (eur-hg38-gpm), not the panel actually used",
+     "url": "https://github.com/opengwas/opengwasdb/issues/327",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb-stores#232",
+   "repo": "opengwasdb-stores",
+   "number": 232,
+   "title": "publish, rebuild and Reference-Complete the full Store Releases under their own ids",
+   "url": "https://github.com/opengwas/opengwasdb-stores/issues/232",
+   "status": "Active",
+   "workstream": "Store builds",
+   "next": "18/22 merged on PR #408 \u00b7 fixing #409 \u00b7 waiting #228, #230, #224 \u00b7 #409 post-flip validate found top-hit SE drift: re-sync being built \u00b7 OGS-00013 (AFR) and OGS-00015 (EAS) completions running since 08:10Z \u00b7 #224 waits opengwasdb#301 (owner: later)",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb-stores#217",
+     "repo": "opengwasdb-stores",
+     "number": 217,
+     "title": "Reconcile Store Release membership, lifecycle and published evidence (#216)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/217",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#218",
+     "repo": "opengwasdb-stores",
+     "number": 218,
+     "title": "Adopt a pinned current-format runtime for full release builds (#216)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/218",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#219",
+     "repo": "opengwasdb-stores",
+     "number": 219,
+     "title": "Verify and freeze restored full UKB Source Inventory (#216)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/219",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#220",
+     "repo": "opengwasdb-stores",
+     "number": 220,
+     "title": "Resolve MVP acquisition and source-mapping gaps (#216)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/220",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#221",
+     "repo": "opengwasdb-stores",
+     "number": 221,
+     "title": "Register separate MVP ancestry and META bundles; reconcile FinnGen numbering (#216)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/221",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#222",
+     "repo": "opengwasdb-stores",
+     "number": 222,
+     "title": "Build restored UKB observed and Reference-Completed Store Releases (#216)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/222",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#223",
+     "repo": "opengwasdb-stores",
+     "number": 223,
+     "title": "Rebuild FinnGen OGS-00017 at format 0.2.0 and Reference-Complete it under its own id",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/223",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#224",
+     "repo": "opengwasdb-stores",
+     "number": 224,
+     "title": "Rebuild OGS-00006 at format 0.2.0 and Reference-Complete it under its own id",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/224",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb#301"
+     ]
+    },
+    {
+     "key": "opengwasdb-stores#225",
+     "repo": "opengwasdb-stores",
+     "number": 225,
+     "title": "Rebuild OGS-00011 with its 3,169 accepted Analyses",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/225",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#226",
+     "repo": "opengwasdb-stores",
+     "number": 226,
+     "title": "Build and register full MVP META as an observed-only Store (#216)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/226",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#227",
+     "repo": "opengwasdb-stores",
+     "number": 227,
+     "title": "Reference-Complete MVP EUR (OGS-00012) under its own id",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/227",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#228",
+     "repo": "opengwasdb-stores",
+     "number": 228,
+     "title": "Reference-Complete MVP AFR (OGS-00013) under its own id",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/228",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#229",
+     "repo": "opengwasdb-stores",
+     "number": 229,
+     "title": "Reference-Complete MVP AMR (OGS-00014) once an AMR panel is approved",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/229",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#230",
+     "repo": "opengwasdb-stores",
+     "number": 230,
+     "title": "Reference-Complete MVP EAS (OGS-00015) under its own id",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/230",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#231",
+     "repo": "opengwasdb-stores",
+     "number": 231,
+     "title": "Rehearse bounded multi-release ingestion and report readiness (#216)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/231",
+     "state": "CLOSED",
+     "blocked_by": [
+      "opengwasdb-stores#230",
+      "opengwasdb-stores#228",
+      "opengwasdb-stores#224"
+     ]
+    },
+    {
+     "key": "opengwasdb-stores#331",
+     "repo": "opengwasdb-stores",
+     "number": 331,
+     "title": "Publish the MVP observed Stores OGS-00012\u2013OGS-00016 and mark them validated",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/331",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#332",
+     "repo": "opengwasdb-stores",
+     "number": 332,
+     "title": "Bring OGS-00006, OGS-00009 and OGS-00011 to validated for the API-ready milestone",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/332",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#334",
+     "repo": "opengwasdb-stores",
+     "number": 334,
+     "title": "Reference-complete OGS-00011 under its own id",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/334",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#339",
+     "repo": "opengwasdb-stores",
+     "number": 339,
+     "title": "A fresh registry checkout makes every published Store look out of date",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/339",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#335",
+     "repo": "opengwasdb-stores",
+     "number": 335,
+     "title": "Retire gpm-hg38-eur-ld; point the dbGaP MVP EUR completion reference at ukb-hg38-eur-ld",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/335",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#241",
+     "repo": "opengwasdb-stores",
+     "number": 241,
+     "title": "Pilot 345-sample 1kGP AMR LD from gnomAD cache: EUR boundaries, MAF \u2265 0.01",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/241",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#197",
+     "repo": "opengwasdb-stores",
+     "number": 197,
+     "title": "Adopt Store format 0.2.0: bump the pin, update the catalogue, and convert the registered stores",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/197",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#199",
+     "repo": "opengwasdb-stores",
+     "number": 199,
+     "title": "OGS-00001..3: committed release records describe builds that are no longer the published Stores; OGS-00003 says 20 Analyses but holds 10",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/199",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#344",
+     "repo": "opengwasdb-stores",
+     "number": 344,
+     "title": "Published 0.1.0 Ragged and Hybrid Stores lack the variant index opengwasdb dev requires",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/344",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#348",
+     "repo": "opengwasdb-stores",
+     "number": 348,
+     "title": "HGDP+1kGP LD panels hold duplicated variant identities in every block",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/348",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#383",
+     "repo": "opengwasdb-stores",
+     "number": 383,
+     "title": "Six Validation Records on #232's branch record matrix cells as n_associations (the pre-#322 fallback)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/383",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#407",
+     "repo": "opengwasdb-stores",
+     "number": 407,
+     "title": "Benchmark the seven Stores epic #232 published",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/407",
+     "state": "CLOSED",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#409",
+     "repo": "opengwasdb-stores",
+     "number": 409,
+     "title": "OGS-00014 serves the other allele's frequency as the EAF of its imputed cells",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/409",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#403",
+     "repo": "opengwasdb-stores",
+     "number": 403,
+     "title": "OGS-00011: GCST002047 and GCST004461 store statistics from mislabelled effect columns",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/403",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#412",
+     "repo": "opengwasdb-stores",
+     "number": 412,
+     "title": "OGS-00011: GCST90165257 stores statistics from a log-scale effect in odds_ratio",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/412",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb-stores#343",
+   "repo": "opengwasdb-stores",
+   "number": 343,
+   "title": "Deepen the Store Release Build modules",
+   "url": "https://github.com/opengwas/opengwasdb-stores/issues/343",
+   "status": "Todo",
+   "workstream": "Engineering",
+   "next": "Not started: six behaviour-preserving refactors from the 13 Oct architecture review",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb-stores#251",
+     "repo": "opengwasdb-stores",
+     "number": 251,
+     "title": "Retire \"Phase A / Phase B\" from code, tests and docs",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/251",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#253",
+     "repo": "opengwasdb-stores",
+     "number": 253,
+     "title": "Write the opengwasdb pin once and guard both workflows with one runtime identity",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/253",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#254",
+     "repo": "opengwasdb-stores",
+     "number": 254,
+     "title": "Collapse the Store publication transaction into one module",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/254",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#255",
+     "repo": "opengwasdb-stores",
+     "number": 255,
+     "title": "Deepen the Release Bundle contract: discover, declare and count once",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/255",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#256",
+     "repo": "opengwasdb-stores",
+     "number": 256,
+     "title": "Split execute_step into supervised process, staging round-trip and step record",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/256",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb-stores#254",
+      "opengwasdb-stores#253"
+     ]
+    },
+    {
+     "key": "opengwasdb-stores#258",
+     "repo": "opengwasdb-stores",
+     "number": 258,
+     "title": "Make the release Snakefile pure wiring; schedule from the DAG, not dry-run text",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/258",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb-stores#254",
+      "opengwasdb-stores#253"
+     ]
+    },
+    {
+     "key": "opengwasdb-stores#364",
+     "repo": "opengwasdb-stores",
+     "number": 364,
+     "title": "Resume a failed forced release from the failed step instead of discarding a completed build",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/364",
+     "state": "OPEN",
+     "blocked_by": [
+      "opengwasdb-stores#254"
+     ]
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb-stores#214",
+   "repo": "opengwasdb-stores",
+   "number": 214,
+   "title": "make HM3 Indexed Variant Subsets the default Dense-component release artifact",
+   "url": "https://github.com/opengwas/opengwasdb-stores/issues/214",
+   "status": "Todo",
+   "workstream": "Build architecture",
+   "next": "Not started; tickets #206, #208-#213",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb-stores#206",
+     "repo": "opengwasdb-stores",
+     "number": 206,
+     "title": "Document Indexed Variant Subset build and query workflows",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/206",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#208",
+     "repo": "opengwasdb-stores",
+     "number": 208,
+     "title": "Promote HapMap3 GRCh38 to a maintained Reference Resource",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/208",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#209",
+     "repo": "opengwasdb-stores",
+     "number": 209,
+     "title": "Add Indexed Variant Subsets to release planning",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/209",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#210",
+     "repo": "opengwasdb-stores",
+     "number": 210,
+     "title": "Default HM3 for future Dense-component releases",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/210",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#211",
+     "repo": "opengwasdb-stores",
+     "number": 211,
+     "title": "Migrate existing Dense-component Release Bundles to HM3",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/211",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#212",
+     "repo": "opengwasdb-stores",
+     "number": 212,
+     "title": "Update release benchmark reporting for HM3",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/212",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#213",
+     "repo": "opengwasdb-stores",
+     "number": 213,
+     "title": "Run real-data HM3 pipeline proof",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/213",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb-stores#161",
+   "repo": "opengwasdb-stores",
+   "number": 161,
+   "title": "Candidate-generation-and-review tooling to populate the Canonical Trait Mapping Table",
+   "url": "https://github.com/opengwas/opengwasdb-stores/issues/161",
+   "status": "Paused",
+   "workstream": "Build architecture",
+   "next": "Code for every stage merged (#162-#170, #185); next is a real curation run (plan in the 28 Sep comment)",
+   "blocked_by": [],
+   "tickets": []
+  },
+  {
+   "key": "opengwasdb-stores#193",
+   "repo": "opengwasdb-stores",
+   "number": 193,
+   "title": "Build the Rho Matrix by default, support Hybrid stores, and back-fill every existing store",
+   "url": "https://github.com/opengwas/opengwasdb-stores/issues/193",
+   "status": "Todo",
+   "workstream": "Build architecture",
+   "next": "Not started; Hybrid support waits on opengwasdb#238",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb#238",
+     "repo": "opengwasdb",
+     "number": 238,
+     "title": "Support a Rho Matrix on Hybrid stores, estimated from the Dense Component",
+     "url": "https://github.com/opengwas/opengwasdb/issues/238",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb-stores#345",
+   "repo": "opengwasdb-stores",
+   "number": 345,
+   "title": "Widen the GWAS Catalog EUR Store: rescue excluded studies, and a sequencing Store",
+   "url": "https://github.com/opengwas/opengwasdb-stores/issues/345",
+   "status": "Todo",
+   "workstream": "Store builds",
+   "next": "Not started; #160 and #204",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb-stores#160",
+     "repo": "opengwasdb-stores",
+     "number": 160,
+     "title": "Rescue remaining unassigned and orientation-failing studies for GWAS Catalog EUR Hybrid",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/160",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#204",
+     "repo": "opengwasdb-stores",
+     "number": 204,
+     "title": "Sequencing Store for the 148 MAF-unfiltered Analyses routed out of OGS-00011 (#203)",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/204",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  },
+  {
+   "key": "opengwasdb-stores#366",
+   "repo": "opengwasdb-stores",
+   "number": 366,
+   "title": "Keep checkouts, environments and scratch off /home and /tmp",
+   "url": "https://github.com/opengwas/opengwasdb-stores/issues/366",
+   "status": "Todo",
+   "workstream": "Engineering",
+   "next": "Fix the /data bundle guard (#367), then detached pixi environments (#368) and hermetic user-site isolation (#361).",
+   "blocked_by": [],
+   "tickets": [
+    {
+     "key": "opengwasdb-stores#367",
+     "repo": "opengwasdb-stores",
+     "number": 367,
+     "title": "Let a checkout under /data/opengwasdb pass the bundle artifact-path guard",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/367",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#368",
+     "repo": "opengwasdb-stores",
+     "number": 368,
+     "title": "Detach pixi environments to /data and document where checkouts live",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/368",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#361",
+     "repo": "opengwasdb-stores",
+     "number": 361,
+     "title": "Test runs are not hermetic: ~/.local user site-packages shadow the pixi environment",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/361",
+     "state": "OPEN",
+     "blocked_by": []
+    },
+    {
+     "key": "opengwasdb-stores#393",
+     "repo": "opengwasdb-stores",
+     "number": 393,
+     "title": "Keep every scratch directory under /data in src/ too, and enforce it",
+     "url": "https://github.com/opengwas/opengwasdb-stores/issues/393",
+     "state": "OPEN",
+     "blocked_by": []
+    }
+   ]
+  }
+ ],
+ "branches": [
+  {
+   "repo": "opengwasdb",
+   "name": "orch/347-source-consistent-statistics",
+   "ahead": 9,
+   "date": "2026-11-02",
+   "remote": true,
+   "files": 17,
+   "components": [
+    "readers",
+    "resolution"
+   ],
+   "owner": "opengwasdb#347",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb",
+   "name": "orch/347/338",
+   "ahead": 2,
+   "date": "2026-11-02",
+   "remote": true,
+   "files": 44,
+   "components": [
+    "completion",
+    "dense",
+    "encoding",
+    "hybrid",
+    "model",
+    "query",
+    "ragged",
+    "store",
+    "validation"
+   ],
+   "owner": "opengwasdb#347",
+   "item": "opengwasdb#338"
+  },
+  {
+   "repo": "opengwasdb",
+   "name": "orch/347/345",
+   "ahead": 8,
+   "date": "2026-11-02",
+   "remote": false,
+   "files": 17,
+   "components": [
+    "readers",
+    "resolution"
+   ],
+   "owner": "opengwasdb#347",
+   "item": "opengwasdb#345"
+  },
+  {
+   "repo": "opengwasdb",
+   "name": "orch/58-deepen-modules",
+   "ahead": 18,
+   "date": "2026-11-02",
+   "remote": true,
+   "files": 56,
+   "components": [
+    "cli",
+    "completion",
+    "dense",
+    "hybrid",
+    "model",
+    "query",
+    "ragged",
+    "store",
+    "validation"
+   ],
+   "owner": "opengwasdb#58",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb",
+   "name": "orch/58/350",
+   "ahead": 1,
+   "date": "2026-11-01",
+   "remote": false,
+   "files": 0,
+   "components": [],
+   "owner": "opengwasdb#58",
+   "item": "opengwasdb#350"
+  },
+  {
+   "repo": "opengwasdb",
+   "name": "orch/58/351",
+   "ahead": 1,
+   "date": "2026-11-01",
+   "remote": false,
+   "files": 0,
+   "components": [],
+   "owner": "opengwasdb#58",
+   "item": "opengwasdb#351"
+  },
+  {
+   "repo": "opengwasdb",
+   "name": "orch/58/352",
+   "ahead": 1,
+   "date": "2026-11-01",
+   "remote": false,
+   "files": 0,
+   "components": [],
+   "owner": "opengwasdb#58",
+   "item": "opengwasdb#352"
+  },
+  {
+   "repo": "opengwasdb",
+   "name": "orch/58/53",
+   "ahead": 11,
+   "date": "2026-11-02",
+   "remote": false,
+   "files": 48,
+   "components": [
+    "completion",
+    "dense",
+    "hybrid",
+    "model",
+    "query",
+    "ragged",
+    "store",
+    "validation"
+   ],
+   "owner": "opengwasdb#58",
+   "item": "opengwasdb#53"
+  },
+  {
+   "repo": "opengwasdb",
+   "name": "orch/58/57",
+   "ahead": 12,
+   "date": "2026-11-02",
+   "remote": false,
+   "files": 18,
+   "components": [
+    "cli",
+    "dense",
+    "model",
+    "query",
+    "store"
+   ],
+   "owner": "opengwasdb#58",
+   "item": "opengwasdb#57"
+  },
+  {
+   "repo": "opengwasdb",
+   "name": "orch/58/ledger",
+   "ahead": 6,
+   "date": "2026-11-01",
+   "remote": false,
+   "files": 7,
+   "components": [
+    "dense",
+    "model",
+    "query",
+    "store"
+   ],
+   "owner": "opengwasdb#58",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "feat/253-engine-pin-from-lock",
+   "ahead": 2,
+   "date": "2026-11-01",
+   "remote": true,
+   "files": 33,
+   "components": [
+    "dev_tools",
+    "manifest_generation",
+    "project_site",
+    "release_orchestration",
+    "yardstick"
+   ],
+   "owner": "opengwasdb-stores#343",
+   "item": "opengwasdb-stores#253"
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "ogs00011/store-page-yardstick",
+   "ahead": 2,
+   "date": "2026-11-01",
+   "remote": false,
+   "files": 3,
+   "components": [
+    "project_site"
+   ],
+   "owner": "branch:opengwasdb-stores:ogs00011/store-page-yardstick",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232-phase2",
+   "ahead": 40,
+   "date": "2026-11-02",
+   "remote": true,
+   "files": 62,
+   "components": [
+    "dev_tools",
+    "project_site",
+    "reference_resources",
+    "registry_data",
+    "release_orchestration",
+    "yardstick"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/228-230",
+   "ahead": 34,
+   "date": "2026-11-02",
+   "remote": false,
+   "files": 61,
+   "components": [
+    "dev_tools",
+    "project_site",
+    "reference_resources",
+    "registry_data",
+    "release_orchestration",
+    "yardstick"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/228-230-held",
+   "ahead": 3,
+   "date": "2026-10-22",
+   "remote": true,
+   "files": 11,
+   "components": [
+    "registry_data"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/348",
+   "ahead": 12,
+   "date": "2026-11-01",
+   "remote": false,
+   "files": 37,
+   "components": [
+    "reference_resources",
+    "registry_data",
+    "release_orchestration"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": "opengwasdb-stores#348"
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/348cal",
+   "ahead": 16,
+   "date": "2026-11-02",
+   "remote": false,
+   "files": 41,
+   "components": [
+    "reference_resources",
+    "registry_data",
+    "release_orchestration"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/348op",
+   "ahead": 14,
+   "date": "2026-11-02",
+   "remote": false,
+   "files": 38,
+   "components": [
+    "reference_resources",
+    "registry_data",
+    "release_orchestration"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/348rel",
+   "ahead": 24,
+   "date": "2026-11-02",
+   "remote": false,
+   "files": 59,
+   "components": [
+    "dev_tools",
+    "project_site",
+    "reference_resources",
+    "registry_data",
+    "release_orchestration",
+    "yardstick"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/407",
+   "ahead": 22,
+   "date": "2026-11-02",
+   "remote": false,
+   "files": 49,
+   "components": [
+    "dev_tools",
+    "project_site",
+    "reference_resources",
+    "registry_data",
+    "release_orchestration",
+    "yardstick"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": "opengwasdb-stores#407"
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/409",
+   "ahead": 4,
+   "date": "2026-11-01",
+   "remote": false,
+   "files": 6,
+   "components": [
+    "release_orchestration"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": "opengwasdb-stores#409"
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/409b",
+   "ahead": 40,
+   "date": "2026-11-02",
+   "remote": false,
+   "files": 62,
+   "components": [
+    "dev_tools",
+    "project_site",
+    "reference_resources",
+    "registry_data",
+    "release_orchestration",
+    "yardstick"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/409op",
+   "ahead": 6,
+   "date": "2026-11-01",
+   "remote": false,
+   "files": 8,
+   "components": [
+    "registry_data",
+    "release_orchestration"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/411",
+   "ahead": 15,
+   "date": "2026-11-01",
+   "remote": false,
+   "files": 45,
+   "components": [
+    "project_site",
+    "reference_resources",
+    "registry_data",
+    "release_orchestration",
+    "yardstick"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": "opengwasdb-stores#411"
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/final-fix",
+   "ahead": 39,
+   "date": "2026-11-02",
+   "remote": false,
+   "files": 62,
+   "components": [
+    "dev_tools",
+    "project_site",
+    "reference_resources",
+    "registry_data",
+    "release_orchestration",
+    "yardstick"
+   ],
+   "owner": "opengwasdb-stores#232",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "orch/232/odb324-docs",
+   "ahead": 1,
+   "date": "2026-10-23",
+   "remote": false,
+   "files": 1,
+   "components": [],
+   "owner": "opengwasdb-stores#232",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "prototype/analysis-catalog",
+   "ahead": 1,
+   "date": "2026-10-21",
+   "remote": true,
+   "files": 5,
+   "components": [],
+   "owner": "branch:opengwasdb-stores:prototype/analysis-catalog",
+   "item": null
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "ticket/220-mvp-owner-decisions",
+   "ahead": 1,
+   "date": "2026-10-12",
+   "remote": false,
+   "files": 3,
+   "components": [],
+   "owner": "opengwasdb-stores#232",
+   "item": "opengwasdb-stores#220"
+  },
+  {
+   "repo": "opengwasdb-stores",
+   "name": "ticket/221-perf-proc-scan",
+   "ahead": 2,
+   "date": "2026-10-14",
+   "remote": false,
+   "files": 4,
+   "components": [],
+   "owner": "opengwasdb-stores#232",
+   "item": "opengwasdb-stores#221"
+  }
+ ],
+ "work": {
+  "owners": {
+   "opengwasdb#58": {
+    "key": "opengwasdb#58",
+    "kind": "epic",
+    "title": "Shallow-module cleanup ledger (delete first, then deepen)",
+    "url": "https://github.com/opengwas/opengwasdb/issues/58",
+    "status": "Active",
+    "workstream": "Engineering"
+   },
+   "opengwasdb#299": {
+    "key": "opengwasdb#299",
+    "kind": "epic",
+    "title": "Builders accept and report what the registry records",
+    "url": "https://github.com/opengwas/opengwasdb/issues/299",
+    "status": "Todo",
+    "workstream": "Data architecture"
+   },
+   "opengwasdb#200": {
+    "key": "opengwasdb#200",
+    "kind": "epic",
+    "title": "Cut reference completion's temporary disk footprint without losing checkpointed resume",
+    "url": "https://github.com/opengwas/opengwasdb/issues/200",
+    "status": "Todo",
+    "workstream": "Data architecture"
+   },
+   "opengwasdb#300": {
+    "key": "opengwasdb#300",
+    "kind": "epic",
+    "title": "Variant-reference builds keep rsids, coordinates and provenance",
+    "url": "https://github.com/opengwas/opengwasdb/issues/300",
+    "status": "Todo",
+    "workstream": "Data architecture"
+   },
+   "opengwasdb#307": {
+    "key": "opengwasdb#307",
+    "kind": "epic",
+    "title": "Cut Store Release Build, validation and Reference Completion wall time by removing repeated and single-process work",
+    "url": "https://github.com/opengwas/opengwasdb/issues/307",
+    "status": "Todo",
+    "workstream": "Data architecture"
+   },
+   "opengwasdb#340": {
+    "key": "opengwasdb#340",
+    "kind": "epic",
+    "title": "A Hybrid lookup costs what its Dense Component costs",
+    "url": "https://github.com/opengwas/opengwasdb/issues/340",
+    "status": "Todo",
+    "workstream": "Data architecture"
+   },
+   "opengwasdb#347": {
+    "key": "opengwasdb#347",
+    "kind": "epic",
+    "title": "Builds never store a statistic that contradicts its source",
+    "url": "https://github.com/opengwas/opengwasdb/issues/347",
+    "status": "Active",
+    "workstream": "Data architecture"
+   },
+   "opengwasdb-stores#282": {
+    "key": "opengwasdb-stores#282",
+    "kind": "epic",
+    "title": "Manifest Generation as one pipeline fed by source connectors",
+    "url": "https://github.com/opengwas/opengwasdb-stores/issues/282",
+    "status": "Paused",
+    "workstream": "Build architecture"
+   },
+   "opengwasdb-stores#302": {
+    "key": "opengwasdb-stores#302",
+    "kind": "epic",
+    "title": "Single-id reference completion: completion replaces its Store under the same id",
+    "url": "https://github.com/opengwas/opengwasdb-stores/issues/302",
+    "status": "Paused",
+    "workstream": "Build architecture"
+   },
+   "opengwasdb-stores#232": {
+    "key": "opengwasdb-stores#232",
+    "kind": "epic",
+    "title": "publish, rebuild and Reference-Complete the full Store Releases under their own ids",
+    "url": "https://github.com/opengwas/opengwasdb-stores/issues/232",
+    "status": "Active",
+    "workstream": "Store builds"
+   },
+   "opengwasdb-stores#343": {
+    "key": "opengwasdb-stores#343",
+    "kind": "epic",
+    "title": "Deepen the Store Release Build modules",
+    "url": "https://github.com/opengwas/opengwasdb-stores/issues/343",
+    "status": "Todo",
+    "workstream": "Engineering"
+   },
+   "opengwasdb-stores#214": {
+    "key": "opengwasdb-stores#214",
+    "kind": "epic",
+    "title": "make HM3 Indexed Variant Subsets the default Dense-component release artifact",
+    "url": "https://github.com/opengwas/opengwasdb-stores/issues/214",
+    "status": "Todo",
+    "workstream": "Build architecture"
+   },
+   "opengwasdb-stores#161": {
+    "key": "opengwasdb-stores#161",
+    "kind": "epic",
+    "title": "Candidate-generation-and-review tooling to populate the Canonical Trait Mapping Table",
+    "url": "https://github.com/opengwas/opengwasdb-stores/issues/161",
+    "status": "Paused",
+    "workstream": "Build architecture"
+   },
+   "opengwasdb-stores#193": {
+    "key": "opengwasdb-stores#193",
+    "kind": "epic",
+    "title": "Build the Rho Matrix by default, support Hybrid stores, and back-fill every existing store",
+    "url": "https://github.com/opengwas/opengwasdb-stores/issues/193",
+    "status": "Todo",
+    "workstream": "Build architecture"
+   },
+   "opengwasdb-stores#345": {
+    "key": "opengwasdb-stores#345",
+    "kind": "epic",
+    "title": "Widen the GWAS Catalog EUR Store: rescue excluded studies, and a sequencing Store",
+    "url": "https://github.com/opengwas/opengwasdb-stores/issues/345",
+    "status": "Todo",
+    "workstream": "Store builds"
+   },
+   "opengwasdb-stores#366": {
+    "key": "opengwasdb-stores#366",
+    "kind": "epic",
+    "title": "Keep checkouts, environments and scratch off /home and /tmp",
+    "url": "https://github.com/opengwas/opengwasdb-stores/issues/366",
+    "status": "Todo",
+    "workstream": "Engineering"
+   },
+   "branch:opengwasdb-stores:ogs00011/store-page-yardstick": {
+    "key": "branch:opengwasdb-stores:ogs00011/store-page-yardstick",
+    "kind": "branch",
+    "title": "ogs00011/store-page-yardstick",
+    "url": null,
+    "status": "Unlinked branch",
+    "workstream": null
+   },
+   "branch:opengwasdb-stores:prototype/analysis-catalog": {
+    "key": "branch:opengwasdb-stores:prototype/analysis-catalog",
+    "kind": "branch",
+    "title": "prototype/analysis-catalog",
+    "url": null,
+    "status": "Unlinked branch",
+    "workstream": null
+   }
+  },
+  "signals": [
+   {
+    "component": "variants",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/variants/axis.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/build/observed/__init__.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "model",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/stats.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "hybrid",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/layouts/hybrid/__init__.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "completion",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/layouts/hybrid/complete.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "store",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/index/__init__.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/readers/registry.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "ragged",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/layouts/ragged/zarr_csr.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "completion",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/layouts/ragged/complete.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "store",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/index/sqlite.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/query/results.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/build/__init__.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "hybrid",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/layouts/hybrid/layout.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "ragged",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/layouts/ragged/top_hits.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#58",
+    "via": "scope",
+    "file": "opengwasdb/layouts/dense/top_hits.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "mention",
+    "file": "opengwasdb/query/facade.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "validation",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "mention",
+    "file": "opengwasdb/validation/validate.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "mention",
+    "file": "opengwasdb/layouts/dense/constants.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "model",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "mention",
+    "file": "opengwasdb/model/analyses.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "ragged",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "mention",
+    "file": "opengwasdb/layouts/ragged/top_hits.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "mention",
+    "file": "opengwasdb/layouts/dense/top_hits.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "validation",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#55",
+    "via": "mention",
+    "file": "opengwasdb/validation/validate.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "ragged",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#56",
+    "via": "mention",
+    "file": "opengwasdb/layouts/ragged/build_besd.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "ancestry",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#56",
+    "via": "mention",
+    "file": "opengwasdb/ancestry/mixture.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "ragged",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#56",
+    "via": "mention",
+    "file": "opengwasdb/layouts/ragged/build_ssf.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#56",
+    "via": "mention",
+    "file": "opengwasdb/readers/registry.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#56",
+    "via": "mention",
+    "file": "opengwasdb/readers/gwas_vcf.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#56",
+    "via": "mention",
+    "file": "opengwasdb/build/source.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#56",
+    "via": "mention",
+    "file": "opengwasdb/readers/interface.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#56",
+    "via": "mention",
+    "file": "opengwasdb/readers/fake.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#56",
+    "via": "mention",
+    "file": "opengwasdb/build/vcf_source.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "encoding",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#350",
+    "via": "mention",
+    "file": "opengwasdb/encoding/codec.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "encoding",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#350",
+    "via": "mention",
+    "file": "opengwasdb/encoding/planes.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#350",
+    "via": "mention",
+    "file": "opengwasdb/layouts/dense/build.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "ragged",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#350",
+    "via": "mention",
+    "file": "opengwasdb/layouts/ragged/zarr_csr.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "validation",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#350",
+    "via": "mention",
+    "file": "opengwasdb/validation/observed_view_hybrid.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "completion",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#350",
+    "via": "mention",
+    "file": "opengwasdb/layouts/hybrid/complete.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "encoding",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#350",
+    "via": "mention",
+    "file": "opengwasdb/encoding/se.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "cli",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#351",
+    "via": "mention",
+    "file": "opengwasdb/cli/main.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "validation",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#351",
+    "via": "mention",
+    "file": "opengwasdb/validation/observed_view.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#351",
+    "via": "mention",
+    "file": "opengwasdb/query/facade.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "validation",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#351",
+    "via": "mention",
+    "file": "opengwasdb/validation/validate.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "variants",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#352",
+    "via": "mention",
+    "file": "opengwasdb/variants/reference.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "completion",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#352",
+    "via": "mention",
+    "file": "opengwasdb/layouts/hybrid/complete.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "hybrid",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#352",
+    "via": "mention",
+    "file": "opengwasdb/layouts/hybrid/build.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#352",
+    "via": "mention",
+    "file": "opengwasdb/layouts/dense/build_vcf.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "hybrid",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#354",
+    "via": "mention",
+    "file": "opengwasdb/layouts/hybrid/build.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "variants",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#354",
+    "via": "mention",
+    "file": "opengwasdb/variants/reference.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#299",
+    "item": "opengwasdb#290",
+    "via": "mention",
+    "file": "opengwasdb/build/vcf_source.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#299",
+    "item": "opengwasdb#297",
+    "via": "mention",
+    "file": "opengwasdb/readers/gwas_vcf.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "variants",
+    "owner": "opengwasdb#299",
+    "item": "opengwasdb#297",
+    "via": "mention",
+    "file": "opengwasdb/variants/reference.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#299",
+    "item": "opengwasdb#297",
+    "via": "mention",
+    "file": "opengwasdb/layouts/dense/build_vcf.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb#299",
+    "item": "opengwasdb-stores#406",
+    "via": "mention",
+    "file": "src/ogstores/register.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "variants",
+    "owner": "opengwasdb#300",
+    "item": "opengwasdb#260",
+    "via": "mention",
+    "file": "opengwasdb/variants/reference.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "variants",
+    "owner": "opengwasdb#300",
+    "item": "opengwasdb#261",
+    "via": "mention",
+    "file": "opengwasdb/variants/reference.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb#340",
+    "item": "opengwasdb#341",
+    "via": "mention",
+    "file": "opengwasdb/query/facade.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "via": "mention",
+    "file": "opengwasdb/build/source.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "cli",
+    "owner": "opengwasdb-stores#282",
+    "item": "opengwasdb#285",
+    "via": "mention",
+    "file": "opengwasdb/__init__.py",
+    "blocked": false,
+    "state": "paused"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#282",
+    "item": "opengwasdb#287",
+    "via": "mention",
+    "file": "src/ogstores/bundle.py",
+    "blocked": false,
+    "state": "paused"
+   },
+   {
+    "component": "cli",
+    "owner": "opengwasdb-stores#302",
+    "item": "opengwasdb-stores#316",
+    "via": "mention",
+    "file": "opengwasdb/__init__.py",
+    "blocked": false,
+    "state": "paused"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#302",
+    "item": "opengwasdb-stores#318",
+    "via": "mention",
+    "file": "workflow/release.py",
+    "blocked": false,
+    "state": "paused"
+   },
+   {
+    "component": "store",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#344",
+    "via": "mention",
+    "file": "opengwasdb/store/convert.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#344",
+    "via": "mention",
+    "file": "opengwasdb/query/facade.py",
+    "blocked": false,
+    "state": "active"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#343",
+    "item": "opengwasdb-stores#253",
+    "via": "mention",
+    "file": "src/ogstores/runtime.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "cli",
+    "owner": "opengwasdb-stores#343",
+    "item": "opengwasdb-stores#364",
+    "via": "mention",
+    "file": "opengwasdb/__init__.py",
+    "blocked": true,
+    "state": "waiting"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#193",
+    "item": "opengwasdb-stores#193",
+    "via": "scope",
+    "file": "src/ogstores/plan.py",
+    "blocked": false,
+    "state": "scope"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb-stores#193",
+    "item": "opengwasdb#238",
+    "via": "mention",
+    "file": "opengwasdb/layouts/dense/rho.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb-stores#193",
+    "item": "opengwasdb#238",
+    "via": "mention",
+    "file": "opengwasdb/query/facade.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "analysis_catalog",
+    "owner": "opengwasdb-stores#366",
+    "item": "opengwasdb-stores#393",
+    "via": "mention",
+    "file": "src/analysis_catalog/summary.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#366",
+    "item": "opengwasdb-stores#393",
+    "via": "mention",
+    "file": "tools/ld-panel/scratch.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#366",
+    "item": "opengwasdb-stores#393",
+    "via": "mention",
+    "file": "src/ogstores/amendment.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "connectors",
+    "owner": "opengwasdb-stores#366",
+    "item": "opengwasdb-stores#393",
+    "via": "mention",
+    "file": "src/manifest_generation/providers/eqtlgen/acquire.py",
+    "blocked": false,
+    "state": "planned"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#347",
+    "item": "branch:orch/347-source-consistent-statistics",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347-source-consistent-statistics",
+    "state": "building"
+   },
+   {
+    "component": "resolution",
+    "owner": "opengwasdb#347",
+    "item": "branch:orch/347-source-consistent-statistics",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347-source-consistent-statistics",
+    "state": "building"
+   },
+   {
+    "component": "completion",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/338",
+    "state": "building"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/338",
+    "state": "building"
+   },
+   {
+    "component": "encoding",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/338",
+    "state": "building"
+   },
+   {
+    "component": "hybrid",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/338",
+    "state": "building"
+   },
+   {
+    "component": "model",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/338",
+    "state": "building"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/338",
+    "state": "building"
+   },
+   {
+    "component": "ragged",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/338",
+    "state": "building"
+   },
+   {
+    "component": "store",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/338",
+    "state": "building"
+   },
+   {
+    "component": "validation",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/338",
+    "state": "building"
+   },
+   {
+    "component": "readers",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#345",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/345",
+    "state": "building"
+   },
+   {
+    "component": "resolution",
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#345",
+    "via": "branch",
+    "branch": "opengwasdb:orch/347/345",
+    "state": "building"
+   },
+   {
+    "component": "cli",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58-deepen-modules",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58-deepen-modules",
+    "state": "building"
+   },
+   {
+    "component": "completion",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58-deepen-modules",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58-deepen-modules",
+    "state": "building"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58-deepen-modules",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58-deepen-modules",
+    "state": "building"
+   },
+   {
+    "component": "hybrid",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58-deepen-modules",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58-deepen-modules",
+    "state": "building"
+   },
+   {
+    "component": "model",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58-deepen-modules",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58-deepen-modules",
+    "state": "building"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58-deepen-modules",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58-deepen-modules",
+    "state": "building"
+   },
+   {
+    "component": "ragged",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58-deepen-modules",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58-deepen-modules",
+    "state": "building"
+   },
+   {
+    "component": "store",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58-deepen-modules",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58-deepen-modules",
+    "state": "building"
+   },
+   {
+    "component": "validation",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58-deepen-modules",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58-deepen-modules",
+    "state": "building"
+   },
+   {
+    "component": "completion",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/53",
+    "state": "building"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/53",
+    "state": "building"
+   },
+   {
+    "component": "hybrid",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/53",
+    "state": "building"
+   },
+   {
+    "component": "model",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/53",
+    "state": "building"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/53",
+    "state": "building"
+   },
+   {
+    "component": "ragged",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/53",
+    "state": "building"
+   },
+   {
+    "component": "store",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/53",
+    "state": "building"
+   },
+   {
+    "component": "validation",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#53",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/53",
+    "state": "building"
+   },
+   {
+    "component": "cli",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#57",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/57",
+    "state": "building"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#57",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/57",
+    "state": "building"
+   },
+   {
+    "component": "model",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#57",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/57",
+    "state": "building"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#57",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/57",
+    "state": "building"
+   },
+   {
+    "component": "store",
+    "owner": "opengwasdb#58",
+    "item": "opengwasdb#57",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/57",
+    "state": "building"
+   },
+   {
+    "component": "dense",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58/ledger",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/ledger",
+    "state": "building"
+   },
+   {
+    "component": "model",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58/ledger",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/ledger",
+    "state": "building"
+   },
+   {
+    "component": "query",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58/ledger",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/ledger",
+    "state": "building"
+   },
+   {
+    "component": "store",
+    "owner": "opengwasdb#58",
+    "item": "branch:orch/58/ledger",
+    "via": "branch",
+    "branch": "opengwasdb:orch/58/ledger",
+    "state": "building"
+   },
+   {
+    "component": "dev_tools",
+    "owner": "opengwasdb-stores#343",
+    "item": "opengwasdb-stores#253",
+    "via": "branch",
+    "branch": "opengwasdb-stores:feat/253-engine-pin-from-lock",
+    "state": "building"
+   },
+   {
+    "component": "manifest_generation",
+    "owner": "opengwasdb-stores#343",
+    "item": "opengwasdb-stores#253",
+    "via": "branch",
+    "branch": "opengwasdb-stores:feat/253-engine-pin-from-lock",
+    "state": "building"
+   },
+   {
+    "component": "project_site",
+    "owner": "opengwasdb-stores#343",
+    "item": "opengwasdb-stores#253",
+    "via": "branch",
+    "branch": "opengwasdb-stores:feat/253-engine-pin-from-lock",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#343",
+    "item": "opengwasdb-stores#253",
+    "via": "branch",
+    "branch": "opengwasdb-stores:feat/253-engine-pin-from-lock",
+    "state": "building"
+   },
+   {
+    "component": "yardstick",
+    "owner": "opengwasdb-stores#343",
+    "item": "opengwasdb-stores#253",
+    "via": "branch",
+    "branch": "opengwasdb-stores:feat/253-engine-pin-from-lock",
+    "state": "building"
+   },
+   {
+    "component": "project_site",
+    "owner": "branch:opengwasdb-stores:ogs00011/store-page-yardstick",
+    "item": "branch:ogs00011/store-page-yardstick",
+    "via": "branch",
+    "branch": "opengwasdb-stores:ogs00011/store-page-yardstick",
+    "state": "building"
+   },
+   {
+    "component": "dev_tools",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232-phase2",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232-phase2",
+    "state": "building"
+   },
+   {
+    "component": "project_site",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232-phase2",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232-phase2",
+    "state": "building"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232-phase2",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232-phase2",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232-phase2",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232-phase2",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232-phase2",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232-phase2",
+    "state": "building"
+   },
+   {
+    "component": "yardstick",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232-phase2",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232-phase2",
+    "state": "building"
+   },
+   {
+    "component": "dev_tools",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/228-230",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/228-230",
+    "state": "building"
+   },
+   {
+    "component": "project_site",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/228-230",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/228-230",
+    "state": "building"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/228-230",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/228-230",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/228-230",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/228-230",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/228-230",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/228-230",
+    "state": "building"
+   },
+   {
+    "component": "yardstick",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/228-230",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/228-230",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/228-230-held",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/228-230-held",
+    "state": "building"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#348",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#348",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#348",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348",
+    "state": "building"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348cal",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348cal",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348cal",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348cal",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348cal",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348cal",
+    "state": "building"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348op",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348op",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348op",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348op",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348op",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348op",
+    "state": "building"
+   },
+   {
+    "component": "dev_tools",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348rel",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348rel",
+    "state": "building"
+   },
+   {
+    "component": "project_site",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348rel",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348rel",
+    "state": "building"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348rel",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348rel",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348rel",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348rel",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348rel",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348rel",
+    "state": "building"
+   },
+   {
+    "component": "yardstick",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/348rel",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/348rel",
+    "state": "building"
+   },
+   {
+    "component": "dev_tools",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#407",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/407",
+    "state": "building"
+   },
+   {
+    "component": "project_site",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#407",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/407",
+    "state": "building"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#407",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/407",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#407",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/407",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#407",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/407",
+    "state": "building"
+   },
+   {
+    "component": "yardstick",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#407",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/407",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#409",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/409",
+    "state": "building"
+   },
+   {
+    "component": "dev_tools",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/409b",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/409b",
+    "state": "building"
+   },
+   {
+    "component": "project_site",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/409b",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/409b",
+    "state": "building"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/409b",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/409b",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/409b",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/409b",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/409b",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/409b",
+    "state": "building"
+   },
+   {
+    "component": "yardstick",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/409b",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/409b",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/409op",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/409op",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/409op",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/409op",
+    "state": "building"
+   },
+   {
+    "component": "project_site",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#411",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/411",
+    "state": "building"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#411",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/411",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#411",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/411",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#411",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/411",
+    "state": "building"
+   },
+   {
+    "component": "yardstick",
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#411",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/411",
+    "state": "building"
+   },
+   {
+    "component": "dev_tools",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/final-fix",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/final-fix",
+    "state": "building"
+   },
+   {
+    "component": "project_site",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/final-fix",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/final-fix",
+    "state": "building"
+   },
+   {
+    "component": "reference_resources",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/final-fix",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/final-fix",
+    "state": "building"
+   },
+   {
+    "component": "registry_data",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/final-fix",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/final-fix",
+    "state": "building"
+   },
+   {
+    "component": "release_orchestration",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/final-fix",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/final-fix",
+    "state": "building"
+   },
+   {
+    "component": "yardstick",
+    "owner": "opengwasdb-stores#232",
+    "item": "branch:orch/232/final-fix",
+    "via": "branch",
+    "branch": "opengwasdb-stores:orch/232/final-fix",
+    "state": "building"
+   }
+  ],
+  "meets": [
+   {
+    "component": "completion",
+    "owners": [
+     "opengwasdb#347",
+     "opengwasdb#58"
+    ],
+    "items": {
+     "opengwasdb#58": [
+      "branch:orch/58-deepen-modules",
+      "opengwasdb#350",
+      "opengwasdb#352",
+      "opengwasdb#53"
+     ],
+     "opengwasdb#347": [
+      "opengwasdb#338"
+     ]
+    },
+    "coordinated": [
+     {
+      "waiting": "opengwasdb#338",
+      "on": "opengwasdb#350"
+     }
+    ]
+   },
+   {
+    "component": "dense",
+    "owners": [
+     "opengwasdb#347",
+     "opengwasdb#58"
+    ],
+    "items": {
+     "opengwasdb#58": [
+      "branch:orch/58-deepen-modules",
+      "branch:orch/58/ledger",
+      "opengwasdb#350",
+      "opengwasdb#352",
+      "opengwasdb#53",
+      "opengwasdb#57"
+     ],
+     "opengwasdb#347": [
+      "opengwasdb#338"
+     ]
+    },
+    "coordinated": [
+     {
+      "waiting": "opengwasdb#338",
+      "on": "opengwasdb#350"
+     }
+    ]
+   },
+   {
+    "component": "dev_tools",
+    "owners": [
+     "opengwasdb-stores#232",
+     "opengwasdb-stores#343"
+    ],
+    "items": {
+     "opengwasdb-stores#343": [
+      "opengwasdb-stores#253"
+     ],
+     "opengwasdb-stores#232": [
+      "branch:orch/232-phase2",
+      "branch:orch/232/228-230",
+      "branch:orch/232/348rel",
+      "branch:orch/232/409b",
+      "branch:orch/232/final-fix",
+      "opengwasdb-stores#407"
+     ]
+    },
+    "coordinated": []
+   },
+   {
+    "component": "encoding",
+    "owners": [
+     "opengwasdb#347",
+     "opengwasdb#58"
+    ],
+    "items": {
+     "opengwasdb#58": [
+      "opengwasdb#350"
+     ],
+     "opengwasdb#347": [
+      "opengwasdb#338"
+     ]
+    },
+    "coordinated": [
+     {
+      "waiting": "opengwasdb#338",
+      "on": "opengwasdb#350"
+     }
+    ]
+   },
+   {
+    "component": "hybrid",
+    "owners": [
+     "opengwasdb#347",
+     "opengwasdb#58"
+    ],
+    "items": {
+     "opengwasdb#58": [
+      "branch:orch/58-deepen-modules",
+      "opengwasdb#352",
+      "opengwasdb#354",
+      "opengwasdb#53"
+     ],
+     "opengwasdb#347": [
+      "opengwasdb#338"
+     ]
+    },
+    "coordinated": []
+   },
+   {
+    "component": "model",
+    "owners": [
+     "opengwasdb#347",
+     "opengwasdb#58"
+    ],
+    "items": {
+     "opengwasdb#58": [
+      "branch:orch/58-deepen-modules",
+      "branch:orch/58/ledger",
+      "opengwasdb#53",
+      "opengwasdb#57"
+     ],
+     "opengwasdb#347": [
+      "opengwasdb#338"
+     ]
+    },
+    "coordinated": []
+   },
+   {
+    "component": "project_site",
+    "owners": [
+     "branch:opengwasdb-stores:ogs00011/store-page-yardstick",
+     "opengwasdb-stores#232",
+     "opengwasdb-stores#343"
+    ],
+    "items": {
+     "opengwasdb-stores#343": [
+      "opengwasdb-stores#253"
+     ],
+     "branch:opengwasdb-stores:ogs00011/store-page-yardstick": [
+      "branch:ogs00011/store-page-yardstick"
+     ],
+     "opengwasdb-stores#232": [
+      "branch:orch/232-phase2",
+      "branch:orch/232/228-230",
+      "branch:orch/232/348rel",
+      "branch:orch/232/409b",
+      "branch:orch/232/final-fix",
+      "opengwasdb-stores#407",
+      "opengwasdb-stores#411"
+     ]
+    },
+    "coordinated": []
+   },
+   {
+    "component": "query",
+    "owners": [
+     "opengwasdb#347",
+     "opengwasdb#58",
+     "opengwasdb-stores#232"
+    ],
+    "items": {
+     "opengwasdb#58": [
+      "branch:orch/58-deepen-modules",
+      "branch:orch/58/ledger",
+      "opengwasdb#351",
+      "opengwasdb#53",
+      "opengwasdb#57"
+     ],
+     "opengwasdb-stores#232": [
+      "opengwasdb-stores#344"
+     ],
+     "opengwasdb#347": [
+      "opengwasdb#338"
+     ]
+    },
+    "coordinated": []
+   },
+   {
+    "component": "ragged",
+    "owners": [
+     "opengwasdb#347",
+     "opengwasdb#58"
+    ],
+    "items": {
+     "opengwasdb#58": [
+      "branch:orch/58-deepen-modules",
+      "opengwasdb#350",
+      "opengwasdb#53"
+     ],
+     "opengwasdb#347": [
+      "opengwasdb#338"
+     ]
+    },
+    "coordinated": [
+     {
+      "waiting": "opengwasdb#338",
+      "on": "opengwasdb#350"
+     }
+    ]
+   },
+   {
+    "component": "release_orchestration",
+    "owners": [
+     "opengwasdb-stores#232",
+     "opengwasdb-stores#343"
+    ],
+    "items": {
+     "opengwasdb-stores#343": [
+      "opengwasdb-stores#253"
+     ],
+     "opengwasdb-stores#232": [
+      "branch:orch/232-phase2",
+      "branch:orch/232/228-230",
+      "branch:orch/232/348cal",
+      "branch:orch/232/348op",
+      "branch:orch/232/348rel",
+      "branch:orch/232/409b",
+      "branch:orch/232/409op",
+      "branch:orch/232/final-fix",
+      "opengwasdb-stores#348",
+      "opengwasdb-stores#407",
+      "opengwasdb-stores#409",
+      "opengwasdb-stores#411"
+     ]
+    },
+    "coordinated": []
+   },
+   {
+    "component": "store",
+    "owners": [
+     "opengwasdb#347",
+     "opengwasdb#58",
+     "opengwasdb-stores#232"
+    ],
+    "items": {
+     "opengwasdb-stores#232": [
+      "opengwasdb-stores#344"
+     ],
+     "opengwasdb#347": [
+      "opengwasdb#338"
+     ],
+     "opengwasdb#58": [
+      "branch:orch/58-deepen-modules",
+      "branch:orch/58/ledger",
+      "opengwasdb#53",
+      "opengwasdb#57"
+     ]
+    },
+    "coordinated": []
+   },
+   {
+    "component": "validation",
+    "owners": [
+     "opengwasdb#347",
+     "opengwasdb#58"
+    ],
+    "items": {
+     "opengwasdb#58": [
+      "branch:orch/58-deepen-modules",
+      "opengwasdb#350",
+      "opengwasdb#351",
+      "opengwasdb#53"
+     ],
+     "opengwasdb#347": [
+      "opengwasdb#338"
+     ]
+    },
+    "coordinated": [
+     {
+      "waiting": "opengwasdb#338",
+      "on": "opengwasdb#350"
+     }
+    ]
+   },
+   {
+    "component": "yardstick",
+    "owners": [
+     "opengwasdb-stores#232",
+     "opengwasdb-stores#343"
+    ],
+    "items": {
+     "opengwasdb-stores#343": [
+      "opengwasdb-stores#253"
+     ],
+     "opengwasdb-stores#232": [
+      "branch:orch/232-phase2",
+      "branch:orch/232/228-230",
+      "branch:orch/232/348rel",
+      "branch:orch/232/409b",
+      "branch:orch/232/final-fix",
+      "opengwasdb-stores#407",
+      "opengwasdb-stores#411"
+     ]
+    },
+    "coordinated": []
+   }
+  ],
+  "waits": [
+   {
+    "owner": "opengwasdb#347",
+    "item": "opengwasdb#338",
+    "on_owner": "opengwasdb#58",
+    "on": "opengwasdb#350"
+   },
+   {
+    "owner": "opengwasdb-stores#232",
+    "item": "opengwasdb-stores#224",
+    "on_owner": "opengwasdb-stores#302",
+    "on": "opengwasdb#301"
+   }
+  ]
+ }
+}
