@@ -1820,6 +1820,37 @@ class TestResumingAnInterruptedCompletion(unittest.TestCase):
         self.assertTrue(self.checkpoint.is_dir())
         record_check()
 
+    def test_a_refused_resume_changes_nothing_so_the_right_engine_still_resumes(self) -> None:
+        """A refusal under the wrong engine leaves the interrupted record as it was (#410).
+
+        Its record is the only evidence of the engine that started a checkpoint
+        from before #410, so a refusal that rewrote it would leave that
+        checkpoint discardable only with `--config force=1`.
+        """
+        self.as_engine("a" * 40)
+        step = self.complete("--min-cor", "0.5")
+        self.interrupted(started_by=step)
+        self.started_before_410()
+        record_p = paths.record_path(self.STORE_ID, "complete", root=self.root)
+        before = record_p.read_bytes()
+        self.assertEqual(json.loads(before)["opengwasdb_rev"], "a" * 40, "the interrupted record names its engine")
+        started_p = paths.completion_start_path(self.STORE_ID, root=self.root)
+        started_before = started_p.read_bytes()
+
+        self.as_engine("b" * 40)
+        with self.assertRaises(ValueError):
+            execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+        self.assertEqual(record_p.read_bytes(), before, "the refusal left the record as it was")
+        self.assertEqual(started_p.read_bytes(), started_before, "and the start record")
+        self.assertTrue(self.checkpoint.is_dir())
+        self.assertIsNone(self.called(), "nothing ran")
+
+        self.as_engine("a" * 40)
+        execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertEqual(self.called(), ["complete-dense-resume", str(self.checkpoint)])
+        record_check()
+
     def test_a_checkpoint_whose_start_names_no_engine_is_refused(self) -> None:
         """A start record written before the engine was recorded, and records that cannot prove one either."""
         step = self.complete("--min-cor", "0.5")

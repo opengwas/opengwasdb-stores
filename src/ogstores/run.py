@@ -186,6 +186,15 @@ class StoreExistsError(FileExistsError):
     pass
 
 
+class ResumeRefusedError(ValueError):
+    """Raised when an interrupted completion's checkpoint may not be resumed (#305, #253, #410).
+
+    A refusal changes nothing: `execute_step` writes no record for it, so the
+    interrupted run's record, the start record and the checkpoint stay as they
+    were, and a later run under the right engine or plan can still resume.
+    """
+
+
 class StepExecutionError(RuntimeError):
     """Raised when a Step execution fails (nonzero exit, missing command, or publication failure)."""
 
@@ -485,7 +494,7 @@ def _require_phase_engine(
         if only is not None and engine.is_exact_commit_hash(only)
         else "`--config force=1` discards the checkpoint and rebuilds the release."
     )
-    raise ValueError(
+    raise ResumeRefusedError(
         f"Step {step.name!r} for {store_id} would resume the checkpoint {checkpoint}, whose start record "
         f"({paths.completion_start_path(store_id, root=root)}) names no engine: it was written before "
         f"the engine was recorded. It resumes only when every step record of its {step.phase} phase names "
@@ -527,14 +536,14 @@ def resume_argv_for_completion(
         return executed_argv
     started = _started_completion_argv(store_id, artifact_root)
     if started is None:
-        raise ValueError(
+        raise ResumeRefusedError(
             f"Step {step.name!r} for {store_id} finds the checkpoint {checkpoint}, but this workflow has no "
             f"record of starting it ({paths.completion_start_path(store_id, root=artifact_root)}): it was "
             "made outside this workflow, or by an older one. Nothing was resumed. `--config force=1` "
             "discards it and rebuilds the release."
         )
     if started != list(step.argv):
-        raise ValueError(
+        raise ResumeRefusedError(
             f"Step {step.name!r} for {store_id} would resume the checkpoint {checkpoint}, but it was started "
             f"from another plan: {argv_change(started, list(step.argv))}. Nothing was resumed. "
             "`--config force=1` discards it and rebuilds the release."
@@ -546,7 +555,7 @@ def resume_argv_for_completion(
         _require_phase_engine(step, store_id, artifact_root, checkpoint, current)
     elif started_by != current:
         written = f"opengwasdb {started_by}" if started_by else "an engine its start record does not name"
-        raise ValueError(
+        raise ResumeRefusedError(
             f"Step {step.name!r} for {store_id} would resume the checkpoint {checkpoint}, which "
             f"{written} started, under opengwasdb {current}. One completion is written by one engine. "
             "Nothing was resumed. Install the engine that started it, or `--config force=1` discards "
@@ -1424,6 +1433,10 @@ def execute_step(
         else:
             executed_argv = rewrite_argv_for_staging(step, store_id, artifact_root=resolved_root)
             executed_argv = resume_argv_for_completion(step, executed_argv, store_id, resolved_root, env=env)
+    except ResumeRefusedError:
+        # A refused resume writes nothing: the interrupted run's record is the
+        # evidence a later resume is judged by, so it stays as it was (#410).
+        raise
     except ValueError as rewrite_err:
         # Preflight failure record: write failed record before raising
         err_res = StepResult(
@@ -1931,6 +1944,7 @@ __all__ = [
     "MissingCommandError",
     "PublicationPendingError",
     "STORE_PRODUCING_STEPS",
+    "ResumeRefusedError",
     "StepExecutionError",
     "StepResult",
     "StoreExistsError",
