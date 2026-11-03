@@ -122,6 +122,11 @@ COMPLETION_STATE_FIELD = "completion_state"
 POSTDATED_OBSERVED_FIELDS: frozenset[str] = frozenset(
     {COMPLETION_STATE_FIELD, "association_coverage", "reference_assembly"}
 )
+# The same for `build_environment`: `engines`, every engine a phase used and
+# the steps each ran, is written from #410 on. A record committed before it
+# names one engine only, as OGS-00011's does although its step records name
+# three; the single fields keep their meaning, so it is not migrated.
+POSTDATED_BUILD_ENVIRONMENT_FIELDS: frozenset[str] = frozenset({"engines"})
 PUBLISHED_COMPLETION_STATES: frozenset[str] = frozenset(
     {"observed_only", "reference_completed"}
 )
@@ -244,8 +249,9 @@ class TestCommittedValidationRecords(unittest.TestCase):
             for key in ("status", "validated_at", "validator", "build_environment", "observed", "checks"):
                 self.assertIn(key, record, f"{store_id} is missing the register key {key!r}")
 
+            environment = set(record["build_environment"])
             self.assertEqual(
-                set(record["build_environment"]),
+                environment | POSTDATED_BUILD_ENVIRONMENT_FIELDS,
                 set(BUILD_ENVIRONMENT_FIELDS),
                 f"{store_id}.build_environment must carry exactly the register keys",
             )

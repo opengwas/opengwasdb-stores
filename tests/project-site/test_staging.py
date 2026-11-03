@@ -207,81 +207,18 @@ class MermaidPageReachabilityTest(unittest.TestCase):
 
 
 class PinnedRevisionTest(unittest.TestCase):
-    #: The previous pin, asked for by `rev=`; and the current tag's commit.
-    OLD = "0d59f151c7618933747a59f825deeef6a51de9e1"
-    NEW = "bc22e8476c4378af582477f09b56af01e3f5f065"
+    """The site stages the engine docs at the commit pixi.lock resolves (#253).
 
-    def _lock(self, *references: str) -> Path:
-        tmp = self.enterContext(tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")))
-        path = Path(tmp) / "pixi.lock"
-        path.write_text(
-            "packages:\n" + "".join(f"  - pypi: {reference}\n" for reference in references),
-            encoding="utf-8",
-        )
-        return path
-
-    def test_the_pin_is_read_from_the_lock_s_own_line(self) -> None:
-        from project_site.paths import pinned_opengwasdb_revision
-
-        path = self._lock(
-            f"git+https://github.com/opengwas/opengwasdb?tag=v0.3.0#{self.NEW}"
-        )
-
-        self.assertEqual(pinned_opengwasdb_revision(path), self.NEW)
-
-    def test_the_old_rev_form_still_reads(self) -> None:
-        from project_site.paths import pinned_opengwasdb_revision
-
-        path = self._lock(
-            f"git+https://github.com/opengwas/opengwasdb?rev={self.OLD}#{self.OLD}"
-        )
-
-        self.assertEqual(pinned_opengwasdb_revision(path), self.OLD)
-
-    def test_no_reference_is_refused(self) -> None:
-        from project_site.paths import pinned_opengwasdb_revision
-
-        with self.assertRaises(ValueError):
-            pinned_opengwasdb_revision(self._lock())
-
-    def test_two_different_commits_are_ambiguous(self) -> None:
-        from project_site.paths import pinned_opengwasdb_revision
-
-        with self.assertRaises(ValueError):
-            pinned_opengwasdb_revision(
-                self._lock(
-                    f"git+https://github.com/opengwas/opengwasdb?rev={self.OLD}#{self.OLD}",
-                    f"git+https://github.com/opengwas/opengwasdb?tag=v0.3.0#{self.NEW}",
-                )
-            )
-
-    def test_another_host_is_not_this_pin(self) -> None:
-        from project_site.paths import pinned_opengwasdb_revision
-
-        with self.assertRaises(ValueError):
-            pinned_opengwasdb_revision(
-                self._lock(f"git+https://example.com/opengwas/opengwasdb?tag=x#{self.NEW}")
-            )
-
-    def test_a_41_character_hash_is_not_a_pin(self) -> None:
-        from project_site.paths import pinned_opengwasdb_revision
-
-        for fragment in (f"{self.NEW}f", f"{self.NEW}z"):
-            with self.subTest(fragment=fragment):
-                with self.assertRaises(ValueError):
-                    pinned_opengwasdb_revision(
-                        self._lock(
-                            f"git+https://github.com/opengwas/opengwasdb?tag=v0.3.0#{fragment}"
-                        )
-                    )
+    How the lock is read is `tests/engine`'s; this is only that the site asks it.
+    """
 
     def test_the_committed_lock_pins_one_revision(self) -> None:
+        from ogstores import engine
         from project_site.paths import pinned_opengwasdb_revision
 
         revision = pinned_opengwasdb_revision(REPO_ROOT / "pixi.lock")
 
-        self.assertRegex(revision, r"^[0-9a-f]{40}$")
-
+        self.assertEqual(revision, engine.locked_commit(REPO_ROOT / "pixi.lock"))
 
 if __name__ == "__main__":
     unittest.main()

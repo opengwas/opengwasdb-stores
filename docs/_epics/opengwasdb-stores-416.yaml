@@ -1,0 +1,127 @@
+repo: opengwasdb-stores
+number: 416
+title: A living architecture map on the project site
+status: active
+workstream: Engineering
+started: "2026-11-02"
+finished: null
+summary: "Epic #416 put a living architecture map of OpenGWASDB on the project site. Each repository claims its own code in `docs/architecture/components.yaml`, and CI fails on an unclaimed file, on a new upward engine import (23 listed) or on a new import of engine names here (91 listed). The site draws Pipeline, Structure and health, and Work map pages from both repositories' claims, their code, the board and pushed branches, and a `check` / `conflicts` CLI gives agents the same answers. Orchestrate now stops before launching a lane whose files meet another owner's uncoordinated work, and a structural ticket's `architecture` block is drawn on the map and checked once its code lands."
+prs:
+- opengwasdb-stores#423
+- opengwasdb#368
+- agent-skills#3
+versions: []
+tickets:
+- key: opengwasdb#358
+  title: "Claim every engine source file for one component, and fail CI on an unclaimed one"
+  pr: opengwasdb#368
+  merge: "73276fc"
+- key: opengwasdb-stores#418
+  title: "Draw the architecture on the project site from both repositories' claims"
+  pr: opengwasdb-stores#423
+  merge: d97decc2
+- key: opengwasdb#359
+  title: Fail CI on a new import from an engine component into a higher layer
+  pr: opengwasdb#368
+  merge: cd834c8
+- key: opengwasdb-stores#419
+  title: "Show where live work meets on a Work map, with a CLI for agents"
+  pr: opengwasdb-stores#423
+  merge: "91985c08"
+- key: opengwasdb-stores#420
+  title: Make orchestrate stop before launching a lane that meets uncoordinated live work
+  pr: agent-skills#3
+  merge: "6f8aacf"
+- key: opengwasdb-stores#421
+  title: Fail CI on a new import of engine modules from this repository
+  pr: opengwasdb-stores#423
+  merge: "2cb8f9dd"
+- key: opengwasdb-stores#422
+  title: "Draw a structural ticket's planned change on the map, and check it once the code lands"
+  pr: opengwasdb-stores#423
+  merge: "9472907e"
+decisions:
+- date: "2026-11-02"
+  text: "One integration branch per repository (orch/416-architecture-map in opengwasdb and opengwasdb-stores, later opengwas/agent-skills for #420), each with a draft PR to main; this PR carries the dashboard. No closing keyword for the epic: it closes by hand once every repository's PR has landed"
+  link: null
+- date: "2026-11-02"
+  text: "version.py and build/ordered_pool.py move to Store contract model, which already claims stats.py as the layer-0 home for shared helpers; a separate utilities component can follow if layer 0 grows"
+  link: null
+- date: "2026-11-02"
+  text: "Started before #358 merges: #358's file shape is fixed in its notes, so #418 builds against fixtures and checks real data on the engine integration ref"
+  link: null
+- date: "2026-11-02"
+  text: "The collector reads the engine at main through the site's existing bare clone (ref configurable); diagrams are Quarto {dot} cells (bundled Graphviz, no new dependency, nothing generated committed); the collector fails soft, and engine gaps are listed on the page, not build failures"
+  link: null
+- date: "2026-11-02"
+  text: "Merge order for the owner: engine PR #368 before stores PR #423, so the page finds the engine's model on main"
+  link: null
+- date: "2026-11-02"
+  text: "Review r1: git ls-files is read NUL-delimited (-z), since a path with a space would otherwise drop out of the check silently; PyYAML joins the pip dev extra too, which mirrors the pixi dev feature; xdist start-up time accepted (0.17 s without workers); each repository keeps its own copy of the claims check"
+  link: null
+- date: "2026-11-02"
+  text: "Review r1: a failed engine fetch and the engine commit's date are recorded and shown; unparseable files and unreadable code files are errors, not silent zeros; claimed tools/ and workflow/ scripts are importing sources; Pipeline nests ADRs under components; tests use a fixture engine. Component names match ADR titles at a word start with no end boundary (keeps 0027 'Analysis Catalogue', rejects 'subquery'): 52 of 107 expected"
+  link: null
+- date: "2026-11-02"
+  text: "Review r1: relative imports in __init__.py must resolve against the package itself (both reviewers reproduced an escaping model->cli import); no permanent test of the exact 23-entry list, since it would fail every legitimate tightening; the baseline is named in CONTRIBUTING's what-goes-stale table"
+  link: null
+- date: "2026-11-02"
+  text: "Review r2: blobs requested by object id (a newline in a path misread another file); facts in code spans go through pages._code; an unclaimed import target stays unowned instead of inheriting its package's owner (it had turned 9/23 upward into 11/25). The Architecture pages suite's single Quarto render (3.5 s alone) accepted, like project-site-pages (10.9 s)"
+  link: null
+- date: "2026-11-02"
+  text: "The engine-import baseline uses #418's graph and the engine baseline's unit, one (importing file, imported name) per entry: 91 on 73276fc, including tools/ scripts, not the ticket's 53 (file, module) pairs"
+  link: null
+- date: "2026-11-02"
+  text: "Review r1: the seam's import count comes from the name-based measurement (91 with or without an engine model), and its component-pair count is unknown, not 0, without one. No floor on the import count, which would refuse legitimate shrinking; the guard is that code files were read"
+  link: null
+- date: "2026-11-02"
+  text: "Registering the work source and page may update existing test counts (outside #232's hunks). The check CLI compares the engine's layering baseline entry by entry, from upward imports carried in architecture.json, never by count"
+  link: null
+- date: "2026-11-02"
+  text: "Review r1: without the engine's model, engine-side work is unknown (conflicts exits 2), never 'meets nothing'; an unreadable baseline or a git failure exits 2, not 0 or 1. A meet involving an epic's integration branch is 'unlinkable' (no single ticket to link), counted and explained apart from verified uncoordinated meets; conflicts still exits 1 for it so a person decides"
+  link: null
+- date: "2026-11-02"
+  text: "The Architecture block is a fenced ```architecture YAML block in the ticket body. adds, moves and drops are checked against claims and the import graph on main once the ticket closes (a warning if unmet); absorbs is drawn on the map but not checked, since line numbers drift"
+  link: null
+- date: "2026-11-02"
+  text: "Review r2: a malformed layering baseline exits 2, never a traceback or an empty baseline; one classifier, shared by the collector and the CLI, marks an epic branch unlinkable by the branch's identity, whether or not the epic is on the board; without the engine's model the upward-import list is null like its count"
+  link: null
+- date: "2026-11-02"
+  text: "Started before #419 merges: the CLI's options and exit codes are settled, so the skill change proceeds, with evidence from a detached checkout of #419's branch"
+  link: null
+- date: "2026-11-02"
+  text: "No temporary host-clone default for the CLI's engine: once opengwasdb PR #368 merges, its defaults (engine main) work, and preflight.py already passes options through"
+  link: null
+- date: "2026-11-02"
+  text: "Review r1: the pre-launch gate never launches on a guess. Exit 1 always stops and asks, even when the meet can't be parsed; exit 0 launches only on a recognisable success; every other failure (decoding, timeout, unexpected code) is one UNCHECKED verdict; STOP names the other work, including an integration branch; a newly added blocking edge marks the ticket blocked and it doesn't launch"
+  link: null
+- date: "2026-11-02"
+  text: "An add is held only when the path exists and the named component claims it. architecture.json gains the tracked code paths as an added field; without that field, existence is unknown, never held. #350's example add had read 'held' for a file that doesn't exist"
+  link: null
+- date: "2026-11-02"
+  text: "Review r1: every malformed block becomes {invalid: reason}, never an exception or a normalised plan; new component ids must match the model's id form and DOT strings are escaped (a ticket could inject diagram nodes); a drop with no edges data is unknown, not held. Kept: moved paths must exist too (the same false 'held' as adds), and a missing file reads not held even without the engine's model, since the tree was read"
+  link: null
+- date: "2026-11-02"
+  text: "Final review: cited package-relative paths resolve to a tracked file when exactly one matches (#350's citations produced no signals; the #419 'claims only' ruling is reversed now that architecture.json lists files), ambiguous ones listed as unresolved; R sources are owned; engine gaps unknown without the model; one baseline loader, one classifier, one citation resolver, one DOT escaper; --files needs --repo. Engine/stores helper copies accepted (independent per-repository checks). The board README pointer to the block format is left for the owner"
+  link: null
+- date: "2026-11-02"
+  text: "Final re-review: a cited path that doesn't exist keeps its claim-based signal (a ticket citing a file it will create is real intent) but is marked not found and listed and counted on the Work page, so a typo is visible rather than a confident meet"
+  link: null
+test_time:
+  baseline:
+    commit: e5adf735
+    wall_s: 168.7
+    suites: null
+  final:
+    commit: "7afeb117"
+    wall_s: 166.0
+    suites: null
+yardstick:
+  before: null
+  after: null
+catalog:
+  before: null
+  after: null
+followups:
+- key: opengwasdb#372
+  text: "opengwas/opengwasdb#372 reference extraction reaches into nine private Dense VCF builder names (9 of 23 upward imports); unparented, for /board to place (likely epic #58)"

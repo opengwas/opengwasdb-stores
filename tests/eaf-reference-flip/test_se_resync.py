@@ -138,8 +138,8 @@ class ResyncTestCase(unittest.TestCase):
             eaf_reference_flip._precedent,
             "_resolve_runtime",
             return_value=(
-                base.runtime.PINNED_OPENGWASDB_REVISION,
-                base.runtime.PINNED_OPENGWASDB_TAG.removeprefix("v"),
+                base.LOCKED,
+                base.engine.identify().version,
             ),
         )
 

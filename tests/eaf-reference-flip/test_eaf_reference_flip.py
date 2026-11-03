@@ -62,7 +62,9 @@ import numpy as np
 import zarr
 from opengwasdb.encoding import DenseEafPlane, DenseSePlane, StoreEncoding
 
-from ogstores import eaf_reference_flip, release, runtime
+from ogstores import eaf_reference_flip, engine, release
+
+LOCKED = engine.locked_commit()
 
 STORE_ID = "OGS-00090"
 
@@ -482,8 +484,8 @@ class FlipTestCase(unittest.TestCase):
             eaf_reference_flip._precedent,
             "_resolve_runtime",
             return_value=(
-                runtime.PINNED_OPENGWASDB_REVISION,
-                runtime.PINNED_OPENGWASDB_TAG.removeprefix("v"),
+                LOCKED,
+                engine.identify().version,
             ),
         ):
             yield
@@ -647,8 +649,8 @@ class FlipTestCase(unittest.TestCase):
         self.assertEqual(record["step"], "eaf-reference-flip")
         self.assertEqual(record["store_id"], STORE_ID)
         self.assertEqual(record["issue"], 409)
-        self.assertEqual(record["opengwasdb_revision"], runtime.PINNED_OPENGWASDB_REVISION)
-        self.assertEqual(record["opengwasdb_version"], runtime.PINNED_OPENGWASDB_TAG.removeprefix("v"))
+        self.assertEqual(record["opengwasdb_revision"], LOCKED)
+        self.assertEqual(record["opengwasdb_version"], engine.identify().version)
         self.assertRegex(record["started_at"], r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z")
         self.assertRegex(record["completed_at"], r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z")
         self.assertRegex(record["tool"]["commit"], r"\A[0-9a-f]{40}\Z")
@@ -824,7 +826,7 @@ class FlipTestCase(unittest.TestCase):
 
     def test_a_non_pinned_runtime_is_refused(self) -> None:
         def fake_revision(executable=None, env=None):
-            return runtime.PINNED_OPENGWASDB_REVISION if executable is None else "deadbeef" * 5
+            return LOCKED if executable is None else "deadbeef" * 5
 
         with mock.patch.object(eaf_reference_flip._precedent.run, "get_opengwasdb_executable", return_value="/fake/bin/opengwasdb"), \
              mock.patch.object(eaf_reference_flip._precedent.run, "get_opengwasdb_revision", side_effect=fake_revision), \

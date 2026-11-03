@@ -40,7 +40,7 @@ import zarr
 from opengwasdb.reencode import plan_se_reencode as _core_plan
 from opengwasdb.reencode import reencode_se_codecs as _core_apply
 
-from ogstores import paths, release, run, runtime
+from ogstores import engine, paths, release, run
 
 #: The step name under `records/`, and so the record's file name.
 RECORD_STEP: str = "se-reencode"
@@ -208,13 +208,14 @@ def _resolve_runtime() -> tuple[str, str]:
             f"{executable_revision!r} but the imported distribution reports "
             f"{ambient_revision!r}; they must be the same pinned runtime."
         )
-    if executable_revision != runtime.PINNED_OPENGWASDB_REVISION:
-        raise ReencodeRefusal(
-            f"the resolved opengwasdb runtime reports revision {executable_revision!r}, "
-            f"which is not the tracked pin {runtime.PINNED_OPENGWASDB_REVISION} "
-            f"({runtime.OPENGWASDB_GIT_URL}). Run `pixi install` so the pinned runtime "
-            "is used; never substitute an executable on PATH."
+    try:
+        refusal = engine.mismatch(
+            engine.EngineIdentity(executable, executable_revision, version), engine.locked_commit()
         )
+    except engine.EnginePinError as exc:
+        raise ReencodeRefusal(str(exc)) from exc
+    if refusal is not None:
+        raise ReencodeRefusal(refusal)
     return executable_revision, version
 
 

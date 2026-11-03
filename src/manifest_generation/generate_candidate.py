@@ -128,6 +128,7 @@ from manifest_generation.source_inventory import (
     read_inventory,
     render_preflight_summary,
 )
+from ogstores import engine
 from ogstores.paths import require_valid_store_id
 
 #: The module this entry point runs as, recorded in the bundle's command log.
@@ -289,7 +290,28 @@ def stage_prepare(pipeline: Pipeline) -> tuple[list, dict]:
     return manifest, metadata
 
 
+def require_locked_engine(resolver_bin: str) -> None:
+    """The pinned resolver must be the engine pixi.lock resolves (#253).
+
+    The same check, in the same words, as the release guard: Manifest
+    Generation and Store Release Build cannot run under different engines
+    without one of them saying so. A `--resolver` override is for verification
+    into a temporary registry, which `refuse_overridden_resolver` keeps out of
+    `stores/`, so it is not checked here.
+    """
+    if resolver_bin != DEFAULT_RESOLVER_BIN:
+        return
+    try:
+        expected = engine.locked_commit()
+    except engine.EnginePinError as exc:
+        raise CandidateError(str(exc)) from exc
+    refusal = engine.mismatch(engine.identify(engine.find_executable(resolver_bin)), expected)
+    if refusal is not None:
+        raise CandidateError(refusal)
+
+
 def stage_resolve(pipeline: Pipeline, manifest: list) -> None:
+    require_locked_engine(pipeline.args.resolver)
     area = pipeline.resolution_area
     # The resolver opens the declared liftover chain, so its bytes are checked
     # before anything else here (#292): composing the settings below reads no

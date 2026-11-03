@@ -101,7 +101,7 @@ a new version.
 |---|---|
 | `schema` | `1` |
 | `workload_id`, `workload_sha256` | the workload that ran |
-| `opengwasdb` | `version`, and `revision`: the 40-hex rev `pixi.lock` pins |
+| `opengwasdb` | `version`, and `revision`: the 40-hex commit of the engine that ran (#253: read from the install, not from the lock) |
 | `ogstores` | `version`; `commit`: the 40-hex `HEAD` of the checkout that ran, because an editable install's version can be stale; `dirty`: whether that tree had uncommitted changes |
 | `host` | `name`, `cpu_count` |
 | `load_average` | `before` and `after`, each exactly three non-negative numbers: the 1, 5 and 15 minute averages |
