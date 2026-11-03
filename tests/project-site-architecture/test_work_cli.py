@@ -140,6 +140,85 @@ class UnmeasuredAndUnlinkableTests(unittest.TestCase):
         self.assertNotIn("UNCOORDINATED", text)
 
 
+class UnplacedAndUnrefreshedTests(unittest.TestCase):
+    """Code the map cannot place, and data a fetch could not bring up to date, are never "no conflict"."""
+
+    def collection(self, result: dict, architecture: dict = ARCHITECTURE) -> str:
+        directory = Path(tempfile.mkdtemp(prefix="cli-"))
+        self.addCleanup(shutil.rmtree, directory, True)
+        common.write_source(directory, common.envelope("work", available=True, error=None, **result))
+        common.write_source(directory, architecture)
+        return str(directory)
+
+    def cited(self, *sets: dict) -> str:
+        """#350 (epic 58) cites an encoding file, as in ConflictsTests."""
+        return self.collection(compute(board(epic("opengwasdb#58", "Active", [ticket("opengwasdb#350", cited=CITED)])), *sets))
+
+    def test_engine_code_no_component_claims_cannot_be_decided(self) -> None:
+        # The engine's CLI is a package, opengwasdb/cli/; a mistyped or brand-new path is on no component.
+        code, text = run("conflicts", "--data", self.cited(), "--repo", "engine", "--files", "opengwasdb/cli.py")
+        self.assertEqual(code, 2, text)
+        self.assertIn("cannot decide: no component claims opengwasdb/cli.py", text)
+        self.assertNotIn("meets no other work", text)
+
+    def test_registry_code_no_component_claims_cannot_be_decided(self) -> None:
+        code, text = run("conflicts", "--data", self.cited(), "--repo", "registry", "--files", "workflow/rules/new.smk")
+        self.assertEqual(code, 2, text)
+        self.assertIn("workflow/rules/new.smk", text)
+
+    def test_a_meet_still_exits_1_beside_an_unplaced_file_and_names_it(self) -> None:
+        code, text = run("conflicts", "--data", self.cited(), "--repo", "engine",
+                         "--files", "opengwasdb/encoding/new.py", "opengwasdb/nowhere/new.py")
+        self.assertEqual(code, 1, text)
+        self.assertIn("UNCOORDINATED", text)
+        self.assertIn("also: no component claims opengwasdb/nowhere/new.py", text)
+
+    def test_files_outside_the_map_are_named_and_do_not_block(self) -> None:
+        code, text = run("conflicts", "--data", self.cited(), "--repo", "engine",
+                         "--files", "opengwasdb/store/x.py", "tests/test_x.py", "docs/spec/x.md")
+        self.assertEqual(code, 0, text)
+        self.assertIn("outside the map (not code a component claims): tests/test_x.py, docs/spec/x.md", text)
+        self.assertIn("meets no other work", text)
+
+    def test_a_branch_with_code_no_component_claims_cannot_be_decided(self) -> None:
+        result = compute(
+            board(epic("opengwasdb#10", "Active", [ticket("opengwasdb#11")])),
+            branch_set(branch("orch/10/11", ["opengwasdb/nowhere/a.py", "tests/test_a.py"], epic="opengwasdb#10",
+                              ticket="opengwasdb#11")),
+        )
+        code, text = run("conflicts", "--data", self.collection(result), "--branch", "orch/10/11")
+        self.assertEqual(code, 2, text)
+        self.assertIn("no component claims opengwasdb/nowhere/a.py", text)
+        self.assertNotIn("tests/test_a.py", text)
+
+    def test_a_failed_branch_fetch_cannot_be_decided(self) -> None:
+        failed = {"ok": False, "error": "fatal: unable to access 'https://github.com/opengwas/opengwasdb/':\n"
+                                        "Could not resolve host: github.com"}
+        code, text = run("conflicts", "--data", self.cited(branch_set(fetch=failed)), "--repo", "engine",
+                         "--files", "opengwasdb/store/x.py")
+        self.assertEqual(code, 2, text)
+        self.assertIn("cannot decide: the fetch failed", text)
+        self.assertIn("Could not resolve host: github.com", text)
+        self.assertEqual(len([line for line in text.splitlines() if line.startswith("cannot decide")]), 1, text)
+        self.assertNotIn("meets no other work", text)
+
+    def test_a_failed_engine_fetch_cannot_be_decided(self) -> None:
+        stale = {**ARCHITECTURE, "engine": {**ARCHITECTURE["engine"],
+                                            "refresh": {"ok": False, "error": "fatal: could not read from remote repository."}}}
+        result = compute(board(), architecture=stale)
+        code, text = run("conflicts", "--data", self.collection(result, stale), "--repo", "registry",
+                         "--files", "src/project_site/x.py")
+        self.assertEqual(code, 2, text)
+        self.assertIn("could not read from remote repository", text)
+
+    def test_a_meet_found_in_data_a_fetch_could_not_refresh_still_exits_1(self) -> None:
+        code, text = run("conflicts", "--data", self.cited(branch_set(fetch={"ok": False, "error": "boom"})),
+                         "--repo", "engine", "--files", "opengwasdb/encoding/new.py")
+        self.assertEqual(code, 1, text)
+        self.assertIn("UNCOORDINATED", text)
+        self.assertIn("also: the fetch failed", text)
+
+
 class OffBoardEpicBranchTests(unittest.TestCase):
     def test_an_epic_branch_is_unlinkable_even_when_its_epic_is_not_on_the_board(self) -> None:
         result = compute(
@@ -324,6 +403,19 @@ class CheckTests(unittest.TestCase):
             engine={**afx.ENGINE_FILES, "docs/architecture/layering-baseline.yaml": "allowed: [\n"}))
         self.assertEqual(code, 1)
         self.assertIn("not valid YAML", text)
+
+    def test_an_engine_fetch_that_fails_is_undecided_not_a_pass(self) -> None:
+        # The fixture engine has no `origin`, so `--refresh` cannot fetch it on any host.
+        code, text = run("check", *self.fixtures(), "--refresh")
+        self.assertEqual(code, 2, text)
+        self.assertIn("cannot check: the fetch failed for the engine's main", text)
+        self.assertIn("origin", text)
+
+    def test_a_failed_engine_fetch_with_a_gap_still_exits_1(self) -> None:
+        code, text = run("check", *self.fixtures(registry={**afx.REGISTRY_FILES, "src/extra/new.py": "x = 1\n"}), "--refresh")
+        self.assertEqual(code, 1, text)
+        self.assertIn("unclaimed: src/extra/new.py", text)
+        self.assertIn("the fetch failed", text)
 
     def test_an_engine_without_a_baseline_says_so_and_still_passes(self) -> None:
         code, text = run("check", *self.fixtures())
