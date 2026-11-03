@@ -40,14 +40,23 @@ installs another, or when the new engine writes a Store format other than
 `REQUIRED_FORMAT_VERSION`: a format change is a deliberate repository change,
 not an update. `pixi run engine-update --check` checks without moving anything.
 
-### One engine per phase
+### Engines within a phase
 
-A phase of a Store Release is built by one engine. A release run refuses to
-reuse a step record of a scheduled phase that another engine wrote, naming both
-commits, and an interrupted `complete-dense` resumes only under the engine that
-started it. `register` refuses a phase whose step records name two commits, and
-records the engine those records name -- not whichever `opengwasdb` is on
-`PATH` when it runs. The pin history these sections used to carry is in git
+Only a step that continues another engine's output is held to that engine. An
+interrupted `complete-dense` resumes only under the engine that started it, as
+`complete.started.json` names it. A start record written before #410 names
+none: its checkpoint resumes only when every step record of its phase names one
+engine and that engine is installed, and is otherwise refused, naming both.
+
+Every other step may run under a newer engine that writes the same Store
+format: re-running `validate`, adding an Indexed Variant Subset, `rho` or the
+overview after `engine-update` needs neither the old engine nor a rebuild. The
+format checks are unchanged: `engine-update` refuses an engine that writes
+another `format_version`, and the guard a completion parent in another format.
+`register` records every engine a phase used, from its step records rather than
+whichever `opengwasdb` is on `PATH` when it runs, in `validation.yaml`'s
+`build_environment.engines`, and keeps `opengwasdb_commit` for the engine that
+wrote the Store. The pin history these sections used to carry is in git
 history.
 
 ## What the pin provides

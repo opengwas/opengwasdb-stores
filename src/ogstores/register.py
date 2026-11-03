@@ -97,6 +97,10 @@ BUILD_ENVIRONMENT_FIELDS: tuple[str, ...] = (
     "opengwasdb_commit",
     "python_version",
     "platform",
+    # Every engine the phase's steps ran, with the steps each ran (#410). The
+    # two `opengwasdb_*` fields above keep naming the engine that wrote the
+    # Store. Records written before #410 do not carry it and are not migrated.
+    "engines",
 )
 # The keys of the `rsid_conflicts` block a Hybrid build reports and `register`
 # copies into the Validation Record (#225): the policy it built under, how many
@@ -1143,39 +1147,59 @@ def _unused_stamp(store_id: str, root: Path) -> str:
     return candidate
 
 
-def phase_engine(
-    store_id: str, planned_steps: list[Step], step_records: Mapping[str, Mapping[str, Any]]
-) -> engine.EngineIdentity:
-    """The one engine a phase's steps ran, read from their records (#253).
+def _recorded_engine(record: Mapping[str, Any]) -> engine.EngineIdentity:
+    """The engine one step record names, `unavailable` for whatever it does not (#253)."""
+    return engine.EngineIdentity(
+        executable=str(record.get("opengwasdb_executable") or engine.UNAVAILABLE),
+        commit=str(record.get("opengwasdb_rev") or engine.UNAVAILABLE),
+        version=str(record.get("opengwasdb_version") or engine.UNAVAILABLE),
+    )
+
+
+def phase_engine(planned_steps: list[Step], step_records: Mapping[str, Mapping[str, Any]]) -> engine.EngineIdentity:
+    """The engine that wrote a phase's Store, read from its step records (#253).
 
     The Store-producing step's record names it: commit, version and executable
     all come from the executable that ran, never from whichever `opengwasdb` is
-    on PATH when register runs. Records naming two different commits mean the
-    phase was built under two engines, and register refuses rather than record
-    either one as the release's.
+    on PATH when register runs. Without a provable one there, the first record,
+    by step name, that names a provable commit. A phase may use more than one
+    engine (#410); `phase_engines` lists them all, and this one is what the
+    single `build_environment` fields keep naming.
     """
-    commits = {
-        name: str(rec.get("opengwasdb_rev"))
-        for name, rec in step_records.items()
-        if engine.is_exact_commit_hash(rec.get("opengwasdb_rev"))
-    }
-    if len(set(commits.values())) > 1:
-        ran = "; ".join(f"{name}: {commit}" for name, commit in sorted(commits.items()))
-        raise RegisterError(
-            f"Cannot register release {store_id}: its steps ran under more than one "
-            f"opengwasdb commit ({ran}). Re-run the phase under one engine."
-        )
     producing = [s.name for s in planned_steps if run.is_store_producing_step(s)]
-    named = producing + sorted(commits)
-    for name in named:
+    for name in producing + sorted(step_records):
         rec = step_records.get(name)
         if rec is not None and engine.is_exact_commit_hash(rec.get("opengwasdb_rev")):
-            return engine.EngineIdentity(
-                executable=str(rec.get("opengwasdb_executable", engine.UNAVAILABLE)),
-                commit=str(rec["opengwasdb_rev"]),
-                version=str(rec.get("opengwasdb_version", engine.UNAVAILABLE)),
-            )
+            return _recorded_engine(rec)
     return engine.EngineIdentity(engine.UNAVAILABLE, engine.UNAVAILABLE, engine.UNAVAILABLE)
+
+
+def phase_engines(
+    planned_steps: list[Step], step_records: Mapping[str, Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    """Every engine a phase's steps ran, each with the steps it ran, in plan order (#410).
+
+    A phase may run under more than one engine of the same format: `validate`
+    re-run, or an Indexed Variant Subset added, after the engine moved. Each
+    distinct commit and version a step record names is one entry, so a record
+    that names no engine is listed as `unavailable` rather than left out.
+    """
+    engines: dict[tuple[str, str], list[str]] = {}
+    for step in planned_steps:
+        rec = step_records.get(step.name)
+        if rec is None:
+            continue
+        ran = _recorded_engine(rec)
+        engines.setdefault((ran.commit, ran.version), []).append(step.name)
+    return [
+        {"opengwasdb_commit": commit, "opengwasdb_version": version, "steps": steps}
+        for (commit, version), steps in engines.items()
+    ]
+
+
+def _validator_version(ran: engine.EngineIdentity) -> str:
+    """`opengwasdb@<commit>`, or `opengwasdb v<version>` when no commit is provable."""
+    return f"opengwasdb@{ran.commit}" if ran.commit != run.UNAVAILABLE else f"opengwasdb v{ran.version}"
 
 
 def register_release(
@@ -1303,8 +1327,12 @@ def register_release(
     # 3. Assemble validation.yaml dictionary
     now_iso = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
-    ran = phase_engine(store_id, planned_steps, step_records)
+    ran = phase_engine(planned_steps, step_records)
     ogdb_exe, ogdb_rev, ogdb_ver = ran.executable, ran.commit, ran.version
+    # The validator is the engine that ran `validate`, which a phase may have
+    # re-run under a newer engine than wrote its Store (#410).
+    validate_record = step_records.get(validate_step)
+    validator = _recorded_engine(validate_record) if validate_record is not None else ran
     store_status = val_status  # `checks.store` is validate's own verdict
     engine_warning = resolver_mismatch(acceptance, ran)
     if engine_warning is not None:
@@ -1322,13 +1350,14 @@ def register_release(
         "validated_at": now_iso,
         "validator": {
             "name": VALIDATOR_NAME,
-            "version": f"opengwasdb@{ogdb_rev}" if ogdb_rev != run.UNAVAILABLE else f"opengwasdb v{ogdb_ver}",
+            "version": _validator_version(validator),
         },
         "build_environment": {
             "opengwasdb_version": ogdb_ver,
             "opengwasdb_commit": ogdb_rev,
             "python_version": sys.version.split()[0],
             "platform": platform.platform(),
+            "engines": phase_engines(planned_steps, step_records),
         },
         "observed": observed,
         "checks": {"store": store_status},

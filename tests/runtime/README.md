@@ -16,9 +16,9 @@ It asserts:
   that does not resolve exactly one;
 - a missing executable, a known different revision, and a runtime missing any
   subcommand a scheduled plan names are refused;
-- a run that would reuse a step record of a scheduled phase that another engine
-  wrote is refused, naming both commits; a scheduled step's own old record is
-  replaced, not reused, so it does not count;
+- a run that re-runs `validate` over step records another engine of the same
+  format wrote is accepted (#410): only a completion checkpoint is held to the
+  engine that started it, which `tests/run/` covers;
 - a scheduled Reference-Completed release whose existing parent Store is format
   0.1.0 is refused, while a 0.2.0 parent or a parent that will be built in the
   same run passes;

@@ -1779,14 +1779,57 @@ class TestResumingAnInterruptedCompletion(unittest.TestCase):
         self.assertTrue(self.checkpoint.is_dir())
         record_check()
 
+    def started_before_410(self) -> None:
+        """Strip the engine from the start record, as a workflow before #410 wrote it."""
+        started = paths.completion_start_path(self.STORE_ID, root=self.root)
+        record = json.loads(started.read_text(encoding="utf-8"))
+        self.assertIn("opengwasdb_rev", record, "the fixture's start record names its engine until stripped")
+        record.pop("opengwasdb_rev")
+        started.write_text(json.dumps(record), encoding="utf-8")
+
+    def test_a_checkpoint_started_before_410_resumes_when_its_phase_and_the_engine_agree(self) -> None:
+        """No engine in the start record: the phase's records name one, and it is installed (#410)."""
+        self.as_engine("a" * 40)
+        step = self.complete("--min-cor", "0.5")
+        self.interrupted(started_by=step)
+        self.started_before_410()
+        interrupted = run.load_record(self.STORE_ID, "complete", root=self.root)
+        self.assertEqual(interrupted["opengwasdb_rev"], "a" * 40, "the interrupted run's record names its engine")
+
+        execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+
+        self.assertEqual(self.called(), ["complete-dense-resume", str(self.checkpoint)])
+        record_check()
+
+    def test_a_checkpoint_started_before_410_is_refused_under_another_engine(self) -> None:
+        """No engine in the start record, and its phase's records name another: refused, naming both (#410)."""
+        self.as_engine("a" * 40)
+        step = self.complete("--min-cor", "0.5")
+        self.interrupted(started_by=step)
+        self.started_before_410()
+        self.as_engine("b" * 40)
+
+        with self.assertRaises(ValueError) as ctx:
+            execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)
+
+        message = str(ctx.exception)
+        self.assertIn("a" * 40, message)
+        self.assertIn("b" * 40, message)
+        self.assertIn("--config force=1", message)
+        self.assertIsNone(self.called(), "nothing ran")
+        self.assertTrue(self.checkpoint.is_dir())
+        record_check()
+
     def test_a_checkpoint_whose_start_names_no_engine_is_refused(self) -> None:
-        """A start record written before the engine was recorded cannot prove which one made the checkpoint."""
+        """A start record written before the engine was recorded, and records that cannot prove one either."""
         step = self.complete("--min-cor", "0.5")
         self.interrupted(started_by=step)
         started = paths.completion_start_path(self.STORE_ID, root=self.root)
         record = json.loads(started.read_text(encoding="utf-8"))
         record.pop("opengwasdb_rev", None)
         started.write_text(json.dumps(record), encoding="utf-8")
+        interrupted = run.load_record(self.STORE_ID, "complete", root=self.root)
+        self.assertFalse(is_exact_commit_hash(interrupted["opengwasdb_rev"]), "no engine is provable")
 
         with self.assertRaises(ValueError) as ctx:
             execute_step(step, self.STORE_ID, artifact_root=self.root, resume=True)

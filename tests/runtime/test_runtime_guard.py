@@ -303,22 +303,23 @@ class RuntimeGuardTestCase(unittest.TestCase):
             encoding="utf-8",
         )
 
-    def test_a_phase_resumed_under_another_engine_is_refused(self) -> None:
-        """`build` ran under `e…e`; the run would reuse it and finish the phase under the locked engine."""
+    def test_validate_rerun_over_another_engines_records_is_accepted(self) -> None:
+        """`build` ran under `e…e`; re-running `validate` under the locked engine is accepted (#410).
+
+        Only a step that continues another engine's output, a completion
+        checkpoint, is held to that engine (`run.resume_argv_for_completion`).
+        """
         self._write_bundle("OGS-00090")
         self._record("OGS-00090", "build", "e" * 40)
+        self.assertNotEqual("e" * 40, LOCKED, "the record must name another engine")
         capable = self._runnable("capable", commands={"validate"})
-        with self.assertRaises(runtime.RuntimeRevisionError) as ctx:
-            runtime.verify_runtime_for_releases(
-                [self._job("OGS-00090", "validate")],
-                registry_root=self.registry,
-                executable=str(capable.executable),
-            )
+        identity = runtime.verify_runtime_for_releases(
+            [self._job("OGS-00090", "validate")],
+            registry_root=self.registry,
+            executable=str(capable.executable),
+        )
+        self.assertEqual(identity.revision, LOCKED)
         record_check()
-        message = str(ctx.exception)
-        self.assertIn("e" * 40, message)
-        self.assertIn(LOCKED, message)
-        self.assertIn("build", message)
 
     def test_a_phase_resumed_under_the_same_engine_passes(self) -> None:
         self._write_bundle("OGS-00090")

@@ -860,11 +860,12 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `status` | Yes | `not_run`, `passed`, `failed`, or `passed_with_warnings`. The release-level verdict. |
 | `validated_at` | No | Timestamp of the latest validation run. |
 | `validator.name` | No | The validator that produced the verdict. `register` writes `opengwasdb validate`; a deleted generator adapter is never named (issue #135). |
-| `validator.version` | No | Validator version, git commit, or script hash. `register` writes `opengwasdb@<commit>`. |
-| `build_environment.opengwasdb_version` | No | `opengwasdb` package version the record was produced against. |
-| `build_environment.opengwasdb_commit` | No | `opengwasdb` revision the record was produced against. |
+| `validator.version` | No | Validator version, git commit, or script hash. `register` writes `opengwasdb@<commit>` of the engine that ran `validate`, from its step record (#410). |
+| `build_environment.opengwasdb_version` | No | `opengwasdb` package version the record was produced against. `register` writes the version of the engine that wrote the Store, from the Store-producing step's record (#253). |
+| `build_environment.opengwasdb_commit` | No | `opengwasdb` revision the record was produced against. `register` writes the commit of the engine that wrote the Store, from the Store-producing step's record (#253); before #253 it was the `opengwasdb` on `PATH` when `register` ran. |
 | `build_environment.python_version` | No | Python version of the registering environment. |
 | `build_environment.platform` | No | Platform string of the registering environment. |
+| `build_environment.engines` | No | Every engine the phase's step records name, in plan order, each with `opengwasdb_commit`, `opengwasdb_version` and the `steps` it ran (#410). One entry for a phase run under one engine; more when a step was re-run or added under a newer engine of the same Store format. A record naming no engine is listed under `unavailable`. `register` writes it from #410 on; records written before it do not carry it and are not migrated. OGS-00011's names one engine although its step records name three. |
 | `observed.format_version` | Yes | OpenGWASDB store format version the build reported, or `null` when it was not recorded. `register` never assumes one. Until #195 it defaulted to `"1.0"`, which is why OGS-00001..3 record `"1.0"` for Stores whose manifests say `0.1.0`. |
 | `observed.n_analyses` | Yes | Analysis count the build reported, or `null` when it was not recorded. |
 | `observed.n_variants` | Yes | Variant count the build reported, or `null` when it was not recorded. |

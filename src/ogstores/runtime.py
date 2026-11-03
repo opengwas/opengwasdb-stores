@@ -299,32 +299,6 @@ def _produces_store(jobs: Iterable[ScheduledJob]) -> set[tuple[str, str]]:
     }
 
 
-def _reused_from_another_engine(
-    jobs: Iterable[ScheduledJob], *, registry_root: Path | str, commit: str
-) -> list[str]:
-    """`<store> <step> (<commit>)` for each record this run reuses that another engine wrote (#253).
-
-    A step of a scheduled phase that is not itself scheduled keeps its record:
-    Snakemake reuses it, so the phase would be finished by this engine on top of
-    work another one did. A scheduled step's old record is replaced, so it is
-    not reused. Records naming no provable commit are left to register.
-    """
-    reused: list[str] = []
-    for (root, store_id), steps in sorted(_steps_by_store(jobs).items()):
-        if not steps:
-            continue
-        planned = _planned_steps(store_id, registry_root=registry_root, artifact_root=root)
-        phases = {step.phase for step in planned if step.name in steps}
-        for step in planned:
-            if step.phase not in phases or step.name in steps:
-                continue
-            record = run.load_record(store_id, step.name, root=root) or {}
-            recorded = record.get("opengwasdb_rev")
-            if engine.is_exact_commit_hash(recorded) and recorded != commit:
-                reused.append(f"{store_id} {step.name} ({recorded})")
-    return reused
-
-
 def verify_runtime_for_releases(
     scheduled: Iterable[tuple],
     *,
@@ -366,14 +340,14 @@ def verify_runtime_for_releases(
     refusal = engine.mismatch(ran, expected)
     if refusal is not None:
         raise RuntimeRevisionError(refusal)
-    reused = _reused_from_another_engine(jobs, registry_root=registry_root, commit=revision)
-    if reused:
-        raise RuntimeRevisionError(
-            f"this run would finish a phase under opengwasdb {revision} that another engine "
-            f"started: it reuses {'; '.join(reused)}. One phase is built by one engine. "
-            "Install the engine that started it (check out its pixi.lock and `pixi install`), "
-            "or rebuild the release with `--config force=1`."
-        )
+    # A scheduled step may run over records another engine wrote: re-running
+    # `validate`, adding an Indexed Variant Subset, `rho` or `overview` under a
+    # newer engine of the same format is allowed, and `register` records every
+    # engine the phase used (#410). Only a step that continues another engine's
+    # output, a completion checkpoint, is held to that engine
+    # (`run.resume_argv_for_completion`). The format check is unchanged: a
+    # two-id child's completion parent must be in `REQUIRED_FORMAT_VERSION`,
+    # checked below.
 
     steps_by_store = _steps_by_store(jobs)
     produced = _produces_store(jobs)

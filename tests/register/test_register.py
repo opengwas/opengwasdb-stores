@@ -541,19 +541,63 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         )
         self.assertEqual(written["validator"]["version"], "opengwasdb@a9e8bc825af692cdb5bb7cba39d56d11654fcebe")
 
-    def test_a_phase_run_under_two_engines_is_refused(self) -> None:
-        """One phase's steps ran under two engine commits: register refuses, naming both (#253)."""
+    def test_a_phase_run_under_one_engine_lists_it_once(self) -> None:
+        """`build_environment.engines` names the one engine and every step it ran (#253, #410)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00051")
+        planned = [s.name for s in plan(b, artifact_root=artifact_root)]
+        self.assertEqual(planned, ["build", "top-hits", "overview", "validate"], "the fixture's phase")
+
+        register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        written = yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(
+            written["build_environment"]["engines"],
+            [
+                {
+                    "opengwasdb_commit": "a9e8bc825af692cdb5bb7cba39d56d11654fcebe",
+                    "opengwasdb_version": "0.3.0",
+                    "steps": planned,
+                }
+            ],
+        )
+
+    def test_validate_rerun_under_a_newer_engine_records_both_engines(self) -> None:
+        """`validate` re-run under another engine of the same format: register records both (#410).
+
+        The single fields keep naming the engine that wrote the Store, so a
+        reader of `opengwasdb_commit` reads what it always read; the validator
+        is the engine that ran `validate`.
+        """
         b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00051")
         validate_p = paths.record_path("OGS-00051", "validate", root=artifact_root)
         validate = json.loads(validate_p.read_text(encoding="utf-8"))
         validate["opengwasdb_rev"] = "b" * 40
+        validate["opengwasdb_version"] = "0.3.3"
         run._write_record_atomically(validate, validate_p)
+        build = run.load_record("OGS-00051", "build", root=artifact_root)
+        self.assertEqual(build["opengwasdb_rev"], "a9e8bc825af692cdb5bb7cba39d56d11654fcebe")
 
-        with self.assertRaises(register.RegisterError) as ctx:
-            register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
-        self.assertIn("b" * 40, str(ctx.exception))
-        self.assertIn("a9e8bc825af692cdb5bb7cba39d56d11654fcebe", str(ctx.exception))
-        self.assertFalse((b.root / "validation.yaml").exists(), "nothing is written")
+        register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        written = yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
+        environment = written["build_environment"]
+        self.assertEqual(
+            (environment["opengwasdb_commit"], environment["opengwasdb_version"]),
+            ("a9e8bc825af692cdb5bb7cba39d56d11654fcebe", "0.3.0"),
+        )
+        self.assertEqual(
+            environment["engines"],
+            [
+                {
+                    "opengwasdb_commit": "a9e8bc825af692cdb5bb7cba39d56d11654fcebe",
+                    "opengwasdb_version": "0.3.0",
+                    "steps": ["build", "top-hits", "overview"],
+                },
+                {"opengwasdb_commit": "b" * 40, "opengwasdb_version": "0.3.3", "steps": ["validate"]},
+            ],
+        )
+        self.assertEqual(written["validator"]["version"], "opengwasdb@" + "b" * 40)
+        self.assertEqual(written["status"], "passed", "a second engine is recorded, not warned about")
 
     def test_written_record_matches_the_documented_register_shape(self) -> None:
         """The written validation.yaml carries exactly the canonical register keys (issue #135).

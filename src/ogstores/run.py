@@ -436,6 +436,64 @@ def _started_completion_argv(store_id: str, root: Path | str) -> list[str] | Non
     return argv if isinstance(argv, list) else None
 
 
+def _phase_record_engines(step: Step, store_id: str, root: Path | str) -> dict[str, str]:
+    """`{record: the engine commit it names}` for each step record of `step`'s phase on disk (#410).
+
+    A completion phase's records are `complete` and the `completion-` ones; a
+    build phase's are the others (`plan.COMPLETION_STEP_PREFIX`, ADR 0037). A
+    file that is not a step's record is not one of them. A record naming no
+    engine maps to what it names, `unavailable` when nothing, so the caller
+    sees it rather than skipping it.
+    """
+    records_dir = paths.record_path(store_id, step.name, root=root).parent
+    engines: dict[str, str] = {}
+    for record_p in sorted(records_dir.glob("*.json")):
+        name = record_p.stem
+        try:
+            validate_step_name(name)
+        except ValueError:
+            continue
+        completion_named = name.startswith(COMPLETION_STEP_PREFIX)
+        in_phase = (completion_named or name == step.name) if step.phase == COMPLETION_PHASE else not completion_named
+        if name == "unknown" or not in_phase:
+            continue
+        record = load_record(store_id, name, root=root) or {}
+        engines[name] = str(record.get("opengwasdb_rev") or UNAVAILABLE)
+    return engines
+
+
+def _require_phase_engine(
+    step: Step, store_id: str, root: Path | str, checkpoint: Path, current: str
+) -> None:
+    """Refuse to resume a checkpoint whose start record names no engine, unless its phase's records prove it (#410).
+
+    Such a start record was written before the engine was recorded. Its
+    checkpoint is resumed only when every step record of the phase names one
+    engine and that engine is the one installed: the records are then the only
+    evidence of which engine started it, and they agree.
+    """
+    recorded = _phase_record_engines(step, store_id, root)
+    named = set(recorded.values())
+    if len(named) == 1 and engine.is_exact_commit_hash(current) and named == {current}:
+        return
+    listed = "; ".join(f"{name}: {commit}" for name, commit in sorted(recorded.items()))
+    evidence = f"The records name {listed}" if listed else "The phase has no step record"
+    only = next(iter(named)) if len(named) == 1 else None
+    remedy = (
+        f"Install opengwasdb {only} (check out the pixi.lock that names it and `pixi install`), "
+        "or `--config force=1` discards the checkpoint and rebuilds the release."
+        if only is not None and engine.is_exact_commit_hash(only)
+        else "`--config force=1` discards the checkpoint and rebuilds the release."
+    )
+    raise ValueError(
+        f"Step {step.name!r} for {store_id} would resume the checkpoint {checkpoint}, whose start record "
+        f"({paths.completion_start_path(store_id, root=root)}) names no engine: it was written before "
+        f"the engine was recorded. It resumes only when every step record of its {step.phase} phase names "
+        f"one engine and that engine is installed. {evidence}; the installed engine is "
+        f"opengwasdb {current}. Nothing was resumed. {remedy}"
+    )
+
+
 def resume_argv_for_completion(
     step: Step,
     executed_argv: list[str],
@@ -459,7 +517,10 @@ def resume_argv_for_completion(
     discards a checkpoint, even for a planned `--overwrite`; a forced run's
     preflight does (`prepare_release_run`). `register` accepts the
     substitution and records the release as resumed. The checkpoint is resumed
-    only by the engine that started it, as the record names it (#253).
+    only by the engine that started it, as the record names it (#253). A start
+    record written before the engine was recorded (#410) resumes only when
+    every step record of the step's phase names one engine and that engine is
+    the one installed (`_require_phase_engine`).
     """
     checkpoint = paths.completion_checkpoint_path(store_id, root=artifact_root)
     if step.name != "complete" or executed_argv[1:2] != [COMPLETE_DENSE] or not _lstat_exists(checkpoint):
@@ -478,9 +539,12 @@ def resume_argv_for_completion(
             f"from another plan: {argv_change(started, list(step.argv))}. Nothing was resumed. "
             "`--config force=1` discards it and rebuilds the release."
         )
-    started_by = _started_completion(store_id, artifact_root).get("opengwasdb_rev")
+    started_record = _started_completion(store_id, artifact_root)
     current = engine.executable_commit(get_opengwasdb_executable(executed_argv[0], env=env), env)
-    if started_by != current:
+    started_by = started_record.get("opengwasdb_rev")
+    if "opengwasdb_rev" not in started_record:
+        _require_phase_engine(step, store_id, artifact_root, checkpoint, current)
+    elif started_by != current:
         written = f"opengwasdb {started_by}" if started_by else "an engine its start record does not name"
         raise ValueError(
             f"Step {step.name!r} for {store_id} would resume the checkpoint {checkpoint}, which "
