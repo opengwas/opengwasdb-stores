@@ -1363,6 +1363,7 @@
          "hasNextPage": false
         }
        },
+       "body": "Pin to a tag. The module `opengwasdb.encoding.se_range` and opengwasdb/store/paths.py change, see https://github.com/opengwas/opengwasdb/blob/main/opengwasdb/query/facade.py.",
        "number": 333,
        "repository": {
         "nameWithOwner": "opengwas/opengwasdb"
@@ -1403,6 +1404,7 @@
          "hasNextPage": false
         }
        },
+       "body": "Read the pin in `src/ogstores/paths.py` and `pixi.lock`. Closes the v0.3.2 gap.",
        "number": 387,
        "repository": {
         "nameWithOwner": "opengwas/opengwasdb-stores"
@@ -1489,6 +1491,7 @@
          "hasNextPage": false
         }
        },
+       "body": "No code is named in this ticket.",
        "number": 391,
        "repository": {
         "nameWithOwner": "opengwas/opengwasdb-stores"
@@ -4532,6 +4535,7 @@
         {
          "content": {
           "__typename": "Issue",
+          "body": "The site draws the project from its data.\n\nPages live in `src/project_site/pages.py`; see also the site notes (e.g. docs/site.md).",
           "closedAt": null,
           "issueType": {
            "name": "Epic"

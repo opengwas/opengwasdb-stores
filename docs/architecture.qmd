@@ -1,0 +1,11 @@
+---
+title: "Pipeline"
+---
+
+The path data takes from a source file to a query: the stages, the components of both repositories that do each one, and the ADRs that govern them.
+
+**This page is generated at render time** by
+[`src/project_site/architecture_pages.py`](../src/project_site/architecture_pages.py)
+from the architecture collector's data and both repositories'
+`docs/architecture/components.yaml`; the render replaces this file. Run
+`pixi run site-data` and then `pixi run site` to see it.
