@@ -1,0 +1,211 @@
+# This repository's imports of engine modules: the seam epic #416 decision 14
+# bounds. The engine's own CLAUDE.md says this repository depends on its command
+# line and its manifest columns; in fact 24 files here import 32 of its modules
+# directly, 91 imports in all, and each is a coupling nobody decided on that an
+# engine refactor can break.
+#
+# tests/project-site-architecture/test_engine_imports_baseline.py measures them
+# with the import graph the site's architecture collector uses, and fails on an
+# import this file does not list and on a listed import that has gone. The site's
+# "Structure and health" page states this file's size next to the seam between
+# the repositories, so the number on the page is this file's.
+#
+# One entry per (importing file, imported name), as the source writes it and
+# package-qualified. That is the engine's unit too (its layering baseline,
+# docs/architecture/layering-baseline.yaml in opengwas/opengwasdb). Not a count,
+# and not one per module: a file importing three names of one engine module is
+# three entries, and a count would let a new import hide behind a fixed one.
+#
+# A person reviews and commits this list; agents never add to it, the same rule
+# as the quality gates. It only ever shrinks: a new engine import fails CI, and
+# the fix is to go through the engine's command line or its manifest columns, not
+# to add a line here. A coupling that a person decides on is the one exception,
+# and it lands in the pull request that takes the decision.
+#
+# Measured on the branch that added this file (orch/416/421): 91 imports over 24
+# files.
+# The measurement needs no engine checkout and no engine model: a name is the
+# engine's when it is `opengwasdb` or under it.
+imports:
+  - file: src/analysis_catalog/policy.py
+    name: opengwasdb.model.analyses
+  - file: src/analysis_catalog/policy.py
+    name: opengwasdb.model.enums.SampleSizeKind
+  - file: src/manifest_generation/candidate_workflow.py
+    name: opengwasdb.build.resolve_manifest
+  - file: src/manifest_generation/candidate_workflow.py
+    name: opengwasdb.model.analyses
+  - file: src/manifest_generation/candidate_workflow.py
+    name: opengwasdb.readers.column_map.ColumnMapError
+  - file: src/manifest_generation/candidate_workflow.py
+    name: opengwasdb.readers.column_map.load_column_map
+  - file: src/manifest_generation/candidate_workflow.py
+    name: opengwasdb.readers.column_map.normalise_build
+  - file: src/manifest_generation/generation_rules.py
+    name: opengwasdb.model.analyses
+  - file: src/manifest_generation/providers/eqtlgen/sample_size_table.py
+    name: opengwasdb.layouts.ragged.besd_reader.BESDReader
+  - file: src/manifest_generation/providers/eqtlgen/sample_size_table.py
+    name: opengwasdb.layouts.ragged.besd_reader.iter_esi
+  - file: src/manifest_generation/providers/eqtlgen/sample_size_table.py
+    name: opengwasdb.layouts.ragged.besd_reader.read_epi
+  - file: src/manifest_generation/providers/eqtlgen/subset_besd.py
+    name: opengwasdb.layouts.ragged.besd_reader.BESDReader
+  - file: src/manifest_generation/providers/eqtlgen/subset_besd.py
+    name: opengwasdb.layouts.ragged.besd_reader.ProbeRecord
+  - file: src/manifest_generation/providers/eqtlgen/subset_besd.py
+    name: opengwasdb.layouts.ragged.besd_reader.read_epi
+  - file: src/manifest_generation/providers/eqtlgen/subset_besd.py
+    name: opengwasdb.layouts.ragged.besd_reader.read_esi
+  - file: src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_eur_hybrid.py
+    name: opengwasdb.readers.effect_source.EffectSourceKind
+  - file: src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_eur_hybrid.py
+    name: opengwasdb.readers.effect_source.resolve_effect_source
+  - file: src/manifest_generation/providers/gwas_catalog/download_ebi_gwas_catalog_eur_hybrid.py
+    name: opengwasdb.readers.effect_source.resolve_sample_size_column
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.ancestry.mixture.AncestryAssignment
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.ancestry.mixture.Gates
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.ancestry.reference.AncestryReference
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.ancestry.reference.load_reference
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.build.resolve.AnalysisRequest
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.build.resolve.AnalysisResolution
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.build.resolve.DEFAULT_EVIDENCE_SAMPLE
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.build.resolve.SdReason
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.build.resolve.SdStatus
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.build.resolve.resolve_analysis
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.model.enums.OriginalSdMethod
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.model.enums.StoredEffectScale
+  - file: src/manifest_generation/qc_panel_concordance.py
+    name: opengwasdb.readers.gwas_ssf.GwasSsfReader
+  - file: src/manifest_generation/release_config.py
+    name: opengwasdb.model.enums.OriginalSdMethod
+  - file: src/manifest_generation/release_config.py
+    name: opengwasdb.model.enums.SampleSizeKind
+  - file: src/manifest_generation/release_config.py
+    name: opengwasdb.model.enums.SampleSizeScope
+  - file: src/manifest_generation/release_config.py
+    name: opengwasdb.model.enums.StoredEffectScale
+  - file: src/manifest_generation/schema_validate.py
+    name: opengwasdb.model.analyses.read_analyses
+  - file: src/manifest_generation/schema_validate.py
+    name: opengwasdb.model.analyses.validate_analyses
+  - file: src/manifest_generation/source_metadata_table.py
+    name: opengwasdb.model.enums.StoredEffectScale
+  - file: src/ogstores/audit.py
+    name: opengwasdb.build.row_admission.admit_rows
+  - file: src/ogstores/audit.py
+    name: opengwasdb.encoding.plan.EAF_ABSENT
+  - file: src/ogstores/audit.py
+    name: opengwasdb.encoding.plan.EAF_EXCEPTION
+  - file: src/ogstores/audit.py
+    name: opengwasdb.encoding.plan.Z_MISSING
+  - file: src/ogstores/audit.py
+    name: opengwasdb.layouts.hybrid.layout.dense_component_path
+  - file: src/ogstores/audit.py
+    name: opengwasdb.layouts.hybrid.layout.dense_to_shared_path
+  - file: src/ogstores/audit.py
+    name: opengwasdb.layouts.ragged.by_variant.ByVariantReader
+  - file: src/ogstores/audit.py
+    name: opengwasdb.model.analyses.read_analysis_records
+  - file: src/ogstores/audit.py
+    name: opengwasdb.model.info_score_policy.parse_info_score_policy
+  - file: src/ogstores/audit.py
+    name: opengwasdb.model.maf_policy.parse_maf_policy
+  - file: src/ogstores/audit.py
+    name: opengwasdb.readers.interface.parse_imputation_score
+  - file: src/ogstores/audit.py
+    name: opengwasdb.stats.parse_af
+  - file: src/ogstores/audit.py
+    name: opengwasdb.store.arrays.array_length
+  - file: src/ogstores/audit.py
+    name: opengwasdb.store.open.open_store
+  - file: src/ogstores/audit.py
+    name: opengwasdb.variants.axis.VariantAxis
+  - file: src/ogstores/audit.py
+    name: opengwasdb.variants.axis.parse_canonical_alid
+  - file: src/ogstores/audit.py
+    name: opengwasdb.variants.axis.variant_alid_bytes_path
+  - file: src/ogstores/audit.py
+    name: opengwasdb.variants.axis.variant_alid_rows_path
+  - file: src/ogstores/audit.py
+    name: opengwasdb.variants.axis.variant_table_path
+  - file: src/ogstores/audit.py
+    name: opengwasdb.variants.iter_variant_records
+  - file: src/ogstores/audit.py
+    name: opengwasdb.variants.normalise.VariantNormalisationError
+  - file: src/ogstores/audit.py
+    name: opengwasdb.variants.normalise.normalise_chromosome
+  - file: src/ogstores/audit.py
+    name: opengwasdb.variants.read_variant_reference
+  - file: src/ogstores/bundle.py
+    name: opengwasdb.model.analyses
+  - file: src/ogstores/bundle.py
+    name: opengwasdb.readers.column_map.BUILTIN_COLUMN_MAPS
+  - file: src/ogstores/bundle.py
+    name: opengwasdb.readers.column_map.load_column_map
+  - file: src/ogstores/readiness.py
+    name: opengwasdb
+  - file: src/ogstores/readiness.py
+    name: opengwasdb.model.analyses
+  - file: src/ogstores/readiness.py
+    name: opengwasdb.store.open.OpenGWASDBStore
+  - file: src/ogstores/se_reencode.py
+    name: opengwasdb.reencode.plan_se_reencode
+  - file: src/ogstores/se_reencode.py
+    name: opengwasdb.reencode.reencode_se_codecs
+  - file: src/yardstick/measure.py
+    name: opengwasdb.layouts.dense.indexed_subsets.open_indexed_subset
+  - file: src/yardstick/measure.py
+    name: opengwasdb.query.query_store
+  - file: tools/benchmarks/observed-view-check.py
+    name: opengwasdb.encoding.DenseEafPlane
+  - file: tools/benchmarks/observed-view-check.py
+    name: opengwasdb.encoding.DenseSePlane
+  - file: tools/benchmarks/observed-view-check.py
+    name: opengwasdb.encoding.DenseZPlane
+  - file: tools/benchmarks/observed-view-check.py
+    name: opengwasdb.store.open.open_store
+  - file: tools/check_allele_orientation.py
+    name: opengwasdb.query.query_store
+  - file: tools/check_allele_orientation.py
+    name: opengwasdb.readers.gwas_ssf.GwasSsfReader
+  - file: tools/ld-panel/compare_eur_imputation.py
+    name: opengwasdb.completion.impute.impute_z_block
+  - file: tools/ld-panel/compare_eur_imputation.py
+    name: opengwasdb.completion.impute.scalar_n_se
+  - file: tools/ld-panel/compare_eur_imputation.py
+    name: opengwasdb.encoding.DenseZPlane
+  - file: tools/ld-panel/compare_eur_imputation.py
+    name: opengwasdb.store.open.open_store
+  - file: tools/ld-panel/heldout_calibration.py
+    name: opengwasdb.completion.impute.impute_z_block
+  - file: tools/ld-panel/smoke_test_consumer.py
+    name: opengwasdb.completion.ld_panel.list_all_blocks
+  - file: tools/ld-panel/smoke_test_consumer.py
+    name: opengwasdb.completion.ld_panel.load_ld_eigenvectors
+  - file: tools/ld-panel/verify_block.py
+    name: opengwasdb.completion.ld_panel.canonical_panel_alid
+  - file: tools/ld-panel/verify_block.py
+    name: opengwasdb.completion.ld_panel.list_all_blocks
+  - file: tools/ld-panel/verify_block.py
+    name: opengwasdb.completion.ld_panel.load_ld_eigenvectors
+  - file: tools/reference-resources/gnomad-v4-common-hg38/verify_axis_coverage.py
+    name: opengwasdb.readers.gwas_ssf.GwasSsfReader
+  - file: tools/reference-resources/gnomad-v4-common-hg38/verify_axis_coverage.py
+    name: opengwasdb.variants.reference.read_variant_reference
+  - file: tools/reference-resources/hapmap3-hg38/verify_hm3_resource.py
+    name: opengwasdb.variants.axis.parse_canonical_alid
+  - file: tools/reference-resources/qc-panel-hg38/build_qc_panel.py
+    name: opengwasdb.ancestry.reference.load_reference

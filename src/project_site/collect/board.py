@@ -11,6 +11,8 @@ import json
 import re
 from typing import Any
 
+from project_site.collect import plans
+from project_site.collect.architecture_adrs import cited_strings
 from project_site.collect.common import CollectError, GhRunner
 
 OWNER = "opengwas"
@@ -48,7 +50,7 @@ query($owner: String!, $number: Int!, $after: String) {
 """ % ISSUE_FIELDS
 
 CHILD_FIELDS = """
-  number title url state
+  number title url state body
   repository { nameWithOwner }
   blockedBy(first: 50) { pageInfo { hasNextPage endCursor } nodes { number state repository { nameWithOwner } } }
 """
@@ -292,10 +294,12 @@ def parse(raw: dict[str, Any]) -> dict[str, Any]:
     children = {
         key: [
             {
+                **({"plan": plan} if (plan := plans.parse(c.get("body"))) is not None else {}),
                 "key": issue_key(c["repository"], c["number"]),
                 "title": c["title"],
                 "url": c["url"],
                 "state": c["state"],
+                "cited": cited_strings(c.get("body")),
                 "blocked_by": [
                     {"key": issue_key(b["repository"], b["number"]), "state": b["state"]}
                     for b in c["blockedBy"]["nodes"]
@@ -316,7 +320,8 @@ def parse(raw: dict[str, Any]) -> dict[str, Any]:
                 repo = content["repository"]["nameWithOwner"].split("/")[-1]
                 milestones.append({**item, "lines": checklist(content.get("body"), repo)})
             elif is_epic(content):
-                epics.append({**item, "purpose": purpose_of(content.get("body")), "children": children[item["key"]]})
+                epics.append({**item, "purpose": purpose_of(content.get("body")),
+                              "cited": cited_strings(content.get("body")), "children": children[item["key"]]})
             else:
                 items.append(item)
     return {"project": f"{OWNER}/{PROJECT_NUMBER}", "epics": epics, "milestones": milestones, "items": items}
