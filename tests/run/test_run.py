@@ -2384,6 +2384,55 @@ class TestObservedViewCheckFailureMessage(unittest.TestCase):
         record_check()
         self.assertEqual(message, self.mismatch("target_observed_not_in_source=1, imputed_outside_retained=2"))
 
+    # A part the check did not compare holds `null` counters rather than 0
+    # (opengwasdb#375). The pinned runtime moves, so the reading takes a verdict
+    # from either one: an integer stays its count, and `null` reads as uninspected.
+
+    def test_an_unchecked_counter_is_named_unchecked_never_none_and_never_zero(self) -> None:
+        message = self.message(
+            1,
+            self.verdict(
+                totals={"z_mismatch": None, "se_mismatch": None},
+                failures=["z_mismatch", "se_mismatch"],
+            ),
+        )
+        record_check()
+        self.assertIn("z_mismatch=unchecked", message)
+        self.assertIn("se_mismatch=unchecked", message)
+        self.assertNotIn("None", message)
+
+    def test_a_verdict_with_a_skipped_part_still_names_what_was_compared(self) -> None:
+        message = self.message(
+            1,
+            self.hybrid_verdict(
+                components={
+                    "dense": {
+                        "axis": {"parent_rows_unmapped": 0, "order_preserved": True},
+                        "totals": dict.fromkeys(("z_mismatch", "inserted_observed_cells"), None),
+                    },
+                    "overflow": {
+                        "axis": {
+                            "parent_rows_unmapped": 0,
+                            "order_preserved": True,
+                            "child_dense_rows_unshared": 0,
+                            "child_dense_order_preserved": True,
+                        },
+                        "totals": {
+                            "parent_associations": None, "crossovers": None,
+                            "child_associations": None, "eaf_mismatch": 4,
+                        },
+                        "all_analyses": {
+                            "observed_in_both": None, "imputed_cells": None,
+                            "analyses_count_mismatch": None,
+                        },
+                    },
+                },
+                failures=["overflow.eaf_mismatch"],
+            ),
+        )
+        record_check()
+        self.assertEqual(message, self.mismatch("overflow.eaf_mismatch=4"))
+
 
 class TestFirstJsonObject(unittest.TestCase):
     """The one decoder of a verdict a step prints on stdout (#306, #309).

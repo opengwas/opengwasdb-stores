@@ -1789,6 +1789,17 @@ def first_json_object(text: str) -> dict[str, Any]:
     return value
 
 
+def _counted(value: Any) -> str:
+    """One counter as the message reads it: `unchecked` where no cell was inspected.
+
+    A runtime that did not compare a part writes that part's counters as `null`
+    (opengwasdb#375) and one that compared it writes an integer; both are read here, so
+    the message does not depend on the pinned runtime. An unchecked counter is never
+    rendered as `None` and never as 0, which would read as a clean census.
+    """
+    return "unchecked" if value is None else str(value)
+
+
 def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
     """Each name in a verdict's `failures`, with its count where the verdict holds one.
 
@@ -1800,8 +1811,9 @@ def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
     failures carry their counts elsewhere: the part's
     `axis.parent_rows_unmapped` and `axis.order_preserved`, the Overflow's
     `axis.child_dense_rows_unshared` and `axis.child_dense_order_preserved`,
-    and `analyses.identical`. A failure of a part this reading does not know
-    is named alone, so it never hides the other counts.
+    and `analyses.identical`. A counter the verdict holds as `null` was not
+    inspected, and is named `unchecked` (opengwasdb#375). A failure of a part
+    this reading does not know is named alone, so it never hides the other counts.
     """
     analyses = verdict["analyses"]
     named: list[str] = []
@@ -1833,7 +1845,7 @@ def _observed_view_failure_counts(verdict: Mapping[str, Any]) -> str:
             )
         else:
             totals = {**section["totals"], **section.get("all_analyses", {})}
-            named.append(f"{name}={totals[counter]}" if counter in totals else name)
+            named.append(f"{name}={_counted(totals[counter])}" if counter in totals else name)
     return ", ".join(named)
 
 
