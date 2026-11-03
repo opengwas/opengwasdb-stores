@@ -25,8 +25,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ogstores import paths
-from ogstores.runtime import lock_pin_revisions
+from ogstores import engine, paths
 from yardstick import fixture, proc, veeam
 from yardstick import result as result_spec
 from yardstick import workload as workload_spec
@@ -52,12 +51,16 @@ def _now() -> float:
 RESULTS_DIR = workload_spec.REPO_ROOT / "docs" / "_yardstick"
 
 
-def pinned_revision(lock: Path | None = None) -> str:
-    """The opengwasdb revision this checkout's pixi.lock pins."""
-    found = lock_pin_revisions(lock or workload_spec.REPO_ROOT / "pixi.lock")
-    if len(found) != 1:
-        raise RuntimeError(f"pixi.lock pins {len(found)} opengwasdb revisions: {sorted(found)}")
-    return found.pop()
+def engine_identity() -> dict[str, str]:
+    """The opengwasdb the workers run: they import it in-process, from this interpreter.
+
+    Version and commit both come from that install (#253), and a commit it
+    cannot prove is refused rather than recorded.
+    """
+    ran = engine.in_process()
+    if not ran.is_provable():
+        raise RuntimeError(f"cannot prove which opengwasdb commit this run uses (got {ran.commit!r})")
+    return {"version": ran.version, "revision": ran.commit}
 
 
 def _git_output(*args: str) -> str:
@@ -229,7 +232,7 @@ def run(
             "schema": result_spec.SCHEMA_VERSION,
             "workload_id": workload["workload_id"],
             "workload_sha256": workload_spec.sha256(workload_path) if workload_path.is_file() else "",
-            "opengwasdb": {"version": importlib.metadata.version("opengwasdb"), "revision": pinned_revision()},
+            "opengwasdb": engine_identity(),
             "ogstores": ogstores_identity(),
             "host": {"name": socket.gethostname(), "cpu_count": os.cpu_count() or 1},
             "load_average": {"before": load_before, "after": list(os.getloadavg())},

@@ -4,7 +4,7 @@ The ordinary release invocation is `pixi run release`. This module is the one
 place that proves, *before any artifact is written*, that the `opengwasdb`
 runtime that run will actually execute:
 
-* is the environment's tracked, immutable pin (the pixi lock's git revision),
+* is the engine `pixi.lock` resolves (`ogstores.engine.locked_commit`),
   so a supported run cannot silently follow an ad-hoc executable substituted
   onto `PATH`, and an unprovable identity is refused rather than assumed;
 * provides every subcommand the *scheduled* jobs will actually run; and
@@ -39,7 +39,6 @@ See docs/runtime.md, docs/spec/store-release-workflow.md and ADR 0034.
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor
@@ -47,130 +46,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ogstores import bundle as bundle_module
-from ogstores import paths, run
+from ogstores import engine, paths, run
 from ogstores.plan import plan
 
-#: The immutable opengwasdb git revision this repository pins. It is the single
-#: source of truth for the runtime identity the tests assert against
-#: `pixi.toml` and `pixi.lock`; the pixi dependency is the executable form of
-#: it. Never edit this without `pixi lock` and the tests in
-#: `tests/runtime/test_runtime_guard.py`.
-#:
-#: Repinned from `1be2a15` (PR #275) to `4e922566` (PR #276) with core #254's
-#: bounded Dense-validation memory work; the Store format stays 0.2.0. Then to
-#: `023774a7` for `check-observed-view` (core #289, stores #306), which gates a
-#: single-id completion's swap. Then to `d405de0a`, the core `dev` merge of PR
-#: #291 whose first parent is PR #288's merge: stores #312's OGS-00009 rebuild
-#: needs #288's strand-aware hg19 lift. The range `023774a..d405de0` is #288's
-#: commits and merge plus the #291 merge; #288 is its only functional change.
-#: Then to `eb4c749b`, core #295's merge into the core integration branch for
-#: stores epic #232 (core PR #303), not yet on core `dev`: its
-#: `check-observed-view` compares a Hybrid pair, which stores #333 needs for a
-#: Hybrid release to complete its own Store. The range `d405de0..eb4c749` is
-#: #295's commits and merge, the branch's empty first commit and core `dev`'s
-#: docs-only PR #293; #295 is its only functional change.
-#: Then to `32f47b3b`, core #296's merge into the same integration branch, not
-#: yet on core `dev` either: its `check-observed-view` compares a Ragged pair,
-#: which stores #336 needs for a Ragged release to complete its own Store. The
-#: range `eb4c749..32f47b3` is #296's commits and merge; #296 is its only
-#: functional change.
-#: Then to `1e2fb42`, core #306's merge into the same integration branch, again
-#: not yet on core `dev`: `build-hybrid` gained `--on-rsid-conflict
-#: {refuse,drop}` and always reports what its rsid harvest compared, which
-#: stores #225 needs to build OGS-00011 from sources that name one variant two
-#: ways. The range `32f47b3..1e2fb42` is #306's commits and merge; #306 is its
-#: only functional change.
-#: Then to `496bfe9`, core #324's merge into the same integration branch, again
-#: not yet on core `dev`: `build-indexed-subset` gained `--overflow-only
-#: {refuse,skip}` and records the ALIDs a Hybrid's subset leaves out for living
-#: only on its Overflow axis, which stores #225 needs to index OGS-00011's HM3
-#: list without refusing the whole subset. The range `1e2fb42..496bfe9` is
-#: #324's commit and merge; #324 is its only functional change.
-#: Then to `d8896e4`, the core `dev` merge of PR #305, for OGS-00027 (#314):
-#: `build-ragged-besd` drops an ESI entry whose lifted variant another entry also
-#: claims, and `validate` requires each Analysis's CSR `variant_index` segment to
-#: be strictly increasing, so the 13 hg19 eQTLGen SNPs that collide on one hg38
-#: variant after the lift no longer reach a Store. The range
-#: `d405de0..d8896e4` is #304's three commits and its merge plus a docs-only
-#: merge (#293); #304 is its only functional change.
-#: Then to `75f0e77a`, the core `dev` merge of PR #298, which makes Association
-#: Coverage a build input (#341): both Ragged builders require
-#: `--association-coverage`, Dense and Hybrid accept only `gwas`, and every
-#: builder and completion command reports the coverage it wrote in its stdout
-#: JSON, which `register` holds to the release's declaration. The range
-#: `d8896e4..75f0e77` is #298's own commits and its merge; there is no Store
-#: format bump.
-#: Then to `5fc0766` for the #326 SE re-encode: it carries the reviewed
-#: `opengwasdb.reencode` primitive (`plan_se_reencode` / `reencode_se_codecs`)
-#: and the writer fix that gives every fresh Dense 0.2.0 array a dtype-matched
-#: Blosc `typesize`. The range `75f0e77..5fc0766` is #326's core commits and
-#: merge; there is no Store format bump.
-#: Then to `0d59f151`, the core `dev` merge of PR #329, for the OGS-00027
-#: replacement (#282): core #302 (ADR 0067) gives `build-ragged-besd`
-#: `--sample-size-table`, which stores each stored pair's published sample size
-#: in an opt-in `uint32` `n` plane and its by-variant copy, and
-#: `--store-esi-eaf`, which stores the `.esi` frequency per association,
-#: oriented to the effect allele and checked once against `--eaf-reference`. A
-#: Store with an `n` plane keeps `se` in float16, and `validate`, the query seam
-#: and `info` report the plane. The range `5fc0766..0d59f151` is #330's merge of
-#: the #326 branch whose head `5fc0766` this pin already carried, #332's MAF
-#: admission fix, #303 (the Ragged and Hybrid Observed-View Checks,
-#: `build-hybrid --on-rsid-conflict`, `build-indexed-subset --overflow-only`),
-#: #328's benchmark harness and #329; there is no Store format bump.
-#:
-#: Epic #371 pinned `70340e0` (core #303's `dev` merge, above #332) on its own
-#: branch for #380; OGS-00011's 29 Oct rebuild (#381) records it, and
-#: `0d59f151` contains it.
-#:
-#: Repinned for #387 from `0d59f151` to the release tag `v0.3.0`, which resolves
-#: to `bc22e84`, the opengwasdb `main` merge of PR #335 (release tooling: the
-#: version from tags, a changelog). `v0.3.0` is the first release opengwasdb's
-#: release workflow published; before it, `v0.2.0` was tagged by hand. From #335
-#: the installed version comes from the tag rather than the static `0.3.0` the
-#: previous pin carried; it is still `0.3.0`. The range `0d59f151..bc22e84` adds
-#: only versioning: the engine's behaviour does not change, and the Store format
-#: stays 0.2.0.
-#:
-#: Then to the release tag `v0.3.2` for #401, which resolves to `44f25a9`, the
-#: opengwasdb `main` merge of PR #339 (core #337): the Observed-View Check reads
-#: Z/SE missingness through each plane's missing marker, NaN, as spec §15 says,
-#: rather than `isfinite`, so a cell with a finite Z and an SE of `+inf` held
-#: identically on both sides passes and is counted as `infinite_cells`;
-#: `validate` warns about such cells per Analysis. OGS-00011's completion check
-#: failed on eight of them (source SE above float16's 65,504; core #338). The
-#: range `bc22e84..44f25a9` is `v0.3.1` (PR #336: CI and docs only) and #339;
-#: builders and the Store format (0.2.0) do not change.
-PINNED_OPENGWASDB_REVISION: str = "44f25a96fb43044a983e300a038a54ab1930e782"
-
-#: The release tag the pinned revision is asked for by. `pixi.toml` names this
-#: tag rather than the commit, so the installed version names the release it was
-#: built from; the tests hold the tag, the resolved commit above and
-#: `pixi.lock` together.
-PINNED_OPENGWASDB_TAG: str = "v0.3.2"
-
-#: One lock reference to the engine pin: the exact repository URL, the request
-#: (`tag=v0.3.0` since #387, `rev=<commit>` before it) and the commit the solve
-#: resolved as the fragment. It must end at the 40 hex characters -- a 41st hex
-#: digit, or any other letter or digit continuing the token, is a different
-#: reference -- and the host is exact.
-_LOCK_PIN_REFERENCE = re.compile(
-    r"git\+https://github\.com/opengwas/opengwasdb\?"
-    r"[^\s#]+"  # the request: `tag=`/`rev=`, at least one character
-    r"#([0-9a-f]{40})(?![0-9A-Za-z])"
-)
-
-
-def lock_pin_revisions(lock: Path) -> set[str]:
-    """The opengwasdb commits `lock` carries, one per reference it pins.
-
-    A reference is the exact repository URL, its request and the resolved
-    commit as the fragment, as `_LOCK_PIN_REFERENCE` defines it, so another
-    host, a longer hash and anything else continuing the token are not pin
-    references. The caller decides what nothing and what several mean, so each
-    lock reader keeps its own error and message.
-    """
-    return set(_LOCK_PIN_REFERENCE.findall(lock.read_text(encoding="utf-8")))
-OPENGWASDB_GIT_URL: str = "https://github.com/opengwas/opengwasdb"
+OPENGWASDB_GIT_URL: str = engine.OPENGWASDB_GIT_URL
 
 #: The Store format the pinned builders write and the only format Reference
 #: Completion may consume. It lives in the core, not here; this is the value the
@@ -427,6 +306,7 @@ def verify_runtime_for_releases(
     executable: str | None = None,
     timeout: float = DEFAULT_PROBE_TIMEOUT_SECONDS,
     handoff: str | None = None,
+    lock: Path | None = None,
 ) -> RuntimeIdentity:
     """Refuse a run whose runtime is missing, unpinned, or cannot complete a parent.
 
@@ -438,40 +318,36 @@ def verify_runtime_for_releases(
     `handoff` is the entry point's `RuntimeIdentity.handoff()`, which the
     Snakefile's `onstart` check receives through `VERIFIED_RUNTIME_ENV`. Its
     commands are not probed again when it names this executable at this
-    revision. The pin is checked either way.
+    revision. The pin is checked either way: the executable's own commit must
+    be the one `lock` (the repository's `pixi.lock` by default) resolves.
     """
     jobs = normalize_scheduled(scheduled)
-    resolved = executable if executable is not None else run.get_opengwasdb_executable()
-    revision = (
-        run.get_opengwasdb_revision(executable=resolved)
-        if resolved != run.UNAVAILABLE
-        else run.UNAVAILABLE
-    )
-    version = run.get_opengwasdb_version(executable=resolved)
+    try:
+        expected = engine.locked_commit(lock)
+    except engine.EnginePinError as exc:
+        raise RuntimeRevisionError(str(exc)) from exc
+    ran = engine.identify(executable)
+    resolved, revision, version = ran.executable, ran.commit, ran.version
 
     if resolved == run.UNAVAILABLE:
-        raise RuntimeCapabilityError(
-            "no opengwasdb executable was found on PATH. The supported release "
-            "invocation runs the environment's pinned runtime; run it through "
-            "`pixi run release ...` rather than an ad-hoc executable."
-        )
+        raise RuntimeCapabilityError(engine.mismatch(ran, expected))
 
-    # Fail closed: an unknown or unprovable identity is not the pin. A git ref,
-    # empty metadata or "unavailable" must never pass as the tracked runtime.
-    # This verified identity, not the `--help` probes below, is what licenses the
-    # format/by_variant guarantee: the pinned revision is the one documented to
-    # write format 0.2.0 with the required Ragged/Overflow index. A subcommand
-    # that answers `--help` proves only that the CLI surface exists.
-    if not run.is_exact_commit_hash(revision) or revision != PINNED_OPENGWASDB_REVISION:
-        raise RuntimeRevisionError(
-            f"the resolved opengwasdb at {resolved!r} reports revision {revision!r}, which "
-            f"is not the tracked pin {PINNED_OPENGWASDB_REVISION} (tag "
-            f"{PINNED_OPENGWASDB_TAG} of {OPENGWASDB_GIT_URL}). A "
-            "supported release run must use the pinned runtime and must be able to prove "
-            "its identity from the executable's own metadata; do not substitute an "
-            "executable on PATH. Run `pixi install`/`pixi run release` so the tracked lock "
-            "selects the pin, or repin the repository deliberately (stores#218)."
-        )
+    # Fail closed: an unknown or unprovable identity is not the locked engine. A
+    # git ref, empty metadata or "unavailable" must never pass as it. This
+    # verified identity, not the `--help` probes below, is what licenses the
+    # format/by_variant guarantee: a subcommand that answers `--help` proves
+    # only that the CLI surface exists.
+    refusal = engine.mismatch(ran, expected)
+    if refusal is not None:
+        raise RuntimeRevisionError(refusal)
+    # A scheduled step may run over records another engine wrote: re-running
+    # `validate`, adding an Indexed Variant Subset, `rho` or `overview` under a
+    # newer engine of the same format is allowed, and `register` records every
+    # engine the phase used (#410). Only a step that continues another engine's
+    # output, a completion checkpoint, is held to that engine
+    # (`run.resume_argv_for_completion`). The format check is unchanged: a
+    # two-id child's completion parent must be in `REQUIRED_FORMAT_VERSION`,
+    # checked below.
 
     steps_by_store = _steps_by_store(jobs)
     produced = _produces_store(jobs)
@@ -515,7 +391,7 @@ def verify_runtime_for_releases(
         executable=resolved,
         revision=revision,
         version=version,
-        pinned_revision=PINNED_OPENGWASDB_REVISION,
+        pinned_revision=expected,
         format_version=REQUIRED_FORMAT_VERSION,
         commands=tuple(sorted(provided)),
     )
@@ -533,8 +409,8 @@ def verify_runtime_for_releases(
         raise RuntimeCapabilityError(
             f"the resolved opengwasdb runtime at {resolved!r} (revision {revision!r}) "
             f"does not provide every required capability: {details}. Install the "
-            f"repository's pinned runtime (pixi.lock revision {PINNED_OPENGWASDB_REVISION}) "
-            "and re-run; never substitute a different executable."
+            f"repository's locked engine (pixi.lock commit {expected}) and re-run; never "
+            "substitute a different executable."
         )
 
     for (root, store_id), (parent_id, _steps) in sorted(parents.items()):
@@ -570,8 +446,6 @@ __all__ = [
     "CompletionParentFormatError",
     "INFO_COMMAND",
     "OPENGWASDB_GIT_URL",
-    "PINNED_OPENGWASDB_REVISION",
-    "PINNED_OPENGWASDB_TAG",
     "REQUIRED_FORMAT_VERSION",
     "RuntimeCapabilityError",
     "RuntimeGuardError",
@@ -581,7 +455,6 @@ __all__ = [
     "VERIFIED_RUNTIME_ENV",
     "commands_for_scheduled_steps",
     "completion_parents_for_release",
-    "lock_pin_revisions",
     "normalize_scheduled",
     "required_commands_for_release",
     "verify_runtime_for_releases",

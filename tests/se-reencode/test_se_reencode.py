@@ -42,7 +42,9 @@ import zarr
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from ogstores import release, runtime, se_reencode  # noqa: E402
+from ogstores import engine, release, se_reencode  # noqa: E402
+
+LOCKED = engine.locked_commit()
 
 STORE_ID = "OGS-00090"
 
@@ -142,7 +144,7 @@ class SeReencodeTestCase(unittest.TestCase):
         record = {
             "step": "se-reencode",
             "store_id": STORE_ID,
-            "opengwasdb_revision": runtime.PINNED_OPENGWASDB_REVISION,
+            "opengwasdb_revision": LOCKED,
             "opengwasdb_version": "0.3.0",
             "start_time": "2026-10-24T22:00:00.000000Z",
             "end_time": "2026-10-24T22:00:05.000000Z",
@@ -184,7 +186,7 @@ class SeReencodeTestCase(unittest.TestCase):
         self.assertIn("before=1000 bytes", out)
         self.assertIn("estimated_after=600 bytes", out)
         self.assertIn("estimated_saving=400 bytes", out)
-        self.assertIn(f"core revision: {runtime.PINNED_OPENGWASDB_REVISION}", out)
+        self.assertIn(f"core revision: {LOCKED}", out)
         self.assertEqual(self.snapshot(self.artifacts), before, "dry run wrote files")
         self.assertEqual(core_plan.call_count, 1)
 
@@ -220,9 +222,9 @@ class SeReencodeTestCase(unittest.TestCase):
         record = json.loads(self.record_path().read_text(encoding="utf-8"))
         self.assertEqual(record["store_id"], STORE_ID)
         self.assertEqual(record["step"], "se-reencode")
-        self.assertEqual(record["opengwasdb_revision"], runtime.PINNED_OPENGWASDB_REVISION)
+        self.assertEqual(record["opengwasdb_revision"], LOCKED)
         self.assertEqual(len(record["opengwasdb_revision"]), 40)
-        self.assertEqual(record["opengwasdb_version"], runtime.PINNED_OPENGWASDB_TAG.removeprefix("v"))
+        self.assertEqual(record["opengwasdb_version"], engine.identify().version)
         self.assertRegex(record["start_time"], r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z")
         self.assertRegex(record["end_time"], r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z")
         self.assertIs(record["complete"], True)
@@ -498,7 +500,7 @@ class SeReencodeTestCase(unittest.TestCase):
         self.assertEqual(finalized["arrays"], original_arrays)
         self.assertEqual(finalized["start_time"], original_start)
         self.assertNotEqual(finalized["end_time"], original_end)
-        self.assertEqual(finalized["opengwasdb_revision"], runtime.PINNED_OPENGWASDB_REVISION)
+        self.assertEqual(finalized["opengwasdb_revision"], LOCKED)
         self.assertEqual(finalized["store_id"], STORE_ID)
 
     def test_noop_refuses_malformed_incomplete_record(self) -> None:
@@ -565,28 +567,28 @@ class SeReencodeTestCase(unittest.TestCase):
             yield
 
     def test_runtime_refuses_when_executable_prefix_differs_from_ambient(self) -> None:
-        with self._runtime_identity("deadbeef" * 5, runtime.PINNED_OPENGWASDB_REVISION):
+        with self._runtime_identity("deadbeef" * 5, LOCKED):
             code, out, err = self.run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)
         self.assertIn("must be the same pinned runtime", err)
 
     def test_runtime_refuses_when_ambient_metadata_differs_from_executable(self) -> None:
-        with self._runtime_identity(runtime.PINNED_OPENGWASDB_REVISION, "deadbeef" * 5):
+        with self._runtime_identity(LOCKED, "deadbeef" * 5):
             code, out, err = self.run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)
         self.assertIn("must be the same pinned runtime", err)
 
     def test_runtime_refuses_an_unprovable_executable_revision(self) -> None:
-        with self._runtime_identity("unavailable", runtime.PINNED_OPENGWASDB_REVISION):
+        with self._runtime_identity("unavailable", LOCKED):
             code, out, err = self.run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)
         self.assertIn("cannot prove the opengwasdb executable revision", err)
 
     def test_runtime_refuses_an_unprovable_ambient_revision(self) -> None:
-        with self._runtime_identity(runtime.PINNED_OPENGWASDB_REVISION, "unavailable"):
+        with self._runtime_identity(LOCKED, "unavailable"):
             code, out, err = self.run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)
@@ -597,7 +599,7 @@ class SeReencodeTestCase(unittest.TestCase):
             code, out, err = self.run_main(*self.base_argv())
         record_check()
         self.assertEqual(code, 1, out + err)
-        self.assertIn("not the tracked pin", err)
+        self.assertIn("not the commit pixi.lock resolves", err)
 
     # --- worker semantics and TMPDIR --------------------------------------
 

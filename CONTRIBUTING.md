@@ -359,12 +359,16 @@ because Manifest Generation depends on the Release Bundle contract too: a
 generator validates what it emits with `bundle.check()`. It also holds two
 read-only command-line views of the registry, run with `python3 -m`:
 `release_readiness` (the Store Release readiness view) and
-`audit_indexed_subsets` (`pixi run audit-indexed-subsets`).
+`audit_indexed_subsets` (`pixi run audit-indexed-subsets`). `engine` says which
+opengwasdb an executable is and which commit `pixi.lock` resolves, and
+`engine_update` moves the lock (`pixi run engine-update`, #253).
 
 Store Release Build imports nothing from Manifest Generation. Manifest
 Generation imports from `ogstores` the Release Bundle contract (`bundle`) and
 the registry layout it shares with Store Release Build: Store id and Artifact
-Root paths (`paths`) and the master-list index (`index`).
+Root paths (`paths`) and the master-list index (`index`). It also imports the
+engine identity both workflows check against `pixi.lock` (`engine`; ADR 0035's
+amendment, #253).
 `tests/packaging/test_boundary.py` enforces both directions.
 
 ### `src/manifest_generation/`
@@ -633,17 +637,22 @@ For a Release Bundle or generated report, also run the repository's applicable
 schema and validation commands and inspect the resulting evidence. A successful
 process exit is not proof that a scientifically valid Store was produced.
 
-### Bumping the `opengwasdb` pin
+### Moving the `opengwasdb` engine
 
-- Pin a release **tag**, never a commit or a branch (`tag = "v0.3.0"` in
-  `pixi.toml`): opengwasdb tags every merge to `main`, so an install records
-  the release it was built from rather than a development version.
-- Relock with `pixi update opengwasdb`, and check that only opengwasdb's
-  entries in `pixi.lock` changed.
-- Update `PINNED_OPENGWASDB_TAG` and `PINNED_OPENGWASDB_REVISION` in
-  `src/ogstores/runtime.py` and the table in `docs/runtime.md` in the same
-  commit, naming the tag's commit and what the range adds.
-- Add a `changed` changelog fragment, then run the full suite.
+`pixi.toml` follows opengwasdb's `main`, where every merge is a tagged release.
+`pixi.lock` holds the exact commit, and nothing else restates it (#253): the
+release guard, Manifest Generation and every record read it from the lock or
+from the engine that ran.
+
+- At the start of a working session, run `pixi run engine-update`. It relocks
+  to `main`'s tip, installs it, and checks that every store-build environment
+  runs the locked commit and that it writes the Store format the guard accepts.
+  A refused update puts the previous lock back.
+- Commit `pixi.lock` on its own, with the version and commit in the message,
+  never inside a feature change.
+- A new `format_version` is not an update: change `REQUIRED_FORMAT_VERSION`,
+  `docs/runtime.md` and the completion-parent rules deliberately, in their own
+  change.
 
 ## Commits and pull requests
 

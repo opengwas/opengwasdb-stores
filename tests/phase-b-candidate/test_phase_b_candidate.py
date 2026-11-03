@@ -3633,6 +3633,24 @@ class EntryPointStageTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, f"{name}: {result.stderr}{result.stdout}")
         return result
 
+    def test_the_pinned_resolver_must_be_the_locked_engine(self) -> None:
+        """Resolve refuses an engine other than pixi.lock's, as the release guard does (#253).
+
+        The lock is made to name a commit no install carries, so the real
+        `opengwasdb` on PATH is not it; nothing may be resolved.
+        """
+        from ogstores import engine
+
+        self.stage("freeze")
+        stranger = "d" * 40
+        ran = engine.identify(engine.find_executable(env={"PATH": str(Path(sys.executable).resolve().parent)}))
+        self.assertTrue(ran.is_provable(), "the environment's own engine must be provable for this test to mean anything")
+        with mock.patch.object(engine, "locked_commit", return_value=stranger):
+            result = _run_cli(self.fixture, "--stage", "resolve", resolver="opengwasdb")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(engine.mismatch(ran, stranger), result.stderr)
+        self.assertFalse((self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME).exists())
+
     def test_each_stage_in_turn_freezes_resolves_renders_and_emits(self) -> None:
         run_root = self.fixture.work_root / STORE_ID
         self.assertFalse(self.fixture.provenance_path.exists())

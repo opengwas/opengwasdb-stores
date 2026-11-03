@@ -2733,7 +2733,7 @@ def pre_304_completion_template() -> dict[str, Any]:
     # deliberately", stores#218): here, to the runtime this environment
     # provides, which this checkout's guard proves. Nothing of this checkout's
     # guard changes.
-    from ogstores import runtime
+    from ogstores import engine
 
     runtime_py = checkout / "src" / "ogstores" / "runtime.py"
     pin = re.compile(r'^PINNED_OPENGWASDB_REVISION: str = "[0-9a-f]{40}"$', re.MULTILINE)
@@ -2741,7 +2741,7 @@ def pre_304_completion_template() -> dict[str, Any]:
     if len(pin.findall(text)) != 1:
         raise RuntimeError(f"{runtime_py} no longer states its pin as this test expects")
     runtime_py.write_text(
-        pin.sub(f'PINNED_OPENGWASDB_REVISION: str = "{runtime.PINNED_OPENGWASDB_REVISION}"', text),
+        pin.sub(f'PINNED_OPENGWASDB_REVISION: str = "{engine.locked_commit()}"', text),
         encoding="utf-8",
     )
 
@@ -4700,7 +4700,7 @@ def pre_341_published_store() -> dict[str, Any]:
     with tarfile.open(fileobj=io.BytesIO(archive.stdout)) as tar:
         tar.extractall(checkout, filter="data")
 
-    from ogstores import runtime as runtime_module
+    from ogstores import engine
 
     runtime_py = checkout / "src" / "ogstores" / "runtime.py"
     pin = re.compile(r'^PINNED_OPENGWASDB_REVISION: str = "[0-9a-f]{40}"$', re.MULTILINE)
@@ -4708,7 +4708,7 @@ def pre_341_published_store() -> dict[str, Any]:
     if len(pin.findall(text)) != 1:
         raise RuntimeError(f"{runtime_py} no longer states its pin as this test expects")
     runtime_py.write_text(
-        pin.sub(f'PINNED_OPENGWASDB_REVISION: str = "{runtime_module.PINNED_OPENGWASDB_REVISION}"', text),
+        pin.sub(f'PINNED_OPENGWASDB_REVISION: str = "{engine.locked_commit()}"', text),
         encoding="utf-8",
     )
 

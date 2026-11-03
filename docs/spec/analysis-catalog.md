@@ -103,10 +103,15 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   `superseded_by`, `access_posture`, `source_snapshot_id`, `accepted_at`,
   `notes`, and `association_coverage`), `build.yaml` (`layout`,
   `completion_state`) and `validation.yaml` (`validated_at`,
-  `build_environment.opengwasdb_version`, and from `observed`: `n_analyses`,
+  `build_environment.opengwasdb_version`, the engine that wrote the Store,
+  and from `observed`: `n_analyses`,
   `n_variants`, `n_associations`, `store_bytes`, `format_version`,
   `reference_assembly`). `reference_assembly` is opengwasdb's value stored as
   reported, and `NULL` while a record lacks it (opengwasdb#294).
+  `opengwasdb_version` names one engine even when a later step of the phase ran
+  under a newer one of the same Store format; the Validation Record's
+  `build_environment.engines` lists them all, and the catalog does not carry
+  that list (#410).
   `association_coverage` is the release's own declaration, in the one vocabulary
   of ADR 0040 (`gwas`, `cis`, `cis_and_signals`, `signals_only`), never the
   Validation Record's `observed` value: opengwasdb#298 makes coverage a build

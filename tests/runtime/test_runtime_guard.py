@@ -4,11 +4,10 @@
 Covers the contract `ogstores.runtime.verify_runtime_for_releases` adds to
 `pixi run release` (and, as defence in depth, the Snakefile `onstart`):
 
-* the tracked pin is one release tag in `pixi.toml` and one immutable revision
-  in `pixi.lock` and `ogstores.runtime.PINNED_OPENGWASDB_REVISION` (the tag is
-  `PINNED_OPENGWASDB_TAG`); every `opengwasdb` reference the lock carries
-  requests that tag and resolves that commit as its `#<commit>`, and it fails
-  closed on an unknown or non-exact revision;
+* `pixi.toml` follows opengwasdb's `main`, and `pixi.lock` alone holds the
+  commit (#253): every `opengwasdb` reference the lock carries requests `main`
+  and resolves that one commit as its `#<commit>`. The guard reads it from the
+  lock and fails closed on an unknown or non-exact revision;
 * the version and revision come from the executable that will run, not from
   the ambient interpreter;
 * only the subcommands the *scheduled steps* need are probed, each once per
@@ -38,7 +37,9 @@ import yaml
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from ogstores import resources, runtime  # noqa: E402
+from ogstores import engine, resources, runtime  # noqa: E402
+
+LOCKED = engine.locked_commit()
 
 n_checks = 0
 
@@ -59,7 +60,7 @@ def _pin_spec_from_pixi_toml(toml_path: Path) -> dict:
 #: parts that could select something else.
 _LOCK_REFERENCE = re.compile(
     r"\Agit\+https://github\.com/opengwas/opengwasdb"
-    r"\?tag=(?P<requested>v[0-9]+\.[0-9]+\.[0-9]+)#(?P<resolved>[0-9a-f]{40})\Z"
+    r"\?branch=main#(?P<resolved>[0-9a-f]{40})\Z"
 )
 
 
@@ -214,7 +215,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
         (bundle_root / "build.yaml").write_text(yaml.safe_dump(build), encoding="utf-8")
 
     def _runnable(self, name: str, **kwargs) -> _FakeRuntime:
-        kwargs.setdefault("commit", runtime.PINNED_OPENGWASDB_REVISION)
+        kwargs.setdefault("commit", LOCKED)
         return _FakeRuntime(self.tmp / name, **kwargs)
 
     def _job(self, store_id: str, step: str | None) -> tuple[str, str, str | None]:
@@ -222,25 +223,19 @@ class RuntimeGuardTestCase(unittest.TestCase):
 
     # --- pin & identity ---------------------------------------------------
 
-    def test_pin_is_one_release_tag_and_one_revision(self) -> None:
-        """The tracked pin is one release tag, and one immutable revision for it."""
+    def test_pixi_toml_follows_main(self) -> None:
+        """`pixi.toml` names opengwasdb's `main`; the lock alone holds the commit (#253)."""
         spec = _pin_spec_from_pixi_toml(REPO_ROOT / "pixi.toml")
         record_check()
-        self.assertEqual(set(spec), {"git", "tag"}, "the pin names a tag, not a rev or branch")
-        self.assertEqual(spec["git"], runtime.OPENGWASDB_GIT_URL)
-        self.assertEqual(spec["tag"], runtime.PINNED_OPENGWASDB_TAG)
-        self.assertRegex(runtime.PINNED_OPENGWASDB_TAG, r"^v[0-9]+\.[0-9]+\.[0-9]+$")
-        self.assertEqual(len(runtime.PINNED_OPENGWASDB_REVISION), 40)
+        self.assertEqual(spec, {"git": runtime.OPENGWASDB_GIT_URL, "branch": "main"})
 
-    def test_every_lock_reference_requests_and_resolves_the_pin(self) -> None:
-        """One stale lock entry selects another runtime, so every one must be the pin.
+    def test_every_store_build_environment_resolves_the_locked_commit(self) -> None:
+        """One stale lock entry selects another runtime, so every one must be the locked commit.
 
-        A lock reference carries the request (the release tag) and the commit
-        the solve resolved (`#`). Either alone is not enough: `tag=` with a
-        different fragment installs something else, and a fragment alone cannot
-        be checked against `pixi.toml`. Every environment that depends on the
-        `store-build` feature, and the lock's single package entry, must name
-        both.
+        Every environment that depends on the `store-build` feature carries an
+        opengwasdb reference, and the lock has one package entry for it. Each
+        must request `main` and resolve the one commit `engine.locked_commit`
+        returns.
         """
         expected = _environments_carrying_the_pin(REPO_ROOT / "pixi.toml")
         record_check()
@@ -256,21 +251,98 @@ class RuntimeGuardTestCase(unittest.TestCase):
         references.extend((f"package {name}", spec) for name, spec in package_entries)
         record_check()
         self.assertEqual(len(references), len(expected) + 1)
-        record_check()
         self.assertEqual([name for name, _ in package_entries], ["opengwasdb"])
         for where, spec in references:
             with self.subTest(where):
                 match = _LOCK_REFERENCE.match(spec)
                 record_check()
-                self.assertIsNotNone(match, f"{where}: not an exact rev#commit reference: {spec}")
-                self.assertEqual(
-                    (match["requested"], match["resolved"]),
-                    (
-                        runtime.PINNED_OPENGWASDB_TAG,
-                        runtime.PINNED_OPENGWASDB_REVISION,
-                    ),
-                    where,
-                )
+                self.assertIsNotNone(match, f"{where}: not an exact branch=main#commit reference: {spec}")
+                self.assertEqual(match["resolved"], LOCKED, where)
+
+    def test_the_guard_reads_the_commit_from_the_lock(self) -> None:
+        """An engine at the repository's locked commit is refused against a lock naming another."""
+        self._write_bundle("OGS-00090")
+        locked = self._runnable("locked", commands={"build-dense-vcf"})
+        other_lock = self.tmp / "pixi.lock"
+        other_lock.write_text(
+            "packages:\n- pypi: git+https://github.com/opengwas/opengwasdb?branch=main#" + "d" * 40 + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaises(runtime.RuntimeRevisionError) as ctx:
+            runtime.verify_runtime_for_releases(
+                [self._job("OGS-00090", "build")],
+                registry_root=self.registry,
+                executable=str(locked.executable),
+                lock=other_lock,
+            )
+        record_check()
+        self.assertIn("d" * 40, str(ctx.exception))
+        self.assertIn(LOCKED, str(ctx.exception))
+
+    def test_a_lock_without_one_commit_is_refused(self) -> None:
+        self._write_bundle("OGS-00090")
+        locked = self._runnable("locked", commands={"build-dense-vcf"})
+        empty_lock = self.tmp / "pixi.lock"
+        empty_lock.write_text("packages: []\n", encoding="utf-8")
+        with self.assertRaises(runtime.RuntimeRevisionError):
+            runtime.verify_runtime_for_releases(
+                [self._job("OGS-00090", "build")],
+                registry_root=self.registry,
+                executable=str(locked.executable),
+                lock=empty_lock,
+            )
+        record_check()
+
+    # --- one engine per run (#253) ---------------------------------------
+
+    def _record(self, store_id: str, step: str, commit: str) -> None:
+        records = self.artifact_root / store_id / "records"
+        records.mkdir(parents=True, exist_ok=True)
+        (records / f"{step}.json").write_text(
+            json.dumps({"step": step, "success": True, "exit_code": 0, "opengwasdb_rev": commit}),
+            encoding="utf-8",
+        )
+
+    def test_validate_rerun_over_another_engines_records_is_accepted(self) -> None:
+        """`build` ran under `e…e`; re-running `validate` under the locked engine is accepted (#410).
+
+        Only a step that continues another engine's output, a completion
+        checkpoint, is held to that engine (`run.resume_argv_for_completion`).
+        """
+        self._write_bundle("OGS-00090")
+        self._record("OGS-00090", "build", "e" * 40)
+        self.assertNotEqual("e" * 40, LOCKED, "the record must name another engine")
+        capable = self._runnable("capable", commands={"validate"})
+        identity = runtime.verify_runtime_for_releases(
+            [self._job("OGS-00090", "validate")],
+            registry_root=self.registry,
+            executable=str(capable.executable),
+        )
+        self.assertEqual(identity.revision, LOCKED)
+        record_check()
+
+    def test_a_phase_resumed_under_the_same_engine_passes(self) -> None:
+        self._write_bundle("OGS-00090")
+        self._record("OGS-00090", "build", LOCKED)
+        capable = self._runnable("capable", commands={"validate"})
+        runtime.verify_runtime_for_releases(
+            [self._job("OGS-00090", "validate")],
+            registry_root=self.registry,
+            executable=str(capable.executable),
+        )
+        record_check()
+
+    def test_a_step_run_again_is_not_a_resumed_one(self) -> None:
+        """A scheduled step's old record is replaced, not reused, so its engine does not matter."""
+        self._write_bundle("OGS-00090")
+        self._record("OGS-00090", "build", "e" * 40)
+        capable = self._runnable("capable", commands={"build-dense-vcf"})
+        runtime.verify_runtime_for_releases(
+            [self._job("OGS-00090", "build")],
+            registry_root=self.registry,
+            executable=str(capable.executable),
+        )
+        record_check()
 
     def test_missing_executable_is_refused(self) -> None:
         self._write_bundle("OGS-00090")
@@ -298,7 +370,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
                 executable=str(anonymous.executable),
             )
         record_check()
-        self.assertIn("not the tracked pin", str(ctx.exception))
+        self.assertIn("not the commit pixi.lock resolves", str(ctx.exception))
 
     def test_known_other_revision_is_refused(self) -> None:
         self._write_bundle("OGS-00090")
@@ -310,7 +382,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
                 executable=str(other.executable),
             )
         record_check()
-        self.assertIn(runtime.PINNED_OPENGWASDB_REVISION, str(ctx.exception))
+        self.assertIn(LOCKED, str(ctx.exception))
 
     def test_version_comes_from_the_executable_not_the_ambient_interpreter(self) -> None:
         self._write_bundle("OGS-00090")
@@ -339,7 +411,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
             executable=str(only_validate.executable),
         )
         record_check()
-        self.assertEqual(identity.revision, runtime.PINNED_OPENGWASDB_REVISION)
+        self.assertEqual(identity.revision, LOCKED)
 
     def test_missing_scheduled_capability_is_refused(self) -> None:
         self._write_bundle("OGS-00090")
@@ -370,8 +442,8 @@ class RuntimeGuardTestCase(unittest.TestCase):
             executable=str(capable.executable),
         )
         record_check()
-        self.assertEqual(identity.revision, runtime.PINNED_OPENGWASDB_REVISION)
-        self.assertIn(runtime.PINNED_OPENGWASDB_REVISION, identity.describe())
+        self.assertEqual(identity.revision, LOCKED)
+        self.assertIn(LOCKED, identity.describe())
 
     # --- one probe per command per run -----------------------------------
 
@@ -621,7 +693,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
             json.dumps(
                 {
                     "url": runtime.OPENGWASDB_GIT_URL,
-                    "vcs_info": {"vcs": "git", "commit_id": runtime.PINNED_OPENGWASDB_REVISION},
+                    "vcs_info": {"vcs": "git", "commit_id": LOCKED},
                 }
             ),
             encoding="utf-8",
@@ -660,7 +732,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
         record_check()
         message = str(ctx.exception)
         self.assertIn("check-observed-view", message)
-        self.assertIn(runtime.PINNED_OPENGWASDB_REVISION[:8], message)
+        self.assertIn("pixi.lock", message)
         self.assertIn("OGS-00090", message)
         self.assertEqual(sorted(self.tmp.rglob("*")), before, "a refusal writes nothing")
 

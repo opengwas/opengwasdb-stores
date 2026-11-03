@@ -41,7 +41,7 @@ import yaml
 from opengwasdb.model import analyses as opengwasdb_analyses
 
 from ogstores import bundle as bundle_module
-from ogstores import paths
+from ogstores import engine, paths
 from ogstores.bundle import Bundle
 from ogstores.manifest import EXCLUDE_COLUMN, classify_exclusion
 
@@ -804,23 +804,10 @@ def core_runtime_identity() -> str:
 
     A built-ID reconciliation is only meaningful relative to a known core
     revision, so the identity travels with the read rather than being assumed.
+    The read runs in this process, so the imported engine is the one it used.
     """
-    try:
-        import importlib.metadata as metadata
-
-        dist = metadata.distribution("opengwasdb")
-        version = dist.version
-    except Exception as exc:  # pragma: no cover - metadata always present in env
-        return f"opengwasdb (version unavailable: {exc})"
-    commit = ""
-    try:  # a VCS install records the exact commit (as the pinned runtime does)
-        raw = dist.read_text("direct_url.json")
-        if raw:
-            info = json.loads(raw)
-            commit = ((info.get("vcs_info") or {}).get("commit_id") or "")[:12]
-    except Exception:
-        commit = ""
-    return f"opengwasdb v{version}" + (f"@{commit}" if commit else "")
+    ran = engine.in_process()
+    return f"opengwasdb v{ran.version}" + (f"@{ran.commit[:12]}" if ran.is_provable() else "")
 
 
 def _default_built_reader(store_path: Path | str) -> tuple[tuple[str, ...], str]:

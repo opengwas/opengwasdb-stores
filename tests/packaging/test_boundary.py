@@ -46,8 +46,10 @@ RESOLUTION_AREA_NAMES = re.compile(r"resolution[_ -]?(root|area|receipt)", re.IG
 # registry layout both sides write into, and the dependency on them predates
 # #249: `paths` is the Store id grammar and the Artifact Root / work-root
 # resolution the emitter must agree with, and `index` regenerates stores.tsv
-# and STORES.md after an emit. Adding a module here widens the boundary.
-CONTRACT_AND_SHARED_LAYOUT = {"ogstores", "ogstores.bundle", "ogstores.paths", "ogstores.index"}
+# and STORES.md after an emit. `engine` is the one engine identity both
+# workflows check against pixi.lock (#253, ADR 0035's amendment). Adding a
+# module here widens the boundary.
+CONTRACT_AND_SHARED_LAYOUT = {"ogstores", "ogstores.bundle", "ogstores.paths", "ogstores.index", "ogstores.engine"}
 
 
 # The Analysis Catalog (#323, ADR 0039) reads Release Bundles through the contract

@@ -117,11 +117,15 @@ with no `--config force=1`, resumes it from the missing completion-phase step
 (#305). An interrupted `complete` is resumed from its checkpoint,
 `<ID>/.store.opengwasdb.partial.checkpoint`, with
 `opengwasdb complete-dense-resume`, so hours of imputation are not repeated.
-The workflow records the planned argv a completion starts from, in
-`<ID>/work/complete.started.json`, and resumes only when that is the argv
-planned now. If the bundle's `complete` block has changed since, or the
+The workflow records the planned argv a completion starts from, and the
+engine commit that starts it, in `<ID>/work/complete.started.json`, and
+resumes only when that is the argv planned now, under that engine (#253). If
+the bundle's `complete` block has changed since, the engine has moved, or the
 checkpoint was not started by this workflow, the run refuses, naming why,
-and keeps the checkpoint. Only `--config force=1` discards a checkpoint; it
+and keeps the checkpoint. A start record from before #410 names no engine; it
+resumes only when the phase's step records all name the installed engine.
+Every other step may run under a newer engine than the phase's earlier steps,
+and `register` records each engine the phase used (#410). Only `--config force=1` discards a checkpoint; it
 then rebuilds both phases.
 
 The preflight lets an unforced run through only when every job it schedules
