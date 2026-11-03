@@ -471,7 +471,7 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
   at the ref read, entry by entry (importing file and imported name, never a count, so a new import
   cannot hide behind a fixed one): each `new:` import not in the baseline and each `stale:` entry no longer
   imported is named; no baseline file is not a failure. What cannot be measured is
-  printed with its reason and is **unknown, never a pass**: an engine ref with no model, a repository or file
+  printed with its reason and is **unknown, never a pass**: an engine ref with no model, an engine fetch recorded as failed (what was read may be out of date), a repository or file
   that cannot be read, a file YAML cannot load (any constructor failure too), one with no `allowed` list, an entry that is not
   exactly a `file` and a `name` of text, or an entry listed twice (this repository's own baseline is read by the same loader, with the same refusals). Exit **1** if anything measured has a problem (an unclaimed or stale claim, a new or
   stale baseline entry), whatever else is unknown; otherwise **2** if any part could not be measured;
@@ -482,6 +482,12 @@ runs the same collectors on the spot, or reads a collection with `--data DIR`:
   (or the branch's ticket) to theirs. Exit 1 when any meet is uncoordinated or unlinkable (asking a person is the safe default; the message says which); 0 when none is;
   **2 when it cannot decide** (a source is unavailable, the branch is not in the
   collection, a git directory or branch diff cannot be read, or the work is the engine's and its model is missing). `--local GIT_DIR...` adds those clones' local branches, `--refresh` fetches first.
+  Two more things leave it undecided: code that no component claims (a mistyped path, or
+  a new one whose claim does not exist yet, so what it meets is unknown), and a fetch
+  recorded as failed in the data read (`--refresh`'s, or the collection's own), since
+  what was read may be out of date. Either is 2 unless a meet is found anyway, which
+  stays 1 and lists them as `also:`. Given files that are not code a component claims
+  (tests, docs) are listed as outside the map and never judged.
 
 ### Planned changes
 

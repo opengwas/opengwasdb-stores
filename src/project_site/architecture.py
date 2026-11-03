@@ -13,8 +13,12 @@ upward imports measured, entry by entry (file and imported name), naming new and
 live work (`building` or `active`) on each, and whether a blocking edge links its
 ticket to theirs. It exits 1 when any such meet is uncoordinated, naming the other
 work: its ticket, epic, branch and the files cited. Exit 2 means it could not decide
-(a branch the collection does not hold, a source that is unavailable): never read
-that as "no conflict".
+(a branch the collection does not hold, a source that is unavailable, code that no
+component claims, a fetch that failed): never read that as "no conflict".
+
+A fetch recorded as failed in the data read (`--refresh`, or the collection's own)
+leaves `check` and `conflicts` undecided unless they find a problem anyway: what
+was read may be out of date.
 
 Both run from data collected on the spot with the site's own collectors, or from an
 existing collection with `--data DIR`. `--local GIT_DIR` adds the local branches of a
@@ -113,6 +117,9 @@ def check(args: argparse.Namespace, out: TextIO) -> int:
     failed = unknown = False
     names = (("registry", "this repository"), ("engine", "the engine"))
     engine = document["engine"]
+    for failure in _fetch_failures(None, document):
+        print(f"cannot check: the fetch failed for {failure}, so what was read may be out of date", file=out)
+        unknown = True
     for repo, label in names:
         if repo == "engine" and not engine.get("model"):
             print(f"{label} ({engine['ref']} {str(engine['commit'])[:8]}): no architecture model there, so nothing to check", file=out)
@@ -176,8 +183,10 @@ def conflicts(args: argparse.Namespace, out: TextIO) -> int:
         raise Unavailable("--files needs --repo engine or --repo registry: a bare path can mean a file of either repository")
     document, architecture_doc = _work(args)
     components = {c["id"]: c for c in architecture_doc["components"]}
-    own_owner, own_items, touched, label = _candidate(args, document, architecture_doc)
+    own_owner, own_items, touched, label, unplaced, outside = _candidate(args, document, architecture_doc)
     print(label, file=out)
+    if outside:
+        print(f"outside the map (not code a component claims): {', '.join(outside)}", file=out)
     waits = [(w["item"], w["on"]) for w in document["waits"]]
     owners = {o["key"]: o for o in document["owners"]}
     failed = False
@@ -210,17 +219,63 @@ def conflicts(args: argparse.Namespace, out: TextIO) -> int:
                     for name in pair["epic_branches"]) + "; asking a person is the safe default", file=out)
             else:
                 print(f"    UNCOORDINATED: no blocking edge links {mine} and {', '.join(sorted(theirs))}", file=out)
+    # Anything the map could not judge: a meet found is still 1, otherwise it is 2, never "no conflict".
+    undecided = []
+    if unplaced:
+        undecided.append(f"no component claims {', '.join(unplaced)}, so what "
+                         f"{'it meets' if len(unplaced) == 1 else 'they meet'} is unknown")
+    if failures := _fetch_failures(document, architecture_doc):
+        undecided.append(f"the fetch failed for {'; '.join(failures)}, so what was read may be out of date")
+    if failed:
+        for reason in undecided:
+            print(f"also: {reason}", file=out)
+        return 1
+    if undecided:
+        raise Unavailable("; and ".join(undecided))
     if not any_meet:
         print("meets no other work", file=out)
-    return 1 if failed else 0
+    return 0
+
+
+def _fetch_failures(document: Mapping[str, Any] | None, architecture_doc: Mapping[str, Any]) -> list[str]:
+    """Each fetch the data read records as failed: the engine's ref, and each repository's branches."""
+    def said(error: Any) -> str:
+        return " ".join(str(error).split())[:200]
+
+    failures = []
+    engine = architecture_doc.get("engine") or {}
+    refresh = engine.get("refresh")
+    if isinstance(refresh, Mapping) and refresh.get("ok") is False:
+        failures.append(f"the engine's {engine.get('ref')} ({said(refresh.get('error'))})")
+    for source in ((document or {}).get("branches") or {}).get("sources") or []:
+        fetch = source.get("fetch")
+        if isinstance(fetch, Mapping) and fetch.get("ok") is False:
+            failures.append(f"the {source.get('repo')} branches ({said(fetch.get('error'))})")
+    return failures
+
+
+IS_CODE = {"registry": work.model_rules.is_registry_code, "engine": work.model_rules.is_engine_code}
 
 
 def _candidate(
     args: argparse.Namespace, document: Mapping[str, Any], architecture_doc: Mapping[str, Any]
-) -> tuple[str | None, set[str], set[str], str]:
-    """`(owner, items, components touched, a heading)` of the work being asked about."""
+) -> tuple[str | None, set[str], set[str], str, list[str], list[str]]:
+    """`(owner, items, components touched, a heading, unplaced, outside)` of the work being asked about.
+
+    `unplaced` is code no component claims, so the map cannot say what it meets (a mistyped path, or a
+    new one whose claim does not exist yet); `outside` is the given files that are not code the
+    model claims (tests, docs), which the map never judges.
+    """
     ticket = args.ticket
     reason = (document.get("unmeasured") or {}).get("engine")
+    claims = {
+        kind: work.model_rules.claims_of(c for c in architecture_doc["components"] if c["repo"] == kind and c.get("paths"))
+        for kind in ("registry", "engine")
+    }
+
+    def unclaimed_code(kind: str, files: Sequence[str]) -> list[str]:
+        return [f for f in files if IS_CODE[kind](f) and work.model_rules.owner(claims[kind], f) is None]
+
     if args.branch:
         found = [b for b in document["branches"]["list"]
                  if b["name"] == args.branch and (not args.repo or work.REPO_KIND.get(b["repo"]) == args.repo)]
@@ -235,17 +290,15 @@ def _candidate(
         owner = document["tickets"].get(ticket) if ticket else b["owner"]
         return owner, items, set(b["components"]), (
             f"{b['repo']}:{b['name']}: {b['item']} of {b['owner']}, {len(b['files'])} files on "
-            f"{len(b['components'])} components")
-    claims = {
-        kind: work.model_rules.claims_of(c for c in architecture_doc["components"] if c["repo"] == kind and c.get("paths"))
-        for kind in ("registry", "engine")
-    }
+            f"{len(b['components'])} components"), unclaimed_code(work.REPO_KIND[b["repo"]], b["files"]), []
     if reason and args.repo == "engine":
         raise Unavailable(f"engine-side work was not measured: {reason}")
     touched = {cid for f in args.files if (cid := work.model_rules.owner(claims[args.repo], f))}
     owner = document["tickets"].get(ticket) if ticket else None
+    outside = [f for f in args.files if not IS_CODE[args.repo](f) and work.model_rules.owner(claims[args.repo], f) is None]
     return owner, {ticket} if ticket else set(), touched, (
-        f"{len(args.files)} files on {len(touched)} components" + (f" for {ticket}" if ticket else ""))
+        f"{len(args.files)} files on {len(touched)} components" + (f" for {ticket}" if ticket else "")
+    ), unclaimed_code(args.repo, args.files), outside
 
 
 # ---------------------------------------------------------------------------
