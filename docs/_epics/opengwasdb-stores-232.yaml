@@ -1,0 +1,404 @@
+repo: opengwasdb-stores
+number: 232
+title: "Publish, rebuild and Reference-Complete the full Store Releases under their own ids"
+status: active
+workstream: Store builds
+started: "2026-10-22"
+finished: null
+summary: "Published, rebuilt and Reference-Completed the full Store Releases under their own ids: the MVP observed Stores OGS-00012..16, OGS-00006/09/11 brought to validated, FinnGen OGS-00017 rebuilt, OGS-00011 rebuilt with its 3,169 Analyses, and OGS-00011, OGS-00012, OGS-00013 (AFR), OGS-00014 (AMR), OGS-00015 (EAS) and OGS-00017 completed under single ids. The run found that every HGDP+1kGP LD panel held the other allele's frequency and duplicated variant identities (#348); the five panels were repaired in place, OGS-00001/02 rebuilt and re-completed, OGS-00014's reference EAF flipped and its top-hit SE re-synced (#409), and every completion since was checked for orientation against an independent reference. Every Store it published is in the regenerated release benchmark, measured on a quiet host; OGS-00006's completion (#224) waits on opengwasdb#301."
+prs:
+- opengwasdb-stores#408
+versions: []
+tickets:
+- key: opengwasdb#295
+  title: "opengwasdb#295 check-observed-view for Hybrid (sibling repo, prerequisite from #302)"
+  pr: null
+  merge: eb4c749
+- key: opengwasdb#296
+  title: "opengwasdb#296 check-observed-view for Ragged (sibling repo, prerequisite from #302)"
+  pr: null
+  merge: "32f47b3"
+- key: opengwasdb-stores#333
+  title: "Single-id completion for Hybrid Stores (prerequisite from #302)"
+  pr: null
+  merge: "9c8875b"
+- key: opengwasdb-stores#336
+  title: "Single-id completion for Ragged Stores (prerequisite from #302)"
+  pr: null
+  merge: "9f91585"
+- key: opengwasdb-stores#331
+  title: Publish the MVP observed Stores OGS-00012..16 and mark them validated
+  pr: null
+  merge: bbf86a5
+- key: opengwasdb-stores#225
+  title: "Rebuild OGS-00011 with its 3,169 accepted Analyses"
+  pr: null
+  merge: fcccf88
+- key: opengwasdb-stores#332
+  title: "Bring OGS-00006, OGS-00009 and OGS-00011 to validated"
+  pr: null
+  merge: "9d3e76cc"
+- key: opengwasdb-stores#223
+  title: Rebuild FinnGen OGS-00017 at 0.2.0 and complete it under its own id
+  pr: null
+  merge: d7aca92
+- key: opengwasdb-stores#227
+  title: "Reference-Complete MVP EUR (OGS-00012)"
+  pr: null
+  merge: "37a6b77"
+- key: opengwasdb-stores#228
+  title: "Reference-Complete MVP AFR (OGS-00013)"
+  pr: null
+  merge: "45c7d2bf"
+- key: opengwasdb-stores#230
+  title: "Reference-Complete MVP EAS (OGS-00015)"
+  pr: null
+  merge: "45c7d2bf"
+- key: opengwasdb-stores#229
+  title: "Reference-Complete MVP AMR (OGS-00014) once an AMR panel is approved"
+  pr: null
+  merge: b93fe2c
+- key: opengwasdb-stores#334
+  title: Reference-complete OGS-00011 under its own id
+  pr: null
+  merge: "9d3e76cc"
+- key: opengwasdb-stores#224
+  title: "Complete OGS-00006 under its own id (rebuilt at 0.2.0 under #332; completion via #305 amendment)"
+  pr: null
+  merge: null
+- key: opengwasdb-stores#339
+  title: "A fresh registry checkout makes every published Store look out of date (found in this run)"
+  pr: null
+  merge: "336b6db"
+- key: opengwasdb-stores#348
+  title: "HGDP+1kGP LD panels hold duplicated variant identities in every block (found in this run)"
+  pr: null
+  merge: a28f7900
+- key: opengwasdb#306
+  title: "opengwasdb#306 build-hybrid --on-rsid-conflict drop; normalise compound rsids (found in this run)"
+  pr: null
+  merge: "1e2fb42"
+- key: opengwasdb#324
+  title: "opengwasdb#324 build-indexed-subset --overflow-only skip, recorded (found in this run)"
+  pr: null
+  merge: "496bfe9"
+- key: null
+  title: "Merge stores dev (#341, #353, #362...) and re-pin opengwasdb to a merge of orch/232-observed-view with opengwasdb dev (#298) before the final review"
+  pr: null
+  merge: d8be0f4
+- key: opengwasdb-stores#407
+  title: "Benchmark the seven Stores epic #232 published"
+  pr: null
+  merge: "79530c71"
+- key: opengwasdb-stores#409
+  title: "OGS-00014 serves the other allele's frequency as the EAF of its imputed cells"
+  pr: null
+  merge: fc1d2550
+- key: opengwasdb-stores#411
+  title: Stop flagging new yardstick runs for the Veeam window
+  pr: null
+  merge: e8f36d28
+decisions:
+- date: "2026-10-22"
+  text: "Run directory, worktrees, production checkouts and TMPDIR live under /data/opengwasdb/work/epic232/orchestrate/ (symlinked from ~/.cache/orchestrate) (the first baseline filled /home and /tmp (ENOSPC); owner instruction 2026-10-22)"
+  link: null
+- date: "2026-10-22"
+  text: "c6ea9e7: the bundle suite artifact-path guard exempts paths inside the checkout (every checkout under /data/opengwasdb failed it; Store and artifact paths are still refused)"
+  link: null
+- date: "2026-10-22"
+  text: "Fix the mtime trigger in Store Release Build (content-based build_manifest), not by re-touching published Stores' records per checkout"
+  link: null
+- date: "2026-10-22"
+  text: "Forced OGS-00011 rebuild launched from a detached checkout at 2004008 (dev + #338), in Herdr tab 'OGS-00011 run'; owner approved production actions per the epic"
+  link: null
+- date: "2026-10-22"
+  text: "c6ea9e7 dropped in favour of dev's #338 fix for the same bundle-test guard"
+  link: null
+- date: "2026-10-22"
+  text: "OGS-00006: no release-workflow route re-runs only validate+register (source/ gone, --forcerun refused); follow the #198/#199 precedent: read-only validate on the published Store, record corrected in place, Release Erratum"
+  link: null
+- date: "2026-10-22"
+  text: "FinnGen Analyses are all unassigned (source label Finnish): complete-dense imputes all 2,754 against UKB EUR, applying the owner's panel decision; no assigned_ancestry added"
+  link: null
+- date: "2026-10-22"
+  text: "Relocation by a reviewed tool (tools/): rename, rewrite only structured path fields in records, keep mtimes, sha256 receipt; tool reviewed and merged before the real move"
+  link: null
+- date: "2026-10-22"
+  text: "Ragged check takes the LD panel explicitly and refuses a Ragged pair without it; NaN rows in retained regions are informational"
+  link: null
+- date: "2026-10-22"
+  text: "Crossover cells compared to the Dense codec's encode-then-decode of the source Overflow value; crossovers derived from the axes"
+  link: null
+- date: "2026-10-22"
+  text: "opengwasdb prerequisites build on one opengwasdb integration branch orch/232-observed-view (one PR to opengwasdb dev); stores pins its commits"
+  link: null
+- date: "2026-10-22"
+  text: "OGS-00006 rebuilt now at format 0.2.0, observed-only, forced; re-staged source from checksummed raw files; #224 becomes an amendment completion (validate at d405de0 fails the 0.1.0 Store: no ragged/by_variant)"
+  link: null
+- date: "2026-10-22"
+  text: "Filed #344: published 0.1.0 Ragged/Hybrid Stores (OGS-00001/02/04/05/07) lack by_variant; dev can't query them"
+  link: null
+- date: "2026-10-22"
+  text: "Compatibility symlink /data/opengwasdb/finngen-r13 -> raw/finngen-r13 so the accepted bundle's recorded source paths resolve (sources moved 21 Oct); to note in OGS-00017's release notes"
+  link: null
+- date: "2026-10-22"
+  text: "force=1 on a named release always rebuilds (internal --forcerun on its build_manifest output); otherwise #339 would make every forced rebuild of an unchanged bundle a silent no-op"
+  link: null
+- date: "2026-10-22"
+  text: "Sidecar comparison ignores source_manifest/build_manifest path fields (location, not content) - accepted"
+  link: null
+- date: "2026-10-22"
+  text: "Delete the 1 MiB I/O probe left in OGS-00012 dev dir before the move; no resume mode for a crash between rename and rewrite; phase B dry run after #339"
+  link: null
+- date: "2026-10-22"
+  text: "Tests are unreliable while Veeam snapshots /data and 4 releases run (workflow single-id fixture hits its 600 s deadline on base too); accept base-equals-head failure sets now, re-measure the full suite when the host is quiet"
+  link: null
+- date: "2026-10-22"
+  text: "Ragged check stays strict on SE; complete-ragged SE refit filed as opengwasdb#301 for later; #224 waits on it"
+  link: null
+- date: "2026-10-22"
+  text: "Relocation becomes a recoverable transaction: intent receipt before the rename, --resume to finish; reverses the earlier no-resume ruling (any post-rename exception, not only a crash, left a mixed record set)"
+  link: null
+- date: "2026-10-22"
+  text: "Region derivation moves to one public module used by completion and the check, with hand-derived multi-block controls as the independent oracle; Dense private-helper imports stay until #295 and #296 both merge, then one publish commit"
+  link: null
+- date: "2026-10-22"
+  text: "A non-current build manifest is forced through the entry point's internal --forcerun (refused loudly by the published guard when unforced); comparison is byte-exact"
+  link: null
+- date: "2026-10-22"
+  text: "Check every crossover on OGS-00011 (est. 3-4 h): a one-off swap gate, timed once on the real pair"
+  link: null
+- date: "2026-10-22"
+  text: "Merge order odb295 then odb296; odb296 adopts #295's dispatcher and is re-reviewed once on the merged result"
+  link: null
+- date: "2026-10-22"
+  text: "No release.py refusal for an unfinished relocation receipt now: the tool holds release locks while moving and fails loudly naming --resume; listed in the PR as a known gap"
+  link: null
+- date: "2026-10-22"
+  text: "Pin opengwasdb to eb4c749 (orch/232-observed-view, #295 merged); #336 moves it to a descendant with #296; Hybrid completion has no checkpoint/resume (restarts), documented not built"
+  link: null
+- date: "2026-10-22"
+  text: "After 3 review rounds the recovery path is verified; remaining edges fixed in one last round checked by the orchestrator, not re-reviewed"
+  link: null
+- date: "2026-10-22"
+  text: "Regenerated the production by-label tree (stale since 12 Oct; r13-full had come to name MVP META); description fields left stale, flagged for #313"
+  link: null
+- date: "2026-10-22"
+  text: "MVP completions: one lane for #227/#228/#230 (shared files), a commit per ticket; EUR declares ukb-hg38-eur-ld (gpm retirement stays #335); AFR/EAS hgdp1kgp-hg38-ld qualified+active; n-workers 32/32/16"
+  link: null
+- date: "2026-10-22"
+  text: "candidates.yaml (retired generator definition) left as provenance; MVP completions launch OGS-00015 first, then OGS-00012 and OGS-00013"
+  link: null
+- date: "2026-10-22"
+  text: "Hold AFR (#228) and EAS (#230) completions on #348 (duplicated ALIDs in every HGDP+1kGP panel block; UKB EUR panel has none); EUR (#227) proceeds"
+  link: null
+- date: "2026-10-22"
+  text: "Subset+overview on a completed Hybrid tested in one dedicated class, not the shared template (template rebuilds per sharded process; +20 s each would set the suite's slowest process at 100 s vs 72 s baseline)"
+  link: null
+- date: "2026-10-22"
+  text: "Pin 32f47b3; Ragged check step gets --ld-panel/--ancestry from the complete block (refused at planning without them); Ragged fixture stores SE as float16 (opengwasdb#301)"
+  link: null
+- date: "2026-10-22"
+  text: "Keep the Ragged fixture's top_hits (OGS-00006's shape): slowest workflow shard +21 s (18%), within thresholds"
+  link: null
+- date: "2026-10-22"
+  text: "A Ragged complete block must declare its panel ancestry explicitly (registry policy against a silent EUR default), though core's check does not need it"
+  link: null
+- date: "2026-10-22"
+  text: "Reopened: packaging/imports regression from the Hybrid subset harness; prefer a non-PYTHONPATH route, else extend the documented exception. Smoke runs now include packaging/*"
+  link: null
+- date: "2026-10-22"
+  text: "Hybrid rsid conflicts (99,577 keys, 0.13%): store no rsid where sources disagree, recorded; compound/list ids normalised; opt-in core flag; OGS-00011 bundle gains on-rsid-conflict: drop as a Release Erratum to its Build Recipe"
+  link: null
+- date: "2026-10-22"
+  text: "Under drop, any variant reached by a disputed key stores no rsid (per variant, not per key); counts report keys and variants"
+  link: null
+- date: "2026-10-22"
+  text: "Coding lanes default to pi opencode-go/deepseek-v4.1-flash from here on (owner); odb306 finishes on Opus"
+  link: null
+- date: "2026-10-22"
+  text: "Allele-order-only naming differences (~61k variants in the real pair, mostly indels) keep the first name as before (#192); flagged in the PR for the owner, not changed here"
+  link: null
+- date: "2026-10-22"
+  text: "Checkpoint slot stays shared (a forced run deletes it); rsid-conflict counts live in the Validation Record, not the master list"
+  link: null
+- date: "2026-10-22"
+  text: "Launch OGS-00011 once, after the completion-register count fix merges: the forced run now does build+completion in one run (bundle carries #334), and code is never swapped under a running release"
+  link: null
+- date: "2026-10-23"
+  text: "Closed idle lane tabs (332, 223, 227, 334, odb306, 225) and the finished OGS-00006 run tab; removed their merged worktrees; post-run commits go to fresh flash lanes"
+  link: null
+- date: "2026-10-23"
+  text: "Hybrid subset skips Overflow-only ALIDs on request (--overflow-only skip, default refuse), recorded; test HM3/overview/validate on the surviving built Store before the next 19 h run"
+  link: null
+- date: "2026-10-23"
+  text: "Start #229 (owner handover): complete-dense OGS-00014 against /data/opengwasdb/reference/hgdp1kgp-hg38-amr/panel, AMR, 32 workers; MAF floor 1%; declaration stays on PR #349; revert #227 edits to the retired generator files (config-candidate.yaml, dbgap-mvp README) per #355"
+  link: null
+- date: "2026-10-23"
+  text: "Launch OGS-00011 and OGS-00014 on the integration code now; merge stores dev and re-pin (orch/232-observed-view + opengwasdb dev, i.e. #295/#296/#298/#306/#324) once, before the final review: Store-writing argv are identical after the merge except Ragged builds (OGS-00006, pre-#341 records tolerated by the amendment check)"
+  link: null
+- date: "2026-10-23"
+  text: "opengwasdb dev update (#298, #305): Dense/Hybrid runs unaffected (pinned envs; coverage default gwas; full read as gwas). OGS-00006 rebuilt once more after the dev merge with --association-coverage signals_only"
+  link: null
+- date: "2026-10-23"
+  text: "Orchestrator runs OGS-00014's completion (production approval for the epic + owner started #229 in this run); PR #349 need not merge first (bundle names the panel by path)"
+  link: null
+- date: "2026-10-30"
+  text: "Closed as delivered by #381 (epic #371, PR #379 fcccf88): 3,169 Analyses, validate passed_with_warnings, register succeeded, Validation Record on main; the 3,317-Analysis Store is archived in replaced/20261023T215107Z"
+  link: null
+- date: "2026-10-30"
+  text: "OGS-00011 becomes validated in #401's register PR, against the completed Store; if #401 fails, validate the observed-only Store as it is"
+  link: null
+- date: "2026-11-01"
+  text: "One benchmark ticket (#407) for the seven Stores this epic published, rather than reopening #331/#223/#227/#229/#332: the owner set the benchmark rule today, after they closed, and one run measures all seven. Yardstick unchanged: none adds a layout or coverage yardstick-2 lacks."
+  link: null
+- date: "2026-11-01"
+  text: "Recorded the EAF re-check on #348: OGS-00014 affected (missed by the 24 Oct scan), OGS-00002 affected; OGS-00009/11/12/17 (UKB EUR panel) correct"
+  link: null
+- date: "2026-11-01"
+  text: "Rewrite OGS-00014 in place now; Release Erratum notes #409"
+  link: null
+- date: "2026-11-01"
+  text: "Take #348 into this run; most economical path to correct panels (in-place fix of frequencies/labels if possible, no rebuild needed); correctness for every panel and every Store"
+  link: null
+- date: "2026-11-01"
+  text: "opengwasdb#301 stays for later; #224 keeps waiting"
+  link: null
+- date: "2026-11-01"
+  text: "In place, no rebuild: EAF := 1-EAF in every block TSV (uniform plink2 REF counting, LD signs verified correct); AFR/EAS/SAS/EUR duplicates dropped from TSV and vectors keeping higher MAF (tie: earlier row), values untouched; verify_block binding identity replaced by a repaired-block check for repaired blocks; OGS-00002 re-completed (67 s) rather than patched, because 2% of its imputed cells read a duplicated ALID; OGS-00013/15 have nothing to repair"
+  link: null
+- date: "2026-11-01"
+  text: "Anchor rule for Stores whose first Analysis has no genome-wide hit: first Analysis in analyses.tsv order with a p_5e_08 top hit, with a YAML comment (measurement reason); applies to OGS-00015 and the existing OGS-00017 anchor"
+  link: null
+- date: "2026-11-01"
+  text: "Review r1 rulings: fix rollback evidence (per-array receipt states, never delete unless restoration proven), stale-receipt message, refuse missing imputed mask/malformed tier, strict guard bounds, dry-run takes lock, trim Plan, import se_reencode helpers, class-level fixture + NaN payload. Accepted: hand-built fixture (operator dry run on OGS-00014 exercises real arrays before swap; validate after), CONTEXT.md sentence (CONTRIBUTING domain-language rule)"
+  link: null
+- date: "2026-11-01"
+  text: "Review r1 rulings: refuse missing/empty/foreign counted suffix and remove ALT default; wire orientation gate into run_panels/build_amr_panel and verify panel mode (reference required, loud if missing); repaired-mode verify without genotypes, checking TSV rows and vectors against backup selection; receipt pending-before/complete-after with resume reconciliation; synthetic IDs in the plink2 fixture; one sampling policy. Accepted: repair suite 6.2 s peak under Veeam (tests <1 s each)"
+  link: null
+- date: "2026-11-01"
+  text: "Gate once per AMR run: build_amr_panel records run_panels gate result rather than reading the 494 MB UKB reference again"
+  link: null
+- date: "2026-11-02"
+  text: "Repair backups by hardlink (tool only ever os.replaces, never writes an original inode); avoids a 166 GB copy under Veeam. Repair runs overnight; stops at 10:45 local if unfinished and resumes after #407 measures; #407 gate extended to exclude repair/validate/complete processes"
+  link: null
+- date: "2026-11-02"
+  text: "Veeam now skips /data/opengwasdb (owner): dropped the 11:00 window, the veeamimage gate, the 10:45 repair stop and the /dev/shm TMPDIR workaround; benchmarks still need a quiet host. Skill references, memory, #407/#232 bodies updated; yardstick flag change filed as #411"
+  link: null
+- date: "2026-11-02"
+  text: "OGS-00002: rebuild parent OGS-00001 at the pinned runtime (forced release) then forced re-completion of OGS-00002 against the repaired EUR panel; both trial Stores move to 0.2.0 (forced releases approved)"
+  link: null
+- date: "2026-11-02"
+  text: "OGS-00022/23 (registry-only; Store files gone): Release Erratum only, no rebuild"
+  link: null
+- date: "2026-11-02"
+  text: "Item 4 satisfied by the observed-only re-check on OGS-00009 (identical before/after; flip inert via p(1-p), no duplicate is an observed cell); report qmd left as a historical document, the declaration carries the re-check"
+  link: null
+- date: "2026-11-02"
+  text: "Accept the OGS-00009 anchor change to the first Analysis with a genome-wide hit (same rule as fix1); pre-existing shape errors in OGS-00003/04/05/08/11 go to a follow-up issue"
+  link: null
+- date: "2026-11-02"
+  text: "Readiness view not regenerated in-lane (whole-document refresh with stale criteria; generator path moved): follow-up #415. Fragment-only modifications on a review-fix commit accepted (PR-level changelog check passes)."
+  link: null
+- date: "2026-11-02"
+  text: "Collision tie-break: constructor (MAF, call rate, input order; built AMR) and repair (stored MAF, ties to earlier row; applied to AFR/EAS/SAS/EUR) both satisfy the owner rule \"keep the higher-MAF record\". Ties are rare (17/6,642 sampled drops) and either record is an exact LD row, so no re-repair; ADR 0020/declarations corrected to state each tool's rule, pinned by a test"
+  link: null
+- date: "2026-11-02"
+  text: "Final review: fix quadratic planner, leaked phrasing, past-tense wording; do not rewrite pushed integration history for commit-subject issue numbers (merge commits name tickets). Test time 184.7 s vs stale 80.3 s baseline: re-measured like-for-like against origin/main in the fix lane"
+  link: null
+- date: "2026-11-02"
+  text: "Final-review fixes merged efcee9c3 (lane final-fix, b3ab60ae); tracked here rather than as a ticket"
+  link: null
+- date: "2026-11-02"
+  text: "Fix the post-flip validate failure by re-syncing imputed top-hit se to the decoded plane (rounding-level change, within the owner-approved #409 in-place rewrite); correct the erratum SE claim; live run only after review"
+  link: null
+- date: "2026-11-02"
+  text: "Authorised the live top-hit SE re-sync on OGS-00014 (def9e2c8) after the fix round: post-swap check mutation-tested, staged fsync verified by reading the code"
+  link: null
+- date: "2026-11-03"
+  text: "Live re-sync evidence checked against the receipt (sha256 f34f0542…), validate stdout ok, and the release-dry plan; merged fc1d2550 after rewrapping the erratum (329b74ef)."
+  link: null
+- date: "2026-11-03"
+  text: "Post-run record verified against manifest provenance, validate/OVC records and the orientation log; no changelog fragment (rides the epic PR, which carries fragments; #229/#230 precedent); cited opengwasdb#327 for the constant ld_panel_id (db26c4cb). Merged 26c09970."
+  link: null
+- date: "2026-11-03"
+  text: "2026-11-03: main moved 60 commits (#253 pins the engine from pixi.lock, resolving v0.3.3 1f1e289 with opengwasdb/ code identical to v0.3.2 44f25a96; #416 architecture map). PR #408 conflicts in src/yardstick/runner.py and its test; epic tests use removed PINNED_* constants. Merger lane (Sonnet) merges origin/main into the tip, resolves by intent, and must show every Store's release-dry unchanged. Benchmarks and yardstick then run from the merged head against an opengwasdb v0.3.3 checkout."
+  link: null
+- date: "2026-11-03"
+  text: "Yardstick workload stays yardstick-2: OGS-00013/15 add no layout or coverage it lacks (Dense Reference-Completed = OGS-00009); OGS-00002 is a trial pilot."
+  link: null
+- date: "2026-11-03"
+  text: "2026-11-03 owner: accept the five engine imports the epic added (#421 ratchet) in PR #408: eaf_reference_flip.py DenseEafPlane/StoreEncoding/layouts.dense.top_hits; compare_eur_imputation.py DenseEafPlane/DenseSePlane. Baseline entries + reasons committed f7d13de8."
+  link: null
+- date: "2026-11-03"
+  text: "main merged into the integration tip (7882ea17, lane main-merge, Sonnet): yardstick runner keeps main's engine identity and #411's no-Veeam-flag rule; eaf flip tests ported to ogstores.engine. release-dry for all 22 Stores identical on 26c09970 (v0.3.2) and the merge (v0.3.3 1f1e289, same engine code). Full suite 141/141 in 162.3 s at load ~15 (26c09970 124/124 200.8 s, origin/main 137/137 206.6 s, run together at load ~15). Fast-forwarded orch/232-phase2 to f7d13de8; PR #408 mergeable."
+  link: null
+- date: "2026-11-04"
+  text: "2026-11-04 bench2 (Sonnet operator, quiet host: load 1.7-4.5, no other Store work at every gate): --all release benchmark regenerated at v0.3.3 1f1e289 (opengwasdb/ code = v0.3.2); OGS-00013/15 HM3 + 7 shapes measured, OGS-00001/02 not_applicable. Only ratios >3x (OGS-00013 bulk 3.63x, regional_one 3.54x vs OGS-00009) follow result rows (4.06x, 4.5x), so no finding. Stores the epic did not change moved 0.74-1.74x per shape between the two committed runs (HM3 alone -7%..+23%; OGS-00016 random lookup, OGS-00009 phewas at the extremes), the noise floor for any ratio here (corrected after the round-2 final review)."
+  link: null
+- date: "2026-11-04"
+  text: "2026-11-04 yardstick: the lane's run (00:19Z, right after the 24-min --all) read OGS-00006 ~2x slower than 2026-11-01. Orchestrator re-ran at 00:29Z (load 1.2): OGS-00009/27 at or under the old result, OGS-00006 1.2-1.5x, OGS-00011 open 334 vs 192 ms in both runs. Store unchanged since 2026-10-31 and dev env package set identical except opengwasdb (same code), so it is an unexplained environmental shift, not a regression in code or data (OGS-00011 open +74% in both runs and OGS-00006 +17-52% settled exceed #385's <=25% rerun spread; corrected after the round-2 final review); both results committed, the settled one is the record's after. before = null (no result at the base pin 1f1e289)."
+  link: null
+- date: "2026-11-04"
+  text: "bench2 merged without a separate review round: it changes only generated output (release benchmark JSON/MD, yardstick results) and one internal fragment; every claim was checked against the files and gate.log by the orchestrator."
+  link: null
+- date: "2026-11-04"
+  text: "2026-11-04 final suite on 45c7d2bf: 140/141, engine's one-place test (#253) flagged the regenerated release benchmark report, which names the locked commit it measured. Orchestrator ruling: the report is a generated record of what ran (the test's own stated exemption, like docs/_yardstick/); exempted only docs/benchmark-output/opengwasdb_hm3_release_benchmark.* (d813521f), so the hand-written README stays checked (mutation: commit appended to README still fails)."
+  link: null
+- date: "2026-11-04"
+  text: "2026-11-04 round-2 final review (Opus, both axes, of what landed since b3ab60ae). Fix (lane final2-fix): eaf/se-resync receipt tests compared the lock with itself (sentinel mocks); stale 'tracked pin' wording after #253; baseline reason comment overstated what the engine imports do; #228/#230 changelog fragments and the dbGaP README still said completion pending; bench fragment's 'quiet host' now cites the load. Accept: ld-panel-generation +5 s (#348's eight new tests, each <2.5 s) and se-resync 15-30 s (wall unchanged, set by workflow 118 s). Orchestrator: corrected its noise-floor and yardstick wording; posts bench2's tables on #228/#230."
+  link: null
+- date: "2026-11-04"
+  text: "2026-11-04 #232 has six open sub-issues outside this run's ticket set: #197, #199, #335, #344, #403, #412 (several attached by other sessions). Not decided by the run; listed on PR #408 for the owner, who closes the epic."
+  link: null
+- date: "2026-11-04"
+  text: "2026-11-04 final2-fix (pi flash) merged 93e134ff: sentinel engine identity in the flip/re-sync receipt tests (mutation to locked_commit() fails both), 'tracked pin' reworded, baseline reason corrected (entries unchanged), #228/#230 fragments and dbGaP README state the completions, bench fragment cites load. 141/141, 163.1 s."
+  link: null
+test_time:
+  baseline:
+    commit: "09ff1ba"
+    wall_s: 80.3
+    suites: null
+  final:
+    commit: "93e134ff"
+    wall_s: 163.1
+    suites:
+      workflow: 118.5
+      prune-worktrees: 115.2
+      release-faults/interrupts: 64.4
+      release-faults/boundaries: 53.4
+      schema-validation: 29.0
+      release-config: 19.1
+      eaf-reference-flip: 11.0
+      eaf-reference-flip/se-resync: 15.3
+      ld-panel-comparison: 3.5
+      ld-panel-repair: 5.0
+yardstick:
+  before: null
+  after: docs/_yardstick/20261104T002939Z-0.3.3.json
+catalog:
+  before: null
+  after: null
+followups:
+- key: opengwasdb-stores#339
+  text: "#339 fresh registry checkout makes every published Store look out of date (sub-issue of #232)"
+- key: opengwasdb-stores#344
+  text: "#344 published 0.1.0 Ragged/Hybrid Stores lack the variant index opengwasdb dev requires (no parent; for /board)"
+- key: opengwasdb#301
+  text: "opengwasdb#301 complete-ragged re-quantises observed SE under int8_residual (blocks stores#224; for later, owner)"
+- key: opengwasdb-stores#348
+  text: "#348 HGDP+1kGP LD panels hold duplicated variant identities in every block (sub-issue of #232; blocks #228, #230)"
+- key: opengwasdb#306
+  text: "opengwasdb#306 build-hybrid --on-rsid-conflict drop + compound-id normalisation (blocks stores#225)"
+- key: opengwasdb#324
+  text: "opengwasdb#324 build-indexed-subset --overflow-only skip (blocks stores#225)"
+- key: opengwasdb-stores#364
+  text: "#364 resume a failed forced release from the failed step (sub-issue of #343, blocked by #254; owner asked to file it)"
+- key: null
+  text: "(not filed) opengwasdb: complete-dense per-block rollups count NaN fill records the write pass drops (OGS-00014: +13,107 vs complete.json); offer to owner"
+- key: opengwasdb-stores#409
+  text: "#409 OGS-00014 inverted imputed EAF (sub-issue of #232; found on resume 2026-11-01)"
+- key: opengwasdb-stores#414
+  text: "#414 pre-existing release-benchmark shape errors in OGS-00003/04/05/08/11 (found in #407)"
+- key: opengwasdb-stores#415
+  text: "#415 Store release readiness view stale: wrong generator command, stale criteria (found closing #228/#230)"
