@@ -69,7 +69,8 @@ def work(*plans: dict | None, key: bool = True) -> dict:
 
 def planned(doc: dict | None) -> str:
     page = pages.render_structure({"architecture": architecture(), "work": doc})
-    return page.split("## Planned changes", 1)[1] if "## Planned changes" in page else ""
+    # The section ends where the component panel's block (#435) begins.
+    return page.split("## Planned changes", 1)[1].split("\n```{=html}\n", 1)[0] if "## Planned changes" in page else ""
 
 
 def dots(text: str) -> list[str]:

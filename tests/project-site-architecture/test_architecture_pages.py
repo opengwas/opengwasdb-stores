@@ -123,15 +123,17 @@ class PipelineTests(unittest.TestCase):
             self.assertIn(name, build)
         link = "[0001. Manifest Generation is one pipeline](https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0001-x.md)"
         # nested under its component, before the next component starts
-        self.assertIn(f"- **Manifest Generation** (registry; 3 files, 100 lines): Manifest Generation summary.\n  - {link}", build)
-        self.assertLess(build.index(link), build.index("**Checks**"))
+        # Each name opens the component's panel (#435).
+        self.assertIn(f"- **[Manifest Generation](#component-gen)** (registry; 3 files, 100 lines): Manifest Generation summary.\n  - {link}", build)
+        self.assertLess(build.index(link), build.index("**[Checks](#component-check)**"))
         self.assertNotIn("Query is layer free", build)
         query = section(self.page, "Query")
-        self.assertIn("- **Query** (engine; 3 files, 100 lines): Query summary.\n  - [0001. Query is layer free]", query)
+        self.assertIn("- **[Query](#component-query)** (engine; 3 files, 100 lines): Query summary.\n  - [0001. Query is layer free]", query)
         self.assertIn("Store contract model", query)
 
     def test_an_adr_placed_nowhere_is_listed(self) -> None:
-        tail = self.page.split("## ADRs the map cannot place", 1)[1]
+        # Up to the component panel's data (#435), which holds every ADR placed on a component.
+        tail = self.page.split("## ADRs the map cannot place", 1)[1].split("```{=html}", 1)[0]
         self.assertIn("0003. Nothing", tail)
         self.assertNotIn("Query is layer free", tail)
 
