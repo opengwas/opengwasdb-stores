@@ -214,7 +214,7 @@ ul.task-list li input[type="checkbox"] {
 <p><strong>Written by hand:</strong> which code each component owns (the claims in each repository’s <code>docs/architecture/components.yaml</code>), the epics and tickets on the board and the blocking edges between them, and the files a ticket’s text cites. The claims are in the repositories, the rest on the project board.</p>
 <p><strong>Measured:</strong> the files each live branch changes, which component each file and each cited file falls on, the state of each piece of work there, and the meets between owners. Nothing measured is written by hand, so it cannot drift from the code.</p>
 </blockquote>
-<p>Measured 2026-11-04T09:10:45Z, from the board (collected 2026-11-04T09:10:38Z) and the claims at engine <code>main</code> (<code>b4b617aae146</code>). Branches are pushed ones ahead of <code>main</code> whose newest commit is within 21 days; branches that exist only on a build host are not shown. On that host, <code>pixi run architecture conflicts --branch NAME --local GIT_DIR</code> includes them.</p>
+<p>Measured 2026-11-04T09:42:09Z, from the board (collected 2026-11-04T09:42:02Z) and the claims at engine <code>main</code> (<code>b4b617aae146</code>). Branches are pushed ones ahead of <code>main</code> whose newest commit is within 21 days; branches that exist only on a build host are not shown. On that host, <code>pixi run architecture conflicts --branch NAME --local GIT_DIR</code> includes them.</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -318,7 +318,6 @@ ul.task-list li input[type="checkbox"] {
 <li><a href="https://github.com/opengwas/opengwasdb/issues/58">opengwasdb#58</a> Shallow-module cleanup ledger (delete first, then deepen)
 <ul>
 <li>branch:opengwasdb:orch/58-deepen-modules (building: <code>opengwasdb:orch/58-deepen-modules</code>)</li>
-<li>opengwasdb#56 (active: <code>build/source.py</code>, <code>build/vcf_source.py</code>, <code>opengwasdb/build/source.py</code>, <code>opengwasdb/build/vcf_source.py</code>, <code>opengwasdb/readers/fake.py</code>, <code>opengwasdb/readers/gwas_vcf.py</code>, <code>opengwasdb/readers/interface.py</code>, <code>opengwasdb/readers/registry.py</code>, <code>readers/registry.py</code>)</li>
 </ul></li>
 </ul>
 <p><strong>Unlinkable</strong>: <code>opengwasdb:orch/58-deepen-modules</code> belongs to an epic as a whole, so no blocking edge can link it to a single ticket. Whether opengwasdb#347 and opengwasdb#58 are coordinated can’t be checked ticket by ticket, so ask a person.</p>
@@ -393,7 +392,6 @@ ul.task-list li input[type="checkbox"] {
 <li>branch:opengwasdb:orch/58-deepen-modules (building: <code>opengwasdb:orch/58-deepen-modules</code>)</li>
 <li>opengwasdb#350 (active: <code>layouts/ragged/zarr_csr.py</code>)</li>
 <li>opengwasdb#364 (active: <code>layouts/ragged/zarr_csr.py</code>)</li>
-<li>opengwasdb#56 (active: <code>opengwasdb/layouts/ragged/build_besd.py</code>, <code>opengwasdb/layouts/ragged/build_ssf.py</code>, <code>ragged/build_ssf.py</code>)</li>
 </ul></li>
 </ul>
 <p><strong>Coordinated</strong>: opengwasdb#338 waits for opengwasdb#350.</p>
@@ -462,7 +460,7 @@ ul.task-list li input[type="checkbox"] {
 <td></td>
 <td></td>
 <td></td>
-<td>building, active</td>
+<td>building</td>
 <td></td>
 <td></td>
 <td></td>
@@ -654,7 +652,7 @@ ul.task-list li input[type="checkbox"] {
 <td></td>
 <td>active, waiting</td>
 <td></td>
-<td>building, active, scope</td>
+<td>building, scope</td>
 <td></td>
 <td></td>
 <td></td>
@@ -816,9 +814,9 @@ ul.task-list li input[type="checkbox"] {
 <tr class="even">
 <td><code>orch/58-deepen-modules</code></td>
 <td>opengwasdb</td>
-<td style="text-align: right;">104</td>
-<td>2026-11-03T16:50:30Z</td>
-<td style="text-align: right;">208</td>
+<td style="text-align: right;">119</td>
+<td>2026-11-04T09:34:03Z</td>
+<td style="text-align: right;">231</td>
 <td>branch:opengwasdb:orch/58-deepen-modules</td>
 <td>opengwasdb#58</td>
 <td>Ancestry Assignment, Engine CLI, Reference Completion, Dense Layout, Hybrid Layout, Repair and re-encode, Store contract model, Query, Ragged Layout, Source Readers, Analysis Resolution, Store Release envelope, Validation, Variant Identity</td>
