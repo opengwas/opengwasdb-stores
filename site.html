@@ -1719,6 +1719,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <ul>
   <li><a href="#the-commands" id="toc-the-commands" class="nav-link active" data-scroll-target="#the-commands">The commands</a></li>
   <li><a href="#where-a-render-puts-things" id="toc-where-a-render-puts-things" class="nav-link" data-scroll-target="#where-a-render-puts-things">Where a render puts things</a></li>
+  <li><a href="#how-a-render-runs-in-parallel" id="toc-how-a-render-runs-in-parallel" class="nav-link" data-scroll-target="#how-a-render-runs-in-parallel">How a render runs in parallel</a></li>
   <li><a href="#publishing" id="toc-publishing" class="nav-link" data-scroll-target="#publishing">Publishing</a></li>
   <li><a href="#the-data-pages" id="toc-the-data-pages" class="nav-link" data-scroll-target="#the-data-pages">The data pages</a></li>
   <li><a href="#going-live" id="toc-going-live" class="nav-link" data-scroll-target="#going-live">Going live</a></li>
@@ -1762,7 +1763,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>pixi run site</code></td>
-<td>Collect the site’s data, stage both repositories’ docs, render, and check every served path.</td>
+<td>Collect the site’s data, stage both repositories’ docs, render, and check every served path. The render runs over 24 Quarto processes; <code>--jobs N</code> changes that, and <code>--jobs 1</code> is Quarto rendering alone.</td>
 </tr>
 <tr class="even">
 <td><code>pixi run site-preview</code></td>
@@ -1770,7 +1771,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>pixi run site-publish --dry-run</code></td>
-<td>Render a clean checkout of <code>origin/main</code> and commit it to <code>gh-pages</code> <strong>without pushing</strong>.</td>
+<td>Render a clean checkout of <code>origin/main</code> and commit it to <code>gh-pages</code> <strong>without pushing</strong>. It takes <code>--jobs</code> too.</td>
 </tr>
 <tr class="even">
 <td><code>pixi run site-publish</code></td>
@@ -1807,10 +1808,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <td>The mirror of <code>docs/</code> the render reads, with the collected data and the generated pages in it (<code>$OPENGWASDB_SITE_ROOT</code> moves the work root).</td>
 </tr>
 <tr class="odd">
+<td><code>/data/opengwasdb/work/site/&lt;checkout&gt;/_site-workers-*</code></td>
+<td>Each render worker’s copy of the mirror, and what it rendered, while a render runs. Removed when the render ends, whether it succeeded or not.</td>
+</tr>
+<tr class="even">
 <td><code>/data/opengwasdb/work/site/&lt;checkout&gt;/_preview</code></td>
 <td>The synced copy <code>site-preview</code> serves; Quarto renders inside it.</td>
 </tr>
-<tr class="even">
+<tr class="odd">
 <td><code>/data/opengwasdb/work/site/opengwasdb.git</code></td>
 <td>The bare clone the engine’s docs are staged from (<code>$OPENGWASDB_SITE_ENGINE_CLONE</code> overrides it).</td>
 </tr>
@@ -1818,6 +1823,17 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 <p>Nothing the site build writes goes under <code>/home</code> or <code>/tmp</code>, and nothing is written into the checkout.</p>
 <p>The render reads a mirror of <code>docs/</code>, not <code>docs/</code> itself. That is deliberate: the mirror is where the link rewrite, the Mermaid spelling and the staged engine docs and glossary live, so no source file is ever edited, <code>docs/</code> stays readable on GitHub, and two renders — of different checkouts, or of one checkout into two outputs — never collide. <code>docs/opengwasdb/</code> holds the engine’s docs at the pinned revision and <code>docs/glossary.md</code> is <code>CONTEXT.md</code>, both inside the mirror.</p>
+</section>
+<section id="how-a-render-runs-in-parallel" class="level2">
+<h2 class="anchored" data-anchor-id="how-a-render-runs-in-parallel">How a render runs in parallel</h2>
+<p>Quarto renders a project’s pages one after another, about a second each whatever the page, so the 226 pages took five minutes. Quarto cannot render in parallel itself, so <code>src/project_site/render.py</code> does it from outside:</p>
+<ol type="1">
+<li>One page is rendered alone in a copy of the mirror. Quarto runs the <code>pre-render</code> hook first, so the generated pages exist, and <code>quarto inspect</code> lists every page the site has.</li>
+<li>Each worker renders pages in its own copy of the mirror, one <code>quarto render &lt;page&gt;</code> call per page. A call renders one page but builds its navigation from the whole site, so a page is the same whichever worker renders it.</li>
+<li>The outputs are merged. A page comes from the worker that rendered it, every other file must be identical in every worker or the render stops, and the search index and sitemap are rebuilt page by page.</li>
+</ol>
+<p>On 4 Nov 2026 the render of <code>main</code> took 319 s with Quarto alone and 67 s over 24 workers. Of the 471 files the two renders share besides the search index and sitemap, 470 were byte-identical. The other was <code>architecture-structure.html</code>, whose registry diagram Quarto’s Graphviz lays out differently from one render to the next, even of the same source. The search index held the same 1,155 entries and the sitemap the same 226 addresses.</p>
+<p><code>site-preview</code> is unchanged: Quarto’s preview renders the site itself before serving it.</p>
 </section>
 <section id="publishing" class="level2">
 <h2 class="anchored" data-anchor-id="publishing">Publishing</h2>
@@ -1835,7 +1851,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   C --&gt; D["clean detached worktree of that commit"]
   D --&gt; E["stage the engine's docs at the pixi.lock pin"]
   E --&gt; F["mirror docs/, rewrite outbound links, spell mermaid fences"]
-  F --&gt; G["quarto render into /data/opengwasdb/work/site/"]
+  F --&gt; G["quarto render over 24 workers, merged into /data/opengwasdb/work/site/"]
   G --&gt; H["replace the gh-pages worktree contents"]
   H --&gt; I{"--dry-run?"}
   I -- yes --&gt; J["commit to gh-pages locally, push nothing"]
@@ -1850,8 +1866,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="the-data-pages" class="level2">
 <h2 class="anchored" data-anchor-id="the-data-pages">The data pages</h2>
-<p>Five pages are generated from the site’s own data rather than written by hand: the <a href="./index.html">Overview</a>, <a href="./stores.html">Stores</a>, <a href="./epics.html">Epics</a>, <a href="./trends.html">Trends</a> and <a href="./changelog.html">Changelog</a>, with one page per epic and one per registered Store beside them (<a href="https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/src/project_site/pages.py"><code>src/project_site/pages.py</code></a>, #391).</p>
-<p>Three more, under <strong>Architecture</strong> in the navbar, draw how OpenGWASDB fits together from both repositories’ <code>docs/architecture/components.yaml</code> and their code (<a href="https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/src/project_site/architecture_pages.py"><code>src/project_site/architecture_pages.py</code></a>, #418): <a href="./architecture.html">Pipeline</a> (the stages, their components and ADRs) and <a href="./architecture-structure.html">Structure and health</a> (context, containers and components, the engine by layer with its upward imports, and the gaps in the claims). The third, <a href="./architecture-work.html">Work map</a> (#419), shows where live work meets: which epics’, tickets’ and branches’ files fall on the same component, and whether a blocking edge between the specific tickets coordinates it. It shows pushed branches and the files tickets cite, says when it was measured, and says that branches existing only on a build host are not shown; <code>pixi run architecture conflicts</code> run on that host includes them. The engine is read at its <code>main</code> from the same bare clone the docs come from; the docs stay at the pinned tag. The diagrams are Quarto <code>{dot}</code> cells, drawn at render time, so no SVG is committed. Each page says what is written by hand and what is measured, and <code>docs/spec/project-site.md</code> (Architecture) is the contract.</p>
+<p>Five pages are generated from the site’s own data rather than written by hand: the <a href="./index.html">Overview</a>, <a href="./stores.html">Stores</a>, <a href="./epics.html">Epics</a>, <a href="./trends.html">Trends</a> and <a href="./changelog.html">Changelog</a>, with one page per epic and one per registered Store beside them (<a href="https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/src/project_site/pages.py"><code>src/project_site/pages.py</code></a>, #391).</p>
+<p>Three more, under <strong>Architecture</strong> in the navbar, draw how OpenGWASDB fits together from both repositories’ <code>docs/architecture/components.yaml</code> and their code (<a href="https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/src/project_site/architecture_pages.py"><code>src/project_site/architecture_pages.py</code></a>, #418): <a href="./architecture.html">Pipeline</a> (the stages, their components and ADRs) and <a href="./architecture-structure.html">Structure and health</a> (context, containers and components, the engine by layer with its upward imports, and the gaps in the claims). The third, <a href="./architecture-work.html">Work map</a> (#419), shows where live work meets: which epics’, tickets’ and branches’ files fall on the same component, and whether a blocking edge between the specific tickets coordinates it. It shows pushed branches and the files tickets cite, says when it was measured, and says that branches existing only on a build host are not shown; <code>pixi run architecture conflicts</code> run on that host includes them. The engine is read at its <code>main</code> from the same bare clone the docs come from; the docs stay at the pinned tag. The diagrams are Quarto <code>{dot}</code> cells, drawn at render time, so no SVG is committed. Each page says what is written by hand and what is measured, and <code>docs/spec/project-site.md</code> (Architecture) is the contract.</p>
 <ul>
 <li><code>pixi run site</code> and <code>site-publish</code> <strong>collect the data themselves</strong> before the render, into the render’s own <code>_stage/_data</code>, from the <code>stores/</code> and <code>docs/_epics/</code> of the checkout being rendered. <code>$OPENGWASDB_SITE_DATA</code> names a directory collected already, and then nothing is collected.</li>
 <li><code>docs/_quarto.yml</code> names <code>docs/pre-render.sh</code> as the project’s <code>pre-render</code> hook. Quarto runs it inside the mirror before rendering, so the generator writes the pages where the render reads them and never into the checkout. The commit being rendered reaches it as <code>$OPENGWASDB_SITE_COMMIT</code>, which is what a generated link to a file outside <code>docs/</code> names.</li>

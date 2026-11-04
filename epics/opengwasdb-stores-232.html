@@ -241,7 +241,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td>Next</td>
-<td>21/22 merged on PR #408 · waiting #224 · ready for your review · #224 waits opengwasdb#301 (owner: later) · 6 open sub-issues outside the run (#197 #199 #335 #344 #403 #412) for the owner</td>
+<td>21/22 merged on PR #408 · waiting #224 · #408 merged 4 Nov (v0.8.0), catalog 88da43e2 current · #224 waits opengwasdb#301 (owner: later) · 6 open sub-issues outside the run (#197 #199 #335 #344 #403 #412) for the owner</td>
 </tr>
 </tbody>
 </table>
@@ -583,11 +583,28 @@ ul.task-list li input[type="checkbox"] {
 <li><strong>2026-11-04</strong> — 2026-11-04 round-2 final review (Opus, both axes, of what landed since b3ab60ae). Fix (lane final2-fix): eaf/se-resync receipt tests compared the lock with itself (sentinel mocks); stale ‘tracked pin’ wording after #253; baseline reason comment overstated what the engine imports do; #228/#230 changelog fragments and the dbGaP README still said completion pending; bench fragment’s ‘quiet host’ now cites the load. Accept: ld-panel-generation +5 s (#348’s eight new tests, each &lt;2.5 s) and se-resync 15-30 s (wall unchanged, set by workflow 118 s). Orchestrator: corrected its noise-floor and yardstick wording; posts bench2’s tables on #228/#230.</li>
 <li><strong>2026-11-04</strong> — 2026-11-04 #232 has six open sub-issues outside this run’s ticket set: #197, #199, #335, #344, #403, #412 (several attached by other sessions). Not decided by the run; listed on PR #408 for the owner, who closes the epic.</li>
 <li><strong>2026-11-04</strong> — 2026-11-04 final2-fix (pi flash) merged 93e134ff: sentinel engine identity in the flip/re-sync receipt tests (mutation to locked_commit() fails both), ‘tracked pin’ reworded, baseline reason corrected (entries unchanged), #228/#230 fragments and dbGaP README state the completions, bench fragment cites load. 141/141, 163.1 s.</li>
+<li><strong>2026-11-04</strong> — Epic record docs/_epics/opengwasdb-stores-232.yaml written and validated (2ce51647): yardstick before null / after 20261104T002939Z; catalog before null (oldest version c549c2b9 is 2026-10-23, after the start), after for the owner’s post-merge rebuild. PR #408 marked ready; not merged.</li>
+<li><strong>2026-11-04</strong> — PR #408 merged to main by the owner (e7fe79d3, v0.8.0). On the owner’s word in chat, the Analysis Catalog was rebuilt from a clean origin/main checkout at e7fe79d3: version 88da43e2534cc126, now current. 10 Stores listed, 12 excluded, none refused; no Analysis added, removed or changed (analyses.tsv.gz byte-identical to 9df14f8d). stores.tsv: OGS-00013 and OGS-00015 now reference_completed (n_variants 40,200,979 and 11,650,615, opengwasdb 0.3.2, new validated_at); OGS-00014’s notes carry the #409 erratum.</li>
 </ul>
 </section>
 <section id="versions-shipped" class="level2">
 <h2 class="anchored" data-anchor-id="versions-shipped">Versions shipped</h2>
-<p>No version has shipped from this epic yet: a record’s <code>versions</code> fills once each repository tags every merge to <code>main</code> (#386).</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Version</th>
+<th>Release notes</th>
+<th>Published</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>v0.8.0</code></td>
+<td><a href="https://github.com/opengwas/opengwasdb-stores/releases/tag/v0.8.0">v0.8.0</a></td>
+<td>2026-11-04T09:04:41Z</td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="before-and-after" class="level2">
 <h2 class="anchored" data-anchor-id="before-and-after">Before and after</h2>
@@ -608,12 +625,12 @@ ul.task-list li input[type="checkbox"] {
 <tr class="odd">
 <td>Catalog Analyses</td>
 <td><em>not reported</em></td>
-<td><em>not reported</em></td>
+<td>35,109 (<code>88da43e2534cc126</code>)</td>
 </tr>
 <tr class="even">
 <td>Catalog Stores</td>
 <td><em>not reported</em></td>
-<td><em>not reported</em></td>
+<td>10</td>
 </tr>
 <tr class="odd">
 <td>Test time (wall)</td>

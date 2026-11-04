@@ -24,7 +24,7 @@ round 1, `mapping.tsv` now contains 550 UKB-B mappings and resolves 553 of the
 results.
 
 The new review list is
-[`review-queue-ukb-b-2026q4.tsv`](https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/resources/reference-resources/canonical-trait-mapping-efo/review-queue-ukb-b-2026q4.tsv).
+[`review-queue-ukb-b-2026q4.tsv`](https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/resources/reference-resources/canonical-trait-mapping-efo/review-queue-ukb-b-2026q4.tsv).
 It supersedes the Q3 queue for active review; the Q3 files remain as historical
 round evidence. The 136 labels for which filtering left no candidate cannot be
 represented by the proposal-backed review-queue schema, so they remain visible
@@ -87,7 +87,7 @@ This is an AI-assisted spot check, not independent human curation.
 - Per-label outcomes:
   [`trait-mapping-ukb-b-round2.tsv`](data/trait-mapping-ukb-b-round2.tsv).
 - Confident abstentions:
-  [`no-suitable-term-ukb-b-2026q4.tsv`](https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/resources/reference-resources/canonical-trait-mapping-efo/no-suitable-term-ukb-b-2026q4.tsv).
+  [`no-suitable-term-ukb-b-2026q4.tsv`](https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/resources/reference-resources/canonical-trait-mapping-efo/no-suitable-term-ukb-b-2026q4.tsv).
 
 The untracked resumable round is under
 `.cache/curation/rounds/ukb-b-2026q4/` on the build host. Re-running any stage
