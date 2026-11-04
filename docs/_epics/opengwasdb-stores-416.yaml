@@ -1,16 +1,23 @@
 repo: opengwasdb-stores
 number: 416
 title: A living architecture map on the project site
-status: active
+status: finished
 workstream: Engineering
 started: "2026-11-02"
-finished: null
+finished: "2026-11-03"
 summary: "Epic #416 put a living architecture map of OpenGWASDB on the project site. Each repository claims its own code in `docs/architecture/components.yaml`, and CI fails on an unclaimed file, on a new upward engine import (23 listed) or on a new import of engine names here (91 listed). The site draws Pipeline, Structure and health, and Work map pages from both repositories' claims, their code, the board and pushed branches, and a `check` / `conflicts` CLI gives agents the same answers. Orchestrate now stops before launching a lane whose files meet another owner's uncoordinated work, and a structural ticket's `architecture` block is drawn on the map and checked once its code lands."
 prs:
 - opengwasdb-stores#423
 - opengwasdb#368
 - agent-skills#3
-versions: []
+- opengwasdb-stores#427
+- agent-skills#4
+- opengwasdb#384
+versions:
+- v0.3.5
+- v0.6.0
+- v0.6.1
+- v0.4.1
 tickets:
 - key: opengwasdb#358
   title: "Claim every engine source file for one component, and fail CI on an unclaimed one"
@@ -124,4 +131,10 @@ catalog:
   after: null
 followups:
 - key: opengwasdb#372
-  text: "opengwas/opengwasdb#372 reference extraction reaches into nine private Dense VCF builder names (9 of 23 upward imports); unparented, for /board to place (likely epic #58)"
+  text: "opengwas/opengwasdb#372 reference extraction reaches into nine private Dense VCF builder names (9 of 23 upward imports); placed under epic opengwasdb#58 on 4 Nov"
+- key: opengwasdb-stores#435
+  text: "The prototype's component panel, dropped on the way to the site without a decision; restored 4 Nov by PR #437"
+- key: opengwasdb-stores#433
+  text: "Structure and health's registry diagram is laid out differently on every render; epic opengwasdb-stores#438"
+- key: opengwasdb-stores#436
+  text: "The architecture diagrams are a fixed 864x480 box, so wide ones shrink to 68% and phones scroll sideways; epic opengwasdb-stores#438"
