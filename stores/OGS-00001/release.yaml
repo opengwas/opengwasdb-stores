@@ -53,4 +53,13 @@ notes: 'Probes chosen for well-characterised cis-eQTL signal and biological fami
   names, and at 987aec1, the revision that rebuilt the published Store.
   Corrected to 0.1.0 in validation.yaml. No Store artifact was rebuilt or rewritten
   by this registry metadata correction.
+
+  Rebuilt 2026-11-02 (issue #348): this Store was rebuilt from the same BESD source
+  at the pinned runtime opengwasdb 0.3.2 (44f25a96), so that OGS-00002 could be
+  re-completed against the repaired HGDP+1kGP EUR panel. Format 0.1.0 became
+  0.2.0. The counts are unchanged: 10 Analyses, 86,376 variants, 86,373
+  associations. validate passed. The previous Store and records are kept in
+  /data/opengwasdb/stores/OGS-00001/replaced/20261102T072357Z. This supersedes
+  the format 0.1.0 statements in the earlier errata above, which are left as
+  written.
   '

@@ -41,6 +41,50 @@ notes: |-
   #322); this Store was registered before that change reached this branch. The product counts matrix cells, which here include the imputed cells and the off-panel cells completion left missing, so it is not the number of observed associations.
   The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
   was rebuilt or rewritten by this registry metadata correction.
+
+  Release Erratum (issue #409, 2026-11-01): the imputed cells' reference EAF was the other allele's
+  frequency. The HGDP+1kGP AMR panel's EAF column was inverted (opengwas/opengwasdb-stores#348), and
+  completion read it as the frequency of the panel's effect allele. The Store's eaf_reference array, its
+  copy in the HM3 Indexed Variant Subset, and the eaf of each imputed top-hit row (all three tiers) held
+  1 - the effect-allele frequency. Observed EAF was right: eaf_reference against the mean observed EAF on
+  existing variants read r = -0.996 over 4,234 sampled variants. On the owner decision of 2026-11-01
+  the five arrays were corrected in place, once, with `pixi run eaf-reference-flip OGS-00014` at stores
+  f281909b (opengwasdb 0.3.2): eaf_reference 12,668,057 finite values; indexed_subsets/hm3/eaf_reference
+  1,196,198; top_hits eaf, imputed rows only, 601,392 (p_5e_04), 89,875 (p_5e_06) and 38,890 (p_5e_08).
+  NaN cells and every observed cell are bit-identical to before. The tool refuses unless the guard reads
+  r < -0.9 and swaps each array in after a staged copy checks out. The receipt is
+  /data/opengwasdb/stores/OGS-00014/records/eaf-reference-flip.json, status complete, sha256
+  cbf2d3f8e67e1d1d3ce3a72f6245eeddc0041255c5d9f2534c011ba4813c8a8d. The guard reads r = -0.9958 before
+  and +0.9958 after (n = 4,234). The originals are kept under replaced/20261101T215514Z-eaf-reference-flip/.
+  Read back afterwards: eaf_reference against the mean observed EAF r = +0.992 (n = 3,980), against the UKB
+  ancestry-mixture South America frequency, oriented to the Store's effect allele, r = +0.985 (n = 2,217).
+  Unchanged: z, the stored SE codes, the observed EAF and the imputed mask, and manifest.json,
+  index.sqlite and the Validation Record were not touched, so the Validation Record still describes
+  the pre-flip Store apart from this correction. The release workflow plans no jobs for the Store.
+
+  Correction to the line above (SE): the decoded SE of imputed cells is not unchanged. SE is an
+  int8 residual against the cell's own frequency, and an imputed cell's frequency is eaf_reference;
+  float32 `1 - (1 - f)` is not exactly `f`, so the SE decoded from an imputed cell whose original
+  reference was below 0.5 moved by at most 1.6e-6 relative (1.5e-6 over every top-hit cell; 1.55e-6
+  over a random 3.0 million imputed cells, 39% of which moved and none with an original reference
+  of 0.5 or more). That is 0.04% of the codec's half step of 0.39%, and no cell with an observed
+  value moved. Each top-hit tier still held the SE decoded before the flip, so opengwasdb 0.3.2
+  validate failed all three tiers at its rtol of 1e-6 (se value inconsistent with decoded se
+  plane). The top-hit SE was written again from the decoded plane with
+  `pixi run eaf-reference-flip OGS-00014 --resync-se`: 126,116 of 44,023,163 top-hit cells in
+  p_5e_04, 16,951 of 2,739,528 in p_5e_06 and 7,548 of 560,180 in p_5e_08 (all imputed), run
+  2026-11-02 at stores def9e2c8. The receipt is
+  /data/opengwasdb/stores/OGS-00014/records/eaf-reference-flip-se-resync.json, status complete,
+  sha256 f34f054214a0b2d22570af49d979360e4aef0c6ea4cbeac285bab2386e25d8a6. The originals are kept
+  under replaced/20261102T111229Z-eaf-reference-flip-se-resync/. The HM3
+  Indexed Variant Subset was not touched: its SE codes and eaf_reference decode to the primary's
+  values at every row.
+
+  Validation after the correction: `opengwasdb validate` 0.3.2 (44f25a96) of the corrected Store,
+  started 2026-11-02 11:32:35 UTC, elapsed 4 h 29 m 50 s, exit 0, printed
+  {"errors": [], "ok": true, "warnings": []}. It is not a new Validation Record: validation.yaml is
+  unchanged and still describes the pre-flip Store. This breaks the rule that a published Store is
+  never rewritten; it is a one-off for a wrong value, not a precedent.
 accepted_at: '2026-10-14T08:39:20Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z

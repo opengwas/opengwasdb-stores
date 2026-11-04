@@ -41,3 +41,10 @@ notes: |
   `--ancestry European`, because that is what ran: opengwasdb#98 matched the
   argument against the stored labels by exact string, so the CLI was given the
   label, not the code.
+
+  Release Erratum (issue #348, 2026-11-02): this completion ran against the
+  HGDP+1kGP EUR panel before the panel was repaired. Imputed cells took the other
+  allele frequency as EAF, and cells whose panel ALID was duplicated may have taken
+  the wrong row LD. The Store files of OGS-00022 are no longer on disk, so nothing
+  was rebuilt or re-completed; this note records the exposure only. Status is
+  unchanged.

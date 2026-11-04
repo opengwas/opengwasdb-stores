@@ -80,9 +80,14 @@ install reports the version it was built from, which is not necessarily the code
 that ran (#386), and `dirty` marks a run on an uncommitted tree as one that
 cannot be reproduced.
 `repetitions.default` is 5 and
-`analysis_full` is 3. A run is flagged `veeam_window: true`, never dropped, if
-any part of it fell between 00:00 and 11:00 local time (the nightly Veeam
-snapshot throttles disk I/O). Each worker and the fixture build
+`analysis_full` is 3. A run was flagged `veeam_window: true`, never dropped, if
+any part of it fell between 00:00 and 11:00 local time, when the nightly Veeam
+snapshot covered `/data` and throttled disk I/O 8–10× (#390). That window is
+history: since 2026-11-02 the backup skips `/data/opengwasdb` (#411), so a run
+records `false` and prints no warning, and the flag marks only a result measured
+before that date. The field stays in schema 1, and a committed result keeps the
+value that was true of it, because a reader must be able to tell a point measured
+under throttled I/O from one that was not. Each worker and the fixture build
 are given the run's remaining 600 s budget as a timeout; one that overruns is
 killed with its whole process group (each runs in its own session: SIGTERM, a one-second grace, then SIGKILL, and it is reaped before the run goes on) and its measures are `unavailable` ("timeout after N s"). The result is
 still written, and a run over budget exits 2. "Over budget" is decided on the unrounded elapsed time and carried as `over_budget`; `duration_s` is rounded for display.
@@ -96,15 +101,15 @@ a new version.
 |---|---|
 | `schema` | `1` |
 | `workload_id`, `workload_sha256` | the workload that ran |
-| `opengwasdb` | `version`, and `revision`: the 40-hex rev `pixi.lock` pins |
+| `opengwasdb` | `version`, and `revision`: the 40-hex commit of the engine that ran (#253: read from the install, not from the lock) |
 | `ogstores` | `version`; `commit`: the 40-hex `HEAD` of the checkout that ran, because an editable install's version can be stale; `dirty`: whether that tree had uncommitted changes |
 | `host` | `name`, `cpu_count` |
 | `load_average` | `before` and `after`, each exactly three non-negative numbers: the 1, 5 and 15 minute averages |
 | `started_utc`, `ended_utc` | `YYYY-MM-DDTHH:MM:SSZ` |
 | `duration_s` | wall time of the whole run in seconds, rounded to 0.1, non-negative |
 | `over_budget` | boolean: the unrounded wall time exceeded 600 s (a run over budget exits 2) |
-| `local_utc_offset_minutes` | the local zone the Veeam test used |
-| `veeam_window` | boolean |
+| `local_utc_offset_minutes` | the local zone the run started in |
+| `veeam_window` | boolean: the run overlapped the nightly Veeam backup window (00:00–11:00 local) that throttled disk I/O until 2026-11-02; a run since records `false`, and a result measured before then keeps the value true of it |
 | `repetitions` | as in the workload |
 | `stores` | one object per workload Store, below |
 | `guard_violations` | optional list of `{store_id, problem}`: what the runner found changed beside a Store (empty on a clean run) |

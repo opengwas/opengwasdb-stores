@@ -58,6 +58,28 @@ def variant_alids(variants: list[dict[str, object]]) -> list[str | None]:
     return alids
 
 
+def counted_alleles(variants: list[dict[str, object]]) -> list[str]:
+    """Which allele each column's dosage counts, uppercased.
+
+    PLINK's additive export names it in the column header (``<ID>_<allele>``),
+    and :func:`plink_export_variants` records it as ``counted``. This plink2
+    counts REF, not ALT, so assuming ALT is what inverted every shipped panel's
+    EAF (#348). Every caller therefore states it: there is no default, because
+    a default is how the wrong allele got read in the first place.
+    """
+    counted: list[str] = []
+    for v in variants:
+        alleles = (str(v["allele1"]).upper(), str(v["allele2"]).upper())
+        if "counted" not in v:
+            raise ValueError(f"variant {v.get('chrom')}:{v.get('pos')} does not name the allele "
+                             "its dosage counts; pass 'counted' explicitly")
+        allele = str(v["counted"]).upper()
+        if allele not in alleles:
+            raise ValueError(f"counted allele {allele!r} is neither {alleles[0]} nor {alleles[1]}")
+        counted.append(allele)
+    return counted
+
+
 def standardised_ea_dosages(genotypes: np.ndarray, variants: list[dict[str, object]],
                             rows: list[dict[str, object]]) -> tuple[np.ndarray, np.ndarray]:
     """Unit-norm centred effect-allele dosages for panel ``rows``, and their EAF.
@@ -66,8 +88,11 @@ def standardised_ea_dosages(genotypes: np.ndarray, variants: list[dict[str, obje
     each row names its effect allele by ``EA``, and its source record by
     ``BP``/``REF``/``ALT`` or, in tables that predate them, by ``SNP``. An ALID
     can name two records (#348), so a row that names more than one is refused.
-    Missing calls are mean-imputed, as in construction, so for a block built
-    from these genotypes ``x.T @ x`` is the LD its eigendecomposition stores.
+    A column's dosage counts the allele the export names, which
+    :func:`counted_alleles` reads: this plink2 counts REF, so a dosage read as
+    ALT would give the other allele's EAF (#348). Missing calls are
+    mean-imputed, as in construction, so for a block built from these genotypes
+    ``x.T @ x`` is the LD its eigendecomposition stores.
     """
     if all("REF" in r and "ALT" in r for r in rows):
         keys = [(int(v["pos"]), str(v["allele1"]).upper(), str(v["allele2"]).upper()) for v in variants]
@@ -79,9 +104,10 @@ def standardised_ea_dosages(genotypes: np.ndarray, variants: list[dict[str, obje
     if ambiguous: raise ValueError(f"{len(ambiguous)} rows name more than one source record, e.g. {ambiguous[0]}")
     index = {k: i for i, k in enumerate(keys) if k is not None}
     columns = [index[w] for w in wanted]
-    alt = np.asarray(genotypes, dtype=np.float64)[:, columns]
-    alt_is_ea = np.array([str(variants[c]["allele2"]).upper() == r["EA"] for c, r in zip(columns, rows)])
-    dosage = np.where(alt_is_ea, alt, 2 - alt)
+    counted = counted_alleles(variants)
+    raw = np.asarray(genotypes, dtype=np.float64)[:, columns]
+    counted_is_ea = np.array([counted[c] == str(r["EA"]).upper() for c, r in zip(columns, rows)])
+    dosage = np.where(counted_is_ea, raw, 2 - raw)
     means = np.nanmean(dosage, axis=0)
     x = np.where(np.isnan(dosage), means, dosage) - means
     return x / np.sqrt((x * x).sum(axis=0)), means / 2
@@ -156,9 +182,11 @@ def construct_block(
     # An ALID naming two source records is ambiguous to every consumer: gnomAD
     # splits multi-allelic sites, so the deletion GA>G and the insertion G>GA
     # at one position both become pos:G:GA (#241, #348). Of the eligible
-    # records sharing an ALID, keep the one with the higher MAF (then call
-    # rate, then input order): the record a GWAS reporting that ALID most
-    # likely means.
+    # records sharing an ALID, keep the one with the higher MAF, then the
+    # higher call rate, then the earlier input record: the record a GWAS
+    # reporting that ALID most likely means, and a well-called one where two
+    # tie on MAF. `repair_panel` settles such a tie on row order instead,
+    # because a shipped block table records no call rate.
     best: dict[str, int] = {}
     for i in np.flatnonzero(eligible):
         alid = alids[i]
@@ -177,13 +205,15 @@ def construct_block(
     zero_variance = int(zero_variance.sum()) + int((~nonzero).sum())
     kept = kept[nonzero]
     x = x[:, nonzero] / scale[nonzero]
-    # PLINK --export A emits ALT dosage, while panel rows declare the
-    # lexicographically canonical effect allele. Reverse centred dosage when
-    # canonical EA is REF so eigenvector rows and reported alleles agree.
+    # A column's dosage counts whichever allele the export's header names, and
+    # this plink2 counts REF (#348), while panel rows declare the
+    # lexicographically canonical effect allele. Reverse the centred dosage
+    # where the canonical EA is not the counted allele, so eigenvector rows and
+    # reported alleles agree.
+    counted = counted_alleles(variants)
     orientation = np.array([
-        1.0 if str(variants[int(i)]["allele2"]).upper() ==
-        min(str(variants[int(i)]["allele1"]).upper(),
-            str(variants[int(i)]["allele2"]).upper()) else -1.0
+        1.0 if counted[int(i)] == min(str(variants[int(i)]["allele1"]).upper(),
+                                      str(variants[int(i)]["allele2"]).upper()) else -1.0
         for i in kept
     ])
     x *= orientation
@@ -205,9 +235,10 @@ def construct_block(
     for source_i in kept:
         v = variants[int(source_i)]
         a1, a2 = sorted((str(v["allele1"]).upper(), str(v["allele2"]).upper()))
-        # EAF is for canonical A1. Dosage is conventionally allele2 dosage.
-        alt_freq = float(means[source_i] / 2)
-        eaf = alt_freq if a1 == str(v["allele2"]).upper() else 1 - alt_freq
+        # EAF is for canonical A1, whose frequency follows from the allele the
+        # column counts (#348).
+        counted_freq = float(means[source_i] / 2)
+        eaf = counted_freq if a1 == counted[source_i] else 1 - counted_freq
         table.append({
             "CHR": str(v["chrom"]).removeprefix("chr"), "BP": int(v["pos"]),
             "SNP": canonical_alid(v["chrom"], v["pos"], a1, a2),
@@ -289,6 +320,40 @@ def read_plink_raw(path: Path) -> tuple[np.ndarray, list[str], list[str]]:
     return np.asarray(rows, dtype=np.float64), names, ids
 
 
+def plink_export_variants(pvar: Path, names: list[str]) -> list[dict[str, object]]:
+    """The variants a PLINK additive export holds, in its column order.
+
+    Each raw column must be named ``<ID>_<counted allele>``, and that name is the
+    only record of which allele the dosage counts: this plink2's ``--export A``
+    counts REF, not ALT, which an earlier revision of this module assumed and
+    which inverted every shipped panel's EAF (#348). A column without a suffix,
+    with an empty one, or with one naming neither of its record's alleles is a
+    malformed export, and the build stops rather than reading an allele nobody
+    stated.
+    """
+    records: dict[str, tuple[str, str, str, str]] = {}
+    with pvar.open() as fh:
+        for line in fh:
+            if line.startswith("##"): continue
+            fields = line.rstrip("\n").split("\t")
+            if fields[0].lstrip("#") == "CHROM": continue
+            chrom, pos, vid, ref, alt = fields[:5]
+            records.setdefault(vid, (chrom, pos, ref, alt))
+    variants: list[dict[str, object]] = []
+    for name in names:
+        vid, separator, counted = name.rpartition("_")
+        if not (separator and counted):
+            raise ValueError(f"PLINK export column {name!r} does not name the allele it counts")
+        if vid not in records:
+            raise ValueError(f"PLINK export column {name!r} names no variant in {pvar}")
+        chrom, pos, ref, alt = records[vid]
+        if counted.upper() not in (ref.upper(), alt.upper()):
+            raise ValueError(f"PLINK export column {name!r} counts {counted}, not an allele of {vid}")
+        variants.append({"chrom": chrom, "pos": pos, "allele1": ref, "allele2": alt,
+                         "counted": counted.upper()})
+    return variants
+
+
 def _plink_extract(args: argparse.Namespace, work: Path) -> tuple[np.ndarray, list[dict[str, object]], list[str]]:
     prefix = work / "block"
     cmd = [args.plink2, *plink_source_args(args.pfile, args.bfile), "--chr", str(args.chrom),
@@ -297,24 +362,7 @@ def _plink_extract(args: argparse.Namespace, work: Path) -> tuple[np.ndarray, li
     subprocess.run(cmd, check=True)
     subprocess.run([args.plink2, "--pfile", str(prefix), "--export", "A", "--out", str(prefix)], check=True)
     genotypes, names, ids = read_plink_raw(prefix.with_suffix(".raw"))
-    pvar = prefix.with_suffix(".pvar")
-    # A raw column is named ID_<counted allele>. Matching each ID against every
-    # name is quadratic, which a floor-free 200k-variant block cannot afford
-    # (#241), so index every prefix that ends at an underscore.
-    matchable = set(names)
-    for name in names:
-        parts = name.split("_")
-        matchable.update("_".join(parts[:i]) for i in range(1, len(parts)))
-    variants = []
-    with pvar.open() as fh:
-        for line in fh:
-            if line.startswith("##"): continue
-            fields = line.rstrip().split("\t")
-            if fields[0].lstrip("#") == "CHROM": continue
-            chrom, pos, vid, ref, alt = fields[:5]
-            if vid in matchable:
-                variants.append({"chrom": chrom, "pos": pos, "allele1": ref, "allele2": alt})
-    return genotypes, variants, ids
+    return genotypes, plink_export_variants(prefix.with_suffix(".pvar"), names), ids
 
 
 def main() -> int:

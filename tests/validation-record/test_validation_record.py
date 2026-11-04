@@ -15,8 +15,9 @@ This suite asserts the container migration:
      validator; every record names `opengwasdb validate`, and its version is
      the `opengwasdb` revision the record's build_environment records.
   3. The records rebuilt and registered through the workflow keep their
-     observed measurements exactly: OGS-00001..3, and OGS-00005 since issue
-     #195 rebuilt and re-registered it with `pixi run release --config
+     observed measurements exactly: OGS-00001..3, OGS-00001 and OGS-00002
+     again since issue #348 rebuilt and re-completed them at format 0.2.0, and
+     OGS-00005 since issue #195 rebuilt and re-registered it with `pixi run release --config
      force=1`, and OGS-00006 twice through issue #332: at format 0.2.0, then
      again at an opengwasdb that takes the bundle's declared Association
      Coverage as a build input, so the second rebuild is the first record here
@@ -85,10 +86,11 @@ from ogstores.register import (
 )
 
 STORES: tuple[str, ...] = tuple(f"OGS-{i:05d}" for i in range(1, 8))
-ALREADY_REGISTERED: tuple[str, ...] = ("OGS-00001", "OGS-00002", "OGS-00003")
+ALREADY_REGISTERED: tuple[str, ...] = ("OGS-00003",)
 # Rebuilt and re-registered through the release workflow's force path (#195,
-# #332); their record is `register`'s own output and names the archived release.
-REREGISTERED: tuple[str, ...] = ("OGS-00005", "OGS-00006")
+# #332, #348); their record is `register`'s own output and names the archived
+# release.
+REREGISTERED: tuple[str, ...] = ("OGS-00001", "OGS-00002", "OGS-00005", "OGS-00006")
 MIGRATED: tuple[str, ...] = ("OGS-00004", "OGS-00007")
 
 # The observed keys `register` writes only when they apply, with the values each
@@ -147,23 +149,34 @@ FORMAT_VERSION_SHAPE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 # recorded opengwasdb revisions wrote; the correction is a Release Erratum in
 # each release.yaml.
 GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
+    # Rebuilt (OGS-00001) and re-completed (OGS-00002) at opengwasdb 0.3.2,
+    # 44f25a96, and re-registered on 2 Nov 2026 (#348), so that OGS-00002 reads
+    # the repaired HGDP+1kGP EUR panel. Both are format 0.2.0 Stores; null is
+    # what no step reported, as for OGS-00005. Their counts match the 0.1.0
+    # records they replace.
     "OGS-00001": {
-        "format_version": "0.1.0",
+        "format_version": None,
         "n_analyses": 10,
         "n_variants": 86376,
         "n_associations": 86373,
+        "association_coverage": "cis",
+        "reference_assembly": None,
         "store_bytes": None,
-        "build_elapsed_s": 4.677,
+        "build_elapsed_s": 16.8,
         "validate_status": "passed",
+        "completion_state": "observed_only",
     },
     "OGS-00002": {
-        "format_version": "0.1.0",
+        "format_version": None,
         "n_analyses": 10,
         "n_variants": 207764,
         "n_associations": 207761,
+        "association_coverage": "cis",
+        "reference_assembly": None,
         "store_bytes": None,
-        "build_elapsed_s": 74.38,
+        "build_elapsed_s": 110.604,
         "validate_status": "passed",
+        "completion_state": "reference_completed",
     },
     "OGS-00003": {
         "format_version": "0.1.0",
@@ -310,8 +323,9 @@ class TestCommittedValidationRecords(unittest.TestCase):
     def test_already_registered_records_keep_their_observed_measurements(self) -> None:
         """Every record registered through the workflow keeps its observed block, exactly pinned.
 
-        OGS-00001..3 are pinned with the issue-#195 erratum applied, so their
-        `format_version` is "0.1.0"; OGS-00005 is pinned as its #195
+        OGS-00003 is pinned with the issue-#195 erratum applied, so its
+        `format_version` is "0.1.0"; OGS-00001 and OGS-00002 are pinned as the
+        #348 re-registration recorded them; OGS-00005 is pinned as its #195
         re-registration recorded it.
         """
         self.assertEqual(set(GOLDEN_OBSERVED), set(ALREADY_REGISTERED) | set(REREGISTERED))

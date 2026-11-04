@@ -1,10 +1,22 @@
 #!/usr/bin/env python3
-"""Run block construction in a resumable, failure-isolated worker pool."""
+"""Run block construction in a resumable, failure-isolated worker pool.
+
+A run is not a success until the panel it built or finished is oriented the way
+every consumer assumes: the last step gates each ancestry's EAF positively
+against the UKB ancestry mixture (``orientation_gate``), so the inverted panel
+#348 found cannot be produced and declared done again. The gate is part of the
+run, not a flag an operator may leave out (#348).
+"""
 from __future__ import annotations
 
 import argparse, csv, json, subprocess, sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+
+# sample_blocks is the one sampling policy the gate, the repair and this script
+# share; it is imported here so that is visible from the module that builds a
+# panel, and so a test can assert the identity (#348).
+from verify_block import ANCESTRY_REFERENCE, gate_panel, sample_blocks  # noqa: F401
 
 DEFAULT_JOBS = 4  # memory-bound: each worker materialises one block
 
@@ -48,6 +60,10 @@ def main() -> int:
     ap.add_argument("--max-missing", type=float, help="Drop variants with a larger share of individuals uncalled")
     ap.add_argument("--cumvar", type=float, default=.99); ap.add_argument("--min-k", type=int, default=250)
     ap.add_argument("--force", action="store_true", help="Rebuild blocks with valid existing outputs")
+    ap.add_argument("--ancestry-reference", type=Path, default=ANCESTRY_REFERENCE,
+                    help="UKB ancestry-mixture reference the orientation gate measures against")
+    ap.add_argument("--orientation-blocks", type=int, default=5, help="Blocks the orientation gate samples")
+    ap.add_argument("--min-orientation-matches", type=int, default=1000)
     args = ap.parse_args()
     if args.jobs < 1: ap.error("--jobs must be >= 1")
     script = Path(__file__).with_name("construct_block.py")
@@ -83,6 +99,17 @@ def main() -> int:
             label, code, error = future.result()
             if code: log.write(f"{label}\t{code}\t{error.replace(chr(10), ' ')}\n"); log.flush()
             print(f"{'FAILED' if code else 'built'} {label}", flush=True)
+    # Last, and unconditionally: a panel that is not oriented correctly is not a
+    # panel this run may call finished, and neither is one with nothing built to
+    # gate -- an ancestry this run was asked for but produced no built block
+    # ends it non-zero instead of passing silently (#348). A single failed
+    # block among successful ones is still the per-block policy's business: it is
+    # recorded in failures.tsv (as EAS's declared empty block is) and the gate
+    # decides on what was built.
+    for ancestry in args.ancestries:
+        gate_panel(args.reference_root, ancestry, reference=args.ancestry_reference,
+                   blocks=args.orientation_blocks, min_matches=args.min_orientation_matches,
+                   require=valid)
     return 0
 
 

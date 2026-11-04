@@ -4,6 +4,11 @@ kind: ld_panel
 ancestry: EUR
 genome_build: GRCh38
 variant_id_convention: "chr:pos:a1:a2"
+allele_columns:
+  effect: EA
+  other: OA
+  freq: EAF
+  freq_orientation: effect_allele
 location: /data/opengwasdb/reference/hgdp1kgp-hg38/panel/EUR
 location_kind: external_directory
 ld:
@@ -14,7 +19,9 @@ ld:
 source:
   cohort: HGDP + 1kGP harmonised callset
   n_individuals: 771
-  variant_inclusion: MAC >= 50
+  variant_inclusion: >
+    MAC >= 50; of the records sharing an ALID, the one with the higher MAF,
+    then the higher call rate, then the earlier input record
   generator: tools/ld-panel/run_panels.py
 status: available
 description: >
@@ -22,3 +29,59 @@ description: >
   production-panel constructor and parameters. A five-block, 2,514-analysis
   paired masking comparison with gpm-hg38-eur-ld is the AFR/EAS/SAS release gate;
   see docs/eur-panel-imputation-comparison.html.
+
+  Every block's `EAF` is the frequency of the row's `EA`, not of `OA`: the
+  generator reads which allele PLINK's additive export counted from the export's
+  column suffix (plink2 counts REF, stores#348), and a block holds at most one
+  row per ALID, keeping the record with the higher MAF, then the higher call
+  rate, then the earlier input record.
+  As the production AFR/EAS/SAS panels do, a panel written before either rule
+  was in place is corrected in place by `tools/ld-panel/repair_panel.py`, which
+  inverts EAF, drops the losing rows of a collision from the TSV and `vectors`
+  (leaving `values` untouched), and records the edit per block; a repaired block
+  verifies against its backup instead of the exact binding identity. `run_panels`
+  gates each ancestry it builds or finishes (and `verify_block --panel` does the
+  same on demand) against the UKB ancestry mixture's "United Kingdom" column,
+  requiring r > 0.9 on matched variants, so an inverted panel cannot pass again.
+
+  **Repaired in place on 2026-11-01/02 (stores#348).**
+  `tools/ld-panel/repair_panel.py` was run on the shipped block files between
+  2026-11-01 22:52 and 2026-11-02 00:06 UTC; no panel was rebuilt.
+  - EUR: 1,357 blocks, 9,917,989 -> 9,783,946 rows (134,043 dropped, EAF flipped
+  in all 9,783,946); orientation gate r -0.9753 (n=19,566) before, r +0.9826
+  (n=19,456) after, against "United Kingdom"; every block verified against its
+  backup with no failures and unique ALIDs; receipt
+  `/data/opengwasdb/reference/hgdp1kgp-hg38/repairs/20261101T225229Z-348-EUR.json`
+  (sha256 `b30a4ca590e50fac95db484f81f64dd099f4530f92780d7847266c716b56a40c`).
+  The pre-repair files are kept, as hard links, under
+  `/data/opengwasdb/reference/hgdp1kgp-hg38/replaced/20261101T225229Z-348/<ANC>/<ANC>/<chr>/<block>.*`.
+
+  **EUR calibration re-checked on the repaired panel, 2026-11-02 (stores#348).**
+  The report's observed-only truth Store,
+  `/data/opengwasdb/wip/ukb-b-c128.opengwasdb`, no longer exists, so the same
+  five blocks, 20% mask and seed 20260806 were applied to a replacement Store --
+  OGS-00009, `/data/opengwasdb/stores/OGS-00009/store.opengwasdb`, 2,514 UKB-B
+  Analyses, format 0.2.0 -- read as observed cells only:
+  `tools/ld-panel/compare_eur_imputation.py` now counts a cell as truth, or as
+  training data, only where its `imputed` flag is 0, and records that rule in
+  its JSON sidecar. OGS-00009 was itself completed against the **UKB EUR** panel
+  (`eur-hg38-gpm`), not against this one, so its imputed cells carry UKB EUR
+  substitutions rather than HGDP+1kGP ones -- which is precisely why they are
+  excluded. Command: `compare_eur_imputation.py --store
+  .../OGS-00009/store.opengwasdb --ukb-panel /data/opengwasdb/reference/ld
+  --mask-fraction 0.2 --seed 20260806 --thresh 0.9 --jobs 10`. It was run twice,
+  with `--hgdp-panel` set to `/data/opengwasdb/reference/hgdp1kgp-hg38/panel`
+  (repaired) and to
+  `/data/opengwasdb/reference/hgdp1kgp-hg38/replaced/20261101T225229Z-348/EUR`
+  (pre-repair, blocks at `EUR/EUR/<chr>/<block>.*`). The headline aggregates are
+  identical before and after: 99.11% accepted, median held-out beta r 0.9615,
+  median paired loss 0.0124, against the report's 98.9%, 0.963 and 0.014.
+  Per-row metrics are not bit-identical: the two tables differ in 3,882 of the
+  25,140 analysis-region rows, Pearson by at most 7.8e-16 (the last bits) and
+  Spearman by at most 1.74e-5, from floating-point and ranking effects, while
+  the accepted flag and every count column are identical. That is because only 6
+  of the 473 duplicated ALIDs in these five blocks reach the replacement Store's
+  variant axis and not one of them is an observed cell, so no duplicate was ever
+  truth or training data; the EAF flip cannot move these metrics at all, since
+  the predicted SE depends on EAF only through p(1-p). The report's figures
+  therefore stand on the repaired panel.

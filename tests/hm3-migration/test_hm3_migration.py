@@ -212,6 +212,17 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "n-workers": 16,
         },
         "post": {"top_hits": True, "overview": True},
+        # #228 amends OGS-00013's accepted bundle to declare completion
+        # (ADR 0037): the same build phase, then completion against the
+        # HGDP+1kGP AFR panel at 32 workers.
+        "complete": {
+            "command": "complete-dense",
+            "options": {
+                "ld-panel": "/data/opengwasdb/reference/hgdp1kgp-hg38/panel",
+                "ancestry": "AFR",
+                "n-workers": 32,
+            },
+        },
     },
     "OGS-00014": {
         "phase": "build",
@@ -242,6 +253,17 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "source-assembly": "GRCh38",
         },
         "post": {"top_hits": True, "overview": True},
+        # #230 amends OGS-00015's accepted bundle to declare completion
+        # (ADR 0037): the same build phase, then completion against the
+        # HGDP+1kGP EAS panel at 16 workers.
+        "complete": {
+            "command": "complete-dense",
+            "options": {
+                "ld-panel": "/data/opengwasdb/reference/hgdp1kgp-hg38/panel",
+                "ancestry": "EAS",
+                "n-workers": 16,
+            },
+        },
     },
     "OGS-00016": {
         "phase": "build",
@@ -350,7 +372,8 @@ class TestRegistryMigration(unittest.TestCase):
         Note: OGS-00012/13/14/16 additionally carry the owner-authorized
         execution-only `n-workers: 16` amendment, and OGS-00009 (#312),
         OGS-00011 (#334, plus #225's rsid-conflict policy), OGS-00012 (#227),
-        OGS-00014 (#229) and OGS-00017 (#223) their completion phase.
+        OGS-00013 (#228), OGS-00014 (#229), OGS-00015 (#230) and OGS-00017
+        (#223) their completion phase.
         """
         for store_id, expected in EXPECTED_UNRELATED.items():
             build = load_build(store_id)

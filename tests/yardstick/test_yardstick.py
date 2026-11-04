@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""The yardstick (#390): workload loader, result validator, runner, Veeam flag.
+"""The yardstick (#390): workload loader, result validator, runner, retired Veeam flag (#411).
 
 The runner test builds a 2-variant Dense Store in a temporary directory with
 `opengwasdb build-dense-vcf` (~6 s) and measures that, never a real Store.
@@ -10,7 +10,9 @@ Run from the repository root:
 
 from __future__ import annotations
 
+import contextlib
 import copy
+import io
 import json
 import os
 import shutil
@@ -24,7 +26,7 @@ from pathlib import Path
 from unittest import mock
 
 from ogstores import engine
-from yardstick import fixture, measure, proc, runner, veeam
+from yardstick import fixture, measure, proc, runner
 from yardstick import result as result_spec
 from yardstick import workload as workload_spec
 
@@ -308,10 +310,6 @@ class ResultValidatorTest(unittest.TestCase):
             result_spec.validate(r)
 
 
-def local(day: int, hour: int, minute: int = 0) -> datetime:
-    return datetime(2026, 10, day, hour, minute, tzinfo=timezone(timedelta(hours=1)))
-
-
 class OgstoresIdentityTest(unittest.TestCase):
     """What a run records about the `ogstores` it ran (#386).
 
@@ -338,28 +336,66 @@ class OgstoresIdentityTest(unittest.TestCase):
                     self.assertIs(runner.ogstores_identity()["dirty"], expected)
 
 
-class VeeamWindowTest(unittest.TestCase):
-    def test_run_inside_the_window(self) -> None:
-        self.assertTrue(veeam.overlaps_window(local(29, 3), local(29, 3, 8)))
+def clock_at(hour: int, minute: int = 0, day: int = 3) -> type[datetime]:
+    """A `datetime` whose `now()` is that time on 2026-11-03, in this host's own local zone."""
+    moment = datetime(2026, 11, day, hour, minute).astimezone()
 
-    def test_run_after_the_window(self) -> None:
-        self.assertFalse(veeam.overlaps_window(local(29, 11), local(29, 11, 8)))
-        self.assertFalse(veeam.overlaps_window(local(29, 14), local(29, 23, 59)))
+    class Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):  # noqa: ANN001, ANN206 - `datetime.now`'s own signature
+            return moment.astimezone(tz) if tz is not None else moment
 
-    def test_run_that_starts_just_before_eleven(self) -> None:
-        self.assertTrue(veeam.overlaps_window(local(29, 10, 58), local(29, 11, 5)))
+    return Frozen
 
-    def test_run_across_midnight_into_the_window(self) -> None:
-        self.assertTrue(veeam.overlaps_window(local(28, 23, 55), local(29, 0, 4)))
 
-    def test_run_that_ends_exactly_at_midnight_touches_the_window(self) -> None:
-        self.assertTrue(veeam.overlaps_window(local(28, 23, 55), local(29, 0, 0)))
+class VeeamFlagIsHistoryTest(unittest.TestCase):
+    """No run is flagged any more, and the value stays recorded (#411).
 
-    def test_run_that_ends_before_midnight(self) -> None:
-        self.assertFalse(veeam.overlaps_window(local(28, 22, 0), local(28, 23, 59)))
+    The nightly Veeam snapshot throttled disk I/O 8-10x and covered `/data`, so a
+    run touching 00:00-11:00 local recorded `veeam_window: true` (#390). Since
+    2026-11-02 the backup skips `/data/opengwasdb`, so the flag marks old results
+    only: a run records `false`, and a result measured before that date keeps the
+    value that was true of it. The field stays in schema 1 for exactly that.
+    """
 
-    def test_run_spanning_a_whole_window(self) -> None:
-        self.assertTrue(veeam.overlaps_window(local(28, 12), local(30, 12)))
+    PENDING = {
+        "store_id": "OGS-00099", "layout": "dense", "coverage": "gwas",
+        "status": "pending", "reason": "not built here",
+    }
+
+    def run_at(self, hour: int, minute: int = 0) -> dict:
+        """One run with the clock at that local time, on a workload with nothing to build."""
+        workload = {"workload_id": "w", "repetitions": {"default": 5}, "stores": [dict(self.PENDING)]}
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
+            with mock.patch.object(runner, "datetime", clock_at(hour, minute)):
+                return runner.run(workload, scratch=Path(tmp))
+
+    def test_a_run_at_three_in_the_morning_records_no_flag(self) -> None:
+        """03:00-04:00 local is deep in the old window, and a run now records false."""
+        result = self.run_at(3)
+
+        started = datetime.strptime(result["started_utc"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+        local_started = started + timedelta(minutes=result["local_utc_offset_minutes"])
+        self.assertEqual(local_started.replace(tzinfo=None), datetime(2026, 11, 3, 3, 0),
+                         "the run really began at 03:00 local, in the old window")
+        self.assertIs(result["veeam_window"], False)
+        result_spec.validate(result)
+
+    def test_a_flagged_result_no_longer_warns(self) -> None:
+        """The runner cannot produce a flagged result, so it prints no window warning."""
+        result = minimal_result()
+        result["veeam_window"] = True
+        result["guard_violations"] = []
+        workload = {"stores": [{"store_id": "OGS-00099", "status": "measured", "measures": ["open"]}]}
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
+            stderr = io.StringIO()
+            with mock.patch.object(workload_spec, "load", return_value=workload), \
+                    mock.patch.object(runner, "run", return_value=result), \
+                    contextlib.redirect_stderr(stderr):
+                status = runner.main(["--output-dir", tmp])
+
+        self.assertEqual(status, 0)
+        self.assertNotIn("Veeam", stderr.getvalue())
 
 
 class AbsenceIsNeverATimingTest(unittest.TestCase):

@@ -149,6 +149,18 @@ imports:
     name: opengwasdb.variants.normalise.normalise_chromosome
   - file: src/ogstores/audit.py
     name: opengwasdb.variants.read_variant_reference
+  # Decided by the owner on 2026-11-03 for PR #408 (epic #232): the one-off in-place
+  # repair of OGS-00014 (#409) decodes the Store's EAF plane and encoding plan through
+  # these, and collects top-hit SE through the private `_collect_top_hit_se` of
+  # `opengwasdb.layouts.dense.top_hits`, which an engine refactor can break. It writes
+  # the corrected arrays itself; the engine's command line offers neither. The tool
+  # has run; the coupling goes when it is retired or the engine gains such an interface.
+  - file: src/ogstores/eaf_reference_flip.py
+    name: opengwasdb.encoding.DenseEafPlane
+  - file: src/ogstores/eaf_reference_flip.py
+    name: opengwasdb.encoding.StoreEncoding
+  - file: src/ogstores/eaf_reference_flip.py
+    name: opengwasdb.layouts.dense.top_hits
   - file: src/ogstores/bundle.py
     name: opengwasdb.model.analyses
   - file: src/ogstores/bundle.py
@@ -185,6 +197,13 @@ imports:
     name: opengwasdb.completion.impute.impute_z_block
   - file: tools/ld-panel/compare_eur_imputation.py
     name: opengwasdb.completion.impute.scalar_n_se
+  # Decided by the owner on 2026-11-03 for PR #408 (epic #232): #348's calibration
+  # re-check reads only the observed cells of a completed Store, through the engine's
+  # own EAF and SE decoders, as tools/benchmarks/observed-view-check.py does.
+  - file: tools/ld-panel/compare_eur_imputation.py
+    name: opengwasdb.encoding.DenseEafPlane
+  - file: tools/ld-panel/compare_eur_imputation.py
+    name: opengwasdb.encoding.DenseSePlane
   - file: tools/ld-panel/compare_eur_imputation.py
     name: opengwasdb.encoding.DenseZPlane
   - file: tools/ld-panel/compare_eur_imputation.py
