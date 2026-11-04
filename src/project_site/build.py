@@ -12,6 +12,11 @@ different checkouts, or of one checkout into two outputs, never collide.
 
 The engine's docs come from the revision `pixi.lock` pins, so the engine section
 describes the runtime the registry imports.
+
+Quarto renders pages one after another, about a second each, so the render runs
+over several Quarto processes (`project_site.render`, `--jobs`, 24 by default)
+and merges their output. `--jobs 1` is Quarto rendering alone, the reference a
+parallel render can be compared with.
 """
 
 from __future__ import annotations
@@ -26,7 +31,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
 
-from project_site import paths, staging, urlcheck
+from project_site import paths, render, staging, urlcheck
 from project_site.collect import __main__ as site_data
 from project_site.collect import common as collect_common
 from project_site.pages import COMMIT_ENV_VAR
@@ -95,7 +100,7 @@ def render_env(commit: str) -> dict[str, str]:
     return {**os.environ, COMMIT_ENV_VAR: commit}
 
 
-def _quarto_render(staging: Path, output: Path, *, commit: str) -> None:
+def _quarto_render(staging: Path, output: Path, *, commit: str, jobs: int = render.DEFAULT_JOBS) -> None:
     if output.exists():
         import shutil
 
@@ -106,11 +111,14 @@ def _quarto_render(staging: Path, output: Path, *, commit: str) -> None:
             )
         shutil.rmtree(output)
     output.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["quarto", "render", str(staging), "--output-dir", str(output)],
-        check=True,
-        env=render_env(commit),
-    )
+    if jobs == 1:
+        subprocess.run(
+            ["quarto", "render", str(staging), "--output-dir", str(output)],
+            check=True,
+            env=render_env(commit),
+        )
+        return
+    render.render_site(staging, output, env=render_env(commit), jobs=jobs)
 
 
 def _write_raw_pages(output: Path, raw_pages: list[tuple[str, str]]) -> None:
@@ -275,6 +283,7 @@ def build_site(
     output: Path | None = None,
     check_urls: bool = True,
     stage_dir: Path | None = None,
+    jobs: int = render.DEFAULT_JOBS,
 ) -> BuildReport:
     """Render the site for `repo` into `output`, and check what the legacy site serves."""
     repo = Path(repo).resolve() if repo is not None else paths.repo_root()
@@ -284,7 +293,7 @@ def build_site(
     links = rewrite(stage)
 
     started = time.monotonic()
-    _quarto_render(stage.mirror, output, commit=stage.commit)
+    _quarto_render(stage.mirror, output, commit=stage.commit, jobs=jobs)
     _write_raw_pages(output, links.raw_pages)
     seconds = time.monotonic() - started
 
@@ -305,14 +314,14 @@ def build_site(
     )
 
 
-def render_checkout(source_commit: str, checkout: Path, output: Path) -> Path:
+def render_checkout(source_commit: str, checkout: Path, output: Path, *, jobs: int = render.DEFAULT_JOBS) -> Path:
     """The renderer `project_site.publish` calls: the ref's own docs, rendered cleanly.
 
     The mirror sits beside the output, not under the work root's name for this
     checkout: the checkout is a scratch worktree, and a render that wrote inside it
     would leave it dirty and unremovable.
     """
-    report = build_site(repo=checkout, output=output, stage_dir=output.with_name(f"{output.name}-stage"))
+    report = build_site(repo=checkout, output=output, stage_dir=output.with_name(f"{output.name}-stage"), jobs=jobs)
     print(f"rendered {report.pages} pages from {source_commit} in {report.seconds:.1f}s")
     print(f"served   {urlcheck.summarise(report.served)}")
     missing = [status.path for status in report.served if status.state == "missing"]
@@ -491,11 +500,21 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--output", type=Path, default=None, help="output directory (never under /home)")
     parser.add_argument("--preview", action="store_true", help="serve the staged tree with live reload")
     parser.add_argument("--no-url-check", action="store_true", help="skip the served-path check")
+    parser.add_argument(
+        "--jobs", type=int, default=render.DEFAULT_JOBS,
+        help=f"Quarto processes to render over (default {render.DEFAULT_JOBS}); 1 is Quarto rendering alone",
+    )
     args = parser.parse_args(argv)
+    if args.jobs < 1:
+        parser.error("--jobs must be at least 1")
 
     if args.preview:
         return preview(args.repo)
-    report = build_site(repo=args.repo, output=args.output, check_urls=not args.no_url_check)
+    try:
+        report = build_site(repo=args.repo, output=args.output, check_urls=not args.no_url_check, jobs=args.jobs)
+    except render.RenderFailed as failure:
+        print(f"render failed: {failure}", file=sys.stderr)
+        return 2
     print(report_summary(report))
     return 1 if any(status.state == "missing" for status in report.served) else 0
 

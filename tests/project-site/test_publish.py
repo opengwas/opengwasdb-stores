@@ -366,5 +366,31 @@ class DefaultRefTest(unittest.TestCase):
         self.assertEqual(rendered["commit"], git(repo, "rev-parse", "origin/main"))
 
 
+class PublishJobsTest(unittest.TestCase):
+    """`site-publish --jobs N` renders over N Quarto processes, and a failed render is refused."""
+
+    def test_the_command_line_jobs_reach_the_render(self) -> None:
+        result = publish_module.PublishResult(
+            ref="origin/main", source_commit="a" * 40, gh_pages_commit="b" * 40, message="m",
+            dry_run=True, pushed=False, scratch=(), leftovers=(),
+        )
+        with mock.patch.object(publish_module, "publish", return_value=result) as run, \
+                mock.patch("sys.stdout"):
+            self.assertEqual(publish_module.main(["--dry-run", "--jobs", "5"]), 0)
+        render = run.call_args.kwargs["render"]
+        with mock.patch.object(publish_module, "render_checkout", return_value=Path("/out")) as render_checkout:
+            render("a" * 40, Path("/checkout"), Path("/out"))
+
+        self.assertEqual(render_checkout.call_args.kwargs["jobs"], 5)
+
+    def test_a_failed_render_is_refused(self) -> None:
+        failure = build.render.RenderFailed("quarto render adr/0001.md failed with exit status 1")
+        with mock.patch.object(publish_module, "publish", side_effect=failure), \
+                mock.patch("sys.stderr") as stderr:
+            self.assertEqual(publish_module.main(["--dry-run"]), 2)
+
+        self.assertIn("adr/0001.md", "".join(call.args[0] for call in stderr.write.call_args_list))
+
+
 if __name__ == "__main__":
     unittest.main()

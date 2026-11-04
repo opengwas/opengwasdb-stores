@@ -11,9 +11,9 @@ host where the data lives, and published from the `gh-pages` branch at
 
 | Command | What it does |
 | --- | --- |
-| `pixi run site` | Collect the site's data, stage both repositories' docs, render, and check every served path. |
+| `pixi run site` | Collect the site's data, stage both repositories' docs, render, and check every served path. The render runs over 24 Quarto processes; `--jobs N` changes that, and `--jobs 1` is Quarto rendering alone. |
 | `pixi run site-preview` | The same staging, then Quarto's live-reloading preview (on <http://localhost:4200>, or the next free port). |
-| `pixi run site-publish --dry-run` | Render a clean checkout of `origin/main` and commit it to `gh-pages` **without pushing**. |
+| `pixi run site-publish --dry-run` | Render a clean checkout of `origin/main` and commit it to `gh-pages` **without pushing**. It takes `--jobs` too. |
 | `pixi run site-publish` | The same, then push `gh-pages`. The owner runs this. |
 | `pixi run docs` | Refresh a report: render its `.qmd` and copy the HTML to the name the site serves. |
 
@@ -26,6 +26,7 @@ output would make parallel pull requests conflict.
 | --- | --- |
 | `/data/opengwasdb/work/site/<checkout>/_site` | The rendered site (`$OPENGWASDB_SITE_OUT` overrides it). |
 | `/data/opengwasdb/work/site/<checkout>/_stage` | The mirror of `docs/` the render reads, with the collected data and the generated pages in it (`$OPENGWASDB_SITE_ROOT` moves the work root). |
+| `/data/opengwasdb/work/site/<checkout>/_site-workers-*` | Each render worker's copy of the mirror, and what it rendered, while a render runs. Removed when the render ends, whether it succeeded or not. |
 | `/data/opengwasdb/work/site/<checkout>/_preview` | The synced copy `site-preview` serves; Quarto renders inside it. |
 | `/data/opengwasdb/work/site/opengwasdb.git` | The bare clone the engine's docs are staged from (`$OPENGWASDB_SITE_ENGINE_CLONE` overrides it). |
 
@@ -38,6 +39,32 @@ docs and glossary live, so no source file is ever edited, `docs/` stays readable
 on GitHub, and two renders — of different checkouts, or of one checkout into two
 outputs — never collide. `docs/opengwasdb/` holds the engine's docs at the pinned
 revision and `docs/glossary.md` is `CONTEXT.md`, both inside the mirror.
+
+## How a render runs in parallel
+
+Quarto renders a project's pages one after another, about a second each
+whatever the page, so the 226 pages took five minutes. Quarto cannot render in
+parallel itself, so `src/project_site/render.py` does it from outside:
+
+1. One page is rendered alone in a copy of the mirror. Quarto runs the
+   `pre-render` hook first, so the generated pages exist, and `quarto inspect`
+   lists every page the site has.
+2. Each worker renders pages in its own copy of the mirror, one `quarto render
+   <page>` call per page. A call renders one page but builds its navigation
+   from the whole site, so a page is the same whichever worker renders it.
+3. The outputs are merged. A page comes from the worker that rendered it, every
+   other file must be identical in every worker or the render stops, and the
+   search index and sitemap are rebuilt page by page.
+
+On 4 Nov 2026 the render of `main` took 319 s with Quarto alone and 67 s over
+24 workers. Of the 471 files the two renders share besides the search index and
+sitemap, 470 were byte-identical. The other was `architecture-structure.html`,
+whose registry diagram Quarto's Graphviz lays out differently from one render
+to the next, even of the same source. The search index held the same 1,155
+entries and the sitemap the same 226 addresses.
+
+`site-preview` is unchanged: Quarto's preview renders the site itself before
+serving it.
 
 ## Publishing
 
@@ -58,7 +85,7 @@ flowchart TD
   C --> D["clean detached worktree of that commit"]
   D --> E["stage the engine's docs at the pixi.lock pin"]
   E --> F["mirror docs/, rewrite outbound links, spell mermaid fences"]
-  F --> G["quarto render into /data/opengwasdb/work/site/"]
+  F --> G["quarto render over 24 workers, merged into /data/opengwasdb/work/site/"]
   G --> H["replace the gh-pages worktree contents"]
   H --> I{"--dry-run?"}
   I -- yes --> J["commit to gh-pages locally, push nothing"]
