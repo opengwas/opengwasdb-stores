@@ -18,6 +18,10 @@ host are not shown (the `conflicts` command, run there, shows them).
 Each page states what is written by hand (the models: stages, layers, claims,
 the context and containers) and what is measured (code size, imports, ADR
 placement, gaps), so a reader knows which part can drift and which cannot.
+
+On every page a component, its box in a diagram or its name in a list or
+table, opens the component panel (#435, `architecture_panel.py`): its code,
+the work on it, its imports each way and its ADRs.
 """
 
 from __future__ import annotations
@@ -28,7 +32,7 @@ from collections import defaultdict
 from itertools import pairwise
 from typing import Any, Mapping
 
-from project_site import pages
+from project_site import architecture_panel, pages
 
 Document = Mapping[str, Any]
 
@@ -58,6 +62,7 @@ def render_pipeline(documents: Mapping[str, Document | None]) -> str:
     data = pages.available(documents, "architecture")
     if data is None:
         return "\n".join(lines + pages.notices(documents, ("architecture",))).rstrip() + "\n"
+    panel = _panel(documents)
     lines += _hand_and_measured(
         hand="the stages and their order, which stages each component serves, each component's name, "
         "summary and the code paths it claims",
@@ -76,7 +81,7 @@ def render_pipeline(documents: Mapping[str, Document | None]) -> str:
             lines += ["_No component serves this stage._", ""]
             continue
         for c in members:
-            lines.append(f"- **{pages.escape(str(c['name']))}** ({c['repo']}; {_size(c)}): {pages.escape(str(c['summary']))}")
+            lines.append(f"- **{panel.link(c['name'], c['id'])}** ({c['repo']}; {_size(c)}): {pages.escape(str(c['summary']))}")
             lines += [f"  - {_adr_link(a, [c])}" for a in _adrs_for(data, {c["id"]})]
         lines.append("")
     lines += ["## ADRs the map cannot place", ""]
@@ -89,6 +94,7 @@ def render_pipeline(documents: Mapping[str, Document | None]) -> str:
     lines.append("")
     lines += [f"- [{pages.escape(str(a['title']))}]({a['url']}) ({a['repo']})" for a in unplaced] or ["_None._"]
     lines += ["", _as_of(data), ""]
+    lines += panel.block()
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -98,6 +104,7 @@ def render_structure(documents: Mapping[str, Document | None]) -> str:
     data = pages.available(documents, "architecture")
     if data is None:
         return "\n".join(lines + pages.notices(documents, ("architecture",))).rstrip() + "\n"
+    panel = _panel(documents)
     lines += _hand_and_measured(
         hand="the system context, the containers and how they relate, the engine's layers (the "
         "intended layering, a decision rather than a measurement) and the code each component claims",
@@ -130,9 +137,10 @@ def render_structure(documents: Mapping[str, Document | None]) -> str:
         "",
         _cell(_registry(components, edges, model, engine_model)),
     ]
-    lines += _health(data, components, edges, summary)
+    lines += _health(data, components, edges, summary, panel)
     lines += _planned(documents)
     lines += [_as_of(data), ""]
+    lines += panel.block()
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -182,12 +190,13 @@ def render_work(documents: Mapping[str, Document | None]) -> str:
     ]
     owners = {o["key"]: o for o in data.get("owners") or [] if isinstance(o, Mapping)}
     names = {c["id"]: c["name"] for c in data.get("components") or [] if isinstance(c, Mapping)}
+    panel = _panel(documents)
     lines += ["## Where work meets", ""]
-    lines += _meets(data, owners, names)
+    lines += _meets(data, owners, names, panel)
     lines += ["## Components by owner", ""]
-    lines += _matrix(data, owners, names)
+    lines += _matrix(data, owners, names, panel)
     lines += ["## Branches", ""]
-    lines += _branches(data, owners, names)
+    lines += _branches(data, owners, names, panel)
     lines += ["## What the states mean", ""]
     lines += [f"- **{state}**: {meaning}" for state, meaning in STATE_MEANING]
     lines += [
@@ -199,6 +208,7 @@ def render_work(documents: Mapping[str, Document | None]) -> str:
         "as a whole, so no edge can link it to one ticket, and \"uncoordinated\" would claim more than was checked.",
         "",
     ]
+    lines += panel.block()
     return "\n".join(lines).rstrip() + "\n"
 
 
@@ -288,7 +298,7 @@ def _owner(key: str, owners: Mapping[str, Mapping[str, Any]]) -> str:
 _ORDER = {"uncoordinated": 0, "unlinkable": 1, "coordinated": 2}
 
 
-def _meets(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) -> list[str]:
+def _meets(data: Document, owners: Mapping[str, Any], names: Mapping[str, str], panel: architecture_panel.Panel) -> list[str]:
     meets = [m for m in data.get("meets") or [] if isinstance(m, Mapping)]
     if not meets:
         return ["No two owners have building or active work on the same component.", ""]
@@ -296,7 +306,7 @@ def _meets(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) 
     lines: list[str] = []
     for meet in sorted(meets, key=lambda m: (_ORDER.get(m.get("coordination"), 0), str(m.get("component")))):
         cid = meet["component"]
-        lines += [f"### {pages.escape(str(names.get(cid, cid)))}", ""]
+        lines += [f"### {panel.link(names.get(cid, cid), cid)}", ""]
         for owner in meet["owners"]:
             lines.append(f"- {_owner(owner, owners)}")
             for item in meet["items"].get(owner, []):
@@ -324,7 +334,7 @@ def _meets(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) 
     return lines
 
 
-def _matrix(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) -> list[str]:
+def _matrix(data: Document, owners: Mapping[str, Any], names: Mapping[str, str], panel: architecture_panel.Panel) -> list[str]:
     signals = [s for s in data.get("signals") or [] if isinstance(s, Mapping)]
     columns = sorted({s["owner"] for s in signals})
     if not columns:
@@ -338,11 +348,11 @@ def _matrix(data: Document, owners: Mapping[str, Any], names: Mapping[str, str])
         for owner in columns:
             states = {s["state"] for s in signals if s["component"] == cid and s["owner"] == owner}
             row.append(", ".join(s for s in STATE_ORDER if s in states))
-        lines.append(f"| {pages.escape(str(names.get(cid, cid)))} | " + " | ".join(row) + " |")
+        lines.append(f"| {panel.link(names.get(cid, cid), cid)} | " + " | ".join(row) + " |")
     return lines + [""]
 
 
-def _branches(data: Document, owners: Mapping[str, Any], names: Mapping[str, str]) -> list[str]:
+def _branches(data: Document, owners: Mapping[str, Any], names: Mapping[str, str], panel: architecture_panel.Panel) -> list[str]:
     listed = [b for b in (data.get("branches") or {}).get("list") or [] if isinstance(b, Mapping)]
     if not listed:
         return ["No branch is ahead of `main` within the window.", ""]
@@ -351,7 +361,7 @@ def _branches(data: Document, owners: Mapping[str, Any], names: Mapping[str, str
         lines.append(
             f"| {pages._code(b['name'])} | {pages.escape(str(b['repo']))} | {pages._figure(b.get('ahead'))} | "
             f"{pages._cell(b.get('committed'))} | {pages._figure(len(b.get('files') or []))} | {pages.escape(str(b.get('item')))} | "
-            f"{pages.escape(str(b.get('owner')))} | {pages.escape(', '.join(names.get(c, c) for c in b.get('components') or []))} |"
+            f"{pages.escape(str(b.get('owner')))} | {', '.join(panel.link(names.get(c, c), c) for c in b.get('components') or [])} |"
         )
     return lines + [""]
 
@@ -557,7 +567,9 @@ def _baseline(baseline: Any) -> list[str]:
     ]
 
 
-def _health(data: Document, components: list, edges: list, summary: Mapping[str, Any]) -> list[str]:
+def _health(
+    data: Document, components: list, edges: list, summary: Mapping[str, Any], panel: architecture_panel.Panel
+) -> list[str]:
     lines = ["## Health", ""]
     gaps = data.get("gaps") or {}
     names = {"registry": "This repository", "engine": "The engine"}
@@ -594,7 +606,7 @@ def _health(data: Document, components: list, edges: list, summary: Mapping[str,
             lines += ["| From | To | Imports |", "|---|---|---:|"]
             for e in sorted(upward, key=lambda e: -e["imports"]):
                 a, b = by_id[e["from"]], by_id[e["to"]]
-                lines.append(f"| {pages.escape(a['name'])} (layer {a['layer']}) | {pages.escape(b['name'])} (layer {b['layer']}) | {e['imports']} |")
+                lines.append(f"| {panel.link(a['name'], a['id'])} (layer {a['layer']}) | {panel.link(b['name'], b['id'])} (layer {b['layer']}) | {e['imports']} |")
             lines.append("")
     lines += ["### The seam between the repositories", ""]
     lines.append(_seam(summary))
@@ -666,11 +678,21 @@ def _containers(model: Mapping[str, Any]) -> str:
 
 
 def _node(component: Mapping[str, Any]) -> str:
+    """A component's box, which links to its panel (#435) when its id can be an address."""
     sub = _size(component)
+    cid = component["id"]
+    link = ""
+    if architecture_panel.linkable(cid):
+        link = (f' URL="#{architecture_panel.ANCHOR}{cid}" tooltip="{_dq(component["name"])}: open its details"'
+                f' class="arch-node arch-c-{cid}"')
     return (
-        f'"{_dq(component["id"])}" [label=<<FONT POINT-SIZE="12"><B>{_esc(component["name"])}</B></FONT><BR/>'
-        f'<FONT POINT-SIZE="9">{_esc(sub)}</FONT>>];'
+        f'"{_dq(cid)}" [label=<<FONT POINT-SIZE="12"><B>{_esc(component["name"])}</B></FONT><BR/>'
+        f'<FONT POINT-SIZE="9">{_esc(sub)}</FONT>>{link}];'
     )
+
+
+def _panel(documents: Mapping[str, Document | None]) -> architecture_panel.Panel:
+    return architecture_panel.Panel(documents, states=STATE_MEANING, size=_size)
 
 
 def _engine(components: list, edges: list, model: Mapping[str, Any]) -> str:

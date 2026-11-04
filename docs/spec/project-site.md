@@ -369,6 +369,35 @@ component's name that appears only in the body places nothing, however often.
 `components` maps a component id to `code` or `title`; an ADR placed nowhere has
 `{}` and is listed on the page.
 
+**The component panel** (#435). On Pipeline, Structure and health and the Work
+map, a component's box in the engine and registry diagrams (a Graphviz `URL`),
+and its name in the pages' lists and tables, is a link to `#component-<id>`.
+Following it opens a panel beside the page. Close, Escape or Back closes it,
+and an address ending in `#component-<id>` opens it on load. For the component,
+the panel shows:
+
+- its name, repository, container, layer and summary;
+- its size and stages;
+- the paths it claims, each linked to GitHub at the commit read (`registry.commit` or `engine.commit`);
+- the work on it now, from `work.json`'s `signals`: by owner, each item with its state and `what`;
+- its imports each way, from `edges`, with their counts, an upward one marked;
+- the ADRs placed on it, with how each was placed (`code`: cites its code; `title`: names it in its title).
+
+Each page embeds the panel's data as JSON built from those fields only, never
+a collected document whole, because the collected files hold host paths, which
+are never published. Facts are JSON-encoded with `<`, `>`, `&` and the backtick
+written as `\u` escapes, so none becomes markup or ends the page's raw block.
+The script sets every fact as text.
+
+Unknown is never "none":
+- Without `work.json`, every component's work is unknown, with the reason.
+- So is each engine component's when `work.json`'s `unmeasured.engine` is set.
+- Without the engine's model, a registry component's imports into the engine are said not to be placed on components.
+
+Without `architecture.json` there is no panel, and no name is a link. Only an
+id of lower-case letters, digits and `_`, starting with a letter, becomes a
+link.
+
 ### Work (`work.json`)
 
 Where live work meets (#419, epic #416). It reads the `board.json` and
