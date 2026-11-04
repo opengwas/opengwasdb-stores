@@ -111,6 +111,25 @@ ul.task-list li input[type="checkbox"] {
     <a class="nav-link" href="../changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="../architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -317,7 +336,7 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="size-and-query-performance" class="level2">
 <h2 class="anchored" data-anchor-id="size-and-query-performance">Size and query performance</h2>
-<p>From yardstick result <code>20261101T123629Z-0.3.2</code> (workload <code>yardstick-2</code>, opengwasdb 0.3.2), started 2026-11-01T12:36:29Z on app-dc3-ogws-p0.services.bris.ac.uk.</p>
+<p>From yardstick result <code>20261104T002939Z-0.3.3</code> (workload <code>yardstick-2</code>, opengwasdb 0.3.3), started 2026-11-04T00:29:39Z on app-dc3-ogws-p0.services.bris.ac.uk.</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -329,37 +348,37 @@ ul.task-list li input[type="checkbox"] {
 <tbody>
 <tr class="odd">
 <td><code>open</code></td>
-<td>191.611 ms (p95 227.341 ms)</td>
+<td>333.277 ms (p95 434.877 ms)</td>
 <td>—</td>
 </tr>
 <tr class="even">
 <td><code>phewas_rsid</code></td>
-<td>35.235 ms (p95 44.109 ms)</td>
+<td>33.749 ms (p95 36.307 ms)</td>
 <td>30</td>
 </tr>
 <tr class="odd">
 <td><code>phewas_alid</code></td>
-<td>99.54 ms (p95 144.599 ms)</td>
+<td>105.567 ms (p95 110.775 ms)</td>
 <td>3,152</td>
 </tr>
 <tr class="even">
 <td><code>phewas_position</code></td>
-<td>34.795 ms (p95 34.981 ms)</td>
+<td>36.772 ms (p95 38.479 ms)</td>
 <td>30</td>
 </tr>
 <tr class="odd">
 <td><code>region</code></td>
-<td>4731.61 ms (p95 5632.72 ms)</td>
+<td>3889.88 ms (p95 3990.94 ms)</td>
 <td>12,813,313</td>
 </tr>
 <tr class="even">
 <td><code>analysis_full</code></td>
-<td>23475.2 ms (p95 24305.9 ms)</td>
+<td>23518.1 ms (p95 26551 ms)</td>
 <td>9,826,754</td>
 </tr>
 <tr class="odd">
 <td><code>analysis_hm3</code></td>
-<td>903.546 ms (p95 934.559 ms)</td>
+<td>780.848 ms (p95 831.898 ms)</td>
 <td>1,189,670</td>
 </tr>
 <tr class="even">
@@ -369,7 +388,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td><code>peak_rss</code></td>
-<td>1517 MB peak (baseline 259.6 MB)</td>
+<td>1515.5 MB peak (baseline 258 MB)</td>
 <td>9,826,754</td>
 </tr>
 </tbody>
@@ -407,7 +426,7 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="the-bundle" class="level2">
 <h2 class="anchored" data-anchor-id="the-bundle">The bundle</h2>
-<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/stores/OGS-00011"><code>stores/OGS-00011</code> at <code>766faa9a41ef493801aafc0f3b37bd64fb0acf6b</code></a></p>
+<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/stores/OGS-00011"><code>stores/OGS-00011</code> at <code>e7fe79d32ccc68eafeb3b32d6487c57ce759821e</code></a></p>
 
 
 </section>

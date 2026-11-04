@@ -205,9 +205,9 @@ Failure behaviour is deliberate and loud:
 ## Where to go next
 
 - Store contract: [`docs/spec/store-format.md`](spec/store-format.md)
-- Domain glossary: [`CONTEXT.md`](https://github.com/opengwas/opengwasdb/blob/44f25a96fb43044a983e300a038a54ab1930e782/CONTEXT.md)
+- Domain glossary: [`CONTEXT.md`](https://github.com/opengwas/opengwasdb/blob/1f1e289a47e84f79434263235e01ff8a94c4d37c/CONTEXT.md)
 - Design decisions: [`docs/adr/`](adr/)
-- Benchmark commands: [`benchmarks/README.md`](https://github.com/opengwas/opengwasdb/blob/44f25a96fb43044a983e300a038a54ab1930e782/benchmarks/README.md)
+- Benchmark commands: [`benchmarks/README.md`](https://github.com/opengwas/opengwasdb/blob/1f1e289a47e84f79434263235e01ff8a94c4d37c/benchmarks/README.md)
 
 The broader query walkthrough and production Store Release catalogue live in the sibling `opengwasdb-stores` repository. If a change alters CLI output, manifest fields, or `analyses.tsv` columns, update that documentation too.
 

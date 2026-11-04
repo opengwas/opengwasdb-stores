@@ -113,6 +113,25 @@ ul.task-list li input[type="checkbox"] {
     <a class="nav-link" href="../changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="../architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -186,6 +205,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../amr-ld-pilot-evidence.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">AMR LD calibration pilot: evidence (#241)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../eaf-reference-flip.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EAF reference flip (#409)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1749,6 +1774,7 @@ ul.task-list li input[type="checkbox"] {
 Until then, existing code and docs keep the old words.</li>
 <li><strong>ADR 0032 changes only in framing.</strong> Its “Phase B candidate workflow” is Manifest Generation’s first generator. Every decision in it stands: the resolver boundary, membership and acceptance policy, atomic staging and emit, and the human acceptance gate. “Phase A/B” stays in earlier ADRs as history; they are not rewritten.</li>
 <li><strong>Earlier ADRs say “Release Manifest” for the whole bundle</strong> (ADRs 0002 and 0003). Read those uses as “Release Bundle”; their decisions are unchanged.</li>
+<li><strong>Amended by #253 (1 Nov 2026): both workflows share one engine identity.</strong> Manifest Generation may import <code>ogstores.engine</code> beside the contract and the registry layout (<code>tests/packaging/test_boundary.py</code>). Its resolve stage and Store Release Build’s guard refuse an <code>opengwasdb</code> other than the commit <code>pixi.lock</code> resolves, with the same check and the same words, so the two workflows cannot run under different engines without saying so. The module knows nothing of either workflow: it reads an executable’s install and the lock. The Analysis Catalog’s surface is unchanged.</li>
 </ul>
 
 

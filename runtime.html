@@ -23,6 +23,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -113,6 +148,25 @@ ul.task-list li input[type="checkbox"] {
     <a class="nav-link" href="./changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="./architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="./reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -186,6 +240,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="./amr-ld-pilot-evidence.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">AMR LD calibration pilot: evidence (#241)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./eaf-reference-flip.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EAF reference flip (#409)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1657,7 +1717,11 @@ ul.task-list li input[type="checkbox"] {
   <ul>
   <li><a href="#the-release-runtime-pinned-current-format-and-gated-before-writes" id="toc-the-release-runtime-pinned-current-format-and-gated-before-writes" class="nav-link active" data-scroll-target="#the-release-runtime-pinned-current-format-and-gated-before-writes">The release runtime: pinned, current-format, and gated before writes</a>
   <ul class="collapse">
-  <li><a href="#the-pin" id="toc-the-pin" class="nav-link" data-scroll-target="#the-pin">The pin</a></li>
+  <li><a href="#the-pin" id="toc-the-pin" class="nav-link" data-scroll-target="#the-pin">The pin</a>
+  <ul class="collapse">
+  <li><a href="#moving-the-engine" id="toc-moving-the-engine" class="nav-link" data-scroll-target="#moving-the-engine">Moving the engine</a></li>
+  <li><a href="#engines-within-a-phase" id="toc-engines-within-a-phase" class="nav-link" data-scroll-target="#engines-within-a-phase">Engines within a phase</a></li>
+  </ul></li>
   <li><a href="#what-the-pin-provides" id="toc-what-the-pin-provides" class="nav-link" data-scroll-target="#what-the-pin-provides">What the pin provides</a></li>
   <li><a href="#the-pre-write-gate" id="toc-the-pre-write-gate" class="nav-link" data-scroll-target="#the-pre-write-gate">The pre-write gate</a></li>
   <li><a href="#converting-or-rebuilding-a-format-0.1.0-parent" id="toc-converting-or-rebuilding-a-format-0.1.0-parent" class="nav-link" data-scroll-target="#converting-or-rebuilding-a-format-0.1.0-parent">Converting or rebuilding a format-0.1.0 parent</a></li>
@@ -1691,7 +1755,7 @@ ul.task-list li input[type="checkbox"] {
 <thead>
 <tr class="header">
 <th>Fact</th>
-<th>Value</th>
+<th>Where it is written</th>
 </tr>
 </thead>
 <tbody>
@@ -1700,24 +1764,16 @@ ul.task-list li input[type="checkbox"] {
 <td><code>https://github.com/opengwas/opengwasdb</code></td>
 </tr>
 <tr class="even">
-<td>Tag</td>
-<td><code>v0.3.2</code> (stores #401), for the Observed-View Check’s missing-marker fix</td>
+<td>Branch followed</td>
+<td><code>main</code>, in <code>pixi.toml</code>’s <code>[feature.store-build.pypi-dependencies]</code></td>
 </tr>
 <tr class="odd">
-<td>Revision</td>
-<td><code>44f25a96fb43044a983e300a038a54ab1930e782</code>, what <code>v0.3.2</code> resolves to: the <code>main</code> merge of opengwas/opengwasdb PR #339 (core #337: the Observed-View Check reads Z/SE missingness through the missing markers, and <code>validate</code> warns about an infinite SE); the range above <code>bc22e84</code> is that and <code>v0.3.1</code> (CI and docs only)</td>
-</tr>
-<tr class="even">
-<td>Pin history</td>
-<td>before it, <code>v0.3.0</code> at <code>bc22e84</code> (stores #387), the first release opengwasdb’s release workflow published, whose range above <code>0d59f151</code> is release tooling only (the earlier <code>v0.2.0</code> at <code>3e77ecf</code> was tagged by hand); the pin before that, <code>0d59f151</code> was the core <code>dev</code> merge of PR #329 (core #302: a BESD Ragged build stores each pair’s published sample size, and the <code>.esi</code> allele frequency per association on request; ADR 0067); before it, PR #330’s branch head <code>5fc0766</code> (stores #326), the <code>dev</code> merge of PR #298 <code>75f0e77</code> (stores #341), the <code>dev</code> merge of PR #305 <code>d8896e4</code> (stores #314), the <code>dev</code> merge of PR #291 <code>d405de0</code> (stores #312), PR #291’s branch head <code>023774a7</code> (stores #306, which excluded #288), PR #276 (<code>4e922566</code>, bounded Dense validation, core #254) and PR #275 (<code>1be2a15</code>)</td>
-</tr>
-<tr class="odd">
-<td>Package version</td>
-<td><code>0.3.2</code></td>
+<td>Commit, and the package version</td>
+<td><code>pixi.lock</code>, and nowhere else (#253). <code>pixi run env-check</code> prints both, beside the installed engine’s</td>
 </tr>
 <tr class="even">
 <td>Writers’ Store <code>format_version</code></td>
-<td><code>0.2.0</code></td>
+<td><code>0.2.0</code> (<code>ogstores.runtime.REQUIRED_FORMAT_VERSION</code>)</td>
 </tr>
 <tr class="odd">
 <td>Python floor</td>
@@ -1729,8 +1785,18 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 </tbody>
 </table>
-<p>The pin names a release <strong>tag</strong>, not a branch or a raw commit: opengwasdb has tagged every merge to <code>main</code> since <code>v0.3.0</code> (epic #385) and, since PR #335, takes its version from that tag, so the installed version names the release it was built from – and a checkout past a tag reports a development version – instead of repeating a string hardcoded in <code>pyproject.toml</code>. The revision is what the tag resolves to, and it is that immutable revision the guard proves from the executed install’s own metadata. The executable form of the pin is the <code>opengwasdb</code> entry in <code>pixi.toml</code>’s <code>[feature.store-build.pypi-dependencies]</code> and the resolved package in <code>pixi.lock</code>. The Python 3.12 / zarr 3.4 / numcodecs 0.17 floors are not preferences: the pinned runtime requires them, and a zarr 2.x environment cannot open a format-0.2.0 Store.</p>
-<p><code>ogstores.runtime.PINNED_OPENGWASDB_TAG</code> and <code>ogstores.runtime.PINNED_OPENGWASDB_REVISION</code> are the single source of truth the tests assert <code>pixi.toml</code>’s tag and <code>pixi.lock</code>’s resolved commit against. Change all four together, and re-run <code>pixi update opengwasdb</code> in the same commit.</p>
+<p><code>pixi.toml</code> follows opengwasdb’s <code>main</code>. Every merge there has been a tagged release since <code>v0.3.0</code> (epic #385), so the tip of <code>main</code> is always a version, and the installed version names the release it was built from. <code>pixi.lock</code> records the exact commit the solve resolved, and that is the only place the commit is written: the release guard, Manifest Generation’s resolve stage and <code>env-check</code> read it from there (<code>ogstores.engine.locked_commit</code>). Each proves the engine it runs from that executable’s own install metadata (<code>ogstores.engine.identify</code>) and refuses one that is not the locked commit, in the same words. The Python 3.12 / zarr 3.4 / numcodecs 0.17 floors are not preferences: the engine requires them, and a zarr 2.x environment cannot open a format-0.2.0 Store.</p>
+<section id="moving-the-engine" class="level3">
+<h3 class="anchored" data-anchor-id="moving-the-engine">Moving the engine</h3>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pixi</span> run engine-update     <span class="co"># relock to main's tip, install it, check it</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> commit pixi.lock <span class="at">-m</span> <span class="st">"Move opengwasdb to &lt;version&gt; (&lt;commit&gt;)"</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Run it at the start of a working session, and commit the lock on its own, never inside a feature change. <code>engine-update</code> refuses, and puts the previous lock back, when the lock does not resolve exactly one commit, when an environment installs another, or when the new engine writes a Store format other than <code>REQUIRED_FORMAT_VERSION</code>: a format change is a deliberate repository change, not an update. <code>pixi run engine-update --check</code> checks without moving anything.</p>
+</section>
+<section id="engines-within-a-phase" class="level3">
+<h3 class="anchored" data-anchor-id="engines-within-a-phase">Engines within a phase</h3>
+<p>Only a step that continues another engine’s output is held to that engine. An interrupted <code>complete-dense</code> resumes only under the engine that started it, as <code>complete.started.json</code> names it. A start record written before #410 names none: its checkpoint resumes only when every step record of its phase names one engine and that engine is installed, and is otherwise refused, naming both.</p>
+<p>Every other step may run under a newer engine that writes the same Store format: re-running <code>validate</code>, adding an Indexed Variant Subset, <code>rho</code> or the overview after <code>engine-update</code> needs neither the old engine nor a rebuild. The format checks are unchanged: <code>engine-update</code> refuses an engine that writes another <code>format_version</code>, and the guard a completion parent in another format. <code>register</code> records every engine a phase used, from its step records rather than whichever <code>opengwasdb</code> is on <code>PATH</code> when it runs, in <code>validation.yaml</code>’s <code>build_environment.engines</code>, and keeps <code>opengwasdb_commit</code> for the engine that wrote the Store. The pin history these sections used to carry is in git history.</p>
+</section>
 </section>
 <section id="what-the-pin-provides" class="level2">
 <h2 class="anchored" data-anchor-id="what-the-pin-provides">What the pin provides</h2>

@@ -1,0 +1,968 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.9.38">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+
+<title>Pipeline – OpenGWASDB</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: min(4vw, 1.5em);}
+div.column{flex: auto; overflow-x: auto;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+</style>
+
+
+<script src="site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="site_libs/quarto-nav/headroom.min.js"></script>
+<script src="site_libs/clipboard/clipboard.min.js"></script>
+<script src="site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="site_libs/quarto-search/fuse.min.js"></script>
+<script src="site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="./">
+<script src="site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="site_libs/quarto-html/popper.min.js"></script>
+<script src="site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="site_libs/quarto-html/anchor.min.js"></script>
+<link href="site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="site_libs/quarto-html/quarto-syntax-highlighting-15634bcf2e68342d4ad2dfa704d543f6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="site_libs/bootstrap/bootstrap-b46a788e9dbe025090d634cacd4b6238.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="light">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="./index.html">
+    <span class="navbar-title">OpenGWASDB</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll me-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="./index.html"> 
+<span class="menu-text">Overview</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./stores.html"> 
+<span class="menu-text">Stores</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./epics.html"> 
+<span class="menu-text">Epics</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./trends.html"> 
+<span class="menu-text">Trends</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./changelog.html"> 
+<span class="menu-text">Changelog</span></a>
+  </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="./architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
+  <li class="nav-item">
+    <a class="nav-link" href="./reports.html"> 
+<span class="menu-text">Reports</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./reference.html"> 
+<span class="menu-text">Registry</span></a>
+  </li>  
+  <li class="nav-item">
+    <a class="nav-link" href="./opengwasdb/index.html"> 
+<span class="menu-text">Engine</span></a>
+  </li>  
+</ul>
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/opengwas/opengwasdb-stores"> <i class="bi bi-github" role="img" aria-label="opengwasdb-stores on GitHub">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul>
+  <li><a href="#the-stages" id="toc-the-stages" class="nav-link active" data-scroll-target="#the-stages">The stages</a>
+  <ul class="collapse">
+  <li><a href="#acquire" id="toc-acquire" class="nav-link" data-scroll-target="#acquire">1. Acquire</a></li>
+  <li><a href="#generate" id="toc-generate" class="nav-link" data-scroll-target="#generate">2. Generate</a></li>
+  <li><a href="#resolve" id="toc-resolve" class="nav-link" data-scroll-target="#resolve">3. Resolve</a></li>
+  <li><a href="#build" id="toc-build" class="nav-link" data-scroll-target="#build">4. Build</a></li>
+  <li><a href="#validate" id="toc-validate" class="nav-link" data-scroll-target="#validate">5. Validate</a></li>
+  <li><a href="#complete" id="toc-complete" class="nav-link" data-scroll-target="#complete">6. Complete</a></li>
+  <li><a href="#publish" id="toc-publish" class="nav-link" data-scroll-target="#publish">7. Publish</a></li>
+  <li><a href="#query" id="toc-query" class="nav-link" data-scroll-target="#query">8. Query</a></li>
+  <li><a href="#every-stage" id="toc-every-stage" class="nav-link" data-scroll-target="#every-stage">9. Every stage</a></li>
+  </ul></li>
+  <li><a href="#adrs-the-map-cannot-place" id="toc-adrs-the-map-cannot-place" class="nav-link" data-scroll-target="#adrs-the-map-cannot-place">ADRs the map cannot place</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content" id="quarto-document-content">
+
+<header id="title-block-header" class="quarto-title-block default">
+<div class="quarto-title">
+<h1 class="title">Pipeline</h1>
+</div>
+
+
+
+<div class="quarto-title-meta">
+
+    
+  
+    
+  </div>
+  
+
+
+</header>
+
+
+<!-- generated by src/project_site/pages.py (#391): edit that module, not this page -->
+<p>The path data takes through the system, from a source file to a query: the stages, the components that do each one in both repositories, and the architecture decisions (ADRs) that govern them.</p>
+<p>See also <a href="./architecture-structure.html">Structure and health</a>.</p>
+<blockquote class="blockquote">
+<p><strong>Written by hand:</strong> the stages and their order, which stages each component serves, each component’s name, summary and the code paths it claims. Each is in a repository’s <code>docs/architecture/components.yaml</code>.</p>
+<p><strong>Measured:</strong> each component’s code size, the ADRs placed on it (by the code an ADR cites and by component names in its title), and the engine commit read. Nothing measured is written by hand, so it cannot drift from the code.</p>
+</blockquote>
+<p>Read from engine <code>main</code> at <code>b4b617aae146</code>, committed 2026-11-04T09:05:34Z.</p>
+<section id="the-stages" class="level2">
+<h2 class="anchored" data-anchor-id="the-stages">The stages</h2>
+<section id="acquire" class="level3">
+<h3 class="anchored" data-anchor-id="acquire">1. Acquire</h3>
+<p>Source Inventories, downloads and reference resources</p>
+<ul>
+<li><strong>Source connectors</strong> (registry; 38 files, 9,636 lines): One connector per Source Provider (GWAS Catalog, FinnGen, OpenGWAS, UKB-B, eQTLGen, dbGaP MVP).
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md">Manifest Generation is one pipeline fed by source connectors</a> (registry; placed by title)</li>
+</ul></li>
+<li><strong>Reference resources</strong> (registry; 26 files, 5,140 lines): Builders for LD Reference Panels and other Reference Resources.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0011-reference-resources-are-build-resources.md">Reference resources are build resources</a> (registry; placed by title) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0020-non-eur-ld-panels-from-hgdp-1kgp.md">Non-EUR LD Reference Panels are built from HGDP+1kGP, at structurally lower power</a> (registry; placed by code)</li>
+</ul></li>
+</ul>
+</section>
+<section id="generate" class="level3">
+<h3 class="anchored" data-anchor-id="generate">2. Generate</h3>
+<p>Manifest Generation and curation: a candidate Release Bundle</p>
+<ul>
+<li><strong>Manifest Generation</strong> (registry; 35 files, 15,526 lines): The one pipeline from a frozen Source Inventory to a candidate Release Bundle (ADR 0035, 0036).
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0032-phase-b-candidate-workflow.md">Phase B candidate generation invokes the OpenGWASDB resolver</a> (registry; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0035-manifest-generation-and-store-release-build.md">Manifest Generation and Store Release Build meet at the Release Bundle</a> (registry; placed by title)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0036-manifest-generation-is-one-pipeline-fed-by-source-connectors.md">Manifest Generation is one pipeline fed by source connectors</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0040-association-coverage-is-declared-in-the-release-bundle.md">Association Coverage is declared in the Release Bundle, in one vocabulary</a> (registry; placed by code)</li>
+</ul></li>
+<li><strong>Curation</strong> (registry; 18 files, 15,751 lines): Trait Ontology Mapping, candidate review and promotion into the Canonical Trait Mapping Table.</li>
+</ul>
+</section>
+<section id="resolve" class="level3">
+<h3 class="anchored" data-anchor-id="resolve">3. Resolve</h3>
+<p>Analysis Resolution: one scan per Analysis, one Resolution Record</p>
+<ul>
+<li><strong>Source Readers</strong> (engine; 16 files, 5,569 lines): The Source Reader seam and Column Maps; GWAS-SSF, GWAS-VCF, FinnGen and BESD readers.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0019-two-pass-vcf-build-with-inline-liftover.md">Two-pass VCF build path with inline liftover</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0028-ancestry-assignment-from-allele-frequencies.md">Ancestry assignment from allele frequencies; ancestry-matched completion</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0034-unify-analysestsv-across-layouts-retire-phenotype-id.md">One `analyses.tsv` schema for every layout; retire `phenotype_id`/`phenotype_label`; add Attribution Metadata</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0036-store-effect-allele-frequency-per-association.md">Store effect allele frequency as a per-association array, per-Analysis opt-in</a> (engine; placed by code) <em>superseded</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0042-registry-orchestration-seam-and-manifest-precedence.md">Registry-orchestration seam, canonical manifest column aliases, per-release option precedence, machine-readable evidence, and phenotype-SD computation</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0049-resolve-effect-source-over-assuming-beta.md">Resolve an Analysis’s effect source rather than assuming `beta`</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0055-recover-effect-and-standard-error-from-row-columns.md">Recover a row’s effect and standard error from its own columns</a> (engine; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0063-read-tabular-collections-through-a-column-map.md">Read tabular collections through a Column Map</a> (engine; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0066-withhold-an-rsid-its-sources-dispute.md">Withhold an rsid its sources dispute, and read compound ids as their rs identifier</a> (engine; placed by code)</li>
+</ul></li>
+<li><strong>Analysis Resolution</strong> (engine; 10 files, 5,270 lines): One scan per Analysis to its Analytical Metadata and Resolution Record; row admission, INFO, SD and effect consistency.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0028-ancestry-assignment-from-allele-frequencies.md">Ancestry assignment from allele frequencies; ancestry-matched completion</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0036-store-effect-allele-frequency-per-association.md">Store effect allele frequency as a per-association array, per-Analysis opt-in</a> (engine; placed by code) <em>superseded</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0042-registry-orchestration-seam-and-manifest-precedence.md">Registry-orchestration seam, canonical manifest column aliases, per-release option precedence, machine-readable evidence, and phenotype-SD computation</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0044-one-pass-analysis-resolution-with-bounded-evidence.md">One-pass pre-build Analysis resolution, with evidence bounded by configuration</a> (engine; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0045-resumable-manifest-resolver-with-atomic-records.md">Resumable manifest Analysis resolution with atomic per-Analysis records</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0046-retain-full-source-scan-over-prefix.md">Retain the full source scan: a prefix is not a substitute for one-pass Analysis resolution</a> (engine; placed by code) <em>superseded</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0054-whole-stream-evidence-and-one-row-admission-rule.md">Whole-stream evidence and one row-admission rule</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0067-per-association-sample-size-and-besd-allele-frequency.md">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</a> (engine; placed by code)</li>
+</ul></li>
+<li><strong>Ancestry Assignment</strong> (engine; 8 files, 1,533 lines): Assigned Ancestry from allele frequencies (NNLS mixture, admission gates) and store routing.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0028-ancestry-assignment-from-allele-frequencies.md">Ancestry assignment from allele frequencies; ancestry-matched completion</a> (engine; placed by title)</li>
+</ul></li>
+</ul>
+</section>
+<section id="build" class="level3">
+<h3 class="anchored" data-anchor-id="build">4. Build</h3>
+<p>Store Release Build: layouts, encoding, variants</p>
+<ul>
+<li><strong>Release orchestration</strong> (registry; 26 files, 22,993 lines): Release Bundle to engine argv, staged runs, registration and publication (ogstores).
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0014-release-manifest-bundles.md">Release manifest bundles</a> (registry; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0025-registry-filters-excluded-analyses.md">The registry filters excluded analyses before build</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0026-detached-builds-die-with-their-orchestrator.md">Detached builds die with their orchestrator</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0033-shared-stores-admit-only-maf-filtered-analyses.md">A shared Store admits only MAF-filtered Analyses</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0034-indexed-variant-subsets-in-release-planning.md">Indexed Variant Subsets are optional, declared in the Build Recipe</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0035-manifest-generation-and-store-release-build.md">Manifest Generation and Store Release Build meet at the Release Bundle</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0040-association-coverage-is-declared-in-the-release-bundle.md">Association Coverage is declared in the Release Bundle, in one vocabulary</a> (registry; placed by code)</li>
+</ul></li>
+<li><strong>Source Readers</strong> (engine; 16 files, 5,569 lines): The Source Reader seam and Column Maps; GWAS-SSF, GWAS-VCF, FinnGen and BESD readers.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0019-two-pass-vcf-build-with-inline-liftover.md">Two-pass VCF build path with inline liftover</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0028-ancestry-assignment-from-allele-frequencies.md">Ancestry assignment from allele frequencies; ancestry-matched completion</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0034-unify-analysestsv-across-layouts-retire-phenotype-id.md">One `analyses.tsv` schema for every layout; retire `phenotype_id`/`phenotype_label`; add Attribution Metadata</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0036-store-effect-allele-frequency-per-association.md">Store effect allele frequency as a per-association array, per-Analysis opt-in</a> (engine; placed by code) <em>superseded</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0042-registry-orchestration-seam-and-manifest-precedence.md">Registry-orchestration seam, canonical manifest column aliases, per-release option precedence, machine-readable evidence, and phenotype-SD computation</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0049-resolve-effect-source-over-assuming-beta.md">Resolve an Analysis’s effect source rather than assuming `beta`</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0055-recover-effect-and-standard-error-from-row-columns.md">Recover a row’s effect and standard error from its own columns</a> (engine; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0063-read-tabular-collections-through-a-column-map.md">Read tabular collections through a Column Map</a> (engine; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0066-withhold-an-rsid-its-sources-dispute.md">Withhold an rsid its sources dispute, and read compound ids as their rs identifier</a> (engine; placed by code)</li>
+</ul></li>
+<li><strong>Variant Identity</strong> (engine; 7 files, 2,830 lines): Canonical variant identity, orientation, rsids, the Store Variant Axis and liftover.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0042-registry-orchestration-seam-and-manifest-precedence.md">Registry-orchestration seam, canonical manifest column aliases, per-release option precedence, machine-readable evidence, and phenotype-SD computation</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0066-withhold-an-rsid-its-sources-dispute.md">Withhold an rsid its sources dispute, and read compound ids as their rs identifier</a> (engine; placed by code)</li>
+</ul></li>
+<li><strong>Dense Layout</strong> (engine; 10 files, 10,057 lines): Dense Observed-Only builders (tabular and GWAS-VCF), top hits, Indexed Variant Subsets, Rho.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0020-sparse-array-query-contract.md">ADR-0020: Sparse flat array query contract</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0032-overview-html-is-a-single-tabbed-page-with-persisted-hit-counts.md">`overview.html` is one tabbed page; Top-Hit Counts are persisted `analyses.tsv` columns, not rendered on the fly</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0033-query-facade-adapter-contract.md">Query facade stays three adapters behind one documented contract</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0034-unify-analysestsv-across-layouts-retire-phenotype-id.md">One `analyses.tsv` schema for every layout; retire `phenotype_id`/`phenotype_label`; add Attribution Metadata</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0064-association-coverage-is-a-build-input.md">Association Coverage is a build input, not a layout constant</a> (engine; placed by code)</li>
+</ul></li>
+<li><strong>Ragged Layout</strong> (engine; 10 files, 4,958 lines): Ragged builders (GWAS-SSF, BESD), Zarr CSR storage, the By-Variant Index and top hits.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0030-analytical-metadata-travels-with-the-store.md">Analytical Metadata travels with the Store Release; `analyses.tsv` replaces the SQLite `analyses` table</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0033-query-facade-adapter-contract.md">Query facade stays three adapters behind one documented contract</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0035-retire-gene-id-gene-name-scope-tissue-context.md">Retire `gene_id`/`gene_name`; keep `tissue`/`context` scoped to what was measured</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0064-association-coverage-is-a-build-input.md">Association Coverage is a build input, not a layout constant</a> (engine; placed by code)</li>
+</ul></li>
+<li><strong>Hybrid Layout</strong> (engine; 7 files, 5,785 lines): One read per study, routed to the Dense Component or the Ragged Overflow Component; checkpointed.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0026-hybrid-layout-dense-ragged-overflow.md">Hybrid Layout: Dense Component + Ragged Overflow for heterogeneous genome-wide collections</a> (engine; placed by title)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0032-overview-html-is-a-single-tabbed-page-with-persisted-hit-counts.md">`overview.html` is one tabbed page; Top-Hit Counts are persisted `analyses.tsv` columns, not rendered on the fly</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0064-association-coverage-is-a-build-input.md">Association Coverage is a build input, not a layout constant</a> (engine; placed by code)</li>
+</ul></li>
+<li><strong>Store Encoding</strong> (engine; 7 files, 5,676 lines): The encoding plan, StoreCodec and decoded statistic planes (z, se, eaf, imputed).</li>
+<li><strong>Store Release envelope</strong> (engine; 9 files, 3,332 lines): Paths, manifest, format versions, the array-creation seam, conversion, SQLite indexes.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0030-analytical-metadata-travels-with-the-store.md">Analytical Metadata travels with the Store Release; `analyses.tsv` replaces the SQLite `analyses` table</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0038-store-format-versioning-and-migration-policy.md">Store format versioning, reader obligations, and migration expectations</a> (engine; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0056-zarr-runtime-configuration-owned-by-the-array-seam.md">zarr’s process-wide runtime configuration is owned by the array seam</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0057-store-format-0-2-0-zarr-v3-with-sharding.md">Store format 0.2.0: Zarr v3 with sharding</a> (engine; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0060-variant-centric-index.md">A variant-centric index for the Ragged and Hybrid Overflow components</a> (engine; placed by code)</li>
+</ul></li>
+</ul>
+</section>
+<section id="validate" class="level3">
+<h3 class="anchored" data-anchor-id="validate">5. Validate</h3>
+<p>Structural validation, source fidelity, the Observed-View Check</p>
+<ul>
+<li><strong>Release orchestration</strong> (registry; 26 files, 22,993 lines): Release Bundle to engine argv, staged runs, registration and publication (ogstores).
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0014-release-manifest-bundles.md">Release manifest bundles</a> (registry; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0025-registry-filters-excluded-analyses.md">The registry filters excluded analyses before build</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0026-detached-builds-die-with-their-orchestrator.md">Detached builds die with their orchestrator</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0033-shared-stores-admit-only-maf-filtered-analyses.md">A shared Store admits only MAF-filtered Analyses</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0034-indexed-variant-subsets-in-release-planning.md">Indexed Variant Subsets are optional, declared in the Build Recipe</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0035-manifest-generation-and-store-release-build.md">Manifest Generation and Store Release Build meet at the Release Bundle</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0040-association-coverage-is-declared-in-the-release-bundle.md">Association Coverage is declared in the Release Bundle, in one vocabulary</a> (registry; placed by code)</li>
+</ul></li>
+<li><strong>Validation</strong> (engine; 7 files, 6,870 lines): Store validation, source fidelity, the EAF audit and the Observed-View Check.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0019-reference-af-effect-scale-validation.md">Reference-AF effect-scale validation as a generator stage</a> (registry; placed by title)</li>
+</ul></li>
+</ul>
+</section>
+<section id="complete" class="level3">
+<h3 class="anchored" data-anchor-id="complete">6. Complete</h3>
+<p>Reference Completion against an LD Reference Panel</p>
+<ul>
+<li><strong>Reference resources</strong> (registry; 26 files, 5,140 lines): Builders for LD Reference Panels and other Reference Resources.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0011-reference-resources-are-build-resources.md">Reference resources are build resources</a> (registry; placed by title) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0020-non-eur-ld-panels-from-hgdp-1kgp.md">Non-EUR LD Reference Panels are built from HGDP+1kGP, at structurally lower power</a> (registry; placed by code)</li>
+</ul></li>
+<li><strong>Release orchestration</strong> (registry; 26 files, 22,993 lines): Release Bundle to engine argv, staged runs, registration and publication (ogstores).
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0014-release-manifest-bundles.md">Release manifest bundles</a> (registry; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0025-registry-filters-excluded-analyses.md">The registry filters excluded analyses before build</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0026-detached-builds-die-with-their-orchestrator.md">Detached builds die with their orchestrator</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0033-shared-stores-admit-only-maf-filtered-analyses.md">A shared Store admits only MAF-filtered Analyses</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0034-indexed-variant-subsets-in-release-planning.md">Indexed Variant Subsets are optional, declared in the Build Recipe</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0035-manifest-generation-and-store-release-build.md">Manifest Generation and Store Release Build meet at the Release Bundle</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0040-association-coverage-is-declared-in-the-release-bundle.md">Association Coverage is declared in the Release Bundle, in one vocabulary</a> (registry; placed by code)</li>
+</ul></li>
+<li><strong>Store Encoding</strong> (engine; 7 files, 5,676 lines): The encoding plan, StoreCodec and decoded statistic planes (z, se, eaf, imputed).</li>
+<li><strong>Reference Completion</strong> (engine; 15 files, 5,125 lines): The LD-block imputation kernel and the Dense, Ragged and Hybrid completion pipelines.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0007-reference-completion-as-release-lineage.md">Reference completion as release lineage</a> (registry; placed by title) <em>superseded</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0037-reference-completion-replaces-its-store.md">Reference completion replaces its Store under the same id</a> (registry; placed by title) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0011-reference-completion-release-enhancement.md">Make reference completion an optional release enhancement</a> (engine; placed by title)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0029-standardise-continuous-effects-via-phenotype-sd.md">Standardise continuous-trait effects to SD units via phenotype-SD rescaling</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0032-overview-html-is-a-single-tabbed-page-with-persisted-hit-counts.md">`overview.html` is one tabbed page; Top-Hit Counts are persisted `analyses.tsv` columns, not rendered on the fly</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0036-store-effect-allele-frequency-per-association.md">Store effect allele frequency as a per-association array, per-Analysis opt-in</a> (engine; placed by code) <em>superseded</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0037-statistic-array-encodings.md">Statistic array encodings: fixed-point z, residual-coded EAF, reference EAF for imputed cells</a> (engine; placed by code) <em>superseded</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0039-completion-region-identity-and-ancestry-refusal.md">Reference Completion: what identifies a region, and what happens when a panel matches nothing</a> (engine; placed by title)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0053-hybrid-build-phase-checkpoint-and-resume.md">Phase-granularity checkpoint and resume for the Hybrid build tail</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0064-association-coverage-is-a-build-input.md">Association Coverage is a build input, not a layout constant</a> (engine; placed by code)</li>
+</ul></li>
+</ul>
+</section>
+<section id="publish" class="level3">
+<h3 class="anchored" data-anchor-id="publish">7. Publish</h3>
+<p>Register, publish, catalogue</p>
+<ul>
+<li><strong>Release orchestration</strong> (registry; 26 files, 22,993 lines): Release Bundle to engine argv, staged runs, registration and publication (ogstores).
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0014-release-manifest-bundles.md">Release manifest bundles</a> (registry; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0025-registry-filters-excluded-analyses.md">The registry filters excluded analyses before build</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0026-detached-builds-die-with-their-orchestrator.md">Detached builds die with their orchestrator</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0033-shared-stores-admit-only-maf-filtered-analyses.md">A shared Store admits only MAF-filtered Analyses</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0034-indexed-variant-subsets-in-release-planning.md">Indexed Variant Subsets are optional, declared in the Build Recipe</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0035-manifest-generation-and-store-release-build.md">Manifest Generation and Store Release Build meet at the Release Bundle</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0040-association-coverage-is-declared-in-the-release-bundle.md">Association Coverage is declared in the Release Bundle, in one vocabulary</a> (registry; placed by code)</li>
+</ul></li>
+<li><strong>Release Bundles</strong> (registry; 354 tracked files): The accepted Release Bundles and the master list of Store Releases.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0039-analysis-catalog.md">The Analysis Catalog is a generated, versioned database over Release Bundles</a> (registry; placed by title)</li>
+</ul></li>
+<li><strong>Analysis Catalog</strong> (registry; 10 files, 1,241 lines): A generated, versioned SQLite database over Release Bundles.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0039-analysis-catalog.md">The Analysis Catalog is a generated, versioned database over Release Bundles</a> (registry; placed by title)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0027-analysis-catalogue-ingestion-hub.md">Analysis Catalogue as the ingestion hub; stores are subset views</a> (engine; placed by title) <em>superseded</em></li>
+</ul></li>
+<li><strong>Store Release envelope</strong> (engine; 9 files, 3,332 lines): Paths, manifest, format versions, the array-creation seam, conversion, SQLite indexes.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0030-analytical-metadata-travels-with-the-store.md">Analytical Metadata travels with the Store Release; `analyses.tsv` replaces the SQLite `analyses` table</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0038-store-format-versioning-and-migration-policy.md">Store format versioning, reader obligations, and migration expectations</a> (engine; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0056-zarr-runtime-configuration-owned-by-the-array-seam.md">zarr’s process-wide runtime configuration is owned by the array seam</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0057-store-format-0-2-0-zarr-v3-with-sharding.md">Store format 0.2.0: Zarr v3 with sharding</a> (engine; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0060-variant-centric-index.md">A variant-centric index for the Ragged and Hybrid Overflow components</a> (engine; placed by code)</li>
+</ul></li>
+</ul>
+</section>
+<section id="query" class="level3">
+<h3 class="anchored" data-anchor-id="query">8. Query</h3>
+<p>Variant, Analysis and top-hit lookups</p>
+<ul>
+<li><strong>Variant Identity</strong> (engine; 7 files, 2,830 lines): Canonical variant identity, orientation, rsids, the Store Variant Axis and liftover.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0042-registry-orchestration-seam-and-manifest-precedence.md">Registry-orchestration seam, canonical manifest column aliases, per-release option precedence, machine-readable evidence, and phenotype-SD computation</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0066-withhold-an-rsid-its-sources-dispute.md">Withhold an rsid its sources dispute, and read compound ids as their rs identifier</a> (engine; placed by code)</li>
+</ul></li>
+<li><strong>Query</strong> (engine; 4 files, 1,734 lines): The layout-independent query facade and result resolution.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0006-layout-independent-query-engine.md">Use a layout-independent query engine</a> (engine; placed by title)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0020-sparse-array-query-contract.md">ADR-0020: Sparse flat array query contract</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0030-analytical-metadata-travels-with-the-store.md">Analytical Metadata travels with the Store Release; `analyses.tsv` replaces the SQLite `analyses` table</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0033-query-facade-adapter-contract.md">Query facade stays three adapters behind one documented contract</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0034-unify-analysestsv-across-layouts-retire-phenotype-id.md">One `analyses.tsv` schema for every layout; retire `phenotype_id`/`phenotype_label`; add Attribution Metadata</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0061-indexed-variant-subsets.md">Indexed Variant Subsets are optional full-statistic Dense query indexes</a> (engine; placed by title)</li>
+</ul></li>
+</ul>
+</section>
+<section id="every-stage" class="level3">
+<h3 class="anchored" data-anchor-id="every-stage">9. Every stage</h3>
+<p>The store contract, the CLI and the project’s own tooling</p>
+<ul>
+<li><strong>Project site</strong> (registry; 28 files, 7,208 lines): Collectors, generated pages and the Quarto build of the project site.</li>
+<li><strong>Yardstick</strong> (registry; 9 files, 921 lines): One fixed benchmark, recorded at the end of every epic.</li>
+<li><strong>Developer tools</strong> (registry; 9 files, 4,039 lines): Benchmarks, spikes and repository checks.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0037-reference-completion-replaces-its-store.md">Reference completion replaces its Store under the same id</a> (registry; placed by code) <em>amended</em></li>
+</ul></li>
+<li><strong>Store contract model</strong> (engine; 10 files, 1,728 lines): analyses.tsv, manifest and enum contracts; statistic helpers shared by builders, validators and queries.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0017-opengwasdb-owns-shared-analysis-schema.md">OpenGWASDB owns the shared analysis schema</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0028-store-family-tier-retired.md">Store Family tier retired</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0034-unify-analysestsv-across-layouts-retire-phenotype-id.md">One `analyses.tsv` schema for every layout; retire `phenotype_id`/`phenotype_label`; add Attribution Metadata</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0036-store-effect-allele-frequency-per-association.md">Store effect allele frequency as a per-association array, per-Analysis opt-in</a> (engine; placed by code) <em>superseded</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0042-registry-orchestration-seam-and-manifest-precedence.md">Registry-orchestration seam, canonical manifest column aliases, per-release option precedence, machine-readable evidence, and phenotype-SD computation</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0064-association-coverage-is-a-build-input.md">Association Coverage is a build input, not a layout constant</a> (engine; placed by code)</li>
+</ul></li>
+<li><strong>Repair and re-encode</strong> (engine; 3 files, 1,839 lines): Representation-only repairs, the SE re-encode of existing Store Releases, and layout conversion.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0059-convert-remaining-layouts-and-ragged-shards.md">Convert every layout to 0.2.0, and bound the Ragged shards</a> (engine; placed by code)</li>
+</ul></li>
+<li><strong>Engine CLI</strong> (engine; 3 files, 2,092 lines): The opengwasdb command line, the surface opengwasdb-stores and users call.
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0024-one-family-record-no-source-collection-tier.md">One family record, and no Source Collection tier</a> (registry; placed by code) <em>superseded</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0026-detached-builds-die-with-their-orchestrator.md">Detached builds die with their orchestrator</a> (registry; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0037-reference-completion-replaces-its-store.md">Reference completion replaces its Store under the same id</a> (registry; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0042-registry-orchestration-seam-and-manifest-precedence.md">Registry-orchestration seam, canonical manifest column aliases, per-release option precedence, machine-readable evidence, and phenotype-SD computation</a> (engine; placed by code)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0062-resolve-besd-probes-from-one-per-file-esi-measurement.md">Resolve BESD probes from one per-file `.esi` measurement</a> (engine; placed by code) <em>amended</em></li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0063-read-tabular-collections-through-a-column-map.md">Read tabular collections through a Column Map</a> (engine; placed by code) <em>amended</em></li>
+</ul></li>
+</ul>
+</section>
+</section>
+<section id="adrs-the-map-cannot-place" class="level2">
+<h2 class="anchored" data-anchor-id="adrs-the-map-cannot-place">ADRs the map cannot place</h2>
+<p>53 of 108 ADRs are placed on a component. These cite no code a component claims and name none in their title:</p>
+<ul>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0001-store-registry-boundary.md">Store registry boundary</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0002-custom-manifest-generators-standard-release-manifests.md">Custom manifest generators with standard release manifests</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0003-separate-release-manifests-from-build-recipes.md">Separate release manifests from build recipes</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0004-store-release-identity.md">Store release identity</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0005-release-errata.md">Release errata</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0006-family-scoped-release-ids.md">Family-scoped release IDs</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0008-registry-service-catalogue-boundary.md">Registry and service catalogue boundary</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0009-source-formats-and-reader-capabilities.md">Source formats and reader capabilities</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0010-single-source-store-families.md">Single-source store families</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0012-manifest-generators-own-orchestration-only.md">Manifest generators own orchestration only</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0013-yaml-metadata-tsv-tables.md">YAML metadata and TSV tables</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0015-registry-not-artifact-store.md">Registry not artifact store</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0016-infer-variant-axis-policy.md">Infer variant-axis policy</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0018-family-first-external-artifact-layout.md">Family-first external artifact layout</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0021-trait-ontology-mapping-lookup-lives-in-registry.md">Trait Ontology Mapping lookup lives in the registry, not OpenGWASDB</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0022-flat-opaque-store-ids.md">Flat opaque Store Release IDs</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0023-the-registry-store-seam-is-a-command-line.md">The registry/store seam is a command line</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0027-build-recipes-carry-only-what-differs.md">Build Recipes carry only what differs between Store Releases</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0029-release-identity-file-trimmed.md">Release identity file trimmed to identity, lineage, status and prose</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0030-artifact-path-is-the-identifier-migration-retired.md">Artifact path is the identifier; the migration block is retired</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0031-pure-planning-runtime-artifact-existence.md">Planning is pure; artifact existence is a runtime fact</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb-stores/blob/main/docs/adr/0038-one-home-per-kind-of-thing.md">One home per kind of thing</a> (registry)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0001-hybrid-sqlite-zarr-store-envelope.md">Use a hybrid SQLite, tabix, and Zarr store envelope</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0002-store-local-variant-indices.md">Use store-local variant indices</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0003-one-reference-assembly-per-store-release.md">Use one reference assembly per Store Release</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0004-controlled-stored-effect-scale.md">Use a controlled stored effect scale and loose original effect scale</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0005-store-z-and-se-as-canonical-statistics.md">Store Z and SE as canonical association statistics</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0007-layout-independent-build-pipeline.md">Use a layout-independent build pipeline</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0008-implement-dense-observed-only-first.md">Implement Dense Observed-Only first</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0009-separate-layout-coverage-completion.md">Separate layout, coverage, and completion</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0010-model-eaf-and-info-scope.md">Model EAF and INFO scope explicitly</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0012-reference-completed-query-semantics.md">Include imputed associations by default in reference-completed queries</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0013-association-status-nan-plus-imputed-mask.md">Encode association status with NaN and an imputed mask</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0014-ragged-reference-completed-regions.md">Complete ragged regions within retained boundaries</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0015-dense-reference-completed-overflow.md">Use ragged overflow for off-panel observations in dense completed stores</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0016-sample-size-kind-and-scope.md">Factor sample-size kind and scope</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0017-long-allele-normalisation-and-hashing.md">Retain full normalised long alleles</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0018-local-path-cli-and-external-catalogue.md">Use explicit local store paths and keep catalogues external</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0021-clip-zarr-chunk-shape-to-array-dimensions.md">ADR-0021: Clip zarr chunk shape to actual array dimensions at write time</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0022-dense-completed-axis-is-source-union-panel.md">Dense Reference-Completed variant axis is source ∪ reference panel, not panel-only</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0023-dense-completion-block-parallel-build.md">Dense Reference-Completion build: process pool over LD blocks, no thread layer, checkpointed resume</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0024-parallel-dense-vcf-build-disk-spill.md">Parallel Dense VCF build: serial Pass 1, disk-spill Pass 2, no large IPC</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0025-dense-rho-matrix.md">Dense Rho Matrix: distance-thinned self-axis, observed-only null Z, pleiodb CML estimator</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0031-ld-panels-store-eigendecompositions.md">LD Reference Panels store eigendecompositions, not LD matrices</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0040-top-hit-index-carries-decoded-eaf.md">Top-hit indexes carry decoded effect allele frequency</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0041-reset-format-version-and-drop-pre-release-formats.md">Reset `format_version` to 0.1.0 and drop the pre-release formats</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0043-staging-work-isolation-and-commit-locking.md">Staged Release work isolation and parent-directory commit locking</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0047-adopt-50k-ancestry-site-bound.md">Adopt a 50,000-site ancestry bound for the full-catalog release</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0048-decouple-ancestry-site-bound-from-quantitative-phenotype-sd.md">Decouple the ancestry-site bound from quantitative phenotype-SD evidence</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0050-enumerate-effect-column-spellings.md">Enumerate accepted effect-column spellings</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0051-derive-effect-from-signed-z-score.md">Derive an effect from a signed z-score, EAF and per-variant N</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0052-canonicalise-non-autosomal-chromosome-labels.md">Canonicalise non-autosomal chromosome labels</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0058-dense-chunk-and-shard-shapes.md">Dense chunk and shard shapes for format 0.2.0</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0065-count-overflow-only-alids-a-hybrid-index-skips.md">Leave an Overflow-only ALID out of a Hybrid’s Indexed Variant Subset on request, and count it</a> (engine)</li>
+<li><a href="https://github.com/opengwas/opengwasdb/blob/main/docs/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.md">Refuse an effect that contradicts its source’s own p-value</a> (engine)</li>
+</ul>
+<p>Read from this repository at <code>HEAD</code> (<code>e7fe79d32ccc</code>) and the engine at <code>main</code> (<code>b4b617aae146</code>); collected 2026-11-04T09:10:43Z.</p>
+
+
+</section>
+
+<a onclick="window.scrollTo(0, 0); return false;" role="button" id="quarto-back-to-top"><i class="bi bi-arrow-up"></i> Back to top</a></main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/blog\.opengwas\.io\/opengwasdb-stores\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+<footer class="footer">
+  <div class="nav-footer">
+    <div class="nav-footer-left">
+<p>OpenGWASDB · rendered from the commit that names it</p>
+</div>   
+    <div class="nav-footer-center">
+      &nbsp;
+    </div>
+    <div class="nav-footer-right">
+<p><a href="https://github.com/opengwas/opengwasdb-stores/issues">Report a problem</a></p>
+</div>
+  </div>
+</footer>
+
+
+
+
+</body></html>

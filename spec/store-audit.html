@@ -113,6 +113,25 @@ ul.task-list li input[type="checkbox"] {
     <a class="nav-link" href="../changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="../architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -186,6 +205,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../amr-ld-pilot-evidence.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">AMR LD calibration pilot: evidence (#241)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../eaf-reference-flip.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EAF reference flip (#409)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1687,7 +1712,7 @@ ul.task-list li input[type="checkbox"] {
 
 <section id="store-audit" class="level1">
 <h1>Store Audit</h1>
-<p>The specification of the read-only Store Audit commands (stores #372 and #373, epic #371). It follows <a href="../adr/0023-the-registry-store-seam-is-a-command-line.html">ADR 0023</a> (the seam is a command line) and leaves source reading, Store access and format semantics with <code>opengwasdb</code> (ADRs 0012 and 0017). The words are <a href="https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/CONTEXT.md">CONTEXT.md</a>’s. This file is the contract: the commands, what they read, what their reports say, and how a reader is meant to act on them.</p>
+<p>The specification of the read-only Store Audit commands (stores #372 and #373, epic #371). It follows <a href="../adr/0023-the-registry-store-seam-is-a-command-line.html">ADR 0023</a> (the seam is a command line) and leaves source reading, Store access and format semantics with <code>opengwasdb</code> (ADRs 0012 and 0017). The words are <a href="https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/CONTEXT.md">CONTEXT.md</a>’s. This file is the contract: the commands, what they read, what their reports say, and how a reader is meant to act on them.</p>
 <p>Two commands share one module and one read-only discipline:</p>
 <ul>
 <li><code>reconcile</code> (#372) reconciles the Store’s <strong>axis</strong> – the shared variant axis, its Dense Component and the off-panel remainder – against what the Store records.</li>

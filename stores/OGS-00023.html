@@ -111,6 +111,25 @@ ul.task-list li input[type="checkbox"] {
     <a class="nav-link" href="../changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="../architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -280,11 +299,12 @@ ul.task-list li input[type="checkbox"] {
 <p>The pre-fix broken build (which failed validate_store with “disjoint-partition violated”) was kept at hybrid__European__pilot10-quant-completed-broken-pre99fix alongside this store for reference, pending deletion.</p>
 <p>Migration (#252): migrated from the retired family-first `gwas-catalog-eur-hybrid/eur-hybrid-quant-pilot-10-completed` layout to OGS-00023, in the current bundle schema. Its Release Manifest, `validated` Release Status, Validation Record and recorded completion command are unchanged: nothing was rebuilt, revalidated or rewritten. `derived_from: OGS-00005` names the parent Observed-Only Store, whose 10 Analyses are exactly this bundle’s 10.</p>
 <p>Release Erratum (issue #133, applied here during the #252 migration): `assigned_ancestry` was recorded as the free-text Source Ancestry Label “European” rather than the registry-normalised super-population code “EUR”, as it was in the parent bundle before its own #133 correction. `source_ancestry_label` remains “European” as source provenance. No Store artifact was rebuilt or rewritten. The recorded completion command keeps `–ancestry European`, because that is what ran (opengwasdb#98).</p>
+<p>Release Erratum (issue #348, 2026-11-02): this completion ran against the HGDP+1kGP EUR panel before the panel was repaired. Imputed cells took the other allele frequency as EAF, and cells whose panel ALID was duplicated may have taken the wrong row LD. The Store files of OGS-00023 are no longer on disk, so nothing was rebuilt or re-completed; this note records the exposure only. Status is unchanged.</p>
 <p>These are the bundle’s own words: <code>release.yaml</code>’s <code>description</code> and <code>notes</code>, which is where a Release Erratum is recorded (<code>docs/spec/analysis-catalog.md</code>).</p>
 </section>
 <section id="the-bundle" class="level2">
 <h2 class="anchored" data-anchor-id="the-bundle">The bundle</h2>
-<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/stores/OGS-00023"><code>stores/OGS-00023</code> at <code>766faa9a41ef493801aafc0f3b37bd64fb0acf6b</code></a></p>
+<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/stores/OGS-00023"><code>stores/OGS-00023</code> at <code>e7fe79d32ccc68eafeb3b32d6487c57ce759821e</code></a></p>
 
 
 </section>

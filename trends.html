@@ -111,6 +111,25 @@ ul.task-list li input[type="checkbox"] {
     <a class="nav-link" href="./changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="./architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="./reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -486,6 +505,22 @@ ul.task-list li input[type="checkbox"] {
 <td>261 s</td>
 <td>no</td>
 </tr>
+<tr class="even">
+<td><code>20261104T001909Z-0.3.3</code></td>
+<td>2026-11-04T00:19:09Z</td>
+<td>0.3.3</td>
+<td>app-dc3-ogws-p0.services.bris.ac.uk</td>
+<td>270.2 s</td>
+<td>no</td>
+</tr>
+<tr class="odd">
+<td><code>20261104T002939Z-0.3.3</code></td>
+<td>2026-11-04T00:29:39Z</td>
+<td>0.3.3</td>
+<td>app-dc3-ogws-p0.services.bris.ac.uk</td>
+<td>261.8 s</td>
+<td>no</td>
+</tr>
 </tbody>
 </table>
 <p>Workload <code>yardstick-1</code> (<code>3199525b31a3</code>):</p>
@@ -659,11 +694,20 @@ ul.task-list li input[type="checkbox"] {
 </table>
 <p>Workload <code>yardstick-2</code> (<code>6639acf042e7</code>):</p>
 <table class="caption-top table">
+<colgroup>
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+<col style="width: 20%">
+</colgroup>
 <thead>
 <tr class="header">
 <th>Store</th>
 <th>Measure</th>
 <th>2026-11-01</th>
+<th>2026-11-04</th>
+<th>2026-11-04</th>
 </tr>
 </thead>
 <tbody>
@@ -671,171 +715,239 @@ ul.task-list li input[type="checkbox"] {
 <td>OGS-00006</td>
 <td><code>open</code></td>
 <td>107.731 ms (p95 110.773 ms)</td>
+<td>215.673 ms (p95 224.816 ms)</td>
+<td>126.4 ms (p95 128.855 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00006</td>
 <td><code>phewas_rsid</code></td>
 <td>18.582 ms (p95 19.953 ms)</td>
+<td>40.988 ms (p95 43.217 ms)</td>
+<td>23.457 ms (p95 26.231 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00006</td>
 <td><code>phewas_alid</code></td>
 <td>18.709 ms (p95 19.193 ms)</td>
+<td>39.48 ms (p95 40.614 ms)</td>
+<td>24.1 ms (p95 25.235 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00006</td>
 <td><code>phewas_position</code></td>
 <td>19.859 ms (p95 20.454 ms)</td>
+<td>42.511 ms (p95 42.698 ms)</td>
+<td>30.125 ms (p95 31.457 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00006</td>
 <td><code>region</code></td>
 <td>45.758 ms (p95 49.99 ms)</td>
+<td>80.368 ms (p95 81.813 ms)</td>
+<td>61.518 ms (p95 61.921 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00006</td>
 <td><code>analysis_full</code></td>
 <td>73.707 ms (p95 79.19 ms)</td>
+<td>151.128 ms (p95 153.409 ms)</td>
+<td>100.636 ms (p95 111.732 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00006</td>
 <td><code>bytes_on_disk</code></td>
+<td>1,497,874,236 bytes (walk)</td>
+<td>1,497,874,236 bytes (walk)</td>
 <td>1,497,874,236 bytes (walk)</td>
 </tr>
 <tr class="even">
 <td>OGS-00006</td>
 <td><code>peak_rss</code></td>
 <td>210.5 MB peak (baseline 167.9 MB)</td>
+<td>212.4 MB peak (baseline 169.2 MB)</td>
+<td>214.3 MB peak (baseline 170.4 MB)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00009</td>
 <td><code>open</code></td>
 <td>163.298 ms (p95 186.74 ms)</td>
+<td>160.633 ms (p95 162.035 ms)</td>
+<td>78.504 ms (p95 84.921 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00009</td>
 <td><code>phewas_rsid</code></td>
 <td>75.301 ms (p95 77.075 ms)</td>
+<td>74.314 ms (p95 78.869 ms)</td>
+<td>61.265 ms (p95 62.648 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00009</td>
 <td><code>phewas_alid</code></td>
 <td>76.12 ms (p95 78.252 ms)</td>
+<td>74.992 ms (p95 76.358 ms)</td>
+<td>60.258 ms (p95 61.027 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00009</td>
 <td><code>phewas_position</code></td>
 <td>77.067 ms (p95 77.944 ms)</td>
+<td>77.258 ms (p95 82.217 ms)</td>
+<td>62.093 ms (p95 62.564 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00009</td>
 <td><code>region</code></td>
 <td>2724.14 ms (p95 2755.18 ms)</td>
+<td>2698.82 ms (p95 3216.43 ms)</td>
+<td>2659.04 ms (p95 2759.83 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00009</td>
 <td><code>analysis_full</code></td>
 <td>8758.44 ms (p95 10381.1 ms)</td>
+<td>9448.18 ms (p95 9639.97 ms)</td>
+<td>8901.89 ms (p95 9112.66 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00009</td>
 <td><code>analysis_hm3</code></td>
 <td>445.98 ms (p95 488.595 ms)</td>
+<td>515.516 ms (p95 563.439 ms)</td>
+<td>432.371 ms (p95 471.227 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00009</td>
 <td><code>bytes_on_disk</code></td>
+<td>61,882,085,184 bytes (walk)</td>
+<td>61,882,085,184 bytes (walk)</td>
 <td>61,882,085,184 bytes (walk)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00009</td>
 <td><code>peak_rss</code></td>
 <td>1231 MB peak (baseline 172.3 MB)</td>
+<td>1235.5 MB peak (baseline 176.3 MB)</td>
+<td>1231.6 MB peak (baseline 172.4 MB)</td>
 </tr>
 <tr class="even">
 <td>OGS-00011</td>
 <td><code>open</code></td>
 <td>191.611 ms (p95 227.341 ms)</td>
+<td>333.985 ms (p95 351.396 ms)</td>
+<td>333.277 ms (p95 434.877 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00011</td>
 <td><code>phewas_rsid</code></td>
 <td>35.235 ms (p95 44.109 ms)</td>
+<td>35.899 ms (p95 38.315 ms)</td>
+<td>33.749 ms (p95 36.307 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00011</td>
 <td><code>phewas_alid</code></td>
 <td>99.54 ms (p95 144.599 ms)</td>
+<td>100.365 ms (p95 155.451 ms)</td>
+<td>105.567 ms (p95 110.775 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00011</td>
 <td><code>phewas_position</code></td>
 <td>34.795 ms (p95 34.981 ms)</td>
+<td>35.624 ms (p95 36.875 ms)</td>
+<td>36.772 ms (p95 38.479 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00011</td>
 <td><code>region</code></td>
 <td>4731.61 ms (p95 5632.72 ms)</td>
+<td>4526.65 ms (p95 4725.12 ms)</td>
+<td>3889.88 ms (p95 3990.94 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00011</td>
 <td><code>analysis_full</code></td>
 <td>23475.2 ms (p95 24305.9 ms)</td>
+<td>25221.7 ms (p95 25428.3 ms)</td>
+<td>23518.1 ms (p95 26551 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00011</td>
 <td><code>analysis_hm3</code></td>
 <td>903.546 ms (p95 934.559 ms)</td>
+<td>789.173 ms (p95 794.221 ms)</td>
+<td>780.848 ms (p95 831.898 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00011</td>
 <td><code>bytes_on_disk</code></td>
+<td>166,555,414,528 bytes (walk)</td>
+<td>166,555,414,528 bytes (walk)</td>
 <td>166,555,414,528 bytes (walk)</td>
 </tr>
 <tr class="even">
 <td>OGS-00011</td>
 <td><code>peak_rss</code></td>
 <td>1517 MB peak (baseline 259.6 MB)</td>
+<td>1572.7 MB peak (baseline 259.7 MB)</td>
+<td>1515.5 MB peak (baseline 258 MB)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00027</td>
 <td><code>open</code></td>
 <td>242.088 ms (p95 272.823 ms)</td>
+<td>356.092 ms (p95 405.771 ms)</td>
+<td>240.143 ms (p95 271.899 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00027</td>
 <td><code>phewas_rsid</code></td>
 <td>21.045 ms (p95 23.557 ms)</td>
+<td>19.738 ms (p95 24.016 ms)</td>
+<td>19.128 ms (p95 20.677 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00027</td>
 <td><code>phewas_alid</code></td>
 <td>21.9 ms (p95 22.497 ms)</td>
+<td>19.792 ms (p95 20.378 ms)</td>
+<td>19.034 ms (p95 19.902 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00027</td>
 <td><code>phewas_position</code></td>
 <td>26.873 ms (p95 27.26 ms)</td>
+<td>21.358 ms (p95 23.029 ms)</td>
+<td>22.66 ms (p95 23.308 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00027</td>
 <td><code>region</code></td>
 <td>68.466 ms (p95 76.061 ms)</td>
+<td>81.623 ms (p95 82.765 ms)</td>
+<td>65.102 ms (p95 70.867 ms)</td>
 </tr>
 <tr class="even">
 <td>OGS-00027</td>
 <td><code>analysis_full</code></td>
 <td>25.39 ms (p95 26.359 ms)</td>
+<td>22.216 ms (p95 22.366 ms)</td>
+<td>25.145 ms (p95 26.185 ms)</td>
 </tr>
 <tr class="odd">
 <td>OGS-00027</td>
 <td><code>bytes_on_disk</code></td>
+<td>2,632,390,381 bytes (walk)</td>
+<td>2,632,390,381 bytes (walk)</td>
 <td>2,632,390,381 bytes (walk)</td>
 </tr>
 <tr class="even">
 <td>OGS-00027</td>
 <td><code>peak_rss</code></td>
 <td>228.9 MB peak (baseline 220.8 MB)</td>
+<td>231.6 MB peak (baseline 223.4 MB)</td>
+<td>224.9 MB peak (baseline 218.5 MB)</td>
 </tr>
 </tbody>
 </table>
@@ -872,10 +984,22 @@ ul.task-list li input[type="checkbox"] {
 <td>+2.3% on the baseline</td>
 </tr>
 <tr class="even">
+<td><a href="epics/opengwasdb-stores-232.html">opengwasdb-stores#232</a></td>
+<td>80.3 s at <code>09ff1ba</code></td>
+<td>163.1 s at <code>93e134ff</code></td>
+<td>+103.1% on the baseline</td>
+</tr>
+<tr class="odd">
 <td><a href="epics/opengwasdb-stores-385.html">opengwasdb-stores#385</a></td>
 <td>166.3 s at <code>de99f3b</code></td>
 <td>156.4 s at <code>49aa494</code></td>
 <td>-6.0% on the baseline</td>
+</tr>
+<tr class="even">
+<td><a href="epics/opengwasdb-stores-416.html">opengwasdb-stores#416</a></td>
+<td>168.7 s at <code>e5adf735</code></td>
+<td>166 s at <code>7afeb117</code></td>
+<td>-1.6% on the baseline</td>
 </tr>
 </tbody>
 </table>

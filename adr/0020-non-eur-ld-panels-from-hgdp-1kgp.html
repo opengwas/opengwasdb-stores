@@ -113,6 +113,25 @@ ul.task-list li input[type="checkbox"] {
     <a class="nav-link" href="../changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="../architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -186,6 +205,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../amr-ld-pilot-evidence.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">AMR LD calibration pilot: evidence (#241)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../eaf-reference-flip.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EAF reference flip (#409)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1661,6 +1686,7 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#considered-options" id="toc-considered-options" class="nav-link" data-scroll-target="#considered-options">Considered options</a></li>
   <li><a href="#consequences" id="toc-consequences" class="nav-link" data-scroll-target="#consequences">Consequences</a></li>
   <li><a href="#amendment-stores241-an-amr-panel-under-its-own-variant-qc" id="toc-amendment-stores241-an-amr-panel-under-its-own-variant-qc" class="nav-link" data-scroll-target="#amendment-stores241-an-amr-panel-under-its-own-variant-qc">Amendment (stores#241): an AMR panel, under its own variant QC</a></li>
+  <li><a href="#amendment-stores348-what-a-blocks-eaf-means-and-one-row-per-alid" id="toc-amendment-stores348-what-a-blocks-eaf-means-and-one-row-per-alid" class="nav-link" data-scroll-target="#amendment-stores348-what-a-blocks-eaf-means-and-one-row-per-alid">Amendment (stores#348): what a block’s <code>EAF</code> means, and one row per ALID</a></li>
   </ul></li>
   </ul>
 </nav>
@@ -1714,10 +1740,23 @@ ul.task-list li input[type="checkbox"] {
 <li><strong>Members.</strong> The 345 high-quality 1kGP Phase 3 AMR samples: CLM, MXL, PEL and PUR. HGDP’s American populations are excluded. They are small, bottlenecked, indigenous samples, not the admixed populations AMR-assigned Analyses come from. Pooling them would be a separate decision. As with ASW and ACB above, the panel’s LD is that of the populations it is built from.</li>
 <li><strong>Block layout.</strong> The EUR blocks, relabelled AMR, as in the EUR calibration control. LD is still estimated from AMR genotypes only. The pilot found more weak LD crossing EUR boundaries in AMR than in EUR. Imputation across an edge and AMR-derived boundaries remain untested.</li>
 <li><strong>Variant inclusion: MAF ≥ 0.01, not MAC ≥ 50.</strong> At n = 345 the MAC ≥ 50 floor above would be a 7.2% MAF filter, discarding about half the variants the pilot retained. The MAF floor is measured over called individuals, so it admits sparsely called sites. The panel therefore also requires at least 80% of members called, and FILTER PASS.</li>
-<li><strong>One record per ALID.</strong> gnomAD splits multi-allelic sites, so an insertion and a deletion at one position can share a canonical ALID (stores#348). Of the records that pass every filter, the one with the higher MAF is kept, and each block row records its source REF and ALT. The constructor now applies this to every panel it builds. The shipped AFR/EAS/SAS panels predate it and are tracked in stores#348.</li>
+<li><strong>One record per ALID.</strong> gnomAD splits multi-allelic sites, so an insertion and a deletion at one position can share a canonical ALID (stores#348). Of the records that pass every filter, the one with the higher MAF is kept, then — for an MAF tie — the higher call rate, then the earlier input record. Each block row records its source REF and ALT. The constructor now applies this to every panel it builds; the shipped panels were repaired under the rule the amendment below states for a table that records no call rate, and are tracked in stores#348. The asymmetry this ADR accepts is widest here. At 345 individuals every block is capped at rank 344. In genotype-held-out calibration, masked z-scores were recovered with median r 0.85–0.92 outside the MHC, against 0.98–0.99 in-sample. That is not comparable with the EUR control’s real-GWAS 0.963 at n = 771. AMR completion quality is therefore lower than for any other ancestry, for reasons of panel construction, and the per-Analysis completion-quality summaries are the measure of it.</li>
 </ul>
-<p>The asymmetry this ADR accepts is widest here. At 345 individuals every block is capped at rank 344. In genotype-held-out calibration, masked z-scores were recovered with median r 0.85–0.92 outside the MHC, against 0.98–0.99 in-sample. That is not comparable with the EUR control’s real-GWAS 0.963 at n = 771. AMR completion quality is therefore lower than for any other ancestry, for reasons of panel construction, and the per-Analysis completion-quality summaries are the measure of it.</p>
 <p>MID and NAF still have no panel and remain observed-only.</p>
+</section>
+<section id="amendment-stores348-what-a-blocks-eaf-means-and-one-row-per-alid" class="level2">
+<h2 class="anchored" data-anchor-id="amendment-stores348-what-a-blocks-eaf-means-and-one-row-per-alid">Amendment (stores#348): what a block’s <code>EAF</code> means, and one row per ALID</h2>
+<p>The decision above is unchanged: the panels stay, and no parameter of their construction moves. Two properties of the artifacts they produce were under-specified, and are now part of the contract.</p>
+<ul>
+<li><strong><code>EAF</code> is the frequency of the row’s <code>EA</code>.</strong> PLINK’s <code>--export A</code> counts one allele per column and names it in the column suffix, and the plink2 that built these panels counts REF, not ALT. The constructor read the dosage as ALT dosage, so every row’s stored frequency was the <em>other</em> allele’s, uniformly and exactly: the alleles, the row order and the LD are unaffected (the eigenvectors are uniformly sign-flipped, which no stored artifact can express), but every consumer that read <code>EAF</code> — the reference allele frequencies of a completed Store, and the panel’s own use as an <code>--eaf-reference</code> — read the complement. The constructor now reads the counted allele from the export, and a panel written before that fix is corrected in place with <code>EAF := 1 - EAF</code> rather than rebuilt.</li>
+<li><strong>A block holds one row per ALID.</strong> Two rules settle which of two colliding records survives, and they differ only on a tie.
+<ul>
+<li><code>tools/ld-panel/construct_block.py</code> keeps the record with the higher MAF, then the higher call rate, then the earlier input record. That rule built every panel constructed since, the AMR panel among them.</li>
+<li><code>tools/ld-panel/repair_panel.py</code> corrects block tables already written, which record no call rate. It keeps the higher MAF as the table stores it, a tie going to the earlier row. That is the rule the shipped AFR, EAS, SAS and EUR tables were repaired under.</li>
+</ul>
+A tie at equal stored MAF is rare: 17 of 6,642 sampled dropped rows. Either record is an exact LD row for the variant its own source record describes, so the two rules can keep different rows without either being wrong about the ALID’s LD. A table written before the rule was in place is corrected by dropping the losing rows from the TSV and from <code>vectors</code>. The stored LD is the rank-<code>k</code> <code>V diag(values) V^T</code>, for which restricting rows is exact; <code>values</code> is left untouched so the consumer’s cumulative-variance cut keeps its meaning, and a row drop costs the exact <code>||X v_j||^2 = value_j</code> binding identity, which is why a repaired block is verified against its backup instead.</li>
+</ul>
+<p>Neither correction needs a rebuild, and neither changes a block definition, a variance target or a variant floor. What they do change is that orientation and one-record-per-ALID are now <strong>checked</strong>, not assumed. <code>run_panels</code> gates every ancestry it builds or finishes, <code>build_amr_panel</code> gates the finished panel as its last step, and <code>verify_block --panel</code> gates one on demand: each measures the panel’s <code>EAF</code> against the UKB ancestry mixture and requires <code>r &gt; 0.9</code> on matched variants, refusing a sample too small to decide on. A repair additionally refuses to run on a panel that does not first look inverted, so the correction cannot be applied twice.</p>
 
 
 </section>

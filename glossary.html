@@ -113,6 +113,25 @@ ul.task-list li input[type="checkbox"] {
     <a class="nav-link" href="./changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="./architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="./reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -186,6 +205,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="./amr-ld-pilot-evidence.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">AMR LD calibration pilot: evidence (#241)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./eaf-reference-flip.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EAF reference flip (#409)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1707,7 +1732,7 @@ ul.task-list li input[type="checkbox"] {
 <p><strong>Store Audit</strong>: A read-only reconciliation of a built Store Release against what the Store itself records, run as <code>python3 -m ogstores.audit reconcile &lt;store&gt; --output &lt;evidence.json&gt;</code> (stores #372, epic #371). It reads the Store’s own artifact and its own record – <code>manifest.json</code>, its variant table, its variant-major CSR index and <code>records/build.json</code> – and never a Build Recipe, which is why it can disagree with a Store nobody can rebuild. Its words for the axis: a <strong>Dense-axis entry</strong> is a shared-axis variant the Dense Component holds; an <strong>off-panel axis entry</strong> is one it does not; and an entry’s <strong>observed occupancy</strong> is whether the Ragged Overflow holds at least one surviving observed association for it. An audit neither admits, filters, repairs nor publishes: a disagreement is evidence for the operator’s release decision, not a change to the release. <em>Avoid</em>: validation (a Store Audit reads a built Store; validation is Store Release Build’s), release gate, repair</p>
 <p><strong>Store Layout</strong>: The storage organisation used for a Store Release, such as dense observed-only, dense reference-completed, ragged observed-only, ragged reference-completed, or hybrid. <em>Avoid</em>: source format</p>
 <p><strong>Store Composition Rule</strong>: A release-level admission rule deciding which Analyses may share one Store’s variant axis, applied after every other membership decision. A shared Store admits only Analyses whose rows were MAF-filtered (ADR 0033); an otherwise admissible Analysis it refuses is excluded as <code>not_maf_filtered</code> and belongs in a separate Store Release. <em>Avoid</em>: routing rule, panel policy</p>
-<p><strong>Store Release</strong>: A versioned, validated OpenGWASDB analytical asset that Store Release Build produces from an accepted Release Bundle and material Build Recipe choices. Each published Store is immutable. A reference-completed Store Release is published twice under one id: its completed Store replaces its Observed-Only Store (ADR 0037). Before the project’s first release, issue #326 authorises one re-encode, in place, of a published format-0.2.0 Dense Store’s <code>se</code> and <code>se_exception_index</code> Blosc codecs: a physical-representation-only change (the <code>typesize</code> moves to the stored dtype’s item size) that is proven decoded-equal across the full array and recorded in a checked <code>records/se-reencode.json</code>. It sets no precedent after release. <em>Avoid</em>: database, live store</p>
+<p><strong>Store Release</strong>: A versioned, validated OpenGWASDB analytical asset that Store Release Build produces from an accepted Release Bundle and material Build Recipe choices. Each published Store is immutable. A reference-completed Store Release is published twice under one id: its completed Store replaces its Observed-Only Store (ADR 0037). Before the project’s first release, issue #326 authorises one re-encode, in place, of a published format-0.2.0 Dense Store’s <code>se</code> and <code>se_exception_index</code> Blosc codecs: a physical-representation-only change (the <code>typesize</code> moves to the stored dtype’s item size) that is proven decoded-equal across the full array and recorded in a checked <code>records/se-reencode.json</code>. It sets no precedent after release. Issue #409 authorises a second, different one-off before that release: <code>eaf_reference</code>, its HM3 copy and the <code>eaf</code> of imputed top hits of one completed Dense Store are rewritten in place as <code>1 - x</code>, because the completion panel’s frequency was the other allele’s. That change alters decoded values, so it is not a representation exception but a corrected value set, proven by an orientation guard (r against observed EAF before and after), recorded in <code>records/eaf-reference-flip.json</code> and published as a Release Erratum. <em>Avoid</em>: database, live store</p>
 <p><strong>Trial Store Release</strong>: A deliberately small Store Release used to exercise a distinct Source Collection, Source Format, or Store Layout while developing and testing the generic release pipeline; it is not a phase of a production Store Release. <em>Avoid</em>: pilot store, pilot release</p>
 <p><strong>Rehearsal Run</strong>: A representative subset run within Store Release Build for a Store Release, producing stage reports for one explicit human review gate before the full build proceeds. Not a Preflight. <em>Avoid</em>: preflight run, pilot run, pilot phase, trial run</p>
 <p><strong>Preflight</strong>: The checks that refuse a run before it reads or writes anything costly, with one meaning in each workflow. In Manifest Generation, <code>pixi run preflight</code> is the inventory-readiness gate: it proves a frozen Source Inventory and the release config before candidate selection, and reads no association rows. In Store Release Build, it is the release entry point’s pre-write checks: its dry run and its refusals (Release Status, published releases, leftover snapshots, runtime and resources), before any snapshot or build work. A Preflight never builds anything. <em>Avoid</em>: preflight run (see Rehearsal Run)</p>

@@ -6,33 +6,58 @@ provides, and what upgrading it does **not** do.
 
 ## The pin
 
-| Fact | Value |
+| Fact | Where it is written |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Tag | `v0.3.2` (stores #401), for the Observed-View Check's missing-marker fix |
-| Revision | `44f25a96fb43044a983e300a038a54ab1930e782`, what `v0.3.2` resolves to: the `main` merge of opengwas/opengwasdb PR #339 (core #337: the Observed-View Check reads Z/SE missingness through the missing markers, and `validate` warns about an infinite SE); the range above `bc22e84` is that and `v0.3.1` (CI and docs only) |
-| Pin history | before it, `v0.3.0` at `bc22e84` (stores #387), the first release opengwasdb's release workflow published, whose range above `0d59f151` is release tooling only (the earlier `v0.2.0` at `3e77ecf` was tagged by hand); the pin before that, `0d59f151` was the core `dev` merge of PR #329 (core #302: a BESD Ragged build stores each pair's published sample size, and the `.esi` allele frequency per association on request; ADR 0067); before it, PR #330's branch head `5fc0766` (stores #326), the `dev` merge of PR #298 `75f0e77` (stores #341), the `dev` merge of PR #305 `d8896e4` (stores #314), the `dev` merge of PR #291 `d405de0` (stores #312), PR #291's branch head `023774a7` (stores #306, which excluded #288), PR #276 (`4e922566`, bounded Dense validation, core #254) and PR #275 (`1be2a15`) |
-| Package version | `0.3.2` |
-| Writers' Store `format_version` | `0.2.0` |
+| Branch followed | `main`, in `pixi.toml`'s `[feature.store-build.pypi-dependencies]` |
+| Commit, and the package version | `pixi.lock`, and nowhere else (#253). `pixi run env-check` prints both, beside the installed engine's |
+| Writers' Store `format_version` | `0.2.0` (`ogstores.runtime.REQUIRED_FORMAT_VERSION`) |
 | Python floor | 3.12 |
 | Zarr / numcodecs | `zarr>=3.4,<4`, `numcodecs>=0.17` (Zarr v3 with the sharding codec) |
 
-The pin names a release **tag**, not a branch or a raw commit: opengwasdb has
-tagged every merge to `main` since `v0.3.0` (epic #385) and, since PR #335, takes
-its version from that tag, so the installed version names the release it was
-built from -- and a checkout past a tag reports a development version -- instead
-of repeating a string hardcoded in `pyproject.toml`. The revision is what the tag resolves to,
-and it is that immutable revision the guard proves from the executed install's
-own metadata. The executable form of the pin is the `opengwasdb` entry in
-`pixi.toml`'s `[feature.store-build.pypi-dependencies]` and the resolved package
-in `pixi.lock`. The Python 3.12 / zarr 3.4 / numcodecs 0.17 floors are not
-preferences: the pinned runtime requires them, and a zarr 2.x environment cannot
-open a format-0.2.0 Store.
+`pixi.toml` follows opengwasdb's `main`. Every merge there has been a tagged
+release since `v0.3.0` (epic #385), so the tip of `main` is always a version,
+and the installed version names the release it was built from. `pixi.lock`
+records the exact commit the solve resolved, and that is the only place the
+commit is written: the release guard, Manifest Generation's resolve stage
+and `env-check` read it from there (`ogstores.engine.locked_commit`). Each proves the engine it runs from that
+executable's own install metadata (`ogstores.engine.identify`) and refuses one
+that is not the locked commit, in the same words. The Python 3.12 / zarr 3.4 /
+numcodecs 0.17 floors are not preferences: the engine requires them, and a
+zarr 2.x environment cannot open a format-0.2.0 Store.
 
-`ogstores.runtime.PINNED_OPENGWASDB_TAG` and
-`ogstores.runtime.PINNED_OPENGWASDB_REVISION` are the single source of truth the
-tests assert `pixi.toml`'s tag and `pixi.lock`'s resolved commit against. Change
-all four together, and re-run `pixi update opengwasdb` in the same commit.
+### Moving the engine
+
+```bash
+pixi run engine-update     # relock to main's tip, install it, check it
+git commit pixi.lock -m "Move opengwasdb to <version> (<commit>)"
+```
+
+Run it at the start of a working session, and commit the lock on its own, never
+inside a feature change. `engine-update` refuses, and puts the previous lock
+back, when the lock does not resolve exactly one commit, when an environment
+installs another, or when the new engine writes a Store format other than
+`REQUIRED_FORMAT_VERSION`: a format change is a deliberate repository change,
+not an update. `pixi run engine-update --check` checks without moving anything.
+
+### Engines within a phase
+
+Only a step that continues another engine's output is held to that engine. An
+interrupted `complete-dense` resumes only under the engine that started it, as
+`complete.started.json` names it. A start record written before #410 names
+none: its checkpoint resumes only when every step record of its phase names one
+engine and that engine is installed, and is otherwise refused, naming both.
+
+Every other step may run under a newer engine that writes the same Store
+format: re-running `validate`, adding an Indexed Variant Subset, `rho` or the
+overview after `engine-update` needs neither the old engine nor a rebuild. The
+format checks are unchanged: `engine-update` refuses an engine that writes
+another `format_version`, and the guard a completion parent in another format.
+`register` records every engine a phase used, from its step records rather than
+whichever `opengwasdb` is on `PATH` when it runs, in `validation.yaml`'s
+`build_environment.engines`, and keeps `opengwasdb_commit` for the engine that
+wrote the Store. The pin history these sections used to carry is in git
+history.
 
 ## What the pin provides
 

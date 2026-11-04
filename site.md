@@ -74,7 +74,24 @@ Five pages are generated from the site's own data rather than written by hand:
 the [Overview](index.qmd), [Stores](stores.qmd), [Epics](epics.qmd),
 [Trends](trends.qmd) and [Changelog](changelog.qmd), with one page per epic and
 one per registered Store beside them
-([`src/project_site/pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/src/project_site/pages.py), #391).
+([`src/project_site/pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/src/project_site/pages.py), #391).
+
+Three more, under **Architecture** in the navbar, draw how OpenGWASDB fits together
+from both repositories' `docs/architecture/components.yaml` and their code
+([`src/project_site/architecture_pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/src/project_site/architecture_pages.py),
+#418): [Pipeline](architecture.qmd) (the stages, their components and ADRs) and
+[Structure and health](architecture-structure.qmd) (context, containers and
+components, the engine by layer with its upward imports, and the gaps in the
+claims). The third, [Work map](architecture-work.qmd) (#419), shows where live work
+meets: which epics', tickets' and branches' files fall on the same component, and
+whether a blocking edge between the specific tickets coordinates it. It shows
+pushed branches and the files tickets cite, says when it was measured, and says
+that branches existing only on a build host are not shown; `pixi run architecture conflicts`
+run on that host includes them. The engine is read at its `main` from the same bare clone the docs come
+from; the docs stay at the pinned tag. The diagrams are Quarto `{dot}` cells,
+drawn at render time, so no SVG is committed. Each page says what is written by
+hand and what is measured, and `docs/spec/project-site.md` (Architecture) is the
+contract.
 
 - `pixi run site` and `site-publish` **collect the data themselves** before the
   render, into the render's own `_stage/_data`, from the `stores/` and
@@ -104,9 +121,9 @@ one per registered Store beside them
   `workload_sha256` (`workload_id` where the hash is missing), each series and
   each matrix table names the workload it measured, and no line or row spans two
   workloads, so a trend shows a change in the code rather than in the benchmark.
-  A point measured in the Veeam backup window (`veeam_window: true`) is ringed in
-  the figure and marked `†` in the table, with a caveat saying its timing is not
-  comparable.
+  A point measured before 2026-11-02 in the Veeam backup window
+  (`veeam_window: true`, which no run since records) is ringed in the figure and
+  marked `†` in the table, with a caveat saying its timing is not comparable.
 - A Store page shows its own size and query performance from the newest yardstick
   result that measured it, naming that result, its workload and the opengwasdb
   version it ran on, and says so when the newest result lists the Store as
@@ -153,7 +170,7 @@ It sets Pages to build from the `gh-pages` branch at `/`, which is where
 7. A page that is computed from the site's data is not written by hand: add it
    to `src/project_site/pages.py` (`SECTION_PAGES` for a section, or one of the
    per-epic and per-Store writers) and commit a stub with its published path at
-   `docs/`, as the five data pages above do. Do not edit a generated page — a
+   `docs/`, as the data pages above do. Do not edit a generated page — a
    render replaces it. A page holding a chart is written as a `{=html}` block,
    not an inline SVG in a table cell: Pandoc drops an SVG's children there.
 8. A fact is data, never markup, and that includes a fact in a code span: a

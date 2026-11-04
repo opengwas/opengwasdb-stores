@@ -68,7 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="site_libs/quarto-search/fuse.min.js"></script>
 <script src="site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="./">
-<link href="./epic-232-execution.html" rel="next">
+<link href="./eaf-reference-flip.html" rel="next">
 <link href="./amr-ld-panel-proposal.html" rel="prev">
 <script src="site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -148,6 +148,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <a class="nav-link" href="./changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="./architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="./reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -221,6 +240,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./amr-ld-pilot-evidence.html" class="sidebar-item-text sidebar-link active">
  <span class="menu-text">AMR LD calibration pilot: evidence (#241)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./eaf-reference-flip.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EAF reference flip (#409)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2424,7 +2449,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="genome-wide-build-2026-10-22" class="level2">
 <h2 class="anchored" data-anchor-id="genome-wide-build-2026-10-22">Genome-wide build (2026-10-22)</h2>
-<p>The owner approved the build. It is declared as <a href="https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/resources/reference-resources/hgdp1kgp-hg38-amr-ld/resource.yaml"><code>hgdp1kgp-hg38-amr-ld</code></a> and ADR 0020 is amended.</p>
+<p>The owner approved the build. It is declared as <a href="https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/resources/reference-resources/hgdp1kgp-hg38-amr-ld/resource.yaml"><code>hgdp1kgp-hg38-amr-ld</code></a> and ADR 0020 is amended.</p>
 <p><strong>Run:</strong> - Root: <code>/data/opengwasdb/reference/hgdp1kgp-hg38-amr/</code>; the panel is in <code>panel/AMR/&lt;chr&gt;/&lt;start&gt;-&lt;end&gt;.*</code>. - Built by <code>tools/ld-panel/build_amr_panel.py</code> at revision <code>2b84680</code>. - Ran from 2026-10-22T18:32:14Z to 22:16:58Z. All 1,387 steps exited 0. - Full receipt: <code>runs/20261022T183214Z/receipt.json</code>. Compact copies: <a href="data/amr-ld-panel-build-summary.json"><code>data/amr-ld-panel-build-summary.json</code></a> and the per-block <a href="data/amr-ld-panel-build-blocks.tsv"><code>data/amr-ld-panel-build-blocks.tsv</code></a>. - A chr22-only smoke build first found that, with one record kept per ALID, looking up a row’s genotypes by ALID could take the other record. Block tables now carry the source REF/ALT, and lookups use them (commit <code>2b84680</code>).</p>
 <table class="caption-top table">
 <colgroup>
@@ -2994,8 +3019,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="./epic-232-execution.html" class="pagination-link" aria-label="Epic #232 execution record">
-        <span class="nav-page-text">Epic #232 execution record</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="./eaf-reference-flip.html" class="pagination-link" aria-label="EAF reference flip (#409)">
+        <span class="nav-page-text">EAF reference flip (#409)</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

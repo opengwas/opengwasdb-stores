@@ -111,6 +111,25 @@ ul.task-list li input[type="checkbox"] {
     <a class="nav-link" href="../changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="../architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -215,7 +234,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td>Validated</td>
-<td>2026-10-14T14:33:27.280235Z</td>
+<td>2026-11-02T10:41:20.919052Z</td>
 </tr>
 <tr class="even">
 <td>Superseded by</td>
@@ -244,7 +263,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Completion state</td>
-<td>observed_only</td>
+<td>reference_completed</td>
 </tr>
 <tr class="odd">
 <td>Association Coverage</td>
@@ -274,10 +293,18 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td>Variants (<code>n_variants</code>)</td>
-<td>9,335,909</td>
+<td>11,650,615</td>
 </tr>
 <tr class="even">
 <td>Associations (<code>n_associations</code>)</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td>Observed association coverage (<code>association_coverage</code>)</td>
+<td>gwas</td>
+</tr>
+<tr class="even">
+<td>Reference assembly (<code>reference_assembly</code>)</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="odd">
@@ -286,11 +313,15 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Build elapsed (<code>build_elapsed_s</code>)</td>
-<td>44955.8</td>
+<td>53993</td>
 </tr>
 <tr class="odd">
 <td>Validation (<code>validate_status</code>)</td>
 <td>passed</td>
+</tr>
+<tr class="even">
+<td>Completion (<code>completion_state</code>)</td>
+<td>reference_completed</td>
 </tr>
 </tbody>
 </table>
@@ -319,11 +350,13 @@ ul.task-list li input[type="checkbox"] {
 <p>Store built and published (issue #331, 2026-10-22). The #221 batch built this release’s Store from stores c6b308a with opengwasdb 0.3.0 at 4e92256, format 0.2.0, GRCh38. The build ran from 2026-10-14 02:04 to 2026-10-14 14:15 UTC (12.2 h). Top hits, the HM3 Indexed Variant Subset and the overview followed, then validate, from 2026-10-14 14:20 to 2026-10-14 14:33 UTC (0.2 h). register published the Store on 2026-10-14 14:33 UTC and wrote the Validation Record, copied into this bundle unchanged. It replaces the bundle’s earlier Validation Record, which recorded the owner authorization and the pending human acceptance the paragraphs above cite; that record is in git at its acceptance.commit, fa2ea2c. The new record reads status passed, with no warnings or errors, and reports 241 Analyses, 9,335,909 variants and 2,249,954,069 associations. The Store is observed-only; reference completion is not part of this release. The Store was built in a dev Artifact Root, /data/opengwasdb/work/epic232/221/dev-builds. On 2026-10-22, tools/relocate_store.py moved it to /data/opengwasdb/stores, renaming its directory and rewriting the 33 artifact paths in its six step records; stdout and stderr were left as written. The receipt beside the Store, relocations/20261022T151410.004523Z.json, holds each record’s sha256 before and after. The Store is published at /data/opengwasdb/stores/OGS-00015/store.opengwasdb. This supersedes the statements above, and in the description, that no Store has been built or validated. The Validation Record’s acceptance.warnings still say “No Store build or validation has run.” That line is carried over from the accepted bundle’s earlier record and predates the build. Human scientific acceptance remains pending.</p>
 <p>Pre-release SE codec re-encode (2026-10-24, #326): under the one-time exception authorized before the project’s first release, only the `se` and `se_exception_index` Blosc `typesize` values and encoded chunk bytes changed. `records/se-reencode.json` reports full-array decoded equality across 37,360 chunks and 313,153,203 bytes saved; the post-run Store validation passed. This physical-representation-only exception sets no precedent after release.</p>
 <p>Release Erratum (2026-10-28, #383): validation.yaml recorded observed.n_associations as 2249954069. That is exactly 241 x 9335909, n_analyses times n_variants, not a count. `register` multiplied the two axes when a Dense step printed no association count (the pre-#322 fallback, removed by #322); this Store was registered before that change reached this branch. The product counts matrix cells, and this Store is observed-only, so many of those cells are empty; it is not the number of observed associations. The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store was rebuilt or rewritten by this registry metadata correction.</p>
+<p>Completion under its own id (2026-11-02). The bundle now declares completion_state: reference_completed and, after its build phase, a `complete` block: complete-dense against the HGDP+1kGP EAS LD Reference Resource, hgdp1kgp-hg38-ld at /data/opengwasdb/reference/hgdp1kgp-hg38/panel, for ancestry EAS at 16 workers. The owner decided this on 2026-10-21. It is the one amendment ADR 0037’s Decision 1 allows an accepted bundle, the amendment #305 clarifies: the build phase still plans exactly the argv that wrote the published Store, with unchanged membership, so completing this Store schedules no rebuild. The declaration was held from 2026-10-22 because #348 found variant identities duplicated within every HGDP+1kGP block while completion joins on ALID; the panels were repaired in place on 2026-11-01/02 and the EUR calibration was re-checked on the repaired panel, so that blocker is gone. The repaired EAS panel’s receipt is /data/opengwasdb/reference/hgdp1kgp-hg38/repairs/20261101T225229Z-348-EAS.json (sha256 3996afe31e757a664b57e6edae14cb3e377581b8be405ee574eb1fa8d188cb6d). Every Analysis in this release has Assigned Ancestry EAS, so completion imputes all 241. The completion phase writes to store.opengwasdb.partial, runs the Observed-View Check, and publishes under the release id OGS-00015-completed, replacing the Observed-Only Store at /data/opengwasdb/stores/OGS-00015/store.opengwasdb once it registers. Until that run finishes, the sentence above that reference completion is not part of this release still describes the published Store. Release Status stays validated.</p>
+<p>Completed (2026-11-02). The completion phase ran on its own, as ADR 0037’s single-id rule requires: an unforced `release OGS-00015` from this registry at 13a2cd6f, runtime opengwasdb 0.3.2 at 44f25a96 (format 0.2.0), triggered 2026-11-02 08:10:13 UTC and finished 10:41:25 UTC, elapsed 2 h 31 m, exit 0. `complete-dense` against the HGDP+1kGP EAS LD Reference Resource at /data/opengwasdb/reference/hgdp1kgp-hg38/panel, ancestry EAS at 16 workers, ran from 08:10:31 to 10:06:00 UTC (6,928.9 s) and imputed 535,277,519 associations, all of them in the 241 Analyses whose Assigned Ancestry is EAS. The union variant axis grew from 9,335,909 to 11,650,615 variants, 2,314,706 of them new panel variants, leaving 5,614,211 off-panel missing cells and 22,844,874 imputation failures, which stay missing. The panel carries the 817 HGDP+1kGP East Asian individuals at a minor-allele-count floor of 50: its 1,120 blocks keep 460 to 694 components of a possible 816 at the 99% cumulative-variance target, so they are rank-deficient where the UKB EUR panel is full-rank, and ADR 0020’s permanent asymmetry applies. Its per-Analysis completion quality is nevertheless the highest these panels have measured in this registry: median Pearson r 0.959 (0.957 to 0.961), against 0.862 for the AMR panel on OGS-00014 and 0.946 for the UKB EUR panel on OGS-00012, though the Analyses they were measured over differ. The completion HM3 Indexed Variant Subset (1,131,466 of 1,206,903 requested variants resolved, 75,437 absent, none overflow-only), the overview, validate (30 m 14 s) and the Observed-View Check followed, and completion register published the Store under the release id OGS-00015-completed, replacing the Observed-Only Store it had published. The replaced Store is archived under /data/opengwasdb/stores/OGS-00015/replaced/20261102T104120Z/. The Observed- View Check passed: 258,089,069 cells over 1,071 bands compared (1,000 random, 58 writer-band boundaries, 23 chromosome edges, 1 final partial band), 257,446,417 parent cells observed, no band mismatched, every failing counter zero, the largest absolute difference 0.0 in z, se and eaf, and 229 cells missing in the parent now imputed, reported at /data/opengwasdb/stores/OGS-00015/work/observed-view-check.json. Completion reached every Analysis, because every one of the 241 carries Assigned Ancestry EAS: imputed cells run from 2,167,517 to 2,264,870, median 2,221,821, and none is zero. Orientation was measured rather than assumed, because the AMR panel’s inverted EAF cost OGS-00014 a corrected re-publication (#409): the completed Store’s `eaf_reference` reads r +0.9781 (n 26,316) against the UKB ancestry- mixture group “Asia (East)” oriented to the Store’s effect allele, and r +0.9864 (n 33,509) against the mean observed EAF across Analyses on variants that carry one, where a panel holding the other allele’s frequency would read about -0.98 on both. The Validation Record was copied into this bundle unchanged and reads status passed, no warnings, no errors, 241 Analyses, 11,650,615 variants, completion_state reference_completed and `observed.n_associations` null as the Release Erratum above records, so the sentence above that reference completion is not part of this release no longer describes the published Store. Human scientific acceptance remains pending. Release Status stays validated.</p>
 <p>These are the bundle’s own words: <code>release.yaml</code>’s <code>description</code> and <code>notes</code>, which is where a Release Erratum is recorded (<code>docs/spec/analysis-catalog.md</code>).</p>
 </section>
 <section id="the-bundle" class="level2">
 <h2 class="anchored" data-anchor-id="the-bundle">The bundle</h2>
-<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/stores/OGS-00015"><code>stores/OGS-00015</code> at <code>766faa9a41ef493801aafc0f3b37bd64fb0acf6b</code></a></p>
+<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/stores/OGS-00015"><code>stores/OGS-00015</code> at <code>e7fe79d32ccc68eafeb3b32d6487c57ce759821e</code></a></p>
 
 
 </section>

@@ -148,6 +148,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <a class="nav-link" href="../changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="../architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -221,6 +240,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../amr-ld-pilot-evidence.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">AMR LD calibration pilot: evidence (#241)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../eaf-reference-flip.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EAF reference flip (#409)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1712,7 +1737,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="analysis-catalog" class="level1">
 <h1>Analysis Catalog</h1>
-<p>The specification of <code>pixi run catalog</code> (#323, epic #313). The decisions behind it are <a href="../adr/0039-analysis-catalog.html">ADR 0039</a>; the words are <a href="https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/CONTEXT.md">CONTEXT.md</a>’s. This file is the contract: the command, the serving decisions, the tables, and the files a rebuild writes.</p>
+<p>The specification of <code>pixi run catalog</code> (#323, epic #313). The decisions behind it are <a href="../adr/0039-analysis-catalog.html">ADR 0039</a>; the words are <a href="https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/CONTEXT.md">CONTEXT.md</a>’s. This file is the contract: the command, the serving decisions, the tables, and the files a rebuild writes.</p>
 <p>The catalog is the package <code>src/analysis_catalog/</code>. It imports only <code>ogstores.bundle</code> and <code>ogstores.paths</code> from <code>ogstores</code>, and nothing in <code>ogstores</code> or <code>manifest_generation</code> imports it (<code>tests/packaging/test_boundary.py</code>). It reads Release Bundles and never opens a Store (ADR 0023).</p>
 <section id="the-command" class="level2">
 <h2 class="anchored" data-anchor-id="the-command">The command</h2>
@@ -1828,7 +1853,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="tables">Tables</h2>
 <p>One SQLite file, <code>catalog.sqlite</code>, built in one transaction into a fresh file, one Store at a time: a Store’s rows are inserted as its decision is made, and a Store refused on a value in its rows is rolled back whole. Memory is set by the largest single Store’s manifest. The columns and their types are <code>src/analysis_catalog/columns.py</code>.</p>
 <ul>
-<li><strong><code>stores</code></strong>: one row per <strong>listed or placeholder</strong> Store Release, with the columns of epic #313. <code>superseded_by</code> is the successor’s Store id for a superseded Store and <code>NULL</code> for a withdrawn one (<code>check()</code> refuses a <code>superseded_by</code> on any other status). A Store that is excluded or refused has no row, so nothing excluded is discoverable here; <code>selection</code> is where it is accounted for. Facts come from <code>release.yaml</code> (<code>label</code>, <code>description</code>, <code>status</code>, <code>superseded_by</code>, <code>access_posture</code>, <code>source_snapshot_id</code>, <code>accepted_at</code>, <code>notes</code>, and <code>association_coverage</code>), <code>build.yaml</code> (<code>layout</code>, <code>completion_state</code>) and <code>validation.yaml</code> (<code>validated_at</code>, <code>build_environment.opengwasdb_version</code>, and from <code>observed</code>: <code>n_analyses</code>, <code>n_variants</code>, <code>n_associations</code>, <code>store_bytes</code>, <code>format_version</code>, <code>reference_assembly</code>). <code>reference_assembly</code> is opengwasdb’s value stored as reported, and <code>NULL</code> while a record lacks it (opengwasdb#294). <code>association_coverage</code> is the release’s own declaration, in the one vocabulary of ADR 0040 (<code>gwas</code>, <code>cis</code>, <code>cis_and_signals</code>, <code>signals_only</code>), never the Validation Record’s <code>observed</code> value: opengwasdb#298 makes coverage a build input, so the bundle states it. It is never <code>NULL</code> for a registered bundle, because <code>bundle.check()</code> requires it. A count that is not an integer refuses the Store.</li>
+<li><strong><code>stores</code></strong>: one row per <strong>listed or placeholder</strong> Store Release, with the columns of epic #313. <code>superseded_by</code> is the successor’s Store id for a superseded Store and <code>NULL</code> for a withdrawn one (<code>check()</code> refuses a <code>superseded_by</code> on any other status). A Store that is excluded or refused has no row, so nothing excluded is discoverable here; <code>selection</code> is where it is accounted for. Facts come from <code>release.yaml</code> (<code>label</code>, <code>description</code>, <code>status</code>, <code>superseded_by</code>, <code>access_posture</code>, <code>source_snapshot_id</code>, <code>accepted_at</code>, <code>notes</code>, and <code>association_coverage</code>), <code>build.yaml</code> (<code>layout</code>, <code>completion_state</code>) and <code>validation.yaml</code> (<code>validated_at</code>, <code>build_environment.opengwasdb_version</code>, the engine that wrote the Store, and from <code>observed</code>: <code>n_analyses</code>, <code>n_variants</code>, <code>n_associations</code>, <code>store_bytes</code>, <code>format_version</code>, <code>reference_assembly</code>). <code>reference_assembly</code> is opengwasdb’s value stored as reported, and <code>NULL</code> while a record lacks it (opengwasdb#294). <code>opengwasdb_version</code> names one engine even when a later step of the phase ran under a newer one of the same Store format; the Validation Record’s <code>build_environment.engines</code> lists them all, and the catalog does not carry that list (#410). <code>association_coverage</code> is the release’s own declaration, in the one vocabulary of ADR 0040 (<code>gwas</code>, <code>cis</code>, <code>cis_and_signals</code>, <code>signals_only</code>), never the Validation Record’s <code>observed</code> value: opengwasdb#298 makes coverage a build input, so the bundle states it. It is never <code>NULL</code> for a registered bundle, because <code>bundle.check()</code> requires it. A count that is not an integer refuses the Store.</li>
 <li><strong><code>analyses</code></strong>: one row per admitted Release Manifest row of a listed or placeholder Store (ADR 0025: rows not excluded from build), keyed by <code>id</code> <code>&lt;store_id&gt;:&lt;analysis_id&gt;</code>. <code>status</code> is the Store Release’s Release Status, and <code>listed</code> is <code>1</code> for an Analysis of a listed Store and <code>0</code> for a placeholder row. A client resolves any identifier by <code>id</code>; the successor is <code>stores.superseded_by</code>. A column a bundle lacks, and an empty cell, are <code>NULL</code>, never <code>0</code> or <code>''</code>. <code>sample_size</code>, <code>n_cases</code>, <code>n_controls</code> and <code>trait_bp</code> are <code>INTEGER</code>; <code>original_sd</code>, <code>maf_threshold</code> and <code>info_score_threshold</code> are <code>REAL</code>. <code>analysis_label</code> falls back to <code>source_label</code>, and <code>label_from_source</code> is <code>1</code> on a row where it did (the manifest had no <code>analysis_label</code>), <code>0</code> otherwise. Build internals (<code>source_file</code>, checksums, <code>inclusion_reason</code>, <code>exclude_from_build</code>, <code>analysis_index</code>) are not carried.</li>
 <li><strong><code>selection</code></strong>: <code>store_id</code>, <code>decision</code>, <code>reason</code>, for every registered Store Release.</li>
 <li><strong><code>catalog_meta</code></strong>: <code>key</code>, <code>value</code>: <code>version</code>, <code>built_at</code>, <code>registry_commit</code> (<code>NULL</code> outside git), <code>builder_version</code>, and <code>serving_policy</code> (the rules above, as a JSON list).</li>

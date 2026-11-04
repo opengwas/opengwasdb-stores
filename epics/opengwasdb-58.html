@@ -114,6 +114,25 @@ ul.task-list li input[type="checkbox"] {
     <a class="nav-link" href="../changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="../architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -206,7 +225,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td>Status</td>
-<td>Todo</td>
+<td>Active</td>
 </tr>
 <tr class="even">
 <td>Workstream</td>
@@ -218,11 +237,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Sub-issues</td>
-<td>0 of 5 completed</td>
+<td>12 of 24 completed</td>
 </tr>
 <tr class="odd">
 <td>Next</td>
-<td>Not started; the ledger plus #53-#57</td>
+<td>13/17 merged on PR #353 · fixing #350, #55, #56 · 1 blocked · stores #428 and #429 must land before the pin moves · stores PRs #410 and #425 ready for owner review</td>
 </tr>
 </tbody>
 </table>
@@ -237,15 +256,41 @@ ul.task-list li input[type="checkbox"] {
 <pre class="mermaid mermaid-js">flowchart LR
   classDef open fill:#fff8e1,stroke:#8d6e00,color:#000
   classDef closed fill:#e6f4ea,stroke:#2e6b2e,color:#000
-  n0["opengwasdb#35;53 — The Top-Hit Index has a format but no module"]:::open
-  n1["opengwasdb#35;54 — The two-pass VCF build is one module written twice"]:::open
+  n0["opengwasdb#35;53 — The Top-Hit Index has a format but no module"]:::closed
+  n1["opengwasdb#35;54 — The two-pass VCF build is one module written twice"]:::closed
   n2["opengwasdb#35;55 — Make a validation rule addressable"]:::open
   n3["opengwasdb#35;56 — The Source Reader seam has one user and four bypasses"]:::open
-  n4["opengwasdb#35;57 — The overview renderer should take data, not a path"]:::open
+  n4["opengwasdb#35;57 — The overview renderer should take data, not a path"]:::closed
+  n5["opengwasdb#35;350 — One module owns how an association is encoded"]:::open
+  n6["opengwasdb#35;351 — One reader decodes associations and decides whether each is present"]:::closed
+  n7["opengwasdb#35;352 — Variant routing becomes its own module"]:::closed
+  n8["opengwasdb#35;354 — Variant Reference extraction routes a reverse-strand lift to the wrong ALID"]:::open
+  n9["opengwasdb#35;356 — regenerate-overview crashes on a subset group written before overflow_only_count"]:::closed
+  n10["opengwasdb#35;357 — Association Admission: one module decides whether an association may be stored"]:::closed
+  n11["opengwasdb#35;360 — A lower-case allele becomes its own ALID and loses associations silently"]:::closed
+  n12["opengwasdb#35;364 — RaggedCSRWriter.add_analysis broadcasts arrays of different lengths"]:::open
+  n13["opengwasdb#35;365 — VCF builds accept malformed alleles and NA/. chromosomes as ALIDs"]:::closed
+  n14["opengwasdb#35;373 — check-observed-view reads a non-canonical marker as missing"]:::closed
+  n15["opengwasdb#35;374 — zarr3_se_plan benchmark's write step fails: chunk does not tile shard"]:::closed
+  n16["opengwasdb#35;375 — check-observed-view reports an unchecked part's counters as 0"]:::closed
+  n17["opengwasdb#35;378 — validate --format json names the rule behind each finding"]:::open
+  n18["opengwasdb#35;379 — Single-pass and two-pass Hybrid builds disagree on an rsid whose sources spell the alleles differently"]:::open
+  n19["opengwasdb#35;380 — validate fails format 0.1.0 Stores for lacking the by_variant index that only 0.2.0 requires"]:::open
+  n20["opengwasdb-stores#35;428 — Pass --admission-record to every builder step (opengwasdb#35;357)"]:::open
+  n21["opengwasdb#35;385 — Read build-dense's association TSV through a Source Reader"]:::open
+  n22["opengwasdb#35;386 — Lift a non-GRCh38 source in build-ragged-ssf, as the other layouts do"]:::open
+  n23["opengwasdb-stores#35;429 — Declare source_genome_build in the Ragged SSF bundle fixtures (opengwasdb#35;56)"]:::open
   x1["opengwasdb#35;86"]:::closed
   x2["opengwasdb#35;83"]:::closed
   x1 --&gt; n1
   x2 --&gt; n1
+  n6 --&gt; n2
+  n7 --&gt; n3
+  n10 --&gt; n5
+  n7 --&gt; n11
+  n7 --&gt; n13
+  n6 --&gt; n14
+  n2 --&gt; n17
 </pre>
 </div>
 <p></p></figure><p></p>
@@ -263,12 +308,12 @@ ul.task-list li input[type="checkbox"] {
 <tbody>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/53">The Top-Hit Index has a format but no module</a> (<code>opengwasdb#53</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/54">The two-pass VCF build is one module written twice</a> (<code>opengwasdb#54</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="odd">
@@ -283,6 +328,101 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/57">The overview renderer should take data, not a path</a> (<code>opengwasdb#57</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/350">One module owns how an association is encoded</a> (<code>opengwasdb#350</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/351">One reader decodes associations and decides whether each is present</a> (<code>opengwasdb#351</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/352">Variant routing becomes its own module</a> (<code>opengwasdb#352</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/354">Variant Reference extraction routes a reverse-strand lift to the wrong ALID</a> (<code>opengwasdb#354</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/356">regenerate-overview crashes on a subset group written before overflow_only_count</a> (<code>opengwasdb#356</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/357">Association Admission: one module decides whether an association may be stored</a> (<code>opengwasdb#357</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/360">A lower-case allele becomes its own ALID and loses associations silently</a> (<code>opengwasdb#360</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/364">RaggedCSRWriter.add_analysis broadcasts arrays of different lengths</a> (<code>opengwasdb#364</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/365">VCF builds accept malformed alleles and NA/. chromosomes as ALIDs</a> (<code>opengwasdb#365</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/373">check-observed-view reads a non-canonical marker as missing</a> (<code>opengwasdb#373</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/374">zarr3_se_plan benchmark’s write step fails: chunk does not tile shard</a> (<code>opengwasdb#374</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/375">check-observed-view reports an unchecked part’s counters as 0</a> (<code>opengwasdb#375</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/378">validate –format json names the rule behind each finding</a> (<code>opengwasdb#378</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/379">Single-pass and two-pass Hybrid builds disagree on an rsid whose sources spell the alleles differently</a> (<code>opengwasdb#379</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/380">validate fails format 0.1.0 Stores for lacking the by_variant index that only 0.2.0 requires</a> (<code>opengwasdb#380</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/428">Pass –admission-record to every builder step (opengwasdb#357)</a> (<code>opengwasdb-stores#428</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/385">Read build-dense’s association TSV through a Source Reader</a> (<code>opengwasdb#385</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/386">Lift a non-GRCh38 source in build-ragged-ssf, as the other layouts do</a> (<code>opengwasdb#386</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/429">Declare source_genome_build in the Ragged SSF bundle fixtures (opengwasdb#56)</a> (<code>opengwasdb-stores#429</code>)</td>
 <td>OPEN</td>
 <td><em>not reported</em></td>
 </tr>

@@ -148,6 +148,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <a class="nav-link" href="../changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="../architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="../architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="../reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -221,6 +240,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../amr-ld-pilot-evidence.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">AMR LD calibration pilot: evidence (#241)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../eaf-reference-flip.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EAF reference flip (#409)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1697,10 +1722,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <li><a href="#the-collectors" id="toc-the-collectors" class="nav-link" data-scroll-target="#the-collectors">The collectors</a>
   <ul class="collapse">
   <li><a href="#board-board.json" id="toc-board-board.json" class="nav-link" data-scroll-target="#board-board.json">Board (<code>board.json</code>)</a></li>
+  <li><a href="#citations" id="toc-citations" class="nav-link" data-scroll-target="#citations">Citations</a></li>
   <li><a href="#catalog-history-catalog.json" id="toc-catalog-history-catalog.json" class="nav-link" data-scroll-target="#catalog-history-catalog.json">Catalog history (<code>catalog.json</code>)</a></li>
   <li><a href="#releases-releases.json" id="toc-releases-releases.json" class="nav-link" data-scroll-target="#releases-releases.json">Releases (<code>releases.json</code>)</a></li>
   <li><a href="#stores-stores.json" id="toc-stores-stores.json" class="nav-link" data-scroll-target="#stores-stores.json">Stores (<code>stores.json</code>)</a></li>
   <li><a href="#records-records.json" id="toc-records-records.json" class="nav-link" data-scroll-target="#records-records.json">Records (<code>records.json</code>)</a></li>
+  <li><a href="#architecture-architecture.json" id="toc-architecture-architecture.json" class="nav-link" data-scroll-target="#architecture-architecture.json">Architecture (<code>architecture.json</code>)</a></li>
+  <li><a href="#work-work.json" id="toc-work-work.json" class="nav-link" data-scroll-target="#work-work.json">Work (<code>work.json</code>)</a></li>
+  <li><a href="#planned-changes" id="toc-planned-changes" class="nav-link" data-scroll-target="#planned-changes">Planned changes</a></li>
   <li><a href="#the-commands-output-and-exit-status" id="toc-the-commands-output-and-exit-status" class="nav-link" data-scroll-target="#the-commands-output-and-exit-status">The command’s output and exit status</a></li>
   </ul></li>
   <li><a href="#backfill" id="toc-backfill" class="nav-link" data-scroll-target="#backfill">Backfill</a></li>
@@ -1855,7 +1884,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <tbody>
 <tr class="odd">
 <td><code>source</code></td>
-<td><code>board</code>, <code>catalog</code>, <code>releases</code>, <code>stores</code> or <code>records</code></td>
+<td><code>board</code>, <code>catalog</code>, <code>releases</code>, <code>stores</code>, <code>records</code>, <code>architecture</code> or <code>work</code></td>
 </tr>
 <tr class="even">
 <td><code>available</code></td>
@@ -1874,12 +1903,15 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <p>A source that fails (<code>gh</code> offline, a catalog root that does not exist) writes <code>available: false</code> with its error and no other key, and never stops the other collectors. An <strong>empty</strong> source is not a failure: no Releases yet is <code>available: true</code> with empty lists. A page reads <code>available</code> before it reads anything else.</p>
 <section id="board-board.json" class="level3">
 <h3 class="anchored" data-anchor-id="board-board.json">Board (<code>board.json</code>)</h3>
-<p>The board collector has its own GraphQL query (<code>project_site.collect.board</code>); this repository does not import the board skill. It reads project 1 of the <code>opengwas</code> organisation, every page of it, and then every epic’s sub-issues and their blocked-by edges (<code>subIssues</code> and <code>blockedBy</code> in the GraphQL API) in one aliased query, and follows every further page of both relationships (<code>subIssues</code> and <code>blockedBy</code> each return <code>pageInfo</code>). An issue’s body is read for two things, and dropped otherwise: a Milestone’s checklist lines, and an Epic’s <code>purpose</code>, the first non-empty paragraph of the body that is prose – not a heading, a table, a quote, or a list of bullets and boxes – cut at a sentence (or, failing a sentence, at a word and an ellipsis) to at most 600 characters. A fenced block is skipped whole, tracked across the paragraph split: three or more backticks or tildes open it and the same character in a run at least as long closes it, so a code sample’s own blank lines never end it and its second half is never read as prose. A relationship that still has a page unread when the response is parsed is an error, so the file is <code>available: false</code> rather than a short list marked complete.</p>
+<p>The board collector has its own GraphQL query (<code>project_site.collect.board</code>); this repository does not import the board skill. It reads project 1 of the <code>opengwas</code> organisation, every page of it, and then every epic’s sub-issues and their blocked-by edges (<code>subIssues</code> and <code>blockedBy</code> in the GraphQL API) in one aliased query, and follows every further page of both relationships (<code>subIssues</code> and <code>blockedBy</code> each return <code>pageInfo</code>). An issue’s body is read for what the site needs and dropped otherwise:</p>
+<ul>
+<li>a Milestone’s checklist lines;</li>
+<li>an Epic’s <code>purpose</code>, the first non-empty paragraph of the body that is prose (not a heading, a table, a quote, or a list of bullets and boxes), cut at a sentence (or, failing a sentence, at a word and an ellipsis) to at most 600 characters;</li>
+<li>the paths and module names an Epic or sub-issue cites (<code>cited</code>), as written (see <a href="#citations">Citations</a>);</li>
+<li>a sub-issue’s planned change to the architecture (<code>plan</code>; see <a href="#planned-changes">Planned changes</a>).</li>
+</ul>
+<p>A fenced block is skipped whole, tracked across the paragraph split: three or more backticks or tildes open it and the same character in a run at least as long closes it, so a code sample’s own blank lines never end it and its second half is never read as prose. A relationship that still has a page unread when the response is parsed is an error, so the file is <code>available: false</code> rather than a short list marked complete.</p>
 <table class="caption-top table">
-<colgroup>
-<col style="width: 50%">
-<col style="width: 50%">
-</colgroup>
 <thead>
 <tr class="header">
 <th>Key</th>
@@ -1897,11 +1929,19 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </tr>
 <tr class="odd">
 <td><code>epics[].children</code></td>
-<td>the epic’s sub-issues: <code>key</code>, <code>title</code>, <code>url</code>, <code>state</code>, and <code>blocked_by</code>, a list of <code>{key, state}</code></td>
+<td>the epic’s sub-issues: <code>key</code>, <code>title</code>, <code>url</code>, <code>state</code>, <code>cited</code>, and <code>blocked_by</code>, a list of <code>{key, state}</code></td>
+</tr>
+<tr class="even">
+<td><code>epics[].children[].plan</code></td>
+<td>the ticket’s planned change to the architecture (#422), present only when its body has an <code>architecture</code> block: the parsed plan, or <code>{invalid: reason}</code>; see <a href="#planned-changes">Planned changes</a>. The body itself is not kept</td>
+</tr>
+<tr class="odd">
+<td><code>epics[].cited</code>, <code>epics[].children[].cited</code></td>
+<td>the code the issue’s text cites (#419): a sorted list of paths (<code>opengwasdb/encoding/se_range.py</code>, or the path of a GitHub link to a file) and dotted module names (<code>opengwasdb.encoding.se_range</code>), as written and not checked against any tree; <code>[]</code> when it cites none. The Work map resolves them to files and through the claims (<a href="#citations">Citations</a>). The text itself is not kept</td>
 </tr>
 <tr class="even">
 <td><code>milestones</code></td>
-<td>one row per Milestone, with the same fields as an epic (no <code>children</code>) and <code>lines</code></td>
+<td>one row per Milestone, with the same fields as an epic (no <code>children</code>, no <code>cited</code>) and <code>lines</code></td>
 </tr>
 <tr class="odd">
 <td><code>milestones[].lines</code></td>
@@ -1918,6 +1958,16 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>An Epic is an issue of type Epic, labelled <code>epic</code> or <code>complexity:epic</code>, or titled <code>Epic:</code>; a Milestone is of type Milestone or titled <code>Milestone:</code>. A Milestone is never an Epic. The rule is the board skill’s.</li>
 <li>A checklist is read from lines that begin <code>- [ ]</code>, <code>- [x]</code> or <code>- [X]</code>, after any indentation, and from nothing else: a bullet without a box is prose. A bare <code>#n</code> in a line is an issue of the milestone’s own repository; a reference into another owner is dropped.</li>
 <li><code>tests/project-site-data/fixtures/board-graphql.json</code> is a response recorded once from the real API by <code>board.fetch</code>.</li>
+</ul>
+</section>
+<section id="citations" class="level3">
+<h3 class="anchored" data-anchor-id="citations">Citations</h3>
+<p>One extractor and one resolver serve the tickets (Work) and the ADRs (Architecture): <code>project_site.collect.architecture_adrs.cited_strings</code> finds what a text cites and <code>project_site.collect.citations</code> says which tracked file a path means.</p>
+<ul>
+<li><strong>What is cited.</strong> A path with a directory and a code extension (<code>.py</code>, <code>.smk</code>, <code>.sh</code>, <code>.toml</code>), the path of a GitHub link to a file, or a dotted module name. A trailing <code>:line</code> (<code>:551</code>, <code>:10-20</code>) is not part of the path.</li>
+<li><strong>Which file a path means.</strong> The file itself when it is tracked (in the issue’s own repository first); otherwise the one tracked file of either repository that ends with <code>/&lt;path&gt;</code>, so <code>encoding/codec.py</code> means <code>opengwasdb/encoding/codec.py</code>. When <strong>more than one</strong> file ends that way the citation is <strong>unresolved</strong>: it places nothing, is never guessed, and is listed with its candidates (<code>work.json</code> <code>unresolved</code>, a count on the Work page).</li>
+<li><strong>A path that is not found.</strong> A cited <em>code</em> path that is no tracked file and has no unique suffix match is attributed by the claims all the same, and its signal has <code>path: "not found"</code>; it is also listed in <code>work.json</code> <code>not_found</code> (owner, item, cited, component), counted in <code>summary.not_found</code>, and listed on the Work page as “cited paths not found (attributed to a component by its claim)”, so a typo is visible. Without <code>files</code> (an older collection), or for a non-code path (only code files are listed), existence was not checked and the signal says <code>unchecked</code>, never <code>found</code>.</li>
+<li><strong>Dotted names.</strong> A module name means <code>a/b/c.py</code> (<code>src/a/b/c.py</code> in this repository) or its package’s <code>__init__.py</code>, shortened a name at a time.</li>
 </ul>
 </section>
 <section id="catalog-history-catalog.json" class="level3">
@@ -2079,14 +2129,241 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </table>
 <p>An invalid file is reported by name and never stops the others. An absent or empty <code>docs/_epics/</code> or <code>docs/_yardstick/</code> is not an error. The yardstick’s result schema and validator are #390’s (<code>docs/spec/yardstick.md</code>): the collector reads each result through <code>yardstick.result.validate</code>, and reports a refused one under <code>yardstick.invalid</code> with its <code>ResultError</code> message. Any <em>other</em> exception from validating one file – a validator that raises rather than refuses – is that file’s error too, recorded as <code>ExceptionType: message</code>, and the other results are still read: one bad file never makes the source unavailable. The same holds for the epic records above. <code>records.collect</code> takes another validator as an argument, for tests.</p>
 </section>
+<section id="architecture-architecture.json" class="level3">
+<h3 class="anchored" data-anchor-id="architecture-architecture.json">Architecture (<code>architecture.json</code>)</h3>
+<p>The architecture of both repositories (#418, epic #416), from the two hand-written model files <code>docs/architecture/components.yaml</code> and the code they claim. It reads <strong>git, not checkouts</strong>: this repository at <code>HEAD</code> (tracked files only) and the engine at its <code>main</code> through the bare clone the site build already keeps (<code>/data/opengwasdb/work/site/opengwasdb.git</code>, or <code>--engine-git</code>; <code>--engine-ref</code> names another ref). <code>pixi run site</code> fetches <code>main</code> into that clone first (<code>--refresh-engine</code>); a failed fetch leaves the <code>main</code> the clone has and is recorded in <code>engine.refresh</code>. The site’s <em>docs</em> mirror stays at the engine revision <code>pixi.lock</code> pins; the map shows current work, so it does not.</p>
+<p>The model files. Each has <code>repo</code> and <code>components</code>: <code>id</code>, <code>name</code>, <code>container</code>, <code>stages</code>, <code>summary</code>, <code>paths</code>. The engine’s has <code>layers</code> (top to bottom, <code>layer</code> and <code>name</code>) and a <code>layer</code> on every component. This repository’s has <code>system</code>, <code>people</code>, <code>external</code>, <code>containers</code>, <code>container_relations</code> and <code>stages</code>. A path ending in <code>/</code> claims a directory; any other path claims one file; the longest claimed prefix wins. Nothing else is written by hand: edges, counts and ADR placement are measured.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Key</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>registry</code>, <code>engine</code></td>
+<td><code>repo</code>, <code>ref</code>, <code>commit</code> read, <code>committed</code> (that commit’s date), <code>refresh</code>, <code>model</code> (<code>true</code>, or <code>false</code> when the ref has no model file) and <code>note</code>. The engine’s <code>refresh</code> is <code>null</code> when no fetch was asked for, else <code>{ok, error}</code> with git’s own message; the pages show the commit and its date, and a visible line when the refresh failed</td>
+</tr>
+<tr class="even">
+<td><code>model</code></td>
+<td><code>system</code>, <code>people</code>, <code>external</code>, <code>containers</code>, <code>container_relations</code>, <code>stages</code> (this repository’s), <code>layers</code> (the engine’s; <code>[]</code> without its model)</td>
+</tr>
+<tr class="odd">
+<td><code>components</code></td>
+<td>this repository’s, then the engine’s: the model’s keys plus <code>repo</code> (<code>registry</code> or <code>engine</code>), <code>files</code> and <code>lines</code> (claimed code files), <code>tracked</code> (every tracked file claimed)</td>
+</tr>
+<tr class="even">
+<td><code>files</code></td>
+<td><code>{registry: [...], engine: [...]}</code> (#422): every tracked code file of each tree at the ref read (the files the ownership rule counts as code), sorted, read NUL-safely. A planned <code>adds</code> is told to exist from it. Added to the file; no other field changed</td>
+</tr>
+<tr class="odd">
+<td><code>gaps.&lt;repo&gt;</code></td>
+<td><code>unclaimed</code> (code files no component claims, by path) and <code>stale</code> (<code>{path, component}</code> claims matching no tracked file); <code>gaps.engine</code> is <code>null</code> (unknown, not <code>0</code>/<code>0</code>) when the engine has no model at the ref</td>
+</tr>
+<tr class="even">
+<td><code>baseline</code></td>
+<td><code>path</code>, <code>entries</code> (how many imports the committed baseline lists; <code>null</code> with a <code>note</code> when it is not in this repository at the commit read, never 0) and <code>measured</code> (the engine imports the code makes)</td>
+</tr>
+<tr class="odd">
+<td><code>edges</code></td>
+<td><code>from</code>, <code>to</code>, <code>imports</code>, <code>scope</code> (<code>engine</code>, <code>registry</code>, <code>registry_to_engine</code>), <code>upward</code></td>
+</tr>
+<tr class="even">
+<td><code>upward_imports</code></td>
+<td>each engine import that goes up a layer (#419), sorted by <code>file</code> then <code>name</code>: <code>file</code> (the importing file), <code>name</code> (the absolute imported name, a relative import resolved), <code>from</code>, <code>to</code> (component ids), <code>from_layer</code>, <code>to_layer</code>. The engine’s layering baseline lists the same pairs. <code>null</code> when the engine has no model at the ref (the layering cannot be measured), like <code>summary.upward_imports</code>; never <code>[]</code></td>
+</tr>
+<tr class="odd">
+<td><code>adrs</code></td>
+<td>every <code>docs/adr/NNNN-*.md</code> of both repositories: <code>repo</code>, <code>number</code>, <code>path</code>, <code>title</code>, <code>status</code>, <code>url</code>, <code>components</code></td>
+</tr>
+<tr class="even">
+<td><code>summary</code></td>
+<td><code>edges</code>, <code>upward_edges</code>, <code>upward_imports</code>, <code>registry_to_engine_edges</code>, <code>registry_to_engine_imports</code>, <code>adrs_total</code>, <code>adrs_placed</code>; the engine’s half of the graph is <code>null</code> without its model (see below)</td>
+</tr>
+</tbody>
+</table>
+<p>A code file that cannot be read, or a Python file that does not parse, makes the source unavailable with an error naming the path; a count is never a guess of 0. A claimed script under <code>tools/</code> or <code>workflow/</code> is a source of imports even though no one can import it.</p>
+<p>Code is a tracked <code>.py</code> under <code>opengwasdb/</code> in the engine, and a <code>.py</code>, <code>.smk</code>, <code>.sh</code>, <code>.R</code>, <code>.r</code> or <code>Snakefile</code> under <code>src/</code>, <code>workflow/</code> or <code>tools/</code> here (R counts for ownership and lines, not for the Python import graph). <strong>Gaps never fail the build.</strong> The engine’s own CI fails on its unclaimed files, and this repository’s test (<code>tests/project-site-architecture/test_architecture_ownership.py</code>) fails on its own; the collector only reports them, on the page. An engine ref with no model file is not an error either: <code>engine.model</code> is <code>false</code>, <code>engine.note</code> names the ref and commit, the engine has no components or edges and its gaps are unknown (<code>null</code>), and this repository’s half is complete. Everything on the engine’s half that its claims resolve is then <code>null</code> in <code>summary</code>, never 0: <code>edges</code>, <code>upward_edges</code>, <code>upward_imports</code> and <code>registry_to_engine_edges</code> (the seam’s component pairs). <code>registry_to_engine_imports</code> stands, because it is measured from the names, and the page says the layering cannot be measured until the engine’s model is at the ref read. A ref that cannot be read at all makes the source unavailable.</p>
+<p>Files are read by object id, so a path holding a newline is its own file. An <strong>import</strong> is resolved against every tracked module first, then to that module’s owner: an unclaimed module gives no edge (it is a gap), and never takes its package’s owner. An import is counted per (file, imported name) between modules that components claim, relative imports resolved. An edge is <code>upward</code> when it is inside the engine and goes to a component on a higher layer; the same layer and lower layers are not. <code>registry_to_engine</code> is the seam between the repositories.</p>
+<p>An <strong>engine import</strong> is a name that is <code>opengwasdb</code> or starts with <code>opengwasdb.</code>, counted per (importing file, imported name) over this repository’s claimed Python files. The name alone decides it, so the seam does not need an engine checkout or the engine’s model: <code>registry_to_engine_imports</code> is that count, and it stands whether or not the engine’s model is there. <code>registry_to_engine_edges</code> is the number of component pairs those imports make, which the engine’s claims resolve, so it is <code>null</code> when the engine has no model at the ref read — unknown, never 0. <code>baseline</code> reports <code>docs/architecture/engine-imports-baseline.yaml</code>, which lists those imports and only shrinks: <code>tests/project-site-architecture/test_engine_imports_baseline.py</code> fails on an import the file does not list (naming the file, the name and, when the engine was read, the engine component it lands in) and on a listed import that is gone. One measurement feeds both the seam counts and the baseline, so they cannot disagree.</p>
+<p>An <strong>ADR</strong> is placed by the code it cites (a path, a dotted module name such as <code>opengwasdb.store.paths</code>, or a GitHub link to a file, resolved through the claims; a bare suffix such as <code>store/paths.py</code> only when exactly one tracked file ends with it) and by a component’s <code>name</code> in its title (case-insensitive, at the start of a word, with no boundary at its end). A component’s name that appears only in the body places nothing, however often. <code>components</code> maps a component id to <code>code</code> or <code>title</code>; an ADR placed nowhere has <code>{}</code> and is listed on the page.</p>
+</section>
+<section id="work-work.json" class="level3">
+<h3 class="anchored" data-anchor-id="work-work.json">Work (<code>work.json</code>)</h3>
+<p>Where live work meets (#419, epic #416). It reads the <code>board.json</code> and <code>architecture.json</code> the same run just wrote to the data directory, so it runs after them and is <strong>unavailable, naming which, when either is</strong> (<code>work is unavailable: board is unavailable: ...</code>). From those two files and the branches it places every piece of live work on the components the claims name. Agents read this file, not the page; <code>schema_version</code> is <code>1</code> and changes when a key is removed or its meaning changes. Keys are only ever added within a version.</p>
+<p><strong>Owners.</strong> An owner is an open epic whose board <code>status</code> is Active, Todo or Paused (<code>kind: epic</code>); otherwise the epic or ticket a branch’s name points at that the board does not list (<code>kind: issue</code>, status <code>Off board</code>, or the status of a closed epic); otherwise the branch itself (<code>kind: branch</code>, labelled by its name). A branch’s owner is the epic its name gives (<code>orch/&lt;epic&gt;/&lt;ticket&gt;</code>, with an optional <code>-slug</code> after the ticket; <code>orch/&lt;epic&gt;-...</code>), looked up in either repository, else its ticket’s epic (<code>fix/issue-345</code>, <code>345-...</code>), else the ticket, else the branch.</p>
+<p><strong>Branches.</strong> A branch counts when it is ahead of <code>main</code> and its newest commit is within <code>days</code> (21) days. Its files are <code>git diff --name-only -z main...&lt;branch&gt;</code>. The published page reads <strong>pushed</strong> branches only: the engine’s bare clone after <code>git fetch origin +refs/heads/*:refs/heads/*</code>, this repository’s checkout as <code>refs/remotes/origin/*</code> after <code>git fetch origin</code>. A failed fetch is recorded in <code>branches.sources[].fetch</code> and shown on the page, and the refs already there are read. The <code>conflicts</code> command can add the local branches of other git directories (<code>--local</code>), which the page never shows. A branch read from two clones counts once, as the copy further ahead (a tie keeps the pushed one), and <code>branches.sources[].count</code> is what each read found.</p>
+<p><strong>Signals.</strong> One row per (component, owner, item, via, state), with <code>what</code>, the branches (<code>repo:name</code>) or cited strings behind it. <code>via</code> is <code>branch</code>, <code>cited</code> (an open ticket) or <code>scope</code> (an epic’s body). The <code>state</code> is:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>State</th>
+<th>When</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>building</code></td>
+<td>a branch’s diff touches a file the component claims</td>
+</tr>
+<tr class="even">
+<td><code>active</code></td>
+<td>an open ticket of an Active epic cites it, and the ticket is not blocked</td>
+</tr>
+<tr class="odd">
+<td><code>waiting</code></td>
+<td>an open ticket cites it and waits for an open ticket (a blocking edge whose blocker is still open)</td>
+</tr>
+<tr class="even">
+<td><code>scope</code></td>
+<td>an epic’s body cites it</td>
+</tr>
+<tr class="odd">
+<td><code>planned</code>, <code>paused</code></td>
+<td>an open ticket of a Todo or Paused epic cites it, not blocked</td>
+</tr>
+<tr class="even">
+<td><code>stale</code></td>
+<td>a branch whose epic is closed or not live, or whose ticket is closed</td>
+</tr>
+</tbody>
+</table>
+<p>A cited string is placed through the claims, in the repository its text is in first, after it is resolved to a tracked file as <a href="#citations">Citations</a> say (from <code>architecture.json</code>’s <code>files</code>). A citation that is ambiguous is <code>unresolved</code>, and one no claim covers places nothing. A cited path that matches no tracked file keeps its signal on the component that claims it (a ticket may mean to create the file), but is <strong>marked</strong>: see <code>path</code> below. Closed tickets add nothing.</p>
+<p><strong>Meets.</strong> A component is a meet when two or more owners have <code>building</code> or <code>active</code> signals on it. For every pair of its owners there is a <code>pairs</code> entry, with a <code>coordination</code>:</p>
+<ul>
+<li><code>coordinated</code>: a blocking edge <code>{waiting, on}</code> links a specific item of one with a specific item of the other, in either direction. A shared epic, or an edge between other tickets of the same epics, does not coordinate it.</li>
+<li><code>unlinkable</code>: no edge links them, and one side’s work is an <strong>epic’s integration branch</strong> (<code>orch/&lt;epic&gt;-slug</code>), whose item is the branch (<code>branch:&lt;repo&gt;:&lt;name&gt;</code>; decided by the branch’s own name, so it holds whether or not the board lists the epic): it belongs to the epic as a whole and has no ticket an edge could link, so the absence of an edge proves nothing. <code>epic_branches</code> names those branches.</li>
+<li><code>uncoordinated</code>: no edge, and every item is a ticket (or a branch on no epic).</li>
+</ul>
+<p><code>coordinated</code> on a pair stays <code>true</code> only for <code>coordinated</code>. The meet’s <code>coordination</code> is <code>uncoordinated</code> if any pair is, else <code>unlinkable</code> if any pair is, else <code>coordinated</code>; its <code>coordinated</code> is <code>true</code> only for the last. The page and <code>conflicts</code> never call an <code>unlinkable</code> meet uncoordinated.</p>
+<p><strong>Unmeasured.</strong> Without the engine’s architecture model at the ref read (<code>architecture.engine.model</code> false) no engine file belongs to a component, so engine-side work is <strong>unknown</strong>, never “no work”: <code>unmeasured</code> is <code>{"engine": &lt;reason&gt;}</code> (empty otherwise), engine signals and meets are not produced, the page says engine-side work was not measured, and <code>conflicts</code> on engine files or an engine branch exits 2. Registry-side meets are still measured.</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Key</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><code>schema_version</code></td>
+<td><code>1</code></td>
+</tr>
+<tr class="even">
+<td><code>inputs</code></td>
+<td><code>board.collected_at</code>; <code>architecture.collected_at</code> and the <code>ref</code>/<code>commit</code> read of each repository</td>
+</tr>
+<tr class="odd">
+<td><code>owners</code></td>
+<td>the owners with at least one signal: <code>key</code>, <code>kind</code>, <code>title</code>, <code>url</code>, <code>status</code>, <code>workstream</code></td>
+</tr>
+<tr class="even">
+<td><code>components</code></td>
+<td>the components with at least one signal: <code>id</code>, <code>name</code>, <code>repo</code></td>
+</tr>
+<tr class="odd">
+<td><code>signals</code></td>
+<td>as above: <code>component</code>, <code>owner</code>, <code>item</code>, <code>via</code>, <code>state</code>, <code>path</code>, <code>what</code>; <code>path</code> is <code>found</code> (a tracked file, or a branch’s file), <code>not found</code>, <code>unchecked</code> (existence not known) or <code>n/a</code> (a dotted module)</td>
+</tr>
+<tr class="even">
+<td><code>unmeasured</code></td>
+<td><code>{}</code>, or <code>{engine: reason}</code> when the engine’s model is missing (see above)</td>
+</tr>
+<tr class="odd">
+<td><code>not_found</code></td>
+<td>the cited code paths no tracked file matches, attributed by claim: <code>owner</code>, <code>item</code>, <code>cited</code>, <code>component</code></td>
+</tr>
+<tr class="even">
+<td><code>unresolved</code></td>
+<td>the citations of live tickets and epics that more than one tracked file ends with: <code>owner</code>, <code>item</code>, <code>cited</code>, <code>candidates</code> (the paths)</td>
+</tr>
+<tr class="odd">
+<td><code>meets</code></td>
+<td><code>component</code>, <code>owners</code>, <code>items</code> (owner to its items there), <code>pairs</code> (<code>owners</code>, <code>coordinated</code>, <code>coordination</code>, <code>edges</code>, <code>epic_branches</code>), <code>coordinated</code>, <code>coordination</code></td>
+</tr>
+<tr class="even">
+<td><code>plans</code></td>
+<td>the tickets’ planned changes and, for a closed ticket, what was checked, as above (#422)</td>
+</tr>
+<tr class="odd">
+<td><code>waits</code></td>
+<td>every open blocking edge among the live epics’ tickets: <code>{item, on}</code></td>
+</tr>
+<tr class="even">
+<td><code>tickets</code></td>
+<td>every open ticket of a live epic, to its owner (what <code>conflicts --ticket</code> reads)</td>
+</tr>
+<tr class="odd">
+<td><code>branches.sources</code></td>
+<td>per repository read: <code>repo</code>, <code>git_dir</code>, <code>main</code>, <code>days</code>, <code>fetch</code> (<code>null</code>, or <code>{ok, error}</code>), <code>local</code>, <code>count</code></td>
+</tr>
+<tr class="even">
+<td><code>branches.list</code></td>
+<td><code>repo</code>, <code>name</code>, <code>ahead</code>, <code>committed</code>, <code>files</code>, <code>epic</code>, <code>ticket</code> (from the name), <code>local</code>, and the resolved <code>owner</code>, <code>item</code>, <code>components</code></td>
+</tr>
+<tr class="odd">
+<td><code>summary</code></td>
+<td><code>owners</code>, <code>meets</code>, <code>coordinated</code>, <code>uncoordinated</code>, <code>unlinkable</code> (these three add up to <code>meets</code>), <code>branches</code>, <code>unresolved</code>, <code>not_found</code> (the lengths of those lists)</td>
+</tr>
+</tbody>
+</table>
+<p>The page’s tiles are <code>summary</code>; every other figure on it is a count of these rows.</p>
+<p><strong>The command line.</strong> <code>pixi run architecture</code> (<code>python3 -m project_site.architecture</code>) runs the same collectors on the spot, or reads a collection with <code>--data DIR</code>:</p>
+<ul>
+<li><code>check</code>: for each repository, the code files no component claims and the claims that match no tracked file, and the engine’s <code>docs/architecture/layering-baseline.yaml</code> at the ref read, entry by entry (importing file and imported name, never a count, so a new import cannot hide behind a fixed one): each <code>new:</code> import not in the baseline and each <code>stale:</code> entry no longer imported is named; no baseline file is not a failure. What cannot be measured is printed with its reason and is <strong>unknown, never a pass</strong>: an engine ref with no model, an engine fetch recorded as failed (what was read may be out of date), a repository or file that cannot be read, a file YAML cannot load (any constructor failure too), one with no <code>allowed</code> list, an entry that is not exactly a <code>file</code> and a <code>name</code> of text, or an entry listed twice (this repository’s own baseline is read by the same loader, with the same refusals). Exit <strong>1</strong> if anything measured has a problem (an unclaimed or stale claim, a new or stale baseline entry), whatever else is unknown; otherwise <strong>2</strong> if any part could not be measured; otherwise 0.</li>
+<li><code>conflicts --branch B [--repo engine|registry]</code> or <code>--files PATH... --repo engine|registry [--ticket repo#n]</code> (<code>--files</code> without <code>--repo</code> exits 2: a bare path can mean a file of either repository): the components the work touches, the other owners’ <code>building</code> or <code>active</code> work on each with its ticket, epic, branch and cited files, and whether a blocking edge links <code>--ticket</code> (or the branch’s ticket) to theirs. Exit 1 when any meet is uncoordinated or unlinkable (asking a person is the safe default; the message says which); 0 when none is; <strong>2 when it cannot decide</strong> (a source is unavailable, the branch is not in the collection, a git directory or branch diff cannot be read, or the work is the engine’s and its model is missing). <code>--local GIT_DIR...</code> adds those clones’ local branches, <code>--refresh</code> fetches first. Two more things leave it undecided: code that no component claims (a mistyped path, or a new one whose claim does not exist yet, so what it meets is unknown), and a fetch recorded as failed in the data read (<code>--refresh</code>’s, or the collection’s own), since what was read may be out of date. Either is 2 unless a meet is found anyway, which stays 1 and lists them as <code>also:</code>. Given files that are not code a component claims (tests, docs) are listed as outside the map and never judged.</li>
+</ul>
+</section>
+<section id="planned-changes" class="level3">
+<h3 class="anchored" data-anchor-id="planned-changes">Planned changes</h3>
+<p>A ticket that changes the structure says so in its body (#422, epic #416), in one fenced block whose info string is <code>architecture</code>, holding YAML. Text outside the fence is ignored, and a ticket without a block has no plan.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode markdown code-with-copy"><code class="sourceCode markdown"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="in">```architecture</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="in">adds:      # paths that will exist, and the component that will claim them</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a><span class="in">  - paths: [opengwasdb/encoding/association.py]</span></span>
+<span id="cb3-4"><a href="#cb3-4" aria-hidden="true" tabindex="-1"></a><span class="in">    component: encoding          # an existing component id, or a new id ...</span></span>
+<span id="cb3-5"><a href="#cb3-5" aria-hidden="true" tabindex="-1"></a><span class="in">    name: Association encoder    # ... which then needs a name (and `container`, `layer` if engine)</span></span>
+<span id="cb3-6"><a href="#cb3-6" aria-hidden="true" tabindex="-1"></a><span class="in">moves:     # paths whose claim changes component</span></span>
+<span id="cb3-7"><a href="#cb3-7" aria-hidden="true" tabindex="-1"></a><span class="in">  - paths: [opengwasdb/build/eaf_orientation.py]</span></span>
+<span id="cb3-8"><a href="#cb3-8" aria-hidden="true" tabindex="-1"></a><span class="in">    to: resolution</span></span>
+<span id="cb3-9"><a href="#cb3-9" aria-hidden="true" tabindex="-1"></a><span class="in">drops:     # component imports that should disappear, "from -&gt; to"</span></span>
+<span id="cb3-10"><a href="#cb3-10" aria-hidden="true" tabindex="-1"></a><span class="in">  - dense -&gt; encoding</span></span>
+<span id="cb3-11"><a href="#cb3-11" aria-hidden="true" tabindex="-1"></a><span class="in">absorbs:   # free text, drawn on the map, never checked (line numbers drift)</span></span>
+<span id="cb3-12"><a href="#cb3-12" aria-hidden="true" tabindex="-1"></a><span class="in">  - encoding/codec.py:932</span></span>
+<span id="cb3-13"><a href="#cb3-13" aria-hidden="true" tabindex="-1"></a><span class="in">```</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>Every key is optional, but a block with none of them is invalid, and so is any other key (<code>{}</code> is a block with none). Each key present must hold a list; <code>paths</code> are non-empty lists of text; <code>name</code> and <code>container</code> are text and <code>layer</code> a whole number. A component id (<code>component</code>, <code>to</code>, either end of a drop) is lower-case letters, digits and <code>_</code>, starting with a letter (the model’s form, so it can never be markup), and must be an existing component or declared in <code>adds</code>; a new one needs a <code>name</code>, and a new engine component (paths under <code>opengwasdb/</code>) a <code>container</code> and a <code>layer</code> too. The board collector parses the block into <code>children[].plan</code> with <code>adds</code>, <code>moves</code>, <code>drops</code> (each <code>{from, to}</code>) and <code>absorbs</code>, every key present as a list. A block that cannot be used is never dropped: <code>plan</code> is <code>{invalid: reason}</code> (not YAML, unknown key, empty, a malformed item, more than one block, a block never closed) and the page shows the reason. The board collector does not know the components, so the <code>work</code> collector judges their ids once it knows them: when the engine’s model is missing it cannot, and an id it does not find is not called unknown.</p>
+<p><strong>Judging a plan.</strong> The <code>work</code> collector lists every ticket that has a plan, of any epic, open or closed, as <code>work.json</code>’s <code>plans</code> (sorted by epic, ticket): <code>ticket</code>, <code>epic</code>, <code>title</code>, <code>url</code>, <code>state</code> (<code>open</code> or <code>closed</code>), <code>plan</code>, <code>components</code> (each component the plan involves: <code>id</code>, <code>name</code>, <code>repo</code>, and <code>new</code>, true for one the plan declares) and <code>checks</code>. An open ticket’s plan is carried as planned and <code>checks</code> is empty, as it is for an invalid plan; <code>absorbs</code> is carried and never checked. Once the ticket is closed each item is checked against what the architecture collector read (the engine at its ref, this repository at the site’s checkout):</p>
+<ul>
+<li><code>adds</code>: for each path, <code>{kind: adds, path, component, held, why}</code>; held only when the path is a tracked file (in <code>architecture.files</code>) <strong>and</strong> the named component claims it. A path that does not exist is not held, saying so with the ref; without the engine’s model that is still a measured fact (the tree was read), and the <code>why</code> says the claims were not judged.</li>
+<li><code>moves</code>: the same, with <code>to</code> as the component.</li>
+<li><code>drops</code>: <code>{kind: drops, from, to, imports, held, why}</code>; held when no import goes from <code>from</code> into <code>to</code>, else not held, naming how many remain. Without <code>architecture.edges</code> (absent or <code>null</code>) it is unknown: absence is never zero imports.</li>
+</ul>
+<p>Every check also has <code>repo</code> (<code>registry</code> or <code>engine</code>), the tree it was read in; the page’s warning names that repository’s ref and commit.</p>
+<p><code>held</code> is <code>true</code>, <code>false</code>, or <code>null</code> for <strong>unknown</strong>: without the engine’s model (<code>architecture.engine.model</code> false) an engine path that no registry claim covers, a path whose existence is not known (no <code>architecture.files</code>, the tree not read, or not a code file, since only code files are listed), and a drop with an end that is not a registry component, cannot be judged, and <code>why</code> says the model is missing at that ref. Missing the model is never an unmet item. An unmet item is a warning on the page, never a build failure: the ticket may have closed on an epic’s integration branch whose PR has not merged to the ref read. The <code>plans</code> key is additive, so <code>schema_version</code> stays <code>1</code>.</p>
+<p><strong>The page.</strong> The Structure and health page ends with a <code>## Planned changes</code> section, written from <code>plans</code> alone. Each valid plan has a heading (the ticket, its title and state), a Quarto <code>{dot}</code> diagram of the components it involves (added paths marked <code>+</code>, moved paths <code>→</code>, a declared component dashed and labelled <code>new</code>, a dropped import a dashed arrow), and its items: an open ticket’s as planned, a closed one’s as <code>held</code>, <code>not held</code> or <code>unknown</code> with <code>why</code>. <code>absorbs</code> is listed as text. A closed plan with unmet items carries a warning, naming the ref read and that the ticket may have closed on an integration branch not yet merged. An invalid plan shows its reason and no diagram. A <code>work.json</code> without <code>plans</code> is said to predate planned changes, never shown as “no plans”; with <code>plans</code> empty the page says no ticket carries a block.</p>
+</section>
 <section id="the-commands-output-and-exit-status" class="level3">
 <h3 class="anchored" data-anchor-id="the-commands-output-and-exit-status">The command’s output and exit status</h3>
-<p>One line per source, in this order, then the files are all written:</p>
+<p>One line per source, in this order (the architecture line is longer: components, gaps, upward imports, the seam and ADRs placed; <code>work</code> runs last, because it reads the board and architecture files just written, and adds <code>BRANCH FETCH FAILED</code> for a failed fetch), then the files are all written:</p>
 <pre class="text"><code>board: 17 epics, 2 milestones, 16 milestone lines
 catalog: 3 versions, current 1b3a155d449bb84a
 releases: 0 releases, 1 tags
 stores: 22 stores
-records: 0 epics, 0 invalid, 0 yardstick results, 0 invalid</code></pre>
+records: 0 epics, 0 invalid, 0 yardstick results, 0 invalid
+architecture: 10 registry + 15 engine components (engine model at main 1a2b3c4d), gaps registry 0/0 engine 0/0 (unclaimed/stale), ...
+work: 3 owners, 2 meets (1 coordinated, 1 uncoordinated), 2 branches</code></pre>
 <p>An unavailable source prints <code>UNAVAILABLE &lt;source&gt;: &lt;error&gt;</code> in place of its line. The exit status is <strong>0</strong> all the same: every file is written, and the pages show the notice from the file’s <code>available</code> and <code>error</code>. <code>--strict</code> exits 1 when any source is unavailable (after every file is written), for a caller that must not go on without it.</p>
 </section>
 </section>

@@ -2,7 +2,7 @@
 
 The specification of `pixi run catalog` (#323, epic #313). The decisions behind
 it are [ADR 0039](../adr/0039-analysis-catalog.md); the words are
-[CONTEXT.md](https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/CONTEXT.md)'s. This file is the contract: the command, the
+[CONTEXT.md](https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/CONTEXT.md)'s. This file is the contract: the command, the
 serving decisions, the tables, and the files a rebuild writes.
 
 The catalog is the package `src/analysis_catalog/`. It imports only
@@ -103,10 +103,15 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   `superseded_by`, `access_posture`, `source_snapshot_id`, `accepted_at`,
   `notes`, and `association_coverage`), `build.yaml` (`layout`,
   `completion_state`) and `validation.yaml` (`validated_at`,
-  `build_environment.opengwasdb_version`, and from `observed`: `n_analyses`,
+  `build_environment.opengwasdb_version`, the engine that wrote the Store,
+  and from `observed`: `n_analyses`,
   `n_variants`, `n_associations`, `store_bytes`, `format_version`,
   `reference_assembly`). `reference_assembly` is opengwasdb's value stored as
   reported, and `NULL` while a record lacks it (opengwasdb#294).
+  `opengwasdb_version` names one engine even when a later step of the phase ran
+  under a newer one of the same Store format; the Validation Record's
+  `build_environment.engines` lists them all, and the catalog does not carry
+  that list (#410).
   `association_coverage` is the release's own declaration, in the one vocabulary
   of ADR 0040 (`gwas`, `cis`, `cis_and_signals`, `signals_only`), never the
   Validation Record's `observed` value: opengwasdb#298 makes coverage a build

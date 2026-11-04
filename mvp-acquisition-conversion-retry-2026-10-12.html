@@ -148,6 +148,25 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     <a class="nav-link" href="./changelog.html"> 
 <span class="menu-text">Changelog</span></a>
   </li>  
+  <li class="nav-item dropdown ">
+    <a class="nav-link dropdown-toggle" href="#" id="nav-menu-architecture" role="link" data-bs-toggle="dropdown" aria-expanded="false">
+ <span class="menu-text">Architecture</span>
+    </a>
+    <ul class="dropdown-menu" aria-labelledby="nav-menu-architecture">    
+        <li>
+    <a class="dropdown-item" href="./architecture.html">
+ <span class="dropdown-text">Pipeline</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-work.html">
+ <span class="dropdown-text">Work map</span></a>
+  </li>  
+        <li>
+    <a class="dropdown-item" href="./architecture-structure.html">
+ <span class="dropdown-text">Structure and health</span></a>
+  </li>  
+    </ul>
+  </li>
   <li class="nav-item">
     <a class="nav-link" href="./reports.html"> 
 <span class="menu-text">Reports</span></a>
@@ -221,6 +240,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./amr-ld-pilot-evidence.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">AMR LD calibration pilot: evidence (#241)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./eaf-reference-flip.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">EAF reference flip (#409)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1837,7 +1862,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li>Wall time 57.45s, peak RSS 139480KiB, two-CPU affinity and BLAS=1. Run interval: 2026-10-13T12:39:14.164553Z–12:40:10.636102Z.</li>
 <li>A first wrapper setup attempt stopped before invoking <code>refresh</code>: the generated candidate TSV is untracked and absent from git archives. Its empty directory is preserved; the successful retry snapshotted the actual named candidate TSV.</li>
 </ul>
-<p>Machine receipt: <a href="https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/resources/inventories/dbgap-phs002453-metadata-refresh-2026-10-13.json"><code>dbgap-phs002453-metadata-refresh-2026-10-13.json</code></a>. The runner, input metadata snapshot, execution log and resource log are preserved under the fresh output root and identified by metadata hashes in that receipt. <a href="https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6145793629">Coordinator run record</a>. Independent actual-output metadata audit is pending. This is technical metadata qualification, <strong>not</strong> release/scientific acceptance or mirror promotion; the prior unapproved directories remain unaccepted.</p>
+<p>Machine receipt: <a href="https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/resources/inventories/dbgap-phs002453-metadata-refresh-2026-10-13.json"><code>dbgap-phs002453-metadata-refresh-2026-10-13.json</code></a>. The runner, input metadata snapshot, execution log and resource log are preserved under the fresh output root and identified by metadata hashes in that receipt. <a href="https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6145793629">Coordinator run record</a>. Independent actual-output metadata audit is pending. This is technical metadata qualification, <strong>not</strong> release/scientific acceptance or mirror promotion; the prior unapproved directories remain unaccepted.</p>
 </section>
 <section id="remaining-gates" class="level2">
 <h2 class="anchored" data-anchor-id="remaining-gates">Remaining gates</h2>

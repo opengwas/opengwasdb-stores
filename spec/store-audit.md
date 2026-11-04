@@ -5,7 +5,7 @@ epic #371). It follows
 [ADR 0023](../adr/0023-the-registry-store-seam-is-a-command-line.md) (the seam
 is a command line) and leaves source reading, Store access and format semantics
 with `opengwasdb` (ADRs 0012 and 0017). The words are
-[CONTEXT.md](https://github.com/opengwas/opengwasdb-stores/blob/766faa9a41ef493801aafc0f3b37bd64fb0acf6b/CONTEXT.md)'s. This file is the contract: the commands, what
+[CONTEXT.md](https://github.com/opengwas/opengwasdb-stores/blob/e7fe79d32ccc68eafeb3b32d6487c57ce759821e/CONTEXT.md)'s. This file is the contract: the commands, what
 they read, what their reports say, and how a reader is meant to act on them.
 
 Two commands share one module and one read-only discipline:
