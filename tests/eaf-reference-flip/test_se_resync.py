@@ -138,8 +138,8 @@ class ResyncTestCase(unittest.TestCase):
             eaf_reference_flip._precedent,
             "_resolve_runtime",
             return_value=(
-                base.LOCKED,
-                base.engine.identify().version,
+                base.RAN_COMMIT,
+                base.RAN_VERSION,
             ),
         )
 
@@ -235,6 +235,10 @@ class ResyncTestCase(unittest.TestCase):
         record = json.loads(self.receipt().read_text(encoding="utf-8"))
         self.assertEqual(record["status"], "complete")
         self.assertEqual(record["step"], eaf_reference_flip.RESYNC_STEP)
+        # The engine that ran, not the lock it was checked against (#253): the
+        # mocked runtime reports a revision and version no lock or install has.
+        self.assertEqual(record["opengwasdb_revision"], base.RAN_COMMIT)
+        self.assertEqual(record["opengwasdb_version"], base.RAN_VERSION)
         self.assertEqual(record["flip_receipt"]["sha256"], base._sha256(flip_receipt))
         self.assertEqual(record["check"]["rtol"], 0.0)
         self.assertEqual(record["hm3_sha256_before"], record["hm3_sha256_after"])

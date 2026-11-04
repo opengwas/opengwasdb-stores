@@ -33,7 +33,8 @@ Covered:
 * every refusal (existing and stale receipts, an already-correct orientation,
   too few comparable variants, Ragged, Zarr v2, Observed-Only, a missing
   completion mask, a top-hit tier without `eaf`/`imputed`, each #326 marker, a
-  non-pinned runtime, an unregistered id) exits non-zero and writes nothing;
+  PATH engine other than the imported one, an unregistered id) exits non-zero
+  and writes nothing;
 * the guard boundaries: exactly -0.9 and exactly +0.9 both refuse;
 * injected failures: staged verification, the swap fault hook, a mid-swap
   failure (rolled back), and the double rename failure whose original must
@@ -65,6 +66,12 @@ from opengwasdb.encoding import DenseEafPlane, DenseSePlane, StoreEncoding
 from ogstores import eaf_reference_flip, engine, release
 
 LOCKED = engine.locked_commit()
+
+#: A revision and a version that no lock and no install carries. A run mocked to
+#: report these must record these: the receipt names the engine that ran (#253),
+#: never the lock the run was checked against.
+RAN_COMMIT = "c" * 40
+RAN_VERSION = "9.9.9"
 
 STORE_ID = "OGS-00090"
 
@@ -406,7 +413,11 @@ class FlipTestCase(unittest.TestCase):
         cls.applied_root = cls.tmp / "applied"
         shutil.copytree(pristine, cls.applied_root)
         cls.before_tree = tree(cls.applied_store_path())
-        cls.applied = run_on(cls.applied_root)
+        # The receipt test reads this run's receipt: mocked to a runtime no lock
+        # can match, so a receipt recording the lock instead of the engine that
+        # ran is caught.
+        with cls.fast_runtime():
+            cls.applied = run_on(cls.applied_root)
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -477,16 +488,19 @@ class FlipTestCase(unittest.TestCase):
         self.assertEqual(self.store_side(), before_side, "a refusal wrote under the Store Release")
         return out, err
 
+    @classmethod
     @contextlib.contextmanager
-    def fast_runtime(self):
-        """Skip the pinned-runtime proof: it has tests of its own and costs a subprocess."""
+    def fast_runtime(cls):
+        """Skip the pinned-runtime proof: it has tests of its own and costs a subprocess.
+
+        It answers with `RAN_COMMIT` and `RAN_VERSION`, which appear in no lock
+        and no install, so the receipt assertions prove the run recorded the
+        engine that ran rather than the lock it was checked against (#253).
+        """
         with mock.patch.object(
             eaf_reference_flip._precedent,
             "_resolve_runtime",
-            return_value=(
-                LOCKED,
-                engine.identify().version,
-            ),
+            return_value=(RAN_COMMIT, RAN_VERSION),
         ):
             yield
 
@@ -649,8 +663,8 @@ class FlipTestCase(unittest.TestCase):
         self.assertEqual(record["step"], "eaf-reference-flip")
         self.assertEqual(record["store_id"], STORE_ID)
         self.assertEqual(record["issue"], 409)
-        self.assertEqual(record["opengwasdb_revision"], LOCKED)
-        self.assertEqual(record["opengwasdb_version"], engine.identify().version)
+        self.assertEqual(record["opengwasdb_revision"], RAN_COMMIT)
+        self.assertEqual(record["opengwasdb_version"], RAN_VERSION)
         self.assertRegex(record["started_at"], r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z")
         self.assertRegex(record["completed_at"], r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}.*Z")
         self.assertRegex(record["tool"]["commit"], r"\A[0-9a-f]{40}\Z")
@@ -824,7 +838,7 @@ class FlipTestCase(unittest.TestCase):
                     self.addCleanup(marker.unlink)
                 self.assert_refused_unchanged(self.base_argv(), marker.name)
 
-    def test_a_non_pinned_runtime_is_refused(self) -> None:
+    def test_a_path_engine_other_than_the_imported_one_is_refused(self) -> None:
         def fake_revision(executable=None, env=None):
             return LOCKED if executable is None else "deadbeef" * 5
 

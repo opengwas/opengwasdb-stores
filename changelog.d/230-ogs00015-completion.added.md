@@ -1,4 +1,4 @@
-- **OGS-00015 (MVP EAS) declares reference completion under its own id, against
+- **OGS-00015 (MVP EAS) is Reference-Completed under its own id, against
   the HGDP+1kGP EAS panel (issue #230, ADR 0037).** The Store is already
   published as Observed-Only, and its accepted Release Bundle gains the
   completion declaration, the one amendment ADR 0037's Decision 1 allows:
@@ -12,4 +12,5 @@
   five Stores stand. The declaration was held from 2026-10-22 while #348 found
   variant identities duplicated within the panel's blocks; the panels were
   repaired in place on 2026-11-01/02, and the released EAS receipt is
-  `repairs/20261101T225229Z-348-EAS.json`.
+  `repairs/20261101T225229Z-348-EAS.json`. The completion ran and registered on
+  2026-11-02, and the Store is validated and Observed-View-Checked.

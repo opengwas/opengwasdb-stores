@@ -227,9 +227,9 @@ se-reencode = { cmd = "python3 -m ogstores.se_reencode" }
 # 2026-11-01 this rewrites those three arrays in place, once, and records it as
 # a Release Erratum: it refuses a Zarr v2, Ragged or Observed-Only Store, a
 # receipt that already exists, a Store whose orientation guard is not actually
-# inverted, and a runtime that is not the tracked pin. Its `--dry-run` runs the
-# guard, stages and verifies into a scratch directory, and writes nothing in
-# the Store or its records.
+# inverted, and an engine other than the commit `pixi.lock` resolves. Its
+# `--dry-run` runs the guard, stages and verifies into a scratch directory, and
+# writes nothing in the Store or its records.
 #
 #   pixi run eaf-reference-flip OGS-00014 --dry-run
 #   pixi run eaf-reference-flip OGS-00014
