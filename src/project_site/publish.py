@@ -35,6 +35,7 @@ from typing import Callable, Sequence
 
 from project_site import paths
 from project_site.build import SiteCheckFailed, render_checkout
+from project_site.render import DEFAULT_JOBS, RenderFailed
 
 Render = Callable[[str, Path, Path], Path]
 
@@ -239,11 +240,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--remote", default="origin")
     parser.add_argument("--repo", type=Path, default=paths.repo_root())
     parser.add_argument("--dry-run", action="store_true", help="render and commit gh-pages, but do not push")
+    parser.add_argument(
+        "--jobs", type=int, default=DEFAULT_JOBS,
+        help=f"Quarto processes to render over (default {DEFAULT_JOBS}); 1 is Quarto rendering alone",
+    )
     args = parser.parse_args(argv)
+    if args.jobs < 1:
+        parser.error("--jobs must be at least 1")
+
+    def render(source_commit: str, checkout: Path, output: Path) -> Path:
+        return render_checkout(source_commit, checkout, output, jobs=args.jobs)
 
     try:
-        result = publish(repo=args.repo, ref=args.ref, remote=args.remote, dry_run=args.dry_run)
-    except (PublishRefused, SiteCheckFailed) as refusal:
+        result = publish(repo=args.repo, ref=args.ref, remote=args.remote, dry_run=args.dry_run, render=render)
+    except (PublishRefused, SiteCheckFailed, RenderFailed) as refusal:
         print(f"refused: {refusal}", file=sys.stderr)
         return 2
     print(f"ref          {result.ref}")

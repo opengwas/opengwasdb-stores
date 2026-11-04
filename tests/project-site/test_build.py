@@ -257,5 +257,50 @@ class SyncTreeModeTest(unittest.TestCase):
         self.assertEqual(build._sync_tree(self.source, self.served), 0, "a settled tree needs no change")
 
 
+class RenderJobsTest(unittest.TestCase):
+    """The site renders over several Quarto processes; `--jobs 1` is Quarto alone (project_site.render)."""
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="project-site-jobs-")
+        self.addCleanup(self._tmp.cleanup)
+        self.root = Path(self._tmp.name)
+        self.staging = self.root / "mirror"
+        self.output = self.root / "_site"
+
+    def test_the_site_renders_over_workers_by_default(self) -> None:
+        with mock.patch.object(build.render, "render_site", return_value=3) as parallel, \
+                mock.patch.object(build.subprocess, "run") as alone:
+            build._quarto_render(self.staging, self.output, commit="c" * 40)
+
+        alone.assert_not_called()
+        self.assertEqual(parallel.call_args.args, (self.staging, self.output))
+        self.assertEqual(parallel.call_args.kwargs["jobs"], build.render.DEFAULT_JOBS)
+        self.assertEqual(parallel.call_args.kwargs["env"][build.COMMIT_ENV_VAR], "c" * 40)
+
+    def test_one_job_is_quarto_rendering_alone(self) -> None:
+        with mock.patch.object(build.render, "render_site") as parallel, \
+                mock.patch.object(build.subprocess, "run") as alone:
+            build._quarto_render(self.staging, self.output, commit="c" * 40, jobs=1)
+
+        parallel.assert_not_called()
+        self.assertEqual(alone.call_args.args[0], ["quarto", "render", str(self.staging), "--output-dir", str(self.output)])
+
+    def test_the_command_line_jobs_reach_the_render(self) -> None:
+        report = mock.Mock(served=[])
+        with mock.patch.object(build, "build_site", return_value=report) as build_site, \
+                mock.patch.object(build, "report_summary", return_value=""):
+            self.assertEqual(build.main(["--repo", str(self.root), "--jobs", "5"]), 0)
+
+        self.assertEqual(build_site.call_args.kwargs["jobs"], 5)
+
+    def test_a_failed_render_exits_non_zero_naming_the_page(self) -> None:
+        failure = build.render.RenderFailed("quarto render adr/0001.md failed with exit status 1")
+        with mock.patch.object(build, "build_site", side_effect=failure), \
+                mock.patch("sys.stderr") as stderr:
+            self.assertEqual(build.main(["--repo", str(self.root)]), 2)
+
+        self.assertIn("adr/0001.md", "".join(call.args[0] for call in stderr.write.call_args_list))
+
+
 if __name__ == "__main__":
     unittest.main()

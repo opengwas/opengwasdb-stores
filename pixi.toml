@@ -301,6 +301,7 @@ docs = { cmd = "bash tools/build-site.sh" }
 # check) beside Quarto, so it runs in `dev` whichever environment is default.
 #
 #   pixi run site                     # render; the served-path check fails a drop
+#   pixi run site --jobs 8            # render over 8 Quarto processes (default 24; 1 is Quarto alone)
 #   pixi run site-preview             # stage, then Quarto's live-reloading preview
 #   pixi run site-publish --dry-run   # render origin/main and commit gh-pages, no push
 #
