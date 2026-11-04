@@ -94,11 +94,10 @@ pipeline does not emit a reference-completed bundle: each published Observed-Onl
 Store is completed on the Store Release Build side, by a `complete` block in the
 accepted bundle, the one amendment ADR 0037 allows (#305), after which the run
 completes that Store under its own id. OGS-00012 (EUR, against the UKB EUR
-panel) and OGS-00014 (AMR, against the HGDP+1kGP AMR panel) are completed;
-OGS-00013 (AFR) and OGS-00015 (EAS) declare completion against the HGDP+1kGP
-panel for their own ancestry and await that run; OGS-00016 (META) stays
-observed-only by policy, because cross-ancestry membership is not eligible for
-reference completion. `config-candidate.yaml`'s `completion_reference` entries
+panel), OGS-00013 (AFR), OGS-00014 (AMR) and OGS-00015 (EAS) are completed; the
+last three against the HGDP+1kGP panel for their own ancestry. OGS-00016 (META)
+stays observed-only by policy, because cross-ancestry membership is not eligible
+for reference completion. `config-candidate.yaml`'s `completion_reference` entries
 are the retired #221 plan's and remain pending, on hold or blocked: what
 qualifies and activates a reference for a Store is that Store's `complete`
 block, not this file. The retired generator's `<observed
