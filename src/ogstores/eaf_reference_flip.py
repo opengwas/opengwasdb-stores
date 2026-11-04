@@ -35,8 +35,9 @@ Safety, in the order it happens:
 1. The release lock is taken (never waited for) -- by `--dry-run` too -- after
    the same refusals `se_reencode` makes: a registered id, a non-symlinked
    Store, no publication or completion in progress, and the imported *and* PATH
-   `opengwasdb` both the tracked pin.  A receipt that already exists refuses:
-   `1 - (1 - x)` is `x`, so a second run silently restores the bug.
+   `opengwasdb` both the commit `pixi.lock` resolves.  A receipt that already
+   exists refuses: `1 - (1 - x)` is `x`, so a second run silently restores the
+   bug.
 2. Only a Dense, format-0.2.0, Zarr-v3, `reference_completed` Store is in
    scope.  Ragged, Hybrid, Zarr v2 and Observed-Only Stores are refused with
    the reason, never skipped; so is a top-hit tier without `eaf` or `imputed`

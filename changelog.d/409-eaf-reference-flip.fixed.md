@@ -21,9 +21,10 @@
   original at <path>`) and suggests clearing it only when nothing moved. It refuses a second
   run, a Ragged, Zarr v2, Observed-Only or non-0.2.0 Store, a top-hit tier
   without `eaf` or `imputed`, a Store without its completion mask, a Store that
-  does not read inverted (`r < -0.9` before, `r > 0.9` after), and a runtime
-  that is not the pinned one; `--dry-run` holds the release lock, stages and
-  verifies in a scratch directory and writes nothing. Observed `eaf`,
-  `eaf_baseline`, `z` and the stored SE codes are untouched; the decoded SE of
-  imputed cells moves in a residual-SE Store, which the follow-on re-sync of the
-  top-hit SE (`--resync-se`, below) brings the top-hit tiers back in line with.
+  does not read inverted (`r < -0.9` before, `r > 0.9` after), and an engine
+  other than the commit `pixi.lock` resolves; `--dry-run` holds the release
+  lock, stages and verifies in a scratch directory and writes nothing.
+  Observed `eaf`, `eaf_baseline`, `z` and the stored SE codes are untouched; the
+  decoded SE of imputed cells moves in a residual-SE Store, which the follow-on
+  re-sync of the top-hit SE (`--resync-se`, below) brings the top-hit tiers back
+  in line with.

@@ -27,8 +27,8 @@ same comparison reads r = +0.992.
 
 1. **Refusals before any write.** A registered, non-symlinked Store; no
    `publication.json`, `store.opengwasdb.partial` or completion marker; the
-   imported *and* PATH `opengwasdb` both the tracked pin (the same checks
-   `ogstores.se_reencode` makes, called rather than copied); no
+   imported *and* PATH `opengwasdb` both the commit `pixi.lock` resolves (the
+   same checks `ogstores.se_reencode` makes, called rather than copied); no
    `records/eaf-reference-flip.json`; and a Dense / `0.2.0` /
    Zarr-v3 / `reference_completed` Store Manifest. Ragged, Hybrid, Zarr v2 and
    Observed-Only Stores are refused with the reason, never skipped, and so is a

@@ -150,9 +150,11 @@ imports:
   - file: src/ogstores/audit.py
     name: opengwasdb.variants.read_variant_reference
   # Decided by the owner on 2026-11-03 for PR #408 (epic #232): the one-off in-place
-  # repair of OGS-00014 (#409) reads and rewrites encoded EAF and top-hit SE planes,
-  # which the engine's command line does not expose. The tool has run; the coupling
-  # goes when it is retired or the engine gains such an interface.
+  # repair of OGS-00014 (#409) decodes the Store's EAF plane and encoding plan through
+  # these, and collects top-hit SE through the private `_collect_top_hit_se` of
+  # `opengwasdb.layouts.dense.top_hits`, which an engine refactor can break. It writes
+  # the corrected arrays itself; the engine's command line offers neither. The tool
+  # has run; the coupling goes when it is retired or the engine gains such an interface.
   - file: src/ogstores/eaf_reference_flip.py
     name: opengwasdb.encoding.DenseEafPlane
   - file: src/ogstores/eaf_reference_flip.py
