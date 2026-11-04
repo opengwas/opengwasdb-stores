@@ -8,7 +8,8 @@ finished: null
 summary: "Published, rebuilt and Reference-Completed the full Store Releases under their own ids: the MVP observed Stores OGS-00012..16, OGS-00006/09/11 brought to validated, FinnGen OGS-00017 rebuilt, OGS-00011 rebuilt with its 3,169 Analyses, and OGS-00011, OGS-00012, OGS-00013 (AFR), OGS-00014 (AMR), OGS-00015 (EAS) and OGS-00017 completed under single ids. The run found that every HGDP+1kGP LD panel held the other allele's frequency and duplicated variant identities (#348); the five panels were repaired in place, OGS-00001/02 rebuilt and re-completed, OGS-00014's reference EAF flipped and its top-hit SE re-synced (#409), and every completion since was checked for orientation against an independent reference. Every Store it published is in the regenerated release benchmark, measured on a quiet host; OGS-00006's completion (#224) waits on opengwasdb#301."
 prs:
 - opengwasdb-stores#408
-versions: []
+versions:
+- v0.8.0
 tickets:
 - key: opengwasdb#295
   title: "opengwasdb#295 check-observed-view for Hybrid (sibling repo, prerequisite from #302)"
@@ -354,6 +355,12 @@ decisions:
 - date: "2026-11-04"
   text: "2026-11-04 final2-fix (pi flash) merged 93e134ff: sentinel engine identity in the flip/re-sync receipt tests (mutation to locked_commit() fails both), 'tracked pin' reworded, baseline reason corrected (entries unchanged), #228/#230 fragments and dbGaP README state the completions, bench fragment cites load. 141/141, 163.1 s."
   link: null
+- date: "2026-11-04"
+  text: "Epic record docs/_epics/opengwasdb-stores-232.yaml written and validated (2ce51647): yardstick before null / after 20261104T002939Z; catalog before null (oldest version c549c2b9 is 2026-10-23, after the start), after for the owner's post-merge rebuild. PR #408 marked ready; not merged."
+  link: null
+- date: "2026-11-04"
+  text: "PR #408 merged to main by the owner (e7fe79d3, v0.8.0). On the owner's word in chat, the Analysis Catalog was rebuilt from a clean origin/main checkout at e7fe79d3: version 88da43e2534cc126, now current. 10 Stores listed, 12 excluded, none refused; no Analysis added, removed or changed (analyses.tsv.gz byte-identical to 9df14f8d). stores.tsv: OGS-00013 and OGS-00015 now reference_completed (n_variants 40,200,979 and 11,650,615, opengwasdb 0.3.2, new validated_at); OGS-00014's notes carry the #409 erratum."
+  link: null
 test_time:
   baseline:
     commit: "09ff1ba"
@@ -378,7 +385,7 @@ yardstick:
   after: docs/_yardstick/20261104T002939Z-0.3.3.json
 catalog:
   before: null
-  after: null
+  after: "88da43e2534cc126"
 followups:
 - key: opengwasdb-stores#339
   text: "#339 fresh registry checkout makes every published Store look out of date (sub-issue of #232)"
