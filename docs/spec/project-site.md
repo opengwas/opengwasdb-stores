@@ -607,13 +607,13 @@ gaps, upward imports, the seam and ADRs placed; `work` runs last, because it rea
 board and architecture files just written, and adds `BRANCH FETCH FAILED` for a failed fetch), then the files are all written:
 
 ```text
-board: 17 epics, 2 milestones, 16 milestone lines
-catalog: 3 versions, current 1b3a155d449bb84a
-releases: 0 releases, 1 tags
+board: 24 epics, 3 milestones, 24 milestone lines
+catalog: 5 versions, current 88da43e2534cc126
+releases: 26 releases, 27 tags
 stores: 22 stores
-records: 0 epics, 0 invalid, 0 yardstick results, 0 invalid
-architecture: 10 registry + 15 engine components (engine model at main 1a2b3c4d), gaps registry 0/0 engine 0/0 (unclaimed/stale), ...
-work: 3 owners, 2 meets (1 coordinated, 1 uncoordinated), 2 branches
+records: 6 epics, 0 invalid, 5 yardstick results, 0 invalid
+architecture: 10 registry + 17 engine components (engine model at main 42850d8b), gaps registry 0/0 engine 0/0 (unclaimed/stale), 8 upward edges (13 imports), 96 registry->engine imports, 58 of 115 ADRs placed
+work: 14 owners, 10 meets (1 coordinated, 9 uncoordinated, 0 unlinkable), 11 branches
 ```
 
 An unavailable source prints `UNAVAILABLE <source>: <error>` in place of its
