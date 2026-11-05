@@ -104,14 +104,6 @@ imports:
   - file: src/manifest_generation/source_metadata_table.py
     name: opengwasdb.model.enums.StoredEffectScale
   - file: src/ogstores/audit.py
-    name: opengwasdb.build.row_admission.admit_rows
-  - file: src/ogstores/audit.py
-    name: opengwasdb.encoding.plan.EAF_ABSENT
-  - file: src/ogstores/audit.py
-    name: opengwasdb.encoding.plan.EAF_EXCEPTION
-  - file: src/ogstores/audit.py
-    name: opengwasdb.encoding.plan.Z_MISSING
-  - file: src/ogstores/audit.py
     name: opengwasdb.layouts.hybrid.layout.dense_component_path
   - file: src/ogstores/audit.py
     name: opengwasdb.layouts.hybrid.layout.dense_to_shared_path
@@ -120,21 +112,11 @@ imports:
   - file: src/ogstores/audit.py
     name: opengwasdb.model.analyses.read_analysis_records
   - file: src/ogstores/audit.py
-    name: opengwasdb.model.info_score_policy.parse_info_score_policy
-  - file: src/ogstores/audit.py
-    name: opengwasdb.model.maf_policy.parse_maf_policy
-  - file: src/ogstores/audit.py
-    name: opengwasdb.readers.interface.parse_imputation_score
-  - file: src/ogstores/audit.py
-    name: opengwasdb.stats.parse_af
-  - file: src/ogstores/audit.py
     name: opengwasdb.store.arrays.array_length
   - file: src/ogstores/audit.py
     name: opengwasdb.store.open.open_store
   - file: src/ogstores/audit.py
     name: opengwasdb.variants.axis.VariantAxis
-  - file: src/ogstores/audit.py
-    name: opengwasdb.variants.axis.parse_canonical_alid
   - file: src/ogstores/audit.py
     name: opengwasdb.variants.axis.variant_alid_bytes_path
   - file: src/ogstores/audit.py
@@ -143,10 +125,6 @@ imports:
     name: opengwasdb.variants.axis.variant_table_path
   - file: src/ogstores/audit.py
     name: opengwasdb.variants.iter_variant_records
-  - file: src/ogstores/audit.py
-    name: opengwasdb.variants.normalise.VariantNormalisationError
-  - file: src/ogstores/audit.py
-    name: opengwasdb.variants.normalise.normalise_chromosome
   - file: src/ogstores/audit.py
     name: opengwasdb.variants.read_variant_reference
   # Decided by the owner on 2026-11-03 for PR #408 (epic #232): the one-off in-place
