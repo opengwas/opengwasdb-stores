@@ -2688,13 +2688,79 @@ def snakemake_metadata(output: Path) -> Path:
     return REPO_ROOT.joinpath(".snakemake", "metadata", *(["@" + c for c in chunks[:-1]] + chunks[-1:]))
 
 
+#: Every builder command, each of which requires `--admission-record` at the
+#: pinned runtime (opengwas/opengwasdb#357, #428).
+BUILDER_COMMANDS: tuple[str, ...] = (
+    "build-dense", "build-dense-vcf", "build-hybrid", "build-hybrid-from-catalogue",
+    "build-ragged-ssf", "build-ragged-besd",
+)
+
+
+def install_builder_shim(root: Path) -> Path:
+    """A small `opengwasdb` that lets an archived revision's builds run at the pinned runtime.
+
+    The pinned runtime requires two arguments that code from before them
+    cannot name, and this adds each at the edge, to the builder's argv only:
+
+    - `--association-coverage $OGSTORES_FIXTURE_COVERAGE` on the two Ragged
+      builders, when that variable is set (opengwas/opengwasdb#298, #341);
+    - `--admission-record` on every builder that names none, beside the Store's
+      final path, as `plan()` now names it (opengwas/opengwasdb#357, #428).
+
+    The Store's records are still that run's own: `run.py` records the argv it
+    planned, which names neither token, and which is the state under test. The
+    shim sits in an install prefix whose `site-packages` is this environment's,
+    so the runtime guard proves the real revision from the real metadata.
+    Returns the directory to put first on `PATH`.
+    """
+    shim_root = root / "runtime-shim"
+    (shim_root / "bin").mkdir(parents=True)
+    python_dir = f"python{sys.version_info.major}.{sys.version_info.minor}"
+    (shim_root / "lib" / python_dir).mkdir(parents=True)
+    (shim_root / "lib" / python_dir / "site-packages").symlink_to(
+        Path(sys.prefix) / "lib" / python_dir / "site-packages", target_is_directory=True
+    )
+    real_opengwasdb = Path(run.get_opengwasdb_executable())
+    shim = shim_root / "bin" / "opengwasdb"
+    shim.write_text(
+        f"""#!{sys.executable}
+# Test fixture only: archived code cannot declare a coverage (#341) or name an
+# Admission record (#428), and the pinned runtime requires both
+# (opengwas/opengwasdb#298, #357).
+import os
+import sys
+
+argv = sys.argv[1:]
+coverage = os.environ.get("OGSTORES_FIXTURE_COVERAGE")
+if coverage and argv[:1] in (["build-ragged-ssf"], ["build-ragged-besd"]):
+    argv = [argv[0], "--association-coverage", coverage, *argv[1:]]
+flag = "--admission-record"
+# Only a build into the staged Store: the runtime guard's capability probe
+# (`<command> --help`) passes through unchanged, and so does anything else,
+# which the real builder then refuses for itself.
+staged = [token for token in argv if token.endswith("/store.opengwasdb.partial")]
+if argv[:1] and argv[0] in {BUILDER_COMMANDS!r} and len(staged) == 1 and not any(
+    token == flag or token.startswith(flag + "=") for token in argv
+):
+    argv = [*argv, flag, staged[0][: -len(".partial")] + ".admission"]
+os.execv({str(real_opengwasdb)!r}, [{str(real_opengwasdb)!r}, *argv])
+""",
+        encoding="utf-8",
+    )
+    shim.chmod(0o755)
+    return shim_root / "bin"
+
+
 def pre_304_completion_template() -> dict[str, Any]:
     """A Store built before #304, then completed by the current code, once per process (#305).
 
     The Observed-Only Store is built and published by the workflow as it was
     at `PRE_304_REVISION`. That revision runs from an archive of itself, with
     its own `ogstores` ahead of this checkout's editable install, and is
-    repinned to the runtime this environment provides (below). The archive's
+    repinned to the runtime this environment provides (below). Its build runs
+    through `install_builder_shim`, which names the Admission record the
+    pinned runtime requires and that revision cannot (#428); its records keep
+    the argv that revision planned. The archive's
     `.snakemake` is this checkout's, so the current code later reads that
     run's Snakemake metadata, as an operator's checkout would after a pull.
 
@@ -2753,7 +2819,11 @@ def pre_304_completion_template() -> dict[str, Any]:
     # The archived revision's code, not this checkout's: put it ahead of the
     # editable install for every process the old entry point starts.
     old_code = checkout / "src"
-    old_env = {**os.environ, "PYTHONPATH": str(old_code)}
+    old_env = {
+        **os.environ,
+        "PYTHONPATH": str(old_code),
+        "PATH": f"{install_builder_shim(root)}{os.pathsep}{os.environ['PATH']}",
+    }
     imported = subprocess.run(
         [sys.executable, "-c", "import ogstores; print(ogstores.__file__)"],
         cwd=checkout, env=old_env, capture_output=True, text=True, check=True,
@@ -4685,6 +4755,15 @@ def _without_declared_coverage(argv: list[str], declared: str) -> list[str]:
     return [*argv[:index], *argv[index + 2:]]
 
 
+def _without_admission_record(argv: list[str], store_id: str, artifact_root: Path) -> list[str]:
+    """`argv` with the one `--admission-record <path>` pair #428 composes removed."""
+    positions = [index for index, token in enumerate(argv) if token == "--admission-record"]
+    assert len(positions) == 1, f"expected one --admission-record in {argv}"
+    index = positions[0]
+    assert argv[index + 1] == str(paths.admission_record_path(store_id, root=artifact_root)), argv
+    return [*argv[:index], *argv[index + 2:]]
+
+
 def pre_341_published_store() -> dict[str, Any]:
     """A Ragged Store built and published by the pre-#341 workflow, once per process.
 
@@ -4700,14 +4779,13 @@ def pre_341_published_store() -> dict[str, Any]:
     - the runtime pin is repinned to the one this environment provides, that
       code's own way to run another runtime (stores#218), as
       `pre_304_completion_template` does; and
-    - `build-ragged-ssf` requires an Association Coverage at the pinned runtime
-      (opengwas/opengwasdb#298), which code that predates #341 cannot name. A
-      small `opengwasdb` on `PATH` ahead of the real one adds the flag to the
-      two Ragged builders' argv, so the *builder* can run. The Store's records
-      are still that run's own: `run.py` records the argv it planned, which
-      names no such token, and which is the state under test. The shim sits in
-      an install prefix whose `site-packages` is this environment's, so the
-      runtime guard proves the real revision from the real metadata.
+    - `build-ragged-ssf` requires an Association Coverage (opengwas/opengwasdb#298)
+      and an Admission record (opengwas/opengwasdb#357) at the pinned runtime,
+      which code that predates #341 cannot name. `install_builder_shim`, a
+      small `opengwasdb` on `PATH` ahead of the real one, adds both to the
+      builder's argv, so the *builder* can run. The Store's records are still
+      that run's own: `run.py` records the argv it planned, which names
+      neither token, and which is the state under test.
     """
     global _PRE_341_PUBLISHED
     if _PRE_341_PUBLISHED is not None:
@@ -4746,31 +4824,7 @@ def pre_341_published_store() -> dict[str, Any]:
         encoding="utf-8",
     )
 
-    shim_root = root / "runtime-shim"
-    (shim_root / "bin").mkdir(parents=True)
-    python_dir = f"python{sys.version_info.major}.{sys.version_info.minor}"
-    (shim_root / "lib" / python_dir).mkdir(parents=True)
-    (shim_root / "lib" / python_dir / "site-packages").symlink_to(
-        Path(sys.prefix) / "lib" / python_dir / "site-packages", target_is_directory=True
-    )
-    real_opengwasdb = Path(run.get_opengwasdb_executable())
-    shim = shim_root / "bin" / "opengwasdb"
-    shim.write_text(
-        f"""#!{sys.executable}
-# Test fixture only: the pre-#341 code cannot declare a coverage, and the pinned
-# runtime requires one for the Ragged builders (opengwas/opengwasdb#298).
-import os
-import sys
-
-coverage = os.environ["OGSTORES_FIXTURE_COVERAGE"]
-argv = sys.argv[1:]
-if argv[:1] in (["build-ragged-ssf"], ["build-ragged-besd"]):
-    argv = [argv[0], "--association-coverage", coverage, *argv[1:]]
-os.execv({str(real_opengwasdb)!r}, [{str(real_opengwasdb)!r}, *argv])
-""",
-        encoding="utf-8",
-    )
-    shim.chmod(0o755)
+    shim_bin = install_builder_shim(root)
 
     # The archived run's Snakemake metadata must land where the current code
     # reads it, which is this run's working directory, not always the checkout.
@@ -4782,7 +4836,7 @@ os.execv({str(real_opengwasdb)!r}, [{str(real_opengwasdb)!r}, *argv])
     old_env = {
         **os.environ,
         "PYTHONPATH": str(old_code),
-        "PATH": f"{shim_root / 'bin'}{os.pathsep}{os.environ['PATH']}",
+        "PATH": f"{shim_bin}{os.pathsep}{os.environ['PATH']}",
         "OGSTORES_FIXTURE_COVERAGE": RAGGED_FIXTURE_COVERAGE,
     }
     imported = subprocess.run(
@@ -4874,6 +4928,9 @@ class TestWorkflowKeepingAStorePublishedBefore341(PublishedReleaseCopies):
         )
         self.assertNotIn("--association-coverage", record["argv"])
         self.assertNotIn("--association-coverage", record["planned_argv"])
+        # Nor an Admission record: the shim added one to the builder's argv only (#428).
+        self.assertNotIn("--admission-record", record["argv"])
+        self.assertNotIn("--admission-record", record["planned_argv"])
 
         # 3. What makes the guard mean something: this run has metadata to compare
         # against, so "Nothing to be done" is about triggers, not about missing
@@ -4901,20 +4958,25 @@ class TestWorkflowKeepingAStorePublishedBefore341(PublishedReleaseCopies):
             "the run rewrote a record or a work file",
         )
 
-        # 5. The change is real: this branch plans the flag, and the plan is the
-        # recorded argv with exactly those two tokens added. What keeps the Store
-        # up to date is that no rerun trigger reads an argv token at all, not
-        # that the argv is unchanged.
+        # 5. The change is real: this branch plans both flags, and the plan is
+        # the recorded argv with exactly those two pairs added (#341, #428).
+        # What keeps the Store up to date is that no rerun trigger reads an
+        # argv token at all, not that the argv is unchanged.
         loaded = bundle.load(self.STORE_ID, registry_root=self.template["stores"])
         planned = plan(loaded, artifact_root=self.template["artifacts"])[0]
         self.assertIn("--association-coverage", planned.argv)
+        self.assertIn("--admission-record", planned.argv)
         executed = register.normalize_executed_argv_for_staging(
             record["argv"], self.STORE_ID, artifact_root=self.template["artifacts"]
         )
         self.assertEqual(
-            _without_declared_coverage(planned.argv, RAGGED_FIXTURE_COVERAGE),
+            _without_admission_record(
+                _without_declared_coverage(planned.argv, RAGGED_FIXTURE_COVERAGE),
+                self.STORE_ID,
+                self.template["artifacts"],
+            ),
             executed,
-            "the plan and the record differ by more than the added flag",
+            "the plan and the record differ by more than the added flags",
         )
 
 
@@ -4953,13 +5015,15 @@ class TestWorkflowCompletingAStorePublishedBefore341(PublishedReleaseCopies):
         *,
         declared: str = RAGGED_FIXTURE_COVERAGE,
         recorded_coverage: str | None = None,
+        recorded_admission_record: str | None = None,
         build_options: dict[str, Any] | None = None,
     ) -> tuple[bundle.Bundle, Path]:
         """A copy of the published release whose bundle gained its `complete` block.
 
-        `recorded_coverage` appends a coverage the *record* names, for the case
-        that must still be refused; `build_options` replaces the recipe's build
-        options, for the same reason.
+        `recorded_coverage` and `recorded_admission_record` append a coverage
+        or an Admission record the *record* names, for the cases that must
+        still be refused; `build_options` replaces the recipe's build options,
+        for the same reason.
         """
         stores, artifacts = self.published_copy(self.template["stores"], self.template["artifacts"])
         build_p = stores / self.STORE_ID / "build.yaml"
@@ -4975,24 +5039,31 @@ class TestWorkflowCompletingAStorePublishedBefore341(PublishedReleaseCopies):
         release_doc["association_coverage"] = declared
         release_p.write_text(yaml.safe_dump(release_doc), encoding="utf-8")
 
+        record_p = paths.record_path(self.STORE_ID, "build", root=artifacts)
+        record = json.loads(record_p.read_text(encoding="utf-8"))
         if recorded_coverage is not None:
-            record_p = paths.record_path(self.STORE_ID, "build", root=artifacts)
-            record = json.loads(record_p.read_text(encoding="utf-8"))
             record["planned_argv"] = [*record["planned_argv"], "--association-coverage", recorded_coverage]
+        if recorded_admission_record is not None:
+            record["planned_argv"] = [*record["planned_argv"], "--admission-record", recorded_admission_record]
+        if recorded_coverage is not None or recorded_admission_record is not None:
             run._write_record_atomically(record, record_p)
         return bundle.load(self.STORE_ID, registry_root=stores), artifacts
 
     def test_a_legacy_store_may_gain_its_completion_but_no_other_amendment(self) -> None:
         """The exception, its boundary, and everything it does not cover, in one method."""
         # 1. The Store published before #341 passes the amendment check: the
-        #    plan differs from its record by the declared flag alone.
+        #    plan differs from its record by the declared flag and the composed
+        #    Admission record alone (#341, #428), and the record names neither.
         loaded, artifacts = self.amended_copy()
+        record = json.loads(paths.record_path(self.STORE_ID, "build", root=artifacts).read_text(encoding="utf-8"))
+        self.assertNotIn("--admission-record", record["planned_argv"])
         self.assertEqual(
             amendment.bundle_changes(loaded, artifacts),
             [],
             "a published Ragged Store may gain its completion without a rebuild",
         )
         self.assertIn("--association-coverage", plan(loaded, artifact_root=artifacts)[0].argv)
+        self.assertIn("--admission-record", plan(loaded, artifact_root=artifacts)[0].argv)
 
         # 2. A record that names another coverage is still refused, naming both.
         mismatched, mismatched_artifacts = self.amended_copy(recorded_coverage="cis")
@@ -5007,6 +5078,16 @@ class TestWorkflowCompletingAStorePublishedBefore341(PublishedReleaseCopies):
         other = amendment.bundle_changes(changed, changed_artifacts)
         self.assertEqual(len(other), 1, other)
         self.assertIn("stored-effect-scale", other[0])
+
+        # 4. A record that names an Admission record anywhere else is refused:
+        #    the exception is for a record that predates the flag, not one that
+        #    put the record somewhere the plan does not (#428).
+        elsewhere, elsewhere_artifacts = self.amended_copy(recorded_admission_record="/elsewhere.admission")
+        moved = amendment.bundle_changes(elsewhere, elsewhere_artifacts)
+        self.assertEqual(len(moved), 1, moved)
+        self.assertIn("/elsewhere.admission", moved[0])
+        # Planned under the root the record names (`record_path`), the archived run's.
+        self.assertIn(str(paths.admission_record_path(self.STORE_ID, root=self.template["artifacts"])), moved[0])
 
 
 if __name__ == "__main__":

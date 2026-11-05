@@ -65,7 +65,7 @@ See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0024.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -343,6 +343,31 @@ def completion_step_name(name: str) -> str:
 def release_register(bundle: Bundle) -> str:
     """The register record that finishes a release: its last phase's (ADR 0037)."""
     return REGISTER_STEPS[COMPLETION_PHASE if bundle.completes_own_store else BUILD_PHASE]
+
+
+def planned_before_admission_record(
+    argv: Sequence[str], store_id: str, artifact_root: Path | str
+) -> list[str] | None:
+    """`argv` as a build step was planned before #428: without its composed `--admission-record` pair.
+
+    A Store published before #428 has a `build` record that names no
+    Admission record, while `plan()` now composes one. The flag only says where
+    the builder writes its side record; the Store's data does not depend on
+    it. So the amendment check and `register` accept a record equal to this
+    argv (ADR 0037, amended by #428). None unless `argv` names the pair exactly
+    once, at the path `plan()` composes for `store_id` under `artifact_root`:
+    only the registry's own pair is ever set aside, never a path a record put
+    somewhere else. A record that names any Admission record is compared whole.
+    """
+    flag = f"--{ADMISSION_RECORD_FLAG}"
+    positions = [index for index, token in enumerate(argv) if token == flag or token.startswith(f"{flag}=")]
+    if len(positions) != 1:
+        return None
+    index = positions[0]
+    composed = str(paths.admission_record_path(store_id, root=artifact_root))
+    if argv[index] != flag or index + 1 >= len(argv) or argv[index + 1] != composed:
+        return None
+    return [*argv[:index], *argv[index + 2:]]
 
 
 def render_options(options: dict[str, Any] | None) -> list[str]:
@@ -1046,6 +1071,7 @@ __all__ = [
     "completion_step_name",
     "indexed_subset_declarations",
     "plan",
+    "planned_before_admission_record",
     "release_register",
     "render_options",
 ]
