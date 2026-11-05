@@ -3268,10 +3268,11 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
     Observed-Only Store published and the completed Store staged and
     validated, its records naming the copy's paths. The copy's run
     has only the check and `completion-register` left, and is paused as the
-    check starts. An observed Z of the staged Store is perturbed through
-    opengwasdb's plane `patch` API. The check then fails, `completion-register`
-    never runs, and the Observed-Only Store the build phase published is
-    exactly as it was.
+    check starts. An observed Z of the staged Store is perturbed by rewriting
+    its cell whole through opengwasdb's Association Codec (`shift_z`; the
+    plane `patch` API went with opengwasdb#350, #430). The check then fails,
+    `completion-register` never runs, and the Observed-Only Store the build
+    phase published is exactly as it was.
 
     A subclass runs the same test on another layout's release: its template,
     the cell it perturbs (`tamper`), the failure that names, and the
@@ -3294,15 +3295,48 @@ class TestWorkflowSingleIdFailingObservedViewCheck(unittest.TestCase):
 
     def tamper(self, staged_p: Path) -> None:
         """Perturb one observed Z of the staged completed Store."""
-        import numpy as np
-        from opengwasdb.encoding import DenseZPlane
         from opengwasdb.store.open import open_store
 
-        found = query_store(staged_p).lookup([SIGNAL_ALID[0]], [f"test_analysis_{self.STORE_ID}"])
-        rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
-        opened = open_store(staged_p)
-        plane = DenseZPlane.open(opened.arrays(mode="r+"), opened.manifest.encoding)
-        plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
+        self.shift_z(open_store(staged_p), staged_p, SIGNAL_ALID[0])
+
+    def shift_z(self, component: Any, component_p: Path, alid: str, shift: float = 1.0) -> None:
+        """Move one observed association's Z by `shift`, writing its cell whole (#430).
+
+        opengwasdb writes a cell's Z, SE and EAF together (`AssociationCodec`,
+        then `write_dense_cells`, opengwasdb ADR 0077), so the SE and EAF go
+        back as they decode now and the imputed flag is left as it is. The cell
+        is read before and after, so a write that planted nothing, or moved
+        more than the Z, fails here rather than as an unexplained verdict.
+        """
+        import numpy as np
+        from opengwasdb.encoding import AssociationCodec, CellValues, Placement, write_dense_cells
+
+        analysis_id = f"test_analysis_{self.STORE_ID}"
+        before = query_store(component_p).lookup([alid], [analysis_id])
+        self.assertEqual(list(before["association_status"]), ["observed"], "the cell to perturb is not observed")
+        self.assertTrue(np.isfinite(before["z"][0]) and np.isfinite(before["se"][0]), dict(before))
+        rows = np.array([int(before["variant_index"][0])])
+        cols = np.array([int(before["analysis_index"][0])])
+        group = component.arrays(mode="r+")
+        encoding = component.manifest.encoding
+        eaf = np.asarray(before["eaf"], dtype=np.float32) if "eaf" in group else None
+        encoded = AssociationCodec.of_component(group, encoding).encode(
+            CellValues(
+                np.asarray(before["z"], dtype=np.float32) + np.float32(shift),
+                np.asarray(before["se"], dtype=np.float32),
+                eaf,
+            ),
+            Placement.pairs(rows, cols, int(group["z"].shape[1])),
+            where="the Observed-View Check test's tamper",
+        )
+        write_dense_cells(group, encoding, rows, cols, encoded)
+
+        after = query_store(component_p).lookup([alid], [analysis_id])
+        self.assertEqual(list(after["association_status"]), ["observed"])
+        self.assertAlmostEqual(float(after["z"][0]), float(before["z"][0]) + shift, places=3)
+        self.assertNotAlmostEqual(float(after["z"][0]), float(before["z"][0]), places=3)
+        self.assertEqual(float(after["se"][0]), float(before["se"][0]))
+        np.testing.assert_array_equal(after["eaf"], before["eaf"])
 
     @staticmethod
     def hash_tree(root: Path) -> dict[str, str]:
@@ -3397,8 +3431,6 @@ class TestWorkflowSingleIdHybridFailingObservedViewCheck(TestWorkflowSingleIdFai
 
     def tamper(self, staged_p: Path) -> None:
         """Perturb the crossover's Z in the staged Store's Dense Component."""
-        import numpy as np
-        from opengwasdb.encoding import DenseZPlane
         from opengwasdb.store.open import open_store
 
         # The held-out position is on the variant reference, which the
@@ -3406,11 +3438,7 @@ class TestWorkflowSingleIdHybridFailingObservedViewCheck(TestWorkflowSingleIdFai
         self.assertNotIn(SIGNAL_HELD_OUT_INDEX, HYBRID_OFF_REFERENCE_INDEXES)
         component = open_store(staged_p).dense_component()
         (crossover,) = set(HYBRID_OFF_REFERENCE_INDEXES) & set(HYBRID_PANEL_INDEXES)
-        found = query_store(component.path).lookup([SIGNAL_ALID[crossover]], [f"test_analysis_{self.STORE_ID}"])
-        self.assertEqual(list(found["association_status"]), ["observed"])
-        rows, cols = np.array([int(found["variant_index"][0])]), np.array([int(found["analysis_index"][0])])
-        plane = DenseZPlane.open(component.arrays(mode="r+"), component.manifest.encoding)
-        plane.patch(rows, cols, plane.points(rows, cols) + 1.0)
+        self.shift_z(component, component.path, SIGNAL_ALID[crossover])
 
 
 class TestWorkflowSingleIdHybridReferenceCompletion(unittest.TestCase):
