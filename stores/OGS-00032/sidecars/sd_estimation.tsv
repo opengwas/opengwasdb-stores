@@ -1,0 +1,710 @@
+analysis_id	source_analysis_id	status	skip_reason	af_source	ancestry_reference_id	original_sd	original_sd_method	n_variants_considered	n_variants_overlapping	n_variants_excluded_ambiguous	n_variants_excluded_mismatch	n_variants_excluded_missing_af	n_variants_excluded_maf	n_variants_retained	maf_min	maf_max	implied_sd_median	sd_dispersion	estimator_version	sd_notes
+GCST001404	GCST001404	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST001685	GCST001685	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST003467	GCST003467	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST004904	GCST004904	passed		source		1.00439	estimated_from_source_maf	5925633						20000	0.01	0.5	1.00439	0.00736293	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST006090	GCST006090	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006091	GCST006091	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006092	GCST006092	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006093	GCST006093	passed		source		2.20984	estimated_from_source_maf	559064						20000	0.01	0.5	2.20984	0.0181845	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST006094	GCST006094	passed		source		2.01251	estimated_from_source_maf	559075						20000	0.01	0.5	2.01251	0.0126679	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST006095	GCST006095	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006096	GCST006096	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006246	GCST006246	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006619	GCST006619	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006636	GCST006636	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006637	GCST006637	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006638	GCST006638	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006639	GCST006639	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006640	GCST006640	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006641	GCST006641	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006642	GCST006642	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006643	GCST006643	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006644	GCST006644	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006645	GCST006645	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006646	GCST006646	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006647	GCST006647	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006648	GCST006648	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006649	GCST006649	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006650	GCST006650	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006651	GCST006651	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006652	GCST006652	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006653	GCST006653	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006654	GCST006654	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006655	GCST006655	passed		source		1.42695	estimated_from_source_maf	558810						20000	0.01	0.5	1.42695	0.00810342	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST006656	GCST006656	passed		source		2.42885	estimated_from_source_maf	572141						20000	0.01	0.5	2.42885	0.00797025	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST006657	GCST006657	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST006719	GCST006719	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST007344	GCST007344	warning		source		37.1548	estimated_from_source_maf	6616427						20000	0.01	0.5	37.1548	2.79459	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST009869	GCST009869	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST010006	GCST010006	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST010118	GCST010118	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST011096	GCST011096	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST011920	GCST011920	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST012141	GCST012141	passed		source		0.0170764	estimated_from_source_maf	6738286						20000	0.01	0.5	0.0170764	0.00121637	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST012142	GCST012142	passed		source		0.0204273	estimated_from_source_maf	6738286						20000	0.01	0.5	0.0204273	0.00167258	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST012143	GCST012143	passed		source		0.0347577	estimated_from_source_maf	6738286						20000	0.01	0.5	0.0347577	0.00180086	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST012144	GCST012144	passed		source		0.0144521	estimated_from_source_maf	6738286						20000	0.01	0.5	0.0144521	0.00177427	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002226	GCST90002226	passed		source		2.12042	estimated_from_source_maf	7247656						20000	0.01	0.5	2.12042	0.171879	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002231	GCST90002231	passed		source		0.598384	estimated_from_source_maf	8791779						20000	0.01	0.5	0.598384	0.0494996	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002237	GCST90002237	passed		source		0.635763	estimated_from_source_maf	8756602						20000	0.01	0.5	0.635763	0.0569201	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002243	GCST90002243	passed		source		0.38368	estimated_from_source_maf	8825235						20000	0.01	0.5	0.38368	0.033057	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002283	GCST90002283	passed		source		9.42048	estimated_from_source_maf	6733458						20000	0.01	0.5	9.42048	0.0349351	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002284	GCST90002284	passed		source		7.42477	estimated_from_source_maf	6733458						20000	0.01	0.5	7.42477	0.0245949	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002293	GCST90002293	passed		source		1.02792	estimated_from_source_maf	9271715						20000	0.01	0.5	1.02792	0.0303698	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002299	GCST90002299	passed		source		1.02781	estimated_from_source_maf	9271533						20000	0.01	0.5	1.02781	0.0302453	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002305	GCST90002305	passed		source		1.02714	estimated_from_source_maf	9268379						20000	0.01	0.5	1.02714	0.0293453	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002311	GCST90002311	passed		source		1.03248	estimated_from_source_maf	9279814						20000	0.01	0.5	1.03248	0.0320176	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002317	GCST90002317	passed		source		1.02789	estimated_from_source_maf	9270862						20000	0.01	0.5	1.02789	0.0302558	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002323	GCST90002323	passed		source		1.02712	estimated_from_source_maf	9268951						20000	0.01	0.5	1.02712	0.0292226	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002329	GCST90002329	passed		source		1.02689	estimated_from_source_maf	9253757						20000	0.01	0.5	1.02689	0.0290316	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002335	GCST90002335	passed		source		1.0273	estimated_from_source_maf	9268894						20000	0.01	0.5	1.0273	0.029388	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002341	GCST90002341	passed		source		1.02769	estimated_from_source_maf	9270849						20000	0.01	0.5	1.02769	0.0301507	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002352	GCST90002352	passed		source		1.02878	estimated_from_source_maf	9271930						20000	0.01	0.5	1.02878	0.0316702	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002358	GCST90002358	passed		source		1.03195	estimated_from_source_maf	9280420						20000	0.01	0.5	1.03195	0.0320037	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002364	GCST90002364	passed		source		1.03189	estimated_from_source_maf	9279587						20000	0.01	0.5	1.03189	0.031833	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002375	GCST90002375	passed		source		1.03228	estimated_from_source_maf	9279541						20000	0.01	0.5	1.03228	0.0319589	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90002424	GCST90002424	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90006987	GCST90006987	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006988	GCST90006988	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006989	GCST90006989	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006990	GCST90006990	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006991	GCST90006991	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006992	GCST90006992	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006993	GCST90006993	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006994	GCST90006994	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006995	GCST90006995	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006996	GCST90006996	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006997	GCST90006997	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006998	GCST90006998	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90006999	GCST90006999	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007000	GCST90007000	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007001	GCST90007001	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007002	GCST90007002	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007003	GCST90007003	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007004	GCST90007004	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007005	GCST90007005	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007006	GCST90007006	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007007	GCST90007007	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007008	GCST90007008	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007009	GCST90007009	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007010	GCST90007010	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007011	GCST90007011	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90007012	GCST90007012	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90011768	GCST90011768	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90011781	GCST90011781	passed		source		1.00339	estimated_from_source_maf	5193325						20000	0.01	0.5	1.00339	0.0334034	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90011782	GCST90011782	passed		source		1.00432	estimated_from_source_maf	5187837						20000	0.01	0.5	1.00432	0.0345815	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90011783	GCST90011783	passed		source		1.00286	estimated_from_source_maf	5193325						20000	0.01	0.5	1.00286	0.0331779	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90011784	GCST90011784	passed		source		1.00267	estimated_from_source_maf	5193325						20000	0.01	0.5	1.00267	0.0331209	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90011866	GCST90011866	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90011884	GCST90011884	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90011892	GCST90011892	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90011893	GCST90011893	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90011894	GCST90011894	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90013413	GCST90013413	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90013534	GCST90013534	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90014052	GCST90014052	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90014053	GCST90014053	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90014238	GCST90014238	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90020047	GCST90020047	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90020054	GCST90020054	passed		source		3.46195	estimated_from_source_maf	5023388						20000	0.01	0.5	3.46195	0.012272	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90020055	GCST90020055	passed		source		2.40257	estimated_from_source_maf	5020899						20000	0.01	0.5	2.40257	0.00852645	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90020056	GCST90020056	passed		source		2.53796	estimated_from_source_maf	5023388						20000	0.01	0.5	2.53796	0.0089605	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90026455	GCST90026455	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90029167	GCST90029167	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90090994	GCST90090994	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90091053	GCST90091053	passed		source		0.900458	estimated_from_source_maf	6900675						20000	0.01	0.5	0.900458	0.0336046	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90093113	GCST90093113	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90094903	GCST90094903	passed		source		11.744	estimated_from_source_maf	4950621						20000	0.01	0.5	11.744	0.034244	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90094904	GCST90094904	passed		source		9.66631	estimated_from_source_maf	4950621						20000	0.01	0.5	9.66631	0.0281903	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100517	GCST90100517	passed		source		1.00061	estimated_from_source_maf	6132769						20000	0.01	0.5	1.00061	0.013575	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100518	GCST90100518	passed		source		0.922133	estimated_from_source_maf	6132769						20000	0.01	0.5	0.922133	0.0125771	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100519	GCST90100519	passed		source		0.997027	estimated_from_source_maf	6132769						20000	0.01	0.5	0.997027	0.0134965	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100520	GCST90100520	passed		source		1.00533	estimated_from_source_maf	6132769						20000	0.01	0.5	1.00533	0.0136437	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100521	GCST90100521	passed		source		0.918553	estimated_from_source_maf	6132769						20000	0.01	0.5	0.918553	0.0125078	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100522	GCST90100522	passed		source		1.00173	estimated_from_source_maf	6132769						20000	0.01	0.5	1.00173	0.0136386	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100523	GCST90100523	passed		source		1.0139	estimated_from_source_maf	6132769						20000	0.01	0.5	1.0139	0.013878	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100524	GCST90100524	passed		source		0.994457	estimated_from_source_maf	6132769						20000	0.01	0.5	0.994457	0.0134781	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100525	GCST90100525	passed		source		1.00824	estimated_from_source_maf	6132769						20000	0.01	0.5	1.00824	0.0136987	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100526	GCST90100526	passed		source		1.01291	estimated_from_source_maf	6132769						20000	0.01	0.5	1.01291	0.0137223	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100527	GCST90100527	passed		source		1.0027	estimated_from_source_maf	6132769						20000	0.01	0.5	1.0027	0.0139092	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100528	GCST90100528	passed		source		0.991852	estimated_from_source_maf	6132769						20000	0.01	0.5	0.991852	0.0135569	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100529	GCST90100529	passed		source		1.01345	estimated_from_source_maf	6132769						20000	0.01	0.5	1.01345	0.0138231	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100530	GCST90100530	passed		source		0.985263	estimated_from_source_maf	6132769						20000	0.01	0.5	0.985263	0.0134228	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100531	GCST90100531	passed		source		0.998341	estimated_from_source_maf	6132769						20000	0.01	0.5	0.998341	0.0135346	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100532	GCST90100532	passed		source		0.962641	estimated_from_source_maf	6132769						20000	0.01	0.5	0.962641	0.0130481	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100533	GCST90100533	passed		source		0.855939	estimated_from_source_maf	6132769						20000	0.01	0.5	0.855939	0.0116249	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100534	GCST90100534	passed		source		0.936363	estimated_from_source_maf	6132769						20000	0.01	0.5	0.936363	0.0126656	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100535	GCST90100535	passed		source		0.986077	estimated_from_source_maf	6132769						20000	0.01	0.5	0.986077	0.013338	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100536	GCST90100536	passed		source		0.998502	estimated_from_source_maf	6132769						20000	0.01	0.5	0.998502	0.0135063	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100537	GCST90100537	passed		source		0.992306	estimated_from_source_maf	6132769						20000	0.01	0.5	0.992306	0.0134392	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100538	GCST90100538	passed		source		1.07707	estimated_from_source_maf	4327746						20000	0.01	0.5	1.07707	0.0398119	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100539	GCST90100539	passed		source		1.0517	estimated_from_source_maf	4327746						20000	0.01	0.5	1.0517	0.0387262	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100540	GCST90100540	passed		source		1.07047	estimated_from_source_maf	4327746						20000	0.01	0.5	1.07047	0.0394542	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100541	GCST90100541	passed		source		1.07386	estimated_from_source_maf	4327746						20000	0.01	0.5	1.07386	0.0395209	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100542	GCST90100542	passed		source		1.07995	estimated_from_source_maf	4327746						20000	0.01	0.5	1.07995	0.0400593	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100543	GCST90100543	passed		source		0.978896	estimated_from_source_maf	4325431						20000	0.01	0.5	0.978896	0.0361727	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100544	GCST90100544	passed		source		1.07171	estimated_from_source_maf	4327746						20000	0.01	0.5	1.07171	0.0394442	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100545	GCST90100545	passed		source		0.988201	estimated_from_source_maf	4327746						20000	0.01	0.5	0.988201	0.036297	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100546	GCST90100546	passed		source		1.0165	estimated_from_source_maf	4325431						20000	0.01	0.5	1.0165	0.0373969	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100547	GCST90100547	passed		source		1.0785	estimated_from_source_maf	4327746						20000	0.01	0.5	1.0785	0.0396894	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100548	GCST90100548	passed		source		1.07135	estimated_from_source_maf	4327746						20000	0.01	0.5	1.07135	0.0394825	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100549	GCST90100549	passed		source		1.05914	estimated_from_source_maf	4327746						20000	0.01	0.5	1.05914	0.0390536	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100550	GCST90100550	passed		source		1.05995	estimated_from_source_maf	4327746						20000	0.01	0.5	1.05995	0.0390567	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100551	GCST90100551	passed		source		1.00029	estimated_from_source_maf	4327746						20000	0.01	0.5	1.00029	0.0368821	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100552	GCST90100552	passed		source		0.973634	estimated_from_source_maf	4327746						20000	0.01	0.5	0.973634	0.0358112	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100553	GCST90100553	passed		source		1.0482	estimated_from_source_maf	4325431						20000	0.01	0.5	1.0482	0.0385916	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100554	GCST90100554	passed		source		1.07532	estimated_from_source_maf	4327746						20000	0.01	0.5	1.07532	0.0397631	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100555	GCST90100555	passed		source		1.0737	estimated_from_source_maf	4327746						20000	0.01	0.5	1.0737	0.0395854	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100556	GCST90100556	passed		source		1.07958	estimated_from_source_maf	4327746						20000	0.01	0.5	1.07958	0.0397877	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100557	GCST90100557	passed		source		1.08323	estimated_from_source_maf	4327746						20000	0.01	0.5	1.08323	0.0398658	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90100558	GCST90100558	passed		source		1.07223	estimated_from_source_maf	4327746						20000	0.01	0.5	1.07223	0.0395151	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90103751	GCST90103751	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90103752	GCST90103752	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90103753	GCST90103753	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90103754	GCST90103754	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90104038	GCST90104038	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90104544	GCST90104544	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90104545	GCST90104545	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90104546	GCST90104546	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90104547	GCST90104547	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90104548	GCST90104548	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90104897	GCST90104897	failed	no_qualifying_evidence	source			estimated_from_source_maf	0						0	0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	unavailable: no_qualifying_evidence
+GCST90129505	GCST90129505	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90132222	GCST90132222	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90132224	GCST90132224	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90132225	GCST90132225	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90132227	GCST90132227	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90134281	GCST90134281	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90165265	GCST90165265	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90239651	GCST90239651	passed		source		1.14482	estimated_from_source_maf	9002042						20000	0.01	0.5	1.14482	0.0243587	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90239657	GCST90239657	passed		source		1.3744	estimated_from_source_maf	8966303						20000	0.01	0.5	1.3744	0.0261955	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90239663	GCST90239663	passed		source		1.3623	estimated_from_source_maf	8966378						20000	0.01	0.5	1.3623	0.0258434	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90239669	GCST90239669	passed		source		1.18887	estimated_from_source_maf	9004810						20000	0.01	0.5	1.18887	0.0256508	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90239675	GCST90239675	passed		source		1.03451	estimated_from_source_maf	8975385						20000	0.01	0.5	1.03451	0.0222389	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90245991	GCST90245991	passed		source		1.21943	estimated_from_source_maf	1119515						20000	0.01	0.5	1.21943	0.0313622	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90256404	GCST90256404	passed		source		0.49935	estimated_from_source_maf	33619						20000	0.01	0.5	0.49935	0.00546765	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90256410	GCST90256410	passed		source		0.342275	estimated_from_source_maf	33625						20000	0.01	0.5	0.342275	0.00371486	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90256416	GCST90256416	passed		source		0.316739	estimated_from_source_maf	35850						20000	0.01	0.5	0.316739	0.00249477	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267938	GCST90267938	passed		source		1.00331	estimated_from_source_maf	8746456						20000	0.01	0.5	1.00331	0.0169742	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267939	GCST90267939	passed		source		0.886124	estimated_from_source_maf	8746456						20000	0.01	0.5	0.886124	0.0150082	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267940	GCST90267940	passed		source		0.979955	estimated_from_source_maf	8746456						20000	0.01	0.5	0.979955	0.0165819	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267941	GCST90267941	passed		source		0.922885	estimated_from_source_maf	8746456						20000	0.01	0.5	0.922885	0.0156216	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267942	GCST90267942	passed		source		0.931379	estimated_from_source_maf	8746456						20000	0.01	0.5	0.931379	0.0157616	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267943	GCST90267943	passed		source		0.90325	estimated_from_source_maf	8746456						20000	0.01	0.5	0.90325	0.0152972	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267944	GCST90267944	passed		source		0.917699	estimated_from_source_maf	8746456						20000	0.01	0.5	0.917699	0.0155363	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267945	GCST90267945	passed		source		0.924237	estimated_from_source_maf	8746456						20000	0.01	0.5	0.924237	0.0156514	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267946	GCST90267946	passed		source		0.896984	estimated_from_source_maf	8746456						20000	0.01	0.5	0.896984	0.0151842	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267947	GCST90267947	passed		source		0.931724	estimated_from_source_maf	8746456						20000	0.01	0.5	0.931724	0.0157776	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267948	GCST90267948	passed		source		0.876773	estimated_from_source_maf	8746456						20000	0.01	0.5	0.876773	0.0148291	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267949	GCST90267949	passed		source		0.967896	estimated_from_source_maf	8746456						20000	0.01	0.5	0.967896	0.0163783	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267950	GCST90267950	passed		source		0.871091	estimated_from_source_maf	8746456						20000	0.01	0.5	0.871091	0.0147532	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267951	GCST90267951	passed		source		0.980315	estimated_from_source_maf	8746456						20000	0.01	0.5	0.980315	0.0165975	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267952	GCST90267952	passed		source		0.852173	estimated_from_source_maf	8746456						20000	0.01	0.5	0.852173	0.0144258	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267953	GCST90267953	passed		source		0.927604	estimated_from_source_maf	8746456						20000	0.01	0.5	0.927604	0.0156911	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267954	GCST90267954	passed		source		0.883222	estimated_from_source_maf	8746456						20000	0.01	0.5	0.883222	0.0149573	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267955	GCST90267955	passed		source		0.983071	estimated_from_source_maf	8746456						20000	0.01	0.5	0.983071	0.0166327	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267956	GCST90267956	passed		source		0.947183	estimated_from_source_maf	8746456						20000	0.01	0.5	0.947183	0.0160137	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267957	GCST90267957	passed		source		0.92627	estimated_from_source_maf	8746456						20000	0.01	0.5	0.92627	0.0156948	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267958	GCST90267958	passed		source		0.930215	estimated_from_source_maf	8746456						20000	0.01	0.5	0.930215	0.0157199	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267959	GCST90267959	passed		source		0.966143	estimated_from_source_maf	8746456						20000	0.01	0.5	0.966143	0.0163658	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267960	GCST90267960	passed		source		0.996083	estimated_from_source_maf	8746456						20000	0.01	0.5	0.996083	0.0168576	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267961	GCST90267961	passed		source		0.897947	estimated_from_source_maf	8746456						20000	0.01	0.5	0.897947	0.0151929	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267962	GCST90267962	passed		source		0.979358	estimated_from_source_maf	8746456						20000	0.01	0.5	0.979358	0.0165791	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267963	GCST90267963	passed		source		0.932693	estimated_from_source_maf	8746456						20000	0.01	0.5	0.932693	0.0157808	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267964	GCST90267964	passed		source		0.934386	estimated_from_source_maf	8746456						20000	0.01	0.5	0.934386	0.0157977	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267965	GCST90267965	passed		source		0.910032	estimated_from_source_maf	8746456						20000	0.01	0.5	0.910032	0.0153863	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267966	GCST90267966	passed		source		0.929729	estimated_from_source_maf	8746456						20000	0.01	0.5	0.929729	0.0157265	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267967	GCST90267967	passed		source		0.923632	estimated_from_source_maf	8746456						20000	0.01	0.5	0.923632	0.0156245	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267968	GCST90267968	passed		source		0.905815	estimated_from_source_maf	8746456						20000	0.01	0.5	0.905815	0.0153282	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267969	GCST90267969	passed		source		0.942141	estimated_from_source_maf	8746456						20000	0.01	0.5	0.942141	0.0159475	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267970	GCST90267970	passed		source		0.889347	estimated_from_source_maf	8746456						20000	0.01	0.5	0.889347	0.0150481	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267971	GCST90267971	passed		source		0.980058	estimated_from_source_maf	8746456						20000	0.01	0.5	0.980058	0.0165836	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267972	GCST90267972	passed		source		0.885268	estimated_from_source_maf	8746456						20000	0.01	0.5	0.885268	0.0149907	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267973	GCST90267973	passed		source		0.953961	estimated_from_source_maf	8746456						20000	0.01	0.5	0.953961	0.0161444	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267974	GCST90267974	passed		source		0.861082	estimated_from_source_maf	8746456						20000	0.01	0.5	0.861082	0.014588	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267975	GCST90267975	passed		source		0.933914	estimated_from_source_maf	8746456						20000	0.01	0.5	0.933914	0.0158131	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267976	GCST90267976	passed		source		0.89438	estimated_from_source_maf	8746456						20000	0.01	0.5	0.89438	0.015122	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267977	GCST90267977	passed		source		1.00311	estimated_from_source_maf	8746456						20000	0.01	0.5	1.00311	0.0169731	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267978	GCST90267978	passed		source		0.95433	estimated_from_source_maf	8746456						20000	0.01	0.5	0.95433	0.0161395	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267979	GCST90267979	passed		source		0.94199	estimated_from_source_maf	8746456						20000	0.01	0.5	0.94199	0.0159475	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267980	GCST90267980	passed		source		0.937395	estimated_from_source_maf	8746456						20000	0.01	0.5	0.937395	0.0158383	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90267981	GCST90267981	passed		source		0.968539	estimated_from_source_maf	8746456						20000	0.01	0.5	0.968539	0.0163824	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90268004	GCST90268004	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90268005	GCST90268005	passed		source		0.969481	estimated_from_source_maf	8677487						20000	0.01	0.5	0.969481	0.00879348	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90269956	GCST90269956	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90270926	GCST90270926	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90270927	GCST90270927	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90270928	GCST90270928	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90270929	GCST90270929	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90274716	GCST90274716	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90277434	GCST90277434	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90278092	GCST90278092	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90278615	GCST90278615	passed		source		1.01236	estimated_from_source_maf	7209230						20000	0.01	0.5	1.01236	0.0341802	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278616	GCST90278616	passed		source		0.964286	estimated_from_source_maf	7210786						20000	0.01	0.5	0.964286	0.0328668	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278617	GCST90278617	passed		source		0.960359	estimated_from_source_maf	7210786						20000	0.01	0.5	0.960359	0.0321775	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278618	GCST90278618	passed		source		0.970916	estimated_from_source_maf	7210786						20000	0.01	0.5	0.970916	0.0334991	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278619	GCST90278619	passed		source		0.84382	estimated_from_source_maf	7210786						20000	0.01	0.5	0.84382	0.0286667	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278620	GCST90278620	passed		source		0.931141	estimated_from_source_maf	7210786						20000	0.01	0.5	0.931141	0.0316403	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278621	GCST90278621	passed		source		1.01504	estimated_from_source_maf	7210786						20000	0.01	0.5	1.01504	0.0344875	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278622	GCST90278622	passed		source		0.992609	estimated_from_source_maf	7210786						20000	0.01	0.5	0.992609	0.0334262	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278623	GCST90278623	passed		source		0.939899	estimated_from_source_maf	7210786						20000	0.01	0.5	0.939899	0.0318913	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278624	GCST90278624	passed		source		0.734361	estimated_from_source_maf	7210786						20000	0.01	0.5	0.734361	0.0248298	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278625	GCST90278625	passed		source		0.96109	estimated_from_source_maf	7210786						20000	0.01	0.5	0.96109	0.032701	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278626	GCST90278626	passed		source		0.816896	estimated_from_source_maf	7209744						20000	0.01	0.5	0.816896	0.0292362	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278627	GCST90278627	passed		source		0.993814	estimated_from_source_maf	7209744						20000	0.01	0.5	0.993814	0.0328454	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278628	GCST90278628	passed		source		0.944866	estimated_from_source_maf	7210786						20000	0.01	0.5	0.944866	0.0319869	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278629	GCST90278629	passed		source		0.680983	estimated_from_source_maf	7209744						20000	0.01	0.5	0.680983	0.0233805	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278630	GCST90278630	passed		source		0.933982	estimated_from_source_maf	7210786						20000	0.01	0.5	0.933982	0.0317568	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278631	GCST90278631	passed		source		0.779358	estimated_from_source_maf	7210786						20000	0.01	0.5	0.779358	0.0264286	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278632	GCST90278632	passed		source		0.944771	estimated_from_source_maf	7210786						20000	0.01	0.5	0.944771	0.0324105	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278633	GCST90278633	passed		source		1.00552	estimated_from_source_maf	7210786						20000	0.01	0.5	1.00552	0.0339456	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278634	GCST90278634	passed		source		0.818833	estimated_from_source_maf	7210786						20000	0.01	0.5	0.818833	0.0283378	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278635	GCST90278635	passed		source		0.918622	estimated_from_source_maf	7210786						20000	0.01	0.5	0.918622	0.0313786	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278636	GCST90278636	passed		source		1.03109	estimated_from_source_maf	7210786						20000	0.01	0.5	1.03109	0.0351113	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278637	GCST90278637	passed		source		0.666431	estimated_from_source_maf	7210786						20000	0.01	0.5	0.666431	0.0226353	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278638	GCST90278638	passed		source		0.985961	estimated_from_source_maf	7210786						20000	0.01	0.5	0.985961	0.0337863	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278639	GCST90278639	passed		source		1.06825	estimated_from_source_maf	7210786						20000	0.01	0.5	1.06825	0.0360296	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278640	GCST90278640	passed		source		0.955934	estimated_from_source_maf	7210786						20000	0.01	0.5	0.955934	0.0321895	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278641	GCST90278641	passed		source		0.845112	estimated_from_source_maf	7210786						20000	0.01	0.5	0.845112	0.0291401	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278642	GCST90278642	passed		source		0.911277	estimated_from_source_maf	7210786						20000	0.01	0.5	0.911277	0.0308656	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278643	GCST90278643	passed		source		0.920876	estimated_from_source_maf	7210786						20000	0.01	0.5	0.920876	0.0360577	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278644	GCST90278644	passed		source		0.979433	estimated_from_source_maf	7210786						20000	0.01	0.5	0.979433	0.033194	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278645	GCST90278645	passed		source		0.958067	estimated_from_source_maf	7210786						20000	0.01	0.5	0.958067	0.0326725	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278646	GCST90278646	passed		source		0.856671	estimated_from_source_maf	7210786						20000	0.01	0.5	0.856671	0.0293446	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278647	GCST90278647	passed		source		1.02186	estimated_from_source_maf	7210786						20000	0.01	0.5	1.02186	0.0345471	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278648	GCST90278648	passed		source		0.961016	estimated_from_source_maf	7210786						20000	0.01	0.5	0.961016	0.0324207	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278649	GCST90278649	passed		source		0.917827	estimated_from_source_maf	7210786						20000	0.01	0.5	0.917827	0.0309031	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278650	GCST90278650	passed		source		0.843569	estimated_from_source_maf	7210786						20000	0.01	0.5	0.843569	0.0283501	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278651	GCST90278651	warning		source		208.942	estimated_from_source_maf	9607651						20000	0.01	0.5	208.942	93.009	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278652	GCST90278652	warning		source		223.576	estimated_from_source_maf	9598658						20000	0.01	0.5	223.576	99.1455	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278653	GCST90278653	warning		source		223.342	estimated_from_source_maf	9598474						20000	0.01	0.5	223.342	99.0949	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278654	GCST90278654	warning		source		229.593	estimated_from_source_maf	9594926						20000	0.01	0.5	229.593	101.833	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278655	GCST90278655	warning		source		222.678	estimated_from_source_maf	9598987						20000	0.01	0.5	222.678	98.8432	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278656	GCST90278656	warning		source		223.433	estimated_from_source_maf	9598535						20000	0.01	0.5	223.433	99.1117	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278657	GCST90278657	warning		source		221.118	estimated_from_source_maf	9600134						20000	0.01	0.5	221.118	98.2092	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278658	GCST90278658	warning		source		215.336	estimated_from_source_maf	9603458						20000	0.01	0.5	215.336	95.6544	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278659	GCST90278659	warning		source		215.292	estimated_from_source_maf	9603543						20000	0.01	0.5	215.292	95.7494	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278660	GCST90278660	warning		source		224.403	estimated_from_source_maf	9597914						20000	0.01	0.5	224.403	99.5574	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278661	GCST90278661	warning		source		183.221	estimated_from_source_maf	9627461						20000	0.01	0.5	183.221	81.7775	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278662	GCST90278662	warning		source		224.655	estimated_from_source_maf	9597438						20000	0.01	0.5	224.655	99.6388	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278663	GCST90278663	warning		source		185.205	estimated_from_source_maf	9626719						20000	0.01	0.5	185.205	82.7404	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278664	GCST90278664	warning		source		230.182	estimated_from_source_maf	9594383						20000	0.01	0.5	230.182	102.071	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278665	GCST90278665	warning		source		184.085	estimated_from_source_maf	9627960						20000	0.01	0.5	184.085	82.2225	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278666	GCST90278666	warning		source		222.651	estimated_from_source_maf	9599220						20000	0.01	0.5	222.651	98.8079	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278667	GCST90278667	warning		source		224.859	estimated_from_source_maf	9597606						20000	0.01	0.5	224.859	99.7353	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278668	GCST90278668	warning		source		221.136	estimated_from_source_maf	9600152						20000	0.01	0.5	221.136	98.2106	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278669	GCST90278669	warning		source		210.807	estimated_from_source_maf	9606448						20000	0.01	0.5	210.807	93.7831	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278670	GCST90278670	warning		source		216.528	estimated_from_source_maf	9602879						20000	0.01	0.5	216.528	96.177	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278671	GCST90278671	warning		source		204.597	estimated_from_source_maf	9611673						20000	0.01	0.5	204.597	91.0583	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278672	GCST90278672	warning		source		213.314	estimated_from_source_maf	9605048						20000	0.01	0.5	213.314	94.9215	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278673	GCST90278673	warning		source		225.265	estimated_from_source_maf	9597342						20000	0.01	0.5	225.265	99.907	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90278674	GCST90278674	warning		source		230.337	estimated_from_source_maf	9594382						20000	0.01	0.5	230.337	102.126	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90295916	GCST90295916	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90295953	GCST90295953	passed		source		0.963351	estimated_from_source_maf	7130345						20000	0.01	0.5	0.963351	0.0171881	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90296498	GCST90296498	passed		source		4.07523	estimated_from_source_maf	4417677						20000	0.01	0.5	4.07523	0.0476359	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90297786	GCST90297786	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90297787	GCST90297787	passed		source		1.29083	estimated_from_source_maf	4136807						20000	0.01	0.5	1.29083	0.0513332	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90297788	GCST90297788	passed		source		1.18268	estimated_from_source_maf	4136808						20000	0.01	0.5	1.18268	0.0470417	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90297789	GCST90297789	passed		source		1.16464	estimated_from_source_maf	4136808						20000	0.01	0.5	1.16464	0.0462453	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90297790	GCST90297790	passed		source		1.18249	estimated_from_source_maf	4136808						20000	0.01	0.5	1.18249	0.0470791	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90297791	GCST90297791	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90302224	GCST90302224	warning		source		1.76972	estimated_from_source_maf	12260909						20000	0.01	0.5	1.76972	0.638932	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90302225	GCST90302225	warning		source		1.76476	estimated_from_source_maf	12260909						20000	0.01	0.5	1.76476	0.637609	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90302226	GCST90302226	warning		source		1.7685	estimated_from_source_maf	12260909						20000	0.01	0.5	1.7685	0.638465	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90302227	GCST90302227	warning		source		1.5849	estimated_from_source_maf	11225130						20000	0.01	0.5	1.5849	0.510941	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90302228	GCST90302228	warning		source		1.58879	estimated_from_source_maf	11225130						20000	0.01	0.5	1.58879	0.511753	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90302229	GCST90302229	warning		source		1.67666	estimated_from_source_maf	11225130						20000	0.01	0.5	1.67666	0.540309	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90302230	GCST90302230	warning		source		1.67673	estimated_from_source_maf	11225130						20000	0.01	0.5	1.67673	0.540386	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90302231	GCST90302231	warning		source		1.66697	estimated_from_source_maf	11225130						20000	0.01	0.5	1.66697	0.537549	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90302232	GCST90302232	warning		source		1.66857	estimated_from_source_maf	11225130						20000	0.01	0.5	1.66857	0.539205	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90302233	GCST90302233	warning		source		1.69094	estimated_from_source_maf	11225130						20000	0.01	0.5	1.69094	0.546003	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90302234	GCST90302234	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90302235	GCST90302235	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90319502	GCST90319502	passed		source		1.02754	estimated_from_source_maf	8523468						20000	0.01	0.5	1.02754	0.0244766	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90319905	GCST90319905	passed		source		1.18821	estimated_from_source_maf	5824630						20000	0.01	0.5	1.18821	0.0135259	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90320065	GCST90320065	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90320257	GCST90320257	passed		source		1.05818	estimated_from_source_maf	5054807						20000	0.01	0.5	1.05818	0.00340301	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90320258	GCST90320258	passed		source		1.05735	estimated_from_source_maf	5054807						20000	0.01	0.5	1.05735	0.00350246	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90320259	GCST90320259	passed		source		1.05692	estimated_from_source_maf	5054807						20000	0.01	0.5	1.05692	0.00325357	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90335162	GCST90335162	passed		source		22.1813	estimated_from_source_maf	8766476						20000	0.01	0.5	22.1813	0.276563	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90335163	GCST90335163	passed		source		21.2138	estimated_from_source_maf	8766476						20000	0.01	0.5	21.2138	0.264561	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90335164	GCST90335164	passed		source		12.3626	estimated_from_source_maf	8766476						20000	0.01	0.5	12.3626	0.154244	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90335165	GCST90335165	passed		source		11.8889	estimated_from_source_maf	8766476						20000	0.01	0.5	11.8889	0.148283	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90335166	GCST90335166	passed		source		14.5988	estimated_from_source_maf	8766476						20000	0.01	0.5	14.5988	0.182262	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90335167	GCST90335167	passed		source		14.2684	estimated_from_source_maf	8766476						20000	0.01	0.5	14.2684	0.178337	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90335168	GCST90335168	passed		source		14.7781	estimated_from_source_maf	8766476						20000	0.01	0.5	14.7781	0.184306	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90335169	GCST90335169	passed		source		14.1016	estimated_from_source_maf	8766476						20000	0.01	0.5	14.1016	0.175865	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90399685	GCST90399685	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90399693	GCST90399693	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90399700	GCST90399700	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90399705	GCST90399705	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90399712	GCST90399712	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90399719	GCST90399719	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90399724	GCST90399724	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90399731	GCST90399731	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90399743	GCST90399743	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90428597	GCST90428597	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90428598	GCST90428598	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90428599	GCST90428599	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90429846	GCST90429846	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90429847	GCST90429847	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90429848	GCST90429848	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90432100	GCST90432100	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90432173	GCST90432173	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90432182	GCST90432182	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90435195	GCST90435195	warning		source		1.71166	estimated_from_source_maf	12254241						20000	0.01	0.5	1.71166	0.619086	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435196	GCST90435196	warning		source		1.47166	estimated_from_source_maf	12254241						20000	0.01	0.5	1.47166	0.532988	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435197	GCST90435197	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90435198	GCST90435198	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90435199	GCST90435199	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90435200	GCST90435200	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90435201	GCST90435201	warning		source		3.26807	estimated_from_source_maf	12254241						20000	0.01	0.5	3.26807	1.18262	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435202	GCST90435202	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90435203	GCST90435203	warning		source		5.4437	estimated_from_source_maf	12254230						20000	0.01	0.5	5.4437	1.98947	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435439	GCST90435439	passed		source		2.28044	estimated_from_source_maf	9067725						20000	0.01	0.5	2.28044	0.0154509	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435440	GCST90435440	passed		source		3.56054	estimated_from_source_maf	9066648						20000	0.01	0.5	3.56054	0.0289027	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435441	GCST90435441	passed		source		4.14073	estimated_from_source_maf	9066341						20000	0.01	0.5	4.14073	0.0312704	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435442	GCST90435442	passed		source		5.85712	estimated_from_source_maf	9065977						20000	0.01	0.5	5.85712	0.0535308	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435443	GCST90435443	passed		source		3.64812	estimated_from_source_maf	9066680						20000	0.01	0.5	3.64812	0.0317114	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435444	GCST90435444	passed		source		2.25172	estimated_from_source_maf	9080916						20000	0.01	0.5	2.25172	0.0133415	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435445	GCST90435445	passed		source		3.52542	estimated_from_source_maf	9079091						20000	0.01	0.5	3.52542	0.02448	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435446	GCST90435446	passed		source		3.91863	estimated_from_source_maf	9079453						20000	0.01	0.5	3.91863	0.0265127	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435447	GCST90435447	passed		source		5.86414	estimated_from_source_maf	9078366						20000	0.01	0.5	5.86414	0.0438896	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90435448	GCST90435448	passed		source		3.69929	estimated_from_source_maf	9079058						20000	0.01	0.5	3.69929	0.0268783	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90444427	GCST90444427	passed		source		1.25488	estimated_from_source_maf	10170890						20000	0.01	0.5	1.25488	0.0404629	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90444428	GCST90444428	passed		source		1.22813	estimated_from_source_maf	8764260						20000	0.01	0.5	1.22813	0.0237178	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90444429	GCST90444429	passed		source		1.35536	estimated_from_source_maf	10170423						20000	0.01	0.5	1.35536	0.0435324	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90444430	GCST90444430	passed		source		1.32661	estimated_from_source_maf	8764429						20000	0.01	0.5	1.32661	0.0256047	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90444489	GCST90444489	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90446793	GCST90446793	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90446795	GCST90446795	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90451675	GCST90451675	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454198	GCST90454198	warning		source		1.58052	estimated_from_source_maf	12260914						20000	0.01	0.5	1.58052	0.571043	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90454199	GCST90454199	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454282	GCST90454282	passed		source		5.35468	estimated_from_source_maf	5630207						20000	0.01	0.5	5.35468	0.0712786	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90454398	GCST90454398	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454399	GCST90454399	passed		source		0.883913	estimated_from_source_maf	7139912						20000	0.01	0.5	0.883913	0.00657398	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90454400	GCST90454400	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454401	GCST90454401	passed		source		0.455259	estimated_from_source_maf	7139912						20000	0.01	0.5	0.455259	0.00325378	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90454402	GCST90454402	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454403	GCST90454403	passed		source		0.748705	estimated_from_source_maf	7139912						20000	0.01	0.5	0.748705	0.00558458	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90454404	GCST90454404	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454405	GCST90454405	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454406	GCST90454406	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454407	GCST90454407	passed		source		0.361773	estimated_from_source_maf	7139912						20000	0.01	0.5	0.361773	0.00256012	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90454408	GCST90454408	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454409	GCST90454409	passed		source		0.72008	estimated_from_source_maf	7139912						20000	0.01	0.5	0.72008	0.00538936	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90454410	GCST90454410	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454411	GCST90454411	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454413	GCST90454413	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454414	GCST90454414	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454415	GCST90454415	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454417	GCST90454417	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90454418	GCST90454418	passed		source		0.62064	estimated_from_source_maf	7139912						20000	0.01	0.5	0.62064	0.00448563	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90473166	GCST90473166	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473173	GCST90473173	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473213	GCST90473213	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473220	GCST90473220	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473407	GCST90473407	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473414	GCST90473414	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473516	GCST90473516	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473519	GCST90473519	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473632	GCST90473632	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473648	GCST90473648	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473678	GCST90473678	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473681	GCST90473681	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473700	GCST90473700	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473711	GCST90473711	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473772	GCST90473772	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473786	GCST90473786	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473830	GCST90473830	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473860	GCST90473860	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473916	GCST90473916	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473932	GCST90473932	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473970	GCST90473970	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90473997	GCST90473997	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90474032	GCST90474032	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90474045	GCST90474045	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90474077	GCST90474077	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90474088	GCST90474088	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90474107	GCST90474107	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90474126	GCST90474126	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90474196	GCST90474196	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90474293	GCST90474293	passed		source		0.940081	estimated_from_source_maf	10114641						20000	0.01	0.5	0.940081	0.00879194	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474298	GCST90474298	passed		source		0.923319	estimated_from_source_maf	10114641						20000	0.01	0.5	0.923319	0.00832296	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474303	GCST90474303	passed		source		0.897112	estimated_from_source_maf	10114641						20000	0.01	0.5	0.897112	0.00817267	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474308	GCST90474308	passed		source		0.902192	estimated_from_source_maf	10114641						20000	0.01	0.5	0.902192	0.00850396	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474313	GCST90474313	passed		source		0.944124	estimated_from_source_maf	10114641						20000	0.01	0.5	0.944124	0.00850065	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474318	GCST90474318	passed		source		0.884389	estimated_from_source_maf	10114641						20000	0.01	0.5	0.884389	0.00797139	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474323	GCST90474323	passed		source		0.902149	estimated_from_source_maf	10114641						20000	0.01	0.5	0.902149	0.00876908	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474328	GCST90474328	passed		source		0.92065	estimated_from_source_maf	10114641						20000	0.01	0.5	0.92065	0.0083666	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474333	GCST90474333	passed		source		0.936635	estimated_from_source_maf	10114641						20000	0.01	0.5	0.936635	0.00872328	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474338	GCST90474338	passed		source		0.94278	estimated_from_source_maf	10114641						20000	0.01	0.5	0.94278	0.00851356	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474343	GCST90474343	passed		source		0.93249	estimated_from_source_maf	10114641						20000	0.01	0.5	0.93249	0.00835072	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474348	GCST90474348	passed		source		0.839258	estimated_from_source_maf	10114641						20000	0.01	0.5	0.839258	0.00761894	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474353	GCST90474353	passed		source		0.910068	estimated_from_source_maf	10114641						20000	0.01	0.5	0.910068	0.00828347	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474358	GCST90474358	passed		source		0.867668	estimated_from_source_maf	10114641						20000	0.01	0.5	0.867668	0.00800259	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474363	GCST90474363	passed		source		0.933111	estimated_from_source_maf	10114641						20000	0.01	0.5	0.933111	0.00866481	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474368	GCST90474368	passed		source		0.913122	estimated_from_source_maf	10114641						20000	0.01	0.5	0.913122	0.00862889	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474373	GCST90474373	passed		source		0.910162	estimated_from_source_maf	10114641						20000	0.01	0.5	0.910162	0.00848505	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474378	GCST90474378	passed		source		0.934379	estimated_from_source_maf	10114641						20000	0.01	0.5	0.934379	0.00859601	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474383	GCST90474383	passed		source		0.941836	estimated_from_source_maf	10114641						20000	0.01	0.5	0.941836	0.0084646	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474388	GCST90474388	passed		source		0.864386	estimated_from_source_maf	10114641						20000	0.01	0.5	0.864386	0.00861629	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474393	GCST90474393	passed		source		0.894622	estimated_from_source_maf	10114641						20000	0.01	0.5	0.894622	0.00831134	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474401	GCST90474401	passed		source		0.927125	estimated_from_source_maf	10114641						20000	0.01	0.5	0.927125	0.00865633	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474407	GCST90474407	passed		source		0.892775	estimated_from_source_maf	10114641						20000	0.01	0.5	0.892775	0.00831993	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474412	GCST90474412	passed		source		0.916424	estimated_from_source_maf	10114641						20000	0.01	0.5	0.916424	0.00858489	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474417	GCST90474417	passed		source		0.924311	estimated_from_source_maf	10114641						20000	0.01	0.5	0.924311	0.00860188	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474422	GCST90474422	passed		source		0.907372	estimated_from_source_maf	10114641						20000	0.01	0.5	0.907372	0.00845895	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474427	GCST90474427	passed		source		0.94551	estimated_from_source_maf	10114641						20000	0.01	0.5	0.94551	0.00850681	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474432	GCST90474432	passed		source		0.894344	estimated_from_source_maf	10114641						20000	0.01	0.5	0.894344	0.00821304	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474437	GCST90474437	passed		source		0.939434	estimated_from_source_maf	10114641						20000	0.01	0.5	0.939434	0.00862452	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474442	GCST90474442	passed		source		0.934922	estimated_from_source_maf	10114641						20000	0.01	0.5	0.934922	0.00878627	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474450	GCST90474450	passed		source		0.943412	estimated_from_source_maf	10114641						20000	0.01	0.5	0.943412	0.00856009	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474455	GCST90474455	passed		source		0.931566	estimated_from_source_maf	10114641						20000	0.01	0.5	0.931566	0.00857417	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474460	GCST90474460	passed		source		0.924249	estimated_from_source_maf	10114641						20000	0.01	0.5	0.924249	0.0081563	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474465	GCST90474465	passed		source		0.912068	estimated_from_source_maf	10114641						20000	0.01	0.5	0.912068	0.00804756	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474470	GCST90474470	passed		source		0.945338	estimated_from_source_maf	10114641						20000	0.01	0.5	0.945338	0.00840666	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474475	GCST90474475	passed		source		0.94021	estimated_from_source_maf	10114641						20000	0.01	0.5	0.94021	0.00840936	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474480	GCST90474480	passed		source		0.887926	estimated_from_source_maf	10114641						20000	0.01	0.5	0.887926	0.007817	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474485	GCST90474485	passed		source		0.882857	estimated_from_source_maf	10114641						20000	0.01	0.5	0.882857	0.00775659	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474490	GCST90474490	passed		source		0.918622	estimated_from_source_maf	10114641						20000	0.01	0.5	0.918622	0.00803351	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474495	GCST90474495	passed		source		0.906281	estimated_from_source_maf	10114641						20000	0.01	0.5	0.906281	0.00799687	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474500	GCST90474500	passed		source		0.911223	estimated_from_source_maf	10114641						20000	0.01	0.5	0.911223	0.00805316	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474505	GCST90474505	passed		source		0.924478	estimated_from_source_maf	10114641						20000	0.01	0.5	0.924478	0.00809242	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474510	GCST90474510	passed		source		0.914811	estimated_from_source_maf	10114641						20000	0.01	0.5	0.914811	0.00821999	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474515	GCST90474515	passed		source		0.937184	estimated_from_source_maf	10114641						20000	0.01	0.5	0.937184	0.00816626	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474520	GCST90474520	passed		source		0.914578	estimated_from_source_maf	10114641						20000	0.01	0.5	0.914578	0.00818956	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474525	GCST90474525	passed		source		0.927829	estimated_from_source_maf	10114641						20000	0.01	0.5	0.927829	0.00804601	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474530	GCST90474530	passed		source		0.939121	estimated_from_source_maf	10114641						20000	0.01	0.5	0.939121	0.00830959	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474535	GCST90474535	passed		source		0.913356	estimated_from_source_maf	10114641						20000	0.01	0.5	0.913356	0.00795332	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474540	GCST90474540	passed		source		0.905469	estimated_from_source_maf	10114641						20000	0.01	0.5	0.905469	0.007997	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474545	GCST90474545	passed		source		0.934233	estimated_from_source_maf	10114641						20000	0.01	0.5	0.934233	0.00822547	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474550	GCST90474550	passed		source		0.93386	estimated_from_source_maf	10114641						20000	0.01	0.5	0.93386	0.00825605	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474555	GCST90474555	passed		source		0.938985	estimated_from_source_maf	10114641						20000	0.01	0.5	0.938985	0.00824703	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474560	GCST90474560	passed		source		0.925244	estimated_from_source_maf	10114641						20000	0.01	0.5	0.925244	0.00815524	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474565	GCST90474565	passed		source		0.909696	estimated_from_source_maf	10114641						20000	0.01	0.5	0.909696	0.00785996	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474570	GCST90474570	passed		source		0.926737	estimated_from_source_maf	10114641						20000	0.01	0.5	0.926737	0.00814215	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474575	GCST90474575	passed		source		0.914064	estimated_from_source_maf	10114641						20000	0.01	0.5	0.914064	0.00802417	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474580	GCST90474580	passed		source		0.933692	estimated_from_source_maf	10114641						20000	0.01	0.5	0.933692	0.00825548	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474585	GCST90474585	passed		source		0.925223	estimated_from_source_maf	10114641						20000	0.01	0.5	0.925223	0.00824055	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474590	GCST90474590	passed		source		0.9283	estimated_from_source_maf	10114641						20000	0.01	0.5	0.9283	0.00833216	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474595	GCST90474595	passed		source		0.920285	estimated_from_source_maf	10114641						20000	0.01	0.5	0.920285	0.00808495	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474600	GCST90474600	passed		source		0.911694	estimated_from_source_maf	10114641						20000	0.01	0.5	0.911694	0.00810604	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474605	GCST90474605	passed		source		0.895242	estimated_from_source_maf	10114641						20000	0.01	0.5	0.895242	0.00787564	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474610	GCST90474610	passed		source		0.897568	estimated_from_source_maf	10114641						20000	0.01	0.5	0.897568	0.00794699	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474615	GCST90474615	passed		source		0.923438	estimated_from_source_maf	10114641						20000	0.01	0.5	0.923438	0.00795132	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474620	GCST90474620	passed		source		0.909723	estimated_from_source_maf	10114641						20000	0.01	0.5	0.909723	0.00792147	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474625	GCST90474625	passed		source		0.894754	estimated_from_source_maf	10114641						20000	0.01	0.5	0.894754	0.00793817	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474630	GCST90474630	passed		source		0.91104	estimated_from_source_maf	10114641						20000	0.01	0.5	0.91104	0.00811713	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474635	GCST90474635	passed		source		0.891446	estimated_from_source_maf	10114641						20000	0.01	0.5	0.891446	0.00797914	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474869	GCST90474869	passed		source		0.970885	estimated_from_source_maf	8738894						20000	0.01	0.5	0.970885	0.0139379	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474872	GCST90474872	passed		source		0.872857	estimated_from_source_maf	8738894						20000	0.01	0.5	0.872857	0.0125303	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474875	GCST90474875	passed		source		0.870242	estimated_from_source_maf	8738894						20000	0.01	0.5	0.870242	0.0125011	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474878	GCST90474878	passed		source		0.895717	estimated_from_source_maf	8738894						20000	0.01	0.5	0.895717	0.0128697	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474881	GCST90474881	passed		source		0.912437	estimated_from_source_maf	8738894						20000	0.01	0.5	0.912437	0.0131086	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474884	GCST90474884	passed		source		0.939282	estimated_from_source_maf	8738894						20000	0.01	0.5	0.939282	0.0134797	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474887	GCST90474887	passed		source		0.855111	estimated_from_source_maf	8738894						20000	0.01	0.5	0.855111	0.0122939	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474890	GCST90474890	passed		source		0.974766	estimated_from_source_maf	8738894						20000	0.01	0.5	0.974766	0.0139911	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474893	GCST90474893	passed		source		0.875867	estimated_from_source_maf	8738894						20000	0.01	0.5	0.875867	0.0125769	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474896	GCST90474896	passed		source		0.838908	estimated_from_source_maf	8738894						20000	0.01	0.5	0.838908	0.0120565	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474899	GCST90474899	passed		source		0.825142	estimated_from_source_maf	8738894						20000	0.01	0.5	0.825142	0.0118605	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474902	GCST90474902	passed		source		0.962675	estimated_from_source_maf	8738894						20000	0.01	0.5	0.962675	0.013825	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474905	GCST90474905	passed		source		0.87323	estimated_from_source_maf	8738894						20000	0.01	0.5	0.87323	0.0125356	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474908	GCST90474908	passed		source		0.876468	estimated_from_source_maf	8738894						20000	0.01	0.5	0.876468	0.0125855	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474911	GCST90474911	passed		source		0.897268	estimated_from_source_maf	8738894						20000	0.01	0.5	0.897268	0.0128815	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474914	GCST90474914	passed		source		0.919859	estimated_from_source_maf	8738894						20000	0.01	0.5	0.919859	0.0132155	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474917	GCST90474917	passed		source		0.905512	estimated_from_source_maf	8738894						20000	0.01	0.5	0.905512	0.0130067	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474920	GCST90474920	passed		source		0.865579	estimated_from_source_maf	8738894						20000	0.01	0.5	0.865579	0.0124412	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474923	GCST90474923	passed		source		0.971557	estimated_from_source_maf	8738894						20000	0.01	0.5	0.971557	0.0139509	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474926	GCST90474926	passed		source		0.887716	estimated_from_source_maf	8738894						20000	0.01	0.5	0.887716	0.0127546	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474929	GCST90474929	passed		source		0.84598	estimated_from_source_maf	8738894						20000	0.01	0.5	0.84598	0.0121506	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474932	GCST90474932	passed		source		0.987731	estimated_from_source_maf	8738894						20000	0.01	0.5	0.987731	0.0175875	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474935	GCST90474935	passed		source		1.00008	estimated_from_source_maf	8738894						20000	0.01	0.5	1.00008	0.0221407	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474938	GCST90474938	passed		source		0.960011	estimated_from_source_maf	8738894						20000	0.01	0.5	0.960011	0.0170811	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474941	GCST90474941	passed		source		0.978954	estimated_from_source_maf	8738894						20000	0.01	0.5	0.978954	0.0216459	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474944	GCST90474944	passed		source		0.943552	estimated_from_source_maf	8738894						20000	0.01	0.5	0.943552	0.0167937	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474947	GCST90474947	passed		source		0.96175	estimated_from_source_maf	8738894						20000	0.01	0.5	0.96175	0.0212814	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474950	GCST90474950	passed		source		0.959621	estimated_from_source_maf	8738894						20000	0.01	0.5	0.959621	0.017104	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474953	GCST90474953	passed		source		0.977243	estimated_from_source_maf	8738894						20000	0.01	0.5	0.977243	0.0216416	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474956	GCST90474956	passed		source		0.994641	estimated_from_source_maf	8738894						20000	0.01	0.5	0.994641	0.0176862	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474959	GCST90474959	passed		source		0.99672	estimated_from_source_maf	8738894						20000	0.01	0.5	0.99672	0.0220465	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474962	GCST90474962	passed		source		0.996121	estimated_from_source_maf	8738894						20000	0.01	0.5	0.996121	0.0177259	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474965	GCST90474965	passed		source		1.00956	estimated_from_source_maf	8738894						20000	0.01	0.5	1.00956	0.0223385	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474968	GCST90474968	passed		source		0.927288	estimated_from_source_maf	8738894						20000	0.01	0.5	0.927288	0.0164788	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474971	GCST90474971	passed		source		0.952721	estimated_from_source_maf	8738894						20000	0.01	0.5	0.952721	0.021111	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474974	GCST90474974	passed		source		1.00941	estimated_from_source_maf	8738894						20000	0.01	0.5	1.00941	0.0179333	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474977	GCST90474977	passed		source		1.01585	estimated_from_source_maf	8738894						20000	0.01	0.5	1.01585	0.0224874	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474980	GCST90474980	passed		source		0.947414	estimated_from_source_maf	8738894						20000	0.01	0.5	0.947414	0.0168668	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474983	GCST90474983	passed		source		0.964979	estimated_from_source_maf	8738894						20000	0.01	0.5	0.964979	0.0213504	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474986	GCST90474986	passed		source		0.928733	estimated_from_source_maf	8738894						20000	0.01	0.5	0.928733	0.0165208	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474989	GCST90474989	passed		source		0.950628	estimated_from_source_maf	8738894						20000	0.01	0.5	0.950628	0.0210457	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474992	GCST90474992	passed		source		0.917479	estimated_from_source_maf	8738894						20000	0.01	0.5	0.917479	0.0163333	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474995	GCST90474995	passed		source		0.93683	estimated_from_source_maf	8738894						20000	0.01	0.5	0.93683	0.0207283	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90474998	GCST90474998	passed		source		0.982697	estimated_from_source_maf	8738894						20000	0.01	0.5	0.982697	0.0174943	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475001	GCST90475001	passed		source		1.00056	estimated_from_source_maf	8738894						20000	0.01	0.5	1.00056	0.0221818	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475004	GCST90475004	passed		source		0.953747	estimated_from_source_maf	8738894						20000	0.01	0.5	0.953747	0.016962	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475007	GCST90475007	passed		source		0.96589	estimated_from_source_maf	8738894						20000	0.01	0.5	0.96589	0.0213769	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475010	GCST90475010	passed		source		0.940593	estimated_from_source_maf	8738894						20000	0.01	0.5	0.940593	0.016748	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475013	GCST90475013	passed		source		0.960706	estimated_from_source_maf	8738894						20000	0.01	0.5	0.960706	0.0212485	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475016	GCST90475016	passed		source		0.957397	estimated_from_source_maf	8738894						20000	0.01	0.5	0.957397	0.0170504	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475019	GCST90475019	passed		source		0.968244	estimated_from_source_maf	8738894						20000	0.01	0.5	0.968244	0.0214411	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475022	GCST90475022	passed		source		0.985325	estimated_from_source_maf	8738894						20000	0.01	0.5	0.985325	0.0175099	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475025	GCST90475025	passed		source		0.990514	estimated_from_source_maf	8738894						20000	0.01	0.5	0.990514	0.0219336	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475028	GCST90475028	passed		source		0.982878	estimated_from_source_maf	8738894						20000	0.01	0.5	0.982878	0.0174915	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475031	GCST90475031	passed		source		0.990448	estimated_from_source_maf	8738894						20000	0.01	0.5	0.990448	0.0219281	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475034	GCST90475034	passed		source		0.931881	estimated_from_source_maf	8738894						20000	0.01	0.5	0.931881	0.0165619	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475037	GCST90475037	passed		source		0.946075	estimated_from_source_maf	8738894						20000	0.01	0.5	0.946075	0.0209731	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475040	GCST90475040	passed		source		1.00611	estimated_from_source_maf	8738894						20000	0.01	0.5	1.00611	0.0178716	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475043	GCST90475043	passed		source		1.0062	estimated_from_source_maf	8738894						20000	0.01	0.5	1.0062	0.0222724	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475046	GCST90475046	passed		source		0.946707	estimated_from_source_maf	8738894						20000	0.01	0.5	0.946707	0.0168466	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475049	GCST90475049	passed		source		0.964091	estimated_from_source_maf	8738894						20000	0.01	0.5	0.964091	0.0213453	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475052	GCST90475052	passed		source		0.926167	estimated_from_source_maf	8738894						20000	0.01	0.5	0.926167	0.016486	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475055	GCST90475055	passed		source		0.942934	estimated_from_source_maf	8738894						20000	0.01	0.5	0.942934	0.0208687	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90475087	GCST90475087	passed		source		0.274385	estimated_from_source_maf	7089329						20000	0.01	0.5	0.274385	0.00188004	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90483382	GCST90483382	passed		source		0.999067	estimated_from_source_maf	5555911						20000	0.01	0.5	0.999067	0.0177373	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502777	GCST90502777	passed		source		0.58811	estimated_from_source_maf	6020167						20000	0.01	0.5	0.58811	0.00502163	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502778	GCST90502778	passed		source		0.88676	estimated_from_source_maf	6020167						20000	0.01	0.5	0.88676	0.00757334	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502779	GCST90502779	passed		source		0.85912	estimated_from_source_maf	6020167						20000	0.01	0.5	0.85912	0.00735123	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502780	GCST90502780	passed		source		0.62268	estimated_from_source_maf	6020167						20000	0.01	0.5	0.62268	0.00530735	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502781	GCST90502781	passed		source		0.624467	estimated_from_source_maf	6020167						20000	0.01	0.5	0.624467	0.00533169	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502782	GCST90502782	passed		source		0.930036	estimated_from_source_maf	6020167						20000	0.01	0.5	0.930036	0.0079164	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502783	GCST90502783	passed		source		0.997889	estimated_from_source_maf	6020167						20000	0.01	0.5	0.997889	0.00851055	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502784	GCST90502784	passed		source		0.728038	estimated_from_source_maf	6020167						20000	0.01	0.5	0.728038	0.00621024	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502785	GCST90502785	passed		source		0.705188	estimated_from_source_maf	6020167						20000	0.01	0.5	0.705188	0.00602614	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502786	GCST90502786	passed		source		0.725456	estimated_from_source_maf	6020167						20000	0.01	0.5	0.725456	0.00618349	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502787	GCST90502787	passed		source		0.967983	estimated_from_source_maf	6020167						20000	0.01	0.5	0.967983	0.0082513	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502788	GCST90502788	passed		source		0.928023	estimated_from_source_maf	6020167						20000	0.01	0.5	0.928023	0.00791859	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502789	GCST90502789	passed		source		0.971237	estimated_from_source_maf	6020167						20000	0.01	0.5	0.971237	0.00826973	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502790	GCST90502790	passed		source		0.915578	estimated_from_source_maf	6020167						20000	0.01	0.5	0.915578	0.00778728	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502791	GCST90502791	passed		source		0.965528	estimated_from_source_maf	6020167						20000	0.01	0.5	0.965528	0.00820951	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502792	GCST90502792	passed		source		0.766861	estimated_from_source_maf	6020167						20000	0.01	0.5	0.766861	0.0065405	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502793	GCST90502793	passed		source		0.848822	estimated_from_source_maf	6020167						20000	0.01	0.5	0.848822	0.0072371	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502794	GCST90502794	passed		source		0.759735	estimated_from_source_maf	6020167						20000	0.01	0.5	0.759735	0.00649666	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502795	GCST90502795	passed		source		0.506614	estimated_from_source_maf	6020167						20000	0.01	0.5	0.506614	0.0043318	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502796	GCST90502796	passed		source		0.918296	estimated_from_source_maf	6020167						20000	0.01	0.5	0.918296	0.00781989	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502797	GCST90502797	passed		source		0.992287	estimated_from_source_maf	6020167						20000	0.01	0.5	0.992287	0.00845842	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502798	GCST90502798	passed		source		0.949145	estimated_from_source_maf	6020167						20000	0.01	0.5	0.949145	0.00807565	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502799	GCST90502799	passed		source		0.956704	estimated_from_source_maf	6020167						20000	0.01	0.5	0.956704	0.0081466	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502800	GCST90502800	passed		source		0.888403	estimated_from_source_maf	6020167						20000	0.01	0.5	0.888403	0.00756412	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502801	GCST90502801	passed		source		0.973177	estimated_from_source_maf	6020167						20000	0.01	0.5	0.973177	0.00828457	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90502802	GCST90502802	passed		source		0.690599	estimated_from_source_maf	6020167						20000	0.01	0.5	0.690599	0.00591001	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90503325	GCST90503325	passed		source		0.99518	estimated_from_source_maf	11235302						20000	0.01	0.5	0.99518	0.0425008	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90503326	GCST90503326	passed		source		0.948252	estimated_from_source_maf	11190335						20000	0.01	0.5	0.948252	0.0524484	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90503327	GCST90503327	passed		source		0.967915	estimated_from_source_maf	11189954						20000	0.01	0.5	0.967915	0.0551194	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90503328	GCST90503328	passed		source		2.20618	estimated_from_source_maf	11190734						20000	0.01	0.5	2.20618	0.0987356	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90566388	GCST90566388	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90566389	GCST90566389	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90566412	GCST90566412	passed		source		0.981275	estimated_from_source_maf	4721875						20000	0.01	0.5	0.981275	0.00131953	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90566413	GCST90566413	passed		source		0.90712	estimated_from_source_maf	4721875						20000	0.01	0.5	0.90712	0.00153824	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90566414	GCST90566414	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90566415	GCST90566415	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90566416	GCST90566416	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90566417	GCST90566417	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90566418	GCST90566418	passed		source		1.43077	estimated_from_source_maf	4889981						20000	0.01	0.5	1.43077	0.0165176	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90566419	GCST90566419	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90566420	GCST90566420	warning		source		1.68167	estimated_from_source_maf	12260904						20000	0.01	0.5	1.68167	0.609632	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90566421	GCST90566421	warning		source		1.70164	estimated_from_source_maf	12260910						20000	0.01	0.5	1.70164	0.614598	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90566422	GCST90566422	warning		source		1.69739	estimated_from_source_maf	12260910						20000	0.01	0.5	1.69739	0.613588	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90566423	GCST90566423	warning		source		1.69602	estimated_from_source_maf	12260910						20000	0.01	0.5	1.69602	0.612874	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90566424	GCST90566424	warning		source		1.64643	estimated_from_source_maf	12260908						20000	0.01	0.5	1.64643	0.593825	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90572792	GCST90572792	passed		source		9.07252	estimated_from_source_maf	3594432						20000	0.01	0.5	9.07252	0.0222961	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90572793	GCST90572793	passed		source		0.0623409	estimated_from_source_maf	3594432						20000	0.01	0.5	0.0623409	0.000153012	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90572794	GCST90572794	passed		source		0.0586882	estimated_from_source_maf	3594432						20000	0.01	0.5	0.0586882	0.000143731	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90572795	GCST90572795	passed		source		3.46259	estimated_from_source_maf	3594432						20000	0.01	0.5	3.46259	0.00852668	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90624113	GCST90624113	passed		source		17.0514	estimated_from_source_maf	6235625						20000	0.01	0.5	17.0514	0.135906	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90627739	GCST90627739	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90627748	GCST90627748	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90627753	GCST90627753	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90627762	GCST90627762	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90652245	GCST90652245	passed		source		1.01584	estimated_from_source_maf	10107989						20000	0.01	0.5	1.01584	0.0248203	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90668009	GCST90668009	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90668010	GCST90668010	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90668011	GCST90668011	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90668012	GCST90668012	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692457	GCST90692457	passed		source		0.98124	estimated_from_source_maf	8430268						20000	0.01	0.5	0.98124	0.01926	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692458	GCST90692458	passed		source		0.955935	estimated_from_source_maf	8426583						20000	0.01	0.5	0.955935	0.0187767	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692459	GCST90692459	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692460	GCST90692460	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692461	GCST90692461	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692462	GCST90692462	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692463	GCST90692463	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692464	GCST90692464	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692465	GCST90692465	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692466	GCST90692466	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692467	GCST90692467	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692468	GCST90692468	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692469	GCST90692469	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692470	GCST90692470	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692471	GCST90692471	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692472	GCST90692472	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692473	GCST90692473	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692474	GCST90692474	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692475	GCST90692475	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692476	GCST90692476	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692477	GCST90692477	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692478	GCST90692478	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692479	GCST90692479	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692480	GCST90692480	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692481	GCST90692481	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692482	GCST90692482	passed		source		0.711831	estimated_from_source_maf	8438803						20000	0.01	0.5	0.711831	0.0141035	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692483	GCST90692483	passed		source		0.759371	estimated_from_source_maf	8433080						20000	0.01	0.5	0.759371	0.0147592	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692484	GCST90692484	passed		source		0.821322	estimated_from_source_maf	8432775						20000	0.01	0.5	0.821322	0.0166247	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692485	GCST90692485	passed		source		0.578751	estimated_from_source_maf	8428881						20000	0.01	0.5	0.578751	0.0112683	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692486	GCST90692486	passed		source		0.706443	estimated_from_source_maf	8423531						20000	0.01	0.5	0.706443	0.0137825	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692487	GCST90692487	passed		source		0.861553	estimated_from_source_maf	8419986						20000	0.01	0.5	0.861553	0.0167757	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692488	GCST90692488	passed		source		0.528789	estimated_from_source_maf	8423468						20000	0.01	0.5	0.528789	0.0103248	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692489	GCST90692489	passed		source		0.521941	estimated_from_source_maf	8423730						20000	0.01	0.5	0.521941	0.0101716	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692490	GCST90692490	passed		source		0.67163	estimated_from_source_maf	8423730						20000	0.01	0.5	0.67163	0.013097	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692491	GCST90692491	passed		source		0.875399	estimated_from_source_maf	8423578						20000	0.01	0.5	0.875399	0.0170667	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692492	GCST90692492	passed		source		0.98948	estimated_from_source_maf	8429488						20000	0.01	0.5	0.98948	0.0193622	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692493	GCST90692493	passed		source		1.02575	estimated_from_source_maf	8436511						20000	0.01	0.5	1.02575	0.0202138	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692494	GCST90692494	passed		source		1.01337	estimated_from_source_maf	8436511						20000	0.01	0.5	1.01337	0.0200017	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692495	GCST90692495	passed		source		1.00479	estimated_from_source_maf	8436951						20000	0.01	0.5	1.00479	0.019667	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692496	GCST90692496	passed		source		0.945284	estimated_from_source_maf	8427192						20000	0.01	0.5	0.945284	0.0187725	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692497	GCST90692497	passed		source		13.7853	estimated_from_source_maf	8441993						20000	0.01	0.5	13.7853	0.272963	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692498	GCST90692498	warning		source		14.779	estimated_from_source_maf	8259687						20000	0.01	0.5	14.779	0.651307	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692499	GCST90692499	warning		source		13.0617	estimated_from_source_maf	8279048						20000	0.01	0.5	13.0617	0.559364	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692500	GCST90692500	passed		source		0.957192	estimated_from_source_maf	8427192						20000	0.01	0.5	0.957192	0.0189945	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692501	GCST90692501	passed		source		0.938363	estimated_from_source_maf	8436951						20000	0.01	0.5	0.938363	0.0183575	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692502	GCST90692502	passed		source		11.8091	estimated_from_source_maf	8436951						20000	0.01	0.5	11.8091	0.231297	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692503	GCST90692503	passed		source		0.928712	estimated_from_source_maf	8436962						20000	0.01	0.5	0.928712	0.0181699	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692504	GCST90692504	passed		source		11.8302	estimated_from_source_maf	8428384						20000	0.01	0.5	11.8302	0.230292	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692505	GCST90692505	passed		source		1.00844	estimated_from_source_maf	8428384						20000	0.01	0.5	1.00844	0.0196359	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692506	GCST90692506	passed		source		18.1616	estimated_from_source_maf	8428384						20000	0.01	0.5	18.1616	0.353962	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692507	GCST90692507	warning		source		20.8993	estimated_from_source_maf	8259687						20000	0.01	0.5	20.8993	0.921699	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90692508	GCST90692508	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692509	GCST90692509	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692510	GCST90692510	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692511	GCST90692511	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692512	GCST90692512	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692513	GCST90692513	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692514	GCST90692514	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692515	GCST90692515	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692516	GCST90692516	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692517	GCST90692517	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90692518	GCST90692518	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90705067	GCST90705067	passed		source		0.7367	estimated_from_source_maf	7438666						20000	0.01	0.5	0.7367	0.0324731	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90705068	GCST90705068	passed		source		0.659868	estimated_from_source_maf	7444696						20000	0.01	0.5	0.659868	0.0347211	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90705069	GCST90705069	passed		source		1.02868	estimated_from_source_maf	7443729						20000	0.01	0.5	1.02868	0.0466796	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90705091	GCST90705091	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90707270	GCST90707270	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90726612	GCST90726612	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90727382	GCST90727382	passed		source		1.0133	estimated_from_source_maf	8849282						20000	0.01	0.5	1.0133	0.0162462	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90727383	GCST90727383	passed		source		1.02076	estimated_from_source_maf	8849282						20000	0.01	0.5	1.02076	0.0164472	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90727384	GCST90727384	passed		source		1.02836	estimated_from_source_maf	8849282						20000	0.01	0.5	1.02836	0.0167185	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90727385	GCST90727385	passed		source		1.19544	estimated_from_source_maf	8849282						20000	0.01	0.5	1.19544	0.0191038	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90727420	GCST90727420	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90727421	GCST90727421	passed		source		1.0466	estimated_from_source_maf	5407241						20000	0.01	0.5	1.0466	0.00569658	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90728616	GCST90728616	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90728619	GCST90728619	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90809295	GCST90809295	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90833022	GCST90833022	passed		source		1.0111	estimated_from_source_maf	6101468						20000	0.01	0.5	1.0111	0.00823812	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90833025	GCST90833025	passed		source		1.03356	estimated_from_source_maf	3346443						20000	0.01	0.5	1.03356	0.0145965	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90833033	GCST90833033	passed		source		1.32489	estimated_from_source_maf	7420473						20000	0.01	0.5	1.32489	0.0372885	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90841456	GCST90841456	skipped	non_quantitative_effect_scale				binary_trait								0.01	0.5			opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	case-control effect scale; phenotype-SD estimation not applicable
+GCST90841458	GCST90841458	passed		source		0.887077	estimated_from_source_maf	4894764						20000	0.01	0.5	0.887077	0.0392556	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90841460	GCST90841460	passed		source		1.21484	estimated_from_source_maf	4861583						20000	0.01	0.5	1.21484	0.062753	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90841462	GCST90841462	passed		source		1.22864	estimated_from_source_maf	4885437						20000	0.01	0.5	1.22864	0.0642112	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	
+GCST90841464	GCST90841464	passed		source		0.391451	estimated_from_source_maf	7430503						20000	0.01	0.5	0.391451	0.00810906	opengwasdb@1f1e289a47e84f79434263235e01ff8a94c4d37c	

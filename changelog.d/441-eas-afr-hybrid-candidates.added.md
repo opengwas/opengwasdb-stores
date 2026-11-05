@@ -1,0 +1,15 @@
+- **Candidate Release Bundles for the EBI GWAS Catalog's East Asian and African Hybrid pools (issue #441).** `stores/OGS-00032` (`eas-hybrid-full`) and `stores/OGS-00033` (`afr-hybrid-full`) are OGS-00011's pipeline applied to the `hybrid__East-Asian` and `hybrid__African` Selections of the `gwas-catalog-ssf` Source Collection. Each uses its own gnomAD v4.1 Dense Component axis and ancestry target.
+  - **OGS-00032 admits 379 of 709 ready Analyses.** It excludes:
+    - 132 whole-genome-sequencing Analyses as `not_maf_filtered`;
+    - 99 for placeholder effects;
+    - 58 with no build-eligible rows;
+    - 41 on ancestry, 34 of them Pan-UKB files whose EAF fits EUR.
+  - **OGS-00033 admits 194 of 358.** It excludes:
+    - 77 on ancestry: 40 Pan-UKB files fitting EUR, 4 fitting AMR, 29 unassigned and 4 orientation failures;
+    - 44 for placeholder effects;
+    - 36 with no build-eligible rows;
+    - 4 as `not_maf_filtered`;
+    - 3 for missing case/control counts.
+  - **Acquisition and inputs.** Harmonised files were downloaded on 2026-11-05: 709 of 852 EAS and 358 of 550 AFR. No raw GRCh38 fallback exists. The per-pool connectors, frozen inventories, release configs, derived INFO declarations and READMEs are under `resources/generators/gwas-catalog-{eas,afr}-hybrid/`.
+  - **Placeholder effects.** A full-file scan listed 154 Analyses with ±2.2250738585072014e-308 effects. All are excluded under OGS-00011's rule (owner decision). In 146 of them the rows are zero betas, with real standard errors, that EBI's harmonisation wrote as ±DBL_MIN. Each reason records which case applies.
+  - **Status.** Both bundles are `candidate`; accepting and building them are separate steps.

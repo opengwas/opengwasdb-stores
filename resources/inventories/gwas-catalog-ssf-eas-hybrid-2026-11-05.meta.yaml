@@ -1,0 +1,51 @@
+snapshot_id: gwas-catalog-ssf-eas-hybrid-2026-11-05
+source_collection_id: gwas-catalog-ssf
+frozen_at: '2026-11-05T15:30:49Z'
+frozen_by: manifest_generation.freeze
+selection:
+  where:
+    store_key: hybrid__East-Asian
+rows: 852
+readiness_counts:
+  missing_remote_harmonised_yaml: 143
+  ok: 709
+ready_rows: 709
+ready_bytes: 234649145504
+study_design_counts:
+  case-control: 237
+  quantitative: 615
+ready_study_design_counts:
+  case-control: 207
+  quantitative: 502
+duplicate_content_groups: []
+inventory_tsv_sha256: dda4540ec266f084992d576c03c4e8518099ea49c919aaa416a31d1996c8a399
+source_metadata_table:
+  frozen:
+    path: gwas-catalog-ssf-eas-hybrid-2026-11-05.source-metadata.tsv
+    sha256: 9ddabe346a0feb5abbfccaaefe27465f9212e2180a8c4292cef088e9cfcd37c4
+    bytes: 191805
+    rows: 852
+  original:
+    path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-05/gwas-catalog-ssf-eas-hybrid.source-metadata.tsv
+    sha256: f1652135fdefaae116d0876ea4e0519cd17cc0856abe56c5d4462fb493273803
+    bytes: 39088390
+    rows: 171274
+acquisition_manifest:
+  frozen:
+    path: gwas-catalog-ssf-eas-hybrid-2026-11-05.acquisition-manifest.tsv
+    sha256: 2496be15f4adf9b6e2892869c8172cc88ea0eda3c1d7c7f6ef78c878bf80b992
+    bytes: 439334
+    rows: 852
+  original:
+    path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-05/gwas-catalog-ssf-eas-hybrid.acquisition-manifest.tsv
+    sha256: 2496be15f4adf9b6e2892869c8172cc88ea0eda3c1d7c7f6ef78c878bf80b992
+    bytes: 439334
+    rows: 852
+    readiness_counts:
+      missing_remote_harmonised_yaml: 143
+      ok: 709
+    pass_lineage:
+      path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-05/gwas-catalog-ssf-eas-hybrid.acquisition-manifest.meta.yaml
+      sha256: 44523f03df0e416704b54a9eed466ade0ad98b2677591652aba7d038830af86b
+  unselected_entries: 0
+lineage: []

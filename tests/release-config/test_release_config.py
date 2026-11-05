@@ -743,7 +743,9 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         from manifest_generation.candidate_workflow import load_candidate_configuration
         from manifest_generation.source_inventory import read_inventory
 
-        writes_the_column = {"dbgap-mvp", "gwas-catalog-eur-hybrid"}
+        writes_the_column = {
+            "dbgap-mvp", "gwas-catalog-eur-hybrid", "gwas-catalog-eas-hybrid", "gwas-catalog-afr-hybrid",
+        }
         for path in shipped_release_configs():
             with self.subTest(config=f"{path.parent.name}/{path.name}"):
                 config = load_candidate_configuration(path, REPO_ROOT)
@@ -781,8 +783,14 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         # A config's Sources publish an imputation-score column when its release
         # declares one and so carries it into the resolver manifest: the
         # eur-hybrid trio, whose full release declares the 704 shared
-        # declarations the pilots reuse (#287). FinnGen publishes no INFO column,
-        # so its release declares none (#288).
+        # declarations the pilots reuse (#287), and the EAS and AFR Hybrid
+        # releases, each deriving its own from its pool's headers (#441).
+        # FinnGen publishes no INFO column, so its release declares none (#288).
+        declarations_by_generator = {
+            "gwas-catalog-eur-hybrid": 704,
+            "gwas-catalog-eas-hybrid": 128,
+            "gwas-catalog-afr-hybrid": 6,
+        }
 
         for path in shipped_release_configs():
             with self.subTest(config=path.name):
@@ -801,8 +809,8 @@ class ShippedReleaseConfigTests(unittest.TestCase):
                         lambda: collection_analysis_ids(provenance_path),
                     )
                     if config.imputation_score_declarations is not None:
-                        # The GWAS Catalog collection's reviewed declarations.
-                        self.assertEqual(len(declared), 704)
+                        # The GWAS Catalog pool's reviewed declarations.
+                        self.assertEqual(len(declared), declarations_by_generator[path.parent.name])
                     else:
                         self.assertEqual(declared, {})
                     continue

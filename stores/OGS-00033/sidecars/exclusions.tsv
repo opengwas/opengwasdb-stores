@@ -1,0 +1,165 @@
+analysis_id	source_analysis_id	study_design	category	reason	detail	resolver_status	exclude_from_build
+GCST008027	GCST008027	quantitative	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
+GCST009386	GCST009386	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST009387	GCST009387	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST009390	GCST009390	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST010076	GCST010076	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9419869, canonical_rows_retained=0)	success	true
+GCST010077	GCST010077	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=9427908, canonical_rows_retained=0)	success	true
+GCST90000019	GCST90000019	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90000020	GCST90000020	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90000021	GCST90000021	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90000022	GCST90000022	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90000023	GCST90000023	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90000024	GCST90000024	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90000522	GCST90000522	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90000523	GCST90000523	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90000524	GCST90000524	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90000525	GCST90000525	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90000526	GCST90000526	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90002225	GCST90002225	quantitative	ancestry	ancestry_not_eur	assigned_ancestry=AMR (release target AFR)	success	true
+GCST90002230	GCST90002230	quantitative	ancestry	ancestry_not_eur	assigned_ancestry=AMR (release target AFR)	success	true
+GCST90002236	GCST90002236	quantitative	ancestry	ancestry_not_eur	assigned_ancestry=AMR (release target AFR)	success	true
+GCST90002242	GCST90002242	quantitative	ancestry	ancestry_not_eur	assigned_ancestry=AMR (release target AFR)	success	true
+GCST90002309	GCST90002309	quantitative	effect_scale	effect_placeholder_rows	313 of 34256899 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90002423	GCST90002423	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=0, canonical_rows_retained=0)	success	true
+GCST90011769	GCST90011769	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=14865627, canonical_rows_retained=0)	success	true
+GCST90013412	GCST90013412	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=2825571, canonical_rows_retained=0)	success	true
+GCST90013466	GCST90013466	quantitative	effect_scale	effect_placeholder_rows	41840 of 18765430 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90013467	GCST90013467	quantitative	effect_scale	effect_placeholder_rows	26922 of 18672701 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90013468	GCST90013468	quantitative	effect_scale	effect_placeholder_rows	33137 of 18765185 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90026374	GCST90026374	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=18973091, canonical_rows_retained=0)	success	true
+GCST90091238	GCST90091238	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=14418126, canonical_rows_retained=0)	success	true
+GCST90091239	GCST90091239	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=14017384, canonical_rows_retained=0)	success	true
+GCST90091913	GCST90091913	case-control	effect_scale	effect_placeholder_rows	3297 of 16135383 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90092505	GCST90092505	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=7660622, canonical_rows_retained=0)	success	true
+GCST90094632	GCST90094632	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=13297093, canonical_rows_retained=0)	success	true
+GCST90101745	GCST90101745	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=21454651, canonical_rows_retained=0)	success	true
+GCST90101746	GCST90101746	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=21443297, canonical_rows_retained=0)	success	true
+GCST90101747	GCST90101747	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=21388868, canonical_rows_retained=0)	success	true
+GCST90101748	GCST90101748	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=21389969, canonical_rows_retained=0)	success	true
+GCST90104549	GCST90104549	case-control	effect_scale	effect_placeholder_rows	9183 of 10808493 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90104550	GCST90104550	case-control	effect_scale	effect_placeholder_rows	4822 of 8336076 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90104551	GCST90104551	case-control	effect_scale	effect_placeholder_rows	2228 of 6616113 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90104552	GCST90104552	case-control	effect_scale	effect_placeholder_rows	1312 of 5288018 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90104553	GCST90104553	case-control	effect_scale	effect_placeholder_rows	1897 of 5243695 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90129399	GCST90129399	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8929433, canonical_rows_retained=0)	success	true
+GCST90129400	GCST90129400	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8948027, canonical_rows_retained=0)	success	true
+GCST90129401	GCST90129401	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=8019645, canonical_rows_retained=0)	success	true
+GCST90134282	GCST90134282	case-control	effect_scale	effect_placeholder_rows	368 of 21354502 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90134287	GCST90134287	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=18292552, canonical_rows_retained=0)	success	true
+GCST90134617	GCST90134617	case-control	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=1281611, canonical_rows_retained=0)	success	true
+GCST90246322	GCST90246322	quantitative	effect_scale	effect_placeholder_rows	20688 of 15486598 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90246323	GCST90246323	quantitative	effect_scale	effect_placeholder_rows	21911 of 14835919 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90246328	GCST90246328	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=12963757, canonical_rows_retained=0)	success	true
+GCST90246329	GCST90246329	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=12962954, canonical_rows_retained=0)	success	true
+GCST90246330	GCST90246330	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=12962954, canonical_rows_retained=0)	success	true
+GCST90246331	GCST90246331	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=12988402, canonical_rows_retained=0)	success	true
+GCST90246332	GCST90246332	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=12962954, canonical_rows_retained=0)	success	true
+GCST90267373	GCST90267373	quantitative	effect_scale	no_build_eligible_rows	resolver found no row with a finite effect and positive standard error (rows_read=15247090, canonical_rows_retained=0)	success	true
+GCST90271956	GCST90271956	case-control	ancestry	ancestry_unassigned	gate_reason=margin	success	true
+GCST90277997	GCST90277997	case-control	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90296719	GCST90296719	case-control	effect_scale	effect_placeholder_rows	19845 of 15006300 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90296720	GCST90296720	case-control	effect_scale	effect_placeholder_rows	16384 of 15030790 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90296721	GCST90296721	case-control	effect_scale	effect_placeholder_rows	12963 of 14995800 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90296722	GCST90296722	case-control	effect_scale	effect_placeholder_rows	10196 of 14983633 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90301246	GCST90301246	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.8010688152490021	success	true
+GCST90301247	GCST90301247	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.8069686925954841	success	true
+GCST90301248	GCST90301248	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7842997021142515	success	true
+GCST90301249	GCST90301249	case-control	orientation	orientation_failure	eaf_orientation=failed gate_reason=eaf_orientation r=-0.7230247438804186	success	true
+GCST90319325	GCST90319325	case-control	effect_scale	effect_placeholder_rows	5526 of 9311439 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90432067	GCST90432067	case-control	effect_scale	effect_placeholder_rows	3346 of 13598455 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90432072	GCST90432072	case-control	effect_scale	effect_placeholder_rows	4819 of 13598093 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90444479	GCST90444479	quantitative	effect_scale	effect_placeholder_rows	6495 of 8367242 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90447297	GCST90447297	case-control	effect_scale	effect_placeholder_rows	10411 of 18802525 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90461960	GCST90461960	case-control	effect_scale	effect_placeholder_rows	13483 of 17296322 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90502913	GCST90502913	quantitative	store_composition	not_maf_filtered	no MAF floor applied (requested maf_threshold=NaN, resolver maf_state=unavailable, genotyping_technology=Whole genome sequencing); 17158443 of 32251961 build-eligible rows are off the variant reference (#203)	success	true
+GCST90502914	GCST90502914	quantitative	store_composition	not_maf_filtered	no MAF floor applied (requested maf_threshold=NaN, resolver maf_state=unavailable, genotyping_technology=Whole genome sequencing); 7875314 of 22968615 build-eligible rows are off the variant reference (#203)	success	true
+GCST90503111	GCST90503111	case-control	effect_scale	effect_placeholder_rows	171 of 35081422 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90503317	GCST90503317	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90503318	GCST90503318	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90503319	GCST90503319	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90503320	GCST90503320	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90503484	GCST90503484	case-control	effect_scale	effect_placeholder_rows	11182 of 36378229 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90551895	GCST90551895	case-control	metadata	missing_case_control_counts	n_cases=1921 n_controls=0	success	true
+GCST90551897	GCST90551897	case-control	metadata	missing_case_control_counts	n_cases=1417 n_controls=0	success	true
+GCST90551898	GCST90551898	case-control	metadata	missing_case_control_counts	n_cases=761 n_controls=0	success	true
+GCST90570646	GCST90570646	quantitative	effect_scale	effect_placeholder_rows	6792 of 4987030 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90570648	GCST90570648	quantitative	effect_scale	effect_placeholder_rows	29379 of 10116199 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90570650	GCST90570650	quantitative	effect_scale	effect_placeholder_rows	36142 of 10598648 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90570652	GCST90570652	quantitative	effect_scale	effect_placeholder_rows	66 of 4986365 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90570654	GCST90570654	quantitative	effect_scale	effect_placeholder_rows	179 of 9984360 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90570656	GCST90570656	quantitative	effect_scale	effect_placeholder_rows	3686 of 4986292 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90570658	GCST90570658	quantitative	effect_scale	effect_placeholder_rows	15880 of 10001605 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90623790	GCST90623790	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90623791	GCST90623791	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90623792	GCST90623792	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90623793	GCST90623793	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90627737	GCST90627737	case-control	effect_scale	effect_placeholder_rows	21628 of 22281007 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90627742	GCST90627742	case-control	effect_scale	effect_placeholder_rows	10882 of 22289471 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90627746	GCST90627746	case-control	effect_scale	effect_placeholder_rows	23958 of 22153328 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90627751	GCST90627751	case-control	effect_scale	effect_placeholder_rows	5160 of 17598962 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90627756	GCST90627756	case-control	effect_scale	effect_placeholder_rows	2186 of 6440511 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90627760	GCST90627760	case-control	effect_scale	effect_placeholder_rows	3251 of 13329896 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90652243	GCST90652243	quantitative	effect_scale	effect_placeholder_rows	9062 of 29543405 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90652485	GCST90652485	case-control	effect_scale	effect_placeholder_rows	5184 of 10472166 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90652489	GCST90652489	case-control	effect_scale	effect_placeholder_rows	9825 of 14312560 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90668017	GCST90668017	case-control	effect_scale	effect_placeholder_rows	4817 of 11852698 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90692020	GCST90692020	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692021	GCST90692021	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692022	GCST90692022	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692023	GCST90692023	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692024	GCST90692024	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692025	GCST90692025	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692026	GCST90692026	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692027	GCST90692027	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692028	GCST90692028	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692029	GCST90692029	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692030	GCST90692030	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692031	GCST90692031	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692032	GCST90692032	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692033	GCST90692033	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692034	GCST90692034	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692035	GCST90692035	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692036	GCST90692036	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692037	GCST90692037	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692038	GCST90692038	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692039	GCST90692039	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692040	GCST90692040	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692041	GCST90692041	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692042	GCST90692042	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692043	GCST90692043	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692044	GCST90692044	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692045	GCST90692045	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692046	GCST90692046	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692047	GCST90692047	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692096	GCST90692096	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692097	GCST90692097	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692098	GCST90692098	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692099	GCST90692099	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692100	GCST90692100	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692101	GCST90692101	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692102	GCST90692102	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692103	GCST90692103	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692104	GCST90692104	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692105	GCST90692105	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692106	GCST90692106	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90692107	GCST90692107	case-control	ancestry	ancestry_not_eur	assigned_ancestry=EUR (release target AFR)	success	true
+GCST90704623	GCST90704623	quantitative	effect_scale	effect_placeholder_rows	6212 of 13055938 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90705036	GCST90705036	case-control	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
+GCST90705040	GCST90705040	case-control	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
+GCST90705044	GCST90705044	case-control	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
+GCST90705064	GCST90705064	case-control	effect_scale	effect_placeholder_rows	91 of 5642333 rows have a +-2.2250738585072014e-308 effect, each with a finite standard_error (a source beta of 0 written as +-DBL_MIN) (full-file scan 2026-11-05, #441)	success	true
+GCST90809801	GCST90809801	quantitative	store_composition	not_maf_filtered	no MAF floor applied (requested maf_threshold=NaN, resolver maf_state=unavailable, genotyping_technology=Whole genome sequencing); 195145 of 16736072 build-eligible rows are off the variant reference (#203)	success	true
+GCST90809814	GCST90809814	quantitative	store_composition	not_maf_filtered	no MAF floor applied (requested maf_threshold=NaN, resolver maf_state=unavailable, genotyping_technology=Whole genome sequencing); 195145 of 16736072 build-eligible rows are off the variant reference (#203)	success	true
+GCST90840066	GCST90840066	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90840093	GCST90840093	quantitative	ancestry	ancestry_unassigned	gate_reason=margin	success	true
+GCST90840094	GCST90840094	quantitative	ancestry	ancestry_unassigned	gate_reason=proportion	success	true
+GCST90840124	GCST90840124	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90840144	GCST90840144	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90840171	GCST90840171	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90840172	GCST90840172	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90840173	GCST90840173	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90840174	GCST90840174	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90840175	GCST90840175	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90840176	GCST90840176	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90840177	GCST90840177	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true

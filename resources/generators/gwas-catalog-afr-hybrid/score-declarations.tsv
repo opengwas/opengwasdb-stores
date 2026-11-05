@@ -1,0 +1,7 @@
+analysis_id	imputation_score_column	imputation_score_kind	imputation_score_provenance
+GCST010076	info	imputation_info	GWAS Catalog summary statistics format (GWAS-SSF) defines the info field as 'Imputation information metric', a number between 0 and 1 (https://www.ebi.ac.uk/gwas/docs/summary-statistics-format, retrieved 2026-09-28)
+GCST010077	info	imputation_info	GWAS Catalog summary statistics format (GWAS-SSF) defines the info field as 'Imputation information metric', a number between 0 and 1 (https://www.ebi.ac.uk/gwas/docs/summary-statistics-format, retrieved 2026-09-28)
+GCST90271955	info	imputation_info	GWAS Catalog summary statistics format (GWAS-SSF) defines the info field as 'Imputation information metric', a number between 0 and 1 (https://www.ebi.ac.uk/gwas/docs/summary-statistics-format, retrieved 2026-09-28)
+GCST90809801	INFO	imputation_info	Operator-approved synonym of the GWAS-SSF info field (opengwasdb-stores#176, 2026-09-28); source header 'INFO'
+GCST90809814	INFO	imputation_info	Operator-approved synonym of the GWAS-SSF info field (opengwasdb-stores#176, 2026-09-28); source header 'INFO'
+GCST90859378	info	imputation_info	GWAS Catalog summary statistics format (GWAS-SSF) defines the info field as 'Imputation information metric', a number between 0 and 1 (https://www.ebi.ac.uk/gwas/docs/summary-statistics-format, retrieved 2026-09-28)

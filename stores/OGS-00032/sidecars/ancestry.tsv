@@ -1,0 +1,710 @@
+analysis_id	source_analysis_id	source_ancestry_label	assigned_ancestry	ancestry_assignment_method	ancestry_reference_id	af_overlap	dominant_superpop	dominant_proportion	runner_up_margin	nnls_residual	gate_reason	eaf_orientation	eaf_orientation_r	source_assigned_mismatch	ancestry_notes	ancestry_prop_AFR	ancestry_prop_AMR	ancestry_prop_EAS	ancestry_prop_EUR	ancestry_prop_MID	ancestry_prop_NAF	ancestry_prop_SAS
+GCST001404	GCST001404	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0196332	ok	passed	0.826126	false		0	0	1	0	0	0	0
+GCST001685	GCST001685	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST003467	GCST003467	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST004904	GCST004904	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995456	0.992708	0.0185767	ok	passed	0.844596	false		0.00179713	0	0.995456	0	0	0	0.00274722
+GCST006090	GCST006090	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999374	0.998749	0.0177723	ok	passed	0.837223	false		0.000625541	0	0.999374	0	0	0	0
+GCST006091	GCST006091	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.997334	0.994668	0.0180534	ok	passed	0.83866	false		0.00266598	0	0.997334	0	0	0	0
+GCST006092	GCST006092	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.997584	0.995168	0.0180421	ok	passed	0.838627	false		0.00241585	0	0.997584	0	0	0	0
+GCST006093	GCST006093	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999374	0.998749	0.0177723	ok	passed	0.837223	false		0.000625541	0	0.999374	0	0	0	0
+GCST006094	GCST006094	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999374	0.998749	0.0177723	ok	passed	0.837223	false		0.000625541	0	0.999374	0	0	0	0
+GCST006095	GCST006095	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999374	0.998749	0.0177723	ok	passed	0.837223	false		0.000625541	0	0.999374	0	0	0	0
+GCST006096	GCST006096	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.997332	0.994664	0.0180543	ok	passed	0.838661	false		0.00266823	0	0.997332	0	0	0	0
+GCST006246	GCST006246	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST006619	GCST006619	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST006636	GCST006636	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006637	GCST006637	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006638	GCST006638	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999393	0.998787	0.0177615	ok	passed	0.836844	false		0.000606615	0	0.999393	0	0	0	0
+GCST006639	GCST006639	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006640	GCST006640	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006641	GCST006641	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006642	GCST006642	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006643	GCST006643	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006644	GCST006644	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006645	GCST006645	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006646	GCST006646	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006647	GCST006647	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006648	GCST006648	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006649	GCST006649	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006650	GCST006650	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006651	GCST006651	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006652	GCST006652	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006653	GCST006653	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006654	GCST006654	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006655	GCST006655	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006656	GCST006656	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006657	GCST006657	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999392	0.998785	0.0177604	ok	passed	0.836929	false		0.000607596	0	0.999392	0	0	0	0
+GCST006719	GCST006719	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST007344	GCST007344	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.467162	0.026835	0.0222634	proportion	passed	0.981857			0.0321441	0.0570692	0.440327	0.467162	0.00329839	0	0
+GCST009869	GCST009869	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST010006	GCST010006	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST010118	GCST010118	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988085	0.978115	0.0143298	ok	passed	0.86691	false		0.00194463	0.00997043	0.988085	0	0	0	0
+GCST011096	GCST011096	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST011920	GCST011920	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST012141	GCST012141	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.667296	0.553244	0.0881521	residual	passed	0.900791			0.111867	0.0653739	0.667296	0.114051	0	0.00664913	0.0347626
+GCST012142	GCST012142	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.667296	0.553244	0.0881521	residual	passed	0.900791			0.111867	0.0653739	0.667296	0.114051	0	0.00664913	0.0347626
+GCST012143	GCST012143	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.667296	0.553244	0.0881521	residual	passed	0.900791			0.111867	0.0653739	0.667296	0.114051	0	0.00664913	0.0347626
+GCST012144	GCST012144	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.667296	0.553244	0.0881521	residual	passed	0.900791			0.111867	0.0653739	0.667296	0.114051	0	0.00664913	0.0347626
+GCST90002226	GCST90002226	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993966	0.987932	0.0246341	ok	passed	0.884836	false		0	0.0060342	0.993966	0	0	0	0
+GCST90002231	GCST90002231	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99106	0.983925	0.0295405	ok	passed	0.889096	false		0.00180591	0.00713451	0.99106	0	0	0	0
+GCST90002237	GCST90002237	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991051	0.983862	0.0295245	ok	passed	0.889066	false		0.0017612	0.00718825	0.991051	0	0	0	0
+GCST90002243	GCST90002243	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991025	0.98393	0.0295186	ok	passed	0.889155	false		0.00188062	0.00709467	0.991025	0	0	0	0
+GCST90002283	GCST90002283	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.978138	0.956276	0.033983	ok	passed	0.872304	false		0	0.021862	0.978138	0	0	0	0
+GCST90002284	GCST90002284	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.978138	0.956276	0.033983	ok	passed	0.872304	false		0	0.021862	0.978138	0	0	0	0
+GCST90002293	GCST90002293	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.987485	0.97497	0.0164187	ok	passed	0.88809	false		0	0.0125151	0.987485	0	0	0	0
+GCST90002299	GCST90002299	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.987489	0.974978	0.0164379	ok	passed	0.888045	false		0	0.0125111	0.987489	0	0	0	0
+GCST90002305	GCST90002305	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.987487	0.974973	0.0165379	ok	passed	0.887929	false		0	0.0125134	0.987487	0	0	0	0
+GCST90002311	GCST90002311	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986157	0.972314	0.0159899	ok	passed	0.888761	false		0	0.013843	0.986157	0	0	0	0
+GCST90002317	GCST90002317	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.987489	0.974978	0.0164444	ok	passed	0.88804	false		0	0.012511	0.987489	0	0	0	0
+GCST90002323	GCST90002323	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.987488	0.974976	0.0165078	ok	passed	0.887963	false		0	0.0125121	0.987488	0	0	0	0
+GCST90002329	GCST90002329	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.987487	0.974974	0.0165172	ok	passed	0.887955	false		0	0.0125132	0.987487	0	0	0	0
+GCST90002335	GCST90002335	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.987488	0.974976	0.01651	ok	passed	0.887961	false		0	0.0125122	0.987488	0	0	0	0
+GCST90002341	GCST90002341	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.987489	0.974978	0.0164434	ok	passed	0.888041	false		0	0.012511	0.987489	0	0	0	0
+GCST90002352	GCST90002352	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.987487	0.974974	0.0164105	ok	passed	0.888097	false		0	0.0125132	0.987487	0	0	0	0
+GCST90002358	GCST90002358	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986108	0.972216	0.0159661	ok	passed	0.888795	false		0	0.0138919	0.986108	0	0	0	0
+GCST90002364	GCST90002364	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986151	0.972302	0.0159927	ok	passed	0.888765	false		0	0.0138492	0.986151	0	0	0	0
+GCST90002375	GCST90002375	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986161	0.972323	0.0159937	ok	passed	0.888762	false		0	0.0138386	0.986161	0	0	0	0
+GCST90002424	GCST90002424	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006987	GCST90006987	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006988	GCST90006988	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006989	GCST90006989	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006990	GCST90006990	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006991	GCST90006991	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006992	GCST90006992	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006993	GCST90006993	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006994	GCST90006994	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006995	GCST90006995	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006996	GCST90006996	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006997	GCST90006997	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006998	GCST90006998	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90006999	GCST90006999	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007000	GCST90007000	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007001	GCST90007001	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007002	GCST90007002	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007003	GCST90007003	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007004	GCST90007004	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007005	GCST90007005	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007006	GCST90007006	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007007	GCST90007007	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007008	GCST90007008	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007009	GCST90007009	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007010	GCST90007010	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007011	GCST90007011	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90007012	GCST90007012	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90011768	GCST90011768	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90011781	GCST90011781	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0319641	ok	passed	0.843485	false		0	0	1	0	0	0	0
+GCST90011782	GCST90011782	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.998201	0.997134	0.033016	ok	passed	0.844083	false		0	0.0010664	0.998201	0.000733056	0	0	0
+GCST90011783	GCST90011783	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0319641	ok	passed	0.843485	false		0	0	1	0	0	0	0
+GCST90011784	GCST90011784	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0319641	ok	passed	0.843485	false		0	0	1	0	0	0	0
+GCST90011866	GCST90011866	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90011884	GCST90011884	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90011892	GCST90011892	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90011893	GCST90011893	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90011894	GCST90011894	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90013413	GCST90013413	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90013534	GCST90013534	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.556169	0.274151	0.147806	residual	passed	0.836564			0.119418	0.0297166	0.556169	0.282018	0	0	0.0126785
+GCST90014052	GCST90014052	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996453	0.992906	0.033653	ok	passed	0.828312	false		0.00354684	0	0.996453	0	0	0	0
+GCST90014053	GCST90014053	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996444	0.992888	0.0336789	ok	passed	0.8283	false		0.00355604	0	0.996444	0	0	0	0
+GCST90014238	GCST90014238	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90020047	GCST90020047	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90020054	GCST90020054	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0298411	ok	passed	0.858115	false		0	0	1	0	0	0	0
+GCST90020055	GCST90020055	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0298411	ok	passed	0.858115	false		0	0	1	0	0	0	0
+GCST90020056	GCST90020056	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0298411	ok	passed	0.858115	false		0	0	1	0	0	0	0
+GCST90026455	GCST90026455	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90029167	GCST90029167	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90090994	GCST90090994	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0196278	ok	passed	0.824887	false		0	0	1	0	0	0	0
+GCST90091053	GCST90091053	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.973907	0.947814	0.023993	ok	passed	0.875449	false		0	0	0.973907	0.026093	0	0	0
+GCST90093113	GCST90093113	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90094903	GCST90094903	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.98762	0.975239	0.0291291	ok	passed	0.878443	false		0	0.0123803	0.98762	0	0	0	0
+GCST90094904	GCST90094904	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.98762	0.975239	0.0291291	ok	passed	0.878443	false		0	0.0123803	0.98762	0	0	0	0
+GCST90100517	GCST90100517	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99653	0.993776	0.018259	ok	passed	0.869264	false		0.00275364	0	0.99653	0	0	0	0.000716448
+GCST90100518	GCST90100518	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996201	0.99317	0.018293	ok	passed	0.869322	false		0.00303081	0	0.996201	0	0	0	0.000768615
+GCST90100519	GCST90100519	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996454	0.993656	0.0182623	ok	passed	0.869297	false		0.00279736	0	0.996454	0	0	0	0.000749052
+GCST90100520	GCST90100520	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996573	0.993753	0.0182318	ok	passed	0.869353	false		0.00282023	0	0.996573	0	0	0	0.000606988
+GCST90100521	GCST90100521	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996355	0.993435	0.0183258	ok	passed	0.869295	false		0.00291985	0	0.996355	0	0	0	0.000725526
+GCST90100522	GCST90100522	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996148	0.993243	0.0183231	ok	passed	0.869348	false		0.00290538	0	0.996148	0	0	0	0.000946354
+GCST90100523	GCST90100523	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996943	0.994017	0.0183282	ok	passed	0.869266	false		0.00292545	0	0.996943	0	0	0	0.000131842
+GCST90100524	GCST90100524	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996519	0.993643	0.0182805	ok	passed	0.869304	false		0.002876	0	0.996519	0	0	0	0.000605203
+GCST90100525	GCST90100525	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996523	0.993554	0.0182952	ok	passed	0.869273	false		0.00296922	0	0.996523	0	0	0	0.000507798
+GCST90100526	GCST90100526	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996418	0.993506	0.0182389	ok	passed	0.869318	false		0.00291172	0	0.996418	0	0	0	0.00067008
+GCST90100527	GCST90100527	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996894	0.993954	0.0184882	ok	passed	0.869167	false		0.00293988	0	0.996894	0	0	0	0.000166266
+GCST90100528	GCST90100528	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996576	0.993637	0.0184255	ok	passed	0.869265	false		0.00293908	0	0.996576	0	0	0	0.000484844
+GCST90100529	GCST90100529	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996211	0.993158	0.0182758	ok	passed	0.869362	false		0.00305219	0	0.996211	0	0	0	0.00073715
+GCST90100530	GCST90100530	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996178	0.993345	0.0183399	ok	passed	0.869338	false		0.00283304	0	0.996178	0	0	0	0.00098886
+GCST90100531	GCST90100531	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996681	0.993834	0.0183183	ok	passed	0.869256	false		0.00284699	0	0.996681	0	0	0	0.000471592
+GCST90100532	GCST90100532	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996462	0.993572	0.0182714	ok	passed	0.8693	false		0.00289029	0	0.996462	0	0	0	0.000647275
+GCST90100533	GCST90100533	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996476	0.993534	0.0182622	ok	passed	0.869306	false		0.00294258	0	0.996476	0	0	0	0.000581033
+GCST90100534	GCST90100534	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996484	0.993593	0.0182636	ok	passed	0.8693	false		0.00289149	0	0.996484	0	0	0	0.000624514
+GCST90100535	GCST90100535	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996512	0.993587	0.018275	ok	passed	0.869312	false		0.002925	0	0.996512	0	0	0	0.000563348
+GCST90100536	GCST90100536	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996439	0.993538	0.0182742	ok	passed	0.869302	false		0.00290066	0	0.996439	0	0	0	0.000660758
+GCST90100537	GCST90100537	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996413	0.993548	0.0182841	ok	passed	0.869299	false		0.00286505	0	0.996413	0	0	0	0.00072214
+GCST90100538	GCST90100538	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947899	0.916444	0.0298375	ok	passed	0.868995	false		0.031455	0	0.947899	0	0	0	0.0206456
+GCST90100539	GCST90100539	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.948573	0.916822	0.0298933	ok	passed	0.868867	false		0.0317509	0	0.948573	0	0	0	0.0196766
+GCST90100540	GCST90100540	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947541	0.916095	0.0298041	ok	passed	0.869006	false		0.0314457	0	0.947541	0	0	0	0.0210135
+GCST90100541	GCST90100541	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947683	0.91631	0.0298011	ok	passed	0.868994	false		0.0313731	0	0.947683	0	0	0	0.0209435
+GCST90100542	GCST90100542	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947947	0.916094	0.029843	ok	passed	0.868992	false		0.0318535	0	0.947947	0	0	0	0.0201992
+GCST90100543	GCST90100543	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947799	0.917179	0.0299161	ok	passed	0.868783	false		0.0306203	0	0.947799	0	0	0	0.0215805
+GCST90100544	GCST90100544	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.94745	0.91634	0.0298339	ok	passed	0.86898	false		0.03111	0	0.94745	0	0	0	0.0214405
+GCST90100545	GCST90100545	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947847	0.916548	0.0298028	ok	passed	0.868967	false		0.0312994	0	0.947847	0	0	0	0.0208535
+GCST90100546	GCST90100546	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947719	0.916325	0.0298244	ok	passed	0.869007	false		0.0313937	0	0.947719	0	0	0	0.0208875
+GCST90100547	GCST90100547	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947683	0.91631	0.0298011	ok	passed	0.868994	false		0.0313731	0	0.947683	0	0	0	0.0209435
+GCST90100548	GCST90100548	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947527	0.91622	0.0297982	ok	passed	0.868987	false		0.0313067	0	0.947527	0	0	0	0.0211667
+GCST90100549	GCST90100549	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947734	0.915939	0.0298311	ok	passed	0.869045	false		0.0317945	0	0.947734	0	0	0	0.020472
+GCST90100550	GCST90100550	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947661	0.916504	0.0298406	ok	passed	0.868949	false		0.0311564	0	0.947661	0	0	0	0.0211829
+GCST90100551	GCST90100551	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947953	0.915993	0.0298494	ok	passed	0.869007	false		0.0319597	0	0.947953	0	0	0	0.0200875
+GCST90100552	GCST90100552	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947683	0.91631	0.0298011	ok	passed	0.868994	false		0.0313731	0	0.947683	0	0	0	0.0209435
+GCST90100553	GCST90100553	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947674	0.916317	0.0298025	ok	passed	0.869016	false		0.0313568	0	0.947674	0	0	0	0.0209696
+GCST90100554	GCST90100554	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.948389	0.916669	0.0298947	ok	passed	0.86881	false		0.0317204	0	0.948389	0	0	0	0.0198905
+GCST90100555	GCST90100555	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947773	0.916456	0.0298061	ok	passed	0.868972	false		0.031317	0	0.947773	0	0	0	0.0209099
+GCST90100556	GCST90100556	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947683	0.91631	0.0298011	ok	passed	0.868994	false		0.0313731	0	0.947683	0	0	0	0.0209435
+GCST90100557	GCST90100557	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947683	0.91631	0.0298011	ok	passed	0.868994	false		0.0313731	0	0.947683	0	0	0	0.0209435
+GCST90100558	GCST90100558	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.947902	0.916122	0.0298109	ok	passed	0.86894	false		0.0317804	0	0.947902	0	0	0	0.0203176
+GCST90103751	GCST90103751	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90103752	GCST90103752	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90103753	GCST90103753	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90103754	GCST90103754	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90104038	GCST90104038	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.98195	0.971455	0.0337658	ok	passed	0.859861			0	0.010495	0.98195	0.00755505	0	0	0
+GCST90104544	GCST90104544	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988379	0.98213	0.0168459	ok	passed	0.871938			0.00344307	0.00624829	0.988379	0.00159251	0	0.000337515	0
+GCST90104545	GCST90104545	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.994328	0.991767	0.0171042	ok	passed	0.869875			0.00256084	0.00108178	0.994328	0	0	0.00202944	0
+GCST90104546	GCST90104546	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991314	0.985579	0.0173773	ok	passed	0.835873			0.00109843	0.00175623	0.991314	0	0	0.0057342	9.74831e-05
+GCST90104547	GCST90104547	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.994738	0.992166	0.0170502	ok	passed	0.867135			0.00257207	0.000762487	0.994738	0	0	0.00192746	0
+GCST90104548	GCST90104548	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.994679	0.991764	0.0171207	ok	passed	0.869129			0.00240623	0	0.994679	0	0	0.00291488	0
+GCST90104897	GCST90104897	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90129505	GCST90129505	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90132222	GCST90132222	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90132224	GCST90132224	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90132225	GCST90132225	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90132227	GCST90132227	East Asian		unassigned	ref_freqs.hg38.tsv.gz	0		0	0		overlap	unverified										
+GCST90134281	GCST90134281	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991011	0.98734	0.00723985	ok	passed	0.894302			0.00117703	0.00367128	0.991011	0.00115264	0.00227336	0	0.000714261
+GCST90165265	GCST90165265	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.969114	0.957414	0.0166427	ok	passed	0.89059			0.00755233	0.0116998	0.969114	0.00809438	0	0.00137498	0.00216456
+GCST90239651	GCST90239651	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.981865	0.963729	0.0210238	ok	passed	0.893831	false		0	0.0181355	0.981865	0	0	0	0
+GCST90239657	GCST90239657	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977131	0.95438	0.0223203	ok	passed	0.895099	false		0	0.0227517	0.977131	0.000117098	0	0	0
+GCST90239663	GCST90239663	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977659	0.955318	0.0222966	ok	passed	0.894876	false		0	0.0223408	0.977659	0	0	0	0
+GCST90239669	GCST90239669	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.981098	0.962196	0.0211171	ok	passed	0.894131	false		0	0.018902	0.981098	0	0	0	0
+GCST90239675	GCST90239675	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.98376	0.96752	0.0209154	ok	passed	0.89291	false		0	0.0162402	0.98376	0	0	0	0
+GCST90245991	GCST90245991	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.994693	0.989386	0.015043	ok	passed	0.852849	false		0	0.00530717	0.994693	0	0	0	0
+GCST90256404	GCST90256404	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	21327	EAS	0.993374	0.986747	0.0193311	ok	passed	0.829231	false		0	0.0066263	0.993374	0	0	0	0
+GCST90256410	GCST90256410	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	21328	EAS	0.993294	0.986588	0.0193202	ok	passed	0.829265	false		0	0.00670593	0.993294	0	0	0	0
+GCST90256416	GCST90256416	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	22950	EAS	1	1	0.0158439	ok	passed	0.829232	false		0	0	1	0	0	0	0
+GCST90267938	GCST90267938	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267939	GCST90267939	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267940	GCST90267940	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267941	GCST90267941	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267942	GCST90267942	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267943	GCST90267943	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267944	GCST90267944	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267945	GCST90267945	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267946	GCST90267946	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267947	GCST90267947	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267948	GCST90267948	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267949	GCST90267949	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267950	GCST90267950	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267951	GCST90267951	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267952	GCST90267952	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267953	GCST90267953	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267954	GCST90267954	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267955	GCST90267955	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267956	GCST90267956	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267957	GCST90267957	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267958	GCST90267958	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267959	GCST90267959	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267960	GCST90267960	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267961	GCST90267961	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267962	GCST90267962	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267963	GCST90267963	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267964	GCST90267964	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267965	GCST90267965	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267966	GCST90267966	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267967	GCST90267967	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267968	GCST90267968	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267969	GCST90267969	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267970	GCST90267970	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267971	GCST90267971	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267972	GCST90267972	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267973	GCST90267973	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267974	GCST90267974	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267975	GCST90267975	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267976	GCST90267976	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267977	GCST90267977	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267978	GCST90267978	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267979	GCST90267979	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267980	GCST90267980	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90267981	GCST90267981	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986374	0.973769	0.0282046	ok	passed	0.879238	false		0	0.0126054	0.986374	0.00102056	0	0	0
+GCST90268004	GCST90268004	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0377348	ok	passed	0.870722	false		0	0	1	0	0	0	0
+GCST90268005	GCST90268005	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0371555	ok	passed	0.871098	false		0	0	1	0	0	0	0
+GCST90269956	GCST90269956	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992893	0.989661	0.0177997	ok	passed	0.874938			0.00172363	0	0.992893	0	0	0.00323215	0.00215131
+GCST90270926	GCST90270926	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.973201	0.962828	0.0184996	ok	passed	0.890137	false		0.00545265	0.0036244	0.973201	0.00325489	0	0.0103726	0.00409495
+GCST90270927	GCST90270927	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.972694	0.962019	0.0185504	ok	passed	0.890258	false		0.00555494	0.00361905	0.972694	0.00317931	0	0.0106756	0.00427668
+GCST90270928	GCST90270928	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.974318	0.96352	0.018211	ok	passed	0.889898	false		0.00510665	0.00306053	0.974318	0.0025118	0	0.0107977	0.00420558
+GCST90270929	GCST90270929	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.974777	0.963622	0.0180151	ok	passed	0.889804	false		0.00498446	0.00261922	0.974777	0.00201824	0	0.0111559	0.00444484
+GCST90274716	GCST90274716	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.980764	0.97286	0.018375	ok	passed	0.891116	false		0.00474347	0.00523868	0.980764	0	0	0.00134996	0.00790405
+GCST90277434	GCST90277434	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996082	0.992165	0.0201196	ok	passed	0.887902	false		0	0.0039177	0.996082	0	0	0	0
+GCST90278092	GCST90278092	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0268696	ok	passed	0.881362			0	0	1	0	0	0	0
+GCST90278615	GCST90278615	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977496	0.965429	0.021383	ok	passed	0.863588	false		0.012067	0	0.977496	0.000524102	0	0.00991292	0
+GCST90278616	GCST90278616	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977947	0.965786	0.0212699	ok	passed	0.86346	false		0.012161	0	0.977947	0	0	0.0098924	0
+GCST90278617	GCST90278617	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977606	0.965459	0.021343	ok	passed	0.863565	false		0.0121465	0	0.977606	0	0	0.0102479	0
+GCST90278618	GCST90278618	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.978144	0.965974	0.0212325	ok	passed	0.863398	false		0.0121703	0	0.978144	0	0	0.00968566	0
+GCST90278619	GCST90278619	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977872	0.965715	0.0212855	ok	passed	0.863483	false		0.0121573	0	0.977872	0	0	0.00997039	0
+GCST90278620	GCST90278620	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977924	0.965764	0.0212744	ok	passed	0.863467	false		0.0121591	0	0.977924	0	0	0.0099174	0
+GCST90278621	GCST90278621	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977903	0.965744	0.0212792	ok	passed	0.863474	false		0.0121586	0	0.977903	0	0	0.00993855	0
+GCST90278622	GCST90278622	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977725	0.965573	0.0213165	ok	passed	0.863529	false		0.0121522	0	0.977725	0	0	0.0101231	0
+GCST90278623	GCST90278623	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977824	0.965668	0.0212953	ok	passed	0.863498	false		0.0121558	0	0.977824	0	0	0.0100205	0
+GCST90278624	GCST90278624	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977814	0.965657	0.0212973	ok	passed	0.863502	false		0.0121567	0	0.977814	0	0	0.0100296	0
+GCST90278625	GCST90278625	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977874	0.965717	0.0212853	ok	passed	0.863483	false		0.012157	0	0.977874	0	0	0.00996943	0
+GCST90278626	GCST90278626	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.978749	0.966546	0.0211203	ok	passed	0.863143	false		0.0122038	0	0.978749	0	0	0.0090467	0
+GCST90278627	GCST90278627	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977272	0.965011	0.0213933	ok	passed	0.863588	false		0.0122613	0	0.977272	0.000459693	0	0.0100069	0
+GCST90278628	GCST90278628	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977797	0.965641	0.0213009	ok	passed	0.863507	false		0.0121556	0	0.977797	0	0	0.0100479	0
+GCST90278629	GCST90278629	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.978103	0.965911	0.0212203	ok	passed	0.863347	false		0.0121918	0	0.978103	0	0	0.00970563	0
+GCST90278630	GCST90278630	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977879	0.965723	0.021284	ok	passed	0.863481	false		0.0121566	0	0.977879	0	0	0.00996417	0
+GCST90278631	GCST90278631	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977855	0.965699	0.021289	ok	passed	0.863489	false		0.0121561	0	0.977855	0	0	0.00998862	0
+GCST90278632	GCST90278632	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977991	0.965827	0.0212617	ok	passed	0.863446	false		0.0121636	0	0.977991	0	0	0.00984584	0
+GCST90278633	GCST90278633	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.97776	0.965607	0.0213089	ok	passed	0.863518	false		0.0121532	0	0.97776	0	0	0.0100866	0
+GCST90278634	GCST90278634	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.978205	0.966033	0.0212212	ok	passed	0.863379	false		0.0121721	0	0.978205	0	0	0.00962308	0
+GCST90278635	GCST90278635	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977911	0.965752	0.0212775	ok	passed	0.863471	false		0.0121591	0	0.977911	0	0	0.00992988	0
+GCST90278636	GCST90278636	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977928	0.965768	0.0212737	ok	passed	0.863466	false		0.0121604	0	0.977928	0	0	0.00991109	0
+GCST90278637	GCST90278637	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977922	0.965763	0.0212747	ok	passed	0.863468	false		0.0121595	0	0.977922	0	0	0.00991831	0
+GCST90278638	GCST90278638	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977936	0.965776	0.0212721	ok	passed	0.863463	false		0.01216	0	0.977936	0	0	0.00990394	0
+GCST90278639	GCST90278639	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.97772	0.965567	0.0213176	ok	passed	0.86353	false		0.0121524	0	0.97772	0	0	0.0101277	0
+GCST90278640	GCST90278640	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977753	0.965601	0.0213105	ok	passed	0.86352	false		0.0121521	0	0.977753	0	0	0.0100948	0
+GCST90278641	GCST90278641	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977851	0.965696	0.0212901	ok	passed	0.86349	false		0.0121552	0	0.977851	0	0	0.00999368	0
+GCST90278642	GCST90278642	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977793	0.965638	0.0213019	ok	passed	0.863508	false		0.0121551	0	0.977793	0	0	0.0100523	0
+GCST90278643	GCST90278643	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977993	0.965829	0.021261	ok	passed	0.863445	false		0.0121637	0	0.977993	0	0	0.00984321	0
+GCST90278644	GCST90278644	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977909	0.96575	0.0212777	ok	passed	0.863472	false		0.0121591	0	0.977909	0	0	0.00993163	0
+GCST90278645	GCST90278645	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977862	0.965705	0.0212874	ok	passed	0.863486	false		0.0121574	0	0.977862	0	0	0.00998046	0
+GCST90278646	GCST90278646	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977844	0.965689	0.0212915	ok	passed	0.863492	false		0.0121552	0	0.977844	0	0	0.0100008	0
+GCST90278647	GCST90278647	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977769	0.965614	0.0213071	ok	passed	0.863515	false		0.0121544	0	0.977769	0	0	0.010077	0
+GCST90278648	GCST90278648	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.97773	0.965577	0.0213154	ok	passed	0.863527	false		0.0121525	0	0.97773	0	0	0.0101175	0
+GCST90278649	GCST90278649	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977713	0.965562	0.0213187	ok	passed	0.863532	false		0.012151	0	0.977713	0	0	0.0101356	0
+GCST90278650	GCST90278650	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977694	0.965544	0.021323	ok	passed	0.863538	false		0.0121499	0	0.977694	0	0	0.0101561	0
+GCST90278651	GCST90278651	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.987957	0.980518	0.0199169	ok	passed	0.882995	false		0.0074398	0	0.987957	0	0	0.00460272	0
+GCST90278652	GCST90278652	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989487	0.982169	0.0200315	ok	passed	0.882412	false		0.00731811	0	0.989487	0	0	0.00319476	0
+GCST90278653	GCST90278653	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989299	0.982395	0.0200639	ok	passed	0.88248	false		0.00690431	0	0.989299	0	0	0.00379661	0
+GCST90278654	GCST90278654	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989629	0.982879	0.0200795	ok	passed	0.882344	false		0.00674963	0	0.989629	0	0	0.00362148	0
+GCST90278655	GCST90278655	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988492	0.98138	0.0201295	ok	passed	0.882606	false		0.00711228	0.000850806	0.988492	0	0	0.00354444	0
+GCST90278656	GCST90278656	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988591	0.982301	0.0200228	ok	passed	0.882705	false		0.00628991	0.000428719	0.988591	0	0	0.00469023	0
+GCST90278657	GCST90278657	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989263	0.982612	0.0200418	ok	passed	0.882481	false		0.00665085	0	0.989263	0	0	0.0040866	0
+GCST90278658	GCST90278658	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988513	0.981175	0.019919	ok	passed	0.882795	false		0.00733768	0	0.988513	0	0	0.00414941	0
+GCST90278659	GCST90278659	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988392	0.98071	0.0199257	ok	passed	0.882798	false		0.00768126	6.99529e-05	0.988392	0	0	0.00385715	0
+GCST90278660	GCST90278660	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988918	0.981113	0.0201424	ok	passed	0.88253	false		0.0078046	0.000236697	0.988918	0	0	0.00304066	0
+GCST90278661	GCST90278661	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.985495	0.976162	0.0198968	ok	passed	0.883708	false		0.00933211	0	0.985495	0	0	0.00517329	0
+GCST90278662	GCST90278662	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989234	0.981788	0.020145	ok	passed	0.882429	false		0.00744573	0.000423246	0.989234	0	0	0.00289731	0
+GCST90278663	GCST90278663	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.985886	0.976576	0.0198822	ok	passed	0.883491	false		0.00931006	0	0.985886	0	0	0.00480408	0
+GCST90278664	GCST90278664	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989616	0.982806	0.0202568	ok	passed	0.882257	false		0.00681015	0	0.989616	0	0	0.00357356	0
+GCST90278665	GCST90278665	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.985842	0.976953	0.0198713	ok	passed	0.883589	false		0.00888901	0.000475637	0.985842	0	0	0.00479366	0
+GCST90278666	GCST90278666	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988986	0.981845	0.0201014	ok	passed	0.882573	false		0.00714091	0	0.988986	0	0	0.00387269	0
+GCST90278667	GCST90278667	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989205	0.981828	0.0201008	ok	passed	0.882474	false		0.00737686	0	0.989205	0	0	0.00341831	0
+GCST90278668	GCST90278668	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988814	0.982557	0.0201118	ok	passed	0.882643	false		0.00625728	0	0.988814	0	0	0.0049289	0
+GCST90278669	GCST90278669	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988429	0.981244	0.0198875	ok	passed	0.882876	false		0.0071843	0	0.988429	0	0	0.00438691	0
+GCST90278670	GCST90278670	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988813	0.981476	0.0200225	ok	passed	0.882595	false		0.00733717	0.00068045	0.988813	0	0	0.00316916	0
+GCST90278671	GCST90278671	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.98732	0.979581	0.0199175	ok	passed	0.88314	false		0.00773921	0.00080525	0.98732	0	0	0.00413506	0
+GCST90278672	GCST90278672	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.98764	0.980372	0.0200092	ok	passed	0.88289	false		0.00726811	0.0015504	0.98764	0	0	0.00354175	0
+GCST90278673	GCST90278673	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.988983	0.981532	0.0201425	ok	passed	0.882435	false		0.00745124	0.00108062	0.988983	0	0	0.00248524	0
+GCST90278674	GCST90278674	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989339	0.983158	0.0202064	ok	passed	0.882419	false		0.00618159	0	0.989339	0	0	0.00447907	0
+GCST90295916	GCST90295916	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986903	0.981549	0.0177602	ok	passed	0.85794	false		0.00412737	0.00361628	0.986903	0	0	0.00535355	0
+GCST90295953	GCST90295953	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.98134	0.969089	0.00824248	ok	passed	0.887793	false		0.00127004	0.00423161	0.98134	0.012251	0.000907054	0	0
+GCST90296498	GCST90296498	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992377	0.9881	0.020084	ok	passed	0.869069	false		0.00427682	0	0.992377	0	0	0.00334635	0
+GCST90297786	GCST90297786	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991675	0.987059	0.0443064	ok	passed	0.851176			0.00370772	0.00461688	0.991675	0	0	0	0
+GCST90297787	GCST90297787	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991675	0.987059	0.0443064	ok	passed	0.851176	false		0.00370772	0.00461688	0.991675	0	0	0	0
+GCST90297788	GCST90297788	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991675	0.987059	0.0443064	ok	passed	0.851176	false		0.00370772	0.00461688	0.991675	0	0	0	0
+GCST90297789	GCST90297789	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991675	0.987059	0.0443064	ok	passed	0.851176	false		0.00370772	0.00461688	0.991675	0	0	0	0
+GCST90297790	GCST90297790	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991675	0.987059	0.0443064	ok	passed	0.851176	false		0.00370772	0.00461688	0.991675	0	0	0	0
+GCST90297791	GCST90297791	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991675	0.987059	0.0443064	ok	passed	0.851176			0.00370772	0.00461688	0.991675	0	0	0	0
+GCST90302224	GCST90302224	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979648	0.96114	0.0375004	ok	passed	0.880936			0.00184348	0.0185083	0.979648	0	0	0	0
+GCST90302225	GCST90302225	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979647	0.961139	0.0375008	ok	passed	0.880936			0.00184366	0.0185089	0.979647	0	0	0	0
+GCST90302226	GCST90302226	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979647	0.961138	0.0375011	ok	passed	0.880936			0.00184374	0.0185091	0.979647	0	0	0	0
+GCST90302227	GCST90302227	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	AFR	0.441682	0.174004	0.388101	residual	passed	0.155439			0.441682	0	0.236717	0.0539231	0	0	0.267678
+GCST90302228	GCST90302228	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	AFR	0.441682	0.174004	0.388101	residual	passed	0.155439			0.441682	0	0.236717	0.0539231	0	0	0.267678
+GCST90302229	GCST90302229	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	AFR	0.441682	0.174004	0.388101	residual	passed	0.155439			0.441682	0	0.236717	0.0539231	0	0	0.267678
+GCST90302230	GCST90302230	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	AFR	0.441682	0.174004	0.388101	residual	passed	0.155439			0.441682	0	0.236717	0.0539231	0	0	0.267678
+GCST90302231	GCST90302231	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	AFR	0.441682	0.174004	0.388101	residual	passed	0.155439			0.441682	0	0.236717	0.0539231	0	0	0.267678
+GCST90302232	GCST90302232	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	AFR	0.441682	0.174004	0.388101	residual	passed	0.155439			0.441682	0	0.236717	0.0539231	0	0	0.267678
+GCST90302233	GCST90302233	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	AFR	0.441682	0.174004	0.388101	residual	passed	0.155439			0.441682	0	0.236717	0.0539231	0	0	0.267678
+GCST90302234	GCST90302234	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	AFR	0.441682	0.174004	0.388101	residual	passed	0.155439			0.441682	0	0.236717	0.0539231	0	0	0.267678
+GCST90302235	GCST90302235	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979652	0.961147	0.0374992	ok	passed	0.880935			0.00184239	0.0185052	0.979652	0	0	0	0
+GCST90319502	GCST90319502	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.985275	0.979255	0.0208985	ok	passed	0.878667			0.00338934	0.00601961	0.985275	0	0	0.000309315	0.00500687
+GCST90319905	GCST90319905	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0180039	ok	passed	0.853917			0	0	1	0	0	0	0
+GCST90320065	GCST90320065	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.997537	0.995073	0.0234399	ok	passed	0.881705	false		0	0.0024633	0.997537	0	0	0	0
+GCST90320257	GCST90320257	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999863	0.999727	0.0285581	ok	passed	0.861882			0	0.000136659	0.999863	0	0	0	0
+GCST90320258	GCST90320258	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999863	0.999727	0.0285581	ok	passed	0.861882			0	0.000136659	0.999863	0	0	0	0
+GCST90320259	GCST90320259	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999863	0.999727	0.0285581	ok	passed	0.861882			0	0.000136659	0.999863	0	0	0	0
+GCST90335162	GCST90335162	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986504	0.977746	0.0227047	ok	passed	0.885666	false		0.00473863	0.00875786	0.986504	0	0	0	0
+GCST90335163	GCST90335163	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986504	0.977746	0.0227047	ok	passed	0.885666	false		0.00473863	0.00875786	0.986504	0	0	0	0
+GCST90335164	GCST90335164	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986504	0.977746	0.0227047	ok	passed	0.885666	false		0.00473863	0.00875786	0.986504	0	0	0	0
+GCST90335165	GCST90335165	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986504	0.977746	0.0227047	ok	passed	0.885666	false		0.00473863	0.00875786	0.986504	0	0	0	0
+GCST90335166	GCST90335166	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986504	0.977746	0.0227047	ok	passed	0.885666	false		0.00473863	0.00875786	0.986504	0	0	0	0
+GCST90335167	GCST90335167	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986504	0.977746	0.0227047	ok	passed	0.885666	false		0.00473863	0.00875786	0.986504	0	0	0	0
+GCST90335168	GCST90335168	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986504	0.977746	0.0227047	ok	passed	0.885666	false		0.00473863	0.00875786	0.986504	0	0	0	0
+GCST90335169	GCST90335169	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.986504	0.977746	0.0227047	ok	passed	0.885666	false		0.00473863	0.00875786	0.986504	0	0	0	0
+GCST90399685	GCST90399685	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.990268	0.984499	0.0216312	ok	passed	0.890341	false		0.00576892	0.00271097	0.990268	0	0	0.00125246	0
+GCST90399693	GCST90399693	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991028	0.985173	0.0217123	ok	passed	0.885049	false		0.00585573	0.00219485	0.991028	0	0	0.000920945	0
+GCST90399700	GCST90399700	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991389	0.985619	0.0212401	ok	passed	0.88523	false		0.00577062	0.00237687	0.991389	0	0	0.000463093	0
+GCST90399705	GCST90399705	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995252	0.992045	0.015392	ok	passed	0.871971	false		0.00320708	0.000344901	0.995252	0	0	0.00119577	0
+GCST90399712	GCST90399712	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996524	0.993383	0.0156788	ok	passed	0.879225	false		0.000335797	0.00314046	0.996524	0	0	0	0
+GCST90399719	GCST90399719	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.996641	0.993588	0.0156954	ok	passed	0.879184	false		0.000305561	0.00305313	0.996641	0	0	0	0
+GCST90399724	GCST90399724	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995202	0.991976	0.0154164	ok	passed	0.872008	false		0.00322553	0.000320271	0.995202	0	0	0.00125264	0
+GCST90399731	GCST90399731	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99438	0.991488	0.0166656	ok	passed	0.875945	false		0.00289184	0	0.99438	0	0	0.0027281	0
+GCST90399743	GCST90399743	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.990231	0.983647	0.0223553	ok	passed	0.865832	false		0.00318396	0.00658475	0.990231	0	0	0	0
+GCST90428597	GCST90428597	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.974842	0.961859	0.0177039	ok	passed	0.885223			0.004489	0.00748588	0.974842	0.0129829	0	0.000200316	0
+GCST90428598	GCST90428598	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.976741	0.965472	0.0164623	ok	passed	0.883859			0.00293738	0.0112695	0.976741	0.00177392	0	0.00374283	0.00353516
+GCST90428599	GCST90428599	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.914444	0.851157	0.0282339	ok	passed	0.902101			0.00823431	0.0100787	0.914444	0.0632865	0	0.00395656	0
+GCST90429846	GCST90429846	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.983545	0.971959	0.0177447	ok	passed	0.872428			0.00242287	0.0115864	0.983545	0.00244562	0	0	0
+GCST90429847	GCST90429847	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.975273	0.956266	0.0259209	ok	passed	0.870909			0	0.019007	0.975273	0.00572016	0	0	0
+GCST90429848	GCST90429848	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.982593	0.965186	0.0256501	ok	passed	0.871505			0	0.0174071	0.982593	0	0	0	0
+GCST90432100	GCST90432100	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	43865	EAS	1	1	0.020162	ok	passed	0.879416	false		0	0	1	0	0	0	0
+GCST90432173	GCST90432173	East Asian		unassigned	ref_freqs.hg38.tsv.gz	10	EAS	1	1	0.00513524	overlap	unverified				0	0	1	0	0	0	0
+GCST90432182	GCST90432182	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.959578	0.939648	0.0311345	ok	passed	0.88732			0.007457	0.0199293	0.959578	0.0111623	0	0.0018736	0
+GCST90435195	GCST90435195	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.980874	0.963662	0.0363497	ok	passed	0.88142			0.00191455	0.0172117	0.980874	0	0	0	0
+GCST90435196	GCST90435196	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.980874	0.963662	0.0363497	ok	passed	0.88142			0.00191455	0.0172117	0.980874	0	0	0	0
+GCST90435197	GCST90435197	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.980874	0.963662	0.0363497	ok	passed	0.88142			0.00191455	0.0172117	0.980874	0	0	0	0
+GCST90435198	GCST90435198	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.980874	0.963662	0.0363497	ok	passed	0.88142			0.00191455	0.0172117	0.980874	0	0	0	0
+GCST90435199	GCST90435199	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.980874	0.963662	0.0363497	ok	passed	0.88142			0.00191455	0.0172117	0.980874	0	0	0	0
+GCST90435200	GCST90435200	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.980874	0.963662	0.0363497	ok	passed	0.88142			0.00191455	0.0172117	0.980874	0	0	0	0
+GCST90435201	GCST90435201	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.980874	0.963662	0.0363497	ok	passed	0.88142			0.00191455	0.0172117	0.980874	0	0	0	0
+GCST90435202	GCST90435202	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.980874	0.963662	0.0363497	ok	passed	0.88142			0.00191455	0.0172117	0.980874	0	0	0	0
+GCST90435203	GCST90435203	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.980874	0.963662	0.0363497	ok	passed	0.88142			0.00191455	0.0172117	0.980874	0	0	0	0
+GCST90435439	GCST90435439	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992247	0.988842	0.042543	ok	passed	0.871991	false		0.0034056	0.00248183	0.992247	0	0	0.000419253	0.00144599
+GCST90435440	GCST90435440	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992216	0.988798	0.0425365	ok	passed	0.871946	false		0.00341773	0.00273677	0.992216	0	0	0	0.00162978
+GCST90435441	GCST90435441	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991067	0.987746	0.042867	ok	passed	0.871931	false		0.00330495	0.00230692	0.991067	0	0	0	0.00332088
+GCST90435442	GCST90435442	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.990744	0.986795	0.0424591	ok	passed	0.872175	false		0.00394955	0.0027915	0.990744	0	0	0	0.00251464
+GCST90435443	GCST90435443	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991322	0.987491	0.0423369	ok	passed	0.872213	false		0.00383098	0.00162096	0.991322	0	0	0.000240243	0.00298599
+GCST90435444	GCST90435444	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99083	0.985927	0.0426558	ok	passed	0.872135	false		0.00293	0.00133684	0.99083	0	0	0	0.00490315
+GCST90435445	GCST90435445	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.990064	0.984068	0.0427702	ok	passed	0.872146	false		0.00272398	0.00121594	0.990064	0	0	0	0.00599618
+GCST90435446	GCST90435446	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991218	0.987186	0.0425998	ok	passed	0.872126	false		0.00306589	0.00168388	0.991218	0	0	0	0.00403214
+GCST90435447	GCST90435447	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.990254	0.985768	0.0429084	ok	passed	0.872075	false		0.00311399	0.00214565	0.990254	0	0	0	0.00448618
+GCST90435448	GCST90435448	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99102	0.986517	0.0428098	ok	passed	0.87202	false		0.00284848	0.00162801	0.99102	0	0	0	0.00450303
+GCST90444427	GCST90444427	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	SAS	0.281789	0.0550888	0.292924	residual	passed	0.51356			0.222418	0.03	0.2267	0.0432689	0	0.195825	0.281789
+GCST90444428	GCST90444428	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.975982	0.965161	0.0234412	ok	passed	0.88022	false		0.00233874	0.00933042	0.975982	0	0	0.0108216	0.00152708
+GCST90444429	GCST90444429	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	SAS	0.274804	0.0537161	0.293757	residual	passed	0.51108			0.221088	0.0468747	0.220265	0.052991	0	0.183977	0.274804
+GCST90444430	GCST90444430	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.975937	0.964794	0.023459	ok	passed	0.880266	false		0.00236326	0.00923859	0.975937	0	0	0.0111434	0.00131729
+GCST90444489	GCST90444489	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995243	0.990485	0.0293486	ok	passed	0.862309	false		0	0.00475735	0.995243	0	0	0	0
+GCST90446793	GCST90446793	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.961886	0.942734	0.0307107	ok	passed	0.886566			0.00758322	0.0191518	0.961886	0.0113794	0	0	0
+GCST90446795	GCST90446795	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.960143	0.940482	0.0307732	ok	passed	0.887301			0.00687932	0.0196614	0.960143	0.00918189	0	0.0041341	0
+GCST90451675	GCST90451675	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.983848	0.975364	0.027319	ok	passed	0.834804			0.00105354	0.00848451	0.983848	0.00661358	0	0	0
+GCST90454198	GCST90454198	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979671	0.961181	0.0374913	ok	passed	0.880933			0.00183928	0.0184897	0.979671	0	0	0	0
+GCST90454199	GCST90454199	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979683	0.961203	0.0374867	ok	passed	0.880932			0.00183727	0.01848	0.979683	0	0	0	0
+GCST90454282	GCST90454282	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.875346	0.762061	0.0390935	ok	passed	0.867259	false		0.0095149	0.00185449	0.875346	0	0	0	0.113285
+GCST90454398	GCST90454398	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0199261	ok	passed	0.866145	false		0	0	1	0	0	0	0
+GCST90454399	GCST90454399	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0191286	ok	passed	0.866308	false		0	0	1	0	0	0	0
+GCST90454400	GCST90454400	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0209877	ok	passed	0.865685	false		0	0	1	0	0	0	0
+GCST90454401	GCST90454401	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0189483	ok	passed	0.866203	false		0	0	1	0	0	0	0
+GCST90454402	GCST90454402	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0196058	ok	passed	0.866067	false		0	0	1	0	0	0	0
+GCST90454403	GCST90454403	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0191911	ok	passed	0.866245	false		0	0	1	0	0	0	0
+GCST90454404	GCST90454404	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0190778	ok	passed	0.866137			0	0	1	0	0	0	0
+GCST90454405	GCST90454405	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0196631	ok	passed	0.86611	false		0	0	1	0	0	0	0
+GCST90454406	GCST90454406	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0192678	ok	passed	0.865563			0	0	1	0	0	0	0
+GCST90454407	GCST90454407	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0190202	ok	passed	0.866233	false		0	0	1	0	0	0	0
+GCST90454408	GCST90454408	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0195796	ok	passed	0.865914	false		0	0	1	0	0	0	0
+GCST90454409	GCST90454409	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0192793	ok	passed	0.866218	false		0	0	1	0	0	0	0
+GCST90454410	GCST90454410	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0194674	ok	passed	0.866195	false		0	0	1	0	0	0	0
+GCST90454411	GCST90454411	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0199093	ok	passed	0.865953	false		0	0	1	0	0	0	0
+GCST90454413	GCST90454413	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0201346	ok	passed	0.86612	false		0	0	1	0	0	0	0
+GCST90454414	GCST90454414	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0197079	ok	passed	0.866155	false		0	0	1	0	0	0	0
+GCST90454415	GCST90454415	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0191587	ok	passed	0.866195	false		0	0	1	0	0	0	0
+GCST90454417	GCST90454417	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0227501	ok	passed	0.865329			0	0	1	0	0	0	0
+GCST90454418	GCST90454418	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0190923	ok	passed	0.866218	false		0	0	1	0	0	0	0
+GCST90473166	GCST90473166	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992041	0.988552	0.0407414	ok	passed	0.880824	false		0.00299814	0.000622953	0.992041	0.000848856	0	0	0.00348895
+GCST90473173	GCST90473173	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992041	0.988552	0.0407414	ok	passed	0.880824	false		0.00299814	0.000622953	0.992041	0.000848856	0	0	0.00348895
+GCST90473213	GCST90473213	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991822	0.988096	0.0407235	ok	passed	0.880844	false		0.00279039	0.000755119	0.991822	0.000906273	0	0	0.00372627
+GCST90473220	GCST90473220	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991888	0.988166	0.0406095	ok	passed	0.880867	false		0.00283258	0.000797906	0.991888	0.000759596	0	0	0.00372205
+GCST90473407	GCST90473407	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99234	0.989134	0.0407047	ok	passed	0.880805	false		0.00285053	0.000619125	0.99234	0.000984037	0	0	0.00320603
+GCST90473414	GCST90473414	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991874	0.988061	0.0406677	ok	passed	0.880829	false		0.00289059	0.000847553	0.991874	0.000574994	0	0	0.00381316
+GCST90473516	GCST90473516	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992146	0.988935	0.0409096	ok	passed	0.880763	false		0.00281415	0.000651403	0.992146	0.00117759	0	0	0.00321087
+GCST90473519	GCST90473519	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992146	0.988935	0.0409096	ok	passed	0.880763	false		0.00281415	0.000651403	0.992146	0.00117759	0	0	0.00321087
+GCST90473632	GCST90473632	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991882	0.988366	0.0410403	ok	passed	0.880709	false		0.00290081	0.000795417	0.991882	0.000905647	0	0	0.00351613
+GCST90473648	GCST90473648	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992053	0.988415	0.0407456	ok	passed	0.880785	false		0.00286172	0.000735058	0.992053	0.000712719	0	0	0.00363789
+GCST90473678	GCST90473678	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992147	0.988934	0.0409069	ok	passed	0.880763	false		0.00281449	0.000650575	0.992147	0.00117604	0	0	0.00321228
+GCST90473681	GCST90473681	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991794	0.988426	0.041	ok	passed	0.880759	false		0.00278553	0.000953887	0.991794	0.00109912	0	0	0.00336749
+GCST90473700	GCST90473700	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99234	0.989135	0.0407074	ok	passed	0.880804	false		0.00285018	0.000619952	0.99234	0.000985585	0	0	0.00320462
+GCST90473711	GCST90473711	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992152	0.988875	0.0409338	ok	passed	0.880719	false		0.0028507	0.000859595	0.992152	0.000860238	0	0	0.00327706
+GCST90473772	GCST90473772	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992264	0.988825	0.0406092	ok	passed	0.880837	false		0.00293668	0.000523506	0.992264	0.000837435	0	0	0.00343886
+GCST90473786	GCST90473786	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992055	0.988657	0.0406833	ok	passed	0.880862	false		0.00294012	0.000573307	0.992055	0.00103346	0	0	0.00339784
+GCST90473830	GCST90473830	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992274	0.989065	0.0408212	ok	passed	0.880782	false		0.00280799	0.000577164	0.992274	0.00113227	0	0	0.00320884
+GCST90473860	GCST90473860	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992161	0.98878	0.0406267	ok	passed	0.880849	false		0.0028794	0.000731626	0.992161	0.000846302	0	0	0.00338132
+GCST90473916	GCST90473916	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991874	0.988061	0.0406677	ok	passed	0.880829	false		0.00289059	0.000847553	0.991874	0.000574994	0	0	0.00381316
+GCST90473932	GCST90473932	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991897	0.988211	0.0407583	ok	passed	0.880795	false		0.00296607	0.000875639	0.991897	0.000574357	0	0	0.00368658
+GCST90473970	GCST90473970	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992286	0.988977	0.0407054	ok	passed	0.880802	false		0.00301146	0.000553237	0.992286	0.000839903	0	0	0.00330944
+GCST90473997	GCST90473997	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99234	0.989135	0.0407074	ok	passed	0.880804	false		0.00285018	0.000619952	0.99234	0.000985585	0	0	0.00320462
+GCST90474032	GCST90474032	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992129	0.988724	0.0408408	ok	passed	0.880753	false		0.00277557	0.000830681	0.992129	0.000859317	0	0	0.00340507
+GCST90474045	GCST90474045	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99234	0.989135	0.0407074	ok	passed	0.880804	false		0.00285018	0.000619952	0.99234	0.000985585	0	0	0.00320462
+GCST90474077	GCST90474077	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991794	0.988426	0.041	ok	passed	0.880759	false		0.00278553	0.000953887	0.991794	0.00109912	0	0	0.00336749
+GCST90474088	GCST90474088	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991795	0.988426	0.0409973	ok	passed	0.88076	false		0.00278587	0.00095306	0.991795	0.00109757	0	0	0.0033689
+GCST90474107	GCST90474107	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992363	0.989285	0.0407979	ok	passed	0.880771	false		0.00292566	0.000648032	0.992363	0.000984962	0	0	0.00307801
+GCST90474126	GCST90474126	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992184	0.988931	0.0407201	ok	passed	0.880815	false		0.00295453	0.000760537	0.992184	0.000847223	0	0	0.00325331
+GCST90474196	GCST90474196	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991853	0.988152	0.0405115	ok	passed	0.88094	false		0.00289387	0.000656899	0.991853	0.000894807	0	0	0.00370111
+GCST90474293	GCST90474293	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992462	0.98905	0.0408658	ok	passed	0.880833	false		0.00341246	0.00103212	0.992462	0.00117817	0	0	0.00191511
+GCST90474298	GCST90474298	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993182	0.990366	0.0408419	ok	passed	0.880745	false		0.00281681	0.000249153	0.993182	0.00195518	0	0	0.00179637
+GCST90474303	GCST90474303	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993466	0.990511	0.0409561	ok	passed	0.880651	false		0.00295532	0.000203072	0.993466	0.00179338	0	0	0.00158214
+GCST90474308	GCST90474308	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992053	0.988669	0.0408732	ok	passed	0.880897	false		0.0033842	0.000721325	0.992053	0.00130058	0	0	0.0025411
+GCST90474313	GCST90474313	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993355	0.990332	0.0408037	ok	passed	0.880738	false		0.00302288	0	0.993355	0.0020528	0	0	0.00156932
+GCST90474318	GCST90474318	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993586	0.990557	0.0411612	ok	passed	0.880552	false		0.00302882	0	0.993586	0.00198033	0	0	0.00140485
+GCST90474323	GCST90474323	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993719	0.990006	0.0411558	ok	passed	0.880259	false		0.00371334	0.00240206	0.993719	0.00013603	0	0	2.90659e-05
+GCST90474328	GCST90474328	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993486	0.990398	0.0406347	ok	passed	0.880778	false		0.00308832	0.00014894	0.993486	0.00166875	0	0	0.00160771
+GCST90474333	GCST90474333	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992166	0.988692	0.0408798	ok	passed	0.880856	false		0.0034744	0.00101349	0.992166	0.00100017	0	0	0.00234588
+GCST90474338	GCST90474338	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993482	0.990474	0.0406855	ok	passed	0.880786	false		0.00300823	0.0001099	0.993482	0.00193429	0	0	0.00146567
+GCST90474343	GCST90474343	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993158	0.990099	0.0406987	ok	passed	0.880816	false		0.00305848	0.000399397	0.993158	0.00185241	0	0	0.00153182
+GCST90474348	GCST90474348	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992961	0.990004	0.0408097	ok	passed	0.880756	false		0.00295706	0.000261697	0.992961	0.00159169	0	0	0.00222872
+GCST90474353	GCST90474353	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993623	0.990661	0.0407309	ok	passed	0.880737	false		0.0029621	1.87401e-05	0.993623	0.00188802	0	0	0.00150794
+GCST90474358	GCST90474358	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993128	0.990185	0.0407846	ok	passed	0.880744	false		0.0029423	0.000465594	0.993128	0.00158203	0	0	0.00188238
+GCST90474363	GCST90474363	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992747	0.989159	0.040661	ok	passed	0.880848	false		0.00358852	0.000511485	0.992747	0.00063906	0	0.000233561	0.00227999
+GCST90474368	GCST90474368	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.994051	0.991512	0.0406842	ok	passed	0.88073	false		0.00253902	0.00147745	0.994051	0.00175029	0	0	0.000181938
+GCST90474373	GCST90474373	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992159	0.988606	0.040859	ok	passed	0.880837	false		0.00355257	0.00110159	0.992159	0.000789658	0	0	0.0023976
+GCST90474378	GCST90474378	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993394	0.990524	0.0408481	ok	passed	0.88072	false		0.00286986	0.000236161	0.993394	0.00177416	0	0	0.00172554
+GCST90474383	GCST90474383	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993551	0.99061	0.0408003	ok	passed	0.880751	false		0.00294106	7.51737e-05	0.993551	0.00211683	0	0	0.00131561
+GCST90474388	GCST90474388	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995131	0.992649	0.0408308	ok	passed	0.880424	false		0.00248243	0	0.995131	0.00195848	0	0	0.000428085
+GCST90474393	GCST90474393	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992655	0.988955	0.0405814	ok	passed	0.880897	false		0.00369991	0.000934109	0.992655	0.000769671	0	1.17368e-05	0.00192963
+GCST90474401	GCST90474401	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992247	0.988698	0.0408596	ok	passed	0.88085	false		0.0035494	0.000918756	0.992247	0.000997415	0	0	0.0022871
+GCST90474407	GCST90474407	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993018	0.989443	0.0409432	ok	passed	0.880741	false		0.00357495	0.000792792	0.993018	0.00127077	0	0	0.00134345
+GCST90474412	GCST90474412	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993734	0.990596	0.0410277	ok	passed	0.880609	false		0.00313766	0	0.993734	0.00206696	0	0	0.00106129
+GCST90474417	GCST90474417	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.994626	0.99163	0.0408286	ok	passed	0.880528	false		0.0029961	0	0.994626	0.00207862	0	0	0.000298975
+GCST90474422	GCST90474422	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992165	0.988683	0.0410099	ok	passed	0.880791	false		0.00348184	0.00122554	0.992165	0.000954507	0	0	0.00217305
+GCST90474427	GCST90474427	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993428	0.99042	0.0406526	ok	passed	0.880786	false		0.00300849	0.00023144	0.993428	0.00176005	0	0	0.00157175
+GCST90474432	GCST90474432	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993564	0.990629	0.0407359	ok	passed	0.880755	false		0.00293445	7.66058e-05	0.993564	0.00198752	0	0	0.00143776
+GCST90474437	GCST90474437	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993886	0.990894	0.0407248	ok	passed	0.880725	false		0.00299199	0	0.993886	0.00197679	0	0	0.00114563
+GCST90474442	GCST90474442	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993928	0.99095	0.0407274	ok	passed	0.880719	false		0.00297861	0	0.993928	0.00201388	0	0	0.00107939
+GCST90474450	GCST90474450	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993715	0.990712	0.0406446	ok	passed	0.880779	false		0.00300257	0	0.993715	0.00197686	0	0	0.00130597
+GCST90474455	GCST90474455	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993162	0.990193	0.0406486	ok	passed	0.880813	false		0.00296822	0.000151012	0.993162	0.00165829	0	0	0.00206078
+GCST90474460	GCST90474460	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991439	0.987589	0.0409638	ok	passed	0.880895	false		0.00270006	0.000832088	0.991439	0.00117942	0	0	0.00384957
+GCST90474465	GCST90474465	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991466	0.987712	0.0409208	ok	passed	0.880925	false		0.00294185	0.000630091	0.991466	0.00120688	0	0	0.00375479
+GCST90474470	GCST90474470	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991648	0.988001	0.0408337	ok	passed	0.880946	false		0.00277427	0.000622338	0.991648	0.00130717	0	0	0.00364785
+GCST90474475	GCST90474475	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99131	0.98746	0.0410552	ok	passed	0.880875	false		0.0027059	0.000907435	0.99131	0.00122647	0	0	0.00385018
+GCST90474480	GCST90474480	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99134	0.98741	0.0407151	ok	passed	0.880999	false		0.00271299	0.000937648	0.99134	0.00108	0	0	0.00392958
+GCST90474485	GCST90474485	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991161	0.987056	0.0406369	ok	passed	0.881044	false		0.0027419	0.00105028	0.991161	0.000942101	0	0	0.00410506
+GCST90474490	GCST90474490	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991504	0.98766	0.0408538	ok	passed	0.880917	false		0.0027418	0.000875603	0.991504	0.00103467	0	0	0.00384395
+GCST90474495	GCST90474495	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991737	0.988222	0.0408139	ok	passed	0.880935	false		0.00289154	0.000693945	0.991737	0.00116179	0	0	0.00351556
+GCST90474500	GCST90474500	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991155	0.987256	0.0410677	ok	passed	0.880886	false		0.00281033	0.00104817	0.991155	0.00108793	0	0	0.00389903
+GCST90474505	GCST90474505	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991325	0.987305	0.0407732	ok	passed	0.880962	false		0.00277106	0.000987404	0.991325	0.000895204	0	0	0.00402086
+GCST90474510	GCST90474510	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991504	0.98766	0.0408538	ok	passed	0.880917	false		0.0027418	0.000875603	0.991504	0.00103467	0	0	0.00384395
+GCST90474515	GCST90474515	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991558	0.987867	0.0407359	ok	passed	0.880979	false		0.00292045	0.000806589	0.991558	0.00102387	0	0	0.00369107
+GCST90474520	GCST90474520	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991236	0.987115	0.040791	ok	passed	0.880957	false		0.00285232	0.000906415	0.991236	0.000883436	0	0	0.00412155
+GCST90474525	GCST90474525	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991523	0.987835	0.0407529	ok	passed	0.880976	false		0.00284065	0.000791596	0.991523	0.00115629	0	0	0.00368833
+GCST90474530	GCST90474530	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991492	0.98778	0.0409665	ok	passed	0.88088	false		0.00273684	0.000890259	0.991492	0.00116968	0	0	0.00371158
+GCST90474535	GCST90474535	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991481	0.987539	0.0407558	ok	passed	0.880935	false		0.00286549	0.000836418	0.991481	0.000875063	0	0	0.00394178
+GCST90474540	GCST90474540	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991791	0.988412	0.0408138	ok	passed	0.88092	false		0.00292867	0.000751365	0.991791	0.00115042	0	0	0.00337901
+GCST90474545	GCST90474545	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991511	0.987596	0.0405466	ok	passed	0.88103	false		0.00296861	0.000739427	0.991511	0.000864799	0	0	0.00391569
+GCST90474550	GCST90474550	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991423	0.987657	0.0405055	ok	passed	0.88108	false		0.00285324	0.000898	0.991423	0.0010584	0	0	0.00376692
+GCST90474555	GCST90474555	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991416	0.987752	0.040811	ok	passed	0.88095	false		0.00282497	0.00102477	0.991416	0.00107116	0	0	0.00366348
+GCST90474560	GCST90474560	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991481	0.987539	0.0407558	ok	passed	0.880935	false		0.00286549	0.000836418	0.991481	0.000875063	0	0	0.00394178
+GCST90474565	GCST90474565	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991791	0.988412	0.0408138	ok	passed	0.88092	false		0.00292867	0.000751365	0.991791	0.00115042	0	0	0.00337901
+GCST90474570	GCST90474570	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992131	0.989047	0.0408312	ok	passed	0.880842	false		0.00299619	0.00080771	0.992131	0.000980294	0	0	0.00308438
+GCST90474575	GCST90474575	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992131	0.989047	0.0408312	ok	passed	0.880842	false		0.00299619	0.00080771	0.992131	0.000980294	0	0	0.00308438
+GCST90474580	GCST90474580	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991694	0.988328	0.0408046	ok	passed	0.880875	false		0.0029408	0.00119813	0.991694	0.000800283	0	0	0.00336658
+GCST90474585	GCST90474585	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991823	0.988457	0.0407127	ok	passed	0.880895	false		0.00293496	0.00112285	0.991823	0.000753288	0	0	0.00336596
+GCST90474590	GCST90474590	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99189	0.988631	0.0407292	ok	passed	0.880889	false		0.00307343	0.00103773	0.99189	0.000741206	0	0	0.00325808
+GCST90474595	GCST90474595	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991952	0.988692	0.0407533	ok	passed	0.880886	false		0.00302515	0.000920583	0.991952	0.000842098	0	0	0.00326026
+GCST90474600	GCST90474600	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991952	0.988692	0.0407533	ok	passed	0.880886	false		0.00302515	0.000920583	0.991952	0.000842098	0	0	0.00326026
+GCST90474605	GCST90474605	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991883	0.988388	0.0408692	ok	passed	0.880758	false		0.00283222	0.0011692	0.991883	0.000621568	0	0	0.00349431
+GCST90474610	GCST90474610	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992162	0.988872	0.0407409	ok	passed	0.880807	false		0.00285435	0.000837879	0.992162	0.000854796	0	0	0.00329054
+GCST90474615	GCST90474615	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992342	0.989227	0.0408187	ok	passed	0.880763	false		0.00282544	0.000725234	0.992342	0.00099271	0	0	0.00311502
+GCST90474620	GCST90474620	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992228	0.989063	0.0405645	ok	passed	0.880872	false		0.00285805	0.000860647	0.992228	0.000887493	0	0	0.00316534
+GCST90474625	GCST90474625	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992299	0.989521	0.0408783	ok	passed	0.880711	false		0.00277792	0.00144517	0.992299	0.000705278	0	0	0.00277248
+GCST90474630	GCST90474630	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992121	0.988349	0.0406732	ok	passed	0.880909	false		0.00289821	0	0.992121	0.00120979	0	0	0.00377148
+GCST90474635	GCST90474635	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.991919	0.987942	0.0408102	ok	passed	0.880857	false		0.00282438	0.000177197	0.991919	0.00110117	0	0	0.00397784
+GCST90474869	GCST90474869	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474872	GCST90474872	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474875	GCST90474875	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474878	GCST90474878	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474881	GCST90474881	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474884	GCST90474884	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474887	GCST90474887	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474890	GCST90474890	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474893	GCST90474893	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474896	GCST90474896	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474899	GCST90474899	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474902	GCST90474902	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474905	GCST90474905	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474908	GCST90474908	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474911	GCST90474911	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474914	GCST90474914	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474917	GCST90474917	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474920	GCST90474920	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474923	GCST90474923	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474926	GCST90474926	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474929	GCST90474929	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474932	GCST90474932	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474935	GCST90474935	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474938	GCST90474938	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474941	GCST90474941	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474944	GCST90474944	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474947	GCST90474947	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474950	GCST90474950	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474953	GCST90474953	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474956	GCST90474956	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474959	GCST90474959	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474962	GCST90474962	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474965	GCST90474965	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474968	GCST90474968	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474971	GCST90474971	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474974	GCST90474974	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474977	GCST90474977	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474980	GCST90474980	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474983	GCST90474983	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474986	GCST90474986	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474989	GCST90474989	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474992	GCST90474992	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474995	GCST90474995	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90474998	GCST90474998	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475001	GCST90475001	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475004	GCST90475004	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475007	GCST90475007	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475010	GCST90475010	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475013	GCST90475013	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475016	GCST90475016	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475019	GCST90475019	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475022	GCST90475022	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475025	GCST90475025	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475028	GCST90475028	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475031	GCST90475031	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475034	GCST90475034	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475037	GCST90475037	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475040	GCST90475040	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475043	GCST90475043	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475046	GCST90475046	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475049	GCST90475049	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475052	GCST90475052	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475055	GCST90475055	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.993361	0.986723	0.0350146	ok	passed	0.882043	false		0	0.00663861	0.993361	0	0	0	0
+GCST90475087	GCST90475087	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0229102	ok	passed	0.863059	false		0	0	1	0	0	0	0
+GCST90483382	GCST90483382	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992343	0.987238	0.0282912	ok	passed	0.911948			0.00255228	0.00510475	0.992343	0	0	0	0
+GCST90502777	GCST90502777	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502778	GCST90502778	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502779	GCST90502779	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502780	GCST90502780	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502781	GCST90502781	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502782	GCST90502782	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502783	GCST90502783	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502784	GCST90502784	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502785	GCST90502785	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502786	GCST90502786	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502787	GCST90502787	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502788	GCST90502788	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502789	GCST90502789	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502790	GCST90502790	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502791	GCST90502791	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502792	GCST90502792	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502793	GCST90502793	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502794	GCST90502794	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502795	GCST90502795	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502796	GCST90502796	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502797	GCST90502797	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502798	GCST90502798	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502799	GCST90502799	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502800	GCST90502800	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502801	GCST90502801	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90502802	GCST90502802	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.932572	0.866954	0.033818	ok	passed	0.852046	false		0.00180879	0	0.932572	0	0	0	0.0656187
+GCST90503325	GCST90503325	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.286587	0.0629569	0.244565	residual	passed	0.659997			0.142141	0.0325648	0.286587	0.140927	0	0.17415	0.22363
+GCST90503326	GCST90503326	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.286587	0.0629569	0.244565	residual	passed	0.659997			0.142141	0.0325648	0.286587	0.140927	0	0.17415	0.22363
+GCST90503327	GCST90503327	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.286581	0.0630783	0.244535	residual	passed	0.660071			0.142314	0.0325853	0.286581	0.141328	0	0.173689	0.223503
+GCST90503328	GCST90503328	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.286587	0.0629569	0.244565	residual	passed	0.659997			0.142141	0.0325648	0.286587	0.140927	0	0.17415	0.22363
+GCST90566388	GCST90566388	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.997812	0.995624	0.0368231	ok	passed	0.90741	false		0.00218811	0	0.997812	0	0	0	0
+GCST90566389	GCST90566389	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.997709	0.995418	0.0362847	ok	passed	0.907675	false		0.00229086	0	0.997709	0	0	0	0
+GCST90566412	GCST90566412	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0299597	ok	passed	0.869769	false		0	0	1	0	0	0	0
+GCST90566413	GCST90566413	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0299597	ok	passed	0.869769	false		0	0	1	0	0	0	0
+GCST90566414	GCST90566414	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0299597	ok	passed	0.869769			0	0	1	0	0	0	0
+GCST90566415	GCST90566415	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0299597	ok	passed	0.869769			0	0	1	0	0	0	0
+GCST90566416	GCST90566416	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0299597	ok	passed	0.869769			0	0	1	0	0	0	0
+GCST90566417	GCST90566417	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0299597	ok	passed	0.869769			0	0	1	0	0	0	0
+GCST90566418	GCST90566418	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.9991	0.9982	0.0145032	ok	passed	0.867864			0.000900248	0	0.9991	0	0	0	0
+GCST90566419	GCST90566419	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.97965	0.961142	0.0375001	ok	passed	0.880936			0.00184324	0.0185072	0.97965	0	0	0	0
+GCST90566420	GCST90566420	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979448	0.960776	0.0376174	ok	passed	0.880946			0.00187944	0.0186724	0.979448	0	0	0	0
+GCST90566421	GCST90566421	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979659	0.961159	0.0374962	ok	passed	0.880935			0.00184154	0.0184997	0.979659	0	0	0	0
+GCST90566422	GCST90566422	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979662	0.961166	0.0374947	ok	passed	0.880934			0.00184087	0.0184967	0.979662	0	0	0	0
+GCST90566423	GCST90566423	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979663	0.961166	0.0374947	ok	passed	0.880934			0.00184076	0.0184966	0.979663	0	0	0	0
+GCST90566424	GCST90566424	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.979677	0.961192	0.0374891	ok	passed	0.880933			0.00183806	0.0184849	0.979677	0	0	0	0
+GCST90572792	GCST90572792	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.01687	ok	passed	0.886408	false		0	0	1	0	0	0	0
+GCST90572793	GCST90572793	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0168746	ok	passed	0.886407	false		0	0	1	0	0	0	0
+GCST90572794	GCST90572794	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0168736	ok	passed	0.886405	false		0	0	1	0	0	0	0
+GCST90572795	GCST90572795	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.016873	ok	passed	0.886404	false		0	0	1	0	0	0	0
+GCST90624113	GCST90624113	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0180454	ok	passed	0.854917	false		0	0	1	0	0	0	0
+GCST90627739	GCST90627739	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.899621	0.831736	0.0232196	ok	passed	0.901569			0.0069046	0.017821	0.899621	0.00412009	0.00263162	0.00101576	0.0678857
+GCST90627748	GCST90627748	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.844309	0.717292	0.030183	ok	passed	0.912291			0.00671937	0.020753	0.844309	0	0.000349211	0.000852952	0.127017
+GCST90627753	GCST90627753	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977353	0.969101	0.0196647	ok	passed	0.887174			0.00105542	0.00794211	0.977353	0	0	0.00825139	0.00539826
+GCST90627762	GCST90627762	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.992707	0.985415	0.02461	ok	passed	0.879795			0	0.00729256	0.992707	0	0	0	0
+GCST90652245	GCST90652245	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	AFR	0.531261	0.0625211	0.538456	eaf_orientation	failed	-0.621779			0.531261	0	0	0	0	0	0.468739
+GCST90668009	GCST90668009	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995283	0.992433	0.0234117	ok	passed	0.86932			0.000167562	0.000785232	0.995283	0	0	0.00285047	0.000913263
+GCST90668010	GCST90668010	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995345	0.992399	0.0234009	ok	passed	0.869372			0.000165979	0.000717781	0.995345	0	0	0.00294657	0.00082453
+GCST90668011	GCST90668011	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995188	0.992255	0.0230024	ok	passed	0.869376			4.49188e-05	0.000713044	0.995188	0	0	0.00293233	0.001122
+GCST90668012	GCST90668012	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995397	0.992528	0.0234159	ok	passed	0.86928			0.000229988	0.000611477	0.995397	0	0	0.00286917	0.000892175
+GCST90692457	GCST90692457	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.919021	0.874651	0.00726518	ok	passed	0.9099	false		0.00217031	0.00577469	0.919021	0.04437	0	0	0.0286638
+GCST90692458	GCST90692458	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.9196	0.875968	0.00723851	ok	passed	0.909748	false		0.00216731	0.00567634	0.9196	0.043632	0	0	0.0289247
+GCST90692459	GCST90692459	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.96348	0.943511	0.00452134	ok	passed	0.981372	true		0.0138465	0	0.00270528	0.96348	0	0	0.0199685
+GCST90692460	GCST90692460	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.996221	0.992927	0.00466799	ok	passed	0.978843	true		0	0	0.00329371	0.996221	0	0	0.000485647
+GCST90692461	GCST90692461	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.994931	0.99165	0.00461006	ok	passed	0.978943	true		4.40138e-05	0	0.0032807	0.994931	0	0.000474518	0.0012698
+GCST90692462	GCST90692462	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.995623	0.992289	0.00469338	ok	passed	0.978852	true		0	0	0.00333385	0.995623	0	0	0.00104361
+GCST90692463	GCST90692463	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.996421	0.993338	0.00465923	ok	passed	0.978811	true		0	0	0.00308277	0.996421	0	0	0.00049615
+GCST90692464	GCST90692464	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.979232	0.960669	0.00455041	ok	passed	0.979748	true		0	0.000243736	0.00196138	0.979232	0	0	0.0185627
+GCST90692465	GCST90692465	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.977994	0.958515	0.00456172	ok	passed	0.979848	true		0	7.39393e-05	0.00245354	0.977994	0	0	0.0194788
+GCST90692466	GCST90692466	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.97807	0.958634	0.00454086	ok	passed	0.979845	true		0	0	0.00249481	0.97807	0	0	0.0194355
+GCST90692467	GCST90692467	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.977791	0.958201	0.00453091	ok	passed	0.979858	true		0	0	0.00261915	0.977791	0	0	0.0195897
+GCST90692468	GCST90692468	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.969239	0.951163	0.00450921	ok	passed	0.980888	true		0.0106127	0.000138029	0.00193448	0.969239	0	0	0.018076
+GCST90692469	GCST90692469	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.982264	0.968904	0.00455056	ok	passed	0.98035	true		0.01336	0.000209706	0.00347485	0.982264	0	0	0.000691059
+GCST90692470	GCST90692470	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.99493	0.99168	0.00488244	ok	passed	0.978901	true		0	0	0.00325065	0.99493	0	0	0.00181913
+GCST90692471	GCST90692471	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.977758	0.958115	0.00453384	ok	passed	0.979868	true		0	5.45887e-05	0.00254461	0.977758	0	0	0.0196429
+GCST90692472	GCST90692472	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.995831	0.992287	0.00464032	ok	passed	0.978862	true		0	0	0.00354425	0.995831	0	0	0.000624994
+GCST90692473	GCST90692473	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.9643	0.945328	0.0044641	ok	passed	0.981335	true		0.0136926	0.000284398	0.00238587	0.9643	0	0.000364867	0.0189722
+GCST90692474	GCST90692474	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.996152	0.992911	0.00466856	ok	passed	0.978812	true		0	0	0.00324112	0.996152	0	0	0.000606866
+GCST90692475	GCST90692475	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.996201	0.993017	0.00463276	ok	passed	0.978835	true		0	0	0.0031833	0.996201	0	0	0.000615932
+GCST90692476	GCST90692476	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.978999	0.960287	0.00456667	ok	passed	0.979787	true		0	2.10403e-05	0.00226702	0.978999	0	0	0.0187126
+GCST90692477	GCST90692477	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.977438	0.9578	0.00468351	ok	passed	0.97987	true		0	0	0.00292344	0.977438	0	0	0.0196381
+GCST90692478	GCST90692478	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.964837	0.945721	0.00447373	ok	passed	0.981256	true		0.0134518	0.000208945	0.0023867	0.964837	0	0	0.0191158
+GCST90692479	GCST90692479	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.979015	0.960442	0.00453543	ok	passed	0.979783	true		0	0	0.00241214	0.979015	0	0	0.0185729
+GCST90692480	GCST90692480	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.995613	0.992425	0.00463074	ok	passed	0.978858	true		0	0	0.00318832	0.995613	0	0	0.00119841
+GCST90692481	GCST90692481	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.99567	0.992225	0.00455824	ok	passed	0.978839	true		0	0	0.00344543	0.99567	0	0	0.000884489
+GCST90692482	GCST90692482	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.918875	0.874122	0.00727595	ok	passed	0.910008	false		0.00234309	0.00538061	0.918875	0.0447539	0	0	0.0286469
+GCST90692483	GCST90692483	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.918366	0.874738	0.00718648	ok	passed	0.90996	false		0.0021126	0.0063196	0.918366	0.0436282	0	0	0.0295738
+GCST90692484	GCST90692484	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.922188	0.87649	0.00669314	ok	passed	0.909729	false		0.00207822	0.00654307	0.922188	0.0456984	0	0.00124772	0.0222445
+GCST90692485	GCST90692485	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.919962	0.87512	0.00697482	ok	passed	0.909913	false		0.00206795	0.00526947	0.919962	0.0448421	0	0	0.0278585
+GCST90692486	GCST90692486	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.919243	0.876222	0.00716446	ok	passed	0.909785	false		0.00216605	0.00633351	0.919243	0.0430208	0	0	0.0292365
+GCST90692487	GCST90692487	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.919548	0.876945	0.00720205	ok	passed	0.909706	false		0.00227829	0.00631825	0.919548	0.0426032	0	0	0.029252
+GCST90692488	GCST90692488	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.919207	0.876379	0.00717843	ok	passed	0.909769	false		0.00215131	0.0064608	0.919207	0.0428287	0	0	0.029352
+GCST90692489	GCST90692489	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.919199	0.876318	0.00718177	ok	passed	0.90977	false		0.00215244	0.00642901	0.919199	0.0428809	0	0	0.0293388
+GCST90692490	GCST90692490	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.919199	0.876318	0.00718177	ok	passed	0.90977	false		0.00215244	0.00642901	0.919199	0.0428809	0	0	0.0293388
+GCST90692491	GCST90692491	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.919128	0.876366	0.0071826	ok	passed	0.909768	false		0.00217243	0.00645887	0.919128	0.0427619	0	0	0.0294787
+GCST90692492	GCST90692492	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.918053	0.874508	0.00733909	ok	passed	0.910004	false		0.00206853	0.00621166	0.918053	0.043545	0	0	0.030122
+GCST90692493	GCST90692493	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.91786	0.87354	0.00732503	ok	passed	0.910088	false		0.00229334	0.00610103	0.91786	0.0443193	0	0	0.0294266
+GCST90692494	GCST90692494	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.91786	0.87354	0.00732503	ok	passed	0.910088	false		0.00229334	0.00610103	0.91786	0.0443193	0	0	0.0294266
+GCST90692495	GCST90692495	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.917295	0.873428	0.00730858	ok	passed	0.910144	false		0.00216775	0.00590586	0.917295	0.0438673	0	0	0.0307637
+GCST90692496	GCST90692496	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.9196	0.876522	0.00744058	ok	passed	0.909781	false		0.00245767	0.00662014	0.9196	0.0430774	0	0	0.0282453
+GCST90692497	GCST90692497	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.918616	0.873751	0.00700774	ok	passed	0.910159	false		0.00207988	0.00571764	0.918616	0.0448653	0	0	0.0287209
+GCST90692498	GCST90692498	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.94606	0.904566	0.0210903	ok	passed	0.902187	false		0	0.00238098	0.94606	0.0414936	0	0	0.0100655
+GCST90692499	GCST90692499	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.944977	0.907344	0.0207477	ok	passed	0.901985	false		0	0.00427156	0.944977	0.0376324	0	0	0.0131192
+GCST90692500	GCST90692500	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.9196	0.876522	0.00744058	ok	passed	0.909781	false		0.00245767	0.00662014	0.9196	0.0430774	0	0	0.0282453
+GCST90692501	GCST90692501	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.917295	0.873428	0.00730858	ok	passed	0.910144	false		0.00216775	0.00590586	0.917295	0.0438673	0	0	0.0307637
+GCST90692502	GCST90692502	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.917295	0.873428	0.00730858	ok	passed	0.910144	false		0.00216775	0.00590586	0.917295	0.0438673	0	0	0.0307637
+GCST90692503	GCST90692503	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.919612	0.874873	0.00688902	ok	passed	0.909983	false		0.00203531	0.00583376	0.919612	0.0447396	0	0	0.027779
+GCST90692504	GCST90692504	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.918342	0.874982	0.0071752	ok	passed	0.909913	false		0.00209349	0.00623524	0.918342	0.0433592	0	0	0.0299704
+GCST90692505	GCST90692505	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.918342	0.874982	0.0071752	ok	passed	0.909913	false		0.00209349	0.00623524	0.918342	0.0433592	0	0	0.0299704
+GCST90692506	GCST90692506	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.918342	0.874982	0.0071752	ok	passed	0.909913	false		0.00209349	0.00623524	0.918342	0.0433592	0	0	0.0299704
+GCST90692507	GCST90692507	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.94606	0.904566	0.0210903	ok	passed	0.902187	false		0	0.00238098	0.94606	0.0414936	0	0	0.0100655
+GCST90692508	GCST90692508	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.995888	0.992476	0.00463623	ok	passed	0.978851	true		0	0	0.00341151	0.995888	0	0	0.000700554
+GCST90692509	GCST90692509	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.995912	0.992544	0.00463521	ok	passed	0.978846	true		0	0	0.00336838	0.995912	0	0	0.000719176
+GCST90692510	GCST90692510	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.995849	0.992312	0.00464375	ok	passed	0.978862	true		0	0	0.00353771	0.995849	0	0	0.000612893
+GCST90692511	GCST90692511	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.99579	0.992202	0.00464038	ok	passed	0.978865	true		0	0	0.00358786	0.99579	0	0	0.000622447
+GCST90692512	GCST90692512	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.977742	0.958119	0.00454185	ok	passed	0.979866	true		0	9.80832e-05	0.00253621	0.977742	0	0	0.0196234
+GCST90692513	GCST90692513	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.995877	0.992314	0.00464058	ok	passed	0.978863	true		0	0	0.00356319	0.995877	0	0	0.000559476
+GCST90692514	GCST90692514	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.995925	0.992562	0.00463826	ok	passed	0.978847	true		0	0	0.00336207	0.995925	0	0	0.000713372
+GCST90692515	GCST90692515	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.995983	0.992427	0.00463751	ok	passed	0.978857	true		0	0	0.00355564	0.995983	0	0	0.000461627
+GCST90692516	GCST90692516	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.976305	0.955981	0.00452069	ok	passed	0.979996	true		0.000234168	0	0.00279657	0.976305	0	0.000340802	0.0203236
+GCST90692517	GCST90692517	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.99598	0.992422	0.0046375	ok	passed	0.978857	true		0	0	0.00355833	0.99598	0	0	0.000461662
+GCST90692518	GCST90692518	East Asian	EUR	af_assigned	ref_freqs.hg38.tsv.gz	50000	EUR	0.994691	0.991374	0.00462029	ok	passed	0.97895	true		3.35235e-05	0	0.00331703	0.994691	0	0.000659597	0.00129896
+GCST90705067	GCST90705067	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.99952	0.99904	0.0239951	ok	passed	0.870893			0	0.000479864	0.99952	0	0	0	0
+GCST90705068	GCST90705068	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0234728	ok	passed	0.871279			0	0	1	0	0	0	0
+GCST90705069	GCST90705069	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999909	0.999818	0.0236982	ok	passed	0.871109			0	9.11789e-05	0.999909	0	0	0	0
+GCST90705091	GCST90705091	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.999642	0.999285	0.0165206	ok	passed	0.872209	false		0.000357725	0	0.999642	0	0	0	0
+GCST90707270	GCST90707270	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0210814	ok	passed	0.88014	false		0	0	1	0	0	0	0
+GCST90726612	GCST90726612	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995631	0.991261	0.0405408	ok	passed	0.860769	false		0	0.0043694	0.995631	0	0	0	0
+GCST90727382	GCST90727382	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989621	0.982759	0.0212079	ok	passed	0.886966			0.00351675	0.00686194	0.989621	0	0	0	0
+GCST90727383	GCST90727383	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989621	0.982759	0.0212079	ok	passed	0.886966			0.00351675	0.00686194	0.989621	0	0	0	0
+GCST90727384	GCST90727384	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989621	0.982759	0.0212079	ok	passed	0.886966			0.00351675	0.00686194	0.989621	0	0	0	0
+GCST90727385	GCST90727385	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.989621	0.982759	0.0212079	ok	passed	0.886966			0.00351675	0.00686194	0.989621	0	0	0	0
+GCST90727420	GCST90727420	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0213316	ok	passed	0.829405			0	0	1	0	0	0	0
+GCST90727421	GCST90727421	East Asian	EAS	af_assigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0210297	ok	passed	0.829875	false		0	0	1	0	0	0	0
+GCST90728616	GCST90728616	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0164245	ok	passed	0.862463			0	0	1	0	0	0	0
+GCST90728619	GCST90728619	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.977078	0.956274	0.0293328	ok	passed	0.869837			0	0.0208047	0.977078	0.00211717	0	0	0
+GCST90809295	GCST90809295	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.995026	0.991827	0.0145558	ok	passed	0.861952			0.00174428	0.00319927	0.995026	0	0	3.0083e-05	0
+GCST90833022	GCST90833022	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	1	1	0.0188209	ok	passed	0.866917			0	0	1	0	0	0	0
+GCST90833025	GCST90833025	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.510351	0.197088	0.0117668	margin	passed	0.98514			0.100857	0.0558518	0.510351	0.313263	0	0.0160979	0.00357944
+GCST90833033	GCST90833033	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.997374	0.994748	0.0184678	ok	passed	0.869643			0.00262615	0	0.997374	0	0	0	0
+GCST90841456	GCST90841456	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.958417	0.943656	0.0255154	ok	passed	0.868098			0.0063365	0.0125607	0.958417	0.00230437	0	0.0147608	0.00562112
+GCST90841458	GCST90841458	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.875344	0.808801	0.0255986	ok	passed	0.88605			0.0200172	0.00380074	0.875344	0.0342946	0	0	0.0665434
+GCST90841460	GCST90841460	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.984524	0.973915	0.0331962	ok	passed	0.858386			0.00200184	0.00286567	0.984524	0	0	0.0106089	0
+GCST90841462	GCST90841462	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.975614	0.960701	0.030301	ok	passed	0.862351			0.00428475	0.00518866	0.975614	0	0	0.0149126	0
+GCST90841464	GCST90841464	East Asian		unassigned	ref_freqs.hg38.tsv.gz	50000	EAS	0.808273	0.712516	0.0375549	ok	passed	0.909958			0.019197	0.0129471	0.808273	0.0957564	0	0	0.0638267
