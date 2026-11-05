@@ -82,6 +82,11 @@ release_policy:
   maf_filter_exempt_genotyping_technologies:
     - Whole genome sequencing
     - Exome-wide sequencing
+  # The 47 of 358 ready Analyses with any +-2.2250738585072014e-308 effect,
+  # excluded as effect_placeholder_rows by OGS-00011's rule (owner decision,
+  # #441), whether the row's source effect was unestimated or a zero that EBI's
+  # harmonisation wrote as +-DBL_MIN; each reason says which.
+  effect_placeholder_exclusions: resources/generators/gwas-catalog-afr-hybrid/effect-placeholder-exclusions.tsv
 
 reference_resources:
   - resource_id: ukb-ancestry-mixture-hg38
