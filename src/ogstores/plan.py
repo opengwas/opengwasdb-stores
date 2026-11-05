@@ -271,6 +271,16 @@ DEFAULT_COMMANDS: dict[tuple[str, str], str] = {
 # -- so `plan()` composes the flag exactly as it composes the identity ones.
 ASSOCIATION_COVERAGE_FLAG: str = "association-coverage"
 RAGGED_BUILD_COMMANDS: frozenset[str] = frozenset({"build-ragged-ssf", "build-ragged-besd"})
+# Every builder requires `--admission-record DIR` and writes nothing without it
+# (opengwas/opengwasdb#357, ADR 0072; #428). The record lists what each Analysis
+# examined, admitted and dropped. The builder has no default beside its
+# destination on purpose: the build writes `store.opengwasdb.partial`, which
+# publication renames, and a record beside it would stay behind as
+# `store.opengwasdb.partial.admission`, beside no Store. So `plan()` names the
+# Store's final path, `paths.admission_record_path`, on every build-phase step,
+# and refuses a recipe option rendering the same flag, which the CLI would take
+# last. A completion writes no record and names none.
+ADMISSION_RECORD_FLAG: str = "admission-record"
 # The Dense and Hybrid builders take `--association-coverage` too, but `gwas`
 # is the only value a layout with a cell for every (variant, Analysis) can
 # carry, so it is their default and their only accepted value
@@ -803,6 +813,15 @@ def plan(
                 f"--{ASSOCIATION_COVERAGE_FLAG} is the release's declared "
                 "association_coverage in release.yaml (ADR 0040)"
             )
+    if spec.phase == "build":
+        overridden = reserved_options(options, (ADMISSION_RECORD_FLAG,))
+        if overridden:
+            raise ValueError(
+                f"Bundle {bundle.store_id}: build.options must not set {overridden}; "
+                f"--{ADMISSION_RECORD_FLAG} is the artifact path "
+                f"{paths.admission_record_path(bundle.store_id, root=root)}, which the "
+                "registry composes for every build (#428)"
+            )
     store_p = paths.store_path(bundle.store_id, root=root)
 
     argv = ["opengwasdb", command]
@@ -815,6 +834,10 @@ def plan(
         argv.extend(["--analyses", str(paths.build_manifest_path(bundle.store_id, root=root))])
     if command in RAGGED_BUILD_COMMANDS:
         argv.extend(["--" + ASSOCIATION_COVERAGE_FLAG, bundle.association_coverage])
+    if spec.phase == "build":
+        argv.extend(
+            ["--" + ADMISSION_RECORD_FLAG, str(paths.admission_record_path(bundle.store_id, root=root))]
+        )
     argv.extend(render_options(options))
     column_map_args, column_map_inputs = _column_map_arguments(bundle, spec, command, root)
     argv.extend(column_map_args)
@@ -995,6 +1018,7 @@ def _observed_view_check_options(
 
 
 __all__ = [
+    "ADMISSION_RECORD_FLAG",
     "ASSOCIATION_COVERAGE_FLAG",
     "BUILD_PHASE",
     "COMMANDS",

@@ -17,6 +17,8 @@ with no registry lookup.
         tmp/                    a step's temporary files (TMPDIR), removed by the step
         store.opengwasdb        the Store Release
         store.opengwasdb.partial    transient; renamed into place on success
+        store.opengwasdb.admission  the build's Association Admission record;
+                                    build evidence, not part of the Store
     <artifact-root>/by-label/   generated symlinks
 
 The build manifest is derived, not authored: `manifest.py` materialises it and
@@ -209,6 +211,19 @@ def partial_store_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) 
     return store_dir(store_id, root=root) / "store.opengwasdb.partial"
 
 
+def admission_record_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """Where a build writes its Association Admission record (#428, opengwasdb#357).
+
+    `<root>/<store_id>/store.opengwasdb.admission`: named for the Store's final
+    path, never the staged `.partial` one, which publication renames and the
+    record would not follow. Every builder requires the path (opengwasdb ADR
+    0072). The record is build evidence, kept beside the release's step
+    records; it is not inside the Store, so publication does not move it and
+    the Store Release does not contain it.
+    """
+    return store_dir(store_id, root=root) / "store.opengwasdb.admission"
+
+
 def completion_checkpoint_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
     """Where `complete-dense` keeps its checkpoint while it writes the staged Store (#305).
 
@@ -304,6 +319,7 @@ __all__ = [
     "REPO_ROOT",
     "RETIRED_STORE_IDS",
     "STORE_ID_PATTERN",
+    "admission_record_path",
     "artifact_root",
     "backup_store_path",
     "build_manifest_path",

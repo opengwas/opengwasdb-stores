@@ -32,6 +32,8 @@
       "OGS-00094",
       "--release-id",
       "OGS-00094",
+      "--admission-record",
+      "/data/opengwasdb/stores/OGS-00094/store.opengwasdb.admission",
       "--variant-reference",
       "/data/opengwasdb/stores/OGS-00094/work/variant-ref.tsv.gz",
       "--source-reader-capability",
