@@ -2070,10 +2070,12 @@ def prepare_ragged_single_id_signal_release(root: Path, store_id: str) -> tuple[
     build_yaml["post"] = {"top_hits": True, "overview": False, "validate": True}
     build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
     ssf = create_signal_fixture_ssf(root / "signal.tsv.gz")
+    # `build-ragged-ssf` builds only rows that declare GRCh38 (opengwasdb#56,
+    # ADR 0076), as every committed Ragged SSF bundle does (#429).
     (store_dir / "analyses.tsv").write_text(
         "analysis_index\tanalysis_id\tsource_file\ttrait_name\tsample_size\tstored_effect_scale\t"
-        "assigned_ancestry\tancestry_assignment_method\n"
-        f"0\ttest_analysis_{store_id}\t{ssf}\tTest Trait\t10000\tsd\tEUR\tsource_fallback\n",
+        "assigned_ancestry\tancestry_assignment_method\tsource_genome_build\n"
+        f"0\ttest_analysis_{store_id}\t{ssf}\tTest Trait\t10000\tsd\tEUR\tsource_fallback\tGRCh38\n",
         encoding="utf-8",
     )
     amend_to_complete_own_store(
@@ -4538,6 +4540,9 @@ def create_ragged_fixture_store(
         "sample_size", "tissue", "context", "mhc", "source_file",
         "stored_effect_scale", "sample_size_kind", "sample_size_scope",
         "original_effect_scale", "original_sd_method", "ancestry_assignment_method",
+        # `build-ragged-ssf` builds only rows that declare GRCh38 (opengwasdb#56,
+        # ADR 0076), as every committed Ragged SSF bundle does (#429).
+        "source_genome_build",
     ]
     rows = [
         {
@@ -4557,6 +4562,7 @@ def create_ragged_fixture_store(
             "original_effect_scale": "sd",
             "original_sd_method": "declared_standardised",
             "ancestry_assignment_method": "af_assigned",
+            "source_genome_build": "GRCh38",
         }
         for i in range(2)
     ]
