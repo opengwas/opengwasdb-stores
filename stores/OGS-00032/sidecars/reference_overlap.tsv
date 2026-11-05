@@ -1,0 +1,710 @@
+analysis_id	ancestry_reference_id	ancestry_rows_scanned	ancestry_rows_matched	ancestry_reference_rate	variant_reference	rows_scanned	variant_reference_rows_matched	variant_reference_rate	build_eligible_rows	build_eligible_rows_on_variant_reference	build_eligible_rows_off_variant_reference	build_eligible_rate	stop_reason	exclude_from_build
+GCST001404	ref_freqs.hg38.tsv.gz	52118	50000	0.959361	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	420642	418684	0.995345	420642	418684	1958	0.995345	eof	
+GCST001685	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST003467	ref_freqs.hg38.tsv.gz	749943	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	749943	348827	0.465138	0				eof	true
+GCST004904	ref_freqs.hg38.tsv.gz	64636	50000	0.773563	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5961390	5845088	0.980491	5925633	5820657	104976	0.982284	eof	
+GCST006090	ref_freqs.hg38.tsv.gz	60722	50000	0.823425	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	549408	543294	0.988872	549390	543289	6101	0.988895	eof	
+GCST006091	ref_freqs.hg38.tsv.gz	64213	50000	0.778659	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	582835	573050	0.983211	582772	573025	9747	0.983275	eof	
+GCST006092	ref_freqs.hg38.tsv.gz	64218	50000	0.778598	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	547931	542487	0.990064	547907	542473	5434	0.990082	eof	
+GCST006093	ref_freqs.hg38.tsv.gz	60722	50000	0.823425	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	559103	551973	0.987247	559064	551959	7105	0.987291	eof	
+GCST006094	ref_freqs.hg38.tsv.gz	60722	50000	0.823425	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	559104	551973	0.987246	559075	551965	7110	0.987283	eof	
+GCST006095	ref_freqs.hg38.tsv.gz	60722	50000	0.823425	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	587240	576278	0.981333	587192	576259	10933	0.981381	eof	
+GCST006096	ref_freqs.hg38.tsv.gz	64213	50000	0.778659	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	560656	553618	0.987447	560625	553602	7023	0.987473	eof	
+GCST006246	ref_freqs.hg38.tsv.gz	495862	430163	0.867505	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	495862	494858	0.997975	0				eof	true
+GCST006619	ref_freqs.hg38.tsv.gz	5262043	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5262043	5185937	0.985537	0				eof	true
+GCST006636	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	572174	566527	0.990131	572141	566515	5626	0.990167	eof	
+GCST006637	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	572173	566527	0.990132	572141	566515	5626	0.990167	eof	
+GCST006638	ref_freqs.hg38.tsv.gz	60611	50000	0.824933	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	552096	548300	0.993124	552091	548298	3793	0.99313	eof	
+GCST006639	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006640	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006641	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006642	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006643	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006644	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006645	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006646	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006647	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533320	530699	0.995086	533320	530699	2621	0.995086	eof	
+GCST006648	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006649	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006650	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006651	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006652	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006653	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006654	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006655	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	558842	554300	0.991872	558810	554284	4526	0.991901	eof	
+GCST006656	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	572175	566527	0.990129	572141	566515	5626	0.990167	eof	
+GCST006657	ref_freqs.hg38.tsv.gz	60613	50000	0.824906	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	533321	530700	0.995086	533321	530700	2621	0.995086	eof	
+GCST006719	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST007344	ref_freqs.hg38.tsv.gz	79373	50082	0.63097	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6621460	5582657	0.843116	6616427	5579510	1036917	0.843281	eof	true
+GCST009869	ref_freqs.hg38.tsv.gz	8859576	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8859576	7329137	0.827256	0				eof	true
+GCST010006	ref_freqs.hg38.tsv.gz	5502676	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5502676	5432478	0.987243	0				eof	true
+GCST010118	ref_freqs.hg38.tsv.gz	87267	50000	0.572954	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11253378	7669338	0.681514	8972439	7640029	1332410	0.8515	eof	
+GCST011096	ref_freqs.hg38.tsv.gz	4554756	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4554756	4541401	0.997068	0				eof	true
+GCST011920	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST012141	ref_freqs.hg38.tsv.gz	71237	50000	0.701882	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6738286	6413573	0.951811	6738286	6413573	324713	0.951811	eof	true
+GCST012142	ref_freqs.hg38.tsv.gz	71237	50000	0.701882	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6738286	6413573	0.951811	6738286	6413573	324713	0.951811	eof	true
+GCST012143	ref_freqs.hg38.tsv.gz	71237	50000	0.701882	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6738286	6413573	0.951811	6738286	6413573	324713	0.951811	eof	true
+GCST012144	ref_freqs.hg38.tsv.gz	71237	50000	0.701882	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6738286	6413573	0.951811	6738286	6413573	324713	0.951811	eof	true
+GCST90002226	ref_freqs.hg38.tsv.gz	89760	50000	0.557041	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8437223	6702296	0.794372	7247656	6548261	699395	0.903501	eof	
+GCST90002231	ref_freqs.hg38.tsv.gz	152287	50000	0.328327	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14262981	7387726	0.517965	8791779	7183110	1608669	0.817026	eof	
+GCST90002237	ref_freqs.hg38.tsv.gz	145493	50000	0.343659	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13596568	7379146	0.542721	8756602	7176161	1580441	0.819514	eof	
+GCST90002243	ref_freqs.hg38.tsv.gz	155235	50000	0.322092	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14536806	7396364	0.508803	8825235	7190176	1635059	0.814729	eof	
+GCST90002283	ref_freqs.hg38.tsv.gz	73807	50002	0.67747	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6733458	6487972	0.963542	6733458	6487972	245486	0.963542	eof	
+GCST90002284	ref_freqs.hg38.tsv.gz	73807	50002	0.67747	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6733458	6487972	0.963542	6733458	6487972	245486	0.963542	eof	
+GCST90002293	ref_freqs.hg38.tsv.gz	95988	50000	0.520898	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14996476	7474454	0.498414	9271715	7327040	1944675	0.790257	eof	
+GCST90002299	ref_freqs.hg38.tsv.gz	95998	50000	0.520844	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14989327	7474387	0.498647	9271533	7326548	1944985	0.79022	eof	
+GCST90002305	ref_freqs.hg38.tsv.gz	96007	50000	0.520795	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14998640	7474424	0.49834	9268379	7324374	1944005	0.790254	eof	
+GCST90002311	ref_freqs.hg38.tsv.gz	95961	50000	0.521045	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	15414919	7489310	0.485848	9279814	7354287	1925527	0.792504	eof	
+GCST90002317	ref_freqs.hg38.tsv.gz	95998	50000	0.520844	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14998675	7474523	0.498346	9270862	7326444	1944418	0.790266	eof	
+GCST90002323	ref_freqs.hg38.tsv.gz	96006	50000	0.520801	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14995989	7474495	0.498433	9268951	7325013	1943938	0.790274	eof	
+GCST90002329	ref_freqs.hg38.tsv.gz	96006	50000	0.520801	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14944325	7472073	0.499994	9253757	7322705	1931052	0.791322	eof	
+GCST90002335	ref_freqs.hg38.tsv.gz	96006	50000	0.520801	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14995961	7474478	0.498433	9268894	7324954	1943940	0.790273	eof	
+GCST90002341	ref_freqs.hg38.tsv.gz	95998	50000	0.520844	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14998667	7474471	0.498342	9270849	7326410	1944439	0.790263	eof	
+GCST90002352	ref_freqs.hg38.tsv.gz	95988	50000	0.520898	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14998705	7474518	0.498344	9271930	7327293	1944637	0.790266	eof	
+GCST90002358	ref_freqs.hg38.tsv.gz	95960	50000	0.52105	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	15416256	7489293	0.485805	9280420	7354878	1925542	0.792516	eof	
+GCST90002364	ref_freqs.hg38.tsv.gz	95963	50000	0.521034	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	15415589	7489448	0.485836	9279587	7354357	1925230	0.792531	eof	
+GCST90002375	ref_freqs.hg38.tsv.gz	95963	50000	0.521034	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	15416425	7489308	0.485801	9279541	7354217	1925324	0.792519	eof	
+GCST90002424	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006987	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006988	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006989	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006990	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006991	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006992	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006993	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006994	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006995	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006996	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006997	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006998	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90006999	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007000	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007001	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007002	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007003	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007004	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007005	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007006	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007007	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007008	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007009	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007010	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007011	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90007012	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90011768	ref_freqs.hg38.tsv.gz	10601850	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10601850	7758103	0.731769	0				eof	true
+GCST90011781	ref_freqs.hg38.tsv.gz	68138	50000	0.733805	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5193325	5132376	0.988264	5193325	5132376	60949	0.988264	eof	
+GCST90011782	ref_freqs.hg38.tsv.gz	68068	50000	0.73456	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5187837	5128351	0.988534	5187837	5128351	59486	0.988534	eof	
+GCST90011783	ref_freqs.hg38.tsv.gz	68138	50000	0.733805	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5193325	5132376	0.988264	5193325	5132376	60949	0.988264	eof	
+GCST90011784	ref_freqs.hg38.tsv.gz	68138	50000	0.733805	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5193325	5132376	0.988264	5193325	5132376	60949	0.988264	eof	
+GCST90011866	ref_freqs.hg38.tsv.gz	5718013	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5718013	5640985	0.986529	0				eof	true
+GCST90011884	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90011892	ref_freqs.hg38.tsv.gz	9844550	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9844550	7460411	0.757821	0				eof	true
+GCST90011893	ref_freqs.hg38.tsv.gz	9566005	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9566005	7417669	0.77542	0				eof	true
+GCST90011894	ref_freqs.hg38.tsv.gz	10465655	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10465655	7508990	0.717489	0				eof	true
+GCST90013413	ref_freqs.hg38.tsv.gz	2585505	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	2585505	2578505	0.997293	0				eof	true
+GCST90013534	ref_freqs.hg38.tsv.gz	120858	50000	0.413709	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13131466	8201508	0.624569	13131466	8201508	4929958	0.624569	eof	true
+GCST90014052	ref_freqs.hg38.tsv.gz	68916	50000	0.725521	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5056028	5048728	0.998556	5056028	5048728	7300	0.998556	eof	true
+GCST90014053	ref_freqs.hg38.tsv.gz	68940	50000	0.725268	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5044808	5037767	0.998604	5044808	5037767	7041	0.998604	eof	true
+GCST90014238	ref_freqs.hg38.tsv.gz	6708418	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6708418	5820068	0.867577	0				eof	true
+GCST90020047	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90020054	ref_freqs.hg38.tsv.gz	72130	50000	0.693193	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5023388	4959643	0.98731	5023388	4959643	63745	0.98731	eof	
+GCST90020055	ref_freqs.hg38.tsv.gz	72105	50000	0.693433	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5020899	4957204	0.987314	5020899	4957204	63695	0.987314	eof	
+GCST90020056	ref_freqs.hg38.tsv.gz	72130	50000	0.693193	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5023388	4959643	0.98731	5023388	4959643	63745	0.98731	eof	
+GCST90026455	ref_freqs.hg38.tsv.gz	126271	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	126271	125606	0.994734	0				eof	true
+GCST90029167	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	0			0				eof	true
+GCST90090994	ref_freqs.hg38.tsv.gz	60705	50000	0.823655	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	592691	591032	0.997201	592691	591032	1659	0.997201	eof	
+GCST90091053	ref_freqs.hg38.tsv.gz	71763	50000	0.696738	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6900675	6684987	0.968744	6900675	6684987	215688	0.968744	eof	
+GCST90093113	ref_freqs.hg38.tsv.gz	7164906	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7164906	6012429	0.83915	0				eof	true
+GCST90094903	ref_freqs.hg38.tsv.gz	69796	50000	0.716373	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4950621	4891898	0.988138	4950621	4891898	58723	0.988138	eof	
+GCST90094904	ref_freqs.hg38.tsv.gz	69796	50000	0.716373	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4950621	4891898	0.988138	4950621	4891898	58723	0.988138	eof	
+GCST90100517	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100518	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100519	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100520	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100521	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100522	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100523	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100524	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100525	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100526	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100527	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100528	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100529	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100530	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100531	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100532	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100533	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100534	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100535	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100536	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100537	ref_freqs.hg38.tsv.gz	71457	50000	0.699722	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6132769	6004887	0.979148	6132769	6004887	127882	0.979148	eof	
+GCST90100538	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100539	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100540	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100541	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100542	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100543	ref_freqs.hg38.tsv.gz	71338	50000	0.700889	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4325431	4260819	0.985062	4325431	4260819	64612	0.985062	eof	
+GCST90100544	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100545	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100546	ref_freqs.hg38.tsv.gz	71338	50000	0.700889	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4325431	4260819	0.985062	4325431	4260819	64612	0.985062	eof	
+GCST90100547	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100548	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100549	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100550	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100551	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100552	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100553	ref_freqs.hg38.tsv.gz	71338	50000	0.700889	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4325431	4260819	0.985062	4325431	4260819	64612	0.985062	eof	
+GCST90100554	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100555	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100556	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100557	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90100558	ref_freqs.hg38.tsv.gz	71386	50000	0.700417	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4327746	4263033	0.985047	4327746	4263033	64713	0.985047	eof	
+GCST90103751	ref_freqs.hg38.tsv.gz	6479571	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6479571	6270559	0.967743	0				eof	true
+GCST90103752	ref_freqs.hg38.tsv.gz	6479571	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6479571	6270559	0.967743	0				eof	true
+GCST90103753	ref_freqs.hg38.tsv.gz	6479571	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6479571	6270559	0.967743	0				eof	true
+GCST90103754	ref_freqs.hg38.tsv.gz	6479571	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6479571	6270559	0.967743	0				eof	true
+GCST90104038	ref_freqs.hg38.tsv.gz	70993	50000	0.704295	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5476819	5380580	0.982428	5476523	5380577	95946	0.98248	eof	true
+GCST90104544	ref_freqs.hg38.tsv.gz	75451	50000	0.662682	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6768598	6657593	0.9836	6768598	6657593	111005	0.9836	eof	true
+GCST90104545	ref_freqs.hg38.tsv.gz	78565	50000	0.636416	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6704803	6394092	0.953658	6704803	6394092	310711	0.953658	eof	true
+GCST90104546	ref_freqs.hg38.tsv.gz	66543	50000	0.751394	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5156915	5142795	0.997262	5156915	5142795	14120	0.997262	eof	true
+GCST90104547	ref_freqs.hg38.tsv.gz	72155	50000	0.692953	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5978851	5859192	0.979986	5978851	5859192	119659	0.979986	eof	true
+GCST90104548	ref_freqs.hg38.tsv.gz	73807	50000	0.677443	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6159153	5984781	0.971689	6159153	5984781	174372	0.971689	eof	true
+GCST90104897	ref_freqs.hg38.tsv.gz	8342526	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8342526	7407947	0.887974	0				eof	true
+GCST90129505	ref_freqs.hg38.tsv.gz	20046824	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20046824	7441228	0.371192	0				eof	true
+GCST90132222	ref_freqs.hg38.tsv.gz	20577937	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20577937	8158504	0.396469	0				eof	true
+GCST90132224	ref_freqs.hg38.tsv.gz	11255300	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11255300	7339963	0.652134	0				eof	true
+GCST90132225	ref_freqs.hg38.tsv.gz	13015123	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13015123	7571090	0.581715	0				eof	true
+GCST90132227	ref_freqs.hg38.tsv.gz	7350133	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7350133	6811799	0.926759	0				eof	true
+GCST90134281	ref_freqs.hg38.tsv.gz	149073	50005	0.33544	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14265388	7163958	0.502192	8237123	7142091	1095032	0.867061	eof	true
+GCST90165265	ref_freqs.hg38.tsv.gz	174045	50008	0.287328	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	16070473	7666296	0.477042	9366942	7633941	1733001	0.814988	eof	true
+GCST90239651	ref_freqs.hg38.tsv.gz	149746	50004	0.333925	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	15709011	7990836	0.508678	9002042	7781188	1220854	0.86438	eof	
+GCST90239657	ref_freqs.hg38.tsv.gz	138734	50004	0.360431	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14453103	7990039	0.552825	8966303	7811250	1155053	0.871178	eof	
+GCST90239663	ref_freqs.hg38.tsv.gz	139130	50004	0.359405	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	14480565	7990157	0.551785	8966378	7811709	1154669	0.871222	eof	
+GCST90239669	ref_freqs.hg38.tsv.gz	148412	50004	0.336927	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	15570215	7990699	0.513204	9004810	7784685	1220125	0.864503	eof	
+GCST90239675	ref_freqs.hg38.tsv.gz	153334	50004	0.326112	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	16093041	7991040	0.496553	8975385	7758001	1217384	0.864364	eof	
+GCST90245991	ref_freqs.hg38.tsv.gz	68893	50000	0.725763	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	1298846	1090721	0.839762	1119515	1089273	30242	0.972987	eof	
+GCST90256404	ref_freqs.hg38.tsv.gz	49499	21327	0.430857	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	49499	30083	0.60775	33619	29949	3670	0.890836	eof	
+GCST90256410	ref_freqs.hg38.tsv.gz	49510	21328	0.430782	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	49510	30083	0.607615	33625	29950	3675	0.890706	eof	
+GCST90256416	ref_freqs.hg38.tsv.gz	65176	22950	0.352123	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	65176	32323	0.495934	35850	32142	3708	0.896569	eof	
+GCST90267938	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267939	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267940	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267941	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267942	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267943	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267944	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267945	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267946	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267947	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267948	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267949	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267950	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267951	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267952	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267953	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267954	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267955	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267956	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267957	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267958	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267959	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267960	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267961	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267962	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267963	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267964	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267965	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267966	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267967	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267968	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267969	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267970	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267971	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267972	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267973	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267974	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267975	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267976	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267977	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267978	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267979	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267980	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90267981	ref_freqs.hg38.tsv.gz	144059	50000	0.34708	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13553043	7484084	0.552207	8746456	7450616	1295840	0.851844	eof	
+GCST90268004	ref_freqs.hg38.tsv.gz	98295	50002	0.508693	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9591785	7826059	0.815913	8671668	7709590	962078	0.889055	eof	
+GCST90268005	ref_freqs.hg38.tsv.gz	99301	50002	0.50354	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9715761	7835004	0.806422	8677487	7714267	963220	0.888998	eof	
+GCST90269956	ref_freqs.hg38.tsv.gz	98766	50000	0.506247	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9156791	7369928	0.804859	8666966	7190429	1476537	0.829636	eof	true
+GCST90270926	ref_freqs.hg38.tsv.gz	131703	50002	0.379657	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13167575	7917076	0.601255	9166705	7734658	1432047	0.843777	eof	
+GCST90270927	ref_freqs.hg38.tsv.gz	131574	50002	0.380029	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13154008	7917049	0.601874	9163404	7734462	1428942	0.84406	eof	
+GCST90270928	ref_freqs.hg38.tsv.gz	131490	50002	0.380272	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13142688	7916967	0.602386	9173296	7734705	1438591	0.843176	eof	
+GCST90270929	ref_freqs.hg38.tsv.gz	131354	50002	0.380666	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13127517	7916943	0.60308	9173379	7734309	1439070	0.843125	eof	
+GCST90274716	ref_freqs.hg38.tsv.gz	102903	50008	0.485972	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10430858	8037670	0.770567	10430695	8037665	2393030	0.770578	eof	
+GCST90277434	ref_freqs.hg38.tsv.gz	90531	50004	0.552341	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9062394	7785798	0.859133	9062394	7785798	1276596	0.859133	eof	
+GCST90278092	ref_freqs.hg38.tsv.gz	88372	50000	0.56579	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	491448	459511	0.935014	491448	459511	31937	0.935014	eof	true
+GCST90278615	ref_freqs.hg38.tsv.gz	73667	50000	0.67873	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7209230	6801308	0.943417	7209230	6801308	407922	0.943417	eof	
+GCST90278616	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278617	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278618	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278619	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278620	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278621	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278622	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278623	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278624	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278625	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278626	ref_freqs.hg38.tsv.gz	73643	50000	0.678951	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7209744	6801689	0.943402	7209744	6801689	408055	0.943402	eof	
+GCST90278627	ref_freqs.hg38.tsv.gz	73643	50000	0.678951	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7209744	6801689	0.943402	7209744	6801689	408055	0.943402	eof	
+GCST90278628	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278629	ref_freqs.hg38.tsv.gz	73643	50000	0.678951	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7209744	6801689	0.943402	7209744	6801689	408055	0.943402	eof	
+GCST90278630	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278631	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278632	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278633	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278634	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278635	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278636	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278637	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278638	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278639	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278640	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278641	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278642	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278643	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278644	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278645	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278646	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278647	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278648	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278649	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278650	ref_freqs.hg38.tsv.gz	73689	50000	0.678527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7210786	6801712	0.943269	7210786	6801712	409074	0.943269	eof	
+GCST90278651	ref_freqs.hg38.tsv.gz	122165	54094	0.442795	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13534498	8128688	0.60059	9607651	8079226	1528425	0.840916	eof	
+GCST90278652	ref_freqs.hg38.tsv.gz	122183	54095	0.442738	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13538605	8128665	0.600406	9598658	8076704	1521954	0.841441	eof	
+GCST90278653	ref_freqs.hg38.tsv.gz	122183	54095	0.442738	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13538642	8128609	0.600401	9598474	8076504	1521970	0.841436	eof	
+GCST90278654	ref_freqs.hg38.tsv.gz	122179	54095	0.442752	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13538922	8128686	0.600394	9594926	8075638	1519288	0.841657	eof	
+GCST90278655	ref_freqs.hg38.tsv.gz	122184	54095	0.442734	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13538518	8128648	0.600409	9598987	8076758	1522229	0.841418	eof	
+GCST90278656	ref_freqs.hg38.tsv.gz	122179	54095	0.442752	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13538520	8128664	0.60041	9598535	8076707	1521828	0.841452	eof	
+GCST90278657	ref_freqs.hg38.tsv.gz	122170	54095	0.442785	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13537546	8128699	0.600456	9600134	8076991	1523143	0.841341	eof	
+GCST90278658	ref_freqs.hg38.tsv.gz	122175	54095	0.442767	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13536251	8128645	0.600509	9603458	8077936	1525522	0.841149	eof	
+GCST90278659	ref_freqs.hg38.tsv.gz	122174	54094	0.442762	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13535934	8128646	0.600523	9603543	8077902	1525641	0.841138	eof	
+GCST90278660	ref_freqs.hg38.tsv.gz	122181	54095	0.442745	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13538690	8128667	0.600403	9597914	8076577	1521337	0.841493	eof	
+GCST90278661	ref_freqs.hg38.tsv.gz	122134	54094	0.442907	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13526005	8128583	0.60096	9627461	8081908	1545553	0.839464	eof	
+GCST90278662	ref_freqs.hg38.tsv.gz	122183	54095	0.442738	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13538663	8128626	0.600401	9597438	8076338	1521100	0.84151	eof	
+GCST90278663	ref_freqs.hg38.tsv.gz	122169	54095	0.442788	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13525739	8128581	0.600971	9626719	8081927	1544792	0.839531	eof	
+GCST90278664	ref_freqs.hg38.tsv.gz	122186	54095	0.442727	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13539015	8128671	0.600389	9594383	8075393	1518990	0.841679	eof	
+GCST90278665	ref_freqs.hg38.tsv.gz	122125	54093	0.442931	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13521842	8128650	0.60115	9627960	8082365	1545595	0.839468	eof	
+GCST90278666	ref_freqs.hg38.tsv.gz	122179	54095	0.442752	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13538648	8128648	0.600403	9599220	8076914	1522306	0.841414	eof	
+GCST90278667	ref_freqs.hg38.tsv.gz	122183	54095	0.442738	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13538851	8128645	0.600394	9597606	8076434	1521172	0.841505	eof	
+GCST90278668	ref_freqs.hg38.tsv.gz	122170	54095	0.442785	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13537555	8128708	0.600456	9600152	8077002	1523150	0.841341	eof	
+GCST90278669	ref_freqs.hg38.tsv.gz	122172	54094	0.442769	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13536063	8128645	0.600518	9606448	8078588	1527860	0.840955	eof	
+GCST90278670	ref_freqs.hg38.tsv.gz	122171	54094	0.442773	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13536347	8128633	0.600504	9602879	8077672	1525207	0.841172	eof	
+GCST90278671	ref_freqs.hg38.tsv.gz	122165	54094	0.442795	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13531704	8128627	0.60071	9611673	8079714	1531959	0.840615	eof	
+GCST90278672	ref_freqs.hg38.tsv.gz	122173	54094	0.442766	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13535444	8128620	0.600543	9605048	8078249	1526799	0.841042	eof	
+GCST90278673	ref_freqs.hg38.tsv.gz	122183	54095	0.442738	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13538817	8128657	0.600396	9597342	8076344	1520998	0.841519	eof	
+GCST90278674	ref_freqs.hg38.tsv.gz	122181	54095	0.442745	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	13539658	8128681	0.600361	9594382	8075412	1518970	0.841681	eof	
+GCST90295916	ref_freqs.hg38.tsv.gz	60900	50000	0.821018	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4592429	4562331	0.993446	4592429	4562331	30098	0.993446	eof	
+GCST90295953	ref_freqs.hg38.tsv.gz	90715	50000	0.551177	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8862847	6358946	0.717483	7130345	6343566	786779	0.889658	eof	
+GCST90296498	ref_freqs.hg38.tsv.gz	72025	50000	0.694203	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4417677	4366606	0.988439	4417677	4366606	51071	0.988439	eof	
+GCST90297786	ref_freqs.hg38.tsv.gz	128997	50003	0.387629	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6572771	6184786	0.940971	4137968	3918032	219936	0.946849	eof	true
+GCST90297787	ref_freqs.hg38.tsv.gz	128997	50003	0.387629	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6572775	6184794	0.940972	4137963	3918031	219932	0.94685	eof	true
+GCST90297788	ref_freqs.hg38.tsv.gz	128997	50003	0.387629	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6572782	6184795	0.940971	4137970	3918032	219938	0.946849	eof	true
+GCST90297789	ref_freqs.hg38.tsv.gz	128997	50003	0.387629	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6572784	6184796	0.940971	4137972	3918033	219939	0.946849	eof	true
+GCST90297790	ref_freqs.hg38.tsv.gz	128997	50003	0.387629	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6572783	6184796	0.940971	4137971	3918033	219938	0.946849	eof	true
+GCST90297791	ref_freqs.hg38.tsv.gz	128996	50003	0.387632	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6572624	6184765	0.940989	4137815	3918004	219811	0.946878	eof	true
+GCST90302224	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260909	7088962	0.578176	12260909	7088962	5171947	0.578176	eof	true
+GCST90302225	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260909	7088962	0.578176	12260909	7088962	5171947	0.578176	eof	true
+GCST90302226	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260909	7088962	0.578176	12260909	7088962	5171947	0.578176	eof	true
+GCST90302227	ref_freqs.hg38.tsv.gz	127043	50000	0.393568	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11225130	7056673	0.62865	11225130	7056673	4168457	0.62865	eof	true
+GCST90302228	ref_freqs.hg38.tsv.gz	127043	50000	0.393568	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11225130	7056673	0.62865	11225130	7056673	4168457	0.62865	eof	true
+GCST90302229	ref_freqs.hg38.tsv.gz	127043	50000	0.393568	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11225130	7056673	0.62865	11225130	7056673	4168457	0.62865	eof	true
+GCST90302230	ref_freqs.hg38.tsv.gz	127043	50000	0.393568	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11225130	7056673	0.62865	11225130	7056673	4168457	0.62865	eof	true
+GCST90302231	ref_freqs.hg38.tsv.gz	127043	50000	0.393568	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11225130	7056673	0.62865	11225130	7056673	4168457	0.62865	eof	true
+GCST90302232	ref_freqs.hg38.tsv.gz	127043	50000	0.393568	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11225130	7056673	0.62865	11225130	7056673	4168457	0.62865	eof	true
+GCST90302233	ref_freqs.hg38.tsv.gz	127043	50000	0.393568	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11225130	7056673	0.62865	11225130	7056673	4168457	0.62865	eof	true
+GCST90302234	ref_freqs.hg38.tsv.gz	127043	50000	0.393568	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11225129	7056673	0.62865	11225129	7056673	4168456	0.62865	eof	true
+GCST90302235	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260909	7088962	0.578176	12260909	7088962	5171947	0.578176	eof	true
+GCST90319502	ref_freqs.hg38.tsv.gz	89544	50001	0.558396	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8523468	7197558	0.84444	8523468	7197558	1325910	0.84444	eof	true
+GCST90319905	ref_freqs.hg38.tsv.gz	70075	50000	0.713521	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5824630	5759419	0.988804	5824630	5759419	65211	0.988804	eof	true
+GCST90320065	ref_freqs.hg38.tsv.gz	93531	50008	0.534668	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9268956	7835732	0.845374	9268956	7835732	1433224	0.845374	eof	
+GCST90320257	ref_freqs.hg38.tsv.gz	73192	50000	0.683135	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5054807	4930888	0.975485	5054807	4930888	123919	0.975485	eof	true
+GCST90320258	ref_freqs.hg38.tsv.gz	73192	50000	0.683135	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5054807	4930888	0.975485	5054807	4930888	123919	0.975485	eof	true
+GCST90320259	ref_freqs.hg38.tsv.gz	73192	50000	0.683135	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5054807	4930888	0.975485	5054807	4930888	123919	0.975485	eof	true
+GCST90335162	ref_freqs.hg38.tsv.gz	230965	50000	0.216483	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22614782	8028022	0.35499	8766476	7763555	1002921	0.885596	eof	
+GCST90335163	ref_freqs.hg38.tsv.gz	230965	50000	0.216483	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22614782	8028022	0.35499	8766476	7763555	1002921	0.885596	eof	
+GCST90335164	ref_freqs.hg38.tsv.gz	230965	50000	0.216483	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22614782	8028022	0.35499	8766476	7763555	1002921	0.885596	eof	
+GCST90335165	ref_freqs.hg38.tsv.gz	230965	50000	0.216483	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22614782	8028022	0.35499	8766476	7763555	1002921	0.885596	eof	
+GCST90335166	ref_freqs.hg38.tsv.gz	230965	50000	0.216483	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22614782	8028022	0.35499	8766476	7763555	1002921	0.885596	eof	
+GCST90335167	ref_freqs.hg38.tsv.gz	230965	50000	0.216483	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22614782	8028022	0.35499	8766476	7763555	1002921	0.885596	eof	
+GCST90335168	ref_freqs.hg38.tsv.gz	230965	50000	0.216483	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22614782	8028022	0.35499	8766476	7763555	1002921	0.885596	eof	
+GCST90335169	ref_freqs.hg38.tsv.gz	230965	50000	0.216483	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22614782	8028022	0.35499	8766476	7763555	1002921	0.885596	eof	
+GCST90399685	ref_freqs.hg38.tsv.gz	104943	50000	0.476449	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	11387455	7803026	0.68523	9211053	7784998	1426055	0.84518	eof	
+GCST90399693	ref_freqs.hg38.tsv.gz	89551	50000	0.558341	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9333495	7705682	0.825594	8611133	7690929	920204	0.893138	eof	
+GCST90399700	ref_freqs.hg38.tsv.gz	100410	50000	0.497958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10670101	7713337	0.722893	8900623	7697692	1202931	0.864849	eof	
+GCST90399705	ref_freqs.hg38.tsv.gz	76843	50000	0.650677	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7046366	6675815	0.947412	6874981	6653639	221342	0.967805	eof	
+GCST90399712	ref_freqs.hg38.tsv.gz	96841	50000	0.51631	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9864499	7232768	0.733212	8104339	7199616	904723	0.888366	eof	
+GCST90399719	ref_freqs.hg38.tsv.gz	96817	50000	0.516438	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9861680	7232761	0.733421	8103897	7198992	904905	0.888337	eof	
+GCST90399724	ref_freqs.hg38.tsv.gz	76833	50000	0.650762	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7046361	6675812	0.947413	6875734	6653919	221815	0.967739	eof	
+GCST90399731	ref_freqs.hg38.tsv.gz	76241	50000	0.655815	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7400273	7008797	0.9471	7222357	6983970	238387	0.966993	eof	
+GCST90399743	ref_freqs.hg38.tsv.gz	65832	50000	0.759509	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5391414	5337803	0.990056	5379155	5331863	47292	0.991208	eof	
+GCST90428597	ref_freqs.hg38.tsv.gz	88457	50000	0.565246	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8714421	7126478	0.81778	8127036	7092476	1034560	0.872701	eof	true
+GCST90428598	ref_freqs.hg38.tsv.gz	92009	50000	0.543425	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9050391	7202012	0.795768	8273063	7160390	1112673	0.865507	eof	true
+GCST90428599	ref_freqs.hg38.tsv.gz	76524	50000	0.65339	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6735104	6412331	0.952076	6735104	6412331	322773	0.952076	eof	true
+GCST90429846	ref_freqs.hg38.tsv.gz	70480	50000	0.709421	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7000062	6833696	0.976234	7000062	6833696	166366	0.976234	eof	true
+GCST90429847	ref_freqs.hg38.tsv.gz	70551	50000	0.708707	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6975655	6803930	0.975382	6975655	6803930	171725	0.975382	eof	true
+GCST90429848	ref_freqs.hg38.tsv.gz	71695	50000	0.697399	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7192609	7000857	0.97334	7192609	7000857	191752	0.97334	eof	true
+GCST90432100	ref_freqs.hg38.tsv.gz	102125	43865	0.429523	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	102125	70283	0.688206	77244	69590	7654	0.900911	eof	
+GCST90432173	ref_freqs.hg38.tsv.gz	8279013	189562	0.0228967	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8279013	234556	0.0283314	7024315	187671	6836644	0.0267173	eof	true
+GCST90432182	ref_freqs.hg38.tsv.gz	130080	50000	0.384379	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12583582	7856749	0.624365	9562025	7829246	1732779	0.818785	eof	true
+GCST90435195	ref_freqs.hg38.tsv.gz	139848	50000	0.357531	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12254569	7071165	0.577023	12254569	7071165	5183404	0.577023	eof	true
+GCST90435196	ref_freqs.hg38.tsv.gz	139848	50000	0.357531	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12254569	7071165	0.577023	12254569	7071165	5183404	0.577023	eof	true
+GCST90435197	ref_freqs.hg38.tsv.gz	139848	50000	0.357531	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12254567	7071165	0.577023	12254567	7071165	5183402	0.577023	eof	true
+GCST90435198	ref_freqs.hg38.tsv.gz	139848	50000	0.357531	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12254562	7071164	0.577023	12254562	7071164	5183398	0.577023	eof	true
+GCST90435199	ref_freqs.hg38.tsv.gz	139848	50000	0.357531	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12254567	7071165	0.577023	12254567	7071165	5183402	0.577023	eof	true
+GCST90435200	ref_freqs.hg38.tsv.gz	139848	50000	0.357531	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12254568	7071165	0.577023	12254568	7071165	5183403	0.577023	eof	true
+GCST90435201	ref_freqs.hg38.tsv.gz	139848	50000	0.357531	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12254569	7071166	0.577023	12254569	7071166	5183403	0.577023	eof	true
+GCST90435202	ref_freqs.hg38.tsv.gz	139848	50000	0.357531	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12254567	7071164	0.577023	12254567	7071164	5183403	0.577023	eof	true
+GCST90435203	ref_freqs.hg38.tsv.gz	139848	50000	0.357531	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12254558	7071161	0.577023	12254558	7071161	5183397	0.577023	eof	true
+GCST90435439	ref_freqs.hg38.tsv.gz	100909	50063	0.49612	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9490501	7800351	0.821911	9067725	7763487	1304238	0.856167	eof	
+GCST90435440	ref_freqs.hg38.tsv.gz	100913	50064	0.496111	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9490440	7800333	0.821915	9066648	7763394	1303254	0.856258	eof	
+GCST90435441	ref_freqs.hg38.tsv.gz	100909	50064	0.49613	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9490425	7800322	0.821915	9066341	7763378	1302963	0.856286	eof	
+GCST90435442	ref_freqs.hg38.tsv.gz	100909	50064	0.49613	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9490418	7800325	0.821916	9065977	7763311	1302666	0.856313	eof	
+GCST90435443	ref_freqs.hg38.tsv.gz	100896	50063	0.496184	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9490446	7800328	0.821914	9066680	7763358	1303322	0.856251	eof	
+GCST90435444	ref_freqs.hg38.tsv.gz	101006	50062	0.495634	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9487784	7783968	0.82042	9080916	7748073	1332843	0.853226	eof	
+GCST90435445	ref_freqs.hg38.tsv.gz	101013	50062	0.4956	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9486947	7783416	0.820434	9079091	7747406	1331685	0.853324	eof	
+GCST90435446	ref_freqs.hg38.tsv.gz	101013	50062	0.4956	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9487718	7783936	0.820422	9079453	7747854	1331599	0.853339	eof	
+GCST90435447	ref_freqs.hg38.tsv.gz	101008	50061	0.495614	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9486910	7783403	0.820436	9078366	7747383	1330983	0.85339	eof	
+GCST90435448	ref_freqs.hg38.tsv.gz	101013	50061	0.49559	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9486915	7783390	0.820434	9079058	7747416	1331642	0.853328	eof	
+GCST90444427	ref_freqs.hg38.tsv.gz	322218	54951	0.17054	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	29083909	8570732	0.29469	10170890	8339226	1831664	0.819911	eof	true
+GCST90444428	ref_freqs.hg38.tsv.gz	253476	50000	0.197257	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22131312	7604464	0.343607	8764260	7371962	1392298	0.841139	eof	
+GCST90444429	ref_freqs.hg38.tsv.gz	322282	54951	0.170506	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	29080166	8570731	0.294728	10170423	8338683	1831740	0.819895	eof	true
+GCST90444430	ref_freqs.hg38.tsv.gz	253377	50000	0.197334	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22119163	7604444	0.343794	8764429	7371412	1393017	0.84106	eof	
+GCST90444489	ref_freqs.hg38.tsv.gz	76124	50000	0.656823	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5381447	5237395	0.973232	5381447	5237395	144052	0.973232	eof	
+GCST90446793	ref_freqs.hg38.tsv.gz	130187	50000	0.384063	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12590105	7856744	0.624041	9548386	7827258	1721128	0.819747	eof	true
+GCST90446795	ref_freqs.hg38.tsv.gz	130134	50000	0.384219	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12586836	7856778	0.624206	9557018	7827964	1729054	0.81908	eof	true
+GCST90451675	ref_freqs.hg38.tsv.gz	66011	50001	0.757465	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5458242	5357034	0.981458	5458242	5357034	101208	0.981458	eof	true
+GCST90454198	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260914	7088962	0.578176	12260914	7088962	5171952	0.578176	eof	true
+GCST90454199	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260913	7088962	0.578176	12260913	7088962	5171951	0.578176	eof	true
+GCST90454282	ref_freqs.hg38.tsv.gz	71618	50000	0.698149	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5630207	5545663	0.984984	5630207	5545663	84544	0.984984	eof	true
+GCST90454398	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139907	6716659	423248	0.940721	eof	
+GCST90454399	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454400	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139118	6716277	422841	0.940771	eof	
+GCST90454401	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454402	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454403	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454404	ref_freqs.hg38.tsv.gz	78748	50004	0.634988	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7137571	6715364	422207	0.940847	eof	true
+GCST90454405	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454406	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139853	6716631	423222	0.940724	eof	true
+GCST90454407	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454408	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454409	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454410	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454411	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139906	6716663	423243	0.940721	eof	
+GCST90454413	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139883	6716658	423225	0.940724	eof	
+GCST90454414	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454415	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90454417	ref_freqs.hg38.tsv.gz	78748	50000	0.634937	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7128721	6711693	417028	0.9415	eof	true
+GCST90454418	ref_freqs.hg38.tsv.gz	78739	50000	0.635009	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7139912	6716663	0.940721	7139912	6716663	423249	0.940721	eof	
+GCST90473166	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473173	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473213	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473220	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473407	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473414	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473516	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473519	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473632	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473648	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473678	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473681	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473700	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473711	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473772	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473786	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473830	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473860	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473916	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473932	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473970	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90473997	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474032	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474045	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474077	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474088	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474107	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474126	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474196	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474293	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474298	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474303	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474308	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474313	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474318	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474323	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474328	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474333	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474338	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474343	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474348	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474353	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474358	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474363	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474368	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474373	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474378	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474383	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474388	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474393	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474401	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474407	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474412	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474417	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474422	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474427	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474432	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474437	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474442	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474450	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474455	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474460	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474465	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474470	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474475	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474480	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474485	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474490	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474495	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474500	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474505	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474510	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474515	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474520	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474525	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474530	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474535	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474540	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474545	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474550	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474555	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474560	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474565	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474570	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474575	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474580	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474585	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474590	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474595	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474600	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474605	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474610	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474615	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474620	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474625	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474630	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474635	ref_freqs.hg38.tsv.gz	106615	50008	0.469052	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	10114641	8483737	0.838758	10114641	8483737	1630904	0.838758	eof	true
+GCST90474869	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474872	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474875	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474878	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474881	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474884	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474887	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474890	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474893	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474896	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474899	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474902	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474905	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474908	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474911	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474914	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474917	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474920	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474923	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474926	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474929	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474932	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474935	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474938	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474941	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474944	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474947	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474950	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474953	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474956	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474959	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474962	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474965	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474968	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474971	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474974	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474977	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474980	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474983	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474986	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474989	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474992	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474995	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90474998	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475001	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475004	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475007	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475010	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475013	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475016	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475019	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475022	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475025	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475028	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475031	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475034	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475037	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475040	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475043	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475046	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475049	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475052	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475055	ref_freqs.hg38.tsv.gz	86855	50000	0.575672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8738894	7965034	0.911446	8738894	7965034	773860	0.911446	eof	
+GCST90475087	ref_freqs.hg38.tsv.gz	80409	50000	0.621821	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7089329	6899096	0.973166	7089329	6899096	190233	0.973166	eof	
+GCST90483382	ref_freqs.hg38.tsv.gz	89842	50000	0.556533	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5556568	5287702	0.951613	5555911	5287636	268275	0.951714	eof	true
+GCST90502777	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502778	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502779	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502780	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502781	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502782	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502783	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502784	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502785	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502786	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502787	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502788	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502789	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502790	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502791	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502792	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502793	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502794	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502795	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502796	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502797	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502798	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502799	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502800	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502801	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90502802	ref_freqs.hg38.tsv.gz	70496	50000	0.70926	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6020167	5984251	0.994034	6020167	5984251	35916	0.994034	eof	true
+GCST90503325	ref_freqs.hg38.tsv.gz	210152	50002	0.237933	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20919741	7981304	0.38152	11235302	7780118	3455184	0.692471	eof	true
+GCST90503326	ref_freqs.hg38.tsv.gz	209567	50002	0.238597	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20761048	7949909	0.382924	11190335	7749439	3440896	0.692512	eof	true
+GCST90503327	ref_freqs.hg38.tsv.gz	209333	50002	0.238863	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20724757	7949888	0.383594	11189954	7749428	3440526	0.692534	eof	true
+GCST90503328	ref_freqs.hg38.tsv.gz	210152	50002	0.237933	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20841318	7949962	0.381452	11190734	7749458	3441276	0.692489	eof	true
+GCST90566388	ref_freqs.hg38.tsv.gz	195047	100119	0.513307	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5957347	5567093	0.934492	5957347	5567093	390254	0.934492	eof	true
+GCST90566389	ref_freqs.hg38.tsv.gz	195047	100119	0.513307	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5957347	5567093	0.934492	5957347	5567093	390254	0.934492	eof	true
+GCST90566412	ref_freqs.hg38.tsv.gz	98118	50000	0.50959	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4721875	3909098	0.82787	4721875	3909098	812777	0.82787	eof	
+GCST90566413	ref_freqs.hg38.tsv.gz	98118	50000	0.50959	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4721875	3909098	0.82787	4721875	3909098	812777	0.82787	eof	
+GCST90566414	ref_freqs.hg38.tsv.gz	98118	50000	0.50959	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4721875	3909098	0.82787	4721875	3909098	812777	0.82787	eof	true
+GCST90566415	ref_freqs.hg38.tsv.gz	98118	50000	0.50959	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4721875	3909098	0.82787	4721875	3909098	812777	0.82787	eof	true
+GCST90566416	ref_freqs.hg38.tsv.gz	98118	50000	0.50959	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4721875	3909098	0.82787	4721875	3909098	812777	0.82787	eof	true
+GCST90566417	ref_freqs.hg38.tsv.gz	98118	50000	0.50959	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4721875	3909098	0.82787	4721875	3909098	812777	0.82787	eof	true
+GCST90566418	ref_freqs.hg38.tsv.gz	74948	50051	0.66781	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4889981	4816543	0.984982	4889981	4816543	73438	0.984982	eof	true
+GCST90566419	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260906	7088961	0.578176	12260906	7088961	5171945	0.578176	eof	true
+GCST90566420	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260904	7088962	0.578176	12260904	7088962	5171942	0.578176	eof	true
+GCST90566421	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260910	7088962	0.578176	12260910	7088962	5171948	0.578176	eof	true
+GCST90566422	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260910	7088962	0.578176	12260910	7088962	5171948	0.578176	eof	true
+GCST90566423	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260910	7088962	0.578176	12260910	7088962	5171948	0.578176	eof	true
+GCST90566424	ref_freqs.hg38.tsv.gz	139292	50000	0.358958	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12260908	7088962	0.578176	12260908	7088962	5171946	0.578176	eof	true
+GCST90572792	ref_freqs.hg38.tsv.gz	80787	50000	0.618911	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	3594432	3537248	0.984091	3594432	3537248	57184	0.984091	eof	
+GCST90572793	ref_freqs.hg38.tsv.gz	80787	50000	0.618911	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	3594432	3537248	0.984091	3594432	3537248	57184	0.984091	eof	
+GCST90572794	ref_freqs.hg38.tsv.gz	80787	50000	0.618911	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	3594432	3537248	0.984091	3594432	3537248	57184	0.984091	eof	
+GCST90572795	ref_freqs.hg38.tsv.gz	80787	50000	0.618911	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	3594432	3537248	0.984091	3594432	3537248	57184	0.984091	eof	
+GCST90624113	ref_freqs.hg38.tsv.gz	78122	50000	0.640025	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6235625	5982512	0.959409	6235625	5982512	253113	0.959409	eof	
+GCST90627739	ref_freqs.hg38.tsv.gz	85009	50000	0.588173	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8330165	7371006	0.884857	8301626	7370765	930861	0.88787	eof	true
+GCST90627748	ref_freqs.hg38.tsv.gz	91080	50000	0.548968	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9188340	7520503	0.818483	9126037	7513910	1612127	0.823349	eof	true
+GCST90627753	ref_freqs.hg38.tsv.gz	92346	50000	0.541442	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8188003	7167111	0.875319	7719818	7136003	583815	0.924375	eof	true
+GCST90627762	ref_freqs.hg38.tsv.gz	130122	50000	0.384255	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	12121791	7590284	0.626169	8794399	7566694	1227705	0.860399	eof	true
+GCST90652245	ref_freqs.hg38.tsv.gz	290421	50000	0.172164	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	28279414	7635662	0.270008	10107989	7554164	2553825	0.747346	eof	true
+GCST90668009	ref_freqs.hg38.tsv.gz	85833	50000	0.582527	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7786701	7112473	0.913413	7786701	7112473	674228	0.913413	eof	true
+GCST90668010	ref_freqs.hg38.tsv.gz	85827	50000	0.582567	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7786025	7111930	0.913422	7786025	7111930	674095	0.913422	eof	true
+GCST90668011	ref_freqs.hg38.tsv.gz	85840	50000	0.582479	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7786713	7112334	0.913394	7786713	7112334	674379	0.913394	eof	true
+GCST90668012	ref_freqs.hg38.tsv.gz	85886	50000	0.582167	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7792460	7113916	0.912923	7792460	7113916	678544	0.912923	eof	true
+GCST90692457	ref_freqs.hg38.tsv.gz	88063	50000	0.567775	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9432399	6950910	0.736919	8430268	6943668	1486600	0.823659	eof	
+GCST90692458	ref_freqs.hg38.tsv.gz	88055	50000	0.567827	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9432280	6950911	0.736928	8426583	6943645	1482938	0.824017	eof	
+GCST90692459	ref_freqs.hg38.tsv.gz	232804	50000	0.214773	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	26937088	6955724	0.258221	13880739	6474428	7406311	0.466433	eof	true
+GCST90692460	ref_freqs.hg38.tsv.gz	195479	50000	0.255782	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21877672	6955180	0.317912	10250670	6384177	3866493	0.622806	eof	true
+GCST90692461	ref_freqs.hg38.tsv.gz	186075	50000	0.268709	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20821038	6919321	0.332324	10271990	6381390	3890600	0.621242	eof	true
+GCST90692462	ref_freqs.hg38.tsv.gz	195484	50000	0.255775	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21874448	6954893	0.317946	10249853	6384727	3865126	0.622909	eof	true
+GCST90692463	ref_freqs.hg38.tsv.gz	170779	50000	0.292776	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	19076280	6953789	0.364525	10342838	6467604	3875234	0.625322	eof	true
+GCST90692464	ref_freqs.hg38.tsv.gz	196628	50000	0.254287	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22215595	6955135	0.313074	10448179	6406453	4041726	0.613165	eof	true
+GCST90692465	ref_freqs.hg38.tsv.gz	196852	50000	0.253998	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22250551	6954572	0.312557	10441721	6407242	4034479	0.613619	eof	true
+GCST90692466	ref_freqs.hg38.tsv.gz	168821	50000	0.296172	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	18930995	6865879	0.362679	10507136	6421757	4085379	0.611181	eof	true
+GCST90692467	ref_freqs.hg38.tsv.gz	191655	50000	0.260885	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21631348	6941850	0.320916	10455550	6412476	4043074	0.613308	eof	true
+GCST90692468	ref_freqs.hg38.tsv.gz	225772	50000	0.221462	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	25964569	6953250	0.267798	13949916	6459427	7490489	0.463044	eof	true
+GCST90692469	ref_freqs.hg38.tsv.gz	230732	50000	0.216702	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	26565615	6955931	0.26184	13641934	6445915	7196019	0.472507	eof	true
+GCST90692470	ref_freqs.hg38.tsv.gz	168183	50000	0.297295	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	18595797	6895545	0.370812	10252457	6426947	3825510	0.626869	eof	true
+GCST90692471	ref_freqs.hg38.tsv.gz	187683	50000	0.266407	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21202554	6930535	0.326873	10467167	6412496	4054671	0.61263	eof	true
+GCST90692472	ref_freqs.hg38.tsv.gz	186578	50000	0.267984	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20859678	6924907	0.331976	10218616	6382853	3835763	0.62463	eof	true
+GCST90692473	ref_freqs.hg38.tsv.gz	230425	50000	0.21699	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	26615706	6953079	0.26124	14098457	6479758	7618699	0.459608	eof	true
+GCST90692474	ref_freqs.hg38.tsv.gz	195079	50000	0.256306	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21823971	6953451	0.318615	10241010	6383381	3857629	0.623316	eof	true
+GCST90692475	ref_freqs.hg38.tsv.gz	193838	50000	0.257947	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21656412	6947834	0.320821	10233092	6383292	3849800	0.623789	eof	true
+GCST90692476	ref_freqs.hg38.tsv.gz	191095	50000	0.26165	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21593920	6953088	0.321993	10484146	6422832	4061314	0.612623	eof	true
+GCST90692477	ref_freqs.hg38.tsv.gz	196840	50000	0.254013	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	22260342	6954702	0.312426	10439591	6402653	4036938	0.613305	eof	true
+GCST90692478	ref_freqs.hg38.tsv.gz	206987	50000	0.241561	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	23498190	6879728	0.292777	14424507	6471309	7953198	0.448633	eof	true
+GCST90692479	ref_freqs.hg38.tsv.gz	193692	50000	0.258142	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21859711	6948287	0.317858	10450516	6410219	4040297	0.613388	eof	true
+GCST90692480	ref_freqs.hg38.tsv.gz	195500	50000	0.255754	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21880625	6955198	0.31787	10252551	6384585	3867966	0.622731	eof	true
+GCST90692481	ref_freqs.hg38.tsv.gz	195389	50000	0.2559	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21865720	6954590	0.318059	10245741	6384138	3861603	0.623102	eof	true
+GCST90692482	ref_freqs.hg38.tsv.gz	87982	50000	0.568298	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9425746	6950845	0.737432	8438803	6943590	1495213	0.822817	eof	
+GCST90692483	ref_freqs.hg38.tsv.gz	88040	50000	0.567924	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9432973	6950926	0.736875	8433080	6943671	1489409	0.823385	eof	
+GCST90692484	ref_freqs.hg38.tsv.gz	88040	50000	0.567924	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9423919	6950816	0.737572	8432775	6943077	1489698	0.823344	eof	
+GCST90692485	ref_freqs.hg38.tsv.gz	88021	50000	0.568046	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9432162	6950917	0.736938	8428881	6943720	1485161	0.823801	eof	
+GCST90692486	ref_freqs.hg38.tsv.gz	88035	50000	0.567956	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9433946	6950922	0.736799	8423531	6943610	1479921	0.824311	eof	
+GCST90692487	ref_freqs.hg38.tsv.gz	88034	50000	0.567962	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9433745	6950921	0.736815	8419986	6943592	1476394	0.824656	eof	
+GCST90692488	ref_freqs.hg38.tsv.gz	88026	50000	0.568014	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9432132	6950916	0.73694	8423468	6943622	1479846	0.824319	eof	
+GCST90692489	ref_freqs.hg38.tsv.gz	88037	50000	0.567943	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9433957	6950922	0.736798	8423730	6943622	1480108	0.824293	eof	
+GCST90692490	ref_freqs.hg38.tsv.gz	88037	50000	0.567943	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9433957	6950922	0.736798	8423730	6943622	1480108	0.824293	eof	
+GCST90692491	ref_freqs.hg38.tsv.gz	88037	50000	0.567943	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9433907	6950920	0.736802	8423578	6943620	1479958	0.824308	eof	
+GCST90692492	ref_freqs.hg38.tsv.gz	88028	50000	0.568001	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9431715	6950919	0.736973	8429488	6943694	1485794	0.823739	eof	
+GCST90692493	ref_freqs.hg38.tsv.gz	88026	50000	0.568014	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9431280	6950918	0.737007	8436511	6943658	1492853	0.823049	eof	
+GCST90692494	ref_freqs.hg38.tsv.gz	88026	50000	0.568014	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9431280	6950918	0.737007	8436511	6943658	1492853	0.823049	eof	
+GCST90692495	ref_freqs.hg38.tsv.gz	88044	50000	0.567898	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9433762	6950922	0.736813	8436951	6943719	1493232	0.823013	eof	
+GCST90692496	ref_freqs.hg38.tsv.gz	88033	50000	0.567969	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9429805	6950874	0.737117	8427192	6943580	1483612	0.823949	eof	
+GCST90692497	ref_freqs.hg38.tsv.gz	88029	50000	0.567995	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9431615	6950904	0.736979	8441993	6943676	1498317	0.822516	eof	
+GCST90692498	ref_freqs.hg38.tsv.gz	82639	50000	0.605041	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8757282	6933028	0.791687	8259687	6906817	1352870	0.836208	eof	
+GCST90692499	ref_freqs.hg38.tsv.gz	82968	50000	0.602642	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8799019	6935948	0.788264	8279048	6911147	1367901	0.834776	eof	
+GCST90692500	ref_freqs.hg38.tsv.gz	88033	50000	0.567969	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9429805	6950874	0.737117	8427192	6943580	1483612	0.823949	eof	
+GCST90692501	ref_freqs.hg38.tsv.gz	88044	50000	0.567898	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9433762	6950922	0.736813	8436951	6943719	1493232	0.823013	eof	
+GCST90692502	ref_freqs.hg38.tsv.gz	88044	50000	0.567898	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9433762	6950922	0.736813	8436951	6943719	1493232	0.823013	eof	
+GCST90692503	ref_freqs.hg38.tsv.gz	88029	50000	0.567995	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9430832	6950907	0.737041	8436962	6943690	1493272	0.823008	eof	
+GCST90692504	ref_freqs.hg38.tsv.gz	88055	50000	0.567827	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9434878	6950931	0.736727	8428384	6943681	1484703	0.823845	eof	
+GCST90692505	ref_freqs.hg38.tsv.gz	88055	50000	0.567827	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9434878	6950931	0.736727	8428384	6943681	1484703	0.823845	eof	
+GCST90692506	ref_freqs.hg38.tsv.gz	88055	50000	0.567827	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	9434878	6950931	0.736727	8428384	6943681	1484703	0.823845	eof	
+GCST90692507	ref_freqs.hg38.tsv.gz	82639	50000	0.605041	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8757282	6933028	0.791687	8259687	6906817	1352870	0.836208	eof	
+GCST90692508	ref_freqs.hg38.tsv.gz	166259	50000	0.300736	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	18408857	6826099	0.370805	10181821	6360284	3821537	0.624671	eof	true
+GCST90692509	ref_freqs.hg38.tsv.gz	168723	50000	0.296344	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	18714946	6855423	0.366307	10205391	6382387	3823004	0.625394	eof	true
+GCST90692510	ref_freqs.hg38.tsv.gz	185551	50000	0.269468	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20621493	6891967	0.334213	10183040	6358049	3824991	0.624376	eof	true
+GCST90692511	ref_freqs.hg38.tsv.gz	166270	50000	0.300716	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	18414883	6826321	0.370696	10182216	6360684	3821532	0.624686	eof	true
+GCST90692512	ref_freqs.hg38.tsv.gz	181963	50000	0.274781	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20593705	6903834	0.33524	10468055	6398889	4069166	0.611278	eof	true
+GCST90692513	ref_freqs.hg38.tsv.gz	190289	50000	0.262758	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	21251811	6922460	0.325735	10198937	6369043	3829894	0.624481	eof	true
+GCST90692514	ref_freqs.hg38.tsv.gz	169114	50000	0.295659	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	18770285	6859863	0.365464	10210218	6384689	3825529	0.625323	eof	true
+GCST90692515	ref_freqs.hg38.tsv.gz	186756	50000	0.267729	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20762038	6910840	0.332859	10200990	6371182	3829808	0.624565	eof	true
+GCST90692516	ref_freqs.hg38.tsv.gz	175133	50000	0.285497	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	19540661	6874311	0.351795	10541824	6412105	4129719	0.608254	eof	true
+GCST90692517	ref_freqs.hg38.tsv.gz	186677	50000	0.267842	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	20752264	6910789	0.333014	10201192	6371376	3829816	0.624572	eof	true
+GCST90692518	ref_freqs.hg38.tsv.gz	178053	50000	0.280815	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	19785183	6885697	0.348023	10331703	6383046	3948657	0.617812	eof	true
+GCST90705067	ref_freqs.hg38.tsv.gz	75785	50051	0.660434	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7816763	7194346	0.920374	7438666	7102890	335776	0.954861	eof	true
+GCST90705068	ref_freqs.hg38.tsv.gz	75783	50051	0.660452	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7816763	7194346	0.920374	7444696	7105547	339149	0.954444	eof	true
+GCST90705069	ref_freqs.hg38.tsv.gz	75783	50051	0.660452	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7816763	7194346	0.920374	7443729	7105162	338567	0.954516	eof	true
+GCST90705091	ref_freqs.hg38.tsv.gz	95892	50000	0.52142	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	8390160	6995754	0.833805	8358723	6987916	1370807	0.836003	eof	
+GCST90707270	ref_freqs.hg38.tsv.gz	83797	50000	0.59668	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6525695	6303302	0.96592	6525684	6303299	222385	0.965922	eof	
+GCST90726612	ref_freqs.hg38.tsv.gz	72767	50000	0.687125	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6229574	6048530	0.970938	6229574	6048530	181044	0.970938	eof	
+GCST90727382	ref_freqs.hg38.tsv.gz	193416	50000	0.25851	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	19005007	8081210	0.425215	8849282	7828499	1020783	0.884648	eof	true
+GCST90727383	ref_freqs.hg38.tsv.gz	193416	50000	0.25851	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	19005007	8081210	0.425215	8849282	7828499	1020783	0.884648	eof	true
+GCST90727384	ref_freqs.hg38.tsv.gz	193416	50000	0.25851	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	19005007	8081210	0.425215	8849282	7828499	1020783	0.884648	eof	true
+GCST90727385	ref_freqs.hg38.tsv.gz	193416	50000	0.25851	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	19005007	8081210	0.425215	8849282	7828499	1020783	0.884648	eof	true
+GCST90727420	ref_freqs.hg38.tsv.gz	68276	50000	0.732322	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5407241	5391075	0.99701	5407241	5391075	16166	0.99701	eof	true
+GCST90727421	ref_freqs.hg38.tsv.gz	68276	50000	0.732322	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5407241	5391075	0.99701	5407241	5391075	16166	0.99701	eof	
+GCST90728616	ref_freqs.hg38.tsv.gz	70280	50000	0.71144	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6489338	6243034	0.962045	6489338	6243034	246304	0.962045	eof	true
+GCST90728619	ref_freqs.hg38.tsv.gz	73414	50000	0.681069	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	5941856	5854020	0.985217	5941856	5854020	87836	0.985217	eof	true
+GCST90809295	ref_freqs.hg38.tsv.gz	74617	50000	0.670089	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6117916	6002045	0.98106	6117916	6002045	115871	0.98106	eof	true
+GCST90833022	ref_freqs.hg38.tsv.gz	73964	50000	0.676005	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	6101468	6009622	0.984947	6101468	6009622	91846	0.984947	eof	true
+GCST90833025	ref_freqs.hg38.tsv.gz	61709	50000	0.810255	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	3346443	3313071	0.990028	3346443	3313071	33372	0.990028	eof	true
+GCST90833033	ref_freqs.hg38.tsv.gz	74940	50000	0.6672	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7420473	6985005	0.941315	7420473	6985005	435468	0.941315	eof	true
+GCST90841456	ref_freqs.hg38.tsv.gz	70799	50010	0.706366	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4901806	4815078	0.982307	4901806	4815078	86728	0.982307	eof	true
+GCST90841458	ref_freqs.hg38.tsv.gz	70823	50010	0.706127	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4894764	4807593	0.982191	4894764	4807593	87171	0.982191	eof	true
+GCST90841460	ref_freqs.hg38.tsv.gz	70681	50010	0.707545	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4861583	4795895	0.986488	4861583	4795895	65688	0.986488	eof	true
+GCST90841462	ref_freqs.hg38.tsv.gz	70752	50010	0.706835	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	4885437	4804194	0.98337	4885437	4804194	81243	0.98337	eof	true
+GCST90841464	ref_freqs.hg38.tsv.gz	85778	50000	0.5829	/data/opengwasdb/reference/gnomad-v4-common-hg38/EAS-variants.txt.gz	7430503	6637959	0.893339	7430503	6637959	792544	0.893339	eof	true

@@ -1,0 +1,359 @@
+analysis_id	ancestry_reference_id	ancestry_rows_scanned	ancestry_rows_matched	ancestry_reference_rate	variant_reference	rows_scanned	variant_reference_rows_matched	variant_reference_rate	build_eligible_rows	build_eligible_rows_on_variant_reference	build_eligible_rows_off_variant_reference	build_eligible_rate	stop_reason	exclude_from_build
+GCST008027	ref_freqs.hg38.tsv.gz	236150	50003	0.211743	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	27882456	15596430	0.559364	18933401	15229819	3703582	0.804389	eof	true
+GCST009386	ref_freqs.hg38.tsv.gz	633205	297451	0.469755	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	65176317	62129025	0.953245	65176317	62129025	3047292	0.953245	eof	true
+GCST009387	ref_freqs.hg38.tsv.gz	621112	296863	0.477954	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	63816063	61127145	0.957865	63816063	61127145	2688918	0.957865	eof	true
+GCST009390	ref_freqs.hg38.tsv.gz	618235	297010	0.480416	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	63550761	60762039	0.956118	63550761	60762039	2788722	0.956118	eof	true
+GCST010076	ref_freqs.hg38.tsv.gz	9419869	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9419869	9219905	0.978772	0				eof	true
+GCST010077	ref_freqs.hg38.tsv.gz	9427908	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9427908	9227758	0.97877	0				eof	true
+GCST90000019	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90000020	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90000021	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90000022	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90000023	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90000024	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90000522	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90000523	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90000524	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90000525	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90000526	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90002225	ref_freqs.hg38.tsv.gz	228438	50000	0.218878	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	21410783	14312408	0.668467	11867164	9899727	1967437	0.834212	eof	true
+GCST90002230	ref_freqs.hg38.tsv.gz	277750	50000	0.180018	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26200006	14435900	0.550988	12744190	9913929	2830261	0.777918	eof	true
+GCST90002236	ref_freqs.hg38.tsv.gz	262225	50000	0.190676	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	24711210	14424424	0.58372	12468844	9912418	2556426	0.794975	eof	true
+GCST90002242	ref_freqs.hg38.tsv.gz	265448	50000	0.188361	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	25041389	14415340	0.575661	12535046	9908365	2626681	0.790453	eof	true
+GCST90002248	ref_freqs.hg38.tsv.gz	192626	50000	0.25957	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18045195	13926246	0.771743	16226164	13420707	2805457	0.827103	eof	
+GCST90002291	ref_freqs.hg38.tsv.gz	203038	50000	0.246259	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	33262897	14670155	0.441037	17884128	14644482	3239646	0.818854	eof	
+GCST90002297	ref_freqs.hg38.tsv.gz	203038	50000	0.246259	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	33284612	14670086	0.440747	17885241	14644709	3240532	0.818815	eof	
+GCST90002303	ref_freqs.hg38.tsv.gz	205699	50000	0.243074	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	34208059	14726282	0.430492	18132597	14701078	3431519	0.810754	eof	
+GCST90002309	ref_freqs.hg38.tsv.gz	362864	50008	0.137815	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	34256899	14748051	0.430513	18158229	14722356	3435873	0.810781	eof	true
+GCST90002315	ref_freqs.hg38.tsv.gz	203015	50000	0.246287	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	33802360	14670467	0.434007	17976976	14644385	3332591	0.814619	eof	
+GCST90002321	ref_freqs.hg38.tsv.gz	205738	50000	0.243028	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	33390027	14670103	0.439356	17888395	14645709	3242686	0.818727	eof	
+GCST90002327	ref_freqs.hg38.tsv.gz	205738	50000	0.243028	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	33562536	14726028	0.438764	18076275	14702161	3374114	0.81334	eof	
+GCST90002333	ref_freqs.hg38.tsv.gz	205699	50000	0.243074	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	34022660	14670471	0.431197	17946263	14644492	3301771	0.816019	eof	
+GCST90002339	ref_freqs.hg38.tsv.gz	203015	50000	0.246287	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	33799117	14670507	0.43405	17977094	14644431	3332663	0.814616	eof	
+GCST90002345	ref_freqs.hg38.tsv.gz	206069	50000	0.242637	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	33388581	14671447	0.439415	17820132	14642706	3177426	0.821695	eof	
+GCST90002350	ref_freqs.hg38.tsv.gz	203015	50000	0.246287	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	33803158	14670616	0.434001	17977213	14644530	3332683	0.814616	eof	
+GCST90002356	ref_freqs.hg38.tsv.gz	206061	50000	0.242647	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	34214819	14726312	0.430407	18132142	14701249	3430893	0.810784	eof	
+GCST90002362	ref_freqs.hg38.tsv.gz	205699	50000	0.243074	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	34022584	14670412	0.431196	17946189	14644436	3301753	0.816019	eof	
+GCST90002368	ref_freqs.hg38.tsv.gz	205699	50000	0.243074	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	34004475	14670283	0.431422	17921969	14642705	3279264	0.817025	eof	
+GCST90002373	ref_freqs.hg38.tsv.gz	206061	50000	0.242647	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	34202139	14726290	0.430566	18132081	14700997	3431084	0.810773	eof	
+GCST90002423	ref_freqs.hg38.tsv.gz	0			/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	0			0				eof	true
+GCST90011769	ref_freqs.hg38.tsv.gz	14865627	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14865627	13501452	0.908233	0				eof	true
+GCST90011793	ref_freqs.hg38.tsv.gz	128016	50000	0.390576	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9527987	9157789	0.961146	9527987	9157789	370198	0.961146	eof	
+GCST90011794	ref_freqs.hg38.tsv.gz	127998	50000	0.390631	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9521736	9153800	0.961358	9521736	9153800	367936	0.961358	eof	
+GCST90011795	ref_freqs.hg38.tsv.gz	127961	50000	0.390744	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9510676	9146877	0.961748	9510676	9146877	363799	0.961748	eof	
+GCST90011796	ref_freqs.hg38.tsv.gz	127989	50000	0.390659	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9521979	9154120	0.961367	9521979	9154120	367859	0.961367	eof	
+GCST90011797	ref_freqs.hg38.tsv.gz	127926	50000	0.390851	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9515633	9149923	0.961567	9515633	9149923	365710	0.961567	eof	
+GCST90011798	ref_freqs.hg38.tsv.gz	127729	50000	0.391454	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9503785	9142297	0.961964	9503785	9142297	361488	0.961964	eof	
+GCST90011799	ref_freqs.hg38.tsv.gz	126525	50000	0.395179	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9344687	9012135	0.964413	9344687	9012135	332552	0.964413	eof	
+GCST90011800	ref_freqs.hg38.tsv.gz	127983	50000	0.390677	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9525209	9156019	0.961241	9525209	9156019	369190	0.961241	eof	
+GCST90013412	ref_freqs.hg38.tsv.gz	2825571	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	2825571	2825423	0.999948	0				eof	true
+GCST90013466	ref_freqs.hg38.tsv.gz	196125	50000	0.254939	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18765430	13938110	0.742755	17772756	13924857	3847899	0.783495	eof	true
+GCST90013467	ref_freqs.hg38.tsv.gz	195370	50000	0.255925	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18672701	13937384	0.746404	17975322	13927868	4047454	0.774833	eof	true
+GCST90013468	ref_freqs.hg38.tsv.gz	196130	50000	0.254933	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18765185	13938043	0.742761	17640239	13920613	3719626	0.78914	eof	true
+GCST90014293	ref_freqs.hg38.tsv.gz	135355	50000	0.369399	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12990229	12615213	0.971131	12990229	12615213	375016	0.971131	eof	
+GCST90014294	ref_freqs.hg38.tsv.gz	145890	50000	0.342724	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12989070	12614344	0.971151	12989070	12614344	374726	0.971151	eof	
+GCST90014295	ref_freqs.hg38.tsv.gz	149784	50000	0.333814	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12989336	12614615	0.971152	12989336	12614615	374721	0.971152	eof	
+GCST90014296	ref_freqs.hg38.tsv.gz	146548	50000	0.341185	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12989595	12614866	0.971152	12989595	12614866	374729	0.971152	eof	
+GCST90014297	ref_freqs.hg38.tsv.gz	145632	50000	0.343331	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12989882	12614880	0.971131	12989882	12614880	375002	0.971131	eof	
+GCST90014298	ref_freqs.hg38.tsv.gz	144653	50000	0.345655	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12988668	12613950	0.97115	12988668	12613950	374718	0.97115	eof	
+GCST90026374	ref_freqs.hg38.tsv.gz	18973091	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18973091	15585393	0.821447	0				eof	true
+GCST90091051	ref_freqs.hg38.tsv.gz	114096	50086	0.438981	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	7621728	6980945	0.915927	7621728	6980945	640783	0.915927	eof	
+GCST90091238	ref_freqs.hg38.tsv.gz	14418126	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14418126	13560303	0.940504	0				eof	true
+GCST90091239	ref_freqs.hg38.tsv.gz	14017384	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14017384	13383485	0.954778	0				eof	true
+GCST90091913	ref_freqs.hg38.tsv.gz	153058	50037	0.326915	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	16135383	15306107	0.948605	16135383	15306107	829276	0.948605	eof	true
+GCST90092502	ref_freqs.hg38.tsv.gz	164221	50000	0.304468	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13969151	12509774	0.895529	13969151	12509774	1459377	0.895529	eof	
+GCST90092503	ref_freqs.hg38.tsv.gz	164221	50000	0.304468	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13969151	12509774	0.895529	13959049	12509760	1449289	0.896176	eof	
+GCST90092504	ref_freqs.hg38.tsv.gz	164221	50000	0.304468	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13969151	12509774	0.895529	13969144	12509774	1459370	0.895529	eof	
+GCST90092505	ref_freqs.hg38.tsv.gz	7660622	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	7660622	6582899	0.859317	0				eof	true
+GCST90094632	ref_freqs.hg38.tsv.gz	13297093	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13297093	11717705	0.881223	0				eof	true
+GCST90095139	ref_freqs.hg38.tsv.gz	127492	50000	0.392181	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12103847	11704952	0.967044	12103847	11704952	398895	0.967044	eof	
+GCST90101741	ref_freqs.hg38.tsv.gz	164185	50000	0.304535	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13961157	12509277	0.896006	13961081	12509201	1451880	0.896005	eof	
+GCST90101742	ref_freqs.hg38.tsv.gz	164185	50000	0.304535	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13961154	12509277	0.896006	13961078	12509201	1451877	0.896005	eof	
+GCST90101743	ref_freqs.hg38.tsv.gz	164185	50000	0.304535	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13961242	12509277	0.896	13961166	12509201	1451965	0.896	eof	
+GCST90101744	ref_freqs.hg38.tsv.gz	164185	50000	0.304535	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13961031	12509277	0.896014	13960955	12509201	1451754	0.896013	eof	
+GCST90101745	ref_freqs.hg38.tsv.gz	21454651	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	21454651	14309747	0.666976	0				eof	true
+GCST90101746	ref_freqs.hg38.tsv.gz	21443297	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	21443297	14309406	0.667314	0				eof	true
+GCST90101747	ref_freqs.hg38.tsv.gz	21388868	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	21388868	14290451	0.668126	0				eof	true
+GCST90101748	ref_freqs.hg38.tsv.gz	21389969	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	21389969	14290881	0.668111	0				eof	true
+GCST90104549	ref_freqs.hg38.tsv.gz	118253	50000	0.422822	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10808493	10749630	0.994554	10808493	10749630	58863	0.994554	eof	true
+GCST90104550	ref_freqs.hg38.tsv.gz	107255	50000	0.466179	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	8336076	8263199	0.991258	8336076	8263199	72877	0.991258	eof	true
+GCST90104551	ref_freqs.hg38.tsv.gz	121617	50000	0.411127	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	6616113	6543751	0.989063	6616113	6543751	72362	0.989063	eof	true
+GCST90104552	ref_freqs.hg38.tsv.gz	104588	50000	0.478066	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	5288018	5247505	0.992339	5288018	5247505	40513	0.992339	eof	true
+GCST90104553	ref_freqs.hg38.tsv.gz	102472	50000	0.487938	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	5243695	5178103	0.987491	5243695	5178103	65592	0.987491	eof	true
+GCST90129399	ref_freqs.hg38.tsv.gz	8929433	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	8929433	8762237	0.981276	0				eof	true
+GCST90129400	ref_freqs.hg38.tsv.gz	8948027	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	8948027	8816777	0.985332	0				eof	true
+GCST90129401	ref_freqs.hg38.tsv.gz	8019645	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	8019645	7895842	0.984563	0				eof	true
+GCST90134282	ref_freqs.hg38.tsv.gz	207740	50005	0.24071	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	21354502	14406775	0.674648	15590155	14390192	1199963	0.923031	eof	true
+GCST90134287	ref_freqs.hg38.tsv.gz	18292552	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18292552	13795175	0.754142	0				eof	true
+GCST90134617	ref_freqs.hg38.tsv.gz	1281611	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	1281611	1235600	0.964099	0				eof	true
+GCST90165263	ref_freqs.hg38.tsv.gz	439132	50009	0.113881	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	40766568	15107195	0.370578	18346918	15101010	3245908	0.823082	eof	
+GCST90239650	ref_freqs.hg38.tsv.gz	290199	50004	0.172309	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	32457757	16166328	0.498073	19432182	16129722	3302460	0.830052	eof	
+GCST90239656	ref_freqs.hg38.tsv.gz	300956	50006	0.166157	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	31960619	15747964	0.49273	18976771	15715810	3260961	0.82816	eof	
+GCST90239662	ref_freqs.hg38.tsv.gz	303130	50004	0.164959	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	31988494	15700988	0.490832	18918567	15668333	3250234	0.828199	eof	
+GCST90239668	ref_freqs.hg38.tsv.gz	258514	50002	0.193421	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	27541982	15662747	0.568686	18374193	15600861	2773332	0.849064	eof	
+GCST90239674	ref_freqs.hg38.tsv.gz	304120	50004	0.164422	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	32055272	15701049	0.489812	18921445	15669403	3252042	0.828129	eof	
+GCST90245989	ref_freqs.hg38.tsv.gz	72576	50000	0.688933	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	1370491	1335791	0.974681	1354836	1335756	19080	0.985917	eof	
+GCST90246322	ref_freqs.hg38.tsv.gz	145955	50001	0.342578	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15486598	14945158	0.965038	15486598	14945158	541440	0.965038	eof	true
+GCST90246323	ref_freqs.hg38.tsv.gz	140073	50001	0.356964	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14835919	14549597	0.980701	14835919	14549597	286322	0.980701	eof	true
+GCST90246328	ref_freqs.hg38.tsv.gz	12963757	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12963757	11759730	0.907124	0				eof	true
+GCST90246329	ref_freqs.hg38.tsv.gz	12962954	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12962954	11759058	0.907128	0				eof	true
+GCST90246330	ref_freqs.hg38.tsv.gz	12962954	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12962954	11759058	0.907128	0				eof	true
+GCST90246331	ref_freqs.hg38.tsv.gz	12988402	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12988402	11774464	0.906537	0				eof	true
+GCST90246332	ref_freqs.hg38.tsv.gz	12962954	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12962954	11759058	0.907128	0				eof	true
+GCST90256400	ref_freqs.hg38.tsv.gz	132562	21735	0.163961	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	132562	47322	0.35698	58116	47309	10807	0.814044	eof	
+GCST90256403	ref_freqs.hg38.tsv.gz	177834	23047	0.129598	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	177834	50123	0.281853	61151	50059	11092	0.818613	eof	
+GCST90256409	ref_freqs.hg38.tsv.gz	167582	22491	0.134209	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	167582	48916	0.291893	59630	48892	10738	0.819923	eof	
+GCST90256415	ref_freqs.hg38.tsv.gz	174960	23015	0.131544	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	174960	50065	0.286151	60943	50009	10934	0.820586	eof	
+GCST90267373	ref_freqs.hg38.tsv.gz	15247090	0	0	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15247090	14909460	0.977856	0				eof	true
+GCST90269914	ref_freqs.hg38.tsv.gz	127180	50000	0.393144	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9622984	9598241	0.997429	9622965	9598225	24740	0.997429	eof	
+GCST90269923	ref_freqs.hg38.tsv.gz	106099	50001	0.471267	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10582760	10374726	0.980342	10582758	10374724	208034	0.980342	eof	
+GCST90269924	ref_freqs.hg38.tsv.gz	106099	50001	0.471267	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10582760	10374726	0.980342	10582760	10374726	208034	0.980342	eof	
+GCST90271955	ref_freqs.hg38.tsv.gz	172608	50000	0.289674	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13177266	11190476	0.849226	13133554	11147606	1985948	0.848788	eof	
+GCST90271956	ref_freqs.hg38.tsv.gz	64388	50000	0.776542	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4837477	4796315	0.991491	4837477	4796315	41162	0.991491	eof	true
+GCST90274715	ref_freqs.hg38.tsv.gz	242609	50018	0.206167	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	25860998	15826584	0.611987	20395631	15823178	4572453	0.775812	eof	
+GCST90277997	ref_freqs.hg38.tsv.gz	219387	50000	0.227908	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	8582246	8542951	0.995421	8582246	8542951	39295	0.995421	eof	true
+GCST90278110	ref_freqs.hg38.tsv.gz	345104	50007	0.144904	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	32798473	14770298	0.450335	20717514	14754606	5962908	0.71218	eof	
+GCST90278111	ref_freqs.hg38.tsv.gz	346695	50008	0.144242	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	32950322	14774716	0.448394	20690129	14758747	5931382	0.713323	eof	
+GCST90278112	ref_freqs.hg38.tsv.gz	346137	50008	0.144475	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	32889035	14768927	0.449053	20697552	14752754	5944798	0.712778	eof	
+GCST90278113	ref_freqs.hg38.tsv.gz	347005	50008	0.144113	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	32942980	14768599	0.448308	20683359	14752630	5930729	0.713261	eof	
+GCST90295952	ref_freqs.hg38.tsv.gz	165412	50000	0.302276	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17049640	12492875	0.732735	14079198	12477283	1601915	0.886221	eof	
+GCST90296719	ref_freqs.hg38.tsv.gz	158620	50000	0.315219	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15006300	14843399	0.989144	15006300	14843399	162901	0.989144	eof	true
+GCST90296720	ref_freqs.hg38.tsv.gz	158769	50000	0.314923	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15030790	14860544	0.988674	15030790	14860544	170246	0.988674	eof	true
+GCST90296721	ref_freqs.hg38.tsv.gz	158482	50000	0.315493	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14995800	14838578	0.989516	14995800	14838578	157222	0.989516	eof	true
+GCST90296722	ref_freqs.hg38.tsv.gz	158348	50000	0.31576	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14983633	14830667	0.989791	14983633	14830667	152966	0.989791	eof	true
+GCST90301246	ref_freqs.hg38.tsv.gz	165814	50000	0.301543	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12359654	11586189	0.93742	12359650	11586186	773464	0.93742	eof	true
+GCST90301247	ref_freqs.hg38.tsv.gz	166912	50000	0.299559	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	11854147	10758637	0.907584	11854147	10758637	1095510	0.907584	eof	true
+GCST90301248	ref_freqs.hg38.tsv.gz	119993	50000	0.416691	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	8362893	8341139	0.997399	8362893	8341139	21754	0.997399	eof	true
+GCST90301249	ref_freqs.hg38.tsv.gz	83935	50000	0.595699	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4620890	4613337	0.998365	4620883	4613330	7553	0.998365	eof	true
+GCST90301361	ref_freqs.hg38.tsv.gz	163907	50000	0.305051	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13906959	12489067	0.898044	13906959	12489067	1417892	0.898044	eof	
+GCST90301362	ref_freqs.hg38.tsv.gz	163907	50000	0.305051	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13906959	12489067	0.898044	13906959	12489067	1417892	0.898044	eof	
+GCST90301363	ref_freqs.hg38.tsv.gz	163907	50000	0.305051	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13906959	12489067	0.898044	13906959	12489067	1417892	0.898044	eof	
+GCST90301364	ref_freqs.hg38.tsv.gz	163907	50000	0.305051	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13906958	12489067	0.898044	13906958	12489067	1417891	0.898044	eof	
+GCST90301365	ref_freqs.hg38.tsv.gz	163907	50000	0.305051	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13906958	12489067	0.898044	13906958	12489067	1417891	0.898044	eof	
+GCST90301366	ref_freqs.hg38.tsv.gz	159629	50000	0.313226	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13483060	12456761	0.923882	13483060	12456761	1026299	0.923882	eof	
+GCST90301367	ref_freqs.hg38.tsv.gz	159627	50000	0.31323	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13483016	12456757	0.923885	13483016	12456757	1026259	0.923885	eof	
+GCST90319325	ref_freqs.hg38.tsv.gz	95675	50001	0.522613	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9311439	9248744	0.993267	9311439	9248744	62695	0.993267	eof	true
+GCST90320060	ref_freqs.hg38.tsv.gz	190143	50005	0.262986	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	19120186	15852980	0.829123	19120186	15852980	3267206	0.829123	eof	
+GCST90320061	ref_freqs.hg38.tsv.gz	189690	50005	0.263614	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	19077597	15848936	0.830762	19077597	15848936	3228661	0.830762	eof	
+GCST90320062	ref_freqs.hg38.tsv.gz	189518	50005	0.263854	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	19063668	15846597	0.831246	19063668	15846597	3217071	0.831246	eof	
+GCST90399578	ref_freqs.hg38.tsv.gz	224125	50000	0.22309	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	19576635	13210271	0.674798	19566816	13210177	6356639	0.675132	eof	
+GCST90399579	ref_freqs.hg38.tsv.gz	179992	50000	0.27779	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15581888	13257451	0.850824	15581888	13257451	2324437	0.850824	eof	
+GCST90399580	ref_freqs.hg38.tsv.gz	227819	50000	0.219472	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20309043	13490208	0.664246	20300378	13490208	6810170	0.66453	eof	
+GCST90399683	ref_freqs.hg38.tsv.gz	201592	50000	0.248026	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	19352691	15149987	0.782836	18202871	15149677	3053194	0.832269	eof	
+GCST90399691	ref_freqs.hg38.tsv.gz	193991	50000	0.257744	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18614275	15145395	0.813644	17935924	15144983	2790941	0.844394	eof	
+GCST90399698	ref_freqs.hg38.tsv.gz	206500	50000	0.242131	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	19810907	15151369	0.764799	18320688	15151098	3169590	0.826994	eof	
+GCST90399710	ref_freqs.hg38.tsv.gz	198882	50000	0.251405	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	19120679	15054046	0.787318	17985114	15053495	2931619	0.836997	eof	
+GCST90399717	ref_freqs.hg38.tsv.gz	76256	50000	0.655686	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	6602403	6518198	0.987246	6602403	6518198	84205	0.987246	eof	
+GCST90399729	ref_freqs.hg38.tsv.gz	192964	50000	0.259116	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17951713	14641571	0.815609	17520701	14641492	2879209	0.835668	eof	
+GCST90399741	ref_freqs.hg38.tsv.gz	199731	50000	0.250337	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	19213516	15053668	0.783494	17947226	15053163	2894063	0.838746	eof	
+GCST90428594	ref_freqs.hg38.tsv.gz	149526	50000	0.33439	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13405083	12640260	0.942945	13405083	12640260	764823	0.942945	eof	
+GCST90428595	ref_freqs.hg38.tsv.gz	149689	50000	0.334026	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13369505	12589212	0.941636	13369505	12589212	780293	0.941636	eof	
+GCST90432064	ref_freqs.hg38.tsv.gz	133741	51187	0.382732	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13346013	13114185	0.982629	13346013	13114185	231828	0.982629	eof	
+GCST90432067	ref_freqs.hg38.tsv.gz	135676	51181	0.37723	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13598455	13141231	0.966377	13596436	13140774	455662	0.966487	eof	true
+GCST90432069	ref_freqs.hg38.tsv.gz	133736	51187	0.382747	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13345593	13113953	0.982643	13345593	13113953	231640	0.982643	eof	
+GCST90432072	ref_freqs.hg38.tsv.gz	135671	51181	0.377243	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13598093	13141015	0.966387	13596074	13140558	455516	0.966497	eof	true
+GCST90444479	ref_freqs.hg38.tsv.gz	108476	50000	0.460931	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	8367242	8350974	0.998056	8367242	8350974	16268	0.998056	eof	true
+GCST90446235	ref_freqs.hg38.tsv.gz	178051	50001	0.280824	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18951946	15594264	0.822832	18951946	15594264	3357682	0.822832	eof	
+GCST90446236	ref_freqs.hg38.tsv.gz	194558	50000	0.256993	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18479847	15073914	0.815695	18479847	15073914	3405933	0.815695	eof	
+GCST90446237	ref_freqs.hg38.tsv.gz	182117	50000	0.274549	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18923946	14062200	0.74309	15844049	13917857	1926192	0.878428	eof	
+GCST90446238	ref_freqs.hg38.tsv.gz	246874	50000	0.202532	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	23370439	15047254	0.643858	18201444	15046206	3155238	0.826649	eof	
+GCST90447297	ref_freqs.hg38.tsv.gz	203088	50000	0.246199	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18802525	14582946	0.775584	18802525	14582946	4219579	0.775584	eof	true
+GCST90455614	ref_freqs.hg38.tsv.gz	156569	50000	0.319348	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13910506	13680755	0.983484	13910506	13680755	229751	0.983484	eof	
+GCST90461960	ref_freqs.hg38.tsv.gz	162908	50078	0.3074	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17296322	15555642	0.899361	17296322	15555642	1740680	0.899361	eof	true
+GCST90502913	ref_freqs.hg38.tsv.gz	342883	50000	0.145822	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	32251961	15093518	0.467988	32251961	15093518	17158443	0.467988	eof	true
+GCST90502914	ref_freqs.hg38.tsv.gz	242776	50000	0.205951	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	22968615	15093301	0.657127	22968615	15093301	7875314	0.657127	eof	true
+GCST90503111	ref_freqs.hg38.tsv.gz	313029	50323	0.160761	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	35081422	16422779	0.468133	20216763	16385983	3830780	0.810515	eof	true
+GCST90503317	ref_freqs.hg38.tsv.gz	301166	50002	0.166028	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	29843485	15802206	0.529503	19316122	15798351	3517771	0.817884	eof	true
+GCST90503318	ref_freqs.hg38.tsv.gz	301166	50002	0.166028	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	29734879	15744048	0.529481	19245038	15740204	3504834	0.817884	eof	true
+GCST90503319	ref_freqs.hg38.tsv.gz	301153	50002	0.166035	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	29734713	15744047	0.529484	19245038	15740204	3504834	0.817884	eof	true
+GCST90503320	ref_freqs.hg38.tsv.gz	301166	50002	0.166028	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	29734912	15744048	0.52948	19245038	15740204	3504834	0.817884	eof	true
+GCST90503329	ref_freqs.hg38.tsv.gz	164122	50000	0.304651	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13938302	12495165	0.896462	13938302	12495165	1443137	0.896462	eof	
+GCST90503330	ref_freqs.hg38.tsv.gz	164122	50000	0.304651	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13938302	12495165	0.896462	13938302	12495165	1443137	0.896462	eof	
+GCST90503331	ref_freqs.hg38.tsv.gz	163943	50000	0.304984	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13914774	12489643	0.897581	13914774	12489643	1425131	0.897581	eof	
+GCST90503332	ref_freqs.hg38.tsv.gz	163943	50000	0.304984	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13914774	12489643	0.897581	13914774	12489643	1425131	0.897581	eof	
+GCST90503333	ref_freqs.hg38.tsv.gz	164122	50000	0.304651	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13938302	12495165	0.896462	13938302	12495165	1443137	0.896462	eof	
+GCST90503334	ref_freqs.hg38.tsv.gz	164122	50000	0.304651	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13938302	12495165	0.896462	13938302	12495165	1443137	0.896462	eof	
+GCST90503335	ref_freqs.hg38.tsv.gz	163943	50000	0.304984	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13914774	12489643	0.897581	13914774	12489643	1425131	0.897581	eof	
+GCST90503336	ref_freqs.hg38.tsv.gz	163943	50000	0.304984	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13914774	12489643	0.897581	13914774	12489643	1425131	0.897581	eof	
+GCST90503484	ref_freqs.hg38.tsv.gz	350878	50004	0.142511	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	36378229	16638946	0.457387	20497027	16624834	3872193	0.811085	eof	true
+GCST90551892	ref_freqs.hg38.tsv.gz	207264	50000	0.241238	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17569157	12534392	0.713432	17569157	12534392	5034765	0.713432	eof	
+GCST90551893	ref_freqs.hg38.tsv.gz	207481	50000	0.240986	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17553077	12527525	0.713694	17553077	12527525	5025552	0.713694	eof	
+GCST90551894	ref_freqs.hg38.tsv.gz	206726	50000	0.241866	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17552733	12527913	0.71373	17552733	12527913	5024820	0.71373	eof	
+GCST90551895	ref_freqs.hg38.tsv.gz	206884	50000	0.241681	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17559773	12524242	0.713235	17559773	12524242	5035531	0.713235	eof	true
+GCST90551896	ref_freqs.hg38.tsv.gz	206839	50000	0.241734	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17539181	12519472	0.7138	17539181	12519472	5019709	0.7138	eof	
+GCST90551897	ref_freqs.hg38.tsv.gz	206375	50000	0.242277	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17552437	12517598	0.713154	17552437	12517598	5034839	0.713154	eof	true
+GCST90551898	ref_freqs.hg38.tsv.gz	207034	50000	0.241506	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17537491	12505179	0.713054	17537491	12505179	5032312	0.713054	eof	true
+GCST90570645	ref_freqs.hg38.tsv.gz	74373	50000	0.672287	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4987030	4947996	0.992173	4987030	4947996	39034	0.992173	eof	
+GCST90570646	ref_freqs.hg38.tsv.gz	74373	50000	0.672287	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4987030	4947996	0.992173	4987030	4947996	39034	0.992173	eof	true
+GCST90570647	ref_freqs.hg38.tsv.gz	111729	50000	0.447511	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10116199	9980471	0.986583	10116199	9980471	135728	0.986583	eof	
+GCST90570648	ref_freqs.hg38.tsv.gz	111729	50000	0.447511	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10116199	9980471	0.986583	10116199	9980471	135728	0.986583	eof	true
+GCST90570649	ref_freqs.hg38.tsv.gz	115383	50000	0.433339	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10598648	10427936	0.983893	10598648	10427936	170712	0.983893	eof	
+GCST90570650	ref_freqs.hg38.tsv.gz	115383	50000	0.433339	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10598648	10427936	0.983893	10598648	10427936	170712	0.983893	eof	true
+GCST90570651	ref_freqs.hg38.tsv.gz	74396	50000	0.672079	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4986365	4947337	0.992173	4986365	4947337	39028	0.992173	eof	
+GCST90570652	ref_freqs.hg38.tsv.gz	74396	50000	0.672079	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4986365	4947337	0.992173	4986365	4947337	39028	0.992173	eof	true
+GCST90570653	ref_freqs.hg38.tsv.gz	110576	50000	0.452178	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9984360	9851359	0.986679	9984360	9851359	133001	0.986679	eof	
+GCST90570654	ref_freqs.hg38.tsv.gz	110576	50000	0.452178	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9984360	9851359	0.986679	9984360	9851359	133001	0.986679	eof	true
+GCST90570655	ref_freqs.hg38.tsv.gz	74382	50000	0.672206	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4986292	4947275	0.992175	4986292	4947275	39017	0.992175	eof	
+GCST90570656	ref_freqs.hg38.tsv.gz	74382	50000	0.672206	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4986292	4947275	0.992175	4986292	4947275	39017	0.992175	eof	true
+GCST90570657	ref_freqs.hg38.tsv.gz	110784	50000	0.451329	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10001605	9868015	0.986643	10001605	9868015	133590	0.986643	eof	
+GCST90570658	ref_freqs.hg38.tsv.gz	110784	50000	0.451329	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10001605	9868015	0.986643	10001605	9868015	133590	0.986643	eof	true
+GCST90623790	ref_freqs.hg38.tsv.gz	167826	50004	0.297951	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18592539	15853452	0.852678	18592539	15853452	2739087	0.852678	eof	true
+GCST90623791	ref_freqs.hg38.tsv.gz	167826	50004	0.297951	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18592539	15853452	0.852678	18592539	15853452	2739087	0.852678	eof	true
+GCST90623792	ref_freqs.hg38.tsv.gz	167826	50004	0.297951	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18592539	15853452	0.852678	18592539	15853452	2739087	0.852678	eof	true
+GCST90623793	ref_freqs.hg38.tsv.gz	143014	50003	0.349637	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15768622	15273484	0.9686	15768622	15273484	495138	0.9686	eof	true
+GCST90624125	ref_freqs.hg38.tsv.gz	226915	50000	0.220347	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	21406525	14906606	0.696358	18141858	14905980	3235878	0.821635	eof	
+GCST90624798	ref_freqs.hg38.tsv.gz	151802	50000	0.329376	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13678985	13505922	0.987348	13678985	13505922	173063	0.987348	eof	
+GCST90624799	ref_freqs.hg38.tsv.gz	157625	50000	0.317209	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14313728	13999211	0.978027	14313728	13999211	314517	0.978027	eof	
+GCST90624800	ref_freqs.hg38.tsv.gz	155995	50000	0.320523	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13084597	12901161	0.985981	13080216	12899325	180891	0.986171	eof	
+GCST90624801	ref_freqs.hg38.tsv.gz	157607	50000	0.317245	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14313408	13998968	0.978032	14313408	13998968	314440	0.978032	eof	
+GCST90624802	ref_freqs.hg38.tsv.gz	155995	50000	0.320523	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13084597	12901161	0.985981	13079140	12898585	180555	0.986195	eof	
+GCST90624803	ref_freqs.hg38.tsv.gz	157667	50000	0.317124	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14313408	13998968	0.978032	14251769	13952311	299458	0.978988	eof	
+GCST90624805	ref_freqs.hg38.tsv.gz	151802	50000	0.329376	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13678985	13505922	0.987348	13678985	13505922	173063	0.987348	eof	
+GCST90624806	ref_freqs.hg38.tsv.gz	151539	50000	0.329948	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13654570	13483789	0.987493	13652597	13483761	168836	0.987633	eof	
+GCST90624807	ref_freqs.hg38.tsv.gz	155944	50000	0.320628	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14181211	13987455	0.986337	14172822	13987449	185373	0.986921	eof	
+GCST90624808	ref_freqs.hg38.tsv.gz	155889	50000	0.320741	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14170845	13978012	0.986392	14162766	13978006	184760	0.986955	eof	
+GCST90624809	ref_freqs.hg38.tsv.gz	155884	50000	0.320751	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14169948	13977981	0.986453	14162726	13977973	184753	0.986955	eof	
+GCST90624810	ref_freqs.hg38.tsv.gz	155156	50000	0.322256	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14130222	13946113	0.986971	14125199	13946108	179091	0.987321	eof	
+GCST90627737	ref_freqs.hg38.tsv.gz	236640	50000	0.211291	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	22281007	14924258	0.66982	18170373	14924251	3246122	0.821351	eof	true
+GCST90627742	ref_freqs.hg38.tsv.gz	237852	50000	0.210215	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	22289471	14867042	0.666998	18078960	14867032	3211928	0.822339	eof	true
+GCST90627746	ref_freqs.hg38.tsv.gz	235211	50000	0.212575	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	22153328	14924146	0.673675	18076324	14924135	3152189	0.825618	eof	true
+GCST90627751	ref_freqs.hg38.tsv.gz	193517	50000	0.258375	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	17598962	13855068	0.787266	16159213	13855067	2304146	0.85741	eof	true
+GCST90627756	ref_freqs.hg38.tsv.gz	133385	50000	0.374855	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	6440511	6440352	0.999975	6440511	6440352	159	0.999975	eof	true
+GCST90627760	ref_freqs.hg38.tsv.gz	268516	50000	0.186209	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13329896	10637982	0.798054	12868611	10637981	2230630	0.826661	eof	true
+GCST90652243	ref_freqs.hg38.tsv.gz	294114	50000	0.170002	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	29543405	14759935	0.499602	18399397	14604142	3795255	0.793729	eof	true
+GCST90652485	ref_freqs.hg38.tsv.gz	109595	50000	0.456225	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10472166	10436498	0.996594	10472166	10436498	35668	0.996594	eof	true
+GCST90652489	ref_freqs.hg38.tsv.gz	153791	50001	0.325123	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	14312560	14117598	0.986378	14312560	14117598	194962	0.986378	eof	true
+GCST90668017	ref_freqs.hg38.tsv.gz	145122	50000	0.344538	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	11852698	11661470	0.983866	11852698	11661470	191228	0.983866	eof	true
+GCST90692016	ref_freqs.hg38.tsv.gz	184327	50000	0.271257	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679259	14373118	0.69505	16407453	14305994	2101459	0.87192	eof	
+GCST90692017	ref_freqs.hg38.tsv.gz	184304	50000	0.271291	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679507	14373118	0.695042	16410316	14307826	2102490	0.87188	eof	
+GCST90692018	ref_freqs.hg38.tsv.gz	184305	50000	0.271289	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679506	14373118	0.695042	16410581	14307887	2102694	0.87187	eof	
+GCST90692019	ref_freqs.hg38.tsv.gz	184296	50000	0.271303	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679359	14373117	0.695047	16409275	14306724	2102551	0.871868	eof	
+GCST90692020	ref_freqs.hg38.tsv.gz	232804	50000	0.214773	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26937088	14373831	0.533607	13880739	9685794	4194945	0.697787	eof	true
+GCST90692021	ref_freqs.hg38.tsv.gz	232364	50000	0.21518	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26825577	14373815	0.535825	13689925	9655396	4034529	0.705292	eof	true
+GCST90692022	ref_freqs.hg38.tsv.gz	216324	50000	0.231135	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	24778667	14290315	0.576718	13931131	10038238	3892893	0.720562	eof	true
+GCST90692023	ref_freqs.hg38.tsv.gz	203011	50000	0.246292	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	23053580	13799668	0.598591	14106839	10828093	3278746	0.767578	eof	true
+GCST90692024	ref_freqs.hg38.tsv.gz	207360	50000	0.241127	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	23429097	13869078	0.59196	12274354	9359054	2915300	0.762489	eof	true
+GCST90692025	ref_freqs.hg38.tsv.gz	186612	50000	0.267936	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20885813	12573357	0.602005	12492321	9824655	2667666	0.786456	eof	true
+GCST90692026	ref_freqs.hg38.tsv.gz	197873	50000	0.252687	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	22305337	13674316	0.613051	13893679	10934266	2959413	0.786996	eof	true
+GCST90692027	ref_freqs.hg38.tsv.gz	225772	50000	0.221462	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	25964569	14369488	0.553427	13949916	9797600	4152316	0.702341	eof	true
+GCST90692028	ref_freqs.hg38.tsv.gz	226215	50000	0.221029	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	25881525	14373370	0.555353	13653873	9778705	3875168	0.716185	eof	true
+GCST90692029	ref_freqs.hg38.tsv.gz	202776	50000	0.246578	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	22911955	13644726	0.595529	12958508	9919963	3038545	0.765517	eof	true
+GCST90692030	ref_freqs.hg38.tsv.gz	230741	50000	0.216693	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26613699	14373746	0.540088	13823967	9746237	4077730	0.705025	eof	true
+GCST90692031	ref_freqs.hg38.tsv.gz	228669	50000	0.218657	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26250922	14373728	0.547551	13639586	9738527	3901059	0.71399	eof	true
+GCST90692032	ref_freqs.hg38.tsv.gz	226426	50000	0.220823	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	25950166	14373664	0.553895	14520153	10522658	3997495	0.724693	eof	true
+GCST90692033	ref_freqs.hg38.tsv.gz	211860	50000	0.236005	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	24070607	14252750	0.592123	14031386	10585127	3446259	0.754389	eof	true
+GCST90692034	ref_freqs.hg38.tsv.gz	223819	50000	0.223395	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	25613163	14372522	0.561138	14077171	10157287	3919884	0.721543	eof	true
+GCST90692035	ref_freqs.hg38.tsv.gz	230732	50000	0.216702	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26565615	14373803	0.541068	13641934	9650935	3990999	0.707446	eof	true
+GCST90692036	ref_freqs.hg38.tsv.gz	229185	50000	0.218164	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26291271	14373712	0.54671	13533332	9645471	3887861	0.71272	eof	true
+GCST90692037	ref_freqs.hg38.tsv.gz	227956	50000	0.219341	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26238913	14373404	0.54779	14482333	10292711	4189622	0.710708	eof	true
+GCST90692038	ref_freqs.hg38.tsv.gz	225223	50000	0.222002	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	25873656	14373545	0.555528	16436103	12004356	4431747	0.730365	eof	true
+GCST90692039	ref_freqs.hg38.tsv.gz	229626	50000	0.217745	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26454702	14373735	0.543334	15216656	10929284	4287372	0.718245	eof	true
+GCST90692040	ref_freqs.hg38.tsv.gz	232441	50000	0.215108	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26829507	14373817	0.535747	13740339	9668751	4071588	0.703676	eof	true
+GCST90692041	ref_freqs.hg38.tsv.gz	229394	50000	0.217966	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26323499	14373759	0.546043	13676759	9771708	3905051	0.714475	eof	true
+GCST90692042	ref_freqs.hg38.tsv.gz	168185	50000	0.297292	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	18604595	11586950	0.6228	12841131	10242175	2598956	0.797607	eof	true
+GCST90692043	ref_freqs.hg38.tsv.gz	230425	50000	0.21699	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26615706	14373639	0.540043	14098457	9870157	4228300	0.700088	eof	true
+GCST90692044	ref_freqs.hg38.tsv.gz	228245	50000	0.219063	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26172401	14373709	0.549193	13945018	10006096	3938922	0.717539	eof	true
+GCST90692045	ref_freqs.hg38.tsv.gz	206987	50000	0.241561	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	23498190	14067262	0.598653	14424507	10960940	3463567	0.759883	eof	true
+GCST90692046	ref_freqs.hg38.tsv.gz	232125	50000	0.215401	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26784705	14373807	0.536642	13738775	9671063	4067712	0.703925	eof	true
+GCST90692047	ref_freqs.hg38.tsv.gz	232038	50000	0.215482	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	26798346	14373803	0.536369	13756674	9684443	4072231	0.703981	eof	true
+GCST90692048	ref_freqs.hg38.tsv.gz	184292	50000	0.271309	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679772	14373121	0.695033	16410681	14308437	2102244	0.871898	eof	
+GCST90692049	ref_freqs.hg38.tsv.gz	184335	50000	0.271245	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679492	14373118	0.695042	16397669	14298971	2098698	0.872012	eof	
+GCST90692050	ref_freqs.hg38.tsv.gz	184331	50000	0.271251	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679440	14373117	0.695044	16397053	14298529	2098524	0.872018	eof	
+GCST90692051	ref_freqs.hg38.tsv.gz	184291	50000	0.27131	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679745	14373121	0.695034	16410445	14308111	2102334	0.87189	eof	
+GCST90692052	ref_freqs.hg38.tsv.gz	183990	50000	0.271754	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20647441	14373090	0.69612	16502464	14337598	2164866	0.868816	eof	
+GCST90692053	ref_freqs.hg38.tsv.gz	170716	50000	0.292884	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	19002984	14361489	0.755749	16522814	14241827	2280987	0.861949	eof	
+GCST90692054	ref_freqs.hg38.tsv.gz	184291	50000	0.27131	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679744	14373121	0.695034	16409912	14307870	2102042	0.871904	eof	
+GCST90692055	ref_freqs.hg38.tsv.gz	184289	50000	0.271313	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679719	14373121	0.695035	16410075	14308000	2102075	0.871903	eof	
+GCST90692056	ref_freqs.hg38.tsv.gz	184283	50000	0.271322	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679654	14373121	0.695037	16414210	14310690	2103520	0.871848	eof	
+GCST90692057	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409712	14307624	2102088	0.8719	eof	
+GCST90692058	ref_freqs.hg38.tsv.gz	184288	50000	0.271314	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679658	14373121	0.695037	16409642	14307540	2102102	0.871898	eof	
+GCST90692059	ref_freqs.hg38.tsv.gz	184288	50000	0.271314	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679682	14373121	0.695036	16409777	14307510	2102267	0.871889	eof	
+GCST90692060	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679660	14373121	0.695037	16409693	14307615	2102078	0.8719	eof	
+GCST90692061	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409712	14307624	2102088	0.8719	eof	
+GCST90692062	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409712	14307624	2102088	0.8719	eof	
+GCST90692063	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409712	14307624	2102088	0.8719	eof	
+GCST90692064	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409712	14307624	2102088	0.8719	eof	
+GCST90692065	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409712	14307624	2102088	0.8719	eof	
+GCST90692066	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409712	14307624	2102088	0.8719	eof	
+GCST90692067	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409712	14307624	2102088	0.8719	eof	
+GCST90692068	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409712	14307624	2102088	0.8719	eof	
+GCST90692069	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409712	14307624	2102088	0.8719	eof	
+GCST90692070	ref_freqs.hg38.tsv.gz	184288	50000	0.271314	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679660	14373121	0.695037	16409775	14307585	2102190	0.871894	eof	
+GCST90692071	ref_freqs.hg38.tsv.gz	184288	50000	0.271314	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679660	14373121	0.695037	16409775	14307585	2102190	0.871894	eof	
+GCST90692072	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409657	14307574	2102083	0.8719	eof	
+GCST90692073	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409657	14307574	2102083	0.8719	eof	
+GCST90692074	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409657	14307574	2102083	0.8719	eof	
+GCST90692075	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409657	14307574	2102083	0.8719	eof	
+GCST90692076	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409657	14307574	2102083	0.8719	eof	
+GCST90692077	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409657	14307574	2102083	0.8719	eof	
+GCST90692078	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409794	14307593	2102201	0.871894	eof	
+GCST90692079	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409794	14307593	2102201	0.871894	eof	
+GCST90692080	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409816	14307604	2102212	0.871893	eof	
+GCST90692081	ref_freqs.hg38.tsv.gz	184290	50000	0.271312	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679686	14373121	0.695036	16409816	14307604	2102212	0.871893	eof	
+GCST90692082	ref_freqs.hg38.tsv.gz	184291	50000	0.27131	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679638	14373120	0.695037	16410100	14307993	2102107	0.871902	eof	
+GCST90692083	ref_freqs.hg38.tsv.gz	184291	50000	0.27131	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679638	14373120	0.695037	16410100	14307993	2102107	0.871902	eof	
+GCST90692084	ref_freqs.hg38.tsv.gz	184320	50000	0.271267	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679515	14373120	0.695041	16408449	14306568	2101881	0.871903	eof	
+GCST90692085	ref_freqs.hg38.tsv.gz	184320	50000	0.271267	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679515	14373120	0.695041	16408449	14306568	2101881	0.871903	eof	
+GCST90692086	ref_freqs.hg38.tsv.gz	184306	50000	0.271288	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679475	14373121	0.695043	16410338	14307664	2102674	0.871869	eof	
+GCST90692087	ref_freqs.hg38.tsv.gz	184306	50000	0.271288	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679475	14373121	0.695043	16410338	14307664	2102674	0.871869	eof	
+GCST90692088	ref_freqs.hg38.tsv.gz	184306	50000	0.271288	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679475	14373121	0.695043	16410338	14307664	2102674	0.871869	eof	
+GCST90692089	ref_freqs.hg38.tsv.gz	184266	50000	0.271347	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679430	14373119	0.695044	16420917	14315795	2105122	0.871802	eof	
+GCST90692090	ref_freqs.hg38.tsv.gz	184296	50000	0.271303	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679756	14373121	0.695033	16410593	14308284	2102309	0.871893	eof	
+GCST90692091	ref_freqs.hg38.tsv.gz	184291	50000	0.27131	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679719	14373121	0.695035	16410498	14308162	2102336	0.871891	eof	
+GCST90692092	ref_freqs.hg38.tsv.gz	184291	50000	0.27131	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679745	14373121	0.695034	16410445	14308111	2102334	0.87189	eof	
+GCST90692093	ref_freqs.hg38.tsv.gz	184284	50000	0.27132	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679693	14373120	0.695035	16410311	14308292	2102019	0.871909	eof	
+GCST90692094	ref_freqs.hg38.tsv.gz	184204	50000	0.271438	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20676725	14373107	0.695135	16453416	14328770	2124646	0.870869	eof	
+GCST90692095	ref_freqs.hg38.tsv.gz	184327	50000	0.271257	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20679734	14373121	0.695034	16409753	14307878	2101875	0.871913	eof	
+GCST90692096	ref_freqs.hg38.tsv.gz	188863	50000	0.264742	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	21158331	13088507	0.618598	13681739	10896945	2784794	0.796459	eof	true
+GCST90692097	ref_freqs.hg38.tsv.gz	208380	50000	0.239946	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	23694791	14234564	0.600747	14683896	11224293	3459603	0.764395	eof	true
+GCST90692098	ref_freqs.hg38.tsv.gz	197924	50000	0.252622	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	22330783	13729659	0.614831	14123659	11130249	2993410	0.788057	eof	true
+GCST90692099	ref_freqs.hg38.tsv.gz	189487	50000	0.26387	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	21238425	13098456	0.616734	13598273	10815127	2783146	0.795331	eof	true
+GCST90692100	ref_freqs.hg38.tsv.gz	207177	50000	0.24134	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	23448737	14112429	0.601842	15136090	11541976	3594114	0.762547	eof	true
+GCST90692101	ref_freqs.hg38.tsv.gz	205870	50000	0.242872	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	23322468	14060991	0.602895	15022604	11496601	3526003	0.765287	eof	true
+GCST90692102	ref_freqs.hg38.tsv.gz	210461	50000	0.237574	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	23954868	14307160	0.597255	16483029	12408721	4074308	0.752818	eof	true
+GCST90692103	ref_freqs.hg38.tsv.gz	203450	50000	0.245761	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	22983187	14035373	0.61068	14450750	11260278	3190472	0.779218	eof	true
+GCST90692104	ref_freqs.hg38.tsv.gz	212069	50000	0.235772	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	24060270	14289765	0.593915	14721077	11127804	3593273	0.75591	eof	true
+GCST90692105	ref_freqs.hg38.tsv.gz	204431	50000	0.244581	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	23160243	14017848	0.605255	15008845	11524024	3484821	0.767816	eof	true
+GCST90692106	ref_freqs.hg38.tsv.gz	213132	50000	0.234596	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	24313848	14251908	0.586164	14623268	10897911	3725357	0.745245	eof	true
+GCST90692107	ref_freqs.hg38.tsv.gz	205119	50000	0.243761	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	23178268	14033556	0.605462	15072512	11562629	3509883	0.767134	eof	true
+GCST90704623	ref_freqs.hg38.tsv.gz	138120	50000	0.362004	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	13055938	10363925	0.793809	10995906	10363830	632076	0.942517	eof	true
+GCST90705036	ref_freqs.hg38.tsv.gz	215731	50000	0.23177	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20723313	15048106	0.726144	15873592	13714380	2159212	0.863975	eof	true
+GCST90705037	ref_freqs.hg38.tsv.gz	168401	50000	0.29691	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15747681	14586927	0.92629	15747681	14586927	1160754	0.92629	eof	
+GCST90705040	ref_freqs.hg38.tsv.gz	212409	50000	0.235395	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	20396434	15037153	0.737244	15837092	13678576	2158516	0.863705	eof	true
+GCST90705041	ref_freqs.hg38.tsv.gz	166898	50000	0.299584	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15574929	14540936	0.933612	15574929	14540936	1033993	0.933612	eof	
+GCST90705044	ref_freqs.hg38.tsv.gz	205356	50000	0.24348	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	19677823	15007378	0.762654	15907539	13775692	2131847	0.865985	eof	true
+GCST90705045	ref_freqs.hg38.tsv.gz	162616	50000	0.307473	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15163132	14422563	0.95116	15163132	14422563	740569	0.95116	eof	
+GCST90705064	ref_freqs.hg38.tsv.gz	94450	50000	0.529381	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	5642333	5557786	0.985016	5642333	5557786	84547	0.985016	eof	true
+GCST90809371	ref_freqs.hg38.tsv.gz	132584	50000	0.377119	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12581854	12523396	0.995354	12581854	12523396	58458	0.995354	eof	
+GCST90809372	ref_freqs.hg38.tsv.gz	132584	50000	0.377119	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12581854	12523396	0.995354	12581854	12523396	58458	0.995354	eof	
+GCST90809373	ref_freqs.hg38.tsv.gz	132584	50000	0.377119	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12581854	12523396	0.995354	12581854	12523396	58458	0.995354	eof	
+GCST90809383	ref_freqs.hg38.tsv.gz	132548	50000	0.377222	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12575265	12516855	0.995355	12575265	12516855	58410	0.995355	eof	
+GCST90809384	ref_freqs.hg38.tsv.gz	132567	50000	0.377168	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12578454	12520203	0.995369	12578454	12520203	58251	0.995369	eof	
+GCST90809385	ref_freqs.hg38.tsv.gz	132565	50000	0.377173	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	12578909	12520486	0.995355	12578909	12520486	58423	0.995355	eof	
+GCST90809410	ref_freqs.hg38.tsv.gz	157796	50000	0.316865	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15018328	14607186	0.972624	15018328	14607186	411142	0.972624	eof	
+GCST90809411	ref_freqs.hg38.tsv.gz	157793	50000	0.316871	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15018246	14607123	0.972625	15018246	14607123	411123	0.972625	eof	
+GCST90809412	ref_freqs.hg38.tsv.gz	157797	50000	0.316863	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15018384	14607229	0.972623	15018384	14607229	411155	0.972623	eof	
+GCST90809416	ref_freqs.hg38.tsv.gz	161523	50000	0.309553	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15378393	14870692	0.966986	15378393	14870692	507701	0.966986	eof	
+GCST90809417	ref_freqs.hg38.tsv.gz	161871	50000	0.308888	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15415689	14896135	0.966297	15415689	14896135	519554	0.966297	eof	
+GCST90809418	ref_freqs.hg38.tsv.gz	161741	50000	0.309136	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	15405868	14881086	0.965936	15405868	14881086	524782	0.965936	eof	
+GCST90809801	ref_freqs.hg38.tsv.gz	166553	50008	0.300253	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	16736072	16540927	0.98834	16736072	16540927	195145	0.98834	eof	true
+GCST90809814	ref_freqs.hg38.tsv.gz	166553	50008	0.300253	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	16736072	16540927	0.98834	16736072	16540927	195145	0.98834	eof	true
+GCST90840046	ref_freqs.hg38.tsv.gz	81162	50002	0.616076	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	6743830	6736723	0.998946	6743830	6736723	7107	0.998946	eof	
+GCST90840066	ref_freqs.hg38.tsv.gz	71964	50004	0.694847	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	5256478	5250655	0.998892	5256478	5250655	5823	0.998892	eof	true
+GCST90840093	ref_freqs.hg38.tsv.gz	77046	50003	0.649002	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	6618065	6610298	0.998826	6618065	6610298	7767	0.998826	eof	true
+GCST90840094	ref_freqs.hg38.tsv.gz	76923	50003	0.65004	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	6719178	6711114	0.9988	6719178	6711114	8064	0.9988	eof	true
+GCST90840095	ref_freqs.hg38.tsv.gz	108180	50004	0.46223	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	10346578	10288230	0.994361	10346578	10288230	58348	0.994361	eof	
+GCST90840096	ref_freqs.hg38.tsv.gz	117610	50005	0.425176	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	11242645	11232047	0.999057	11242645	11232047	10598	0.999057	eof	
+GCST90840097	ref_freqs.hg38.tsv.gz	117413	50005	0.42589	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	11473038	11410584	0.994556	11473038	11410584	62454	0.994556	eof	
+GCST90840098	ref_freqs.hg38.tsv.gz	116534	50005	0.429102	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	11324286	11268135	0.995042	11324286	11268135	56151	0.995042	eof	
+GCST90840099	ref_freqs.hg38.tsv.gz	102899	50002	0.485933	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	9390041	9381298	0.999069	9390041	9381298	8743	0.999069	eof	
+GCST90840124	ref_freqs.hg38.tsv.gz	67231	50000	0.743705	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	3353468	3349227	0.998735	3353468	3349227	4241	0.998735	eof	true
+GCST90840144	ref_freqs.hg38.tsv.gz	65690	50000	0.761151	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	2738849	2735378	0.998733	2738849	2735378	3471	0.998733	eof	true
+GCST90840171	ref_freqs.hg38.tsv.gz	66505	50000	0.751823	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	3505785	3501214	0.998696	3505785	3501214	4571	0.998696	eof	true
+GCST90840172	ref_freqs.hg38.tsv.gz	66288	50000	0.754284	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	3581204	3575974	0.99854	3581204	3575974	5230	0.99854	eof	true
+GCST90840173	ref_freqs.hg38.tsv.gz	72280	50001	0.691768	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4661723	4629752	0.993142	4661723	4629752	31971	0.993142	eof	true
+GCST90840174	ref_freqs.hg38.tsv.gz	74119	50002	0.674618	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4991910	4986650	0.998946	4991910	4986650	5260	0.998946	eof	true
+GCST90840175	ref_freqs.hg38.tsv.gz	74508	50002	0.671096	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	5132442	5098363	0.99336	5132442	5098363	34079	0.99336	eof	true
+GCST90840176	ref_freqs.hg38.tsv.gz	74252	50002	0.673409	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	5069460	5040844	0.994355	5069460	5040844	28616	0.994355	eof	true
+GCST90840177	ref_freqs.hg38.tsv.gz	71375	50001	0.700539	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	4304811	4300305	0.998953	4304811	4300305	4506	0.998953	eof	true
+GCST90859378	ref_freqs.hg38.tsv.gz	188342	50027	0.265618	/data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz	16548545	13590340	0.821241	16188394	13553605	2634789	0.837242	eof	

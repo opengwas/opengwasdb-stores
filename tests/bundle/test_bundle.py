@@ -187,11 +187,15 @@ class TestBundleContract(unittest.TestCase):
         # The five bundles migrated in #252 take the next ids after the ones
         # reserved for OGS-00018-00021. Those, and OGS-00010, are retired unused
         # (#308, #312): ids are never reused. OGS-00027 is the full eQTLGen release (#314).
+        # OGS-00028 and OGS-00029 were never allocated: #232 reserved OGS-00030/31 (retired
+        # by #312) past them. The GWAS Catalog EAS and AFR Hybrid candidates take the next
+        # ids after the highest ever allocated, OGS-00032 and OGS-00033 (#441).
         allocated = [f"OGS-{number:05d}" for number in [*range(1, 18)]]
         self.assertEqual(
             store_ids,
             [store_id for store_id in allocated if store_id not in paths.RETIRED_STORE_IDS]
-            + [f"OGS-{number:05d}" for number in range(22, 28)],
+            + [f"OGS-{number:05d}" for number in range(22, 28)]
+            + ["OGS-00032", "OGS-00033"],
         )
         for store_id in store_ids:
             errors = bundle.check(

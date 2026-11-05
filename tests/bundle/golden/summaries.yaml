@@ -262,3 +262,27 @@ OGS-00027:
   assigned_ancestry: EUR
   sample_size: 232-31684
   source_url: https://eqtlgen.org/cis-eqtls.html
+OGS-00032:
+  n_manifest: 709
+  n_admitted: 379
+  n_excluded: 330
+  n_analyses: 379
+  first_author: mixed (105)
+  publication_pmid: mixed (109)
+  tissue: NA
+  context: NA
+  assigned_ancestry: NA
+  sample_size: 84-433540
+  source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/
+OGS-00033:
+  n_manifest: 358
+  n_admitted: 194
+  n_excluded: 164
+  n_analyses: 194
+  first_author: mixed (75)
+  publication_pmid: mixed (76)
+  tissue: NA
+  context: NA
+  assigned_ancestry: NA
+  sample_size: 87-210093
+  source_url: http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/

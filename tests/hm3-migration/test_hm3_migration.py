@@ -63,6 +63,8 @@ EXPECTED_IN_SCOPE = (
     "OGS-00015",
     "OGS-00016",
     "OGS-00017",
+    "OGS-00032",
+    "OGS-00033",
 )
 EXPECTED_RAGGED = (
     "OGS-00001",
@@ -319,7 +321,7 @@ class TestRegistryMigration(unittest.TestCase):
         record_check()
         self.assertEqual(
             [b.store_id for b in report.in_scope],
-            list(EXPECTED_IN_SCOPE) + list(EXPECTED_OPTED_OUT),
+            sorted([*EXPECTED_IN_SCOPE, *EXPECTED_OPTED_OUT]),
         )
         record_check()
         self.assertEqual([b.store_id for b in report.ragged], list(EXPECTED_RAGGED))
@@ -448,7 +450,7 @@ class TestRegistryMigration(unittest.TestCase):
             record_check()
             self.assertIn(store_id, rendered)
         record_check()
-        self.assertIn("12/14 Dense-component bundles declare hm3; 2 explicitly opted out", rendered)
+        self.assertIn("14/16 Dense-component bundles declare hm3; 2 explicitly opted out", rendered)
         record_check()
         self.assertIn("8/8 Ragged-only bundles declare none", rendered)
         record_check()
