@@ -1,0 +1,51 @@
+snapshot_id: gwas-catalog-ssf-afr-hybrid-2026-11-05
+source_collection_id: gwas-catalog-ssf
+frozen_at: '2026-11-05T15:31:00Z'
+frozen_by: manifest_generation.freeze
+selection:
+  where:
+    store_key: hybrid__African
+rows: 550
+readiness_counts:
+  missing_remote_harmonised_yaml: 192
+  ok: 358
+ready_rows: 358
+ready_bytes: 216191378731
+study_design_counts:
+  case-control: 151
+  quantitative: 399
+ready_study_design_counts:
+  case-control: 134
+  quantitative: 224
+duplicate_content_groups: []
+inventory_tsv_sha256: c29b17ba3984ebe31970c124fee747a9fdfcd8ede7a1bfdf56d2d677c102c04a
+source_metadata_table:
+  frozen:
+    path: gwas-catalog-ssf-afr-hybrid-2026-11-05.source-metadata.tsv
+    sha256: dd74f1b4623ec4d104b04ad79ae8cc29de1576434758db4fb64aa51ff8aad87d
+    bytes: 124234
+    rows: 550
+  original:
+    path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-05/gwas-catalog-ssf-afr-hybrid.source-metadata.tsv
+    sha256: 47434e066bd34e254abc2c84b753877c4a683e6c732f2e5d7d110f344a2ee1c2
+    bytes: 39078483
+    rows: 171274
+acquisition_manifest:
+  frozen:
+    path: gwas-catalog-ssf-afr-hybrid-2026-11-05.acquisition-manifest.tsv
+    sha256: 71e2e9e94f7529a56a872cc2c9c25c2c965d4352ab4ce2a5c7561cddb56beaba
+    bytes: 230030
+    rows: 550
+  original:
+    path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-05/gwas-catalog-ssf-afr-hybrid.acquisition-manifest.tsv
+    sha256: 71e2e9e94f7529a56a872cc2c9c25c2c965d4352ab4ce2a5c7561cddb56beaba
+    bytes: 230030
+    rows: 550
+    readiness_counts:
+      missing_remote_harmonised_yaml: 192
+      ok: 358
+    pass_lineage:
+      path: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-05/gwas-catalog-ssf-afr-hybrid.acquisition-manifest.meta.yaml
+      sha256: 26254bc807e114af35ab4dc55028568cf7bf68279210fc178d432429c99e161d
+  unselected_entries: 0
+lineage: []
