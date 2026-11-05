@@ -28,6 +28,8 @@
       "OGS-00095",
       "--release-id",
       "OGS-00095",
+      "--admission-record",
+      "/data/opengwasdb/stores/OGS-00095/store.opengwasdb.admission",
       "--variant-reference",
       "/data/opengwasdb/stores/OGS-00095/work/panel-alids.txt",
       "--source-reader-capability",

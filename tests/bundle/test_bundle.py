@@ -109,6 +109,21 @@ RAGGED_BUILD: dict[str, Any] = {
     "build": {"command": "build-ragged-ssf", "options": {}},
 }
 
+# The default membership table as a `build-ragged-ssf` manifest: since
+# opengwasdb#56 (ADR 0076) that builder refuses a row that declares no
+# `source_genome_build`, or one other than GRCh38, as every committed Ragged SSF
+# bundle declares (#429).
+RAGGED_SSF_ANALYSES: str = (
+    "analysis_id\tstored_effect_scale\tsample_size_kind\t"
+    "sample_size_scope\tsample_size\toriginal_effect_scale\t"
+    "original_sd_method\tassigned_ancestry\t"
+    "ancestry_assignment_method\tchecksum\tchecksum_algorithm\t"
+    "source_file\tsource_genome_build\n"
+    "FIXTURE_1\tsd\ttotal\tanalysis_level\t1000\tsd\t"
+    "declared_standardised\tEUR\taf_assigned\t"
+    f"{'a' * 64}\tsha256\t/data/source/fixture.tsv\tGRCh38\n"
+)
+
 
 class TestBundleContract(unittest.TestCase):
     def setUp(self) -> None:
@@ -888,11 +903,14 @@ class TestBundleContract(unittest.TestCase):
         record_check()
 
     def test_indexed_subsets_reject_ragged_layout(self) -> None:
-        ragged = self.make_bundle(build={
-            "layout": "ragged",
-            "build": {"command": "build-ragged-ssf", "options": {}},
-            "indexed_subsets": [self._subset_declaration()],
-        })
+        ragged = self.make_bundle(
+            build={
+                "layout": "ragged",
+                "build": {"command": "build-ragged-ssf", "options": {}},
+                "indexed_subsets": [self._subset_declaration()],
+            },
+            analyses=RAGGED_SSF_ANALYSES,
+        )
         errors = bundle.check(ragged, registry_root=self.tmp_dir)
         record_check()
         self.assertTrue(
@@ -1686,6 +1704,7 @@ class TestAssociationCoverage(unittest.TestCase):
                     "OGS-00110",
                     release={"association_coverage": value},
                     build=None if value == "gwas" else RAGGED_BUILD,
+                    analyses=None if value == "gwas" else RAGGED_SSF_ANALYSES,
                 )
                 self.assertEqual(checked.association_coverage, value)
                 self.assertEqual(bundle.check(checked, registry_root=self.tmp_dir), [])

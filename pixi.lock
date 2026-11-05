@@ -235,7 +235,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/wheel-0.47.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#1f1e289a47e84f79434263235e01ff8a94c4d37c
+      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#42850d8b49ba0ad2626f1598ccf7956375c704ec
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
   dev:
     channels:
@@ -578,7 +578,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#1f1e289a47e84f79434263235e01ff8a94c4d37c
+      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#42850d8b49ba0ad2626f1598ccf7956375c704ec
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/ab/ac/8f96ba9b4cfe3e4ea201f23f4f97165862395e9331a424ed325ae37024a8/setuptools_scm-8.3.1-py3-none-any.whl
   docs:
@@ -1012,7 +1012,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#1f1e289a47e84f79434263235e01ff8a94c4d37c
+      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#42850d8b49ba0ad2626f1598ccf7956375c704ec
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 packages:
 - conda: https://conda.anaconda.org/bioconda/linux-64/bcftools-1.24-h487d631_1.conda
@@ -6621,9 +6621,9 @@ packages:
 - pypi: ./
   name: ogstores
   requires_python: '>=3.12'
-- pypi: git+https://github.com/opengwas/opengwasdb?branch=main#1f1e289a47e84f79434263235e01ff8a94c4d37c
+- pypi: git+https://github.com/opengwas/opengwasdb?branch=main#42850d8b49ba0ad2626f1598ccf7956375c704ec
   name: opengwasdb
-  version: 0.3.3
+  version: 0.5.0
   requires_dist:
   - numcodecs>=0.17
   - numpy>=1.26,<2.5
@@ -6639,6 +6639,7 @@ packages:
   - mypy>=1.10 ; extra == 'dev'
   - pytest-xdist>=3.6 ; extra == 'dev'
   - pytest>=8 ; extra == 'dev'
+  - pyyaml>=6 ; extra == 'dev'
   - ruff>=0.6 ; extra == 'dev'
   requires_python: '>=3.12'
 - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl

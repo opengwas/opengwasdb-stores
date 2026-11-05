@@ -1955,6 +1955,63 @@ class TestBuildManifestSeam(unittest.TestCase):
             self.assertNotIn("work/analyses.tsv", " ".join(step.argv))
 
 
+class TestAdmissionRecord(unittest.TestCase):
+    """Every build names its Association Admission record at the Store's final path (#428).
+
+    opengwasdb#357 (ADR 0072) makes `--admission-record DIR` required on every
+    builder, with no default beside the destination, because a default would
+    follow the staged `store.opengwasdb.partial` that publication renames.
+    """
+
+    def _committed_bundles(self) -> list[Bundle]:
+        return [load(d.name) for d in sorted((REPO_ROOT / "stores").glob("OGS-*"))]
+
+    def test_every_committed_build_step_names_the_record_beside_the_final_store(self) -> None:
+        commands: set[str] = set()
+        for b in self._committed_bundles():
+            for step in plan(b):
+                if step.phase != "build" or step.name != "build":
+                    continue
+                expected = str(paths.admission_record_path(b.store_id))
+                record_check()
+                self.assertEqual(expected, str(paths.store_path(b.store_id)) + ".admission")
+                self.assertEqual(step.argv.count("--admission-record"), 1, b.store_id)
+                self.assertEqual(step.argv[step.argv.index("--admission-record") + 1], expected, b.store_id)
+                self.assertNotIn(".partial", expected)
+                commands.add(step.argv[1])
+        # Fixtures meaningful: the committed registry builds through all four builders plan() knows.
+        record_check()
+        self.assertEqual(commands, {"build-dense-vcf", "build-hybrid", "build-ragged-ssf", "build-ragged-besd"})
+
+    def test_staging_rewrites_the_store_and_leaves_the_record_at_the_final_path(self) -> None:
+        """Only the Store is staged: the record is named for where the Store is published."""
+        from ogstores import run
+
+        for store_id in ("OGS-00001", "OGS-00003", "OGS-00004", "OGS-00006"):
+            build_step = plan(load(store_id))[0]
+            staged = run.rewrite_argv_for_staging(build_step, store_id)
+            record_check()
+            self.assertIn(str(paths.partial_store_path(store_id)), staged)
+            self.assertEqual(
+                staged[staged.index("--admission-record") + 1],
+                str(paths.admission_record_path(store_id)),
+            )
+
+    def test_a_recipe_may_not_set_the_record(self) -> None:
+        """The CLI takes the last value it is given, so a recipe's flag would move the record unseen."""
+        base = load("OGS-00003")
+        for options in (
+            {"admission-record": "/elsewhere"},
+            {"--admission-record": "/elsewhere"},
+            {"admission-record=/elsewhere": True},
+        ):
+            build = {**base.build, "build": {**base.build["build"], "options": {**base.build["build"]["options"], **options}}}
+            with self.subTest(options=options):
+                with self.assertRaisesRegex(ValueError, "admission-record"):
+                    plan(replace(base, build=build))
+                record_check()
+
+
 class TestArtifactRootConfiguration(unittest.TestCase):
     """The Build Recipe carries no artifact root; plan() renders the configured one (issue #126)."""
 

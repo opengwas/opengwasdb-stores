@@ -10,6 +10,8 @@
       "OGS-00003",
       "--release-id",
       "OGS-00003",
+      "--admission-record",
+      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb.admission",
       "--source-reader-capability",
       "opengwasdb.finngen-r13",
       "--source-assembly",

@@ -65,7 +65,7 @@ See docs/spec/store-release-workflow.md and ADRs 0022, 0023, 0024.
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -271,6 +271,16 @@ DEFAULT_COMMANDS: dict[tuple[str, str], str] = {
 # -- so `plan()` composes the flag exactly as it composes the identity ones.
 ASSOCIATION_COVERAGE_FLAG: str = "association-coverage"
 RAGGED_BUILD_COMMANDS: frozenset[str] = frozenset({"build-ragged-ssf", "build-ragged-besd"})
+# Every builder requires `--admission-record DIR` and writes nothing without it
+# (opengwas/opengwasdb#357, ADR 0072; #428). The record lists what each Analysis
+# examined, admitted and dropped. The builder has no default beside its
+# destination on purpose: the build writes `store.opengwasdb.partial`, which
+# publication renames, and a record beside it would stay behind as
+# `store.opengwasdb.partial.admission`, beside no Store. So `plan()` names the
+# Store's final path, `paths.admission_record_path`, on every build-phase step,
+# and refuses a recipe option rendering the same flag, which the CLI would take
+# last. A completion writes no record and names none.
+ADMISSION_RECORD_FLAG: str = "admission-record"
 # The Dense and Hybrid builders take `--association-coverage` too, but `gwas`
 # is the only value a layout with a cell for every (variant, Analysis) can
 # carry, so it is their default and their only accepted value
@@ -333,6 +343,31 @@ def completion_step_name(name: str) -> str:
 def release_register(bundle: Bundle) -> str:
     """The register record that finishes a release: its last phase's (ADR 0037)."""
     return REGISTER_STEPS[COMPLETION_PHASE if bundle.completes_own_store else BUILD_PHASE]
+
+
+def planned_before_admission_record(
+    argv: Sequence[str], store_id: str, artifact_root: Path | str
+) -> list[str] | None:
+    """`argv` as a build step was planned before #428: without its composed `--admission-record` pair.
+
+    A Store published before #428 has a `build` record that names no
+    Admission record, while `plan()` now composes one. The flag only says where
+    the builder writes its side record; the Store's data does not depend on
+    it. So the amendment check and `register` accept a record equal to this
+    argv (ADR 0037, amended by #428). None unless `argv` names the pair exactly
+    once, at the path `plan()` composes for `store_id` under `artifact_root`:
+    only the registry's own pair is ever set aside, never a path a record put
+    somewhere else. A record that names any Admission record is compared whole.
+    """
+    flag = f"--{ADMISSION_RECORD_FLAG}"
+    positions = [index for index, token in enumerate(argv) if token == flag or token.startswith(f"{flag}=")]
+    if len(positions) != 1:
+        return None
+    index = positions[0]
+    composed = str(paths.admission_record_path(store_id, root=artifact_root))
+    if argv[index] != flag or index + 1 >= len(argv) or argv[index + 1] != composed:
+        return None
+    return [*argv[:index], *argv[index + 2:]]
 
 
 def render_options(options: dict[str, Any] | None) -> list[str]:
@@ -803,6 +838,15 @@ def plan(
                 f"--{ASSOCIATION_COVERAGE_FLAG} is the release's declared "
                 "association_coverage in release.yaml (ADR 0040)"
             )
+    if spec.phase == "build":
+        overridden = reserved_options(options, (ADMISSION_RECORD_FLAG,))
+        if overridden:
+            raise ValueError(
+                f"Bundle {bundle.store_id}: build.options must not set {overridden}; "
+                f"--{ADMISSION_RECORD_FLAG} is the artifact path "
+                f"{paths.admission_record_path(bundle.store_id, root=root)}, which the "
+                "registry composes for every build (#428)"
+            )
     store_p = paths.store_path(bundle.store_id, root=root)
 
     argv = ["opengwasdb", command]
@@ -815,6 +859,10 @@ def plan(
         argv.extend(["--analyses", str(paths.build_manifest_path(bundle.store_id, root=root))])
     if command in RAGGED_BUILD_COMMANDS:
         argv.extend(["--" + ASSOCIATION_COVERAGE_FLAG, bundle.association_coverage])
+    if spec.phase == "build":
+        argv.extend(
+            ["--" + ADMISSION_RECORD_FLAG, str(paths.admission_record_path(bundle.store_id, root=root))]
+        )
     argv.extend(render_options(options))
     column_map_args, column_map_inputs = _column_map_arguments(bundle, spec, command, root)
     argv.extend(column_map_args)
@@ -995,6 +1043,7 @@ def _observed_view_check_options(
 
 
 __all__ = [
+    "ADMISSION_RECORD_FLAG",
     "ASSOCIATION_COVERAGE_FLAG",
     "BUILD_PHASE",
     "COMMANDS",
@@ -1022,6 +1071,7 @@ __all__ = [
     "completion_step_name",
     "indexed_subset_declarations",
     "plan",
+    "planned_before_admission_record",
     "release_register",
     "render_options",
 ]

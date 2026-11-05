@@ -10,6 +10,8 @@
       "OGS-00011",
       "--release-id",
       "OGS-00011",
+      "--admission-record",
+      "/data/opengwasdb/stores/OGS-00011/store.opengwasdb.admission",
       "--variant-reference",
       "/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz",
       "--n-workers",

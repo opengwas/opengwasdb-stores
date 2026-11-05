@@ -14,6 +14,8 @@
       "/data/opengwasdb/stores/OGS-00001/work/analyses.tsv",
       "--association-coverage",
       "cis",
+      "--admission-record",
+      "/data/opengwasdb/stores/OGS-00001/store.opengwasdb.admission",
       "--source-build",
       "hg19",
       "--tissue",

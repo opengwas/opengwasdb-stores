@@ -146,11 +146,15 @@ def create_test_bundle_and_records(
             rec_data = custom_records[step.name]
         else:
             # As staging runs it: every Store token but the published Store a
-            # completion step reads becomes the staged path (ADR 0037).
+            # completion step reads becomes the staged path (ADR 0037). Only a
+            # token that *is* the Store, alone or after `=`, is staged, so the
+            # Admission record beside it keeps its final path (#428).
+            store_token = str(paths.store_path(store_id, root=artifact_root))
             executed_argv = [
                 token
                 if index == step.published_store_arg
-                else token.replace(str(paths.store_path(store_id, root=artifact_root)), str(partial_p))
+                or not (token == store_token or token.endswith(f"={store_token}"))
+                else token[: -len(store_token)] + str(partial_p)
                 for index, token in enumerate(step.argv)
             ]
             if step.name == "variant-reference" and step.outputs:
@@ -1952,6 +1956,55 @@ class TestArgvDriftAndResumptionDivergence(unittest.TestCase):
         self.assertIn("--unexpected-flag", err_msg)
         self.assertIn("Planned:", err_msg)
         self.assertIn("Executed:", err_msg)
+
+    def _build_record_from_before_428(self, store_id: str) -> tuple[Bundle, Path, Path, Step, dict[str, Any], Path]:
+        """A release whose `build` record was written before #428: it names no Admission record."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, store_id)
+        planned = next(s for s in plan(b, artifact_root=artifact_root) if s.name == "build")
+        record_p = paths.record_path(store_id, "build", root=artifact_root)
+        record = json.loads(record_p.read_text(encoding="utf-8"))
+        expected = str(paths.admission_record_path(store_id, root=artifact_root))
+        for key in ("argv", "planned_argv"):
+            index = record[key].index("--admission-record")
+            self.assertEqual(record[key][index + 1], expected)
+            record[key] = [*record[key][:index], *record[key][index + 2:]]
+        run._write_record_atomically(record, record_p)
+        # The fixture is the case under test: the plan composes the pair, the record names none.
+        self.assertIn("--admission-record", planned.argv)
+        self.assertNotIn("--admission-record", " ".join(record["argv"]))
+        return b, stores_root, artifact_root, planned, record, record_p
+
+    def test_a_build_record_from_before_428_registers_without_drift(self) -> None:
+        """A record naming no Admission record matches a plan that differs by the composed pair alone (#428).
+
+        Every Store published before #428 has such a `build` record, and its
+        build-phase `register` reruns whenever a post step does, a new Indexed
+        Variant Subset for one. The flag writes a side record beside the Store
+        and changes no Store data (ADR 0037, amended).
+        """
+        b, stores_root, artifact_root, planned, record, _ = self._build_record_from_before_428("OGS-00047")
+        self.assertEqual(check_argv_drift(planned, record, b.store_id, artifact_root=artifact_root), (True, False))
+        validation = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+        self.assertEqual(validation["observed"]["n_variants"], 1000)
+        self.assertTrue(paths.store_path(b.store_id, root=artifact_root).is_dir(), "the staged Store was not published")
+
+    def test_a_build_record_naming_another_admission_record_is_drift(self) -> None:
+        """Only a record that names *no* Admission record is tolerated, never one put elsewhere."""
+        b, stores_root, artifact_root, planned, record, record_p = self._build_record_from_before_428("OGS-00048")
+        record["argv"] = [*record["argv"], "--admission-record", "/elsewhere.admission"]
+        run._write_record_atomically(record, record_p)
+        with self.assertRaises(ArgvDriftError) as ctx:
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+        self.assertIn("/elsewhere.admission", str(ctx.exception))
+
+    def test_a_build_record_from_before_428_that_differs_otherwise_is_drift(self) -> None:
+        """The pair is the one difference tolerated; any other token is still drift."""
+        b, stores_root, artifact_root, planned, record, record_p = self._build_record_from_before_428("OGS-00049")
+        record["argv"] = [*record["argv"], "--unexpected-flag"]
+        run._write_record_atomically(record, record_p)
+        with self.assertRaises(ArgvDriftError) as ctx:
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+        self.assertIn("--unexpected-flag", str(ctx.exception))
 
     def test_complete_dense_resume_accepted_and_recorded_as_resumed_true(self) -> None:
         """complete-dense-resume is accepted as legitimate divergence for complete-dense and marked resumed: true."""

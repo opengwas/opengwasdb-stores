@@ -61,6 +61,7 @@ from ogstores.plan import (
     Step,
     completion_step_name,
     plan,
+    planned_before_admission_record,
 )
 
 # The Validation Record shape `register` writes. Every record it writes carries
@@ -249,7 +250,11 @@ def check_argv_drift(
         norm_executed, planned_step
     )
 
-    if norm_executed != planned_argv:
+    # A `build` record written before #428 names no Admission record; the plan
+    # differs from it by the composed pair alone, which changes no Store data
+    # (ADR 0037, amended by #428). Any other difference is still drift.
+    legacy = planned_before_admission_record(planned_argv, store_id, artifact_root)
+    if norm_executed != planned_argv and norm_executed != legacy:
         planned_str = " ".join(planned_argv)
         executed_str = " ".join(executed_argv)
         norm_str = " ".join(norm_executed)

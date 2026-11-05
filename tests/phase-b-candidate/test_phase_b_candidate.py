@@ -4716,8 +4716,7 @@ def _write_admission_reference(fixture: Fixture) -> None:
 class RealResolverMafAdmissionTests(unittest.TestCase):
     """The pinned resolver drops rare and monomorphic rows under OGS-00011's floor (#380).
 
-    `tests/audit/test_audit_trace.py` pins the same rule at the Hybrid builder's
-    entry point; this pins it where a candidate is actually resolved, through the
+    This pins the rule where a candidate is actually resolved, through the
     real operator entry point and the real `opengwasdb resolve-analyses`, with
     OGS-00011's own MAF settings: its `defaults.maf_threshold` on every manifest
     row and its `ancestry_assignment.maf_floor` and gates on the command line.

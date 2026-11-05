@@ -50,6 +50,18 @@ every other token. The exception is one-directional by construction: a record
 that predates the flag cannot witness the value it was built at, so the
 completion's own report is what holds the release to its declaration, and
 `register` refuses a mismatch (#341).
+
+A second exception follows the same rule (#428, ADR 0037 amended). Every
+builder has required `--admission-record` since opengwasdb 0.5.0, so `plan()`
+composes `--admission-record <artifact-root>/<id>/store.opengwasdb.admission`
+on every build step, and a Store published before #428 has a `build` record
+that names none. The flag says where the builder writes a side record, outside
+the Store; it changes no Store data. So a recorded argv equal to the plan
+without that composed pair, at the record's own root, matches
+(`_legacy_admission_record_amendment`). For a Ragged record that predates #341
+too, the plan may also differ by the coverage pair. A record that names an
+Admission record, at any path, is compared whole. `register`'s drift check
+tolerates the same pair (`plan.planned_before_admission_record`).
 """
 
 from __future__ import annotations
@@ -64,7 +76,14 @@ from typing import Any
 from ogstores import bundle as bundle_module
 from ogstores import manifest, paths, run
 from ogstores.bundle import Bundle
-from ogstores.plan import ASSOCIATION_COVERAGE_FLAG, BUILD_PHASE, REGISTER_STEPS, Step, plan
+from ogstores.plan import (
+    ASSOCIATION_COVERAGE_FLAG,
+    BUILD_PHASE,
+    REGISTER_STEPS,
+    Step,
+    plan,
+    planned_before_admission_record,
+)
 
 # The steps whose argv made a published Store; every other step is a
 # re-runnable in-place addition to it.
@@ -139,6 +158,22 @@ def _legacy_coverage_amendment(planned: list[str], recorded: list[str], b: Bundl
     return recorded == [*planned[:index], *planned[index + 2:]]
 
 
+def _legacy_admission_record_amendment(
+    planned: list[str], recorded: list[str], b: Bundle, record_root: Path
+) -> bool:
+    """Whether `recorded` is `planned` as planned before #428 (ADR 0037, amended).
+
+    True only when the plan names exactly the composed `--admission-record`
+    pair for the record's own root, and the record is the plan without it, or
+    also without #341's coverage pair, for a Ragged record that predates both.
+    A record that names an Admission record, anywhere, is compared whole.
+    """
+    before = planned_before_admission_record(planned, b.store_id, record_root)
+    if before is None:
+        return False
+    return recorded == before or _legacy_coverage_amendment(before, recorded, b)
+
+
 def _phase_changes(b: Bundle, phase: str, register: dict[str, Any], root: Path) -> list[str]:
     """How the bundle's plan of one published phase's Store-writing steps differs from their records."""
     store_id = b.store_id
@@ -174,12 +209,17 @@ def _phase_changes(b: Bundle, phase: str, register: dict[str, Any], root: Path) 
         if record is None or not isinstance(record.get("planned_argv"), list):
             changes.append(f"{store_id}: {phase} phase step {name!r} has no record of the argv it planned")
             continue
-        step = planned_at(_record_root(record, store_id, root)).get(name)
+        record_root = _record_root(record, store_id, root)
+        step = planned_at(record_root).get(name)
         if step is None or step.argv == record["planned_argv"]:
             continue
         if _legacy_coverage_amendment(step.argv, record["planned_argv"], b):
             # Published before #341: its record names no coverage and the plan
             # differs by the declared flag alone (ADR 0040).
+            continue
+        if _legacy_admission_record_amendment(step.argv, record["planned_argv"], b, record_root):
+            # Published before #428: its record names no Admission record and
+            # the plan differs by the composed pair, and maybe #341's, alone.
             continue
         changes.append(
             f"{store_id}: {phase} phase step {name!r}: {run.argv_change(record['planned_argv'], step.argv)}"

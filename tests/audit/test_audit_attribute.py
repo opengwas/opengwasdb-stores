@@ -3,10 +3,11 @@
 
 Part of epic #371. The epic's first slice reconciled the off-panel axis (#372);
 this one attributes the 101M-variant union to the Analyses and publications that
-observe it, and pins a seeded sample for the raw-row trace (#374). The tests are
-CLI-level for the same reason #372's are: the report and the sample TSV are the
-externally visible evidence, so the assertions are on the command's exit code,
-its JSON, its TSV and the state of the input Store.
+observe it. The tests are CLI-level for the same reason #372's are: the report
+and the contributor tables are the externally visible evidence, so the
+assertions are on the command's exit code, its JSON, its TSVs and the state of
+the input Store. The seeded sample it once wrote for `trace` (#374) went with
+that command (#428).
 
 The fixture is a real format-0.2.0 Hybrid Store Release of a handful of
 variants, written through OpenGWASDB's own writers, whose Ragged body is built
@@ -418,22 +419,13 @@ class AttributeTestCase(unittest.TestCase):
         store: Path,
         *extra: str,
         output: str = "attribution.json",
-        sample: str | None = "sample.tsv",
-    ) -> tuple[int, dict, list[dict[str, str]]]:
+    ) -> tuple[int, dict]:
         target = self.evidence / output
         argv = ["attribute", str(store), "--output", str(target), *extra]
-        if sample is not None:
-            argv += ["--sample-output", str(self.evidence / sample)]
         code, out, err = self.run_audit(*argv)
         report = json.loads(target.read_text(encoding="utf-8")) if target.is_file() else {}
         self.assertTrue(report or code != 0, out + err)
-        rows: list[dict[str, str]] = []
-        sample_path = self.evidence / sample if sample is not None else None
-        if sample_path is not None and sample_path.is_file():
-            lines = sample_path.read_text(encoding="utf-8").splitlines()
-            header = lines[0].split("\t")
-            rows = [dict(zip(header, line.split("\t"))) for line in lines[1:]]
-        return code, report, rows
+        return code, report
 
     def store(self, **kwargs: object) -> tuple[Path, Path]:
         return build_store(self.tmp, **kwargs)  # type: ignore[arg-type]
@@ -449,7 +441,7 @@ class TestAttributionReport(AttributeTestCase):
 
     def test_attribute_writes_the_documented_report(self) -> None:
         store, _ = self.store()
-        code, report, _ = self.attribute(store)
+        code, report = self.attribute(store)
         record_check()
 
         self.assertEqual(code, 0, json.dumps(report.get("inconsistencies"), indent=1))
@@ -470,7 +462,6 @@ class TestAttributionReport(AttributeTestCase):
             "chromosomes",
             "contributors",
             "concentration",
-            "sample",
             "inconsistencies",
             "ok",
             "unchanged",
@@ -489,7 +480,7 @@ class TestAttributionReport(AttributeTestCase):
 
     def test_the_census_reconciles_with_the_attributed_union(self) -> None:
         store, _ = self.store()
-        code, report, _ = self.attribute(store)
+        code, report = self.attribute(store)
         census = report["census"]
         record_check()
 
@@ -504,7 +495,7 @@ class TestAttributionReport(AttributeTestCase):
 
     def test_per_analysis_attribution_is_exact(self) -> None:
         store, _ = self.store()
-        _, report, _ = self.attribute(store)
+        _, report = self.attribute(store)
         rankings = report["contributors"]["analyses"]
         record_check()
 
@@ -537,7 +528,7 @@ class TestAttributionReport(AttributeTestCase):
 
     def test_per_publication_attribution_is_exact(self) -> None:
         store, _ = self.store()
-        _, report, _ = self.attribute(store)
+        _, report = self.attribute(store)
         rankings = report["contributors"]["publications"]
         record_check()
 
@@ -565,7 +556,7 @@ class TestAttributionReport(AttributeTestCase):
 
     def test_exclusivity_arithmetic_holds(self) -> None:
         store, _ = self.store()
-        _, report, _ = self.attribute(store)
+        _, report = self.attribute(store)
         support = report["support"]
         census = report["census"]
         record_check()
@@ -590,7 +581,7 @@ class TestAttributionReport(AttributeTestCase):
 
     def test_support_distribution_is_exact(self) -> None:
         store, _ = self.store()
-        _, report, _ = self.attribute(store)
+        _, report = self.attribute(store)
         support = report["support"]
         record_check()
 
@@ -610,7 +601,7 @@ class TestAttributionReport(AttributeTestCase):
 
     def test_allele_classes_and_chromosomes_are_exact(self) -> None:
         store, _ = self.store()
-        _, report, _ = self.attribute(store)
+        _, report = self.attribute(store)
         record_check()
 
         classes = report["allele_classes"]
@@ -629,7 +620,7 @@ class TestAttributionReport(AttributeTestCase):
 
     def test_the_concentration_of_the_union_is_measured_not_summed(self) -> None:
         store, _ = self.store()
-        _, report, _ = self.attribute(store)
+        _, report = self.attribute(store)
         concentration = report["concentration"]
         record_check()
 
@@ -655,27 +646,15 @@ class TestAttributionReport(AttributeTestCase):
 
     def test_the_band_size_does_not_change_the_answer(self) -> None:
         store, _ = self.store()
-        _, whole, _ = self.attribute(
-            store, "--band-variants", "1000", "--band-rows", "1000", output="whole.json", sample="whole.tsv"
-        )
-        _, bands, _ = self.attribute(
-            store, "--band-variants", "1", "--band-rows", "1", output="bands.json", sample="bands.tsv"
-        )
+        _, whole = self.attribute(store, "--band-variants", "1000", "--band-rows", "1000", output="whole.json")
+        _, bands = self.attribute(store, "--band-variants", "1", "--band-rows", "1", output="bands.json")
         record_check()
 
         self.assertEqual(whole["census"], bands["census"])
         self.assertEqual(whole["support"], bands["support"])
         self.assertEqual(whole["contributors"], bands["contributors"])
         self.assertEqual(whole["chromosomes"], bands["chromosomes"])
-        record_check()
-
-        # One entry per band means a candidate selected in the third band is
-        # chosen at axis index 2, not at position 0 of its band: the sample is a
-        # property of the Store and the seed, and a band is an implementation
-        # detail of reading it.
-        self.assertEqual(
-            (self.evidence / "whole.tsv").read_bytes(), (self.evidence / "bands.tsv").read_bytes()
-        )
+        self.assertEqual(whole["concentration"], bands["concentration"])
         record_check()
 
 
@@ -695,7 +674,7 @@ class TestDeduplication(AttributeTestCase):
         publications = [("1001", "A"), ("1002", "B"), ("1001", "A"), ("1002", "B")]
         pairs = [(2, 0), (2, 1), (2, 2), (3, 0), (3, 2), (4, 1)]
         store, _ = self.store(publications=publications, pairs=pairs)
-        code, report, _ = self.attribute(store)
+        code, report = self.attribute(store)
         record_check()
 
         self.assertEqual(code, 0, json.dumps(report.get("inconsistencies"), indent=1))
@@ -729,7 +708,7 @@ class TestDeduplication(AttributeTestCase):
         # stamp alone cannot catch because both rows read as new.
         pairs = [(2, 0), (2, 0), (3, 0), (4, 2), (5, 3)]
         store, _ = self.store(pairs=pairs)
-        code, report, _ = self.attribute(store)
+        code, report = self.attribute(store)
         record_check()
 
         self.assertEqual(code, 0, json.dumps(report.get("inconsistencies"), indent=1))
@@ -763,7 +742,7 @@ class TestDeduplication(AttributeTestCase):
     def test_metadata_is_read_by_analysis_index_not_by_file_order(self) -> None:
         # The rows are written 2, 0, 3, 1: file order is not `analysis_index`.
         store, _ = self.store(analysis_row_order=[2, 0, 3, 1])
-        code, report, rows = self.attribute(store)
+        code, report = self.attribute(store)
         record_check()
 
         self.assertEqual(code, 0, json.dumps(report.get("inconsistencies"), indent=1))
@@ -781,15 +760,9 @@ class TestDeduplication(AttributeTestCase):
         self.assertEqual([row["publication_pmid"] for row in records], ["1001", "1001", "1002", "1003"])
         record_check()
 
-        # And the sample agrees: an off-panel row naming Analysis 2 names 1002.
-        named = [row for row in rows if row["analysis_index"] == "2" and row["on_panel"] == "False"]
-        self.assertTrue(named)
-        self.assertTrue(all(row["publication_pmid"] == "1002" for row in named))
-        record_check()
-
     def test_the_full_contributor_tables_are_written_beside_the_evidence(self) -> None:
         store, _ = self.store()
-        _, report, _ = self.attribute(store)
+        _, report = self.attribute(store)
         tables = report["contributors"]["tables"]
         record_check()
 
@@ -824,215 +797,6 @@ class TestDeduplication(AttributeTestCase):
 
 
 # ---------------------------------------------------------------------------
-# Seam 2: the sample is deterministic, stratified and traceable
-# ---------------------------------------------------------------------------
-
-
-class TestDeterministicSample(AttributeTestCase):
-    """A seed alone decides the sample, and every row names a reachable row."""
-
-    def test_the_same_seed_writes_a_byte_identical_sample(self) -> None:
-        store, _ = self.store()
-        self.attribute(store, "--seed", "42", output="a.json", sample="a.tsv")
-        self.attribute(store, "--seed", "42", output="b.json", sample="b.tsv")
-        record_check()
-
-        first = (self.evidence / "a.tsv").read_bytes()
-        second = (self.evidence / "b.tsv").read_bytes()
-        self.assertTrue(first)
-        self.assertEqual(first, second)
-        record_check()
-
-    def test_a_different_seed_chooses_different_rows(self) -> None:
-        store, _ = self.store()
-        _, _, one = self.attribute(
-            store, "--seed", "42", "--sample-per-stratum", "1", output="a.json", sample="a.tsv"
-        )
-        _, _, other = self.attribute(
-            store, "--seed", "7", "--sample-per-stratum", "1", output="b.json", sample="b.tsv"
-        )
-        record_check()
-
-        picked_one = sorted((row["stratum"], row["variant_index"]) for row in one)
-        picked_other = sorted((row["stratum"], row["variant_index"]) for row in other)
-        self.assertNotEqual(picked_one, picked_other)
-        record_check()
-
-    def test_the_sample_carries_the_documented_columns(self) -> None:
-        store, _ = self.store()
-        _, report, rows = self.attribute(store)
-        header = (self.evidence / "sample.tsv").read_text(encoding="utf-8").splitlines()[0].split("\t")
-        record_check()
-
-        self.assertEqual(tuple(header), audit.SAMPLE_COLUMNS)
-        for required in (
-            "sample_id",
-            "analysis_id",
-            "analysis_index",
-            "alid",
-            "rsid",
-            "stratum",
-            "on_panel",
-            "publication_pmid",
-            "source_row_lookup_hint",
-        ):
-            self.assertIn(required, header)
-        self.assertTrue(rows)
-        record_check()
-
-        self.assertEqual(report["sample"]["rows"], len(rows))
-        self.assertEqual(report["sample"]["seed"], 42)
-        self.assertTrue(report["sample"]["sha256"])
-        self.assertEqual(
-            report["sample"]["sha256"],
-            __import__("hashlib").sha256((self.evidence / "sample.tsv").read_bytes()).hexdigest(),
-        )
-        record_check()
-
-    def test_every_documented_stratum_is_present_and_labelled(self) -> None:
-        store, _ = self.store()
-        _, _, rows = self.attribute(store)
-        record_check()
-
-        strata = {row["stratum"] for row in rows}
-        self.assertIn("random_off_panel", strata)
-        self.assertIn("shared_multi_publication", strata)
-        self.assertIn("on_panel_control", strata)
-        self.assertTrue(any(name.startswith("exclusive_analysis:") for name in strata))
-        self.assertTrue(any(name.startswith("exclusive_publication:") for name in strata))
-        record_check()
-
-        off_panel = [row for row in rows if row["stratum"] != "on_panel_control"]
-        self.assertTrue(all(row["on_panel"] == "False" for row in off_panel))
-        self.assertTrue(all(row["analysis_index"] != "" for row in off_panel))
-        self.assertTrue(all(row["publication_pmid"] in {"1001", "1002", "1003"} for row in off_panel))
-        record_check()
-
-        # Allele classes reach the sample rather than the commonest class
-        # filling every stratum.
-        self.assertIn("indel", {row["allele_class"] for row in rows})
-        record_check()
-
-    def test_every_hint_names_the_row_it_says_it_does(self) -> None:
-        store, _ = self.store()
-        _, _, rows = self.attribute(store)
-        record_check()
-
-        import zarr
-
-        group = zarr.open_group(str(store / "data.zarr"), mode="r")
-        variant_index = np.asarray(group["ragged/variant_index"][:])
-        offsets = np.asarray(group["ragged/offsets"][:])
-        checked = 0
-        for row in rows:
-            if row["on_panel"] == "True":
-                # With no Dense `z` plane in this fixture the hint says the plane
-                # is absent rather than inventing a cell; a Store that has one
-                # names the cell.
-                self.assertIn("dense_", row["source_row_lookup_hint"])
-                continue
-            hint = dict(part.split("=", 1) for part in row["source_row_lookup_hint"].split(";"))
-            self.assertEqual(int(hint["variant_index"]), int(row["variant_index"]))
-            position = int(hint["analysis_major_row"])
-            self.assertEqual(int(variant_index[position]), int(row["variant_index"]))
-            analysis = int(row["analysis_index"])
-            self.assertGreaterEqual(position, int(offsets[analysis]))
-            self.assertLess(position, int(offsets[analysis + 1]))
-            checked += 1
-        self.assertGreater(checked, 0)
-        record_check()
-
-    def test_on_panel_controls_name_the_analyses_of_the_same_store(self) -> None:
-        store, _ = self.store(dense_observed={(0, 0): 100, (0, 2): 200, (1, 1): 300})
-        _, report, rows = self.attribute(store)
-        controls = [row for row in rows if row["stratum"] == "on_panel_control"]
-        record_check()
-
-        self.assertTrue(report["sample"]["on_panel_controls"]["available"])
-        self.assertEqual(report["sample"]["on_panel_controls"]["panel_variants_skipped"], 0)
-        self.assertTrue(controls)
-        self.assertTrue(all(row["on_panel"] == "True" for row in controls))
-        named = {(int(row["variant_index"]), row["analysis_index"]) for row in controls if row["analysis_index"]}
-        self.assertIn((0, "0"), named)
-        self.assertIn((0, "2"), named)
-        self.assertIn((1, "1"), named)
-        record_check()
-
-        for row in controls:
-            if not row["analysis_index"]:
-                continue
-            self.assertIn("dense_row=", row["source_row_lookup_hint"])
-            self.assertIn("dense_plane=z", row["source_row_lookup_hint"])
-            self.assertIn(f"analysis_index={row['analysis_index']}", row["source_row_lookup_hint"])
-        record_check()
-
-    def test_every_row_names_an_analysis_and_its_id(self) -> None:
-        store, _ = self.store()
-        _, report, rows = self.attribute(store)
-        record_check()
-
-        self.assertTrue(rows)
-        for row in rows:
-            self.assertTrue(row["analysis_id"], row["sample_id"])
-            self.assertTrue(row["analysis_index"], row["sample_id"])
-            self.assertIn(row["analysis_index"], {
-                str(entry["analysis_index"])
-                for entry in report["contributors"]["analyses"]["by_distinct_off_panel_variants"]
-            } | {str(index) for index in range(4)})
-        record_check()
-
-        # on_panel=True and False alike: an on-panel control names a Dense cell.
-        self.assertEqual(
-            {row["on_panel"] for row in rows}, {"True", "False"}
-        )
-        self.assertTrue(all(row["analysis_id"] for row in rows if row["on_panel"] == "True"))
-        record_check()
-
-    def test_the_exclusive_strata_follow_the_exclusive_ranking(self) -> None:
-        # A1 holds the most variants but shares them; A2 holds fewer and nobody
-        # else observes them. The sample asks for exclusive variants, so A2 is
-        # the stratum `--top 1` selects, while `concentration` (who holds the
-        # union) still leads with A1.
-        publications = [("1001", "A"), ("1002", "B"), ("1003", "C")]
-        pairs = [(2, 0), (2, 1), (3, 0), (3, 1), (4, 0), (4, 1), (5, 1), (6, 2), (7, 2)]
-        store, _ = self.store(publications=publications, pairs=pairs)
-        _, report, rows = self.attribute(store, "--top", "1")
-        record_check()
-
-        self.assertEqual(report["sample"]["exclusive_analyses"], [2])
-        strata = {row["stratum"] for row in rows}
-        self.assertIn("exclusive_analysis:2", strata)
-        self.assertNotIn("exclusive_analysis:1", strata)
-        self.assertNotIn("exclusive_analysis:0", strata)
-        record_check()
-
-        self.assertEqual(report["concentration"]["top_analyses"]["contributors"], [[1]])
-        distinct = [
-            row["analysis_index"]
-            for row in report["contributors"]["analyses"]["by_distinct_off_panel_variants"]
-        ]
-        exclusive = [
-            row["analysis_index"]
-            for row in report["contributors"]["analyses"]["by_exclusive_variants"]
-        ]
-        self.assertEqual(distinct[0], 1)
-        self.assertEqual(exclusive[0], 2)
-        record_check()
-
-    def test_no_sample_output_writes_no_sample(self) -> None:
-        store, _ = self.store()
-        code, report, rows = self.attribute(store, sample=None)
-        record_check()
-
-        self.assertEqual(code, 0, json.dumps(report.get("inconsistencies"), indent=1))
-        self.assertFalse(report["sample"]["written"])
-        self.assertEqual(rows, [])
-        self.assertEqual(report["scope"]["skipped"], ["seeded sample for raw-row tracing"])
-        self.assertFalse((self.evidence / "sample.tsv").exists())
-        record_check()
-
-
-# ---------------------------------------------------------------------------
 # Seam 3: what cannot be attributed is reported, not guessed
 # ---------------------------------------------------------------------------
 
@@ -1043,7 +807,7 @@ class TestFailLoudly(AttributeTestCase):
     def test_ambiguous_publication_metadata_is_an_error(self) -> None:
         publications = [("1001", "Barnes DR"), ("1001", "Someone Else"), ("1002", "Chen J"), ("1003", "Williams AT")]
         store, _ = self.store(publications=publications)
-        code, report, _ = self.attribute(store)
+        code, report = self.attribute(store)
         record_check()
 
         self.assertEqual(code, 1)
@@ -1058,7 +822,7 @@ class TestFailLoudly(AttributeTestCase):
     def test_an_analysis_with_no_publication_is_retained_as_an_unknown_group(self) -> None:
         publications = [("1001", "Barnes DR"), ("", "Barnes DR"), ("1002", "Chen J"), ("1003", "Williams AT")]
         store, _ = self.store(publications=publications)
-        code, report, rows = self.attribute(store)
+        code, report = self.attribute(store)
         record_check()
 
         self.assertEqual(code, 0, json.dumps(report.get("inconsistencies"), indent=1))
@@ -1083,11 +847,6 @@ class TestFailLoudly(AttributeTestCase):
         self.assertEqual(unknown[0]["n_analyses"], 1)
         record_check()
 
-        # And its sample rows still name an Analysis.
-        self.assertTrue(rows)
-        self.assertTrue(all(row["analysis_id"] for row in rows))
-        record_check()
-
     def test_missing_analyses_tsv_cannot_be_attributed(self) -> None:
         store, _ = self.store()
         (store / "analyses.tsv").unlink()
@@ -1100,7 +859,7 @@ class TestFailLoudly(AttributeTestCase):
         self.assertIn("analyses.tsv", err)
         record_check()
 
-    def test_refuses_to_write_evidence_or_sample_inside_the_store(self) -> None:
+    def test_refuses_to_write_evidence_inside_the_store(self) -> None:
         store, _ = self.store()
         code, _, err = self.run_audit(
             "attribute", str(store), "--output", str(store / "attribution.json")
@@ -1108,27 +867,30 @@ class TestFailLoudly(AttributeTestCase):
         record_check()
         self.assertEqual(code, 2)
         self.assertIn("inside the Store", err)
+        self.assertFalse((store / "attribution.json").exists())
+        record_check()
 
-        code, _, err = self.run_audit(
-            "attribute",
-            str(store),
-            "--output",
-            str(self.evidence / "attribution.json"),
-            "--sample-output",
-            str(store / "sample.tsv"),
-        )
-        record_check()
-        self.assertEqual(code, 2)
-        self.assertIn("inside the Store", err)
-        self.assertFalse((store / "sample.tsv").exists())
-        record_check()
+    def test_the_trace_sample_and_the_trace_are_gone(self) -> None:
+        """`attribute --sample-output` and `trace` were removed (#428): both are refused, not ignored."""
+        store, _ = self.store()
+        for argv in (
+            ["attribute", str(store), "--output", str(self.evidence / "a.json"),
+             "--sample-output", str(self.evidence / "sample.tsv")],
+            ["trace", str(store), "--output", str(self.evidence / "t.json")],
+        ):
+            with self.subTest(argv=argv[0]):
+                code, _, err = self.run_audit(*argv)
+                record_check()
+                self.assertEqual(code, 2, err)
+                self.assertFalse((self.evidence / "a.json").exists())
+                self.assertFalse((self.evidence / "sample.tsv").exists())
 
     def test_a_dense_axis_entry_with_an_overflow_association_is_an_error(self) -> None:
         # v0 is on panel, so the disjoint partition says it carries no Overflow
         # association; a fixture that gives it one is a broken Store.
         pairs = list(PAIRS) + [(0, 0)]
         store, _ = self.store(pairs=pairs)
-        code, report, _ = self.attribute(store)
+        code, report = self.attribute(store)
         record_check()
 
         self.assertEqual(code, 1)
@@ -1139,7 +901,7 @@ class TestFailLoudly(AttributeTestCase):
     def test_the_store_is_unchanged_by_an_attribution(self) -> None:
         store, _ = self.store()
         before = tree_digests(store)
-        code, report, _ = self.attribute(store)
+        code, report = self.attribute(store)
         after = tree_digests(store)
         record_check()
 
@@ -1156,7 +918,6 @@ def main() -> None:
     for case in (
         TestAttributionReport,
         TestDeduplication,
-        TestDeterministicSample,
         TestFailLoudly,
     ):
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(case))
