@@ -13,6 +13,8 @@
       "OGS-00006",
       "--association-coverage",
       "signals_only",
+      "--admission-record",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb.admission",
       "--stored-effect-scale",
       "sd"
     ],

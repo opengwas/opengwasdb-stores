@@ -14,18 +14,22 @@ Two commands share one module and one read-only discipline:
   its Dense Component and the off-panel remainder -- against what the Store
   records.
 - `attribute` (#373) attributes the off-panel union to the **Analyses and
-  publications** that observe it, and pins a seeded sample for the raw-row trace
-  (#374).
-- `trace` (#374) follows that sample back to the **raw source rows**, the
-  frequency each source reports, and the admission decision the builder made for
-  each of them.
+  publications** that observe it.
 
-`reconcile` never reads the Ragged body's variant indices, `attribute` never
-reconciles a count it did not measure, and `trace` never decides an admission of
-its own: it replays `opengwasdb.build.row_admission.admit_rows` under the
-Analysis's declared policies and reports what that rule did. A reader who wants
-"how big is the off-panel part" reads `reconcile`; "whose is it" reads
-`attribute`; "why was it admitted" reads `trace`.
+`reconcile` never reads the Ragged body's variant indices, and `attribute` never
+reconciles a count it did not measure. A reader who wants "how big is the
+off-panel part" reads `reconcile`; "whose is it" reads `attribute`.
+
+A third command, `trace` (#374), followed a seeded sample of rows back to their
+raw source rows and replayed the builder's admission rule on each. It was
+removed, with the sample `attribute --sample-output` wrote for it, by the
+owner's decision of 5 Nov 2026 (#428). Epic #371 had closed on 1 Nov, and the
+rule it replayed, `opengwasdb.build.row_admission.admit_rows`, is gone from
+opengwasdb 0.5.0. That release's builders write an Association Admission record
+beside every Store they build, which counts every dropped row and logs it by
+source key, so "why was it admitted" is now read from the build's own record
+(`store.opengwasdb.admission`, [the workflow spec](store-release-workflow.md)).
+The trace's measurements on OGS-00011 are kept below as history.
 
 ## The command
 
@@ -44,39 +48,16 @@ pixi run audit-store reconcile /data/opengwasdb/stores/OGS-00011/store.opengwasd
 | `--verify auto\|sha256\|metadata` | how the Store is proved unchanged: `sha256` every file, `size+mtime_ns` only, or `auto` (sha256 up to 512 MiB) |
 
 ```text
-python3 -m ogstores.audit attribute <store_path> --output <evidence_json> \
-  [--sample-output <sample_tsv>]
+python3 -m ogstores.audit attribute <store_path> --output <evidence_json>
 pixi run audit-store attribute /data/opengwasdb/stores/OGS-00011/store.opengwasdb \
-  --output /data/opengwasdb/work/epic371/orchestrate/opengwasdb-stores-371/evidence/373/attribution.json \
-  --sample-output /data/opengwasdb/work/epic371/orchestrate/opengwasdb-stores-371/evidence/373/sample.tsv
+  --output /data/opengwasdb/work/epic371/orchestrate/opengwasdb-stores-371/evidence/373/attribution.json
 ```
 
 | Option | Meaning |
 |---|---|
-| `--sample-output PATH` | write the seeded, stratified sample TSV here; must be outside the Store. Omitted, no sample is written, `sample.written` is false and the stage is named in `scope.skipped` |
-| `--seed N` | the seed every sample choice derives from (default 42). The report's counts do not depend on it |
-| `--top N` | how many leading contributors the sample draws exclusive variants from, and how deep the union-share measurement goes (default 5) |
-| `--sample-per-stratum N` | rows each stratum keeps (default 20). Each stratum holds `8N` candidates before the allele-class round-robin picks |
-| `--band-variants N` | axis entries one band of the attribution and sample scans spans (default 8,000,000). The answer does not depend on it |
+| `--top N` | how deep the union-share measurement goes (default 5) |
+| `--band-variants N` | axis entries one band of the attribution scan spans (default 8,000,000). The answer does not depend on it |
 | `--band-rows N` | association rows one band of the support scan spans (default 16,000,000, 64 MB of `int32`). The answer does not depend on it |
-| `--verify auto\|sha256\|metadata` | as `reconcile` |
-
-```text
-python3 -m ogstores.audit trace <store_path> --sample <sample_tsv> \
-  --manifest <build_analyses_tsv> --output <evidence_json>
-pixi run audit-store trace /data/opengwasdb/stores/OGS-00011/store.opengwasdb \
-  --sample /data/opengwasdb/work/epic371/orchestrate/opengwasdb-stores-371/evidence/373/sample.tsv \
-  --manifest /data/opengwasdb/stores/OGS-00011/work/analyses.tsv \
-  --output /data/opengwasdb/work/epic371/orchestrate/opengwasdb-stores-371/evidence/374/trace.json
-```
-
-| Option | Meaning |
-|---|---|
-| `--sample PATH` | the sample TSV `attribute --sample-output` wrote. Must be outside the Store |
-| `--manifest PATH` | the build manifest the Store was built from. Its `source_file`/`source_url` is the only record of which raw file each Analysis was read from, and its `maf_threshold`/`info_score_threshold` columns are the policies replayed. The Store's own `analyses.tsv` is Analytical Metadata and deliberately carries neither |
-| `--raw-root PATH` | where a manifest `source_url` is expected to land locally when its `source_file` is gone (default `/data/opengwasdb/raw/ebi-gwas-catalog`) |
-| `--limit N` | trace at most N sample rows. A limited run reports the rows it read and never pretends to close the sample |
-| `--workers N` | source files scanned in parallel (default `min(8, cores)`). Each file is read exactly once whatever the sample draws from it, so this is files in flight, not a per-row optimisation |
 | `--verify auto\|sha256\|metadata` | as `reconcile` |
 
 Exit codes:
@@ -107,15 +88,14 @@ Recipe, so a Store whose recipe has moved on is still audited as built.
 What it does not measure is in the report's `scope.not_measured`, with the
 ticket that owns each: per-Analysis and per-publication attribution and support
 across Analyses (both measured by `attribute`, below), source frequency evidence
-(#374), and rsid groups (#375). Their absence is stated, not left to be inferred
-from a report that has no field for them.
+(#374, which `trace` measured until it was removed), and rsid groups (#375).
+Their absence is stated, not left to be inferred from a report that has no field
+for them.
 
 `attribute` is the other half of the same slice: it names the contributors and
 stops at the Store's edge. It does not read a source file, so it cannot say
 *whether* an association should have been admitted -- only that a given Analysis
-contributed it, and which raw row of that Analysis's source it came from. That
-is #374's question, and the sample below is what makes it askable; `trace`
-answers it, from the source files outwards.
+contributed it. That question is now the build's Admission record's.
 
 ## Prerequisites, and what makes them an `error`
 
@@ -260,218 +240,14 @@ the axis minus the Dense Component, and the `n_off_panel` the Store records.
 `attributed_union_variants` counts off-panel entries at least one Analysis
 observes. On `OGS-00011` all three agree at 101,098,177.
 
-## The sample
-
-`--sample-output` writes a TSV whose rows are starting points for #374's
-raw-row trace, not a statistical estimate: every count in the report is a
-census, and the sample exists only to name rows.
-
-| Column | Meaning |
-|---|---|
-| `sample_id` | `S00000`-style id, assigned after sorting by stratum, variant and Analysis |
-| `analysis_id`, `analysis_index`, `publication_pmid` | the Analysis the row is attributed to, and its publication. Every row names one: a row a trace cannot attribute is not a starting point |
-| `alid`, `rsid` | the variant's canonical identity and its rsid (empty when the table records none) |
-| `stratum` | which question selected the row (below) |
-| `on_panel` | `True` for a Dense-axis control, `False` for an off-panel row |
-| `source_row_lookup_hint` | where the row is, exactly (below) |
-| `allele_class`, `chromosome`, `variant_index` | context a trace needs without a second query |
-| `n_analyses`, `n_publications` | how many distinct Analyses and publications observe the variant |
-
-The strata are the ticket's questions:
-
-| Stratum | Rows drawn from |
-|---|---|
-| `exclusive_analysis:<analysis_index>` | entries observed by exactly that Analysis, for the leading contributors **by exclusive variants** |
-| `exclusive_publication:<publication_key>` | entries observed by several Analyses of exactly that publication, for the leading publications **by exclusive variants** |
-| `shared_multi_publication` | entries observed by two or more publications |
-| `random_off_panel` | the whole attributed union |
-| `on_panel_control` | Dense-axis entries |
-
-**Determinism.** A candidate's rank is a SplitMix64 hash of its axis index mixed
-with `--seed`, so the choice is a property of the seed and the Store. Each
-stratum keeps its 8N smallest hashes (N = `--sample-per-stratum`), then takes N
-of them round-robin over the allele classes, smallest hash first -- round-robin
-so that a rare class (7.8M indels against 93.3M SNPs on `OGS-00011`) still
-reaches the sample. Band size, iteration order and machine cannot change the
-output; the suite pins byte-identical TSV for one seed and a different sample for
-another.
-
-**Traceability.** For an off-panel row, `source_row_lookup_hint` is
-`analysis_major_row=<row>;analysis_major_range=<low>-<high>;variant_index=<v>;search=<mode>`.
-The row is located by binary search over that Analysis's
-`ragged/variant_index` range and read back to check it; `search=scan` says the
-range was not ordered and was scanned instead, and `analysis_major_row=absent`
-(with `sample_trace_row_absent`, an `error`) says the variant is not in the
-Analyses its own support plane names.
-
-**Exclusive strata come from the exclusive ranking.** `concentration` asks who
-holds the union and ranks by distinct variants; the sample asks whose exclusive
-variants to trace and ranks by exclusive variants. A contributor that holds a
-lot and shares all of it is not the same contributor as one whose variants
-nobody else observes, and `sample.exclusive_analyses` /
-`sample.exclusive_publications` state which ranking the strata used.
-
-**On-panel controls.** The Dense Component and the Ragged Overflow partition the
-axis, so an on-panel variant carries no Overflow association and has no row to
-be attributed from. Its Analyses are `dense/z`'s cells instead -- one per (panel
-variant, Analysis) -- read a row at a time and named for the Analyses the sample
-is about: the leading exclusive contributors, then the publication strata's
-Analyses, and, where none of those holds the cell, the lowest-indexed Analysis
-that does (`rows_naming_a_fallback_analysis` counts them). Their hint is
-`dense_row=<r>;dense_plane=z;analysis_index=<a>`, which is the cell itself. A
-panel variant no Analysis holds is skipped and counted
-(`panel_variants_skipped`), and where the plane itself is unavailable
-(`available: false`) the controls are skipped rather than emitted with a blank
-where an Analysis should be.
-
-## The trace
-
-`trace` answers one row at a time, for every row of a written sample: which raw
-source row is this, what frequency does it report, and what did the admission
-rule do with it? Four steps, in this order, each recorded rather than summarised:
-
-1. **The source file.** The Analysis's build-manifest row gives `source_file`;
-   when that path is gone, the `source_url` tail is mapped into the mirror under
-   `--raw-root`. The file's size and mtime are recorded, its declared checksum is
-   quoted, and its declared `source_genome_build` must agree with the Store's
-   `reference_assembly` -- a build that needed a lift would need a lift here too,
-   and the trace does not perform one silently.
-2. **The raw row.** Each source file is read once, start to finish, however many
-   sample rows it supplies. A requested site is `(chromosome, position, allele
-   pair)`, and **every** row at the position whose allele pair is the sample's is
-   kept, not just the first: a multiallelic site can hold several, and two rows
-   can carry the same alleles with different frequencies. All candidates are
-   retained in `location.candidates`, and their frequencies compared after
-   orientation: candidates that agree describe one frequency reported twice and
-   the row is traced from the first; candidates that disagree make the row
-   `ambiguous_source` (`source_row_ambiguous`, an `error`) rather than resolved by
-   first-seen order, and its admission is left unreplayed. The report records the
-   physical `line_number`, the `data_row`, `candidate_rows`,
-   `raw_rows_at_position`, `allele_mismatch_rows` (rows at the same position with
-   other alleles), the source's own column positions for the columns it read, and
-   the raw `effect_allele_frequency`, `beta`, `standard_error`, `p_value` (and
-   `odds_ratio`/`ci_lower`/`ci_upper`/`rsid`, and the Analysis's declared
-   `imputation_score_column`, when present) tokens verbatim. `orientation` is
-   `same` when the source's effect allele is the canonical A1 (the
-   alphabetically first allele, as
-   `opengwasdb.variants.normalise.orient_to_canonical` defines it) and `flipped`
-   when it is the A2, in which case the frequency the builder stores is `1 - af`.
-3. **The frequency.** The class of the raw token and the value
-   `opengwasdb.stats.parse_af` reads from it. The classes are a closed vocabulary
-   because the four ways a source says "no usable frequency" all reach the rule
-   as the same NaN and must not be reported as one thing:
-
-   | Class | Token | `parse_af` |
-   |---|---|---|
-   | `placeholder_zero` | a number equal to `0.0` | `None` (stores #176: a monomorphic site, or a placeholder; dropped by a `filtered` policy, opengwasdb#331) |
-   | `placeholder_one` | a number equal to `1.0` | `None` (likewise) |
-   | `missing` | blank, `.`, `NA`, `NaN`, `None`, ... | `None` |
-   | `malformed` | unparseable, e.g. `abc` | `None` |
-   | `nonfinite` | `inf`/`-inf` | `None` |
-   | `out_of_range` | a finite number outside `[0, 1]`, e.g. `1.5` | `None` |
-   | `below_threshold` | a number in `(0, 1)` whose MAF is `< maf_threshold` | the number |
-   | `valid_common` | a number in `(0, 1)` whose MAF is `>= maf_threshold` | the number |
-
-   `valid_common` is the intended `0.005 <= MAF <= 0.995` interval at the
-   0.005 policy, with the boundary inclusive on both ends: `af = 0.005` and
-   `af = 0.995` pass, `af = 0.0049` and `af = 0.9951` do not (the suite pins all
-   four through the real builder, plus `inf` for `nonfinite`). A numeric class is
-   decided by the MAF threshold alone, never by the disposition: a row only the
-   INFO score drops still has a `valid_common` frequency, and reporting it
-   `below_threshold` would blame the wrong rule.
-4. **The admission.** One call to `opengwasdb.build.row_admission.admit_rows`
-   -- the rule the Hybrid builder itself applies to a column of rows -- over a
-   batch of one, with the parsed frequency (NaN where there is none) and the
-   declared INFO score parsed from the declared `imputation_score_column`. That
-   column is not part of GWAS-SSF's fixed vocabulary, so it is passed to the scan
-   per Analysis: without it the score would read as missing and the declared INFO
-   filter would silently keep every row. The MAF and INFO policies are parsed from
-   the same manifest columns the build parsed (`parse_maf_policy`,
-   `parse_info_score_policy`) and checked against what the Store recorded under
-   `provenance.maf` and `provenance.info_score` -- state *and* threshold: two
-   `filtered` INFO policies at 0.8 and 0.9 agree on their state and keep
-   different rows, so a threshold disagreement is an `error`, never a replayed
-   preference.
-
-The Store's side of the same row is read, not assumed: its identity is the
-Variant Table row at the sample's `variant_index` (cross-checked against the
-sample's ALID), presence is the encoding's own sentinel (`Z_MISSING` for `z`;
-on a Dense-axis control the cell is `dense/z`), and the stored frequency is
-reported as the plane's **stored code** with whether it is the codec's
-`EAF_ABSENT` (`-128` on an `int8_residual` plane, NaN on a `float16` one). It is
-deliberately not decoded: a residual is lossy and an absent code is the only
-answer a boundary question should ever take from it.
-
-**Dispositions.** Every sampled row carries exactly one, from a closed
-vocabulary, and the tally is asserted to sum to the sample:
-
-| Disposition | Meaning |
-|---|---|
-| `valid_common` | the rule kept the row and its MAF is at or above the threshold |
-| `maf_below_threshold` | the rule dropped the row for its MAF |
-| `maf_missing` | the row carries no usable frequency -- a placeholder, a blank, a malformed or an out-of-range token. Under a `filtered` MAF policy the rule drops it for that (opengwasdb#331); under `disabled` or `unavailable` it keeps it, unjudged. The `frequency.class` beside it says which token it was |
-| `info_below_threshold` | the rule dropped the row for its declared INFO score |
-| `unlocated_source` | the source file was read but holds no row at this position with this allele pair |
-| `ambiguous_source` | the source file holds more than one row at this position with this allele pair and their frequencies disagree, so the row cannot be replayed as one row |
-| `source_unavailable` | there is no readable source file, so the row cannot be judged |
-
-`maf_missing` is the bucket stores #380 repins for. `admit_rows` reads a
-frequency as usable evidence when it is finite and inside `[0, 1]`; a row it
-cannot read is no evidence a common-variant Store may admit, so a `filtered`
-policy **drops** it (opengwasdb#331, first shipped at the pinned `7308c6a`). The
-same rule judges an exact `0.0`/`1.0` as a frequency whose MAF is 0 and drops it
-as below any positive threshold; because the reader still reports no stored EAF
-for one (`parse_af`, ADR 0036), what a real build hands the rule is NaN, so the
-build counts that row `maf_missing` -- dropped for having no frequency. Either
-way the row leaves the Store, where before it stayed and grew the axis: a
-file-wide `effect_allele_frequency = 0.0` placeholder was the cheapest possible
-way to do that.
-
-The trace does not change that rule. It reports what the rule did, with the
-evidence a decision about it needs, and it reports the disagreement when a Store
-holds a row its own declared policy now drops: that is
-`admission_disagrees_with_store`, an `error`.
-
-### The trace report
-
-`schema` is `ogstores.audit.trace/1`. Alongside `argv`, `generated_at`,
-`elapsed_seconds`, `store` (including `eaf_encoding` with its `absent_code` and
-`exception_code`), `inconsistencies`, `ok`, `error_count`, `finding_count` and
-`store_unchanged`, a trace report carries:
-
-| Field | Contents |
-|---|---|
-| `replay` | `engine` (the installed distribution's version, Git commit and where that came from, plus the Python version), `build_recorded` (the revision in `records/build.json` beside the Store, with any `problem` that makes it unreadable), `agrees` (true, false, or null when one side is unknown), and the engine entry points the replay calls -- `opengwasdb.build.row_admission.admit_rows`, `opengwasdb.stats.parse_af`, and the two policy parsers |
-| `sample` | path, `sha256`, rows |
-| `build_manifest` | path, `sha256`, Analyses listed, `raw_root` |
-| `scope.measured`, `scope.not_measured`, `scope.sources` | what was measured; what was not, with the ticket that owns each (a whole-file frequency census, the stored frequency decoded to a float, a recomputed source checksum, cohort frequency read as population frequency); and every source file read, with its size, mtime, declared build and checksum |
-| `rows` | one entry per sample row: identity and stratum, `source` (path, how it resolved, size, mtime, declared checksum and build), `location` (located, `line_number`, `data_row`, `orientation`, `candidate_rows`, `frequency_agreement`, `distinct_frequencies`, `candidates`, `raw_rows_at_position`, `allele_mismatch_rows`, column positions, raw tokens), `frequency` (token, class, value, `parsed_af`, `reader_treats_as_missing`, `canonical_af`), `admission` (both policies, `keep`, `disposition`, `maf`, the rule's own `counts`, the INFO score it read), `store` (identity, plane, `dense_row`, association count, `z_code`/`z_present`, `se_code`, `eaf_code`/`eaf_absent`/`eaf_exception`, and `problem` when a cell could not be read), `agreement`, and `trace_disposition` |
-| `summary.denominators` | rows, rows located, rows unlocated, `rows_ambiguous`, `rows_with_frequency_class`, off-panel and control counts, and `dispositions_close`/`frequency_classes_close` -- the arithmetic that says every row was classified and no class was left out |
-| `summary.overall`, `summary.off_panel`, `summary.on_panel_controls` | the disposition and source-frequency-class tallies of each group |
-| `summary.placeholder_frequency` | rows with an exactly `0.0`/`1.0` token, their share of the located rows, of the frequency-classified rows and of the off-panel rows |
-| `summary.by_stratum`, `summary.by_analysis`, `summary.by_publication` | the same tallies per sample stratum, per Analysis and per publication, with each Analysis's `declared_policy` and the `store_recorded` admission counts quoted beneath it |
-
-A sample row the trace cannot locate or cannot resolve to one frequency, a Store
-row whose ALID contradicts the sample, a Store cell the trace cannot read, an
-admission the Store contradicts, a stored frequency that disagrees with the
-disposition, a missing or unreadable source file, a source build that differs
-from the Store's, a Store with no recorded build revision, and a manifest policy
-that differs from the Store's recorded one are all `error`s (exit 1). An
-admission the Store contradicts includes a Store built before core #331, which
-holds the placeholder and unreadable-frequency rows that rule now drops: the
-trace reports each of them and exits 1 rather than treating a filtered Store's
-unfiltered rows as an observation. A trace whose engine revision differs from
-the recorded build revision is a `finding`: the admission and parsing it replayed
-are the installed engine's, and the report says so instead of substituting
-silently.
-
 ## The report
 
 `schema` is `ogstores.audit.reconcile/1`; `audit_version` is separate and
 changes only if the report's meaning does. Adding a field does not bump either.
-`audit_version` `2` (stores #380) is the trace's admission fields changing
-meaning with opengwasdb#331, which the section above states; the reconcile report
-itself is unchanged and takes the version because the three commands share one.
+`audit_version` `2` (stores #380) was the trace's admission fields changing
+meaning with opengwasdb#331; the reconcile report itself is unchanged and takes
+the version because the commands share one. With `trace` removed (#428) the
+version stays `2`, and is not reused.
 
 | Field | Contents |
 |---|---|
@@ -494,10 +270,12 @@ associations are in the Dense Component. Only the off-panel axis's unobserved
 entries raise `unobserved_axis_entries`, and unobserved entries are a `finding`,
 not an `error` -- the epic asks how many there are, not whether they are legal.
 
-`attribute`'s report is `schema: "ogstores.audit.attribute/1"`, with the same
+`attribute`'s report is `schema: "ogstores.audit.attribute/2"`, with the same
 `argv`, `started_at`, `finished_at`, `wall_seconds`, `runtime`, `store`,
 `inconsistencies`, `ok`, `error_count`, `finding_count`, `unchanged`,
-`resources` and `scope` fields as `reconcile`, plus:
+`resources` and `scope` fields as `reconcile`, plus the fields below. `/1`
+also carried `sample` and `scope.skipped`, which went with `trace` (#428). Its
+`scope` has no `skipped`, because nothing in it can be switched off.
 
 | Field | Contents |
 |---|---|
@@ -507,7 +285,6 @@ not an `error` -- the epic asks how many there are, not whether they are legal.
 | `contributors` | the Analysis and publication rankings by exclusive variants, associations and distinct variants, each with its metadata; the full per-Analysis and per-publication tables are written beside the evidence JSON as `analyses.tsv` and `publications.tsv`, with their `sha256` and row counts recorded in `contributors.tables` |
 | `concentration` | the leading contributors' exact union and share at prefixes 1, 2, 5, 10 and the last |
 | `allele_classes`, `chromosomes` | the union's shape |
-| `sample` | path, `sha256`, rows, columns, seed, rows by stratum, allele classes, the trace rows read, and the on-panel controls |
 | `resources` | band sizes, the support scan's band count, the variant table rows read, and peak RSS |
 
 ## Read-only
@@ -526,10 +303,7 @@ Three properties, all checked rather than promised:
    `.tmp` sibling can pre-exist as a file or a symlink for this run to truncate;
    an unguessable one cannot. The staged path is checked against the Store
    before a byte is written, and a symlink already at `--output` is replaced
-   rather than followed. `trace` additionally refuses an `--output` that resolves
-   to its `--sample`, its `--manifest` or any raw source file it located: those
-   are inputs, and an audit that overwrote one would destroy the row it was
-   tracing.
+   rather than followed.
 
 Large artifacts stay outside Git, under the deployment's evidence directory
 named in the ticket. Small reviewed reports may be committed.
@@ -577,7 +351,9 @@ hypotheses at admission and at source frequencies, not at axis bookkeeping.
 (`resources.max_rss_kb` 2,497,492), reading the 2,908,357,117-row Ragged body
 once (3,177 bands) and the 114,514,113-row Store Variant Table once, and
 writing nothing into the Store. Its evidence is
-`evidence/373/attribution.json` and `evidence/373/sample.tsv`.
+`evidence/373/attribution.json` and `evidence/373/sample.tsv`. That run wrote
+the seeded sample `trace` read; `attribute` no longer writes one (#428), and the
+sample paragraphs below are a record of that run.
 
 - **The attributed union is the census**: 101,098,177 off-panel variants over
   2,908,357,117 associations, equal to the axis complement and to the recorded
@@ -634,6 +410,10 @@ contributors does. Both are properties of the Store's panel, not of this
 sample.
 
 ### Trace
+
+*`trace` has been removed (#428): this is the record of its one run on
+OGS-00011, not a command to rerun. A build from opengwasdb 0.5.0 on writes the
+same evidence, for every dropped row, in its Admission record.*
 
 *Recorded at `opengwasdb` `5fc0766`, before the #331 admission amendment that
 stores #380 repins to (`7308c6a`). Read every `maf_missing` below as "the rule

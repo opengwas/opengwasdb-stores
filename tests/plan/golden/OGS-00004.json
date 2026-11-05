@@ -10,6 +10,8 @@
       "OGS-00004",
       "--release-id",
       "OGS-00004",
+      "--admission-record",
+      "/data/opengwasdb/stores/OGS-00004/store.opengwasdb.admission",
       "--variant-reference",
       "/data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz",
       "--source-reader-capability",

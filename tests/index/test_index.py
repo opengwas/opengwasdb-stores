@@ -676,7 +676,10 @@ class TestPublishedCompletionState(unittest.TestCase):
                     "generate.py --config=legacy-parent.yaml\t"
                     "opengwasdb build-dense-vcf /art/OGS-00042/work/analyses.tsv "
                     "/art/OGS-00042/store.opengwasdb --store-id OGS-00042 "
-                    "--release-id OGS-00042 --source-assembly hg38\t"
+                    "--release-id OGS-00042 "
+                    # Rendered from plan(), which names the record since #428.
+                    "--admission-record /art/OGS-00042/store.opengwasdb.admission "
+                    "--source-assembly hg38\t"
                     "0.2.0\t1\t1\t0\t100\t180\t4096\t12.5\tpassed\t"
                     "NA\tNA\tNA\tNA\tNA\tNA\tNA",
                     "OGS-00043\tlegacy-child\tdense\treference_completed\tbuilt\t"

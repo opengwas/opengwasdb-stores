@@ -1,0 +1,6 @@
+- **The `opengwasdb` engine moves from `v0.3.3` (`1f1e289`) to `v0.5.0` (`42850d8`), the merge of opengwasdb PR #353 (epic opengwas/opengwasdb#58).** The Store format stays 0.2.0, so the release guard's `REQUIRED_FORMAT_VERSION` does not move. What changes for this repository:
+  - every builder requires `--admission-record` (#428);
+  - `build-ragged-ssf` builds only rows that declare `source_genome_build` GRCh38, which all 4,453 rows of the five committed Ragged SSF bundles do (#429);
+  - the resolver refuses an Analysis whose effect contradicts its own p-value, and every Resolution Record is recomputed by the next resolve (#413).
+  - Association Admission (opengwasdb#357, ADR 0072) applies one admission rule on every build path. So a published Store rebuilt under `v0.5.0` is not byte-identical to the one it replaces. opengwasdb measured, for example, 963,922 z cells of OGS-00003 that change where a reversed indel pair now keeps its insertion, 21 rsids OGS-00006 gains, and conflicting duplicates OGS-00004, -05, -08 and -11 now drop. No published Store is rebuilt by this change.
+  - An interrupted `build-hybrid --checkpoint` (OGS-00011's recipe) or `complete-dense` checkpoint from an older engine cannot be resumed. None exists under `/data/opengwasdb/stores`.

@@ -51,11 +51,16 @@ def build_dense_store(store_path: Path, source_dir: Path, *, timeout: float | No
         ANALYSES_HEADER + f"fx1\t{vcf}\tTest Trait\t10000\tsd\tdeclared_standardised\t\tEUR\tsource_fallback\n",
         encoding="utf-8",
     )
+    # Every builder requires its Association Admission record's directory
+    # (opengwasdb#357, ADR 0072); the fixture keeps it beside its Store, where
+    # the builder's Python API would put it.
+    admission = store_path.with_name(f"{store_path.name}.admission")
     result = proc.run_group(
         [
             *_opengwasdb(), "build-dense-vcf", str(analyses), str(store_path),
             "--store-id", "OGS-00099", "--release-id", "OGS-00099",
             "--source-reader-capability", "opengwasdb.gwas-vcf", "--source-assembly", "hg38",
+            "--admission-record", str(admission),
         ],
         timeout=timeout,
     )

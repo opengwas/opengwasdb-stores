@@ -1,0 +1,1 @@
+- **The yardstick's fixture build passes `--admission-record` (opengwasdb#357).** Under opengwasdb 0.5.0, `build-dense-vcf` refuses to run without it, so the fixture Store the yardstick suite builds could not be built, and a yardstick run's `fixture_build` measure would have been recorded as `unavailable`. The fixture keeps the record beside its scratch Store.

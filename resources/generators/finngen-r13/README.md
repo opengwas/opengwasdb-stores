@@ -58,6 +58,33 @@ reader's rules for this format, replaced the dedicated reader here. Both the
 pin's built-in map and the resolver's `--column-map` landed before this
 release config did (#292), and the probe below proves the path end to end.
 
+**The map reads `pval` from opengwasdb 0.5.0 (#413, opengwasdb#345, ADR 0069).**
+The built-in `finngen-r13` map now declares `p_value = "pval"` with
+`p_value_form = "p"`. `pval` is SAIGE's two-sided p, and the map still does not
+read `mlogp`, its -log10. The resolver's effect-consistency check needs it. That
+check compares each row's stored z with its own p and refuses an Analysis whose
+median disagreement is more than one order of magnitude: see "Effect-consistency
+check" in the [GWAS Catalog EUR Hybrid README](../gwas-catalog-eur-hybrid/README.md).
+On 40 R13 endpoints every one is clean, with a largest median |Δ| of 5.5e-7.
+Three things follow:
+
+- **SE recovery.** Like any map that declares `p_value`, a row whose `sebeta`
+  is unusable and whose `pval` is usable now gets a standard error from the p
+  (opengwasdb ADR 0055, amended). The dedicated `opengwasdb.finngen-r13` reader
+  drops such a row, and it reads `pval` only for the check, never to derive an
+  SE. There are no such rows in 40 R13 endpoints (146M rows scanned).
+- **The checksum changes.** The map's sha256 moves from `997ff966…` (opengwasdb
+  0.3.0 to 0.4.x, the checksum the comparison below records) to
+  `31146b15…`. The release config binds the built-in map by name and by the
+  pinned package's checksum, and every Resolution Record read through the map
+  carries it. So the next resolve recomputes every FinnGen record (`--resume`
+  re-resolves rather than reuses), and the next candidate binds the new
+  checksum. No committed bundle binds the map: `OGS-00017` builds with the
+  dedicated reader.
+- **Refusals.** A refused endpoint's record is a `controlled_failure`, and
+  Manifest Generation excludes it as `resolution_failed`, with the record's
+  error as the detail.
+
 ## Running it
 
 ```sh
