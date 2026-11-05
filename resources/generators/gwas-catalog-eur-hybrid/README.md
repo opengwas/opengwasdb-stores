@@ -397,6 +397,69 @@ rules, so changing any of them makes the receipt stale. Manifest Generation's
 rules reject any `maf_threshold` value that is not literal `NaN` or a finite
 number in `[0, 0.5]`.
 
+### Effect-consistency check (#413, opengwasdb#345)
+
+From opengwasdb 0.4.0, `resolve-analyses` checks that an Analysis's effect
+agrees with its own source's p-value (opengwasdb ADR 0069,
+`docs/spec/resolver-effect-consistency.md` there). It catches a `beta` column
+that holds odds ratios, or an `odds_ratio` column that holds log-odds, which
+resolved without complaint before. It samples the rows the build would admit
+that have a usable effect and SE, a source p in `(0, 1]`, and an SE *not*
+derived from that p (opengwasdb ADR 0055). The sample is deterministic: the
+`evidence_sample` rows (default 20,000) with the lowest `site_hash`. For each
+row it compares the p implied by the stored z (`beta / se`) with the reported
+p, as `Δ = log10 p_implied − log10 p_source`, and takes the median.
+
+The measurement is recorded beside the other diagnostics, as
+`diagnostics.effect_consistency`:
+
+| field | meaning |
+|---|---|
+| `n_rows_considered` | comparable rows the scan saw, before the sample bound |
+| `n_rows_compared` | rows in the bounded sample the medians are over; `0` for a skip |
+| `sampled` | whether the bound left comparable rows out |
+| `median_abs_delta` | the refusal statistic, median \|Δ\|; `null` for a skip |
+| `median_delta` | median signed Δ; negative means the implied p is smaller than the reported one, so the stored z is too large; `null` for a skip |
+| `skip_reason` | `null` when compared; otherwise why nothing was compared (below) |
+| `refused` | whether `median_abs_delta` exceeded the threshold |
+
+A record whose scan did not complete has `diagnostics.effect_consistency:
+null`. That is no measurement, which is not the same as a skip: a skip is a
+fact about a source that was read. The threshold and the minimum row count the
+verdict was drawn under are fingerprinted, as
+`fingerprints.resolution_config.effect_consistency: {max_median_abs_delta: 1.0,
+min_compared_rows: 50}`. The resolver has no CLI flag for either, so this
+pipeline always runs the defaults.
+
+- **A refusal.** When `median_abs_delta` exceeds 1.0 (one order of magnitude),
+  the record has `status: controlled_failure` and `refused: true`. Its `error`
+  names the median |Δ|, the median signed Δ, the row count and the threshold.
+  `render` excludes the Analysis as `resolution_failed`, with that error as the
+  detail, as it excludes any controlled failure. A `controlled_failure` record
+  is always re-run, never reused. The source stays out until it is repaired
+  or its Column Map remapped.
+- **`skip_reason`.** A skip refuses nothing. The Analysis goes on with no
+  effect-consistency evidence:
+  - `no_source_p_value`: no admitted row has a usable p, because there is no
+    p column, no value in `(0, 1]`, or the reader carries none (GWAS-VCF and
+    BESD, for now);
+  - `all_se_from_p_value`: every row's SE was derived from its p, so the
+    comparison would be circular;
+  - `too_few_rows`: fewer than 50 rows were compared.
+- **Records resolved before the check** keep `record_schema_version` 1, but
+  their fingerprint digest differs. The next resolve of every Source Collection
+  recomputes them under `--resume` rather than reusing them, and the Resolution
+  Area keeps the new records beside the old.
+
+On OGS-00011's 4,783 sources the check refuses 4 (0.1%):
+- `GCST002047` (median |Δ| 1,732) and `GCST004461` (247), the two cases #403
+  named;
+- `GCST90503316` (813) and `GCST90165257` (12.9), which the check found (#412).
+
+The largest clean source is 0.346. A regenerated OGS-00011 candidate therefore
+excludes those four as `resolution_failed`, unless they are repaired or
+remapped first.
+
 ### Store composition (#203)
 
 `release_policy.store_composition.require_maf_filtered` is an optional release-config
