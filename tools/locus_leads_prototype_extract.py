@@ -50,6 +50,8 @@ STRONG_PEAK_FROM = 100.0
 TRACER_POINT = (0.5, 1_000_000)
 # #403's named point, and the window the owner chose for `n_loci_*`.
 NAMED_POINT = (BP_ONLY, 10_000_000)
+# The Top-Hit tier every sweep reads, and #406 fixed its budget on.
+TIER = 5e-08
 MAPS = ("pyrho-mean", "pyrho-median", "hapmap2")
 ANCESTRIES = ("EUR", "AFR", "EAS", "AMR")
 NEAR_BAND = "<=1Mb"
@@ -530,6 +532,7 @@ def extract_eur(engine: Engine) -> dict[str, Any]:
         },
         "per_analysis": [{key: a[key] for key in ("analysis_id", "max_abs_z", "index_variants",
                                                    "lost_rate_tracer_point")} for a in per_analysis],
+        "spike_count": len(sweep["spikes"]),
         "spikes": [{"population": s["population"], "chromosome": s["chromosome"], "position": s["position"],
                     "interval_bp": s["interval_bp"], "population_cm": s["population_cm"],
                     "mean_map_cm": s["mean_map_cm"]} for s in sweep["spikes"]],
@@ -548,6 +551,8 @@ def extract_maps(engine: Engine) -> dict[str, Any]:
         summary = counts_summary(record["counts"])
         at_tracer = point(record["per_lead"], *TRACER_POINT)["by_r2"][R2_PRIMARY]
         dropped = record["genetic_map"].get("dropped_to_a_non_decreasing_cM")
+        best = record["best_by_per_lead"]
+        best_point = (best["d_cm"], best["w_bp"]) if best["qualifies"] else (best["nearest_d_cm"], best["nearest_w_bp"])
         out.append({
             "name": name, "total_cm": maps["map_measurements"][name]["total_cM"],
             "spike_gain_cm": [{"chromosome": s["chromosome"], "cm_gain": s["cm_gain"]}
@@ -559,6 +564,9 @@ def extract_maps(engine: Engine) -> dict[str, Any]:
             "named": summary["named"], "named_cm": summary["named_cm"],
             "largest_rho_gain": summary["largest_rho_gain"]["delta_rho"],
             "tracer_point": rates(at_tracer),
+            "best_per_lead": {"qualifies": record["best_by_per_lead"]["qualifies"],
+                              "d_cm": best_point[0], "w_bp": best_point[1]}
+            | rates(point(record["per_lead"], *best_point)["by_r2"][R2_PRIMARY]),
         })
     named = {(m["named"]["d_cm"], m["named"]["w_bp"]) if m["named"] else None for m in out}
     return {
@@ -665,8 +673,15 @@ def extract_ancestries(engine: Engine, eur: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+def require_ratio(ratio: float, numerator: float, denominator: float, where: str) -> None:
+    """A ratio #406 publishes must follow from the two times it publishes beside it (all rounded)."""
+    require(math.isclose(ratio, numerator / denominator, rel_tol=1e-3, abs_tol=1e-4),
+            f"{where}: {ratio!r} published, {numerator!r} / {denominator!r} = {numerator / denominator!r}")
+
+
 def extract_cost(engine: Engine) -> dict[str, Any]:
     cost, _ = engine.read("cost.json", "#406")
+    _, _, selection = eur_inputs(engine)
     provenance = cost["provenance"]
     loads: list[dict[str, float]] = []
 
@@ -686,6 +701,16 @@ def extract_cost(engine: Engine) -> dict[str, Any]:
     for s in cost["slices"]:
         stages, budget, ratio, rows = s["stages"], s["budget"], s["ratio"], s["rows"]
         over = over_abs_z(rows)
+        where = f"#406 {s['name']}"
+        # Two workloads: the full tier a query returns (budget) and the shared set both methods see (ratio).
+        require_ratio(budget["ratio"], budget["pruning_s"], budget["query_s"], f"{where} budget.ratio")
+        require_ratio(budget["fast_ratio"], budget["fast_pruning_s"], budget["query_s"], f"{where} budget.fast_ratio")
+        require_ratio(budget["fast_ratio_of_resolved"], budget["fast_pruning_s"], budget["resolved_query_s"],
+                      f"{where} budget.fast_ratio_of_resolved")
+        for rule, key, seconds in (("as written", "ratios", "pruning_s"), ("block", "ratios_fast", "fast_pruning_s")):
+            for bill, clump in (("plink2_only", "plink2_s"), ("end_to_end", "end_to_end_s")):
+                require_ratio(ratio[key][bill], ratio[seconds], ratio["clumping"][clump],
+                              f"{where} ratio.{key}.{bill} ({rule})")
         slices.append({
             "name": s["name"], "store": s["store"]["store_id"], "analysis_id": s["analysis_id"],
             "threshold": s["threshold"], "tier": rows["tier"],
@@ -703,8 +728,11 @@ def extract_cost(engine: Engine) -> dict[str, Any]:
             "fast_ratio_of_resolved": budget["fast_ratio_of_resolved"],
             "resolved_query_peak_mb": stages["resolved_query"]["peak_mb"],
             "resolved_query_start_mb": stages["resolved_query"]["rss_start_mb"],
+            "shared_rows": ratio["rows"], "shared_pruning_s": ratio["pruning_s"],
+            "shared_fast_pruning_s": ratio["fast_pruning_s"],
             "plink2_s": ratio["clumping"]["plink2_s"], "clumping_end_to_end_s": ratio["clumping"]["end_to_end_s"],
             "ratio_plink2": ratio["ratios"]["plink2_only"], "ratio_fast_plink2": ratio["ratios_fast"]["plink2_only"],
+            "ratio_fast_end_to_end": ratio["ratios_fast"]["end_to_end"],
         })
     ranges = {}
     for rule, key in (("as_written", "ratios"), ("fast", "ratios_fast")):
@@ -712,6 +740,14 @@ def extract_cost(engine: Engine) -> dict[str, Any]:
             values = [s["ratio"][key][bill] for s in cost["slices"]]
             ranges[f"{rule}_{bill}"] = {"min": min(values), "max": max(values),
                                        "cheaper_min": 1 / max(values), "cheaper_max": 1 / min(values)}
+    # The timed Analyses #403's draw excluded for their row count, by their 5e-8 tier.
+    excluded = {e["analysis_id"] for e in selection["excluded_over_max_rows"]}
+    artefacts = [{"analysis_id": s["analysis_id"], "store": s["store"], "tier": s["tier"],
+                  "over_abs_z": s["over_abs_z"], "rows_abs_z_over": s["rows_abs_z_over"],
+                  "share_abs_z_over": s["share_abs_z_over"]}
+                 for s in slices if s["analysis_id"] in excluded and s["threshold"] == TIER]
+    require(sorted(a["analysis_id"] for a in artefacts) == sorted(excluded),
+            f"#406 timed {sorted(a['analysis_id'] for a in artefacts)} of #403's excluded {sorted(excluded)}")
     largest = max(cost["per_variant_cm"], key=lambda p: p["variants"])
     cm_bytes = largest["variants"] * dtype_bytes(largest["cm_dtype"])
     params = cost["parameters"]
@@ -732,6 +768,8 @@ def extract_cost(engine: Engine) -> dict[str, Any]:
                            "read_s": largest["stages"]["read_variant_table"]["median_s"],
                            "interpolate_s": largest["stages"]["interpolate"]["median_s"]},
         "slices": slices,
+        "largest_by_rows": max(slices, key=lambda s: s["tier"])["name"],
+        "artefact_analyses": artefacts,
         "ratio_ranges": ranges,
         "every_fast_rule_identical": all(s["leads"]["identical_fast_rule"] for s in cost["slices"]),
         "slices_within_budget": sum(s["budget"]["within_budget"] for s in cost["slices"]),
@@ -795,7 +833,9 @@ def extract_profile(engine: Engine) -> dict[str, Any]:
         "narrow_bin_ratio_max": max(r["median_ratio"] for r in narrow),
         "narrow_bin_rules": len(narrow),
         "narrow_bin_c2_met": sum(r["c2"] for r in narrow),
-        "c3_anywhere": [{"label": r["label"], "w_bp": w} for r in rules for w in r["c3_holds_at_w"]],
+        "c3_anywhere": [{"label": rule["label"], "w_bp": c["w_bp"], "delta_rho": c["delta_rho"],
+                         "delta_abs_log2": c["delta_abs_log2"]}
+                        for rule in judgement["rules"] for c in rule["c3"] if c["c3"]],
         "valleys": {"no_row_valleys": profile["valley_cells"]["no_row_valleys"],
                     "by_bin": [{"bin_bp": int(b), "sampled": v["valleys"], "share_gap": v["share_gap"],
                                 "stop_rule_trips": v["stop_rule_trips"]}

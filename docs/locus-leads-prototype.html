@@ -2265,7 +2265,7 @@ vertical-align: -.125em;
 <section id="question-and-result" class="level2">
 <h2 class="anchored" data-anchor-id="question-and-result">Question and result</h2>
 <p><code>n_hits_*</code>, the Top-Hit Counts in a Store’s <code>analyses.tsv</code>, count an Analysis’s associations past each significance threshold. They mix two things: how many loci an Analysis has, and how densely its variant axis is typed. A Reference-Completed Store and a HapMap3-density Store give the same locus very different hit counts. opengwas/opengwasdb#62 proposed a second count beside them, <code>n_loci_*</code>, that counts <strong>Locus Leads</strong>: one lead per locus, chosen by a pruning rule that uses genetic distance in centimorgans (cM) as a stand-in for linkage disequilibrium (LD) clumping, so that neither a build nor a query needs an LD reference panel. This report gathers what the prototype tickets found when they held that rule against real plink2 clumping.</p>
-<p><strong>Result.</strong> For European (EUR) Analyses, a count of Locus Leads ranks Analyses as the count of clumps does, and it is far less sensitive to variant density than a count of hits. But for EUR and East Asian (EAS) Analyses a plain base-pair (bp) window does as well as any genetic-distance rule, and no rule agrees with clumping lead by lead. The owner has therefore decided that <code>n_loci_*</code> uses a bp-only window of 10 Mb for EUR and EAS, with no cM condition and no per-variant cM array, and that African (AFR) and admixed American (AMR) Analyses get no <code>n_loci_*</code> until they are calibrated. Whether pruning also runs per query is still open.</p>
+<p><strong>Result.</strong> For European (EUR) Analyses, a count of Locus Leads ranks Analyses as the count of clumps does, and it is far less sensitive to variant density than a count of hits. But for EUR and East Asian (EAS) Analyses a plain base-pair (bp) window does as well as any genetic-distance rule, and no rule agrees with clumping lead by lead. The owner has therefore decided that <code>n_loci_*</code> uses a bp-only window of 10 Mb (megabases, millions of bp) for EUR and EAS, with no cM condition and no per-variant cM array, and that African (AFR) and admixed American (AMR) Analyses get no <code>n_loci_*</code> until they are calibrated. Whether pruning also runs per query is still open.</p>
 <p>The prototype’s code is throwaway; it lives in the engine’s <code>prototypes/locus_leads/</code> on the integration branch <code>orch/62-locus-leads</code>. Its outputs were committed under <code>docs/benchmark-output/locus_leads/</code>, and every number below is read from them at engine commit 06d1a43 (see <a href="#reproduce">Reproduce</a>).</p>
 </section>
 <section id="the-question" class="level2">
@@ -2426,7 +2426,7 @@ vertical-align: -.125em;
 </section>
 <section id="the-reference-plink2-clumping" class="level3">
 <h3 class="anchored" data-anchor-id="the-reference-plink2-clumping">The reference: plink2 clumping</h3>
-<p>Clumping runs <code>plink2 --clump</code> on the HGDP+1kGP genotype panels (the Human Genome Diversity Project and 1000 Genomes samples, as gnomAD released them), split by super-population, each Analysis against its own ancestry’s panel: index p 5×10<sup>−8</sup>, a window of 10,000 kb, and r² computed unphased because the panels carry no phase. plink2 is given −log10 p computed from z, with equal values separated in the rule’s order, so both methods rank rows identically even where p underflows.</p>
+<p>Clumping runs <code>plink2 --clump</code> on the HGDP+1kGP genotype panels (the Human Genome Diversity Project and 1000 Genomes samples, as gnomAD released them), split by super-population, each Analysis against its own ancestry’s panel: index p 5×10<sup>−8</sup>, a window of 10,000 kb (kilobases, thousands of bp), and r² computed unphased because the panels carry no phase. plink2 is given −log10 p computed from z, with equal values separated in the rule’s order, so both methods rank rows identically even where p underflows.</p>
 <p>The primary threshold is <strong>r² 0.01</strong>; r² 0.001, the old OpenGWAS default, is reported beside it. The panels are small (EUR 771, AFR 804, EAS 817 and AMR 345 samples), and at these sizes unlinked variants reach a low r² by chance. Among variant pairs on different chromosomes in the EUR panel, 42.0% reach r² 0.001 and 1.16% reach r² 0.01. So r² 0.001 mostly measures noise at this sample size, and r² 0.01 is the reference every criterion is judged against.</p>
 </section>
 <section id="the-shared-set" class="level3">
@@ -2444,7 +2444,7 @@ vertical-align: -.125em;
 <li>Reading of C3: at a W, C3 holds when some D improves on that W’s bp-only by at least one margin and is worse on neither by more than its margin; the D that do are listed.</li>
 <li>The point named: the (D, W), bp-only included, that meets C1 and C2 and has the smallest pooled share of leads lost to density, sum over Analyses of max(0, leads(full) - leads(HM3)) / sum of leads(full); the best cM point is named the same way.</li>
 </ul>
-<p>HapMap3 (HM3 in the criteria) here is the list of 1,206,903 HapMap3 variants on GRCh38, standing in for a sparse variant axis such as a HapMap3-density Store’s. A rule that is insensitive to variant density finds about as many loci on it as on the full shared set.</p>
+<p>HapMap3 (HM3 in the criteria) here is the list of 1,206,903 HapMap3 variants on GRCh38 (the Genome Reference Consortium’s human build 38, the assembly every Store, map and panel here uses), standing in for a sparse variant axis such as a HapMap3-density Store’s. A rule that is insensitive to variant density finds about as many loci on it as on the full shared set.</p>
 </section>
 </section>
 <section id="results-by-ticket" class="level2">
@@ -2666,20 +2666,21 @@ vertical-align: -.125em;
 <div class="cell">
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
-<caption>The EUR maps on #403’s Analyses, shared set and grid. Per-lead rates are at r² 0.01; the spike column is the cM each map puts across the intervals where the pyrho mean jumps.</caption>
+<caption>The EUR maps on #403’s Analyses, shared set and grid. The best per-lead point is #403’s: the qualifying (D, W) with the lowest disagreement or, when none qualifies, the one whose larger rate is smallest. Per-lead rates are at r² 0.01; the spike column is the cM each map puts across the intervals where the pyrho mean jumps.</caption>
 <colgroup>
 <col style="width: 4%">
+<col style="width: 4%">
+<col style="width: 3%">
+<col style="width: 3%">
+<col style="width: 3%">
 <col style="width: 5%">
-<col style="width: 4%">
-<col style="width: 4%">
-<col style="width: 4%">
-<col style="width: 6%">
-<col style="width: 9%">
-<col style="width: 11%">
 <col style="width: 8%">
-<col style="width: 13%">
-<col style="width: 13%">
-<col style="width: 13%">
+<col style="width: 9%">
+<col style="width: 7%">
+<col style="width: 15%">
+<col style="width: 11%">
+<col style="width: 11%">
+<col style="width: 11%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -2692,6 +2693,7 @@ vertical-align: -.125em;
 <th style="text-align: left;">its leads lost to density</th>
 <th style="text-align: left;">best cM point (lost to density)</th>
 <th style="text-align: left;">largest Δρ over bp-only</th>
+<th style="text-align: left;">best per-lead point: spurious / lost</th>
 <th style="text-align: left;">spurious / lost at D 0.5 cM, W 1 Mb</th>
 <th style="text-align: left;">cM gained across the spike intervals</th>
 <th style="text-align: left;">shared-set rows clamped at a map end</th>
@@ -2708,6 +2710,7 @@ vertical-align: -.125em;
 <td style="text-align: left;">4.8%</td>
 <td style="text-align: left;">D 2.5 cM, W 10 Mb (9.3%)</td>
 <td style="text-align: left;">+0.0150</td>
+<td style="text-align: left;">D 0.1 cM, W 2.5 Mb (none qualifies): 32.3% / 27.6%</td>
 <td style="text-align: left;">11.6% / 42.7%</td>
 <td style="text-align: left;">chr7 18.601; chr1 6.762</td>
 <td style="text-align: left;">1</td>
@@ -2722,6 +2725,7 @@ vertical-align: -.125em;
 <td style="text-align: left;">4.8%</td>
 <td style="text-align: left;">D 2.5 cM, W 10 Mb (9.0%)</td>
 <td style="text-align: left;">+0.0141</td>
+<td style="text-align: left;">D 0.1 cM, W 2.5 Mb (none qualifies): 30.9% / 27.9%</td>
 <td style="text-align: left;">11.6% / 43.3%</td>
 <td style="text-align: left;">chr7 0.084; chr1 0.058</td>
 <td style="text-align: left;">1</td>
@@ -2736,6 +2740,7 @@ vertical-align: -.125em;
 <td style="text-align: left;">4.8%</td>
 <td style="text-align: left;">D 2.5 cM, W 10 Mb (10.5%)</td>
 <td style="text-align: left;">+0.0160</td>
+<td style="text-align: left;">D 0.25 cM, W 1 Mb (none qualifies): 20.9% / 31.2%</td>
 <td style="text-align: left;">13.0% / 37.9%</td>
 <td style="text-align: left;">chr7 0.055; chr1 0.085</td>
 <td style="text-align: left;">325</td>
@@ -2961,22 +2966,21 @@ vertical-align: -.125em;
 <p><strong>Criteria.</strong> Every number in the run’s output with the machine, date and commit; pruning against clumping as a ratio for the same Analyses; and whether query-time pruning of the largest slice is fast enough per query. The budget, fixed before measuring, was: pruning runs per query when its stages cost no more than the query they follow (fast_ratio &lt;= 1), so the reader waits at most twice as long. <strong>Met</strong>; the answer to the last is no.</p>
 <p>The run was on 2026-11-06, on Intel(R) Xeon(R) Platinum 8480+ (224 cores), at engine commit <code>421433f</code>, with 3 repeats of each stage, the rule at D 0.5 cM, W 1 Mb, and plink2 on 4 threads.</p>
 <p><strong>Building the cM array.</strong> For OGS-00011’s 48,069,918 variants, reading chromosome and position from the Store Variant Table took 21.7 s and interpolating cM 9.3 s. The per-variant chromosome, position and cM arrays together take 433 MB, the cM array alone 192 MB, and 1,525,683 variants on MT, X, Y have no cM.</p>
+<p>#406 timed two workloads, and each table below holds one. <strong>Per query</strong> is the whole tier a Top-Hit Query returns, imputed rows included: this is what a per-query option would prune. <strong>Against clumping</strong> is the shared set of the same Analysis, the rows both methods can see: this is where pruning and clumping do the same job. Each ratio follows from the two times beside it.</p>
 <div class="cell">
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
-<caption>Pruning and clumping on the same slices, medians of the repeats. Pruning as written reads positions from the Store Variant Table; the block-at-a-time rule gives identical leads and reads per-variant position and cM arrays. Clumping end to end includes matching the rows to the panel.</caption>
+<caption>Per query, on the whole tier: what pruning adds to the query it follows. Medians of the repeats. Pruning as written reads positions from the Store Variant Table; the block-at-a-time rule gives the same leads and reads per-variant position and cM arrays.</caption>
 <colgroup>
-<col style="width: 15%">
-<col style="width: 4%">
-<col style="width: 5%">
-<col style="width: 7%">
-<col style="width: 10%">
-<col style="width: 19%">
+<col style="width: 24%">
+<col style="width: 6%">
+<col style="width: 8%">
+<col style="width: 12%">
 <col style="width: 10%">
 <col style="width: 4%">
-<col style="width: 7%">
-<col style="width: 7%">
-<col style="width: 7%">
+<col style="width: 20%">
+<col style="width: 4%">
+<col style="width: 9%">
 </colgroup>
 <thead>
 <tr class="header">
@@ -2984,13 +2988,11 @@ vertical-align: -.125em;
 <th style="text-align: left;">tier rows</th>
 <th style="text-align: left;">Top-Hit Query</th>
 <th style="text-align: left;">same query, resolved</th>
-<th style="text-align: left;">pruning as written (× query)</th>
-<th style="text-align: left;">pruning, block rule with per-variant arrays (× query)</th>
-<th style="text-align: left;">block rule ÷ resolved query</th>
-<th style="text-align: left;">plink2 alone</th>
-<th style="text-align: left;">clumping, end to end</th>
-<th style="text-align: left;">as written ÷ plink2</th>
-<th style="text-align: left;">block rule ÷ plink2</th>
+<th style="text-align: left;">pruning as written</th>
+<th style="text-align: left;">÷ query</th>
+<th style="text-align: left;">block rule with per-variant arrays</th>
+<th style="text-align: left;">÷ query</th>
+<th style="text-align: left;">÷ resolved query</th>
 </tr>
 </thead>
 <tbody>
@@ -2999,101 +3001,195 @@ vertical-align: -.125em;
 <td style="text-align: left;">9,429,671</td>
 <td style="text-align: left;">2.65 s</td>
 <td style="text-align: left;">42.82 s</td>
-<td style="text-align: left;">29.67 s (11.2×)</td>
-<td style="text-align: left;">4.13 s (1.56×)</td>
+<td style="text-align: left;">29.67 s</td>
+<td style="text-align: left;">11.2×</td>
+<td style="text-align: left;">4.13 s</td>
+<td style="text-align: left;">1.56×</td>
 <td style="text-align: left;">0.096</td>
-<td style="text-align: left;">11.31 s</td>
-<td style="text-align: left;">48.30 s</td>
-<td style="text-align: left;">0.669</td>
-<td style="text-align: left;">0.229</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">OGS-00011 GCST004461 at 5×10<sup>−4</sup></td>
 <td style="text-align: left;">10,087,639</td>
 <td style="text-align: left;">2.39 s</td>
 <td style="text-align: left;">47.52 s</td>
-<td style="text-align: left;">35.38 s (14.8×)</td>
-<td style="text-align: left;">4.60 s (1.93×)</td>
+<td style="text-align: left;">35.38 s</td>
+<td style="text-align: left;">14.8×</td>
+<td style="text-align: left;">4.60 s</td>
+<td style="text-align: left;">1.93×</td>
 <td style="text-align: left;">0.097</td>
-<td style="text-align: left;">12.55 s</td>
-<td style="text-align: left;">51.60 s</td>
-<td style="text-align: left;">0.473</td>
-<td style="text-align: left;">0.141</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">OGS-00012 GCST90475362 at 5×10<sup>−4</sup></td>
 <td style="text-align: left;">2,755,733</td>
 <td style="text-align: left;">0.50 s</td>
 <td style="text-align: left;">14.82 s</td>
-<td style="text-align: left;">8.49 s (17.0×)</td>
-<td style="text-align: left;">1.87 s (3.74×)</td>
+<td style="text-align: left;">8.49 s</td>
+<td style="text-align: left;">17.0×</td>
+<td style="text-align: left;">1.87 s</td>
+<td style="text-align: left;">3.74×</td>
 <td style="text-align: left;">0.126</td>
-<td style="text-align: left;">6.34 s</td>
-<td style="text-align: left;">38.94 s</td>
-<td style="text-align: left;">0.394</td>
-<td style="text-align: left;">0.248</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">OGS-00012 GCST90475362 at 5×10<sup>−8</sup></td>
 <td style="text-align: left;">927,929</td>
 <td style="text-align: left;">0.35 s</td>
 <td style="text-align: left;">4.06 s</td>
-<td style="text-align: left;">2.74 s (7.9×)</td>
-<td style="text-align: left;">1.17 s (3.36×)</td>
+<td style="text-align: left;">2.74 s</td>
+<td style="text-align: left;">7.9×</td>
+<td style="text-align: left;">1.17 s</td>
+<td style="text-align: left;">3.36×</td>
 <td style="text-align: left;">0.287</td>
-<td style="text-align: left;">3.45 s</td>
-<td style="text-align: left;">35.34 s</td>
-<td style="text-align: left;">0.433</td>
-<td style="text-align: left;">0.319</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">OGS-00011 GCST90245992 at 5×10<sup>−8</sup></td>
 <td style="text-align: left;">632,889</td>
 <td style="text-align: left;">0.41 s</td>
 <td style="text-align: left;">3.38 s</td>
-<td style="text-align: left;">2.00 s (4.9×)</td>
-<td style="text-align: left;">1.13 s (2.80×)</td>
+<td style="text-align: left;">2.00 s</td>
+<td style="text-align: left;">4.9×</td>
+<td style="text-align: left;">1.13 s</td>
+<td style="text-align: left;">2.80×</td>
 <td style="text-align: left;">0.335</td>
-<td style="text-align: left;">2.06 s</td>
-<td style="text-align: left;">25.52 s</td>
-<td style="text-align: left;">0.130</td>
-<td style="text-align: left;">0.415</td>
 </tr>
 <tr class="even">
 <td style="text-align: left;">OGS-00011 GCST002047 at 5×10<sup>−8</sup></td>
 <td style="text-align: left;">2,314,363</td>
 <td style="text-align: left;">0.88 s</td>
 <td style="text-align: left;">11.24 s</td>
-<td style="text-align: left;">6.69 s (7.6×)</td>
-<td style="text-align: left;">1.20 s (1.37×)</td>
+<td style="text-align: left;">6.69 s</td>
+<td style="text-align: left;">7.6×</td>
+<td style="text-align: left;">1.20 s</td>
+<td style="text-align: left;">1.37×</td>
 <td style="text-align: left;">0.107</td>
-<td style="text-align: left;">8.06 s</td>
-<td style="text-align: left;">37.99 s</td>
-<td style="text-align: left;">0.452</td>
-<td style="text-align: left;">0.147</td>
 </tr>
 <tr class="odd">
 <td style="text-align: left;">OGS-00003 finngen-r13-BMI_IRN at 5×10<sup>−8</sup></td>
 <td style="text-align: left;">55,460</td>
 <td style="text-align: left;">0.12 s</td>
 <td style="text-align: left;">0.50 s</td>
-<td style="text-align: left;">0.36 s (3.0×)</td>
-<td style="text-align: left;">0.24 s (2.05×)</td>
+<td style="text-align: left;">0.36 s</td>
+<td style="text-align: left;">3.0×</td>
+<td style="text-align: left;">0.24 s</td>
+<td style="text-align: left;">2.05×</td>
 <td style="text-align: left;">0.481</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="cell-output-display">
+<table class="caption-top table table-sm table-striped small">
+<caption>Against clumping, on the shared set of the same Analysis: pruning (the cM lookup and the rule) and clumping on the same rows. Clumping end to end includes matching the rows to the panel.</caption>
+<colgroup>
+<col style="width: 22%">
+<col style="width: 8%">
+<col style="width: 10%">
+<col style="width: 5%">
+<col style="width: 6%">
+<col style="width: 11%">
+<col style="width: 10%">
+<col style="width: 10%">
+<col style="width: 12%">
+</colgroup>
+<thead>
+<tr class="header">
+<th style="text-align: left;">slice</th>
+<th style="text-align: left;">shared-set rows</th>
+<th style="text-align: left;">pruning as written</th>
+<th style="text-align: left;">block rule</th>
+<th style="text-align: left;">plink2 alone</th>
+<th style="text-align: left;">clumping, end to end</th>
+<th style="text-align: left;">as written ÷ plink2</th>
+<th style="text-align: left;">block rule ÷ plink2</th>
+<th style="text-align: left;">block rule ÷ end to end</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td style="text-align: left;">OGS-00011 GCST004461 at 5×10<sup>−8</sup></td>
+<td style="text-align: left;">3,527,954</td>
+<td style="text-align: left;">7.56 s</td>
+<td style="text-align: left;">2.59 s</td>
+<td style="text-align: left;">11.31 s</td>
+<td style="text-align: left;">48.30 s</td>
+<td style="text-align: left;">0.669</td>
+<td style="text-align: left;">0.229</td>
+<td style="text-align: left;">0.054</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">OGS-00011 GCST004461 at 5×10<sup>−4</sup></td>
+<td style="text-align: left;">3,529,871</td>
+<td style="text-align: left;">5.93 s</td>
+<td style="text-align: left;">1.77 s</td>
+<td style="text-align: left;">12.55 s</td>
+<td style="text-align: left;">51.60 s</td>
+<td style="text-align: left;">0.473</td>
+<td style="text-align: left;">0.141</td>
+<td style="text-align: left;">0.034</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">OGS-00012 GCST90475362 at 5×10<sup>−4</sup></td>
+<td style="text-align: left;">1,735,661</td>
+<td style="text-align: left;">2.50 s</td>
+<td style="text-align: left;">1.57 s</td>
+<td style="text-align: left;">6.34 s</td>
+<td style="text-align: left;">38.94 s</td>
+<td style="text-align: left;">0.394</td>
+<td style="text-align: left;">0.248</td>
+<td style="text-align: left;">0.040</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">OGS-00012 GCST90475362 at 5×10<sup>−8</sup></td>
+<td style="text-align: left;">763,450</td>
+<td style="text-align: left;">1.49 s</td>
+<td style="text-align: left;">1.10 s</td>
+<td style="text-align: left;">3.45 s</td>
+<td style="text-align: left;">35.34 s</td>
+<td style="text-align: left;">0.433</td>
+<td style="text-align: left;">0.319</td>
+<td style="text-align: left;">0.031</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">OGS-00011 GCST90245992 at 5×10<sup>−8</sup></td>
+<td style="text-align: left;">114,148</td>
+<td style="text-align: left;">0.27 s</td>
+<td style="text-align: left;">0.86 s</td>
+<td style="text-align: left;">2.06 s</td>
+<td style="text-align: left;">25.52 s</td>
+<td style="text-align: left;">0.130</td>
+<td style="text-align: left;">0.415</td>
+<td style="text-align: left;">0.034</td>
+</tr>
+<tr class="even">
+<td style="text-align: left;">OGS-00011 GCST002047 at 5×10<sup>−8</sup></td>
+<td style="text-align: left;">2,245,120</td>
+<td style="text-align: left;">3.64 s</td>
+<td style="text-align: left;">1.18 s</td>
+<td style="text-align: left;">8.06 s</td>
+<td style="text-align: left;">37.99 s</td>
+<td style="text-align: left;">0.452</td>
+<td style="text-align: left;">0.147</td>
+<td style="text-align: left;">0.031</td>
+</tr>
+<tr class="odd">
+<td style="text-align: left;">OGS-00003 finngen-r13-BMI_IRN at 5×10<sup>−8</sup></td>
+<td style="text-align: left;">47,457</td>
+<td style="text-align: left;">0.05 s</td>
+<td style="text-align: left;">0.22 s</td>
 <td style="text-align: left;">1.79 s</td>
 <td style="text-align: left;">31.37 s</td>
 <td style="text-align: left;">0.030</td>
 <td style="text-align: left;">0.125</td>
+<td style="text-align: left;">0.007</td>
 </tr>
 </tbody>
 </table>
 </div>
 </div>
 <ul>
-<li><strong>Against clumping, pruning is cheaper on every slice.</strong> Divided by plink2 alone, the rule as written costs 0.030–0.669 of clumping (1.5×–34× cheaper), and the block rule 0.125–0.415. Against clumping end to end, which must first match rows to the panel, the block rule is 19×–141× cheaper.</li>
-<li><strong>Per query, it misses the budget on 7 of 7 slices.</strong> On the largest slice (GCST004461, 9,429,671 rows), the Top-Hit Query takes 2.65 s. Pruning as written takes 29.67 s (11.2× the query), of which reading positions from the Store Variant Table takes 13.7 s, against 0.097 s from a per-variant array. The block rule with per-variant arrays takes 4.13 s (1.56× the bare query, but 0.096 of the resolved query a reader actually waits for, 42.8 s). The resolved query’s own peak memory was 12,737 MB, from 2,451 MB already resident.</li>
+<li><strong>Against clumping, on the shared set, pruning is cheaper on every slice.</strong> Divided by plink2 alone, the rule as written costs 0.030–0.669 of clumping’s time (1.5×–34× cheaper), and the block rule 0.125–0.415. Against clumping end to end, which must first match rows to the panel, the block rule is 19×–141× cheaper.</li>
+<li><strong>Per query, on the whole tier, it misses the budget on 7 of 7 slices.</strong> #406 reported its budget on GCST004461’s 5×10<sup>−8</sup> tier (9,429,671 rows), where the Top-Hit Query takes 2.65 s. Pruning as written takes 29.67 s (11.2× the query), of which reading positions from the Store Variant Table takes 13.7 s, against 0.097 s from a per-variant array. The block rule with per-variant arrays takes 4.13 s (1.56× the bare query, but 0.096 of the resolved query a reader actually waits for, 42.8 s). The resolved query’s own peak memory was 12,737 MB, from 2,451 MB already resident. The largest slice by rows is its 5×10<sup>−4</sup> tier (10,087,639 rows): query 2.39 s, pruning as written 35.38 s (14.8×), block rule 4.60 s (1.93× the query, 0.097 of the resolved query).</li>
 <li>On every slice, the block rule gives the same leads as the rule as written.</li>
-<li><strong>Two slices are artefact-like.</strong> GCST004461 has 3,652,412 of its 9,429,671 tier rows past |z| 38, and GCST002047 has 2,223,172 of its 2,314,363. They are timed for cost only; #403’s draw excludes them by its row cap.</li>
+<li><strong>Two of the timed Analyses are artefact-like:</strong> the ones #403’s draw excludes by its row cap. At 5×10<sup>−8</sup>, GCST004461 has 3,652,412 of its 9,429,671 tier rows past |z| 38, and GCST002047 has 2,223,172 of its 2,314,363 tier rows past |z| 38. They are timed for cost only.</li>
 </ul>
 <p>Absolute seconds carry the node’s load: its load average reached 30.8 during the run. The ratios and the share of each stage are what to compare.</p>
 </section>
@@ -3104,7 +3200,7 @@ vertical-align: -.125em;
 <li><strong>peak prominence:</strong> two 5×10<sup>−8</sup> hits stay in one locus unless the |z| profile between them, read from the 5×10<sup>−4</sup> tier as the maximum |z| per bin of B bp, falls into a valley. A row joins the strongest accepted lead whose lowest bin between them stays above a threshold (relative, f × the row’s |z|, or a fixed chain of non-empty bins), and no merge spans more than the clumping window. B ∈ {10, 50} kb; thresholds f 0.25, f 0.5, f 0.75, fixed T 0.</li>
 <li><strong>one lead per LD block:</strong> the strongest row in each of the 1,357 EUR LD blocks of the panel’s region file.</li>
 </ul>
-<p><strong>Criteria.</strong> C1 and C2 in #403’s wording (C2 restricts the profile to HapMap3 as well as the hits); C3’s margins against bp-only at W 10 Mb and at each other W; per-lead rates by the lead’s |z| band; every valley that separates two leads classed as low |z| or no tier row, with a sample checked against the Store. <strong>Met.</strong> Neither rule beats distance pruning.</p>
+<p><strong>Criteria.</strong> C1 and C2 in #403’s wording (C2 restricts the profile to HapMap3 as well as the hits); C3’s margins against bp-only at W 10 Mb and at each other W; per-lead rates by the lead’s |z| band; every valley that separates two leads classed as low |z| or no tier row, with a sample checked against the Store. <strong>Met.</strong> At #403’s named point, W 10 Mb, neither rule beats distance pruning: C3 holds there for no rule. Elsewhere on the grid, B 50 kb, f 0.75 meets C3 at W 1 Mb (Δρ -0.009, density gain +0.113 in median |log2|).</p>
 <div class="cell">
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -3286,7 +3382,7 @@ vertical-align: -.125em;
 </div>
 </div>
 <ul>
-<li><strong>C3 holds at W 10 Mb for no rule.</strong> At any W it holds only for B 50 kb, f 0.75 at W 1 Mb.</li>
+<li><strong>C3 holds at W 10 Mb for no rule.</strong> At any W it holds for B 50 kb, f 0.75 at W 1 Mb.</li>
 <li><strong>Narrow bins fail C2.</strong> 0 of the 4 B 10 kb rules meet it (median ratio 1.27–1.69): on HapMap3 the profile has gaps that read as valleys, so the rule finds more loci on the sparse axis, not fewer.</li>
 <li><strong>LD blocks</strong> rank well (ρ 0.990) but are more density-sensitive than bp-only (median |log2| 0.213 against 0.079). Rows outside every block are counted: 7 rows in 3 stretches.</li>
 <li><strong>At strong peaks</strong> (leads with |z| ≥ 20), B 50 kb, f 0.25; B 50 kb, f 0.5; B 50 kb, fixed T 0; LD blocks (EUR) disagree with clumping clearly less often than bp-only at W 10 Mb. Against D 0.5 cM, W 1 Mb, no rule does.</li>
@@ -3388,10 +3484,10 @@ vertical-align: -.125em;
 </div>
 <section id="still-open-build-time-only-or-per-query-as-well" class="level3">
 <h3 class="anchored" data-anchor-id="still-open-build-time-only-or-per-query-as-well">Still open: build time only, or per query as well?</h3>
-<p>One question is left for the owner after reading this report: whether pruning runs only at build time, giving <code>n_loci_*</code> as Analytical Metadata in <code>analyses.tsv</code>, or also as a per-query option of the Top-Hit Query. #406’s numbers bear on both. It timed the rule at D 0.5 cM, W 1 Mb; the chosen bp-only window was not timed. The cM lookup the chosen rule drops took 0.024 s on the largest slice.</p>
+<p>One question is left for the owner after reading this report: whether pruning runs only at build time, giving <code>n_loci_*</code> as Analytical Metadata in <code>analyses.tsv</code>, or also as a per-query option of the Top-Hit Query. #406’s numbers bear on both. It timed the rule at D 0.5 cM, W 1 Mb; the chosen bp-only window was not timed. The cM lookup the chosen rule drops took 0.024 s on GCST004461’s 5×10<sup>−8</sup> tier. The figures below are for that tier (9,429,671 rows), with its 5×10<sup>−4</sup> tier, the largest slice by rows (10,087,639), in brackets.</p>
 <ul>
-<li><strong>Build time.</strong> A Store pays once per Analysis and tier. On the largest tier (9,429,671 rows) that is 13.7 s to read positions from the Store Variant Table and 16.0 s for the rule as written (4.0 s for the block rule). The bp-only rule needs no cM array, so OGS-00011 would not carry its 192 MB of cM nor pay the 9.3 s to interpolate it.</li>
-<li><strong>Per query.</strong> On the same tier the Top-Hit Query takes 2.65 s and the resolved query 42.8 s. Pruning as written adds 29.7 s (11.2× the query, 0.69 of the resolved query). The block rule with per-variant chromosome and position arrays, which Stores do not carry today (240 MB for OGS-00011), adds 4.13 s (1.56× the query, 0.096 of the resolved query). By the budget fixed before measuring, no slice qualifies for per-query pruning.</li>
+<li><strong>Build time.</strong> A Store pays once per Analysis and tier: here 13.7 s (18.4 s) to read positions from the Store Variant Table and 16.0 s (16.9 s) for the rule as written, or 4.0 s (4.4 s) for the block rule. The bp-only rule needs no cM array, so OGS-00011 would not carry its 192 MB of cM nor pay the 9.3 s to interpolate it.</li>
+<li><strong>Per query.</strong> The Top-Hit Query takes 2.65 s (2.39 s) and the resolved query 42.8 s (47.5 s). Pruning as written adds 29.7 s (35.4 s): 11.2× (14.8×) the query, 0.69 (0.74) of the resolved query. The block rule with per-variant chromosome and position arrays, which Stores do not carry today (240 MB for OGS-00011), adds 4.13 s (4.60 s): 1.56× (1.93×) the query, 0.096 (0.097) of the resolved query. By the budget fixed before measuring, no slice qualifies for per-query pruning.</li>
 </ul>
 </section>
 </section>
@@ -3409,7 +3505,7 @@ vertical-align: -.125em;
 </section>
 <section id="reproduce" class="level2">
 <h2 class="anchored" data-anchor-id="reproduce">Reproduce</h2>
-<p>This page reads one file, <code>docs/data/locus-leads-prototype.json</code>, written by <code>tools/locus_leads_prototype_extract.py</code> from the engine’s committed outputs at <code>06d1a43729d44cf87f3927c990b217487bd3e0e8</code> (opengwas/opengwasdb, branch <code>orch/62-locus-leads</code>). The extract reads each output with <code>git show</code>, records its sha256, checks that outputs sharing a quantity agree (#403’s counts as #404 and #409 reproduce them, each sweep’s selection digest, the panel sizes) and refuses to write if they do not. A re-run at the same commit reproduces it byte for byte.</p>
+<p>This page reads one file, <code>docs/data/locus-leads-prototype.json</code>, written by <code>tools/locus_leads_prototype_extract.py</code> from the engine’s committed outputs at <code>06d1a43729d44cf87f3927c990b217487bd3e0e8</code> (opengwas/opengwasdb, branch <code>orch/62-locus-leads</code>). The extract reads each output with <code>git show</code> and records its sha256. Where a later ticket’s output copies #403’s numbers (#404’s record of the pyrho mean, #409’s baselines, rows, criteria and per-Analysis records), every field the copy shares with #403’s output must be equal, at any depth; so must #405’s grid and criteria, each sweep’s selection digest, the panel sizes, and each ratio #406 publishes against the two times it divides. Otherwise the extract refuses, naming the field and both values, and writes nothing. <code>tests/locus-leads-extract/</code> tests these refusals on synthetic outputs. A re-run at the same commit reproduces the extract byte for byte.</p>
 <div class="cell">
 <div class="code-copy-outer-scaffold"><div class="sourceCode cell-code" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="ex">pixi</span> run <span class="at">-e</span> dev python3 tools/locus_leads_prototype_extract.py <span class="dt">\</span></span>
 <span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--engine</span> <span class="op">&lt;</span>an opengwasdb checkout holding the commit<span class="op">&gt;</span> --commit 06d1a43 <span class="dt">\</span></span>

@@ -37,6 +37,9 @@ sci <- function(v) {
   paste0(g(signif(v / 10^e, 3)), "×10^−", -e, "^")
 }
 yes <- function(v) ifelse(v, "yes", "no")
+# A count as a word, for counts that read as words in a sentence; numerals past nine.
+word <- function(k) if (k <= 9) c("no", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine")[k + 1] else n(k)
+Word <- function(k) { w <- word(k); paste0(toupper(substr(w, 1, 1)), substr(w, 2, nchar(w))) }
 w_list <- function(ws) { ws <- unlist(ws); if (length(ws) == 0) "no W" else paste("W", paste(w_lab(ws), collapse = ", ")) }
 # The share of an Analysis's top-tier rows #406 counted past |z| 38, matched by Analysis.
 over_share <- function(ids) vapply(ids, function(id) x$cost$slices$share_abs_z_over[
@@ -65,6 +68,14 @@ NEAR <- pt_lab(EPL$nearest$d_cm, EPL$nearest$w_bp)
 TP_D <- TR$d_cm
 TP_W <- TR$w_bp
 TP <- pt_lab(TP_D, TP_W)
+# Where #409's rules meet C3: at #403's named W, and anywhere else.
+C3A <- PR$c3_anywhere
+C3_AT_NAMED <- if (length(C3A) == 0) character(0) else C3A$label[C3A$w_bp == NAMED_W]
+C3_ALL <- if (length(C3A) == 0) character(0) else paste0(C3A$label, " at W ", w_lab(C3A$w_bp))
+C3_OTHER <- if (length(C3A) == 0) C3A else C3A[C3A$w_bp != NAMED_W, ]
+C3_ELSEWHERE <- if (length(C3_OTHER) == 0 || nrow(C3_OTHER) == 0) "no rule meets C3 either" else
+  paste(paste0(C3_OTHER$label, " meets C3 at W ", w_lab(C3_OTHER$w_bp), " (Δρ ", sprintf("%+.3f", C3_OTHER$delta_rho),
+               ", density gain ", sprintf("%+.3f", C3_OTHER$delta_abs_log2), " in median |log2|)"), collapse = "; ")
 OKABE <- c("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00")
 theme_set(theme_minimal(base_size = 11) + theme(panel.grid.minor = element_blank(), legend.position = "bottom"))
 
@@ -94,7 +105,7 @@ than a count of hits. But for EUR and East Asian (EAS) Analyses a plain
 base-pair (bp) window does as well as any genetic-distance rule, and no rule
 agrees with clumping lead by lead. The
 owner has therefore decided that `n_loci_*` uses a bp-only window of
-`r w_lab(NAMED_W)` for EUR and EAS, with no cM condition and no per-variant cM
+`r w_lab(NAMED_W)` (megabases, millions of bp) for EUR and EAS, with no cM condition and no per-variant cM
 array, and that African (AFR) and admixed American (AMR) Analyses get no
 `n_loci_*` until they are calibrated. Whether pruning also runs per query is
 still open.
@@ -205,7 +216,7 @@ kable(pops, col.names = c("ancestry", "1000 Genomes populations", "maps averaged
       caption = "The populations averaged into each ancestry's map, with the weights each map records.")
 ```
 
-The EUR mean carries two jumps that come from one population's map each. #402
+The EUR mean carries `r word(EUR$spike_count)` jumps that come from one population's map each. #402
 found them, and #403 measured them from the population maps:
 
 ```{r spikes}
@@ -215,7 +226,7 @@ kable(data.frame(population = sp$population, position = paste0("chr", sp$chromos
                  mean = paste(f(sp$mean_map_cm, 2), "cM")),
       col.names = c("population", "map point", "interval to the next point", "the population's map gains",
                     "the EUR mean keeps"),
-      caption = "The two single-population spikes in the pyrho EUR mean. Hits on either side of one never merge under a cM rule.")
+      caption = paste0("The ", word(EUR$spike_count), " single-population spikes in the pyrho EUR mean. Hits on either side of one never merge under a cM rule."))
 ```
 
 ### The reference: plink2 clumping
@@ -223,7 +234,8 @@ kable(data.frame(population = sp$population, position = paste0("chr", sp$chromos
 Clumping runs `plink2 --clump` on the HGDP+1kGP genotype panels (the Human
 Genome Diversity Project and 1000 Genomes samples, as gnomAD released them),
 split by super-population, each Analysis against its own ancestry's panel:
-index p `r sci(M$clump$p1)`, a window of `r n(M$clump$kb)` kb, and r²
+index p `r sci(M$clump$p1)`, a window of `r n(M$clump$kb)` kb (kilobases,
+thousands of bp), and r²
 computed `r M$clump$r2_mode` because the panels carry no phase. plink2 is
 given −log10 p computed from z, with equal values separated in the rule's
 order, so both methods rank rows identically even where p underflows.
@@ -275,7 +287,8 @@ were computed, in this wording:
 - The point named: `r CC$named`
 
 HapMap3 (HM3 in the criteria) here is the list of `r n(M$hm3$alids)` HapMap3
-variants on GRCh38, standing in for a sparse variant axis such as a
+variants on GRCh38 (the Genome Reference Consortium's human build 38, the
+assembly every Store, map and panel here uses), standing in for a sparse variant axis such as a
 HapMap3-density Store's. A rule that is insensitive to variant
 density finds about as many loci on it as on the full shared set.
 
@@ -328,8 +341,8 @@ At r² `r R2P`, `r n(TR$splits_beyond_w)` of the
 `r n(TR$by_r2[[R2P]]$spurious_splits)` spurious splits lie further than W from
 the stronger index variant whose clump holds them (the median distance over all
 of them is `r f(TR$splits_median_distance_bp / 1e6, 2)` Mb). That pointed at chance r²
-at this panel size, which #403 then measured. The tracer also found the two
-map spikes above.
+at this panel size, which #403 then measured. The tracer also found the
+`r word(EUR$spike_count)` map spikes above.
 
 ### #403: the EUR sweep
 
@@ -529,13 +542,17 @@ kable(data.frame(map = mp$name, length = paste(f(mp$total_cm, 1), "cM"),
                  named = pt_lab(mp$named$d_cm, mp$named$w_bp), lost = pct(mp$named$lost_to_density),
                  best = paste0(pt_lab(mp$named_cm$d_cm, mp$named_cm$w_bp), " (", pct(mp$named_cm$lost_to_density), ")"),
                  drho = sprintf("%+.4f", mp$largest_rho_gain),
+                 per_lead = paste0(pt_lab(mp$best_per_lead$d_cm, mp$best_per_lead$w_bp),
+                                   ifelse(mp$best_per_lead$qualifies, "", " (none qualifies)"), ": ",
+                                   pct(mp$best_per_lead$spurious_split_rate), " / ", pct(mp$best_per_lead$lost_signal_rate)),
                  rates = paste0(pct(mp$tracer_point$spurious_split_rate), " / ", pct(mp$tracer_point$lost_signal_rate)),
                  spikes = vapply(mp$spike_gain_cm, spike_txt, ""),
                  clamped = n(mp$clamped$rows)),
       col.names = c("map", "genetic length", "C1 held at", "C2 held at", "C3 holds at", "point named", "its leads lost to density",
-                    "best cM point (lost to density)", "largest Δρ over bp-only", paste0("spurious / lost at ", TP),
+                    "best cM point (lost to density)", "largest Δρ over bp-only",
+                    "best per-lead point: spurious / lost", paste0("spurious / lost at ", TP),
                     "cM gained across the spike intervals", "shared-set rows clamped at a map end"),
-      caption = paste0("The EUR maps on #403's Analyses, shared set and grid. Per-lead rates are at r² ", R2P, "; the spike column is the cM each map puts across the intervals where the pyrho mean jumps."))
+      caption = paste0("The EUR maps on #403's Analyses, shared set and grid. The best per-lead point is #403's: the qualifying (D, W) with the lowest disagreement or, when none qualifies, the one whose larger rate is smallest. Per-lead rates are at r² ", R2P, "; the spike column is the cM each map puts across the intervals where the pyrho mean jumps."))
 ```
 
 - **The pyrho EUR map is adequate, and the map is not the lever.**
@@ -696,37 +713,53 @@ per-variant chromosome, position and cM arrays together take
 `r n(round(PV$cm_bytes / 1e6))` MB, and `r n(PV$off_map)` variants on
 `r paste(PV$off_map_chromosomes, collapse = ", ")` have no cM.
 
+#406 timed two workloads, and each table below holds one. **Per query** is the
+whole tier a Top-Hit Query returns, imputed rows included: this is what a
+per-query option would prune. **Against clumping** is the shared set of the same
+Analysis, the rows both methods can see: this is where pruning and clumping do
+the same job. Each ratio follows from the two times beside it.
+
 ```{r cost}
 sl <- CO$slices
-kable(data.frame(slice = paste0(sl$store, " ", sl$analysis_id, " at ", vapply(sl$threshold, sci, "")),
-                 rows = n(sl$tier), query = sec(sl$query_s), resolved = sec(sl$resolved_query_s),
-                 written = paste0(sec(sl$pruning_s), " (", times(sl$ratio), ")"),
-                 fast = paste0(sec(sl$fast_pruning_s), " (", times(sl$fast_ratio, 2), ")"),
-                 of_resolved = f(sl$fast_ratio_of_resolved, 3),
-                 plink2 = sec(sl$plink2_s), e2e = sec(sl$clumping_end_to_end_s),
-                 r1 = f(sl$ratio_plink2, 3), r2 = f(sl$ratio_fast_plink2, 3)),
+slice_lab <- paste0(sl$store, " ", sl$analysis_id, " at ", vapply(sl$threshold, sci, ""))
+kable(data.frame(slice = slice_lab, rows = n(sl$tier), query = sec(sl$query_s), resolved = sec(sl$resolved_query_s),
+                 written = sec(sl$pruning_s), written_x = times(sl$ratio),
+                 fast = sec(sl$fast_pruning_s), fast_x = times(sl$fast_ratio, 2),
+                 of_resolved = f(sl$fast_ratio_of_resolved, 3)),
       row.names = FALSE,
-      col.names = c("slice", "tier rows", "Top-Hit Query", "same query, resolved", "pruning as written (× query)",
-                    "pruning, block rule with per-variant arrays (× query)", "block rule ÷ resolved query",
-                    "plink2 alone", "clumping, end to end", "as written ÷ plink2", "block rule ÷ plink2"),
-      caption = "Pruning and clumping on the same slices, medians of the repeats. Pruning as written reads positions from the Store Variant Table; the block-at-a-time rule gives identical leads and reads per-variant position and cM arrays. Clumping end to end includes matching the rows to the panel.")
+      col.names = c("slice", "tier rows", "Top-Hit Query", "same query, resolved", "pruning as written",
+                    "÷ query", "block rule with per-variant arrays", "÷ query", "÷ resolved query"),
+      caption = "Per query, on the whole tier: what pruning adds to the query it follows. Medians of the repeats. Pruning as written reads positions from the Store Variant Table; the block-at-a-time rule gives the same leads and reads per-variant position and cM arrays.")
+kable(data.frame(slice = slice_lab, rows = n(sl$shared_rows),
+                 written = sec(sl$shared_pruning_s), fast = sec(sl$shared_fast_pruning_s),
+                 plink2 = sec(sl$plink2_s), e2e = sec(sl$clumping_end_to_end_s),
+                 r1 = f(sl$ratio_plink2, 3), r2 = f(sl$ratio_fast_plink2, 3), r3 = f(sl$ratio_fast_end_to_end, 3)),
+      row.names = FALSE,
+      col.names = c("slice", "shared-set rows", "pruning as written", "block rule", "plink2 alone",
+                    "clumping, end to end", "as written ÷ plink2", "block rule ÷ plink2", "block rule ÷ end to end"),
+      caption = "Against clumping, on the shared set of the same Analysis: pruning (the cM lookup and the rule) and clumping on the same rows. Clumping end to end includes matching the rows to the panel.")
 ```
 
 ```{r cost-pick}
-big <- sl[1, ]
+# #406 fixed its budget on the 5e-8 tier of the largest Analysis; its 5e-4 tier is the largest slice by rows.
+big <- sl[sl$analysis_id == sl$analysis_id[sl$name == CO$largest_by_rows] & sl$threshold == GRID$tier, ]
+big4 <- sl[sl$name == CO$largest_by_rows, ]
+big_lab <- paste0(big$analysis_id, "'s ", sci(big$threshold), " tier")
+big4_lab <- paste0("its ", sci(big4$threshold), " tier")
+art <- CO$artefact_analyses
 ```
 
-- **Against clumping, pruning is cheaper on every slice.** Divided by plink2
-  alone, the rule as written costs
+- **Against clumping, on the shared set, pruning is cheaper on every slice.**
+  Divided by plink2 alone, the rule as written costs
   `r f(CO$ratio_ranges$as_written_plink2_only$min, 3)`–`r f(CO$ratio_ranges$as_written_plink2_only$max, 3)`
-  of clumping (`r times(CO$ratio_ranges$as_written_plink2_only$cheaper_min)`–`r times(CO$ratio_ranges$as_written_plink2_only$cheaper_max, 0)`
+  of clumping's time (`r times(CO$ratio_ranges$as_written_plink2_only$cheaper_min)`–`r times(CO$ratio_ranges$as_written_plink2_only$cheaper_max, 0)`
   cheaper), and the block rule
   `r f(CO$ratio_ranges$fast_plink2_only$min, 3)`–`r f(CO$ratio_ranges$fast_plink2_only$max, 3)`.
   Against clumping end to end, which must first match rows to the panel, the
   block rule is `r times(CO$ratio_ranges$fast_end_to_end$cheaper_min, 0)`–`r times(CO$ratio_ranges$fast_end_to_end$cheaper_max, 0)`
   cheaper.
-- **Per query, it misses the budget on `r nrow(sl) - CO$slices_within_budget` of `r nrow(sl)` slices.**
-  On the largest slice (`r big$analysis_id`, `r n(big$tier)` rows), the
+- **Per query, on the whole tier, it misses the budget on `r nrow(sl) - CO$slices_within_budget` of `r nrow(sl)` slices.**
+  #406 reported its budget on `r big_lab` (`r n(big$tier)` rows), where the
   Top-Hit Query takes `r sec(big$query_s)`. Pruning as written takes
   `r sec(big$pruning_s)` (`r times(big$ratio)` the query), of which reading
   positions from the Store Variant Table takes `r sec(big$positions_s, 1)`,
@@ -736,14 +769,17 @@ big <- sl[1, ]
   `r f(big$fast_ratio_of_resolved, 3)` of the resolved query a reader actually
   waits for, `r sec(big$resolved_query_s, 1)`). The resolved query's own peak
   memory was `r n(round(big$resolved_query_peak_mb))` MB, from
-  `r n(round(big$resolved_query_start_mb))` MB already resident.
+  `r n(round(big$resolved_query_start_mb))` MB already resident. The largest
+  slice by rows is `r big4_lab` (`r n(big4$tier)` rows): query
+  `r sec(big4$query_s)`, pruning as written `r sec(big4$pruning_s)`
+  (`r times(big4$ratio)`), block rule `r sec(big4$fast_pruning_s)`
+  (`r times(big4$fast_ratio, 2)` the query, `r f(big4$fast_ratio_of_resolved, 3)`
+  of the resolved query).
 - `r if (CO$every_fast_rule_identical) "On every slice, the block rule gives the same leads as the rule as written." else "The block rule did not give the same leads on every slice."`
-- **Two slices are artefact-like.** `r big$analysis_id` has
-  `r n(big$rows_abs_z_over)` of its `r n(big$tier)` tier rows past |z|
-  `r big$over_abs_z`, and `r sl$analysis_id[sl$name == "observed_only_5e-8"]` has
-  `r n(sl$rows_abs_z_over[sl$name == "observed_only_5e-8"])` of its `r n(sl$tier[sl$name == "observed_only_5e-8"])`.
-  They are timed for cost
-  only; #403's draw excludes them by its row cap.
+- **`r Word(nrow(art))` of the timed Analyses are artefact-like:** the ones #403's draw
+  excludes by its row cap. At `r TIER`,
+  `r paste0(art$analysis_id, " has ", n(art$rows_abs_z_over), " of its ", n(art$tier), " tier rows past |z| ", art$over_abs_z, collapse = ", and ")`.
+  They are timed for cost only.
 
 Absolute seconds carry the node's load: its load average reached
 `r f(CO$max_load, 1)` during the run. The ratios and the share of each stage
@@ -769,7 +805,9 @@ distance? Two rules were tried on #403's Analyses, shared set and clumps:
 as well as the hits); C3's margins against bp-only at W `r w_lab(NAMED_W)` and
 at each other W; per-lead rates by the lead's |z| band; every valley that
 separates two leads classed as low |z| or no tier row, with a sample checked
-against the Store. **Met.** Neither rule beats distance pruning.
+against the Store. **Met.** At #403's named point, W `r w_lab(NAMED_W)`,
+`r if (length(C3_AT_NAMED) == 0) "neither rule beats distance pruning: C3 holds there for no rule" else paste("C3 holds there for", paste(C3_AT_NAMED, collapse = "; "))`.
+Elsewhere on the grid, `r C3_ELSEWHERE`.
 
 ```{r profile}
 rl <- PR$rules
@@ -792,7 +830,8 @@ kable(prof, row.names = FALSE,
       caption = paste0("The prominence and LD-block rules on #403's ", PR$analyses, " Analyses at r² ", R2P, ", beside #403's named point and the tracer's point. Δ|log2| is positive when the rule is less density-sensitive than bp-only."))
 ```
 
-- **C3 holds at W `r w_lab(NAMED_W)` for no rule.** At any W it holds only for `r paste(paste0(PR$c3_anywhere$label, " at W ", w_lab(PR$c3_anywhere$w_bp)), collapse = "; ")`.
+- **C3 holds at W `r w_lab(NAMED_W)` for `r if (length(C3_AT_NAMED) == 0) "no rule" else paste(C3_AT_NAMED, collapse = "; ")`.**
+  At any W it holds for `r if (length(C3_ALL) == 0) "no rule" else paste(C3_ALL, collapse = "; ")`.
 - **Narrow bins fail C2.** `r PR$narrow_bin_c2_met` of the
   `r PR$narrow_bin_rules` B `r g(min(PR$bins_bp) / 1e3)` kb rules meet it
   (median ratio `r f(PR$narrow_bin_ratio_min, 2)`–`r f(PR$narrow_bin_ratio_max, 2)`):
@@ -882,23 +921,31 @@ runs only at build time, giving `n_loci_*` as Analytical Metadata in
 numbers bear on both. It timed the rule at
 `r pt_lab(CO$parameters$d_cm, CO$parameters$w_bp)`; the chosen bp-only window
 was not timed. The cM lookup the chosen rule drops took
-`r sec(big$cm_s, 3)` on the largest slice.
+`r sec(big$cm_s, 3)` on `r big_lab`. The figures below are for that tier
+(`r n(big$tier)` rows), with `r big4_lab`, the largest slice by rows
+(`r n(big4$tier)`), in brackets.
 
-- **Build time.** A Store pays once per Analysis and tier. On the largest tier
-  (`r n(big$tier)` rows) that is `r sec(big$positions_s, 1)` to read positions
-  from the Store Variant Table and `r sec(big$rule_s, 1)` for the rule as
-  written (`r sec(big$rule_fast_s, 1)` for the block rule). The bp-only rule
+- **Build time.** A Store pays once per Analysis and tier: here
+  `r sec(big$positions_s, 1)` (`r sec(big4$positions_s, 1)`) to read positions
+  from the Store Variant Table and `r sec(big$rule_s, 1)`
+  (`r sec(big4$rule_s, 1)`) for the rule as written, or
+  `r sec(big$rule_fast_s, 1)` (`r sec(big4$rule_fast_s, 1)`) for the block rule. The bp-only rule
   needs no cM array, so `r PV$store` would not carry its
   `r n(round(PV$cm_bytes / 1e6))` MB of cM nor pay the
   `r sec(PV$interpolate_s, 1)` to interpolate it.
-- **Per query.** On the same tier the Top-Hit Query takes `r sec(big$query_s)`
-  and the resolved query `r sec(big$resolved_query_s, 1)`. Pruning as written
-  adds `r sec(big$pruning_s, 1)` (`r times(big$ratio)` the query,
-  `r f(big$pruning_over_resolved, 2)` of the resolved query). The block rule
-  with per-variant chromosome and position arrays, which Stores do not carry
-  today (`r n(round(PV$position_bytes / 1e6))` MB for `r PV$store`), adds
-  `r sec(big$fast_pruning_s)` (`r times(big$fast_ratio, 2)` the query,
-  `r f(big$fast_ratio_of_resolved, 3)` of the resolved query). By the budget
+- **Per query.** The Top-Hit Query takes `r sec(big$query_s)`
+  (`r sec(big4$query_s)`) and the resolved query
+  `r sec(big$resolved_query_s, 1)` (`r sec(big4$resolved_query_s, 1)`). Pruning
+  as written adds `r sec(big$pruning_s, 1)` (`r sec(big4$pruning_s, 1)`):
+  `r times(big$ratio)` (`r times(big4$ratio)`) the query,
+  `r f(big$pruning_over_resolved, 2)` (`r f(big4$pruning_over_resolved, 2)`) of
+  the resolved query. The block rule with per-variant chromosome and position
+  arrays, which Stores do not carry today
+  (`r n(round(PV$position_bytes / 1e6))` MB for `r PV$store`), adds
+  `r sec(big$fast_pruning_s)` (`r sec(big4$fast_pruning_s)`):
+  `r times(big$fast_ratio, 2)` (`r times(big4$fast_ratio, 2)`) the query,
+  `r f(big$fast_ratio_of_resolved, 3)` (`r f(big4$fast_ratio_of_resolved, 3)`)
+  of the resolved query. By the budget
   fixed before measuring, `r if (CO$slices_within_budget == 0) "no slice qualifies" else paste(CO$slices_within_budget, "slices qualify")`
   for per-query pruning.
 
@@ -945,10 +992,15 @@ was not timed. The cM lookup the chosen rule drops took
 This page reads one file, `docs/data/locus-leads-prototype.json`, written by
 `tools/locus_leads_prototype_extract.py` from the engine's committed outputs at
 `` `r x$engine$commit` `` (opengwas/opengwasdb, branch `orch/62-locus-leads`).
-The extract reads each output with `git show`, records its sha256, checks that
-outputs sharing a quantity agree (#403's counts as #404 and #409 reproduce them,
-each sweep's selection digest, the panel sizes) and refuses to write if they do
-not. A re-run at the same commit reproduces it byte for byte.
+The extract reads each output with `git show` and records its sha256. Where a
+later ticket's output copies #403's numbers (#404's record of the pyrho mean,
+#409's baselines, rows, criteria and per-Analysis records), every field the copy
+shares with #403's output must be equal, at any depth; so must #405's grid and
+criteria, each sweep's selection digest, the panel sizes, and each ratio #406
+publishes against the two times it divides. Otherwise the extract refuses,
+naming the field and both values, and writes nothing.
+`tests/locus-leads-extract/` tests these refusals on synthetic outputs. A
+re-run at the same commit reproduces the extract byte for byte.
 
 ```{bash}
 #| eval: false

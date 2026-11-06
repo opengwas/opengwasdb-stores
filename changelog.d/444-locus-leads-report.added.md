@@ -6,6 +6,8 @@
   cM rule, so `n_loci_*` takes bp-only W 10 Mb for EUR and EAS and none for AFR
   and AMR. `tools/locus_leads_prototype_extract.py` writes the only file the
   page reads, `docs/data/locus-leads-prototype.json`, from the engine's
-  committed outputs at one commit with each output's sha256, and refuses to
-  write when two outputs that share a number disagree. `tools/build-site.sh`
-  renders and installs the page.
+  committed outputs at one commit with each output's sha256. It refuses to
+  write, naming the field and both values, when a later ticket's copy of
+  #403's numbers differs from #403's in any field, or a key is missing;
+  `tests/locus-leads-extract/` tests the refusals on synthetic outputs.
+  `tools/build-site.sh` renders and installs the page.
