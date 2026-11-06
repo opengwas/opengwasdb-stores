@@ -171,7 +171,7 @@ components:
     container: site
     stages: [cross]
     summary: Collectors, generated pages and the Quarto build of the project site.
-    paths: [src/project_site/, tools/build-site.sh, docs/_quarto.yml, docs/pre-render.sh, docs/architecture/components.yaml]
+    paths: [src/project_site/, tools/build-site.sh, tools/locus_leads_prototype_extract.py, docs/_quarto.yml, docs/pre-render.sh, docs/architecture/components.yaml]
   - id: yardstick
     name: Yardstick
     container: site
