@@ -1008,7 +1008,13 @@ re-run at the same commit reproduces the extract byte for byte.
 pixi run -e dev python3 tools/locus_leads_prototype_extract.py \
     --engine <an opengwasdb checkout holding the commit> --commit 06d1a43 \
     --output docs/data/locus-leads-prototype.json
-quarto render docs/reports/locus-leads-prototype.qmd --to html
+# docs/ is a Quarto project whose pre-render belongs to the site build, so the
+# page is rendered from a copy outside it and installed:
+out=<a scratch directory>; mkdir -p "$out/reports" "$out/data"
+cp docs/reports/locus-leads-prototype.qmd "$out/reports/"
+cp docs/data/locus-leads-prototype.json "$out/data/"
+pixi run -e docs quarto render "$out/reports/locus-leads-prototype.qmd" --to html
+cp "$out/reports/locus-leads-prototype.html" docs/locus-leads-prototype.html
 ```
 
 The engine's own commands for each output are in
