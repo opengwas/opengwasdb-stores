@@ -10,10 +10,13 @@ in the report and not by hand. The file records the engine commit and the
 sha256 of each output it read, and a re-run at the same commit reproduces it
 byte for byte.
 
-Where two outputs record the same quantity -- #403's counts as #404 and #409
-reproduce them, the sweep and selection digests each later ticket names, a
-panel's sample count -- the extract checks that they agree, and refuses to write
-when they do not.
+Where a later ticket's output copies #403's numbers -- #404's pyrho-mean record
+and #409's baselines, rows, criteria and per-Analysis records -- every field the
+copy shares with #403's output must be equal, at any depth; so must the grid and
+criteria #405's sweeps share with #403's, the sweep and selection digests each
+later ticket names, and the panel sizes. Otherwise the extract refuses, naming
+the field and both values, and writes nothing. A key an output lacks refuses the
+same way.
 
 Run from the repository root:
 
@@ -63,6 +66,32 @@ class Refused(SystemExit):
 def require(condition: bool, message: str) -> None:
     if not condition:
         raise Refused(f"refused: {message}")
+
+
+def require_same(copy: Any, original: Any, where: str, own: tuple[str, ...] = ()) -> None:
+    """Every field `copy` shares with `original` must be equal, at any depth.
+
+    Dicts are compared on the keys both hold (less `own`, the keys at the top
+    that are the copy's own and not copied), lists element by element and of
+    equal length, anything else by value. A difference refuses, naming the path
+    and both values. A top level that shares no key is refused too, because
+    then nothing was checked.
+    """
+    if isinstance(copy, dict) and isinstance(original, dict):
+        require(bool((copy.keys() & original.keys()) - set(own)), f"{where} shares no field with #403's output")
+
+    def walk(a: Any, b: Any, path: str, skip: tuple[str, ...]) -> None:
+        if isinstance(a, dict) and isinstance(b, dict):
+            for key in sorted((a.keys() & b.keys()) - set(skip)):
+                walk(a[key], b[key], f"{path}.{key}", ())
+        elif isinstance(a, list) and isinstance(b, list):
+            require(len(a) == len(b), f"{where}{path}: {len(a)} entries in the copy, {len(b)} in the original")
+            for index, (x, y) in enumerate(zip(a, b)):
+                walk(x, y, f"{path}[{index}]", ())
+        else:
+            require(a == b, f"{where}{path}: {a!r} in the copy, {b!r} in the original")
+
+    walk(copy, original, "", own)
 
 
 class Engine:
@@ -242,6 +271,120 @@ def split_pairs(pairs: dict[str, Any]) -> dict[str, Any]:
             "strong_r2": float(STRONG_R2), "r2_ge_strong_share": strong / n if n else None}
 
 
+# --------------------------------------------------------------------------- copies of #403
+
+
+def eur_inputs(engine: Engine) -> tuple[dict[str, Any], str, dict[str, Any]]:
+    """#403's sweep, its sha256 and its selection, the sweep checked to have run on that selection."""
+    sweep, sweep_sha = engine.read("eur_sweep.json", "#403")
+    selection, _ = engine.read("eur_sweep_selection.json", "#403")
+    require(sweep["selection"]["sha256"] == selection_digest(selection),
+            "eur_sweep.json ran on another selection than eur_sweep_selection.json")
+    return sweep, sweep_sha, selection
+
+
+def sweep_analysis(sweep: dict[str, Any], store: str, analysis_id: str) -> dict[str, Any]:
+    found = [a for a in sweep["analyses"] if a["store"] == store and a["analysis"]["analysis_id"] == analysis_id]
+    require(len(found) == 1, f"#403's sweep holds {len(found)} records of {store}/{analysis_id}")
+    return found[0]
+
+
+def index_variants(record: dict[str, Any]) -> int:
+    """An Analysis's r2 0.01 index variants: clumping does not depend on D or W, so every point agrees."""
+    counts = {config["by_r2"][R2_PRIMARY]["index_variants"] for config in record["configs"]}
+    require(len(counts) == 1, f"#403's {record['analysis']['analysis_id']} has index-variant counts {counts}")
+    return counts.pop()
+
+
+def check_maps_copies(maps: dict[str, Any], sweep: dict[str, Any], sweep_sha: str,
+                      selection: dict[str, Any]) -> None:
+    """#404's record of the pyrho mean is #403's sweep; every map keeps #403's grid and criteria."""
+    require(maps["selection"]["sha256"] == selection_digest(selection), "#404 ran on another selection")
+    mean = maps["maps"]["pyrho-mean"]
+    require(mean["sweep_sha256"] == sweep_sha, "#404's pyrho-mean sweep is not #403's committed eur_sweep.json")
+    require(maps["shared_sets_equal"], "#404's maps saw different shared sets")
+    for name, record in maps["maps"].items():
+        require_same(record["grid"], sweep["grid"], f"#404 {name}.grid")
+        require_same(record["criteria"], sweep["counts"]["criteria"], f"#404 {name}.criteria")
+    for key in ("genetic_map", "spikes", "counts"):
+        require_same(mean[key], sweep[key], f"#404 pyrho-mean.{key}")
+    require_same(mean["best_by_per_lead"], sweep["evaluation"]["best"], "#404 pyrho-mean.best_by_per_lead")
+    require_same(mean["per_lead"], sweep["evaluation"]["configs"], "#404 pyrho-mean.per_lead")
+    require(mean["analyses"] == len(sweep["analyses"]),
+            f"#404 pyrho-mean.analyses: {mean['analyses']} in the copy, {len(sweep['analyses'])} in the original")
+    below = sweep["left_out_below_shared_set_floor"]
+    require_same(mean["below_shared_set_floor"],
+                 {"floor": below["floor"],
+                  "analyses": [f"{b['store']}/{b['analysis']['analysis_id']}" for b in below["analyses"]]},
+                 "#404 pyrho-mean.below_shared_set_floor")
+
+
+def check_profile_copies(profile: dict[str, Any], sweep: dict[str, Any], sweep_sha: str,
+                         selection: dict[str, Any]) -> None:
+    """#409's baselines, rows, criteria and per-Analysis records are #403's, field for field."""
+    inputs = profile["inputs"]
+    require(inputs["sweep_403"]["sha256"] == sweep_sha, "#409 read another eur_sweep.json than #403 committed")
+    require(inputs["selection_sha256"] == selection_digest(selection), "#409 ran on another selection")
+    judgement = profile["judgement"]
+    require(judgement is not None, "#409 withheld its judgement")
+    for key in ("genetic_map", "panel", "hm3"):
+        require_same(inputs[key], sweep[key], f"#409 inputs.{key}")
+    counts = sweep["counts"]
+    # #409 states its own reading of C3 (a rule has no W of its own); the rest is #403's wording.
+    require_same(judgement["criteria"], counts["criteria"], "#409 judgement.criteria", own=("c3_reading",))
+    require_same(judgement["rows"], counts["rows"], "#409 judgement.rows")
+    require(judgement["analyses"] == counts["analyses"],
+            f"#409 judgement.analyses: {judgement['analyses']} in the copy, {counts['analyses']} in the original")
+    for index, baseline in enumerate(judgement["bp_only"]):
+        require_same(baseline, point(counts["configs"], BP_ONLY, baseline["w_bp"]),
+                     f"#409 judgement.bp_only[{index}]")
+    configs = sweep["evaluation"]["configs"]
+    for index, beside in enumerate(judgement["set_beside"]):
+        d, w = beside["d_cm"], beside["w_bp"]
+        where = f"#409 judgement.set_beside[{index}]"
+        require_same(beside, point(counts["configs"], d, w), where, own=("per_lead", "leads_per_index_variant"))
+        require_same(beside["per_lead"], point(configs, d, w)["by_r2"][R2_PRIMARY], f"{where}.per_lead")
+        require_same(beside["leads_per_index_variant"], point(counts["leads_per_index_variant"], d, w)["z"],
+                     f"{where}.leads_per_index_variant")
+    for index, rule in enumerate(judgement["rules"]):
+        require(rule["rows_median_abs_log2"] == counts["rows"]["median_abs_log2"],
+                f"#409 judgement.rules[{index}].rows_median_abs_log2: {rule['rows_median_abs_log2']!r} in the "
+                f"copy, {counts['rows']['median_abs_log2']!r} in the original")
+    named = judgement["named_analysis"]
+    record = next(a for a in sweep["analyses"] if a["analysis"]["analysis_id"] == named["analysis_id"])
+    require_same({"max_abs_z": named["max_abs_z"], "index_variants": named["index_variants"]},
+                 {"max_abs_z": record["selection"]["max_abs_z"], "index_variants": index_variants(record)},
+                 f"#409 judgement.named_analysis ({named['analysis_id']})")
+    for index, beside in enumerate(named["set_beside"]):
+        leads = point(record["configs"], beside["d_cm"], beside["w_bp"])["by_r2"][R2_PRIMARY]["locus_leads"]
+        require(beside["locus_leads"] == leads, f"#409 judgement.named_analysis.set_beside[{index}].locus_leads: "
+                                                f"{beside['locus_leads']!r} in the copy, {leads!r} in the original")
+    for index, analysis in enumerate(profile["analyses"]):
+        mine = sweep_analysis(sweep, analysis["store"], analysis["analysis"]["analysis_id"])
+        where = f"#409 analyses[{index}] ({analysis['analysis']['analysis_id']})"
+        # `query` there is #409's read of the 5e-4 profile tier, not #403's 5e-8 read.
+        require_same(analysis, mine, where, own=("query",))
+        require(analysis["index_variants"] == index_variants(mine),
+                f"{where}.index_variants: {analysis['index_variants']!r} in the copy, "
+                f"{index_variants(mine)!r} in the original")
+    require_same(profile["not_swept_by_403"],
+                 [{"store": b["store"], "analysis_id": b["analysis"]["analysis_id"]}
+                  for b in sweep["left_out_below_shared_set_floor"]["analyses"]],
+                 "#409 not_swept_by_403")
+
+
+def check_same_conventions(sweep: dict[str, Any], selection: dict[str, Any], eur: dict[str, Any],
+                           eur_selection: dict[str, Any], where: str) -> None:
+    """Another ancestry's sweep keeps #403's grid, criteria, HapMap3 list and row cap."""
+    require_same(sweep["grid"], eur["grid"], f"{where}.grid")
+    require_same(sweep["counts"]["criteria"], eur["counts"]["criteria"], f"{where}.counts.criteria")
+    require_same(sweep["evaluation"]["criteria"], eur["evaluation"]["criteria"], f"{where}.evaluation.criteria")
+    require_same(sweep["hm3"], eur["hm3"], f"{where}.hm3")
+    require(selection["rule"]["max_observed_rows"] == eur_selection["rule"]["max_observed_rows"],
+            f"{where}: a row cap of {selection['rule']['max_observed_rows']!r}, "
+            f"not #403's {eur_selection['rule']['max_observed_rows']!r}")
+
+
 # --------------------------------------------------------------------------- tickets
 
 
@@ -277,6 +420,10 @@ def extract_method(engine: Engine) -> dict[str, Any]:
 
 def extract_tracer(engine: Engine) -> dict[str, Any]:
     tracer, _ = engine.read("OGS-00003_finngen-r13-BMI_IRN.json", "#402")
+    sweep, _ = engine.read("eur_sweep.json", "#403")
+    # The tracer ran on the same EUR map and panel the sweep names.
+    require_same(tracer["genetic_map"], sweep["genetic_map"], "#402 genetic_map")
+    require_same(tracer["panel"], sweep["panel"], "#402 panel")
     rows = tracer["rows"]
     partition = rows["partition"]
     require(sum(partition.values()) == rows["tier_rows"], "#402's partition does not add up to its tier")
@@ -304,10 +451,7 @@ def extract_tracer(engine: Engine) -> dict[str, Any]:
 
 
 def extract_eur(engine: Engine) -> dict[str, Any]:
-    sweep, _ = engine.read("eur_sweep.json", "#403")
-    selection, _ = engine.read("eur_sweep_selection.json", "#403")
-    require(sweep["selection"]["sha256"] == selection_digest(selection),
-            "eur_sweep.json ran on another selection than eur_sweep_selection.json")
+    sweep, _, selection = eur_inputs(engine)
     rule = selection["rule"]
     # The |z| quota is named for its edge (`min_abs_z_100`); read the edge from the name.
     quota_keys = [key for key in rule if key.startswith("min_abs_z_")]
@@ -395,13 +539,9 @@ def extract_eur(engine: Engine) -> dict[str, Any]:
 
 def extract_maps(engine: Engine) -> dict[str, Any]:
     maps, _ = engine.read("eur_maps.json", "#404")
-    sweep, sweep_sha = engine.read("eur_sweep.json", "#403")
-    selection, _ = engine.read("eur_sweep_selection.json", "#403")
+    sweep, sweep_sha, selection = eur_inputs(engine)
+    check_maps_copies(maps, sweep, sweep_sha, selection)
     mean = maps["maps"]["pyrho-mean"]
-    require(mean["sweep_sha256"] == sweep_sha, "#404's pyrho-mean sweep is not #403's committed eur_sweep.json")
-    require(mean["counts"] == sweep["counts"], "#404's pyrho-mean counts differ from #403's")
-    require(maps["selection"]["sha256"] == selection_digest(selection), "#404 ran on another selection")
-    require(maps["shared_sets_equal"], "#404's maps saw different shared sets")
     out = []
     for name in MAPS:
         record = maps["maps"][name]
@@ -436,21 +576,25 @@ def extract_maps(engine: Engine) -> dict[str, Any]:
 def extract_ancestries(engine: Engine, eur: dict[str, Any]) -> dict[str, Any]:
     chance, _ = engine.read("ancestries_chance_ld.json", "#405")
     tracer, _ = engine.read("OGS-00003_finngen-r13-BMI_IRN.json", "#402")
+    eur_sweep, _, eur_selection = eur_inputs(engine)
     out = {}
     raw_rows = {}
     for ancestry in ANCESTRIES:
         if ancestry == "EUR":
-            sweep_name, selection_name, ticket = "eur_sweep.json", "eur_sweep_selection.json", "#403"
+            sweep_name = "eur_sweep.json"
+            sweep, sweep_sha, selection = eur_inputs(engine)
         else:
             stem = f"ancestries_{ancestry.lower()}"
-            sweep_name, selection_name, ticket = f"{stem}_sweep.json", f"{stem}_selection.json", "#405"
-        sweep, sweep_sha = engine.read(sweep_name, ticket)
-        selection, _ = engine.read(selection_name, ticket)
-        require(sweep["selection"]["sha256"] == selection_digest(selection),
-                f"{sweep_name} ran on another selection than {selection_name}")
+            sweep_name, selection_name = f"{stem}_sweep.json", f"{stem}_selection.json"
+            sweep, sweep_sha = engine.read(sweep_name, "#405")
+            selection, _ = engine.read(selection_name, "#405")
+            require(sweep["selection"]["sha256"] == selection_digest(selection),
+                    f"{sweep_name} ran on another selection than {selection_name}")
+            check_same_conventions(sweep, selection, eur_sweep, eur_selection, f"#405 {ancestry}")
         panel = chance["ancestries"][ancestry]
         require(panel["sweep"]["sha256"] == sweep_sha,
                 f"the {ancestry} chance-LD entry names another sweep than the committed {sweep_name}")
+        require_same(panel["panel"], sweep["panel"], f"#405 chance-LD {ancestry}.panel")
         analyses = sweep["analyses"]
         tier = sum(a["rows"]["tier_rows"] for a in analyses)
         shared = sum(a["rows"]["shared_set"] for a in analyses)
@@ -596,30 +740,14 @@ def extract_cost(engine: Engine) -> dict[str, Any]:
 
 def extract_profile(engine: Engine) -> dict[str, Any]:
     profile, _ = engine.read("eur_profile.json", "#409")
-    sweep, sweep_sha = engine.read("eur_sweep.json", "#403")
-    selection, _ = engine.read("eur_sweep_selection.json", "#403")
+    sweep, sweep_sha, selection = eur_inputs(engine)
+    check_profile_copies(profile, sweep, sweep_sha, selection)
     inputs = profile["inputs"]
-    require(inputs["sweep_403"]["sha256"] == sweep_sha, "#409 read another eur_sweep.json than #403 committed")
-    require(inputs["selection_sha256"] == selection_digest(selection), "#409 ran on another selection")
     judgement = profile["judgement"]
-    require(judgement is not None, "#409 withheld its judgement")
-    counts = sweep["counts"]["configs"]
-    for baseline in judgement["bp_only"]:
-        mine = point(counts, BP_ONLY, baseline["w_bp"])
-        for key in ("rho", "median_ratio", "median_abs_log2", "leads_full", "leads_hm3",
-                    "share_of_leads_lost_to_density", "c1", "c2"):
-            require(baseline[key] == mine[key], f"#409's bp-only W {baseline['w_bp']} {key} differs from #403's")
-    configs = sweep["evaluation"]["configs"]
     named = judgement["named_analysis"]
     named_leads = {(b["d_cm"], b["w_bp"]): b["locus_leads"] for b in named["set_beside"]}
     baselines = []
     for beside in judgement["set_beside"]:
-        mine = point(configs, beside["d_cm"], beside["w_bp"])["by_r2"][R2_PRIMARY]
-        for key in ("locus_leads", "index_variants", "spurious_splits", "lost_signals"):
-            require(beside["per_lead"][key] == mine[key],
-                    f"#409's {beside['d_cm']}/{beside['w_bp']} per-lead {key} differs from #403's")
-        require(beside["rho"] == point(counts, beside["d_cm"], beside["w_bp"])["rho"],
-                "#409's set-beside rho differs from #403's")
         _, strongest = strongest_band(beside["per_lead"]["by_abs_z"])
         baselines.append({"d_cm": d_out(beside["d_cm"]), "w_bp": beside["w_bp"], "rho": beside["rho"],
                           "c1": beside["c1"], "median_ratio": beside["median_ratio"],
@@ -676,13 +804,24 @@ def extract_profile(engine: Engine) -> dict[str, Any]:
 
 
 def build(engine: Engine) -> dict[str, Any]:
-    method = extract_method(engine)
-    tracer = extract_tracer(engine)
-    eur = extract_eur(engine)
-    maps = extract_maps(engine)
-    ancestries = extract_ancestries(engine, eur)
-    cost = extract_cost(engine)
-    profile = extract_profile(engine)
+    stage = "method"
+    try:
+        method = extract_method(engine)
+        stage = "#402"
+        tracer = extract_tracer(engine)
+        stage = "#403"
+        eur = extract_eur(engine)
+        stage = "#404"
+        maps = extract_maps(engine)
+        stage = "#405"
+        ancestries = extract_ancestries(engine, eur)
+        stage = "#406"
+        cost = extract_cost(engine)
+        stage = "#409"
+        profile = extract_profile(engine)
+    except KeyError as missing:
+        raise Refused(f"refused: reading {stage}'s outputs, an engine output has no key {missing}; "
+                      "nothing written") from missing
     return {
         "about": ("Values the Locus Lead prototype report shows, read from the engine's committed outputs "
                   "by tools/locus_leads_prototype_extract.py (opengwas/opengwasdb-stores#444)."),
