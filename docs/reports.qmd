@@ -16,6 +16,14 @@ across Dense, Ragged and Hybrid stores; how a store holds an association in abou
 variants; how a Release Bundle drives the Snakemake build; and the twelve Store
 Releases built so far.
 
+### [Locus Lead prototype](locus-leads-prototype.html) {#locus-leads}
+
+*Report.* Whether a pruning rule can count an Analysis's loci (`n_loci_*`)
+without an LD panel: the opengwasdb#62 prototype's tracer, EUR sweep, map
+comparison, AFR, EAS and AMR sweeps, cost against plink2 clumping, and locus
+boundaries taken from the data, each judged against plink2 clumping per lead
+and by per-Analysis counts, and what the owner decided for `n_loci_*`.
+
 ### [Getting started with stores](query-walkthrough.html) {#walkthrough}
 
 *Guide.* Start here if you've never opened a store: a hands-on command-line tour

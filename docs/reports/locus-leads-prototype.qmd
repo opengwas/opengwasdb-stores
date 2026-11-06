@@ -1,0 +1,967 @@
+---
+title: "Locus Lead prototype"
+subtitle: "Can a distance rule count an Analysis's loci without an LD panel? The results of opengwas/opengwasdb#62's prototype"
+format:
+  html:
+    toc: true
+    toc-depth: 3
+    embed-resources: true
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(jsonlite)
+library(ggplot2)
+library(knitr)
+
+# Every number on this page is read from one extract, written by
+# tools/locus_leads_prototype_extract.py from the engine's committed prototype
+# outputs. Nothing here computes a statistic: the code below picks and formats.
+x <- fromJSON("../data/locus-leads-prototype.json", simplifyDataFrame = TRUE)
+
+n <- function(v) formatC(v, format = "d", big.mark = ",")
+f <- function(v, d = 3) formatC(v, format = "f", digits = d, big.mark = ",")
+pct <- function(v, d = 1) paste0(formatC(100 * v, format = "f", digits = d), "%")
+sec <- function(v, d = 2) paste0(formatC(v, format = "f", digits = d), " s")
+times <- function(v, d = 1) paste0(formatC(v, format = "f", digits = d), "×")
+g <- function(v) vapply(v, function(e) format(e, scientific = FALSE, drop0trailing = TRUE, trim = TRUE), "")
+w_lab <- function(w) paste(g(w / 1e6), "Mb")
+nz <- function(v) if (is.null(v)) NA else v  # a JSON null inside an object reads as NULL
+d_lab <- function(d) { d <- nz(d); ifelse(is.na(d), "bp only", paste(g(d), "cM")) }
+pt_lab <- function(d, w) { d <- nz(d); ifelse(is.na(d), paste0("bp only, W ", w_lab(w)), paste0("D ", g(d), " cM, W ", w_lab(w))) }
+sci <- function(v) {
+  e <- floor(log10(v) + 1e-9)
+  paste0(g(signif(v / 10^e, 3)), "×10^−", -e, "^")
+}
+yes <- function(v) ifelse(v, "yes", "no")
+w_list <- function(ws) { ws <- unlist(ws); if (length(ws) == 0) "no W" else paste("W", paste(w_lab(ws), collapse = ", ")) }
+# The share of an Analysis's top-tier rows #406 counted past |z| 38, matched by Analysis.
+over_share <- function(ids) vapply(ids, function(id) x$cost$slices$share_abs_z_over[
+  x$cost$slices$analysis_id == id & x$cost$slices$threshold == x$method$grid$tier], 0)
+pick <- function(df, d, w) { d <- nz(d); df[(if (is.na(d)) is.na(df$d_cm) else (!is.na(df$d_cm) & df$d_cm == d)) & df$w_bp == w, ] }
+
+M <- x$method
+GRID <- M$grid
+R2P <- g(GRID$r2[1])
+R2L <- g(GRID$r2[2])
+TIER <- sci(GRID$tier)
+CC <- M$count_criteria
+PL <- M$per_lead_criteria
+TR <- x$tracer
+EUR <- x$eur
+EC <- EUR$counts
+EPL <- EUR$per_lead
+AN <- x$ancestries$by_ancestry
+MP <- x$maps
+CO <- x$cost
+PR <- x$profile
+NAMED_W <- EC$named$w_bp
+NAMED <- pt_lab(EC$named$d_cm, NAMED_W)
+NEAR <- pt_lab(EPL$nearest$d_cm, EPL$nearest$w_bp)
+TP_D <- TR$d_cm
+TP_W <- TR$w_bp
+TP <- pt_lab(TP_D, TP_W)
+OKABE <- c("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00")
+theme_set(theme_minimal(base_size = 11) + theme(panel.grid.minor = element_blank(), legend.position = "bottom"))
+
+# Figure captions computed from the extract (YAML cannot hold the R inline).
+CAP_TRADEOFF <- paste0("Spurious splits against lost signals, pooled over the ", EUR$swept, " swept EUR Analyses at r² ", R2P, ". Each line is one W; its circles are the D values, left to right from the smallest (labelled on the W ", w_lab(NAMED_W), " line), and its open square is the bp-only rule. The shaded corner is where both rates meet the per-lead criteria, and no point reaches it: a smaller D buys fewer lost signals at the price of more spurious splits.")
+CAP_BY_PEAK <- paste0("Lost signals per Analysis at ", TP, " against the Analysis's largest |z| (log scale), r² ", R2P, ". Analyses with strong peaks lose far more of plink2's index variants, because r² ", R2P, " clumping keeps the shoulders of a strong peak as separate index variants. The labelled Analysis is the one discussed in the text.")
+CAP_COUNTS <- paste0("The count criteria at every (D, W) for the ", EC$analyses, " EUR Analyses. C1 holds above the horizontal line (Spearman ρ ≥ ", g(CC$rho_min), "); the shaded band is C2's range for the median density ratio (C2's second leg, on the median |log2|, is in the table below). Open squares are bp-only. Every point clears C1; only D ", paste(g(unlist(EC$c2_fails_at_d)), collapse = ", "), " cM falls out of the band, and bp-only at W ", w_lab(NAMED_W), " comes closest to finding as many loci on HapMap3 as on the full shared set.")
+CAP_CURVES <- paste0("ρ (C1, top) and the median density ratio (C2, bottom) against D for each ancestry, at W ", w_lab(GRID$w_bp[2]), " and W ", w_lab(NAMED_W), "; the right-most point is bp-only. Above the line is C1; inside the band is C2's ratio range. EUR and EAS stay high on ρ and reach the band; AFR's ρ collapses as D grows; AMR keeps its ρ but never reaches the band.")
+```
+
+## Question and result
+
+`n_hits_*`, the Top-Hit Counts in a Store's `analyses.tsv`, count an Analysis's
+associations past each significance threshold. They mix two things: how many
+loci an Analysis has, and how densely its variant axis is typed. A
+Reference-Completed Store and a HapMap3-density Store give the same locus very
+different hit counts. opengwas/opengwasdb#62 proposed a second count beside them,
+`n_loci_*`, that counts **Locus Leads**: one lead per locus, chosen by a pruning
+rule that uses genetic distance in centimorgans (cM) as a stand-in for linkage
+disequilibrium (LD) clumping, so that neither a build nor a query needs an LD
+reference panel. This report gathers what the
+prototype tickets found when they held that rule against real plink2 clumping.
+
+**Result.** A count of Locus Leads tracks the count of clumps closely, and it is
+far less sensitive to variant density than a count of hits. But for European
+(EUR) and East Asian (EAS) Analyses a plain base-pair (bp) window does as well
+as any genetic-distance rule, and no rule agrees with clumping lead by lead. The
+owner has therefore decided that `n_loci_*` uses a bp-only window of
+`r w_lab(NAMED_W)` for EUR and EAS, with no cM condition and no per-variant cM
+array, and that African (AFR) and admixed American (AMR) Analyses get no
+`n_loci_*` until they are calibrated. Whether pruning also runs per query is
+still open.
+
+The prototype's code is throwaway; it lives in the engine's
+`prototypes/locus_leads/` on the integration branch `orch/62-locus-leads`. Its
+outputs were committed under `docs/benchmark-output/locus_leads/`, and every
+number below is read from them at engine commit
+`r substr(x$engine$commit, 1, 7)` (see [Reproduce](#reproduce)).
+
+## The question
+
+### The proposal
+
+[The proposal on #62](https://github.com/opengwas/opengwasdb/issues/62) adds
+`n_loci_5e8`, `n_loci_5e6` and `n_loci_5e4` beside the `n_hits_*` columns, and a
+Locus Lead option for the Top-Hit Query. A Locus Lead is not an *independent*
+signal: neither this rule nor clumping is conditional analysis. The rule ranks
+on |z|, never on p. A float64 two-sided p is 0 from |z| ≈
+`r f(M$p_zero_abs_z, 1)`, and the strongest Analyses in our Stores go well past
+that, so ranking on p would tie the strongest variants of a big locus.
+
+### The ancestry-specific revision
+
+[The revision](https://github.com/opengwas/opengwasdb/issues/62) replaced the
+single pedigree map of the first proposal with **ancestry-specific maps**, one
+per Store. LD decays faster per cM where effective population size is larger,
+as in AFR, so one cM leaves less LD there than in EUR. The revision therefore
+calibrates D per ancestry, each on its own genotype panel, and predicts two
+things the prototype tested: that AFR needs a smaller D than EUR, and that the
+AMR map, built from admixed samples, is the least trustworthy.
+
+### What the prototype tickets asked
+
+| ticket | question |
+|---|---|
+| [#402](https://github.com/opengwas/opengwasdb/issues/402) | Does the comparison work end to end on one EUR Analysis? |
+| [#403](https://github.com/opengwas/opengwasdb/issues/403) | Across EUR Analyses, is there a D and W that matches clumping, and does cM beat a plain bp window? |
+| [#404](https://github.com/opengwas/opengwasdb/issues/404) | Is the published pyrho EUR map good enough, or does another map do better? |
+| [#405](https://github.com/opengwas/opengwasdb/issues/405) | Does the method work for AFR, EAS and AMR, and with what D? |
+| [#406](https://github.com/opengwas/opengwasdb/issues/406) | Is pruning cheaper than clumping, and fast enough to run per query? |
+| [#409](https://github.com/opengwas/opengwasdb/issues/409) | Do locus boundaries taken from the data (peak prominence, LD blocks) beat a fixed distance? |
+
+: The prototype tickets, each a sub-issue of #62.
+
+## Method
+
+### The Locus Lead rule
+
+For each Analysis, tier and chromosome, take the tier's rows in descending |z|,
+with ties broken by ascending Variant Index (a row's place in the Store Variant
+Table). Accept a row as a Locus Lead unless an already-accepted lead lies within
+**W bp and D cM** of it. D does the main work: it splits signals across a
+recombination hotspot, which a bp window would merge. W caps merging where cM
+barely moves over megabases, such as centromeres and inversions. With D set to
+infinity the rule becomes a plain bp window of width W, the **bp-only** rule,
+which every sweep runs as its baseline.
+
+```{r rule-diagram}
+#| fig-cap: "The rule on a toy chromosome. A is the strongest hit and becomes a Locus Lead. B lies within W bp and within D cM of A, so it merges into A. C lies within W bp of A, but a recombination hotspot puts it more than D cM away, so it becomes a lead. E lies within D cM of C, where cM barely moves, but more than W bp from it, so it becomes a lead too. The shaded spans are A's D window (top) and A's W window (bottom)."
+#| fig-width: 7
+#| fig-height: 4
+pos <- seq(0, 100, by = 0.5)
+cm_at <- function(p) ifelse(p < 50, 0.02 * p, ifelse(p < 52, 1 + (p - 50) * 0.75, ifelse(p < 75, 2.5 + (p - 52) * 0.02, 2.96)))
+hits <- data.frame(id = c("A", "B", "C", "E"), pos = c(30, 40, 60, 97), z = c(12, 8, 9, 6),
+                   outcome = c("Locus Lead", "merged into A", "Locus Lead", "Locus Lead"))
+panel_levels <- c("genetic map (cM)", "|z| of the tier's rows")
+map_df <- data.frame(pos = pos, value = cm_at(pos), panel = factor(panel_levels[1], panel_levels))
+hit_df <- transform(hits, panel = factor(panel_levels[2], panel_levels))
+mark_df <- transform(hits, value = cm_at(pos), panel = factor(panel_levels[1], panel_levels))
+d_band <- data.frame(panel = factor(panel_levels[1], panel_levels), ymin = cm_at(30) - 0.5, ymax = cm_at(30) + 0.5)
+w_band <- data.frame(panel = factor(panel_levels[2], panel_levels), xmin = 30 - 35, xmax = 30 + 35)
+ggplot() +
+  geom_rect(data = d_band, aes(xmin = -Inf, xmax = Inf, ymin = ymin, ymax = ymax), fill = "grey85") +
+  geom_rect(data = w_band, aes(xmin = pmax(xmin, 0), xmax = xmax, ymin = -Inf, ymax = Inf), fill = "grey85") +
+  geom_line(data = map_df, aes(pos, value), colour = "grey30") +
+  geom_point(data = mark_df, aes(pos, value), colour = "grey30", size = 1.5) +
+  geom_text(data = mark_df, aes(pos, value, label = id), nudge_x = -2.5, nudge_y = 0.25, size = 3.5) +
+  geom_segment(data = hit_df, aes(x = pos, xend = pos, y = 0, yend = z, colour = outcome), linewidth = 1) +
+  geom_point(data = hit_df, aes(pos, z, colour = outcome), size = 2.5) +
+  geom_text(data = hit_df, aes(pos, z, label = id), nudge_y = 1.3, size = 3.5) +
+  geom_text(data = data.frame(panel = factor(panel_levels[1], panel_levels), pos = 51, value = cm_at(52)),
+            aes(pos, value, label = "hotspot"), hjust = 1.15, vjust = -0.6, size = 3, colour = "grey30") +
+  facet_grid(panel ~ ., scales = "free_y", switch = "y") +
+  scale_colour_manual(values = c("Locus Lead" = OKABE[1], "merged into A" = OKABE[2]), name = NULL) +
+  labs(x = "position on the chromosome (bp)", y = NULL) +
+  theme(axis.text = element_blank(), strip.placement = "outside", panel.grid = element_blank())
+```
+
+### Genetic maps
+
+The maps are the published pyrho maps (Spence and Song, *Science Advances*):
+recombination maps inferred from LD in each 1000 Genomes population, so they
+reflect historical recombination. They were released on Zenodo
+(<`r M$map$record`>, archive md5 `` `r M$map$md5` ``, checked on every load).
+Each ancestry's map is the equal-weight mean of its populations' maps. cM is
+interpolated linearly between map points, held flat beyond a chromosome's ends,
+and left missing on a chromosome the map does not cover (X, Y and MT), never
+replaced by a substitute value.
+
+```{r map-populations}
+pops <- do.call(rbind, lapply(names(AN), function(a) {
+  p <- unlist(AN[[a]]$populations)
+  data.frame(ancestry = a, populations = paste(names(p), collapse = ", "),
+             maps = length(p), weight = f(unique(round(p, 12)), 3))
+}))
+kable(pops, col.names = c("ancestry", "1000 Genomes populations", "maps averaged", "weight of each"),
+      caption = "The populations averaged into each ancestry's map, with the weights each map records.")
+```
+
+The EUR mean carries two jumps that come from one population's map each. #402
+found them, and #403 measured them from the population maps:
+
+```{r spikes}
+sp <- EUR$spikes
+kable(data.frame(population = sp$population, position = paste0("chr", sp$chromosome, ":", n(sp$position)),
+                 interval = paste(n(sp$interval_bp), "bp"), pop = paste(f(sp$population_cm, 2), "cM"),
+                 mean = paste(f(sp$mean_map_cm, 2), "cM")),
+      col.names = c("population", "map point", "interval to the next point", "the population's map gains",
+                    "the EUR mean keeps"),
+      caption = "The two single-population spikes in the pyrho EUR mean. Hits on either side of one never merge under a cM rule.")
+```
+
+### The reference: plink2 clumping
+
+Clumping runs `plink2 --clump` on the HGDP+1kGP genotype panels (the Human
+Genome Diversity Project and 1000 Genomes samples, as gnomAD released them),
+split by super-population, each Analysis against its own ancestry's panel:
+index p `r sci(M$clump$p1)`, a window of `r n(M$clump$kb)` kb, and r²
+computed `r M$clump$r2_mode` because the panels carry no phase. plink2 is
+given −log10 p computed from z, with equal values separated in the rule's
+order, so both methods rank rows identically even where p underflows.
+
+The primary threshold is **r² `r R2P`**; r² `r R2L`, the old OpenGWAS default,
+is reported beside it. The panels are small (EUR `r n(AN$EUR$samples)`, AFR
+`r n(AN$AFR$samples)`, EAS `r n(AN$EAS$samples)` and AMR `r n(AN$AMR$samples)`
+samples), and at these sizes unlinked variants reach a low r² by chance. Among
+variant pairs on different chromosomes in the EUR panel,
+`r pct(AN$EUR$chance_panel[["share_r2_ge_0.001"]])` reach r² `r R2L` and
+`r pct(AN$EUR$chance_panel[["share_r2_ge_0.01"]], 2)` reach r² `r R2P`. So r²
+`r R2L` mostly measures noise at this sample size, and r² `r R2P` is the
+reference every criterion is judged against.
+
+### The shared set
+
+Both methods see the same rows. Each sweep reads an Analysis's Observed
+Associations at the `r TIER` tier, the rows a Top-Hit Query returns at
+p ≤ `r TIER` (Imputed Associations are left out), and keeps
+the rows matched to the panel by chromosome, position and allele set that also
+have a finite cM. Every other row is counted under exactly one reason (off the
+panel's chromosomes, absent at its position, other alleles, ambiguous, or no
+cM), so none is dropped silently. An Analysis with less than
+`r pct(EUR$below_floor$floor, 0)` of its rows in the shared set is recorded and
+not swept.
+
+### Two ways to judge a rule
+
+**Per lead.** A *spurious split* is `r M$definitions$spurious_split`; a *lost
+signal* is `r M$definitions$lost_signal`. The rates are
+`r M$definitions$spurious_split_rate` and `r M$definitions$lost_signal_rate`.
+#403 fixed its working criteria before it ran: at r² `r PL$at_r2`, spurious
+splits at most `r pct(PL$spurious_split_rate_max, 0)` of Locus Leads **and**
+lost signals at most `r pct(PL$lost_signal_rate_max, 0)` of index variants, and
+clearly better than bp-only at the same W (a pooled disagreement rate at most
+`r pct(PL$clearly_better_pooled_at_most, 0)` of bp-only's, and lower in at least
+`r pct(PL$clearly_better_analyses_lower_at_least, 0)` of the Analyses where the
+two differ).
+
+**Per Analysis, by counts.** `n_loci_*` is one number per Analysis, so after
+#403 the owner decided to judge rules by counts, with the per-lead rates kept as
+diagnostics. The count criteria were written into #403's output before they
+were computed, in this wording:
+
+- **C1:** `r CC$C1`
+- **C2:** `r CC$C2`
+- **C3:** `r CC$C3`
+- Reading of C3: `r CC$c3_reading`
+- The point named: `r CC$named`
+
+HapMap3 (HM3 in the criteria) here is the list of `r n(M$hm3$alids)` HapMap3
+variants on GRCh38, the sparsest variant axis among our Stores. A rule that is insensitive to variant
+density finds about as many loci on it as on the full shared set.
+
+## Results by ticket
+
+### #402: the tracer on one EUR Analysis
+
+**Question.** Does a comparison of Locus Leads with plink2 clumping run end to
+end on one well-powered Analysis, with every row accounted for?
+
+**Criteria.** The map archive's checksum is checked before use; interpolated cM
+never decreases along a chromosome; off-panel rows and rows with no cM are
+counted, not dropped; both methods choose the same lead among ties at p = 0; a
+synthetic fixture splits across a hotspot and merges in a cold region; and the
+output reproduces. The engine's tests check the checksum, the monotone map, the
+tie order and the hotspot; the committed output records the rest, and its row
+categories add up to the tier, which the extract for this page checks.
+**Met.**
+
+**Result.** `r TR$analysis_id` (`r TR$analysis_label`) in `r TR$store` has
+`r n(TR$tier_rows)` Observed Associations at `r TIER` and
+`r n(TR$imputed)` imputed. `r pct(TR$shared_set_share)` of them are in the
+shared set. `r n(TR$ties$tied_rows)` rows sit in `r n(TR$ties$tied_groups)` runs
+of tied |z|, which is why the tie order matters even below the p = 0 range.
+
+```{r tracer-partition}
+pt <- unlist(TR$partition)
+labels <- c(shared_set = "shared set", matched_no_cm = "on the panel, no cM",
+            off_panel_chromosome = "off the panel's chromosomes", absent_at_position = "absent at its position",
+            allele_mismatch = "other alleles", ambiguous = "ambiguous")
+kable(data.frame(category = labels[names(pt)], rows = n(pt)), row.names = FALSE,
+      col.names = c("category", "rows"),
+      caption = paste0("Where each of ", TR$analysis_id, "'s ", n(TR$tier_rows), " tier rows went. The categories add up to the tier."))
+```
+
+```{r tracer-rates}
+br <- TR$by_r2
+kable(data.frame(r2 = names(br),
+                 leads = n(sapply(br, `[[`, "locus_leads")), index = n(sapply(br, `[[`, "index_variants")),
+                 agreed = n(sapply(br, `[[`, "agreed")),
+                 split = paste0(n(sapply(br, `[[`, "spurious_splits")), " (", pct(sapply(br, `[[`, "spurious_split_rate")), ")"),
+                 lost = paste0(n(sapply(br, `[[`, "lost_signals")), " (", pct(sapply(br, `[[`, "lost_signal_rate")), ")")),
+      row.names = FALSE,
+      col.names = c("clumping r²", "Locus Leads", "index variants", "agreed", "spurious splits (rate)", "lost signals (rate)"),
+      caption = paste0("Locus Leads at ", TP, " against plink2's index variants, for ", TR$analysis_id, "."))
+```
+
+At r² `r R2P`, `r n(TR$splits_beyond_w)` of the
+`r n(TR$by_r2[[R2P]]$spurious_splits)` spurious splits lie further than W from
+the stronger index variant whose clump holds them (the median distance over all
+of them is `r f(TR$splits_median_distance_bp / 1e6, 2)` Mb). That pointed at chance r²
+at this panel size, which #403 then measured. The tracer also found the two
+map spikes above.
+
+### #403: the EUR sweep
+
+**Question.** Across many EUR Analyses, is there a (D, W) at which Locus Leads
+match plink2's r² `r R2P` clumping, and does the cM condition do better than a
+plain bp window of the same W?
+
+**The Analyses.** `r n(EUR$selection$drawn)` Analyses were drawn with seed
+`r EUR$selection$seed` from `r n(EUR$selection$pool)` EUR Analyses (by Assigned
+Ancestry) in the genome-wide Stores, stratified by observed `r TIER` rows and by
+largest |z|, with at least `r EUR$selection$quota_z100` of largest |z| ≥
+`r EUR$selection$quota_z_from` and `r EUR$selection$quota_p_zero` past the p = 0
+point.
+`r n(EUR$selection$no_observed_rows)` pool Analyses had no Observed Association
+at the tier and could not be drawn. Analyses with more than
+`r n(EUR$selection$max_observed_rows)` observed rows were left out of the pool:
+`r paste(EUR$selection$excluded_over_max_rows$analysis_id, collapse = " and ")`, whose
+largest |z| are `r paste(f(EUR$selection$excluded_over_max_rows$max_abs_z, 1), collapse = " and ")`
+([#406](#cost) found
+`r paste(pct(over_share(EUR$selection$excluded_over_max_rows$analysis_id), 0), collapse = " and ")`
+of their tier rows past |z| `r CO$slices$over_abs_z[1]`, where p is close to
+underflowing, which looks like an artefact of their sources).
+`r n(length(EUR$below_floor$analyses$analysis_id))`
+drawn Analyses fell under the shared-set floor
+(`r paste0(EUR$below_floor$analyses$analysis_id, " ", pct(EUR$below_floor$analyses$shared_set_share), collapse = ", ")`),
+so `r n(EUR$swept)` were swept: `r n(EUR$swept_by_z_band[[paste0(">=", EUR$selection$quota_z_from)]])`
+with largest |z| ≥ `r EUR$selection$quota_z_from`. They hold `r n(EUR$rows$tier)` Observed Associations at the
+tier, `r pct(EUR$rows$shared_share)` of them in the shared set. The grid is
+D ∈ {`r paste(g(GRID$d_cm), collapse = ", ")`} cM ×
+W ∈ {`r paste(g(GRID$w_bp / 1e6), collapse = ", ")`} Mb, plus bp-only at each W.
+
+#### The per-lead judgement: not met
+
+**No (D, W) meets the per-lead criteria.** `r n(EPL$qualifying)` of the
+`r n(nrow(EPL$points))` points qualify. The nearest, by the larger of its two
+rates, is `r NEAR`: `r pct(EPL$nearest$spurious_split_rate)` spurious splits and
+`r pct(EPL$nearest$lost_signal_rate)` lost signals. The plain
+`r w_lab(EPL$nearest$w_bp)` window gives
+`r pct(EPL$nearest_bp_only$spurious_split_rate)` and `r pct(EPL$nearest_bp_only$lost_signal_rate)`. Lost signals never fall below
+`r pct(EPL$lost_rate_min)` anywhere on the grid. Spurious splits reach the
+`r pct(PL$spurious_split_rate_max, 0)` limit only at
+`r n(nrow(EPL$low_spurious_points))` points, all with W of at least
+`r w_lab(min(EPL$low_spurious_points$w_bp))`, and there lost signals are at least `r pct(EPL$low_spurious_lost_min)`. A cM condition trades lost signals for
+spurious splits; it never gets both down.
+
+```{r eur-tradeoff}
+#| fig-cap: !expr CAP_TRADEOFF
+#| fig-width: 7
+#| fig-height: 4.8
+pts <- EPL$points
+pts$W <- factor(w_lab(pts$w_bp), levels = w_lab(GRID$w_bp))
+cmp <- pts[!is.na(pts$d_cm), ]
+cmp <- cmp[order(cmp$w_bp, cmp$d_cm), ]
+bpo <- pts[is.na(pts$d_cm), ]
+ggplot() +
+  annotate("rect", xmin = 0, xmax = PL$lost_signal_rate_max, ymin = 0, ymax = PL$spurious_split_rate_max, fill = "grey85") +
+  geom_path(data = cmp, aes(lost_signal_rate, spurious_split_rate, colour = W, group = W)) +
+  geom_point(data = cmp, aes(lost_signal_rate, spurious_split_rate, colour = W), size = 2) +
+  geom_text(data = cmp[cmp$w_bp == NAMED_W, ], aes(lost_signal_rate, spurious_split_rate, colour = W, label = paste(g(d_cm), "cM")),
+            nudge_x = 0.035, nudge_y = 0.004, size = 2.6, show.legend = FALSE) +
+  geom_point(data = bpo, aes(lost_signal_rate, spurious_split_rate, colour = W), shape = 0, size = 3.5) +
+  scale_colour_manual(values = OKABE) +
+  scale_x_continuous(labels = function(v) pct(v, 0), limits = c(0, NA)) +
+  scale_y_continuous(labels = function(v) pct(v, 0), limits = c(0, NA)) +
+  labs(x = "lost signals / index variants", y = "spurious splits / Locus Leads", colour = "W")
+```
+
+Two things made per-lead agreement the wrong yardstick for a count:
+
+- **r² `r R2P` clumping splits strong peaks into their LD shadows.** A variant
+  with r² `r R2P` to a lead of |z| z is expected at |z| ≈ z·√r², still far past
+  the `r TIER` line (|z| `r f(M$z_at_tier, 2)`) when z is large. Lost signals
+  therefore rise with peak strength: at `r TP`, they run
+  `r pct(EPL$by_peak$weak_min, 0)`–`r pct(EPL$by_peak$weak_max, 0)` for the
+  `r EPL$by_peak$weak_n` Analyses with largest |z| below
+  `r g(EPL$by_peak$weak_below)`, and
+  `r pct(EPL$by_peak$strong_min, 0)`–`r pct(EPL$by_peak$strong_max, 0)` for the
+  `r EPL$by_peak$strong_n` at or above `r g(EPL$by_peak$strong_from)`.
+  `r EPL$named_analysis$analysis_id` (largest |z| `r f(EPL$named_analysis$max_abs_z, 0)`) has
+  `r EPL$named_analysis$leads_tracer_point` Locus Leads against
+  `r EPL$named_analysis$index_variants` clumps: at that strength a variant with
+  r² `r R2L` to the lead is still expected at |z| ≈
+  `r f(EPL$named_analysis[["expected_z_at_legacy_r2"]], 1)`, past `r TIER`.
+- **r² `r R2L` is mostly noise at n = `r n(AN$EUR$samples)`.** Across the swept
+  Analyses' index variants, `r pct(EPL$chance_index_pairs[["share_r2_ge_0.001"]], 0)`
+  of cross-chromosome pairs exceed r² `r R2L`, and
+  `r pct(EPL$chance_index_pairs[["share_r2_ge_0.01"]], 2)` exceed r² `r R2P`
+  (`r n(EPL$chance_index_pairs$pairs_evaluable)` pairs). At `r NEAR`,
+  `r n(EPL$nearest_splits$beyond_1mb)` of the `r n(EPL$nearest_splits$n)`
+  spurious splits are more than `r w_lab(EPL$nearest_splits$near_band_bp)`
+  from the variant whose clump holds them.
+
+```{r eur-by-peak}
+#| fig-cap: !expr CAP_BY_PEAK
+#| fig-width: 7
+#| fig-height: 4.2
+pa <- EUR$per_analysis
+pa$label <- ifelse(pa$analysis_id == EPL$named_analysis$analysis_id, pa$analysis_id, "")
+ggplot(pa, aes(max_abs_z, lost_rate_tracer_point)) +
+  geom_point(aes(size = index_variants), colour = OKABE[1], alpha = 0.7) +
+  geom_text(aes(label = label), nudge_y = 0.05, size = 3) +
+  scale_x_log10() +
+  scale_y_continuous(labels = function(v) pct(v, 0), limits = c(0, NA)) +
+  scale_size_area(name = "index variants", max_size = 6) +
+  labs(x = "largest |z| in the Analysis", y = "lost signals / index variants")
+```
+
+The spikes matter little: at `r NEAR`,
+`r n(EPL$nearest_spikes$straddling[EPL$nearest_spikes$kind == "spurious_split_pairs" & EPL$nearest_spikes$rule == "nearest"])`
+of `r n(EPL$nearest_spikes$n[EPL$nearest_spikes$kind == "spurious_split_pairs" & EPL$nearest_spikes$rule == "nearest"])`
+spurious splits and
+`r n(EPL$nearest_spikes$straddling[EPL$nearest_spikes$kind == "lost_signal_pairs" & EPL$nearest_spikes$rule == "nearest"])`
+of `r n(EPL$nearest_spikes$n[EPL$nearest_spikes$kind == "lost_signal_pairs" & EPL$nearest_spikes$rule == "nearest"])`
+lost signals span either spike.
+
+#### The count judgement: C1 and C2 met, C3 not
+
+```{r eur-counts}
+#| fig-cap: !expr CAP_COUNTS
+#| fig-width: 7
+#| fig-height: 4.6
+cf <- EC$configs
+cf$W <- factor(w_lab(cf$w_bp), levels = w_lab(GRID$w_bp))
+ccm <- cf[!is.na(cf$d_cm), ]
+ccm <- ccm[order(ccm$w_bp, ccm$d_cm), ]
+cbp <- cf[is.na(cf$d_cm), ]
+ggplot() +
+  annotate("rect", xmin = CC$ratio_range[1], xmax = CC$ratio_range[2], ymin = -Inf, ymax = Inf, fill = "grey88") +
+  geom_hline(yintercept = CC$rho_min, colour = "grey40") +
+  geom_path(data = ccm, aes(median_ratio, rho, colour = W, group = W)) +
+  geom_point(data = ccm, aes(median_ratio, rho, colour = W), size = 2) +
+  geom_point(data = cbp, aes(median_ratio, rho, colour = W), shape = 0, size = 3.5) +
+  scale_colour_manual(values = OKABE) +
+  labs(x = "median density ratio, leads on HapMap3 / leads on the shared set", y = "Spearman ρ, Locus Leads vs index variants", colour = "W")
+```
+
+- **C1 holds at `r EC$c1_met` of `r EC$points` points**, with ρ from
+  `r f(EC$rho_min)` to `r f(EC$rho_max)`. Counting Locus Leads ranks Analyses
+  as clumping does.
+- **C2 holds at `r EC$c2_met` of `r EC$points` points**; it fails only at D
+  `r paste(g(unlist(EC$c2_fails_at_d)), collapse = ", ")` cM. Raw rows keep a
+  median of `r f(EC$rows$median_ratio)` of their count on HapMap3 (median |log2| `r f(EC$rows$median_abs_log2)`), so C2 asks the leads' median |log2| to be at
+  most `r f(EC$rows$c2_abs_log2_limit)`. Leads are far less density-sensitive
+  than rows.
+- **The point named is `r NAMED`**, which loses
+  `r pct(EC$named$lost_to_density)` of its leads when only HapMap3 variants are
+  present. The best cM point is `r pt_lab(EC$named_cm$d_cm, EC$named_cm$w_bp)`,
+  which loses `r pct(EC$named_cm$lost_to_density)`.
+- **C3 holds at `r w_list(EC$c3_holds_at_w)`**. The largest gain in ρ any cM
+  point makes over bp-only at its W is
+  `r sprintf("%+.4f", EC$largest_rho_gain$delta_rho)`
+  (`r pt_lab(EC$largest_rho_gain$d_cm, EC$largest_rho_gain$w_bp)`), against a
+  margin of `r g(CC$c3_margin_rho)`, and it costs
+  `r f(-EC$largest_rho_gain$delta_abs_log2)` in median |log2|, against a margin
+  of `r g(CC$c3_margin_abs_log2)`. The best |log2| gain any cM point makes is `r f(EC$best_abs_log2_gain)`. In EUR, cM adds nothing the counts can see.
+
+```{r eur-c3}
+c3 <- EC$c3
+kable(data.frame(W = w_lab(c3$w_bp), rho = f(c3$bp_only_rho), log2 = f(c3$bp_only_median_abs_log2),
+                 best = d_lab(c3$largest_rho_gain$d_cm), dr = sprintf("%+.4f", c3$largest_rho_gain$delta_rho),
+                 dl = sprintf("%+.3f", c3$largest_rho_gain$delta_abs_log2), holds = yes(c3$holds)),
+      col.names = c("W", "bp-only ρ", "bp-only median |log2|", "cM point with the largest ρ gain", "Δρ", "Δ|log2| (positive is better)", "C3 holds"),
+      caption = "C3 at each W: the cM point that gains most in ρ over bp-only, and what it does to density sensitivity.")
+```
+
+### #404: other maps
+
+**Question.** Is the published pyrho EUR map good enough, or would another map
+make a cM condition worth having? The same Analyses, shared set and grid were
+run with the **median** of the `r length(AN$EUR$populations)` EUR population
+maps (taken over rates per interval, which removes single-population spikes) and with **HapMap II**,
+lifted to GRCh38 as Eagle ships it.
+
+**Criteria.** Each map's best (D, W) and per-lead rates beside the pyrho mean's,
+on the same rows; a statement of whether the pyrho map is adequate; checksums
+verified and cM non-decreasing for each map; the deCODE licence recorded.
+**Met**, with deCODE left out.
+
+**deCODE.** The pedigree map from deCODE (Halldorsson et al., *Science*) was
+the first proposal's default. Its file and its terms of use could not be
+reached from the build node (the publisher's site answers with a bot
+challenge), and no open copy or licence was found, so the run left it out
+rather than guess at its terms. A pedigree map therefore remains untested.
+
+**Result.** Every map leaves exactly the same shared set:
+`r n(MP$shared_set$rows)` of `r n(MP$shared_set$tier_rows)` tier rows
+(`r pct(MP$shared_set$share)`), with one digest over all
+`r MP$shared_set$analyses_checked` drawn Analyses. None of the maps makes C3
+hold anywhere:
+
+```{r maps}
+mp <- MP$maps
+spike_txt <- function(s) paste(paste0("chr", s$chromosome, " ", f(s$cm_gain, 3)), collapse = "; ")
+kable(data.frame(map = mp$name, length = paste(f(mp$total_cm, 1), "cM"),
+                 c1 = paste(mp$c1_met, "of", mp$points_judged), c2 = paste(mp$c2_met, "of", mp$points_judged),
+                 c3 = vapply(mp$c3_holds_at_w, w_list, ""),
+                 named = pt_lab(mp$named$d_cm, mp$named$w_bp), lost = pct(mp$named$lost_to_density),
+                 best = paste0(pt_lab(mp$named_cm$d_cm, mp$named_cm$w_bp), " (", pct(mp$named_cm$lost_to_density), ")"),
+                 drho = sprintf("%+.4f", mp$largest_rho_gain$delta_rho),
+                 rates = paste0(pct(mp$tracer_point$spurious_split_rate), " / ", pct(mp$tracer_point$lost_signal_rate)),
+                 spikes = vapply(mp$spike_gain_cm, spike_txt, ""),
+                 clamped = n(mp$clamped$rows)),
+      col.names = c("map", "genetic length", "C1 held at", "C2 held at", "C3 holds at", "point named", "its leads lost to density",
+                    "best cM point (lost to density)", "largest Δρ over bp-only", paste0("spurious / lost at ", TP),
+                    "cM gained across the spike intervals", "shared-set rows clamped at a map end"),
+      caption = paste0("The EUR maps on #403's Analyses, shared set and grid. Per-lead rates are at r² ", R2P, "; the spike column is the cM each map puts across the intervals where the pyrho mean jumps."))
+```
+
+- **The pyrho EUR map is adequate, and the map is not the lever.** All three
+  maps give the same verdict and name the same point, the bp-only window, where
+  cM is not read at all.
+- **The median removes both spikes** without moving the counts.
+- **HapMap II is `r pct(MP$hapmap2_length_over_mean - 1, 0)` longer** in cM than
+  the pyrho mean, so a given D covers fewer bp; it turns lost signals into
+  spurious splits. Its largest ρ gain over bp-only is the biggest of the three,
+  and it still fails C3's density margin.
+- Rows outside a map's first or last point take that point's cM, held flat:
+  HapMap II clamps `r n(mp$clamped$rows[mp$name == "hapmap2"])` shared-set rows
+  this way, the pyrho maps `r n(mp$clamped$rows[mp$name == "pyrho-mean"])`.
+  Neither comparison map lost a point to the non-decreasing check
+  (`r paste(n(mp$points_dropped[!is.na(mp$points_dropped)]), collapse = " and ")` points dropped).
+
+### #405: AFR, EAS and AMR
+
+**Question.** Does the method work beyond EUR, and with what D per ancestry? It
+also tests the revision's two predictions: AFR needs a smaller D than EUR, and
+the AMR map is the least trustworthy.
+
+**Criteria.** For each ancestry: a seeded, recorded draw; the best (D, W) or why
+none qualifies; per-lead rates at both r²; D compared with EUR's; the
+population weights recorded; whether the AMR map is usable. The same grid, count
+criteria and row cap as #403, each ancestry against its own map and panel, with
+seed `r AN$AFR$seed`.
+
+```{r ancestries}
+an <- names(AN)
+row_of <- function(a) {
+  r <- AN[[a]]
+  c <- r$counts
+  named <- if (is.null(c$named)) "none" else pt_lab(c$named$d_cm, c$named$w_bp)
+  c3w <- if (length(c$c3_holds_at_w) == 0) "no W" else paste(w_lab(unlist(c$c3_holds_at_w)), collapse = ", ")
+  data.frame(ancestry = a, stores = paste(r$stores, collapse = ", "),
+             draw = paste0(n(r$pool), " / ", n(r$drawn), " / ", n(r$swept)),
+             below = n(r$below_floor), rows = n(r$tier_rows), shared = pct(r$shared_share),
+             c1 = paste(c$c1_met, "of", c$points), c2 = paste(c$c2_met, "of", c$points),
+             both = paste(c$both_met, "of", c$points), named = named, c3 = c3w,
+             nearest = pt_lab(r$nearest$d_cm, r$nearest$w_bp),
+             rates = paste0(pct(r$nearest$primary$spurious_split_rate), " / ", pct(r$nearest$primary$lost_signal_rate)),
+             legacy = paste0(pct(r$nearest$legacy$spurious_split_rate), " / ", pct(r$nearest$legacy$lost_signal_rate)))
+}
+kable(do.call(rbind, lapply(an, row_of)), row.names = FALSE,
+      col.names = c("ancestry", "Store", "pool / drawn / swept", "below the shared-set floor", "tier rows swept",
+                    "in the shared set", "C1 held at", "C2 held at", "C1 and C2", "point named", "C3 holds at",
+                    "nearest per-lead point", paste0("spurious / lost there, r² ", R2P),
+                    paste0("spurious / lost there, r² ", R2L)),
+      caption = "Each ancestry's sweep against its own map and panel. EUR's column is #403's.")
+```
+
+```{r ancestry-curves}
+#| fig-cap: !expr CAP_CURVES
+#| fig-width: 8
+#| fig-height: 6
+d_levels <- c(g(GRID$d_cm), "bp only")
+curves <- do.call(rbind, lapply(an, function(a) {
+  cf <- AN[[a]]$counts$configs
+  cf <- cf[cf$w_bp %in% c(GRID$w_bp[2], NAMED_W), ]
+  rbind(data.frame(ancestry = a, W = w_lab(cf$w_bp), D = ifelse(is.na(cf$d_cm), "bp only", g(cf$d_cm)),
+                   metric = "Spearman ρ", value = cf$rho),
+        data.frame(ancestry = a, W = w_lab(cf$w_bp), D = ifelse(is.na(cf$d_cm), "bp only", g(cf$d_cm)),
+                   metric = "median density ratio", value = cf$median_ratio))
+}))
+curves$D <- factor(curves$D, levels = d_levels)
+curves$W <- factor(paste("W", curves$W), levels = paste("W", w_lab(c(GRID$w_bp[2], NAMED_W))))
+curves$metric <- factor(curves$metric, levels = c("Spearman ρ", "median density ratio"))
+refs_line <- data.frame(metric = factor("Spearman ρ", levels(curves$metric)), y = CC$rho_min)
+refs_band <- data.frame(metric = factor("median density ratio", levels(curves$metric)),
+                        ymin = CC$ratio_range[1], ymax = CC$ratio_range[2])
+ggplot(curves, aes(D, value, colour = ancestry, group = ancestry)) +
+  geom_rect(data = refs_band, aes(xmin = -Inf, xmax = Inf, ymin = ymin, ymax = ymax), inherit.aes = FALSE, fill = "grey88") +
+  geom_hline(data = refs_line, aes(yintercept = y), colour = "grey40") +
+  geom_line() + geom_point(size = 1.8) +
+  facet_grid(metric ~ W, scales = "free_y") +
+  scale_colour_manual(values = OKABE) +
+  labs(x = "D (cM)", y = NULL, colour = NULL)
+```
+
+- **AFR: the prediction cannot be judged by counts.** AFR names no point: C1
+  holds at `r AN$AFR$counts$c1_met` of `r AN$AFR$counts$points` points (all at D
+  `r paste(g(unlist(AN$AFR$counts$c1_holds_at_d)), collapse = ", ")` cM) and C2
+  at `r AN$AFR$counts$c2_met`. Both AFR's and EUR's nearest per-lead points sit
+  at the grid's smallest D, so a calibrated D for AFR would be at or below where
+  the grid stops. What is observed fits the prediction without proving it: at
+  W `r w_lab(AN$AFR$at[["d0.1_w1mb"]]$w_bp)`, AFR's ρ falls from
+  `r f(AN$AFR$at[["d0.1_w1mb"]]$rho)` at D `r g(AN$AFR$at[["d0.1_w1mb"]]$d_cm)` cM to
+  `r f(AN$AFR$at$bp_w1mb$rho)` bp-only, where EUR's goes from
+  `r f(AN$EUR$at[["d0.1_w1mb"]]$rho)` to `r f(AN$EUR$at$bp_w1mb$rho)`; at W
+  `r w_lab(AN$AFR$at$bp_w10mb$w_bp)` AFR's falls from `r f(AN$AFR$at[["d0.1_w10mb"]]$rho)` to `r f(AN$AFR$at$bp_w10mb$rho)`. C3 holds at every W for AFR
+  (`r paste(paste0("W ", w_lab(AN$AFR$counts$c3$w_bp), ": D ", vapply(AN$AFR$counts$c3$d_cm_that_hold, function(d) paste(g(d), collapse = ", "), ""), " cM"), collapse = "; ")`),
+  but on counts that C2 rejects.
+- **AMR: usable to rank, not to choose D.** C1 holds at
+  `r AN$AMR$counts$c1_met` of `r AN$AMR$counts$points` points (ρ
+  `r f(AN$AMR$counts$rho_min)`–`r f(AN$AMR$counts$rho_max)`), but C2 at `r AN$AMR$counts$c2_met` of `r AN$AMR$counts$points`. The AMR panel has `r n(AN$AMR$samples)` samples, and
+  `r pct(AN$AMR$chance_panel[["share_r2_ge_0.01"]], 2)` of its unlinked pairs
+  reach r² `r R2P` by chance, against `r pct(AN$EUR$chance_panel[["share_r2_ge_0.01"]], 2)`
+  in EUR, so its clump counts are partly chance. Admixture's long-range LD shows
+  in the disagreements: at AMR's nearest point,
+  `r pct(AN$AMR$nearest$splits$beyond_1mb_share)` of spurious splits lie more
+  than `r w_lab(AN$AMR$nearest$splits$near_band_bp)` from their clump's index
+  variant and `r pct(AN$AMR$nearest$splits$r2_ge_strong_share)` have r² of at
+  least `r g(AN$AMR$nearest$splits$strong_r2)`, where chance gives `r pct(AN$AMR$chance_panel$share_r2_ge_strong, 2)`. For EUR the same shares
+  are `r pct(AN$EUR$nearest$splits$beyond_1mb_share)` and `r pct(AN$EUR$nearest$splits$r2_ge_strong_share)`. No cM distance inside W
+  separates such pairs.
+- **EAS names `r pt_lab(AN$EAS$counts$named$d_cm, AN$EAS$counts$named$w_bp)`,**
+  where C1 and C2 hold, but C3 holds at `r w_list(AN$EAS$counts$c3_holds_at_w)`:
+  the named point ties bp-only at W `r w_lab(NAMED_W)`
+  `r if (AN$EAS$named_ties_bp_w10mb) "exactly, on every count metric" else "only approximately"`,
+  and bp-only at W `r w_lab(NAMED_W)` meets C1 and C2 itself (ρ
+  `r f(AN$EAS$at$bp_w10mb$rho)`, median ratio `r f(AN$EAS$at$bp_w10mb$median_ratio)`). The EAS verdict rests on
+  `r n(AN$EAS$tier_rows)` tier rows from `r n(AN$EAS$swept)` Analyses, none
+  with largest |z| above `r f(AN$EAS$swept_max_abs_z, 1)`, so treat it as
+  indicative.
+
+```{r chance}
+ch <- do.call(rbind, lapply(an, function(a) {
+  r <- AN[[a]]
+  data.frame(ancestry = a, samples = n(r$samples),
+             pool = paste0(n(r$chance_panel$pool_variants), " / ", n(r$chance_panel$variants_used)),
+             l = pct(r$chance_panel[["share_r2_ge_0.001"]]), p = pct(r$chance_panel[["share_r2_ge_0.01"]], 2),
+             s = pct(r$chance_panel$share_r2_ge_strong, 3),
+             il = pct(r$chance_index_pairs[["share_r2_ge_0.001"]]), ip = pct(r$chance_index_pairs[["share_r2_ge_0.01"]], 2),
+             ipairs = n(r$chance_index_pairs$pairs_evaluable))
+}))
+kable(ch, row.names = FALSE,
+      col.names = c("panel", "samples", "pooled variants / used",
+                    paste0("panel: r² ≥ ", R2L), paste0("panel: r² ≥ ", R2P),
+                    paste0("panel: r² ≥ ", g(AN$AMR$nearest$splits$strong_r2)),
+                    paste0("index pairs: r² ≥ ", R2L), paste0("index pairs: r² ≥ ", R2P), "index pairs"),
+      caption = paste0("Chance LD, two ways. The panel's own: ", n(AN$EUR$chance_panel$pairs), " seeded cross-chromosome pairs of the shared-set variants the swept Analyses hold, a property of the panel's sample size. Index pairs: cross-chromosome pairs of each swept Analysis's own index variants, which depend on how many hits the Analyses have (EAS has few)."))
+```
+
+### #406: what pruning costs {#cost}
+
+**Question.** Is genetic-distance pruning actually cheaper than clumping, the
+reason for considering it, and is it fast enough to run per query?
+
+**Criteria.** Every number in the run's output with the machine, date and
+commit; pruning against clumping as a ratio for the same Analyses; and whether
+query-time pruning of the largest slice is fast enough per query. The budget,
+fixed before measuring, was: `r CO$parameters$budget`. **Met**; the answer to
+the last is no.
+
+The run was on `r CO$measured_on`, on `r CO$machine$cpu_model`
+(`r CO$machine$cores` cores), at engine commit `` `r CO$commit` ``, with
+`r CO$parameters$repeats` repeats of each stage, the rule at
+`r pt_lab(CO$parameters$d_cm, CO$parameters$w_bp)`, and plink2 on
+`r CO$parameters$threads` threads.
+
+**Building the cM array.** For `r CO$per_variant_cm$store[1]`'s
+`r n(CO$per_variant_cm$variants[1])` variants, reading chromosome and position
+from the Store Variant Table took `r sec(CO$per_variant_cm$read_s[1], 1)` and
+interpolating cM `r sec(CO$per_variant_cm$interpolate_s[1], 1)`. The
+per-variant chromosome, position and cM arrays together take
+`r n(round(CO$per_variant_cm$mapped_bytes[1] / 1e6))` MB, the cM array alone
+`r n(round(CO$per_variant_cm$cm_bytes[1] / 1e6))` MB, and
+`r n(CO$per_variant_cm$off_map[1])` variants on
+`r paste(unlist(CO$per_variant_cm$off_map_chromosomes[1]), collapse = ", ")` have
+no cM.
+
+```{r cost}
+sl <- CO$slices
+kable(data.frame(slice = paste0(sl$store, " ", sl$analysis_id, " at ", vapply(sl$threshold, sci, "")),
+                 rows = n(sl$tier), query = sec(sl$query_s), resolved = sec(sl$resolved_query_s),
+                 written = paste0(sec(sl$pruning_s), " (", times(sl$ratio), ")"),
+                 fast = paste0(sec(sl$fast_pruning_s), " (", times(sl$fast_ratio, 2), ")"),
+                 of_resolved = f(sl$fast_ratio_of_resolved, 3),
+                 plink2 = sec(sl$clumping$plink2_s), e2e = sec(sl$clumping$end_to_end_s),
+                 r1 = f(sl$clumping$ratios$plink2_only, 3), r2 = f(sl$clumping$ratios_fast$plink2_only, 3)),
+      row.names = FALSE,
+      col.names = c("slice", "tier rows", "Top-Hit Query", "same query, resolved", "pruning as written (× query)",
+                    "pruning, block rule with per-variant arrays (× query)", "block rule ÷ resolved query",
+                    "plink2 alone", "clumping, end to end", "as written ÷ plink2", "block rule ÷ plink2"),
+      caption = "Pruning and clumping on the same slices, medians of the repeats. Pruning as written reads positions from the Store Variant Table; the block-at-a-time rule gives identical leads and reads per-variant position and cM arrays. Clumping end to end includes matching the rows to the panel.")
+```
+
+```{r cost-pick}
+big <- sl[1, ]
+```
+
+- **Against clumping, pruning is cheaper on every slice.** Divided by plink2
+  alone, the rule as written costs
+  `r f(CO$ratio_ranges$as_written$plink2_only$min, 3)`–`r f(CO$ratio_ranges$as_written$plink2_only$max, 3)`
+  of clumping (`r times(CO$ratio_ranges$as_written$plink2_only$cheaper_min)`–`r times(CO$ratio_ranges$as_written$plink2_only$cheaper_max, 0)`
+  cheaper), and the block rule
+  `r f(CO$ratio_ranges$fast$plink2_only$min, 3)`–`r f(CO$ratio_ranges$fast$plink2_only$max, 3)`.
+  Against clumping end to end, which must first match rows to the panel, the
+  block rule is `r times(CO$ratio_ranges$fast$end_to_end$cheaper_min, 0)`–`r times(CO$ratio_ranges$fast$end_to_end$cheaper_max, 0)`
+  cheaper.
+- **Per query, it misses the budget on `r nrow(sl) - CO$slices_within_budget` of `r nrow(sl)` slices.**
+  On the largest slice (`r big$analysis_id`, `r n(big$tier)` rows), the
+  Top-Hit Query takes `r sec(big$query_s)`. Pruning as written takes
+  `r sec(big$pruning_s)` (`r times(big$ratio)` the query, most of it reading
+  positions from the Store Variant Table: `r sec(big$positions_s, 1)` against
+  `r sec(big$positions_array_s, 3)` from a per-variant array). The block rule
+  with per-variant arrays takes `r sec(big$fast_pruning_s)`
+  (`r times(big$fast_ratio, 2)` the bare query, but
+  `r f(big$fast_ratio_of_resolved, 3)` of the resolved query a reader actually
+  waits for, `r sec(big$resolved_query_s, 1)`). Its peak memory was
+  `r n(round(big$peak_mb$resolved_query))` MB for the resolved query, from
+  `r n(round(big$peak_mb$resolved_query_start))` MB already resident.
+- `r if (CO$every_fast_rule_identical) "On every slice, the block rule gives the same leads as the rule as written." else "The block rule did not give the same leads on every slice."`
+- **Two slices are artefact-like.** `r big$analysis_id` has
+  `r n(big$rows_abs_z_over)` of its `r n(big$tier)` tier rows past |z|
+  `r big$over_abs_z`, and `r sl$analysis_id[sl$name == "observed_only_5e-8"]` has
+  `r n(sl$rows_abs_z_over[sl$name == "observed_only_5e-8"])` of its `r n(sl$tier[sl$name == "observed_only_5e-8"])`.
+  They are timed for cost
+  only; #403's draw excludes them by its row cap.
+
+Absolute seconds carry the node's load: its load average reached
+`r f(CO$max_load_one, 1)` during the run. The ratios and the share of each stage
+are what to compare.
+
+### #409: boundaries from the data
+
+**Question.** #403 showed that per-lead disagreement concentrates at strong
+peaks. Would locus boundaries taken from the data do better than a fixed
+distance? Two rules were tried on #403's Analyses, shared set and clumps:
+
+- **peak prominence:** two `r TIER` hits stay in one locus unless the |z|
+  profile between them, read from the `r sci(PR$profile_tier)` tier as the
+  maximum |z| per bin of B bp, falls into a valley. A row joins the strongest
+  accepted lead whose lowest bin between them stays above a threshold (relative,
+  f × the row's |z|, or a fixed chain of non-empty bins), and no merge spans
+  more than the clumping window. B ∈ {`r paste(g(PR$bins_bp / 1e3), collapse = ", ")`} kb;
+  thresholds `r paste(PR$thresholds, collapse = ", ")`.
+- **one lead per LD block:** the strongest row in each of the
+  `r n(PR$blocks)` EUR LD blocks of the panel's region file.
+
+**Criteria.** C1 and C2 in #403's wording (C2 restricts the profile to HapMap3
+as well as the hits); C3's margins against bp-only at W `r w_lab(NAMED_W)` and
+at each other W; per-lead rates by the lead's |z| band; every valley that
+separates two leads classed as low |z| or no tier row, with a sample checked
+against the Store. **Met.** Neither rule beats distance pruning.
+
+```{r profile}
+rl <- PR$rules
+bl <- PR$baselines
+prof <- rbind(
+  data.frame(rule = rl$label, rho = f(rl$rho), c1 = yes(rl$c1), ratio = f(rl$median_ratio), log2 = f(rl$median_abs_log2),
+             c2 = yes(rl$c2), d = paste0(sprintf("%+.3f", rl$delta_rho_w10mb), " / ", sprintf("%+.3f", rl$delta_abs_log2_w10mb)),
+             c3 = vapply(rl$c3_holds_at_w, w_list, ""),
+             rates = paste0(pct(rl$spurious_split_rate), " / ", pct(rl$lost_signal_rate)),
+             strong = pct(rl$strong_disagreement), named = rl$named_analysis_leads),
+  data.frame(rule = paste0("#403 ", pt_lab(bl$d_cm, bl$w_bp)), rho = f(bl$rho), c1 = yes(bl$c1), ratio = f(bl$median_ratio),
+             log2 = f(bl$median_abs_log2), c2 = yes(bl$c2), d = "", c3 = "",
+             rates = paste0(pct(bl$spurious_split_rate), " / ", pct(bl$lost_signal_rate)),
+             strong = pct(bl$strong_disagreement), named = bl$named_analysis_leads))
+kable(prof, row.names = FALSE,
+      col.names = c("rule", "ρ", "C1", "median density ratio", "median |log2|", "C2",
+                    paste0("Δρ / Δ|log2| against bp-only, W ", w_lab(NAMED_W)), "C3 holds at",
+                    "spurious / lost", paste0("disagreement, leads with |z| ≥ ", g(rl$strong_from[1])),
+                    paste0("Locus Leads in ", PR$named_analysis$analysis_id, " (", PR$named_analysis$index_variants, " clumps)")),
+      caption = paste0("The prominence and LD-block rules on #403's ", PR$analyses, " Analyses at r² ", R2P, ", beside #403's named point and the tracer's point. Δ|log2| is positive when the rule is less density-sensitive than bp-only."))
+```
+
+- **C3 holds at W `r w_lab(NAMED_W)` for no rule.** At any W it holds only for `r paste(paste0(PR$c3_anywhere$label, " at W ", w_lab(PR$c3_anywhere$w_bp)), collapse = "; ")`.
+- **Narrow bins fail C2.** Every B `r g(min(PR$bins_bp) / 1e3)` kb rule fails
+  it (median ratio `r f(PR$narrow_bin_ratio_min, 2)`–`r f(PR$narrow_bin_ratio_max, 2)`):
+  on HapMap3 the profile has gaps that read as valleys, so the rule finds more
+  loci on the sparse axis, not fewer.
+- **LD blocks** rank well (ρ `r f(rl$rho[rl$rule == "ld_blocks"])`) but are
+  more density-sensitive than bp-only (median |log2|
+  `r f(rl$median_abs_log2[rl$rule == "ld_blocks"])` against `r f(bl$median_abs_log2[is.na(bl$d_cm)])`). Rows outside every block are
+  counted: `r PR$blocks_rows_outside` rows in `r PR$blocks_stretches_outside`
+  stretches.
+- **At strong peaks,** LD blocks and some B `r g(max(PR$bins_bp) / 1e3)` kb rules
+  disagree with clumping less than bp-only at W `r w_lab(NAMED_W)`, but none does
+  better than `r TP`.
+- **Valleys are real, not gaps.** There are `r n(PR$valleys$no_row_valleys)`
+  distinct valleys with no tier row. In a sample of
+  `r PR$valleys$by_bin$sampled[1]` per bin width checked against the Store,
+  `r paste(paste0(pct(PR$valleys$by_bin$share_gap), " (B ", g(PR$valleys$by_bin$bin_bp / 1e3), " kb)"), collapse = " and ")`
+  are gaps in coverage rather than low |z|, so the stop rule, which withholds
+  the judgement when gaps dominate a sample, `r if (any(PR$valleys$by_bin$stop_rule_trips)) "tripped" else "did not trip"`.
+
+## What it means for `n_loci_*`
+
+The owner has decided the following; #407's verdict on #62 will record it.
+
+- **`n_loci_*` uses the bp-only window at W `r w_lab(NAMED_W)` for EUR and
+   EAS,** with no cM limit and no per-variant cM array.
+   - EUR: it is #403's named point. C1 holds (ρ `r f(AN$EUR$at$bp_w10mb$rho)`),
+     C2 holds (median density ratio `r f(AN$EUR$at$bp_w10mb$median_ratio)`,
+     median |log2| `r f(AN$EUR$at$bp_w10mb$median_abs_log2)` against a limit of `r f(EC$rows$c2_abs_log2_limit)`), and it loses the fewest leads to density
+     (`r pct(AN$EUR$at$bp_w10mb$lost_to_density)`). C3 holds at no W, on any of
+     the maps #404 compared.
+   - EAS: bp-only at W `r w_lab(NAMED_W)` meets C1 and C2 (ρ
+     `r f(AN$EAS$at$bp_w10mb$rho)`, median ratio `r f(AN$EAS$at$bp_w10mb$median_ratio)`) and ties the named cM point; C3
+     holds at no W.
+   - So in both, cM adds nothing the counts can see.
+- **AFR and AMR get no `n_loci_*` until they are calibrated.** No grid point
+   meets both C1 and C2 there (`r AN$AFR$counts$both_met` of
+   `r AN$AFR$counts$points` in AFR, `r AN$AMR$counts$both_met` in AMR).
+   - AFR: C2 holds nowhere, and C1 only at D
+     `r paste(g(unlist(AN$AFR$counts$c1_holds_at_d)), collapse = ", ")` cM. At W
+     `r w_lab(AN$AFR$at$bp_w10mb$w_bp)`, bp-only's ρ is
+     `r f(AN$AFR$at$bp_w10mb$rho)` against `r f(AN$AFR$at[["d0.1_w10mb"]]$rho)` at
+     D `r g(AN$AFR$at[["d0.1_w10mb"]]$d_cm)` cM, so the rule the other ancestries
+     use ranks AFR Analyses poorly.
+   - AMR: C1 holds everywhere, C2 nowhere, and the AMR panel's chance LD at r²
+     `r R2P` (`r pct(AN$AMR$chance_panel[["share_r2_ge_0.01"]], 2)`) leaves its
+     clumps too noisy to calibrate against.
+- **No follow-up tickets are planned.**
+
+The alternatives, with their numbers on the same EUR Analyses:
+
+```{r alternatives}
+blk <- rl[rl$rule == "ld_blocks", ]
+p75 <- rl[rl$label == PR$c3_anywhere$label[1], ]
+bcm <- pick(EC$configs, EC$named_cm$d_cm, EC$named_cm$w_bp)
+tpc <- pick(EC$configs, TP_D, TP_W)
+tpl <- pick(EPL$points, TP_D, TP_W)
+bpc <- pick(EC$configs, NA, NAMED_W)
+bpl <- pick(EPL$points, NA, NAMED_W)
+alt <- data.frame(
+  option = c(paste0("chosen: ", NAMED), paste0("best cM point: ", pt_lab(EC$named_cm$d_cm, EC$named_cm$w_bp)),
+             paste0("tracer's cM point: ", TP), "one lead per LD block", paste0("prominence, ", p75$label)),
+  rho = f(c(bpc$rho, bcm$rho, tpc$rho, blk$rho, p75$rho)),
+  log2 = f(c(bpc$median_abs_log2, bcm$median_abs_log2, tpc$median_abs_log2, blk$median_abs_log2, p75$median_abs_log2)),
+  lost = pct(c(bpc$lost_to_density, bcm$lost_to_density, tpc$lost_to_density, blk$lost_to_density, p75$lost_to_density)),
+  c3 = c("(the baseline)", w_list(EC$c3_holds_at_w), w_list(EC$c3_holds_at_w),
+         w_list(blk$c3_holds_at_w), w_list(p75$c3_holds_at_w)),
+  rates = paste0(pct(c(bpl$spurious_split_rate, NA, tpl$spurious_split_rate, blk$spurious_split_rate, p75$spurious_split_rate)),
+                 " / ", pct(c(bpl$lost_signal_rate, NA, tpl$lost_signal_rate, blk$lost_signal_rate, p75$lost_signal_rate))),
+  needs = c("positions only", "a per-variant cM array", "a per-variant cM array", "an LD-block file per ancestry",
+            paste("the", sci(PR$profile_tier), "tier as a profile")))
+alt$rates[2] <- paste0(pct(pick(EPL$points, EC$named_cm$d_cm, EC$named_cm$w_bp)$spurious_split_rate), " / ",
+                       pct(pick(EPL$points, EC$named_cm$d_cm, EC$named_cm$w_bp)$lost_signal_rate))
+kable(alt, row.names = FALSE,
+      col.names = c("rule", "ρ (C1)", "median |log2| (C2)", "leads lost to density", "C3 holds at",
+                    paste0("spurious / lost at r² ", R2P), "what it needs"),
+      caption = "The chosen rule beside the alternatives the prototype measured, on #403's EUR Analyses.")
+```
+
+### Still open: build time only, or per query as well?
+
+One question is left for the owner after reading this report: whether pruning
+runs only at build time, giving `n_loci_*` as Analytical Metadata in
+`analyses.tsv`, or also as a per-query option of the Top-Hit Query. #406's
+numbers bear on both. It timed the rule at
+`r pt_lab(CO$parameters$d_cm, CO$parameters$w_bp)`, not the chosen bp-only
+window; the cM lookup itself took `r sec(big$cm_s, 3)` on the largest slice, so
+the chosen rule's cost is close to what was measured, but it was not timed.
+
+- **Build time.** A Store pays once per Analysis and tier. On the largest tier
+  (`r n(big$tier)` rows) that is `r sec(big$positions_s, 1)` to read positions
+  from the Store Variant Table and `r sec(big$rule_s, 1)` for the rule as
+  written (`r sec(big$rule_fast_s, 1)` for the block rule). The bp-only rule
+  needs no cM array, so `r CO$per_variant_cm$store[1]` would not carry its
+  `r n(round(CO$per_variant_cm$cm_bytes[1] / 1e6))` MB of cM nor pay the
+  `r sec(CO$per_variant_cm$interpolate_s[1], 1)` to interpolate it.
+- **Per query.** On the same tier the Top-Hit Query takes `r sec(big$query_s)`
+  and the resolved query `r sec(big$resolved_query_s, 1)`. Pruning as written
+  adds `r sec(big$pruning_s, 1)` (`r times(big$ratio)` the query,
+  `r f(big$pruning_over_resolved, 2)` of the resolved query). The block rule
+  with per-variant chromosome and position arrays, which Stores do not carry
+  today (`r n(round(CO$per_variant_cm$position_bytes[1] / 1e6))` MB for
+  `r CO$per_variant_cm$store[1]`), adds
+  `r sec(big$fast_pruning_s)` (`r times(big$fast_ratio, 2)` the query,
+  `r f(big$fast_ratio_of_resolved, 3)` of the resolved query). By the budget
+  fixed before measuring, no slice qualifies for per-query pruning.
+
+## Limitations
+
+- **Small panels and chance LD.** The reference is clumping on panels of
+  `r n(AN$EUR$samples)` (EUR) down to `r n(AN$AMR$samples)` (AMR) samples. At
+  these sizes `r pct(AN$EUR$chance_panel[["share_r2_ge_0.001"]], 0)` of
+  unlinked EUR pairs reach r² `r R2L` and
+  `r pct(AN$AMR$chance_panel[["share_r2_ge_0.01"]], 1)` of unlinked AMR pairs
+  reach r² `r R2P`. Clump counts are themselves noisy at low r², which is why
+  the counts are judged at r² `r R2P` and AMR is not calibrated.
+- **EAS is thin.** `r n(AN$EAS$swept)` Analyses and `r n(AN$EAS$tier_rows)`
+  tier rows, from a pool of `r n(AN$EAS$pool)` in which
+  `r n(AN$EAS$no_observed_rows)` have no Observed Association at `r TIER`, and
+  `r AN$EAS$quota_floors$min_abs_z_100$in_pool` have a largest |z| of
+  `r EUR$selection$quota_z_from` or more. Its C2 verdict may not survive a
+  larger draw.
+- **AFR's panel fit.** `r AN$AFR$below_floor` of `r AN$AFR$drawn` drawn AFR
+  Analyses fell under the shared-set floor:
+  `r AN$AFR$below_floor_groups$near_floor` keep
+  `r pct(AN$AFR$below_floor_groups$near_floor_min)`–`r pct(AN$AFR$below_floor_groups$near_floor_max)`
+  of their rows, and `r AN$AFR$below_floor_groups$far` keep at most `r pct(AN$AFR$below_floor_groups$far_max)`. The missing rows are rare variants
+  below the AFR panel's minor-allele-count filter, so the panel, not the
+  matching, limits AFR.
+- **Artefact Analyses excluded.**
+  `r paste(EUR$selection$excluded_over_max_rows$analysis_id, collapse = " and ")`
+  exceed #403's row cap of `r n(EUR$selection$max_observed_rows)` observed rows,
+  and
+  `r paste(pct(over_share(EUR$selection$excluded_over_max_rows$analysis_id), 0), collapse = " and ")`
+  of their tier rows, respectively, lie past |z| `r big$over_abs_z`. They are left out of every
+  sweep and timed only for cost.
+- **Load on the timing node.** #406's absolute times carry a load average of up
+  to `r f(CO$max_load_one, 1)`; compare its ratios, not its seconds.
+- **The draw is the committed one.** The EUR selection was drawn on the Store
+  inventory of `r EUR$selection$committed_on`. Drawing again today lists
+  OGS-00024, OGS-00025 and OGS-00026 among the Stores left out (signals-only or
+  cis coverage); the pool and the chosen Analyses are unchanged.
+- **Untested.** A pedigree map (deCODE) and D below `r g(min(GRID$d_cm))` cM for
+  AFR were not run, and #406 did not time the chosen bp-only rule itself.
+
+## Reproduce {#reproduce}
+
+This page reads one file, `docs/data/locus-leads-prototype.json`, written by
+`tools/locus_leads_prototype_extract.py` from the engine's committed outputs at
+`` `r x$engine$commit` `` (opengwas/opengwasdb, branch `orch/62-locus-leads`).
+The extract reads each output with `git show`, records its sha256, checks that
+outputs sharing a quantity agree (#403's counts as #404 and #409 reproduce them,
+each sweep's selection digest, the panel sizes) and refuses to write if they do
+not. A re-run at the same commit reproduces it byte for byte.
+
+```{bash}
+#| eval: false
+#| echo: true
+pixi run -e dev python3 tools/locus_leads_prototype_extract.py \
+    --engine <an opengwasdb checkout holding the commit> --commit 06d1a43 \
+    --output docs/data/locus-leads-prototype.json
+quarto render docs/reports/locus-leads-prototype.qmd --to html
+```
+
+The engine's own commands for each output are in
+`prototypes/locus_leads/README.md` and in each per-ticket report under
+`docs/benchmark-output/locus_leads/`.
+
+```{r sources}
+src <- x$sources
+kable(data.frame(path = paste0("`", sub("^docs/benchmark-output/locus_leads/", "", src$path), "`"),
+                 ticket = src$ticket, bytes = n(src$bytes), sha256 = paste0("`", src$sha256, "`")),
+      row.names = FALSE, col.names = c("output", "ticket", "bytes", "sha256"),
+      caption = paste0("The engine outputs this page reads, under docs/benchmark-output/locus_leads/ at ", substr(x$engine$commit, 1, 7), "."))
+```
