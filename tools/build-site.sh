@@ -35,6 +35,9 @@ quarto render docs/reports/query-walkthrough.qmd --to html
 echo "==> canonical trait mapping report (reads the committed docs/data/trait-mapping-* exports)"
 quarto render docs/reports/trait-mapping-report.qmd --to html
 
+echo "==> Locus Lead prototype report (reads the committed docs/data/locus-leads-prototype.json)"
+quarto render docs/reports/locus-leads-prototype.qmd --to html
+
 echo "==> prioritisation dashboard"
 Rscript docs/reports/make-dashboard.r
 
@@ -44,6 +47,7 @@ install_html docs/reports/ebi-studies.html                              "$DOCS/s
 install_html docs/reports/beta-scale-estimation.html                    "$DOCS/beta-scale-estimation.html"
 install_html docs/reports/query-walkthrough.html                        "$DOCS/query-walkthrough.html"
 install_html docs/reports/trait-mapping-report.html                     "$DOCS/trait-mapping-report.html"
+install_html docs/reports/locus-leads-prototype.html                    "$DOCS/locus-leads-prototype.html"
 install_html resources/data/derived/store-prioritisation-dashboard.html "$DOCS/prioritisation-dashboard.html"
 if [ -f docs/reports/mvp-imputation-filters.html ]; then
   install_html docs/reports/mvp-imputation-filters.html                 "$DOCS/imputation-filters.html"
