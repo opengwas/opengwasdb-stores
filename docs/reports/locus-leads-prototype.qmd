@@ -54,10 +54,11 @@ TR <- x$tracer
 EUR <- x$eur
 EC <- EUR$counts
 EPL <- EUR$per_lead
-AN <- x$ancestries$by_ancestry
+AN <- x$ancestries
 MP <- x$maps
 CO <- x$cost
 PR <- x$profile
+PV <- CO$per_variant_cm
 NAMED_W <- EC$named$w_bp
 NAMED <- pt_lab(EC$named$d_cm, NAMED_W)
 NEAR <- pt_lab(EPL$nearest$d_cm, EPL$nearest$w_bp)
@@ -87,10 +88,11 @@ disequilibrium (LD) clumping, so that neither a build nor a query needs an LD
 reference panel. This report gathers what the
 prototype tickets found when they held that rule against real plink2 clumping.
 
-**Result.** A count of Locus Leads tracks the count of clumps closely, and it is
-far less sensitive to variant density than a count of hits. But for European
-(EUR) and East Asian (EAS) Analyses a plain base-pair (bp) window does as well
-as any genetic-distance rule, and no rule agrees with clumping lead by lead. The
+**Result.** For European (EUR) Analyses, a count of Locus Leads ranks Analyses
+as the count of clumps does, and it is far less sensitive to variant density
+than a count of hits. But for EUR and East Asian (EAS) Analyses a plain
+base-pair (bp) window does as well as any genetic-distance rule, and no rule
+agrees with clumping lead by lead. The
 owner has therefore decided that `n_loci_*` uses a bp-only window of
 `r w_lab(NAMED_W)` for EUR and EAS, with no cM condition and no per-variant cM
 array, and that African (AFR) and admixed American (AMR) Analyses get no
@@ -273,7 +275,8 @@ were computed, in this wording:
 - The point named: `r CC$named`
 
 HapMap3 (HM3 in the criteria) here is the list of `r n(M$hm3$alids)` HapMap3
-variants on GRCh38, the sparsest variant axis among our Stores. A rule that is insensitive to variant
+variants on GRCh38, standing in for a sparse variant axis such as a
+HapMap3-density Store's. A rule that is insensitive to variant
 density finds about as many loci on it as on the full shared set.
 
 ## Results by ticket
@@ -288,8 +291,9 @@ never decreases along a chromosome; off-panel rows and rows with no cM are
 counted, not dropped; both methods choose the same lead among ties at p = 0; a
 synthetic fixture splits across a hotspot and merges in a cold region; and the
 output reproduces. The engine's tests check the checksum, the monotone map, the
-tie order and the hotspot; the committed output records the rest, and its row
-categories add up to the tier, which the extract for this page checks.
+tie order and the hotspot; the committed output records every count and both
+rates, a re-run reproduced it byte for byte, and its row categories add up to
+the tier, which the extract for this page checks.
 **Met.**
 
 **Result.** `r TR$analysis_id` (`r TR$analysis_label`) in `r TR$store` has
@@ -336,7 +340,7 @@ plain bp window of the same W?
 **The Analyses.** `r n(EUR$selection$drawn)` Analyses were drawn with seed
 `r EUR$selection$seed` from `r n(EUR$selection$pool)` EUR Analyses (by Assigned
 Ancestry) in the genome-wide Stores, stratified by observed `r TIER` rows and by
-largest |z|, with at least `r EUR$selection$quota_z100` of largest |z| ≥
+largest |z|, with at least `r EUR$selection$quota_z` of largest |z| ≥
 `r EUR$selection$quota_z_from` and `r EUR$selection$quota_p_zero` past the p = 0
 point.
 `r n(EUR$selection$no_observed_rows)` pool Analyses had no Observed Association
@@ -351,7 +355,7 @@ underflowing, which looks like an artefact of their sources).
 `r n(length(EUR$below_floor$analyses$analysis_id))`
 drawn Analyses fell under the shared-set floor
 (`r paste0(EUR$below_floor$analyses$analysis_id, " ", pct(EUR$below_floor$analyses$shared_set_share), collapse = ", ")`),
-so `r n(EUR$swept)` were swept: `r n(EUR$swept_by_z_band[[paste0(">=", EUR$selection$quota_z_from)]])`
+so `r n(EUR$swept)` were swept: `r n(EUR$swept_strong)`
 with largest |z| ≥ `r EUR$selection$quota_z_from`. They hold `r n(EUR$rows$tier)` Observed Associations at the
 tier, `r pct(EUR$rows$shared_share)` of them in the shared set. The grid is
 D ∈ {`r paste(g(GRID$d_cm), collapse = ", ")`} cM ×
@@ -367,8 +371,8 @@ rates, is `r NEAR`: `r pct(EPL$nearest$spurious_split_rate)` spurious splits and
 `r pct(EPL$nearest_bp_only$spurious_split_rate)` and `r pct(EPL$nearest_bp_only$lost_signal_rate)`. Lost signals never fall below
 `r pct(EPL$lost_rate_min)` anywhere on the grid. Spurious splits reach the
 `r pct(PL$spurious_split_rate_max, 0)` limit only at
-`r n(nrow(EPL$low_spurious_points))` points, all with W of at least
-`r w_lab(min(EPL$low_spurious_points$w_bp))`, and there lost signals are at least `r pct(EPL$low_spurious_lost_min)`. A cM condition trades lost signals for
+`r n(EPL$low_spurious_points)` points, all with W of at least
+`r w_lab(EPL$low_spurious_w_min)`, and there lost signals are at least `r pct(EPL$low_spurious_lost_min)`. A cM condition trades lost signals for
 spurious splits; it never gets both down.
 
 ```{r eur-tradeoff}
@@ -405,7 +409,7 @@ Two things made per-lead agreement the wrong yardstick for a count:
   `r pct(EPL$by_peak$strong_min, 0)`–`r pct(EPL$by_peak$strong_max, 0)` for the
   `r EPL$by_peak$strong_n` at or above `r g(EPL$by_peak$strong_from)`.
   `r EPL$named_analysis$analysis_id` (largest |z| `r f(EPL$named_analysis$max_abs_z, 0)`) has
-  `r EPL$named_analysis$leads_tracer_point` Locus Leads against
+  `r EPL$named_analysis$locus_leads` Locus Leads against
   `r EPL$named_analysis$index_variants` clumps: at that strength a variant with
   r² `r R2L` to the lead is still expected at |z| ≈
   `r f(EPL$named_analysis[["expected_z_at_legacy_r2"]], 1)`, past `r TIER`.
@@ -434,11 +438,11 @@ ggplot(pa, aes(max_abs_z, lost_rate_tracer_point)) +
 ```
 
 The spikes matter little: at `r NEAR`,
-`r n(EPL$nearest_spikes$straddling[EPL$nearest_spikes$kind == "spurious_split_pairs" & EPL$nearest_spikes$rule == "nearest"])`
-of `r n(EPL$nearest_spikes$n[EPL$nearest_spikes$kind == "spurious_split_pairs" & EPL$nearest_spikes$rule == "nearest"])`
+`r n(EPL$nearest_spikes$straddling[EPL$nearest_spikes$kind == "spurious_split_pairs"])`
+of `r n(EPL$nearest_spikes$n[EPL$nearest_spikes$kind == "spurious_split_pairs"])`
 spurious splits and
-`r n(EPL$nearest_spikes$straddling[EPL$nearest_spikes$kind == "lost_signal_pairs" & EPL$nearest_spikes$rule == "nearest"])`
-of `r n(EPL$nearest_spikes$n[EPL$nearest_spikes$kind == "lost_signal_pairs" & EPL$nearest_spikes$rule == "nearest"])`
+`r n(EPL$nearest_spikes$straddling[EPL$nearest_spikes$kind == "lost_signal_pairs"])`
+of `r n(EPL$nearest_spikes$n[EPL$nearest_spikes$kind == "lost_signal_pairs"])`
 lost signals span either spike.
 
 #### The count judgement: C1 and C2 met, C3 not
@@ -513,8 +517,8 @@ rather than guess at its terms. A pedigree map therefore remains untested.
 **Result.** Every map leaves exactly the same shared set:
 `r n(MP$shared_set$rows)` of `r n(MP$shared_set$tier_rows)` tier rows
 (`r pct(MP$shared_set$share)`), with one digest over all
-`r MP$shared_set$analyses_checked` drawn Analyses. None of the maps makes C3
-hold anywhere:
+`r MP$shared_set$analyses_checked` drawn Analyses.
+`r if (MP$c3_nowhere) "None of the maps makes C3 hold at any W:" else "C3 holds for some map at some W:"`
 
 ```{r maps}
 mp <- MP$maps
@@ -524,7 +528,7 @@ kable(data.frame(map = mp$name, length = paste(f(mp$total_cm, 1), "cM"),
                  c3 = vapply(mp$c3_holds_at_w, w_list, ""),
                  named = pt_lab(mp$named$d_cm, mp$named$w_bp), lost = pct(mp$named$lost_to_density),
                  best = paste0(pt_lab(mp$named_cm$d_cm, mp$named_cm$w_bp), " (", pct(mp$named_cm$lost_to_density), ")"),
-                 drho = sprintf("%+.4f", mp$largest_rho_gain$delta_rho),
+                 drho = sprintf("%+.4f", mp$largest_rho_gain),
                  rates = paste0(pct(mp$tracer_point$spurious_split_rate), " / ", pct(mp$tracer_point$lost_signal_rate)),
                  spikes = vapply(mp$spike_gain_cm, spike_txt, ""),
                  clamped = n(mp$clamped$rows)),
@@ -534,17 +538,17 @@ kable(data.frame(map = mp$name, length = paste(f(mp$total_cm, 1), "cM"),
       caption = paste0("The EUR maps on #403's Analyses, shared set and grid. Per-lead rates are at r² ", R2P, "; the spike column is the cM each map puts across the intervals where the pyrho mean jumps."))
 ```
 
-- **The pyrho EUR map is adequate, and the map is not the lever.** All three
-  maps give the same verdict and name the same point, the bp-only window, where
-  cM is not read at all.
-- **The median removes both spikes** without moving the counts.
+- **The pyrho EUR map is adequate, and the map is not the lever.**
+  `r if (MP$same_named_point) paste0("Every map names the same point, ", pt_lab(mp$named$d_cm[1], mp$named$w_bp[1]), ", where cM is not read at all.") else "The maps name different points."`
+- **The median removes both spikes** without changing the verdict.
 - **HapMap II is `r pct(MP$hapmap2_length_over_mean - 1, 0)` longer** in cM than
   the pyrho mean, so a given D covers fewer bp; it turns lost signals into
-  spurious splits. Its largest ρ gain over bp-only is the biggest of the three,
-  and it still fails C3's density margin.
+  spurious splits. `r if (MP$largest_rho_gain_map == "hapmap2") "Its largest ρ gain over bp-only is the biggest of the maps, and it still fails C3's density margin." else ""`
 - Rows outside a map's first or last point take that point's cM, held flat:
   HapMap II clamps `r n(mp$clamped$rows[mp$name == "hapmap2"])` shared-set rows
-  this way, the pyrho maps `r n(mp$clamped$rows[mp$name == "pyrho-mean"])`.
+  this way (`r n(mp$clamped$before_first_knot[mp$name == "hapmap2"])` before its
+  first point, `r n(mp$clamped$after_last_knot[mp$name == "hapmap2"])` after its
+  last), the pyrho mean `r n(mp$clamped$rows[mp$name == "pyrho-mean"])`.
   Neither comparison map lost a point to the non-decreasing check
   (`r paste(n(mp$points_dropped[!is.na(mp$points_dropped)]), collapse = " and ")` points dropped).
 
@@ -642,7 +646,8 @@ ggplot(curves, aes(D, value, colour = ancestry, group = ancestry)) +
   where C1 and C2 hold, but C3 holds at `r w_list(AN$EAS$counts$c3_holds_at_w)`:
   the named point ties bp-only at W `r w_lab(NAMED_W)`
   `r if (AN$EAS$named_ties_bp_w10mb) "exactly, on every count metric" else "only approximately"`,
-  and bp-only at W `r w_lab(NAMED_W)` meets C1 and C2 itself (ρ
+  and bp-only at W `r w_lab(NAMED_W)`
+  `r if (AN$EAS$bp_w10mb_meets_c1_c2) "meets C1 and C2 itself" else "fails C1 or C2"` (ρ
   `r f(AN$EAS$at$bp_w10mb$rho)`, median ratio `r f(AN$EAS$at$bp_w10mb$median_ratio)`). The EAS verdict rests on
   `r n(AN$EAS$tier_rows)` tier rows from `r n(AN$EAS$swept)` Analyses, none
   with largest |z| above `r f(AN$EAS$swept_max_abs_z, 1)`, so treat it as
@@ -683,16 +688,13 @@ The run was on `r CO$measured_on`, on `r CO$machine$cpu_model`
 `r pt_lab(CO$parameters$d_cm, CO$parameters$w_bp)`, and plink2 on
 `r CO$parameters$threads` threads.
 
-**Building the cM array.** For `r CO$per_variant_cm$store[1]`'s
-`r n(CO$per_variant_cm$variants[1])` variants, reading chromosome and position
-from the Store Variant Table took `r sec(CO$per_variant_cm$read_s[1], 1)` and
-interpolating cM `r sec(CO$per_variant_cm$interpolate_s[1], 1)`. The
+**Building the cM array.** For `r PV$store`'s `r n(PV$variants)` variants,
+reading chromosome and position from the Store Variant Table took
+`r sec(PV$read_s, 1)` and interpolating cM `r sec(PV$interpolate_s, 1)`. The
 per-variant chromosome, position and cM arrays together take
-`r n(round(CO$per_variant_cm$mapped_bytes[1] / 1e6))` MB, the cM array alone
-`r n(round(CO$per_variant_cm$cm_bytes[1] / 1e6))` MB, and
-`r n(CO$per_variant_cm$off_map[1])` variants on
-`r paste(unlist(CO$per_variant_cm$off_map_chromosomes[1]), collapse = ", ")` have
-no cM.
+`r n(round(PV$mapped_bytes / 1e6))` MB, the cM array alone
+`r n(round(PV$cm_bytes / 1e6))` MB, and `r n(PV$off_map)` variants on
+`r paste(PV$off_map_chromosomes, collapse = ", ")` have no cM.
 
 ```{r cost}
 sl <- CO$slices
@@ -701,8 +703,8 @@ kable(data.frame(slice = paste0(sl$store, " ", sl$analysis_id, " at ", vapply(sl
                  written = paste0(sec(sl$pruning_s), " (", times(sl$ratio), ")"),
                  fast = paste0(sec(sl$fast_pruning_s), " (", times(sl$fast_ratio, 2), ")"),
                  of_resolved = f(sl$fast_ratio_of_resolved, 3),
-                 plink2 = sec(sl$clumping$plink2_s), e2e = sec(sl$clumping$end_to_end_s),
-                 r1 = f(sl$clumping$ratios$plink2_only, 3), r2 = f(sl$clumping$ratios_fast$plink2_only, 3)),
+                 plink2 = sec(sl$plink2_s), e2e = sec(sl$clumping_end_to_end_s),
+                 r1 = f(sl$ratio_plink2, 3), r2 = f(sl$ratio_fast_plink2, 3)),
       row.names = FALSE,
       col.names = c("slice", "tier rows", "Top-Hit Query", "same query, resolved", "pruning as written (× query)",
                     "pruning, block rule with per-variant arrays (× query)", "block rule ÷ resolved query",
@@ -716,25 +718,25 @@ big <- sl[1, ]
 
 - **Against clumping, pruning is cheaper on every slice.** Divided by plink2
   alone, the rule as written costs
-  `r f(CO$ratio_ranges$as_written$plink2_only$min, 3)`–`r f(CO$ratio_ranges$as_written$plink2_only$max, 3)`
-  of clumping (`r times(CO$ratio_ranges$as_written$plink2_only$cheaper_min)`–`r times(CO$ratio_ranges$as_written$plink2_only$cheaper_max, 0)`
+  `r f(CO$ratio_ranges$as_written_plink2_only$min, 3)`–`r f(CO$ratio_ranges$as_written_plink2_only$max, 3)`
+  of clumping (`r times(CO$ratio_ranges$as_written_plink2_only$cheaper_min)`–`r times(CO$ratio_ranges$as_written_plink2_only$cheaper_max, 0)`
   cheaper), and the block rule
-  `r f(CO$ratio_ranges$fast$plink2_only$min, 3)`–`r f(CO$ratio_ranges$fast$plink2_only$max, 3)`.
+  `r f(CO$ratio_ranges$fast_plink2_only$min, 3)`–`r f(CO$ratio_ranges$fast_plink2_only$max, 3)`.
   Against clumping end to end, which must first match rows to the panel, the
-  block rule is `r times(CO$ratio_ranges$fast$end_to_end$cheaper_min, 0)`–`r times(CO$ratio_ranges$fast$end_to_end$cheaper_max, 0)`
+  block rule is `r times(CO$ratio_ranges$fast_end_to_end$cheaper_min, 0)`–`r times(CO$ratio_ranges$fast_end_to_end$cheaper_max, 0)`
   cheaper.
 - **Per query, it misses the budget on `r nrow(sl) - CO$slices_within_budget` of `r nrow(sl)` slices.**
   On the largest slice (`r big$analysis_id`, `r n(big$tier)` rows), the
   Top-Hit Query takes `r sec(big$query_s)`. Pruning as written takes
-  `r sec(big$pruning_s)` (`r times(big$ratio)` the query, most of it reading
-  positions from the Store Variant Table: `r sec(big$positions_s, 1)` against
-  `r sec(big$positions_array_s, 3)` from a per-variant array). The block rule
+  `r sec(big$pruning_s)` (`r times(big$ratio)` the query), of which reading
+  positions from the Store Variant Table takes `r sec(big$positions_s, 1)`,
+  against `r sec(big$positions_array_s, 3)` from a per-variant array. The block rule
   with per-variant arrays takes `r sec(big$fast_pruning_s)`
   (`r times(big$fast_ratio, 2)` the bare query, but
   `r f(big$fast_ratio_of_resolved, 3)` of the resolved query a reader actually
-  waits for, `r sec(big$resolved_query_s, 1)`). Its peak memory was
-  `r n(round(big$peak_mb$resolved_query))` MB for the resolved query, from
-  `r n(round(big$peak_mb$resolved_query_start))` MB already resident.
+  waits for, `r sec(big$resolved_query_s, 1)`). The resolved query's own peak
+  memory was `r n(round(big$resolved_query_peak_mb))` MB, from
+  `r n(round(big$resolved_query_start_mb))` MB already resident.
 - `r if (CO$every_fast_rule_identical) "On every slice, the block rule gives the same leads as the rule as written." else "The block rule did not give the same leads on every slice."`
 - **Two slices are artefact-like.** `r big$analysis_id` has
   `r n(big$rows_abs_z_over)` of its `r n(big$tier)` tier rows past |z|
@@ -744,7 +746,7 @@ big <- sl[1, ]
   only; #403's draw excludes them by its row cap.
 
 Absolute seconds carry the node's load: its load average reached
-`r f(CO$max_load_one, 1)` during the run. The ratios and the share of each stage
+`r f(CO$max_load, 1)` during the run. The ratios and the share of each stage
 are what to compare.
 
 ### #409: boundaries from the data
@@ -791,8 +793,9 @@ kable(prof, row.names = FALSE,
 ```
 
 - **C3 holds at W `r w_lab(NAMED_W)` for no rule.** At any W it holds only for `r paste(paste0(PR$c3_anywhere$label, " at W ", w_lab(PR$c3_anywhere$w_bp)), collapse = "; ")`.
-- **Narrow bins fail C2.** Every B `r g(min(PR$bins_bp) / 1e3)` kb rule fails
-  it (median ratio `r f(PR$narrow_bin_ratio_min, 2)`–`r f(PR$narrow_bin_ratio_max, 2)`):
+- **Narrow bins fail C2.** `r PR$narrow_bin_c2_met` of the
+  `r PR$narrow_bin_rules` B `r g(min(PR$bins_bp) / 1e3)` kb rules meet it
+  (median ratio `r f(PR$narrow_bin_ratio_min, 2)`–`r f(PR$narrow_bin_ratio_max, 2)`):
   on HapMap3 the profile has gaps that read as valleys, so the rule finds more
   loci on the sparse axis, not fewer.
 - **LD blocks** rank well (ρ `r f(rl$rho[rl$rule == "ld_blocks"])`) but are
@@ -800,9 +803,10 @@ kable(prof, row.names = FALSE,
   `r f(rl$median_abs_log2[rl$rule == "ld_blocks"])` against `r f(bl$median_abs_log2[is.na(bl$d_cm)])`). Rows outside every block are
   counted: `r PR$blocks_rows_outside` rows in `r PR$blocks_stretches_outside`
   stretches.
-- **At strong peaks,** LD blocks and some B `r g(max(PR$bins_bp) / 1e3)` kb rules
-  disagree with clumping less than bp-only at W `r w_lab(NAMED_W)`, but none does
-  better than `r TP`.
+- **At strong peaks** (leads with |z| ≥ `r g(rl$strong_from[1])`),
+  `r paste(rl$label[rl$beats_named_at_strong_peaks], collapse = "; ")` disagree
+  with clumping clearly less often than bp-only at W `r w_lab(NAMED_W)`.
+  Against `r TP`, `r if (any(rl$beats_tracer_at_strong_peaks)) paste(paste(rl$label[rl$beats_tracer_at_strong_peaks], collapse = "; "), "do") else "no rule does"`.
 - **Valleys are real, not gaps.** There are `r n(PR$valleys$no_row_valleys)`
   distinct valleys with no tier row. In a sample of
   `r PR$valleys$by_bin$sampled[1]` per bin width checked against the Store,
@@ -819,11 +823,12 @@ The owner has decided the following; #407's verdict on #62 will record it.
    - EUR: it is #403's named point. C1 holds (ρ `r f(AN$EUR$at$bp_w10mb$rho)`),
      C2 holds (median density ratio `r f(AN$EUR$at$bp_w10mb$median_ratio)`,
      median |log2| `r f(AN$EUR$at$bp_w10mb$median_abs_log2)` against a limit of `r f(EC$rows$c2_abs_log2_limit)`), and it loses the fewest leads to density
-     (`r pct(AN$EUR$at$bp_w10mb$lost_to_density)`). C3 holds at no W, on any of
-     the maps #404 compared.
-   - EAS: bp-only at W `r w_lab(NAMED_W)` meets C1 and C2 (ρ
-     `r f(AN$EAS$at$bp_w10mb$rho)`, median ratio `r f(AN$EAS$at$bp_w10mb$median_ratio)`) and ties the named cM point; C3
-     holds at no W.
+     (`r pct(AN$EUR$at$bp_w10mb$lost_to_density)`). C3 holds at
+     `r w_list(EC$c3_holds_at_w)``r if (MP$c3_nowhere) ", on any of the maps #404 compared" else ""`.
+   - EAS: bp-only at W `r w_lab(NAMED_W)`
+     `r if (AN$EAS$bp_w10mb_meets_c1_c2) "meets C1 and C2" else "fails C1 or C2"` (ρ
+     `r f(AN$EAS$at$bp_w10mb$rho)`, median ratio `r f(AN$EAS$at$bp_w10mb$median_ratio)`)`r if (AN$EAS$named_ties_bp_w10mb) " and ties the named cM point" else ""`;
+     C3 holds at `r w_list(AN$EAS$counts$c3_holds_at_w)`.
    - So in both, cM adds nothing the counts can see.
 - **AFR and AMR get no `n_loci_*` until they are calibrated.** No grid point
    meets both C1 and C2 there (`r AN$AFR$counts$both_met` of
@@ -875,27 +880,27 @@ One question is left for the owner after reading this report: whether pruning
 runs only at build time, giving `n_loci_*` as Analytical Metadata in
 `analyses.tsv`, or also as a per-query option of the Top-Hit Query. #406's
 numbers bear on both. It timed the rule at
-`r pt_lab(CO$parameters$d_cm, CO$parameters$w_bp)`, not the chosen bp-only
-window; the cM lookup itself took `r sec(big$cm_s, 3)` on the largest slice, so
-the chosen rule's cost is close to what was measured, but it was not timed.
+`r pt_lab(CO$parameters$d_cm, CO$parameters$w_bp)`; the chosen bp-only window
+was not timed. The cM lookup the chosen rule drops took
+`r sec(big$cm_s, 3)` on the largest slice.
 
 - **Build time.** A Store pays once per Analysis and tier. On the largest tier
   (`r n(big$tier)` rows) that is `r sec(big$positions_s, 1)` to read positions
   from the Store Variant Table and `r sec(big$rule_s, 1)` for the rule as
   written (`r sec(big$rule_fast_s, 1)` for the block rule). The bp-only rule
-  needs no cM array, so `r CO$per_variant_cm$store[1]` would not carry its
-  `r n(round(CO$per_variant_cm$cm_bytes[1] / 1e6))` MB of cM nor pay the
-  `r sec(CO$per_variant_cm$interpolate_s[1], 1)` to interpolate it.
+  needs no cM array, so `r PV$store` would not carry its
+  `r n(round(PV$cm_bytes / 1e6))` MB of cM nor pay the
+  `r sec(PV$interpolate_s, 1)` to interpolate it.
 - **Per query.** On the same tier the Top-Hit Query takes `r sec(big$query_s)`
   and the resolved query `r sec(big$resolved_query_s, 1)`. Pruning as written
   adds `r sec(big$pruning_s, 1)` (`r times(big$ratio)` the query,
   `r f(big$pruning_over_resolved, 2)` of the resolved query). The block rule
   with per-variant chromosome and position arrays, which Stores do not carry
-  today (`r n(round(CO$per_variant_cm$position_bytes[1] / 1e6))` MB for
-  `r CO$per_variant_cm$store[1]`), adds
+  today (`r n(round(PV$position_bytes / 1e6))` MB for `r PV$store`), adds
   `r sec(big$fast_pruning_s)` (`r times(big$fast_ratio, 2)` the query,
   `r f(big$fast_ratio_of_resolved, 3)` of the resolved query). By the budget
-  fixed before measuring, no slice qualifies for per-query pruning.
+  fixed before measuring, `r if (CO$slices_within_budget == 0) "no slice qualifies" else paste(CO$slices_within_budget, "slices qualify")`
+  for per-query pruning.
 
 ## Limitations
 
@@ -909,7 +914,7 @@ the chosen rule's cost is close to what was measured, but it was not timed.
 - **EAS is thin.** `r n(AN$EAS$swept)` Analyses and `r n(AN$EAS$tier_rows)`
   tier rows, from a pool of `r n(AN$EAS$pool)` in which
   `r n(AN$EAS$no_observed_rows)` have no Observed Association at `r TIER`, and
-  `r AN$EAS$quota_floors$min_abs_z_100$in_pool` have a largest |z| of
+  `r AN$EAS$z_quota_in_pool` have a largest |z| of
   `r EUR$selection$quota_z_from` or more. Its C2 verdict may not survive a
   larger draw.
 - **AFR's panel fit.** `r AN$AFR$below_floor` of `r AN$AFR$drawn` drawn AFR
@@ -927,7 +932,7 @@ the chosen rule's cost is close to what was measured, but it was not timed.
   of their tier rows, respectively, lie past |z| `r big$over_abs_z`. They are left out of every
   sweep and timed only for cost.
 - **Load on the timing node.** #406's absolute times carry a load average of up
-  to `r f(CO$max_load_one, 1)`; compare its ratios, not its seconds.
+  to `r f(CO$max_load, 1)`; compare its ratios, not its seconds.
 - **The draw is the committed one.** The EUR selection was drawn on the Store
   inventory of `r EUR$selection$committed_on`. Drawing again today lists
   OGS-00024, OGS-00025 and OGS-00026 among the Stores left out (signals-only or

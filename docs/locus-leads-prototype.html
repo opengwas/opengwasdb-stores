@@ -2265,7 +2265,7 @@ vertical-align: -.125em;
 <section id="question-and-result" class="level2">
 <h2 class="anchored" data-anchor-id="question-and-result">Question and result</h2>
 <p><code>n_hits_*</code>, the Top-Hit Counts in a Store’s <code>analyses.tsv</code>, count an Analysis’s associations past each significance threshold. They mix two things: how many loci an Analysis has, and how densely its variant axis is typed. A Reference-Completed Store and a HapMap3-density Store give the same locus very different hit counts. opengwas/opengwasdb#62 proposed a second count beside them, <code>n_loci_*</code>, that counts <strong>Locus Leads</strong>: one lead per locus, chosen by a pruning rule that uses genetic distance in centimorgans (cM) as a stand-in for linkage disequilibrium (LD) clumping, so that neither a build nor a query needs an LD reference panel. This report gathers what the prototype tickets found when they held that rule against real plink2 clumping.</p>
-<p><strong>Result.</strong> A count of Locus Leads tracks the count of clumps closely, and it is far less sensitive to variant density than a count of hits. But for European (EUR) and East Asian (EAS) Analyses a plain base-pair (bp) window does as well as any genetic-distance rule, and no rule agrees with clumping lead by lead. The owner has therefore decided that <code>n_loci_*</code> uses a bp-only window of 10 Mb for EUR and EAS, with no cM condition and no per-variant cM array, and that African (AFR) and admixed American (AMR) Analyses get no <code>n_loci_*</code> until they are calibrated. Whether pruning also runs per query is still open.</p>
+<p><strong>Result.</strong> For European (EUR) Analyses, a count of Locus Leads ranks Analyses as the count of clumps does, and it is far less sensitive to variant density than a count of hits. But for EUR and East Asian (EAS) Analyses a plain base-pair (bp) window does as well as any genetic-distance rule, and no rule agrees with clumping lead by lead. The owner has therefore decided that <code>n_loci_*</code> uses a bp-only window of 10 Mb for EUR and EAS, with no cM condition and no per-variant cM array, and that African (AFR) and admixed American (AMR) Analyses get no <code>n_loci_*</code> until they are calibrated. Whether pruning also runs per query is still open.</p>
 <p>The prototype’s code is throwaway; it lives in the engine’s <code>prototypes/locus_leads/</code> on the integration branch <code>orch/62-locus-leads</code>. Its outputs were committed under <code>docs/benchmark-output/locus_leads/</code>, and every number below is read from them at engine commit 06d1a43 (see <a href="#reproduce">Reproduce</a>).</p>
 </section>
 <section id="the-question" class="level2">
@@ -2444,7 +2444,7 @@ vertical-align: -.125em;
 <li>Reading of C3: at a W, C3 holds when some D improves on that W’s bp-only by at least one margin and is worse on neither by more than its margin; the D that do are listed.</li>
 <li>The point named: the (D, W), bp-only included, that meets C1 and C2 and has the smallest pooled share of leads lost to density, sum over Analyses of max(0, leads(full) - leads(HM3)) / sum of leads(full); the best cM point is named the same way.</li>
 </ul>
-<p>HapMap3 (HM3 in the criteria) here is the list of 1,206,903 HapMap3 variants on GRCh38, the sparsest variant axis among our Stores. A rule that is insensitive to variant density finds about as many loci on it as on the full shared set.</p>
+<p>HapMap3 (HM3 in the criteria) here is the list of 1,206,903 HapMap3 variants on GRCh38, standing in for a sparse variant axis such as a HapMap3-density Store’s. A rule that is insensitive to variant density finds about as many loci on it as on the full shared set.</p>
 </section>
 </section>
 <section id="results-by-ticket" class="level2">
@@ -2452,7 +2452,7 @@ vertical-align: -.125em;
 <section id="the-tracer-on-one-eur-analysis" class="level3">
 <h3 class="anchored" data-anchor-id="the-tracer-on-one-eur-analysis">#402: the tracer on one EUR Analysis</h3>
 <p><strong>Question.</strong> Does a comparison of Locus Leads with plink2 clumping run end to end on one well-powered Analysis, with every row accounted for?</p>
-<p><strong>Criteria.</strong> The map archive’s checksum is checked before use; interpolated cM never decreases along a chromosome; off-panel rows and rows with no cM are counted, not dropped; both methods choose the same lead among ties at p = 0; a synthetic fixture splits across a hotspot and merges in a cold region; and the output reproduces. The engine’s tests check the checksum, the monotone map, the tie order and the hotspot; the committed output records the rest, and its row categories add up to the tier, which the extract for this page checks. <strong>Met.</strong></p>
+<p><strong>Criteria.</strong> The map archive’s checksum is checked before use; interpolated cM never decreases along a chromosome; off-panel rows and rows with no cM are counted, not dropped; both methods choose the same lead among ties at p = 0; a synthetic fixture splits across a hotspot and merges in a cold region; and the output reproduces. The engine’s tests check the checksum, the monotone map, the tie order and the hotspot; the committed output records every count and both rates, a re-run reproduced it byte for byte, and its row categories add up to the tier, which the extract for this page checks. <strong>Met.</strong></p>
 <p><strong>Result.</strong> finngen-r13-BMI_IRN (Body mass index, inverse-rank normalized) in OGS-00003 has 55,460 Observed Associations at 5×10<sup>−8</sup> and 0 imputed. 85.6% of them are in the shared set. 45,816 rows sit in 4,055 runs of tied |z|, which is why the tie order matters even below the p = 0 range.</p>
 <div class="cell">
 <div class="cell-output-display">
@@ -2662,7 +2662,7 @@ vertical-align: -.125em;
 <p><strong>Question.</strong> Is the published pyrho EUR map good enough, or would another map make a cM condition worth having? The same Analyses, shared set and grid were run with the <strong>median</strong> of the 5 EUR population maps (taken over rates per interval, which removes single-population spikes) and with <strong>HapMap II</strong>, lifted to GRCh38 as Eagle ships it.</p>
 <p><strong>Criteria.</strong> Each map’s best (D, W) and per-lead rates beside the pyrho mean’s, on the same rows; a statement of whether the pyrho map is adequate; checksums verified and cM non-decreasing for each map; the deCODE licence recorded. <strong>Met</strong>, with deCODE left out.</p>
 <p><strong>deCODE.</strong> The pedigree map from deCODE (Halldorsson et al., <em>Science</em>) was the first proposal’s default. Its file and its terms of use could not be reached from the build node (the publisher’s site answers with a bot challenge), and no open copy or licence was found, so the run left it out rather than guess at its terms. A pedigree map therefore remains untested.</p>
-<p><strong>Result.</strong> Every map leaves exactly the same shared set: 1,806,262 of 1,964,596 tier rows (91.9%), with one digest over all 40 drawn Analyses. None of the maps makes C3 hold anywhere:</p>
+<p><strong>Result.</strong> Every map leaves exactly the same shared set: 1,806,262 of 1,964,596 tier rows (91.9%), with one digest over all 40 drawn Analyses. None of the maps makes C3 hold at any W:</p>
 <div class="cell">
 <div class="cell-output-display">
 <table class="caption-top table table-sm table-striped small">
@@ -2745,10 +2745,10 @@ vertical-align: -.125em;
 </div>
 </div>
 <ul>
-<li><strong>The pyrho EUR map is adequate, and the map is not the lever.</strong> All three maps give the same verdict and name the same point, the bp-only window, where cM is not read at all.</li>
-<li><strong>The median removes both spikes</strong> without moving the counts.</li>
-<li><strong>HapMap II is 38% longer</strong> in cM than the pyrho mean, so a given D covers fewer bp; it turns lost signals into spurious splits. Its largest ρ gain over bp-only is the biggest of the three, and it still fails C3’s density margin.</li>
-<li>Rows outside a map’s first or last point take that point’s cM, held flat: HapMap II clamps 325 shared-set rows this way, the pyrho maps 1. Neither comparison map lost a point to the non-decreasing check (0 and 0 points dropped).</li>
+<li><strong>The pyrho EUR map is adequate, and the map is not the lever.</strong> Every map names the same point, bp only, W 10 Mb, where cM is not read at all.</li>
+<li><strong>The median removes both spikes</strong> without changing the verdict.</li>
+<li><strong>HapMap II is 38% longer</strong> in cM than the pyrho mean, so a given D covers fewer bp; it turns lost signals into spurious splits. Its largest ρ gain over bp-only is the biggest of the maps, and it still fails C3’s density margin.</li>
+<li>Rows outside a map’s first or last point take that point’s cM, held flat: HapMap II clamps 325 shared-set rows this way (155 before its first point, 170 after its last), the pyrho mean 1. Neither comparison map lost a point to the non-decreasing check (0 and 0 points dropped).</li>
 </ul>
 </section>
 <section id="afr-eas-and-amr" class="level3">
@@ -3091,7 +3091,7 @@ vertical-align: -.125em;
 </div>
 <ul>
 <li><strong>Against clumping, pruning is cheaper on every slice.</strong> Divided by plink2 alone, the rule as written costs 0.030–0.669 of clumping (1.5×–34× cheaper), and the block rule 0.125–0.415. Against clumping end to end, which must first match rows to the panel, the block rule is 19×–141× cheaper.</li>
-<li><strong>Per query, it misses the budget on 7 of 7 slices.</strong> On the largest slice (GCST004461, 9,429,671 rows), the Top-Hit Query takes 2.65 s. Pruning as written takes 29.67 s (11.2× the query, most of it reading positions from the Store Variant Table: 13.7 s against 0.097 s from a per-variant array). The block rule with per-variant arrays takes 4.13 s (1.56× the bare query, but 0.096 of the resolved query a reader actually waits for, 42.8 s). Its peak memory was 12,737 MB for the resolved query, from 2,451 MB already resident.</li>
+<li><strong>Per query, it misses the budget on 7 of 7 slices.</strong> On the largest slice (GCST004461, 9,429,671 rows), the Top-Hit Query takes 2.65 s. Pruning as written takes 29.67 s (11.2× the query), of which reading positions from the Store Variant Table takes 13.7 s, against 0.097 s from a per-variant array. The block rule with per-variant arrays takes 4.13 s (1.56× the bare query, but 0.096 of the resolved query a reader actually waits for, 42.8 s). The resolved query’s own peak memory was 12,737 MB, from 2,451 MB already resident.</li>
 <li>On every slice, the block rule gives the same leads as the rule as written.</li>
 <li><strong>Two slices are artefact-like.</strong> GCST004461 has 3,652,412 of its 9,429,671 tier rows past |z| 38, and GCST002047 has 2,223,172 of its 2,314,363. They are timed for cost only; #403’s draw excludes them by its row cap.</li>
 </ul>
@@ -3287,9 +3287,9 @@ vertical-align: -.125em;
 </div>
 <ul>
 <li><strong>C3 holds at W 10 Mb for no rule.</strong> At any W it holds only for B 50 kb, f 0.75 at W 1 Mb.</li>
-<li><strong>Narrow bins fail C2.</strong> Every B 10 kb rule fails it (median ratio 1.27–1.69): on HapMap3 the profile has gaps that read as valleys, so the rule finds more loci on the sparse axis, not fewer.</li>
+<li><strong>Narrow bins fail C2.</strong> 0 of the 4 B 10 kb rules meet it (median ratio 1.27–1.69): on HapMap3 the profile has gaps that read as valleys, so the rule finds more loci on the sparse axis, not fewer.</li>
 <li><strong>LD blocks</strong> rank well (ρ 0.990) but are more density-sensitive than bp-only (median |log2| 0.213 against 0.079). Rows outside every block are counted: 7 rows in 3 stretches.</li>
-<li><strong>At strong peaks,</strong> LD blocks and some B 50 kb rules disagree with clumping less than bp-only at W 10 Mb, but none does better than D 0.5 cM, W 1 Mb.</li>
+<li><strong>At strong peaks</strong> (leads with |z| ≥ 20), B 50 kb, f 0.25; B 50 kb, f 0.5; B 50 kb, fixed T 0; LD blocks (EUR) disagree with clumping clearly less often than bp-only at W 10 Mb. Against D 0.5 cM, W 1 Mb, no rule does.</li>
 <li><strong>Valleys are real, not gaps.</strong> There are 33,248 distinct valleys with no tier row. In a sample of 200 per bin width checked against the Store, 13.5% (B 10 kb) and 0.5% (B 50 kb) are gaps in coverage rather than low |z|, so the stop rule, which withholds the judgement when gaps dominate a sample, did not trip.</li>
 </ul>
 </section>
@@ -3388,7 +3388,7 @@ vertical-align: -.125em;
 </div>
 <section id="still-open-build-time-only-or-per-query-as-well" class="level3">
 <h3 class="anchored" data-anchor-id="still-open-build-time-only-or-per-query-as-well">Still open: build time only, or per query as well?</h3>
-<p>One question is left for the owner after reading this report: whether pruning runs only at build time, giving <code>n_loci_*</code> as Analytical Metadata in <code>analyses.tsv</code>, or also as a per-query option of the Top-Hit Query. #406’s numbers bear on both. It timed the rule at D 0.5 cM, W 1 Mb, not the chosen bp-only window; the cM lookup itself took 0.024 s on the largest slice, so the chosen rule’s cost is close to what was measured, but it was not timed.</p>
+<p>One question is left for the owner after reading this report: whether pruning runs only at build time, giving <code>n_loci_*</code> as Analytical Metadata in <code>analyses.tsv</code>, or also as a per-query option of the Top-Hit Query. #406’s numbers bear on both. It timed the rule at D 0.5 cM, W 1 Mb; the chosen bp-only window was not timed. The cM lookup the chosen rule drops took 0.024 s on the largest slice.</p>
 <ul>
 <li><strong>Build time.</strong> A Store pays once per Analysis and tier. On the largest tier (9,429,671 rows) that is 13.7 s to read positions from the Store Variant Table and 16.0 s for the rule as written (4.0 s for the block rule). The bp-only rule needs no cM array, so OGS-00011 would not carry its 192 MB of cM nor pay the 9.3 s to interpolate it.</li>
 <li><strong>Per query.</strong> On the same tier the Top-Hit Query takes 2.65 s and the resolved query 42.8 s. Pruning as written adds 29.7 s (11.2× the query, 0.69 of the resolved query). The block rule with per-variant chromosome and position arrays, which Stores do not carry today (240 MB for OGS-00011), adds 4.13 s (1.56× the query, 0.096 of the resolved query). By the budget fixed before measuring, no slice qualifies for per-query pruning.</li>
