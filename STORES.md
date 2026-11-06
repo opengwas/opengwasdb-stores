@@ -24,9 +24,9 @@ Generated master list of Store Releases in this registry.
 | `OGS-00017` | r13-full | false | dense | reference_completed | validated | - | 2,754 | 0 | 21,549,493 | - | passed |
 | `OGS-00022` | eur-hybrid-pilot-10-completed | true | hybrid | reference_completed | validated | - | 9 | 1 | - | - | passed |
 | `OGS-00023` | eur-hybrid-quant-pilot-10-completed | true | hybrid | reference_completed | validated | - | 10 | 0 | - | - | passed |
-| `OGS-00024` | 2023-chen-full-african | false | ragged | observed_only | built | - | 1,034 | 0 | - | - | passed_with_warnings |
-| `OGS-00025` | 2023-chen-full-east-asian | false | ragged | observed_only | built | - | 1,038 | 0 | - | - | passed |
-| `OGS-00026` | 2023-chen-full-south-asian | false | ragged | observed_only | built | - | 971 | 0 | - | - | passed_with_warnings |
+| `OGS-00024` | 2023-chen-full-african | false | ragged | observed_only | validated | - | 1,034 | 0 | 7,067,555 | 31,986,793 | passed_with_warnings |
+| `OGS-00025` | 2023-chen-full-east-asian | false | ragged | observed_only | validated | - | 1,038 | 0 | 1,176,410 | 7,380,542 | passed_with_warnings |
+| `OGS-00026` | 2023-chen-full-south-asian | false | ragged | observed_only | validated | - | 971 | 0 | 1,336,174 | 6,653,533 | passed_with_warnings |
 | `OGS-00027` | eqtlgen-full | false | ragged | observed_only | validated | - | 19,250 | 0 | 8,927,061 | 127,112,772 | passed |
 | `OGS-00032` | eas-hybrid-full | false | hybrid | observed_only | candidate | - | 379 | 330 | - | - | passed_with_warnings |
 | `OGS-00033` | afr-hybrid-full | false | hybrid | observed_only | candidate | - | 194 | 164 | - | - | passed_with_warnings |
