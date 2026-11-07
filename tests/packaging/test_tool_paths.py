@@ -36,6 +36,7 @@ PUBLISHED_PAGES = (
     "beta-scale-estimation.html",
     "query-walkthrough.html",
     "trait-mapping-report.html",
+    "locus-leads-prototype.html",
     "prioritisation-dashboard.html",
 )
 
