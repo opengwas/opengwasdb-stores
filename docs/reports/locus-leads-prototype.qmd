@@ -84,6 +84,60 @@ ME$name <- ifelse(ME$key == "prominence", paste0("prominence, ", ME$label),
 CE <- CA$ceiling
 AC <- CA$above_ceiling
 PROM <- ME$label[ME$key == "prominence"]
+# The region figures: three views, their rows (a TSV beside the extract), and plain-list access to one view.
+RG <- x$regions
+RR <- read.delim(file.path("../data", RG$rows$file))
+VW <- RG$views
+view_of <- function(i) list(
+  a = VW$analysis[i, ], chosen = VW$chosen[i, ], window = VW$window[i, ], view = VW$view[i, ],
+  span = VW$span_bp[i], drawn = VW$rows_drawn[i], in_view = VW$rows_in_view[i], index = VW$index_in_view[i],
+  nd = list(rows = VW$not_drawn$rows[i], max_abs_z = VW$not_drawn$max_abs_z[i], reasons = unlist(VW$not_drawn$reasons[i, ])),
+  clumps = VW$clumps[[i]], widest = VW$widest_clump[i],
+  second = list(clump = VW$second_clump$clump[i], distance = VW$second_clump$distance_bp[i],
+                without = unlist(VW$second_clump$without_lead[i])),
+  same = VW$same_for_every_rule[i], blocks = VW$blocks[[i]],
+  leads = sapply(names(VW$leads), function(k) { L <- VW$leads[[k]]; list(
+    positions = unlist(L$positions[i]), clumps = unlist(L$clumps[i]), kinds = unlist(L$kinds[i]),
+    leads = L$leads[i], splits = L$spurious_splits[i], lost = L$lost[i]) }, simplify = FALSE),
+  profile = list(bin = VW$profile$bin_bp[i], first = VW$profile$first_bin[i], z = unlist(VW$profile$max_abs_z[i])))
+REASON_LAB <- c(matched_no_cm = "on the panel but with no cM", off_panel_chromosome = "on a chromosome the panel lacks",
+                absent_at_position = "absent from the panel at their position",
+                allele_mismatch = "with other alleles than the panel's", ambiguous = "ambiguous against the panel")
+rule_name <- function(keys) paste(ME$name[match(keys, ME$key)], collapse = ", ")
+mb <- function(bp, d = 2) paste(f(bp / 1e6, d), "Mb")
+region_head <- function(v) paste0(v$a$analysis_id, " (", v$a$analysis_label, ", Store ", v$a$store, ", largest |z| ",
+                                  f(v$a$max_abs_z, 1), "), chr", v$view$chromosome, ":", f(v$view$start / 1e6, 2), "–",
+                                  f(v$view$end / 1e6, 2), " Mb")
+region_cap <- function(i) {
+  v <- view_of(i)
+  chosen <- if (v$chosen$as == "named") "It is the Analysis #409's judgement names." else
+    paste0("It was drawn with seed ", RG$rule$seed, " from the ", v$chosen$eligible, " Analyses with largest |z| ",
+           sub("^>=", "≥ ", sub("^<", "< ", gsub("-", "–", v$chosen$z_band))), " and at least ",
+           RG$rule$min_index_variants, " index variants.")
+  why <- v$nd$reasons[v$nd$reasons > 0]
+  why <- if (length(why) == 1 && why == v$nd$rows) paste("all", REASON_LAB[names(why)]) else
+    paste(paste(n(why), REASON_LAB[names(why)]), collapse = " and ")
+  paste0(region_head(v), ". ", chosen, " As eur_regions.json records the rule, the window is ", RG$rule$window,
+         "; the view is ", RG$rule$view, ". ",
+         "Top: each point is a ", TIER, " row of the shared set, coloured by the r² ", R2P, " clump plink2 puts it in ",
+         "(colours repeat after ", length(REG_PAL), " clumps with a new marker shape); outlined points are index variants, so ",
+         "points of one colour far from their outlined point are that clump's LD shadow. The grey step line is the ",
+         "prominence profile, the largest |z| of the ", sci(RG$tiers$profile), " rows in each ", n(v$profile$bin / 1e3),
+         " kb bin, the thin lines mark |z| at ", TIER, " and ", sci(RG$tiers$profile), ", and alternate shading marks ",
+         "the EUR LD blocks. Middle: one lane per clump, strongest at the top, drawn from its westmost to its eastmost ",
+         "member on the chromosome and labelled with its index variant's |z| and its members; lanes that overlap are ",
+         "clumps interleaved along the chromosome. Bottom: where plink2 and each rule put their leads in the view, ",
+         "coloured by clump. A filled marker is also a plink2 index variant and a hollow one is a spurious split; a ",
+         "clump with no marker in a rule's row was merged into a stronger lead. The counts are for this view only. ",
+         n(v$nd$rows), " of the ", n(v$in_view), " ", TIER, " rows in the view are not drawn: they are not in the ",
+         "shared set (", why, "), so plink2 never clumped them. The largest |z| among them is ", f(v$nd$max_abs_z, 1),
+         ", and the profile, which reads every observed row, includes them, so it can peak above the drawn points.")
+}
+REG_PAL <- c("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00", "#882255", "#117733")
+REG_SHAPES <- c(21, 24, 22, 23)
+# A caption is Markdown inside an image's brackets, so the rule's own brackets are escaped.
+CAP_REGION <- gsub("([][])", "\\\\\\1", vapply(seq_len(nrow(VW)), region_cap, ""))
+REGION_H <- 5.9 + 0.17 * vapply(VW$clumps, nrow, 0)
 none_or <- function(k) if (k == 0) "none" else n(k)
 None_or <- function(k) if (k == 0) "None" else n(k)
 OKABE <- c("#0072B2", "#E69F00", "#009E73", "#CC79A7", "#56B4E9", "#D55E00")
@@ -862,6 +916,155 @@ kable(prof, row.names = FALSE,
   are gaps in coverage rather than low |z|, so the stop rule, which withholds
   the judgement when gaps dominate a sample, `r if (any(PR$valleys$by_bin$stop_rule_trips)) "tripped" else "did not trip"`.
 
+#### Three regions, rule by rule
+
+The counts above summarise whole genomes. Three regions show how they arise,
+lead by lead. #409's `eur_regions.json` takes the Analysis its judgement names
+and one Analysis drawn from each other |z| band, and in each Analysis the
+`r w_lab(VW$window$end[1] - VW$window$start[1])` window that holds the most
+index variants. Each caption gives the rule as the file records it.
+
+```{r region-picks}
+V <- lapply(seq_len(nrow(VW)), view_of)
+leads_n <- function(v, k) { L <- v$leads[[k]]; paste0(n(L$leads), " lead", if (L$leads == 1) "" else "s") }
+kept <- function(v) paste0("bp-only keeps ", leads_n(v, "bp_only"), " and loses ", n(v$leads$bp_only$lost),
+                           " index variants, the cM point ", leads_n(v, "cm"), " and ", n(v$leads$cm$lost),
+                           ", one lead per LD block ", leads_n(v, "ld_blocks"), " and ", n(v$leads$ld_blocks$lost),
+                           ", and prominence ", leads_n(v, "prominence"), " and ", n(v$leads$prominence$lost))
+PROSE <- c(bp_only = "bp-only", cm = "the cM point", prominence = "prominence", ld_blocks = "one lead per LD block")
+and_list <- function(keys) paste(PROSE[keys], collapse = " and ")
+clump_of <- function(v, k) v$clumps[v$clumps$clump == k, ]
+splits_of <- function(v, k) { L <- v$leads[[k]]; s <- L$kinds == "spurious_split"
+  data.frame(position = L$positions[s], clump = L$clumps[s]) }
+v1 <- V[[1]]; v2 <- V[[2]]; v3 <- V[[3]]
+w1 <- clump_of(v1, v1$widest); p1 <- clump_of(v1, 1); s1 <- clump_of(v1, v1$second$clump)
+sp1 <- splits_of(v1, "prominence")
+a2 <- clump_of(v2, 1); b2 <- clump_of(v2, v2$second$clump)
+```
+
+```{r region-draw}
+sci_plain <- function(v) sub("e-0*", "e-", format(v, scientific = TRUE))
+draw_region <- function(i) {
+  v <- V[[i]]
+  lim <- c(v$view$start, v$view$end) / 1e6
+  rows <- RR[RR$analysis_id == v$a$analysis_id, ]
+  cl <- v$clumps
+  key <- as.character(cl$clump)
+  fills <- setNames(REG_PAL[(cl$clump - 1) %% length(REG_PAL) + 1], key)
+  shapes <- setNames(REG_SHAPES[((cl$clump - 1) %/% length(REG_PAL)) %% length(REG_SHAPES) + 1], key)
+  rows$k <- factor(rows$clump, levels = key)
+  blocks <- data.frame(start = v$blocks[, 1], end = v$blocks[, 2])
+  shade <- blocks[seq_len(nrow(blocks)) %% 2 == 0, , drop = FALSE]
+  starts <- blocks$start[blocks$start > v$view$start & blocks$start < v$view$end] / 1e6
+  track <- list(
+    geom_rect(data = shade, aes(xmin = pmax(start, v$view$start) / 1e6, xmax = pmin(end, v$view$end) / 1e6),
+              ymin = -Inf, ymax = Inf, fill = "grey93", inherit.aes = FALSE),
+    geom_vline(xintercept = starts, colour = "grey80", linewidth = 0.3),
+    scale_x_continuous(expand = expansion(0), breaks = scales::breaks_pretty(8)),
+    scale_fill_manual(values = fills, guide = "none"), scale_colour_manual(values = fills, guide = "none"),
+    scale_shape_manual(values = shapes, guide = "none"),
+    theme(panel.grid.minor = element_blank(), panel.grid.major.y = element_blank(),
+          axis.title = element_text(size = 9), axis.text = element_text(size = 7), plot.margin = margin(3, 8, 3, 4)))
+
+  z_lo <- RG$z_at_profile_tier / 1.15
+  z_hi <- max(c(rows$abs_z, v$profile$z), na.rm = TRUE) * 1.15
+  prof <- data.frame(x = (v$profile$first + seq_along(v$profile$z) - 1) * v$profile$bin / 1e6, z = v$profile$z)
+  prof$z[is.na(prof$z)] <- z_lo
+  prof <- rbind(prof, data.frame(x = max(prof$x) + v$profile$bin / 1e6, z = prof$z[nrow(prof)]))
+  tiers <- data.frame(z = c(RG$z_at_rows_tier, RG$z_at_profile_tier),
+                      label = sci_plain(c(RG$tiers$rows, RG$tiers$profile)))
+  top <- ggplot() + track +
+    geom_hline(data = tiers, aes(yintercept = z), colour = "grey70", linewidth = 0.3) +
+    geom_step(data = prof, aes(x, z), colour = "grey55", linewidth = 0.3) +
+    geom_point(data = rows[rows$index_variant == 0, ], aes(position / 1e6, abs_z, fill = k, shape = k),
+               colour = "white", stroke = 0.2, size = 1.3) +
+    geom_point(data = rows[rows$index_variant == 1, ], aes(position / 1e6, abs_z, fill = k, shape = k),
+               colour = "grey10", stroke = 0.7, size = 2.6) +
+    scale_y_log10(breaks = scales::breaks_log(6),
+                  sec.axis = dup_axis(breaks = tiers$z, labels = tiers$label, name = NULL)) +
+    coord_cartesian(xlim = lim, ylim = c(z_lo, z_hi)) +
+    labs(x = NULL, y = "|z| (log scale)") + theme(axis.text.x = element_blank())
+
+  lanes <- data.frame(k = factor(key, levels = key), clump = cl$clump, x0 = pmax(cl$start, v$view$start) / 1e6,
+                      x1 = pmin(cl$end, v$view$end) / 1e6, ix = cl$index_position / 1e6)
+  mid <- ggplot() + track +
+    geom_segment(data = lanes, aes(x = x0, xend = x1, y = clump, yend = clump, colour = k), linewidth = 0.45) +
+    geom_point(data = rows, aes(position / 1e6, clump, colour = k), shape = 124, size = 1.3) +
+    geom_point(data = lanes, aes(ix, clump, fill = k, shape = k), colour = "grey10", stroke = 0.5, size = 1.9) +
+    scale_y_reverse(breaks = cl$clump, labels = paste0(cl$clump, " · |z| ", f(cl$index_abs_z, 1), " · ", n(cl$rows)),
+                    expand = expansion(add = 0.7)) +
+    coord_cartesian(xlim = lim) +
+    labs(x = NULL, y = "clump · index |z| · members") + theme(axis.text.x = element_blank())
+
+  rule_rows <- c("plink2", ME$key)
+  plural <- function(k, word) paste0(n(k), " ", word, if (k == 1) "" else "s")
+  row_lab <- setNames(c(paste0("plink2 clumping, r² ", R2P, "\n", plural(v$index, "index variant")),
+                        vapply(ME$key, function(k) { L <- v$leads[[k]]
+                          paste0(ME$name[ME$key == k], "\n", plural(L$leads, "lead"), ", ", plural(L$splits, "split"),
+                                 ", ", n(L$lost), " lost") }, "")), rule_rows)
+  ix <- rows$index_variant == 1
+  marks <- rbind(data.frame(rule = "plink2", x = rows$position[ix] / 1e6, clump = rows$clump[ix], kind = "agreed"),
+                 do.call(rbind, lapply(ME$key, function(k) { L <- v$leads[[k]]
+                   data.frame(rule = k, x = L$positions / 1e6, clump = L$clumps, kind = L$kinds) })))
+  marks$k <- factor(marks$clump, levels = key)
+  bot <- ggplot() + track +
+    geom_point(data = marks[marks$kind != "spurious_split", ], aes(x, rule, fill = k, shape = k), colour = "grey10",
+               stroke = 0.5, size = 2.6) +
+    geom_point(data = marks[marks$kind == "spurious_split", ], aes(x, rule, colour = k, shape = k), fill = "white",
+               stroke = 1.1, size = 2.6) +
+    scale_y_discrete(limits = rev(rule_rows), labels = row_lab) +
+    coord_cartesian(xlim = lim) +
+    labs(x = paste0("chromosome ", v$view$chromosome, " position (Mb, GRCh38)"), y = NULL)
+
+  g <- rbind(ggplotGrob(top), ggplotGrob(mid), ggplotGrob(bot), size = "max")
+  panels <- g$layout$t[grepl("^panel", g$layout$name)]
+  g$heights[panels] <- unit(c(2.6, 0.17 * nrow(cl) + 0.2, 0.42 * length(rule_rows)), "null")
+  grid::grid.newpage()
+  grid::grid.draw(g)
+}
+```
+
+**`r region_head(v1)`.** The view spans `r mb(v1$span)` and holds
+`r n(nrow(v1$clumps))` clumps, and they interleave. Clump `r v1$widest`
+(index |z| `r f(w1$index_abs_z, 1)`, `r n(w1$rows)` members) runs from
+`r mb(w1$start)` to `r mb(w1$end)`, across the peak at
+`r mb(p1$index_position)`. Clump `r s1$clump`'s index variant (|z|
+`r f(s1$index_abs_z, 1)`) lies `r n(v1$second$distance)` bp from the peak's,
+and `r if (length(v1$second$without) == nrow(ME)) "no rule keeps a lead for it" else paste(and_list(v1$second$without), "keep no lead for it")`.
+In this view `r kept(v1)`. `r if (nrow(sp1) > 0) paste0("Prominence's lead at ", mb(sp1$position[1]), " is a spurious split inside clump ", sp1$clump[1], if (sp1$clump[1] == 1) ", the peak's own LD shadow" else "", ".") else ""`
+
+```{r region-1}
+#| fig-cap: !expr CAP_REGION[1]
+#| fig-width: 9
+#| fig-height: !expr REGION_H[1]
+draw_region(1)
+```
+
+**`r region_head(v2)`.** Its two strongest clumps, index |z|
+`r f(a2$index_abs_z, 1)` at `r mb(a2$index_position)` and
+`r f(b2$index_abs_z, 1)` at `r mb(b2$index_position)`, lie
+`r mb(v2$second$distance)` apart, `r if (v2$second$distance <= NAMED_W) "within" else "beyond"`
+one W of `r w_lab(NAMED_W)``r if (length(v2$second$without) > 0) paste0(", and ", and_list(v2$second$without), if (length(v2$second$without) == 1) " merges" else " merge", " the second into the first's lead") else ""`.
+In this view `r kept(v2)`.
+
+```{r region-2}
+#| fig-cap: !expr CAP_REGION[2]
+#| fig-width: 9
+#| fig-height: !expr REGION_H[2]
+draw_region(2)
+```
+
+**`r region_head(v3)`.** Its `r n(nrow(v3$clumps))` clumps lie within
+`r mb(v3$span)``r if (nrow(v3$blocks) == 1) ", inside one EUR LD block" else ""`.
+`r if (v3$same) paste0("Every rule keeps ", leads_n(v3, "bp_only"), " and loses ", n(v3$leads$bp_only$lost), " index variants: none of them separates the clumps that plink2 keeps apart.") else paste0("In this view ", kept(v3), ".")`
+
+```{r region-3}
+#| fig-cap: !expr CAP_REGION[3]
+#| fig-width: 9
+#| fig-height: !expr REGION_H[3]
+draw_region(3)
+```
+
 ## What it means for `n_loci_*` {#outcome}
 
 On 7 November 2026, after reading this report, the owner decided:
@@ -1060,8 +1263,10 @@ kable(alt, row.names = FALSE,
 
 ## Reproduce {#reproduce}
 
-This page reads one file, `docs/data/locus-leads-prototype.json`, written by
-`tools/locus_leads_prototype_extract.py` from the engine's committed outputs at
+This page reads two files, `docs/data/locus-leads-prototype.json` and, for the
+rows the region figures draw, `docs/data/locus-leads-regions.tsv`. Both are
+written by `tools/locus_leads_prototype_extract.py` from the engine's committed
+outputs at
 `` `r x$engine$commit` `` (opengwas/opengwasdb, branch `orch/62-locus-leads`).
 The extract reads each output with `git show` and records its sha256. Where a
 later ticket's output copies #403's numbers (#404's record of the pyrho mean,
@@ -1071,10 +1276,14 @@ criteria, each sweep's selection digest, the panel sizes, and each ratio #406
 publishes against the two times it divides. #403's sweep and #409's profile
 must give every Analysis the same index variants, and each ρ, median ratio and
 median |log2| recomputed from the per-Analysis counts must equal the one its
-output committed. Otherwise the extract refuses, naming the field and both
-values, and writes nothing. `tests/locus-leads-extract/` tests these refusals
+output committed. The regions file must have read those same outputs, map,
+HapMap3 list, LD blocks and panel tables, and must give each of its Analyses
+the whole-genome index variants the per-Analysis records give it, with no rule
+holding more leads in a view than in the whole genome. An output the engine
+commit does not hold is refused too. Otherwise the extract refuses, naming the
+field and both values, and writes nothing. `tests/locus-leads-extract/` tests these refusals
 on synthetic outputs. A re-run at the same commit reproduces the extract byte
-for byte.
+for byte, and so does the TSV, whose sha256 the extract records.
 
 The bp-only ceiling is the one input that is not an engine output. Its
 chromosome lengths come from the `##contig` headers of the EUR panel's variant
@@ -1086,13 +1295,14 @@ chromosome and the panel's assembly, `r CE$assembly`.
 #| eval: false
 #| echo: true
 pixi run -e dev python3 tools/locus_leads_prototype_extract.py \
-    --engine <an opengwasdb checkout holding the commit> --commit 06d1a43 \
-    --output docs/data/locus-leads-prototype.json
+    --engine <an opengwasdb checkout holding the commit> --commit 3c2bdd9 \
+    --output docs/data/locus-leads-prototype.json \
+    --regions-rows docs/data/locus-leads-regions.tsv
 # docs/ is a Quarto project whose pre-render belongs to the site build, so the
 # page is rendered from a copy outside it and installed:
 out=<a scratch directory>; mkdir -p "$out/reports" "$out/data"
 cp docs/reports/locus-leads-prototype.qmd "$out/reports/"
-cp docs/data/locus-leads-prototype.json "$out/data/"
+cp docs/data/locus-leads-prototype.json docs/data/locus-leads-regions.tsv "$out/data/"
 pixi run -e docs quarto render "$out/reports/locus-leads-prototype.qmd" --to html
 cp "$out/reports/locus-leads-prototype.html" docs/locus-leads-prototype.html
 ```

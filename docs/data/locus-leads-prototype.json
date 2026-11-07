@@ -2,7 +2,7 @@
  "about": "Values the Locus Lead prototype report shows, read from the engine's committed outputs by tools/locus_leads_prototype_extract.py (opengwas/opengwasdb-stores#444).",
  "engine": {
   "repository": "opengwas/opengwasdb",
-  "commit": "06d1a43729d44cf87f3927c990b217487bd3e0e8"
+  "commit": "3c2bdd930423e301dea1419f76c5b4f986f4c8d0"
  },
  "sources": [
   {
@@ -82,6 +82,12 @@
    "ticket": "#409",
    "bytes": 639805,
    "sha256": "ef836d52c1882eb1d36055eb3908f93fbca66b5c25a72255ef1575817f1e5e34"
+  },
+  {
+   "path": "docs/benchmark-output/locus_leads/eur_regions.json",
+   "ticket": "#409",
+   "bytes": 303531,
+   "sha256": "425d1b9d1752de5de67c7bef774a9f2ee58dd65cb26f565b31b49b030479a579"
   }
  ],
  "method": {
@@ -3705,6 +3711,1159 @@
     }
    ],
    "leads": 300
+  }
+ },
+ "regions": {
+  "rule": {
+   "analyses": "an Analysis is its (store, analysis_id): the one #409's judgement names, then one from each other z_band, in the order `draws` lists the bands, each drawn with one numpy default_rng(seed) from that band's Analyses with at least as many r^2 0.01 index variants as the named one, listed by analysis_id then store",
+   "window": "the 10,000,000 bp window [p, p + 10,000,000) starting at one of the Analysis's index variants that holds the most index variants; ties go to the first in genome order (chromosome 1-22 by number, then others by name, then position)",
+   "view": "the window's shared-set rows from first to last, padded by 4% of that span (at least 20,000 bp) each side, never below 0",
+   "seed": 62,
+   "min_index_variants": 27
+  },
+  "tiers": {
+   "rows": 5e-08,
+   "profile": 0.0005,
+   "clump_r2": 0.01
+  },
+  "z_at_rows_tier": 5.451310438136472,
+  "z_at_profile_tier": 3.4807564043462422,
+  "views": [
+   {
+    "analysis": {
+     "analysis_id": "GCST90162563",
+     "analysis_label": "Vitamin D-binding protein levels",
+     "store": "OGS-00011",
+     "z_band": ">=100",
+     "max_abs_z": 182.6499481201172,
+     "index_variants": 27
+    },
+    "chosen": {
+     "as": "named"
+    },
+    "window": {
+     "chromosome": "4",
+     "start": 67240547,
+     "end": 77240547,
+     "index_variants": 25
+    },
+    "view": {
+     "chromosome": "4",
+     "start": 66948328,
+     "end": 74838249
+    },
+    "span_bp": 7889921,
+    "rows_drawn": 3358,
+    "rows_in_view": 4060,
+    "index_in_view": 25,
+    "not_drawn": {
+     "rows": 702,
+     "max_abs_z": 33.98755645751953,
+     "reasons": {
+      "matched_no_cm": 0,
+      "off_panel_chromosome": 0,
+      "absent_at_position": 702,
+      "allele_mismatch": 0,
+      "ambiguous": 0
+     }
+    },
+    "clumps": [
+     {
+      "clump": 1,
+      "index_position": 71752617,
+      "index_abs_z": 182.6499481201172,
+      "rows": 1128,
+      "start": 71574629,
+      "end": 73652922
+     },
+     {
+      "clump": 2,
+      "index_position": 71797453,
+      "index_abs_z": 39.001243591308594,
+      "rows": 314,
+      "start": 70257432,
+      "end": 73591126
+     },
+     {
+      "clump": 3,
+      "index_position": 71879713,
+      "index_abs_z": 32.78526306152344,
+      "rows": 11,
+      "start": 67247336,
+      "end": 72988814
+     },
+     {
+      "clump": 4,
+      "index_position": 72114378,
+      "index_abs_z": 23.412109375,
+      "rows": 5,
+      "start": 72114378,
+      "end": 72305775
+     },
+     {
+      "clump": 5,
+      "index_position": 71458407,
+      "index_abs_z": 21.548828125,
+      "rows": 171,
+      "start": 67349361,
+      "end": 72757206
+     },
+     {
+      "clump": 6,
+      "index_position": 71677654,
+      "index_abs_z": 21.107421875,
+      "rows": 40,
+      "start": 71507668,
+      "end": 73999475
+     },
+     {
+      "clump": 7,
+      "index_position": 72599762,
+      "index_abs_z": 20.32421875,
+      "rows": 511,
+      "start": 72406424,
+      "end": 73668720
+     },
+     {
+      "clump": 8,
+      "index_position": 73259310,
+      "index_abs_z": 17.2255859375,
+      "rows": 334,
+      "start": 72629989,
+      "end": 73717508
+     },
+     {
+      "clump": 9,
+      "index_position": 71982464,
+      "index_abs_z": 14.6455078125,
+      "rows": 4,
+      "start": 71494037,
+      "end": 72925583
+     },
+     {
+      "clump": 10,
+      "index_position": 71476944,
+      "index_abs_z": 13.58984375,
+      "rows": 16,
+      "start": 70482137,
+      "end": 71476944
+     },
+     {
+      "clump": 11,
+      "index_position": 72810169,
+      "index_abs_z": 11.5224609375,
+      "rows": 68,
+      "start": 72630317,
+      "end": 74539410
+     },
+     {
+      "clump": 12,
+      "index_position": 72155500,
+      "index_abs_z": 10.994140625,
+      "rows": 21,
+      "start": 70545776,
+      "end": 73690035
+     },
+     {
+      "clump": 13,
+      "index_position": 71465470,
+      "index_abs_z": 10.7041015625,
+      "rows": 41,
+      "start": 71083621,
+      "end": 71498985
+     },
+     {
+      "clump": 14,
+      "index_position": 70247357,
+      "index_abs_z": 10.6259765625,
+      "rows": 348,
+      "start": 69735566,
+      "end": 70957188
+     },
+     {
+      "clump": 15,
+      "index_position": 69701377,
+      "index_abs_z": 9.107421875,
+      "rows": 131,
+      "start": 69654186,
+      "end": 70396614
+     },
+     {
+      "clump": 16,
+      "index_position": 72878081,
+      "index_abs_z": 8.40625,
+      "rows": 12,
+      "start": 72875633,
+      "end": 72903991
+     },
+     {
+      "clump": 17,
+      "index_position": 70811615,
+      "index_abs_z": 8.0244140625,
+      "rows": 74,
+      "start": 70452139,
+      "end": 70863830
+     },
+     {
+      "clump": 18,
+      "index_position": 70589890,
+      "index_abs_z": 7.580078125,
+      "rows": 66,
+      "start": 70428114,
+      "end": 70597725
+     },
+     {
+      "clump": 19,
+      "index_position": 74399424,
+      "index_abs_z": 7.580078125,
+      "rows": 20,
+      "start": 74397692,
+      "end": 74546030
+     },
+     {
+      "clump": 20,
+      "index_position": 70992507,
+      "index_abs_z": 7.3408203125,
+      "rows": 8,
+      "start": 70858645,
+      "end": 71373031
+     },
+     {
+      "clump": 21,
+      "index_position": 67240547,
+      "index_abs_z": 6.9833984375,
+      "rows": 11,
+      "start": 67238595,
+      "end": 67267373
+     },
+     {
+      "clump": 22,
+      "index_position": 72285386,
+      "index_abs_z": 6.978515625,
+      "rows": 4,
+      "start": 72278465,
+      "end": 72289635
+     },
+     {
+      "clump": 23,
+      "index_position": 69567168,
+      "index_abs_z": 6.17578125,
+      "rows": 17,
+      "start": 69567168,
+      "end": 69647083
+     },
+     {
+      "clump": 24,
+      "index_position": 73801611,
+      "index_abs_z": 6.1484375,
+      "rows": 1,
+      "start": 73801611,
+      "end": 73801611
+     },
+     {
+      "clump": 25,
+      "index_position": 70604236,
+      "index_abs_z": 6.1416015625,
+      "rows": 2,
+      "start": 70604236,
+      "end": 70641401
+     }
+    ],
+    "widest_clump": 3,
+    "second_clump": {
+     "clump": 2,
+     "distance_bp": 44836,
+     "without_lead": [
+      "bp_only",
+      "cm",
+      "prominence",
+      "ld_blocks"
+     ]
+    },
+    "same_for_every_rule": false,
+    "leads": {
+     "bp_only": {
+      "positions": [
+       71752617
+      ],
+      "clumps": [
+       1
+      ],
+      "kinds": [
+       "agreed"
+      ],
+      "leads": 1,
+      "spurious_splits": 0,
+      "lost": 24
+     },
+     "cm": {
+      "positions": [
+       71752617
+      ],
+      "clumps": [
+       1
+      ],
+      "kinds": [
+       "agreed"
+      ],
+      "leads": 1,
+      "spurious_splits": 0,
+      "lost": 24
+     },
+     "prominence": {
+      "positions": [
+       67240547,
+       69701377,
+       70247357,
+       71752617,
+       73259310,
+       73617360,
+       74399424
+      ],
+      "clumps": [
+       21,
+       15,
+       14,
+       1,
+       8,
+       1,
+       19
+      ],
+      "kinds": [
+       "agreed",
+       "agreed",
+       "agreed",
+       "agreed",
+       "agreed",
+       "spurious_split",
+       "agreed"
+      ],
+      "leads": 7,
+      "spurious_splits": 1,
+      "lost": 19
+     },
+     "ld_blocks": {
+      "positions": [
+       67240547,
+       70247357,
+       71752617,
+       74399424
+      ],
+      "clumps": [
+       21,
+       14,
+       1,
+       19
+      ],
+      "kinds": [
+       "agreed",
+       "agreed",
+       "agreed",
+       "agreed"
+      ],
+      "leads": 4,
+      "spurious_splits": 0,
+      "lost": 21
+     }
+    },
+    "blocks": [
+     [
+      66736108,
+      68627180
+     ],
+     [
+      68627180,
+      70605769
+     ],
+     [
+      70605769,
+      74394244
+     ],
+     [
+      74394244,
+      77413400
+     ]
+    ],
+    "profile": {
+     "bin_bp": 50000,
+     "first_bin": 1338,
+     "max_abs_z": [
+      null,
+      null,
+      4.7275390625,
+      3.763671875,
+      4.248046875,
+      4.4130859375,
+      6.9833984375,
+      6.9189453125,
+      5.8876953125,
+      4.2236328125,
+      4.5751953125,
+      5.9755859375,
+      4.1962890625,
+      4.224609375,
+      3.5009765625,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      3.9501953125,
+      null,
+      3.90234375,
+      3.634765625,
+      4.216796875,
+      3.5400390625,
+      null,
+      null,
+      null,
+      4.14453125,
+      4.205078125,
+      null,
+      3.6630859375,
+      3.4873046875,
+      3.8603515625,
+      3.900390625,
+      3.978515625,
+      4.1630859375,
+      4.0,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      4.09765625,
+      3.8603515625,
+      6.17578125,
+      5.9873046875,
+      9.046875,
+      9.107421875,
+      8.5966796875,
+      8.71484375,
+      8.5126953125,
+      5.8916015625,
+      5.9375,
+      4.337890625,
+      3.587890625,
+      6.3896484375,
+      7.3359375,
+      10.6259765625,
+      10.46875,
+      8.3984375,
+      9.3935546875,
+      9.5556640625,
+      8.9462890625,
+      10.076171875,
+      8.751953125,
+      9.708984375,
+      10.4248046875,
+      11.7431640625,
+      11.6669921875,
+      11.7451171875,
+      13.4072265625,
+      7.4755859375,
+      13.57421875,
+      13.8330078125,
+      16.0537109375,
+      7.4462890625,
+      12.576171875,
+      8.0576171875,
+      17.130859375,
+      15.580078125,
+      17.384765625,
+      20.541015625,
+      21.548828125,
+      17.7841796875,
+      43.203285217285156,
+      43.87590026855469,
+      90.58780670166016,
+      181.8113250732422,
+      182.6499481201172,
+      98.6164779663086,
+      86.23026275634766,
+      72.32392120361328,
+      68.2002944946289,
+      67.25558471679688,
+      67.23995971679688,
+      69.92093658447266,
+      62.39744186401367,
+      62.30521011352539,
+      36.64890670776367,
+      18.9560546875,
+      17.2392578125,
+      16.8017578125,
+      15.2802734375,
+      17.4111328125,
+      20.32421875,
+      20.0595703125,
+      20.06640625,
+      13.8212890625,
+      15.84375,
+      17.369140625,
+      15.9970703125,
+      15.509765625,
+      12.2978515625,
+      9.9541015625,
+      15.1005859375,
+      14.8271484375,
+      15.3310546875,
+      15.2080078125,
+      17.2255859375,
+      7.224609375,
+      10.51171875,
+      9.353515625,
+      8.2646484375,
+      10.30078125,
+      13.6083984375,
+      14.5634765625,
+      11.3154296875,
+      8.9697265625,
+      6.361328125,
+      6.369140625,
+      8.55859375,
+      6.3310546875,
+      6.484375,
+      5.900390625,
+      5.87109375,
+      6.25390625,
+      4.96484375,
+      3.986328125,
+      4.3505859375,
+      4.421875,
+      7.580078125,
+      7.4716796875,
+      6.1865234375,
+      6.943359375,
+      3.6484375,
+      3.9677734375,
+      null,
+      3.857421875,
+      3.9033203125,
+      4.2109375
+     ]
+    }
+   },
+   {
+    "analysis": {
+     "analysis_id": "GCST90319613",
+     "analysis_label": "Serum glycated hemoglobin levels",
+     "store": "OGS-00011",
+     "z_band": "38.5-100",
+     "max_abs_z": 57.057899475097656,
+     "index_variants": 222
+    },
+    "chosen": {
+     "as": "drawn",
+     "z_band": "38.5-100",
+     "eligible": 8
+    },
+    "window": {
+     "chromosome": "17",
+     "start": 75828040,
+     "end": 85828040,
+     "index_variants": 9
+    },
+    "view": {
+     "chromosome": "17",
+     "start": 75538722,
+     "end": 83350324
+    },
+    "span_bp": 7811602,
+    "rows_drawn": 711,
+    "rows_in_view": 724,
+    "index_in_view": 9,
+    "not_drawn": {
+     "rows": 13,
+     "max_abs_z": 16.9404296875,
+     "reasons": {
+      "matched_no_cm": 0,
+      "off_panel_chromosome": 0,
+      "absent_at_position": 11,
+      "allele_mismatch": 2,
+      "ambiguous": 0
+     }
+    },
+    "clumps": [
+     {
+      "clump": 1,
+      "index_position": 78125783,
+      "index_abs_z": 22.1513671875,
+      "rows": 50,
+      "start": 77882759,
+      "end": 82972221
+     },
+     {
+      "clump": 2,
+      "index_position": 82727779,
+      "index_abs_z": 20.5810546875,
+      "rows": 597,
+      "start": 75841230,
+      "end": 83061006
+     },
+     {
+      "clump": 3,
+      "index_position": 78148387,
+      "index_abs_z": 10.546875,
+      "rows": 10,
+      "start": 78137827,
+      "end": 78149727
+     },
+     {
+      "clump": 4,
+      "index_position": 82589053,
+      "index_abs_z": 7.1904296875,
+      "rows": 15,
+      "start": 75801790,
+      "end": 82708830
+     },
+     {
+      "clump": 5,
+      "index_position": 75828040,
+      "index_abs_z": 6.6103515625,
+      "rows": 32,
+      "start": 75794368,
+      "end": 75956883
+     },
+     {
+      "clump": 6,
+      "index_position": 77806405,
+      "index_abs_z": 6.18359375,
+      "rows": 1,
+      "start": 77806405,
+      "end": 77806405
+     },
+     {
+      "clump": 7,
+      "index_position": 78123736,
+      "index_abs_z": 6.1591796875,
+      "rows": 1,
+      "start": 78123736,
+      "end": 78123736
+     },
+     {
+      "clump": 8,
+      "index_position": 78200380,
+      "index_abs_z": 5.9462890625,
+      "rows": 1,
+      "start": 78200380,
+      "end": 78200380
+     },
+     {
+      "clump": 9,
+      "index_position": 83028447,
+      "index_abs_z": 5.8095703125,
+      "rows": 4,
+      "start": 83024734,
+      "end": 83028447
+     }
+    ],
+    "widest_clump": 2,
+    "second_clump": {
+     "clump": 2,
+     "distance_bp": 4601996,
+     "without_lead": [
+      "bp_only"
+     ]
+    },
+    "same_for_every_rule": false,
+    "leads": {
+     "bp_only": {
+      "positions": [
+       78125783
+      ],
+      "clumps": [
+       1
+      ],
+      "kinds": [
+       "agreed"
+      ],
+      "leads": 1,
+      "spurious_splits": 0,
+      "lost": 8
+     },
+     "cm": {
+      "positions": [
+       75828040,
+       78125783,
+       82727779
+      ],
+      "clumps": [
+       5,
+       1,
+       2
+      ],
+      "kinds": [
+       "agreed",
+       "agreed",
+       "agreed"
+      ],
+      "leads": 3,
+      "spurious_splits": 0,
+      "lost": 6
+     },
+     "prominence": {
+      "positions": [
+       75828040,
+       77806405,
+       78125783,
+       82727779
+      ],
+      "clumps": [
+       5,
+       6,
+       1,
+       2
+      ],
+      "kinds": [
+       "agreed",
+       "agreed",
+       "agreed",
+       "agreed"
+      ],
+      "leads": 4,
+      "spurious_splits": 0,
+      "lost": 5
+     },
+     "ld_blocks": {
+      "positions": [
+       75828040,
+       78125783,
+       82727779
+      ],
+      "clumps": [
+       5,
+       1,
+       2
+      ],
+      "kinds": [
+       "agreed",
+       "agreed",
+       "agreed"
+      ],
+      "leads": 3,
+      "spurious_splits": 0,
+      "lost": 6
+     }
+    },
+    "blocks": [
+     [
+      74173501,
+      76595643
+     ],
+     [
+      76595643,
+      77620604
+     ],
+     [
+      77620604,
+      79101279
+     ],
+     [
+      79101279,
+      79784798
+     ],
+     [
+      79784798,
+      81730962
+     ],
+     [
+      81730962,
+      83242554
+     ]
+    ],
+    "profile": {
+     "bin_bp": 50000,
+     "first_bin": 1510,
+     "max_abs_z": [
+      null,
+      3.8466796875,
+      4.068359375,
+      4.103515625,
+      3.9541015625,
+      5.888671875,
+      6.6103515625,
+      6.224609375,
+      6.2119140625,
+      6.2890625,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      3.76171875,
+      3.8427734375,
+      3.619140625,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      3.7373046875,
+      6.18359375,
+      6.146484375,
+      3.564453125,
+      5.2333984375,
+      6.0986328125,
+      5.103515625,
+      22.1513671875,
+      5.3837890625,
+      5.9462890625,
+      4.48828125,
+      null,
+      3.69140625,
+      3.6953125,
+      null,
+      null,
+      null,
+      null,
+      3.51171875,
+      3.6298828125,
+      3.7197265625,
+      3.6201171875,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      3.505859375,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      3.5478515625,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      3.9091796875,
+      3.6435546875,
+      null,
+      3.541015625,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      3.5380859375,
+      4.015625,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null,
+      3.4970703125,
+      null,
+      null,
+      null,
+      null,
+      null,
+      3.6025390625,
+      null,
+      null,
+      null,
+      null,
+      null,
+      7.5986328125,
+      7.9375,
+      8.79296875,
+      20.5810546875,
+      19.6611328125,
+      18.20703125,
+      17.291015625,
+      18.1591796875,
+      17.38671875,
+      11.9013671875,
+      5.50390625,
+      null,
+      null,
+      null,
+      null,
+      null,
+      null
+     ]
+    }
+   },
+   {
+    "analysis": {
+     "analysis_id": "GCST90239826",
+     "analysis_label": "Free testosterone levels",
+     "store": "OGS-00011",
+     "z_band": "<38.5",
+     "max_abs_z": 32.636505126953125,
+     "index_variants": 160
+    },
+    "chosen": {
+     "as": "drawn",
+     "z_band": "<38.5",
+     "eligible": 7
+    },
+    "window": {
+     "chromosome": "17",
+     "start": 7167543,
+     "end": 17167543,
+     "index_variants": 9
+    },
+    "view": {
+     "chromosome": "17",
+     "start": 7133910,
+     "end": 8042024
+    },
+    "span_bp": 908114,
+    "rows_drawn": 758,
+    "rows_in_view": 876,
+    "index_in_view": 9,
+    "not_drawn": {
+     "rows": 118,
+     "max_abs_z": 30.6005859375,
+     "reasons": {
+      "matched_no_cm": 0,
+      "off_panel_chromosome": 0,
+      "absent_at_position": 115,
+      "allele_mismatch": 3,
+      "ambiguous": 0
+     }
+    },
+    "clumps": [
+     {
+      "clump": 1,
+      "index_position": 7634474,
+      "index_abs_z": 32.636505126953125,
+      "rows": 604,
+      "start": 7294314,
+      "end": 7955999
+     },
+     {
+      "clump": 2,
+      "index_position": 7690001,
+      "index_abs_z": 15.9697265625,
+      "rows": 62,
+      "start": 7361046,
+      "end": 7985653
+     },
+     {
+      "clump": 3,
+      "index_position": 7657517,
+      "index_abs_z": 15.662109375,
+      "rows": 40,
+      "start": 7323638,
+      "end": 7724742
+     },
+     {
+      "clump": 4,
+      "index_position": 7944519,
+      "index_abs_z": 11.021484375,
+      "rows": 5,
+      "start": 7944519,
+      "end": 8008391
+     },
+     {
+      "clump": 5,
+      "index_position": 7555147,
+      "index_abs_z": 10.0244140625,
+      "rows": 21,
+      "start": 7379825,
+      "end": 7741327
+     },
+     {
+      "clump": 6,
+      "index_position": 7355764,
+      "index_abs_z": 7.4765625,
+      "rows": 7,
+      "start": 7350996,
+      "end": 7360708
+     },
+     {
+      "clump": 7,
+      "index_position": 7384766,
+      "index_abs_z": 7.2333984375,
+      "rows": 8,
+      "start": 7364918,
+      "end": 7385193
+     },
+     {
+      "clump": 8,
+      "index_position": 7167543,
+      "index_abs_z": 5.98046875,
+      "rows": 9,
+      "start": 7160331,
+      "end": 7170806
+     },
+     {
+      "clump": 9,
+      "index_position": 7886224,
+      "index_abs_z": 5.92578125,
+      "rows": 2,
+      "start": 7886224,
+      "end": 7912394
+     }
+    ],
+    "widest_clump": 1,
+    "second_clump": {
+     "clump": 2,
+     "distance_bp": 55527,
+     "without_lead": [
+      "bp_only",
+      "cm",
+      "prominence",
+      "ld_blocks"
+     ]
+    },
+    "same_for_every_rule": true,
+    "leads": {
+     "bp_only": {
+      "positions": [
+       7634474
+      ],
+      "clumps": [
+       1
+      ],
+      "kinds": [
+       "agreed"
+      ],
+      "leads": 1,
+      "spurious_splits": 0,
+      "lost": 8
+     },
+     "cm": {
+      "positions": [
+       7634474
+      ],
+      "clumps": [
+       1
+      ],
+      "kinds": [
+       "agreed"
+      ],
+      "leads": 1,
+      "spurious_splits": 0,
+      "lost": 8
+     },
+     "prominence": {
+      "positions": [
+       7634474
+      ],
+      "clumps": [
+       1
+      ],
+      "kinds": [
+       "agreed"
+      ],
+      "leads": 1,
+      "spurious_splits": 0,
+      "lost": 8
+     },
+     "ld_blocks": {
+      "positions": [
+       7634474
+      ],
+      "clumps": [
+       1
+      ],
+      "kinds": [
+       "agreed"
+      ],
+      "leads": 1,
+      "spurious_splits": 0,
+      "lost": 8
+     }
+    },
+    "blocks": [
+     [
+      6730775,
+      8996563
+     ]
+    ],
+    "profile": {
+     "bin_bp": 50000,
+     "first_bin": 142,
+     "max_abs_z": [
+      8.890625,
+      12.56640625,
+      4.8564453125,
+      5.9501953125,
+      12.537109375,
+      12.2890625,
+      24.55859375,
+      29.3212890625,
+      30.21875,
+      30.6005859375,
+      32.636505126953125,
+      27.8984375,
+      15.7216796875,
+      19.591796875,
+      17.9599609375,
+      11.5029296875,
+      11.021484375,
+      10.4140625,
+      10.48046875
+     ]
+    }
+   }
+  ],
+  "rows": {
+   "lines": 4827,
+   "sha256": "28c9e65aeabc466199855c9b1c3f83b3f9892ca0b3520edc8ba44acfcf2d04ca",
+   "file": "locus-leads-regions.tsv"
   }
  }
 }

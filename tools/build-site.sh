@@ -35,7 +35,7 @@ quarto render docs/reports/query-walkthrough.qmd --to html
 echo "==> canonical trait mapping report (reads the committed docs/data/trait-mapping-* exports)"
 quarto render docs/reports/trait-mapping-report.qmd --to html
 
-echo "==> Locus Lead prototype report (reads the committed docs/data/locus-leads-prototype.json)"
+echo "==> Locus Lead prototype report (reads the committed docs/data/locus-leads-prototype.json and locus-leads-regions.tsv)"
 quarto render docs/reports/locus-leads-prototype.qmd --to html
 
 echo "==> prioritisation dashboard"

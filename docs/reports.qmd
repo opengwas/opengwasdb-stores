@@ -21,7 +21,7 @@ Releases built so far.
 *Report.* Whether a pruning rule can count an Analysis's loci (`n_loci_*`)
 without an LD panel: the opengwasdb#62 prototype's tracer, EUR sweep, map
 comparison, AFR, EAS and AMR sweeps, cost against plink2 clumping, and locus
-boundaries taken from the data, each judged against plink2 clumping per lead
+boundaries taken from the data with three regions drawn rule by rule, each judged against plink2 clumping per lead
 and by per-Analysis counts, and why the owner dropped Locus Leads: `n_loci_*`
 will come from LD clumping at Store build time instead.
 
