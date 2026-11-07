@@ -18,6 +18,17 @@ later ticket names, and the panel sizes. Otherwise the extract refuses, naming
 the field and both values, and writes nothing. A key an output lacks refuses the
 same way.
 
+The per-Analysis counts the report plots come from #403's sweep (bp-only, cM)
+and #409's profile (prominence, LD blocks). Both must give each Analysis the
+same index variants, and each rule's rho, median ratio and median |log2|,
+recomputed from those counts, must equal the summary its output committed.
+
+The one input that is not an engine output is the chromosome lengths behind
+the bp-only rule's ceiling. They are read from the `##contig` headers of the
+EUR panel's variant tables (`chr<c>.pvar.zst`, at the path #403's sweep names),
+decompressed with the `zstd` the dev environment ships, and each file's sha256
+is recorded beside its length.
+
 Run from the repository root:
 
     pixi run -e dev python3 tools/locus_leads_prototype_extract.py \\
@@ -59,6 +70,10 @@ NEAR_BAND = "<=1Mb"
 STRONG_R2 = "0.05"
 # The Analysis #403's decision and #409 single out: the strongest peak's shadows.
 NAMED_ANALYSIS = "GCST90162563"
+# The prominence rule the owner's decision names; the per-Analysis figure and the alternatives table show it.
+PROMINENCE = "B 50 kb, f 0.75"
+# How close a statistic recomputed from the per-Analysis counts must come to the committed one.
+SAME_TO = 1e-12
 
 
 class Refused(SystemExit):
@@ -123,6 +138,22 @@ class Engine:
         """The date of the last commit that changed an output, as of this commit."""
         return self._git("log", "-1", "--format=%cs", self.commit, "--",
                          f"{OUTPUTS}/{name}").decode().strip()
+
+
+class Panel:
+    """A genotype panel's per-chromosome variant tables on disk, each read whole and recorded."""
+
+    def _bytes(self, path: str) -> bytes:
+        return Path(path).read_bytes()
+
+    def _decompress(self, raw: bytes) -> bytes:
+        return subprocess.run(["zstd", "-dc"], input=raw, check=True, capture_output=True).stdout
+
+    def header(self, path: str) -> tuple[str, dict[str, Any]]:
+        """A variant table's header lines (up to `#CHROM`), and its path, size and sha256."""
+        raw = self._bytes(path)
+        header = self._decompress(raw).split(b"\n#CHROM", 1)[0].decode()
+        return header, {"path": path, "bytes": len(raw), "sha256": hashlib.sha256(raw).hexdigest()}
 
 
 def d_out(d: Any) -> float | None:
@@ -260,6 +291,29 @@ def best_log2_gain(counts: dict[str, Any]) -> float:
         if row["median_abs_log2"] is not None and bp["median_abs_log2"] is not None:
             gains.append(bp["median_abs_log2"] - row["median_abs_log2"])
     return max(gains)
+
+
+def average_ranks(values: list[float]) -> list[float]:
+    """1-based ranks, ties given the mean of the ranks they span."""
+    order = sorted(range(len(values)), key=lambda i: values[i])
+    ranks = [0.0] * len(values)
+    start = 0
+    while start < len(order):
+        end = start
+        while end + 1 < len(order) and values[order[end + 1]] == values[order[start]]:
+            end += 1
+        for i in order[start:end + 1]:
+            ranks[i] = (start + end) / 2 + 1
+        start = end + 1
+    return ranks
+
+
+def spearman(x: list[float], y: list[float]) -> float:
+    """Spearman's rho, as #403's `counts.py` computes it: the Pearson correlation of average ranks."""
+    a, b = average_ranks(x), average_ranks(y)
+    mean_a, mean_b = statistics.fmean(a), statistics.fmean(b)
+    cross = sum((p - mean_a) * (q - mean_b) for p, q in zip(a, b))
+    return cross / math.sqrt(sum((p - mean_a) ** 2 for p in a) * sum((q - mean_b) ** 2 for q in b))
 
 
 def split_pairs(pairs: dict[str, Any]) -> dict[str, Any]:
@@ -514,6 +568,8 @@ def extract_eur(engine: Engine) -> dict[str, Any]:
             "nearest": {"d_cm": nearest[0], "w_bp": nearest[1]} | rates(near),
             "nearest_bp_only": rates(near_bp),
             "lost_rate_min": min(p["lost_signal_rate"] for p in points),
+            "within_limits": sum(1 for p in points if p["spurious_split_rate"] <= criteria["spurious_split_rate_max"]
+                                 and p["lost_signal_rate"] <= criteria["lost_signal_rate_max"]),
             "low_spurious_points": len(low_spurious),
             "low_spurious_w_min": min(p["w_bp"] for p in low_spurious),
             "low_spurious_lost_min": min(p["lost_signal_rate"] for p in low_spurious),
@@ -720,16 +776,15 @@ def extract_cost(engine: Engine) -> dict[str, Any]:
             "share_abs_z_over": rows[f"rows_abs_z_over_{over}"] / rows["tier"],
             "query_s": budget["query_s"], "resolved_query_s": budget["resolved_query_s"],
             "positions_s": stages["positions"]["median_s"], "positions_array_s": stages["positions_array"]["median_s"],
-            "cm_s": stages["cm"]["median_s"], "rule_s": stages["rule"]["median_s"],
-            "rule_fast_s": stages["rule_fast"]["median_s"],
             "pruning_s": budget["pruning_s"], "ratio": budget["ratio"],
-            "pruning_over_resolved": budget["pruning_s"] / budget["resolved_query_s"],
             "fast_pruning_s": budget["fast_pruning_s"], "fast_ratio": budget["fast_ratio"],
             "fast_ratio_of_resolved": budget["fast_ratio_of_resolved"],
             "resolved_query_peak_mb": stages["resolved_query"]["peak_mb"],
             "resolved_query_start_mb": stages["resolved_query"]["rss_start_mb"],
             "shared_rows": ratio["rows"], "shared_pruning_s": ratio["pruning_s"],
             "shared_fast_pruning_s": ratio["fast_pruning_s"],
+            # Clumping end to end: building the shared set (matching the rows to the panel), ranking it, plink2.
+            "shared_set_s": s["clumping"]["stages"]["shared_set"]["median_s"],
             "plink2_s": ratio["clumping"]["plink2_s"], "clumping_end_to_end_s": ratio["clumping"]["end_to_end_s"],
             "ratio_plink2": ratio["ratios"]["plink2_only"], "ratio_fast_plink2": ratio["ratios_fast"]["plink2_only"],
             "ratio_fast_end_to_end": ratio["ratios_fast"]["end_to_end"],
@@ -764,7 +819,6 @@ def extract_cost(engine: Engine) -> dict[str, Any]:
                            "off_map": largest["off_map_variants"],
                            "off_map_chromosomes": largest["off_map_chromosomes"],
                            "mapped_bytes": largest["mapped_bytes"], "cm_bytes": cm_bytes,
-                           "position_bytes": largest["mapped_bytes"] - cm_bytes,
                            "read_s": largest["stages"]["read_variant_table"]["median_s"],
                            "interpolate_s": largest["stages"]["interpolate"]["median_s"]},
         "slices": slices,
@@ -816,6 +870,11 @@ def extract_profile(engine: Engine) -> dict[str, Any]:
             "named_analysis_leads": named_rules[rule["label"]]["locus_leads"],
         })
     narrow = [r for r in rules if r["narrow_bin"]]
+    # #403's per-lead limits, which no rule met there: how near #409's rules come, by the larger rate.
+    limits = sweep["evaluation"]["criteria"]
+    within = [r for r in rules if r["spurious_split_rate"] <= limits["spurious_split_rate_max"]
+              and r["lost_signal_rate"] <= limits["lost_signal_rate_max"]]
+    nearest = min(rules, key=lambda r: max(r["spurious_split_rate"], r["lost_signal_rate"]))
     outside = [next(r for r in a["rules"] if r["rule"] == "ld_blocks")["outside"] for a in profile["analyses"]]
     valleys = profile["valley_cells"]["summary"]
     return {
@@ -833,6 +892,8 @@ def extract_profile(engine: Engine) -> dict[str, Any]:
         "narrow_bin_ratio_max": max(r["median_ratio"] for r in narrow),
         "narrow_bin_rules": len(narrow),
         "narrow_bin_c2_met": sum(r["c2"] for r in narrow),
+        "per_lead_within_limits": len(within),
+        "per_lead_nearest": nearest["label"],
         "c3_anywhere": [{"label": rule["label"], "w_bp": c["w_bp"], "delta_rho": c["delta_rho"],
                          "delta_abs_log2": c["delta_abs_log2"]}
                         for rule in judgement["rules"] for c in rule["c3"] if c["c3"]],
@@ -843,7 +904,129 @@ def extract_profile(engine: Engine) -> dict[str, Any]:
     }
 
 
-def build(engine: Engine) -> dict[str, Any]:
+# --------------------------------------------------------------------------- per-Analysis counts
+
+
+def bp_only_ceiling(sweep: dict[str, Any], panel: Panel, w_bp: int) -> dict[str, Any]:
+    """The most bp-only Locus Leads at W that the shared set's chromosomes can hold.
+
+    The rule merges a row into a lead within W bp (distance at most W), so one
+    chromosome's leads lie at least W + 1 bp apart, and a chromosome of L bp
+    holds at most floor((L - 1) / (W + 1)) + 1. The shared set keeps only rows
+    with a finite cM, so its chromosomes are the map's. Each length is read from
+    the `##contig` header of that chromosome's table in the panel #403's sweep
+    names, which must be on the panel's assembly.
+    """
+    root, assembly = sweep["panel"]["path"], sweep["panel"]["assembly"]
+    contigs = []
+    for chromosome in sweep["genetic_map"]["points_per_chromosome"]:
+        header, record = panel.header(f"{root}/chr{chromosome}.pvar.zst")
+        where = record["path"]
+        found = re.findall(r"^##contig=<ID=([^,>]+),length=(\d+),assembly=([^,>]+)>$", header, re.MULTILINE)
+        require(len(found) == 1, f"{where} has {len(found)} ##contig lines with a length and an assembly, not one")
+        name, length, on = found[0]
+        require(name == f"chr{chromosome}", f"{where} describes {name}, not chr{chromosome}")
+        require(on == assembly, f"{where} is on {on}, not on the panel's {assembly}")
+        contigs.append({"chromosome": chromosome, "length": int(length)} | record)
+    return {"w_bp": w_bp, "panel": root, "assembly": assembly, "contigs": contigs,
+            "leads": sum((c["length"] - 1) // (w_bp + 1) + 1 for c in contigs)}
+
+
+def per_analysis_counts(sweep: dict[str, Any], profile: dict[str, Any], ceiling: dict[str, Any]) -> dict[str, Any]:
+    """Each EUR Analysis's index variants and its Locus Leads under the four rules the figure sets side by side.
+
+    bp-only at #403's named point and #403's best cM point come from the
+    sweep's per-Analysis records; prominence and LD blocks from the profile's.
+    Every record must give an Analysis the index variants #403's sweep gives
+    it, every count must be positive (the figure's axes are log), and each
+    rule's rho, median ratio and median |log2|, recomputed from these counts,
+    must equal the summary its output committed.
+    """
+    counts = sweep["counts"]
+    named, named_cm = counts["named"], counts["named_cm"]
+    require((named["d_cm"], named["w_bp"]) == NAMED_POINT,
+            f"#403 names D {named['d_cm']}, W {named['w_bp']}, not {NAMED_POINT[0]} W {NAMED_POINT[1]}")
+    judged = {rule["label"]: rule for rule in profile["judgement"]["rules"]}
+    blocks = [rule["label"] for rule in profile["judgement"]["rules"] if rule["rule"] == "ld_blocks"]
+    require(len(blocks) == 1, f"#409 judged {len(blocks)} LD-block rules, not one")
+    from_sweep = {"bp_only": NAMED_POINT, "cm": (named_cm["d_cm"], named_cm["w_bp"])}
+    from_profile = {"prominence": PROMINENCE, "ld_blocks": blocks[0]}
+    profiled = {(a["store"], a["analysis"]["analysis_id"]): a for a in profile["analyses"]}
+    swept = {(a["store"], a["analysis"]["analysis_id"]) for a in sweep["analyses"]}
+    require(set(profiled) == swept, f"#409 and #403 hold different Analyses: {sorted(swept ^ set(profiled))}")
+
+    rows = []
+    for analysis in sweep["analyses"]:
+        analysis_id = analysis["analysis"]["analysis_id"]
+        profiled_analysis = profiled[(analysis["store"], analysis_id)]
+        records = {key: point(analysis["configs"], *at) for key, at in from_sweep.items()}
+        for key, label in from_profile.items():
+            found = [rule for rule in profiled_analysis["rules"] if rule["label"] == label]
+            require(len(found) == 1, f"#409 holds {len(found)} records of {label} for {analysis_id}")
+            records[key] = found[0]
+        index = index_variants(analysis)
+        require(profiled_analysis["index_variants"] == index,
+                f"{analysis_id}: #409 gives {profiled_analysis['index_variants']!r} index variants, #403 {index!r}")
+        for key, record in records.items():
+            theirs = record["by_r2"][R2_PRIMARY]["index_variants"]
+            require(theirs == index, f"{analysis_id}: the {key} record gives {theirs!r} index variants at "
+                                     f"r² {R2_PRIMARY}, #403's sweep {index!r}")
+        row = {"analysis_id": analysis_id, "store": analysis["store"], "z_band": analysis["selection"]["z_band"],
+               "index_variants": index,
+               "leads_full": {key: record["density"]["leads_full"] for key, record in records.items()},
+               "leads_hm3": {key: record["density"]["leads_hm3"] for key, record in records.items()}}
+        for key in records:
+            for value, what in ((row["leads_full"][key], "full"), (row["leads_hm3"][key], "HapMap3")):
+                require(value > 0, f"{analysis_id}: {value!r} {key} leads on the {what} rows, which a log axis "
+                                   "cannot show")
+        rows.append(row)
+    require(len(rows) == counts["analyses"], f"{len(rows)} Analyses, where #403 counted {counts['analyses']}")
+
+    methods = []
+    for key in (*from_sweep, *from_profile):
+        committed = point(counts["configs"], *from_sweep[key]) if key in from_sweep else judged[from_profile[key]]
+        full = [row["leads_full"][key] for row in rows]
+        ratio = [row["leads_hm3"][key] / row["leads_full"][key] for row in rows]
+        mine = {"rho": spearman(full, [row["index_variants"] for row in rows]),
+                "median_ratio": statistics.median(ratio),
+                "median_abs_log2": statistics.median(abs(math.log2(r)) for r in ratio)}
+        for stat, value in mine.items():
+            require(math.isclose(value, committed[stat], rel_tol=SAME_TO, abs_tol=SAME_TO),
+                    f"{key} {stat}: {value!r} from the per-Analysis counts, {committed[stat]!r} committed")
+        at = from_sweep.get(key, (None, None))
+        methods.append({"key": key, "source": "eur_sweep.json" if key in from_sweep else "eur_profile.json",
+                        "d_cm": d_out(at[0]), "w_bp": at[1], "label": from_profile.get(key)}
+                       | {stat: committed[stat] for stat in (*mine, "c1", "c2")})
+
+    bp_only = [row["leads_full"]["bp_only"] for row in rows]
+    require(max(bp_only) <= ceiling["leads"],
+            f"a bp-only count of {max(bp_only)} is above the ceiling of {ceiling['leads']} the lengths allow")
+    above = [row for row in rows if row["index_variants"] > ceiling["leads"]]
+    strongest = {}
+    for analysis in sweep["analyses"]:
+        band = analysis["selection"]["z_band"]
+        strongest[band] = min(strongest.get(band, math.inf), analysis["selection"]["max_abs_z"])
+    return {
+        "methods": methods,
+        "z_bands": sorted(strongest, key=strongest.get),
+        "analyses": rows,
+        "most_clumps": max(rows, key=lambda row: row["index_variants"])["analysis_id"],
+        "above_ceiling": {"analyses": len(above),
+                          "index_min": min(row["index_variants"] for row in above),
+                          "index_max": max(row["index_variants"] for row in above),
+                          "bp_only_min": min(row["leads_full"]["bp_only"] for row in above),
+                          "bp_only_max": max(row["leads_full"]["bp_only"] for row in above)},
+    }
+
+
+def extract_counts(engine: Engine, panel: Panel) -> dict[str, Any]:
+    sweep, _, _ = eur_inputs(engine)
+    profile, _ = engine.read("eur_profile.json", "#409")
+    ceiling = bp_only_ceiling(sweep, panel, NAMED_POINT[1])
+    return per_analysis_counts(sweep, profile, ceiling) | {"ceiling": ceiling}
+
+
+def build(engine: Engine, panel: Panel) -> dict[str, Any]:
     stage = "method"
     try:
         method = extract_method(engine)
@@ -859,6 +1042,8 @@ def build(engine: Engine) -> dict[str, Any]:
         cost = extract_cost(engine)
         stage = "#409"
         profile = extract_profile(engine)
+        stage = "the per-Analysis counts"
+        counts = extract_counts(engine, panel)
     except KeyError as missing:
         raise Refused(f"refused: reading {stage}'s outputs, an engine output has no key {missing}; "
                       "nothing written") from missing
@@ -874,6 +1059,7 @@ def build(engine: Engine) -> dict[str, Any]:
         "ancestries": ancestries,
         "cost": cost,
         "profile": profile,
+        "per_analysis_counts": counts,
     }
 
 
@@ -883,7 +1069,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--commit", required=True, help="the engine commit whose outputs are read")
     parser.add_argument("--output", type=Path, required=True)
     args = parser.parse_args(argv)
-    extract = build(Engine(args.engine, args.commit))
+    extract = build(Engine(args.engine, args.commit), Panel())
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(json.dumps(extract, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"wrote {args.output}: {len(extract['sources'])} sources at {extract['engine']['commit']}",

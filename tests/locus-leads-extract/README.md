@@ -3,7 +3,9 @@
 `tests/locus-leads-extract/test_locus_leads_extract.py` runs
 `tools/locus_leads_prototype_extract.py` on small synthetic outputs shaped like
 the engine's prototype outputs, never the engine's own files: an engine
-stand-in serves them where the extract would run `git show`.
+stand-in serves them where the extract would run `git show`, and a panel
+stand-in serves variant-table headers where it would read and decompress the
+panel's files.
 
 Covered, each test seen to fail first (against the code before the check
 existed, or against a named mutation):
@@ -16,8 +18,20 @@ existed, or against a named mutation):
   refused;
 - an output missing a key refuses, naming the key, instead of building a
   partial extract;
-- two derivations against hand-worked values: how many disagreeing pairs lie
-  past 1 Mb or reach r² 0.05, and the best |log2| gain over bp-only at the same W.
+- the per-Analysis counts behind the report's count figure, on three
+  hand-worked Analyses: index variants that differ between #403's sweep and
+  #409's profile are refused, naming the Analysis and both values, and so is a
+  profile that misses an Analysis of the sweep; a committed ρ or median ratio
+  that the per-Analysis counts do not give back is refused, naming the rule,
+  the statistic and both values; a count of 0, which a log axis cannot show, is
+  refused; and so is a bp-only count above the ceiling;
+- the bp-only ceiling: worked by hand from two chromosome lengths, with each
+  variant table's sha256 recorded; a table on another assembly, or describing
+  another chromosome, is refused;
+- derivations against hand-worked values: how many disagreeing pairs lie past
+  1 Mb or reach r² 0.05, the best |log2| gain over bp-only at the same W,
+  Spearman's ρ with tied ranks (√0.9), and the Analyses with more clumps than
+  the ceiling.
 
 Run from the repository root:
 
