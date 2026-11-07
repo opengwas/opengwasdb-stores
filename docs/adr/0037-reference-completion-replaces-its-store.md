@@ -261,10 +261,12 @@ it, every layout can.
   declare `ancestry` too, the planner refuses one that does not, and the
   check is given it and cross-checks it against the completed Store's
   record.
-- **SE is compared exactly.** `complete-ragged` refits and re-quantises SE
-  stored as `int8_residual`, which on real data moves observed SE slightly
-  (opengwas/opengwasdb#301). Until that is resolved, a Ragged Store whose SE
-  is stored that way, as OGS-00006's is, fails the check.
+- **SE is compared exactly.** Before opengwasdb `v0.6.2`, `complete-ragged`
+  refit and re-quantised SE stored as `int8_residual`, which on real data moved
+  observed SE slightly, so a Ragged Store whose SE is stored that way, as
+  OGS-00006's is, failed the check. From `v0.6.2` it codes every cell against
+  the source's `se_coefficients`, and observed SE comes through exactly
+  (opengwas/opengwasdb#301, its ADR 0078). The check stays strict.
 - **No resume and no extra steps.** `complete-ragged` keeps no checkpoint, so
   an interrupted completion starts again from the published Observed-Only
   Store. It builds its Top-Hit Index inline and writes the format-0.2.0
