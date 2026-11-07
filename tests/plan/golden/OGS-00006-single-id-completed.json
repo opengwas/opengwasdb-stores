@@ -65,9 +65,11 @@
       "--release-id",
       "OGS-00006-completed",
       "--ld-panel",
-      "/data/opengwasdb/reference/hgdp1kgp-hg38/panel",
+      "/data/opengwasdb/reference/ld",
       "--ancestry",
-      "EUR"
+      "EUR",
+      "--n-workers",
+      "32"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
@@ -105,7 +107,7 @@
       "--n-random",
       "1000",
       "--ld-panel",
-      "/data/opengwasdb/reference/hgdp1kgp-hg38/panel",
+      "/data/opengwasdb/reference/ld",
       "--ancestry",
       "EUR",
       "--output",

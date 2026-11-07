@@ -648,12 +648,30 @@ class TestPlanHybrid(unittest.TestCase):
                                         self.assertEqual(steps5_a, steps5_b)
 
 
+def observed_only(store_id: str) -> Bundle:
+    """A committed bundle as it was before it declared completion: same recipe, no `complete` block.
+
+    OGS-00006 declares its completion (#224), but its Store was built and
+    published by this plan, and the Ragged SSF tests below are about that build.
+    """
+    amended = load(store_id)
+    build = {key: value for key, value in amended.build.items() if key != "complete"}
+    build["completion_state"] = "observed_only"
+    return Bundle(
+        store_id=amended.store_id,
+        root=amended.root,
+        release=amended.release,
+        build=build,
+        analyses_path=amended.analyses_path,
+    )
+
+
 class TestPlanRagged(unittest.TestCase):
     """Test suite for plan() focusing on Ragged layout (BESD OGS-00001 and SSF OGS-00006, OGS-00007)."""
 
     def setUp(self) -> None:
         self.bundle_00001 = load("OGS-00001")
-        self.bundle_00006 = load("OGS-00006")
+        self.bundle_00006 = observed_only("OGS-00006")
         self.bundle_00007 = load("OGS-00007")
         self.golden_path_00001 = REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00001.json"
         self.golden_path_00006 = REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00006.json"
@@ -1894,36 +1912,38 @@ class TestPlanSingleIdHybridReferenceCompleted(unittest.TestCase):
 class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
     """A Ragged release without `derived_from` completes its own Store, as a Dense one does (ADR 0037, #336).
 
-    The fixture is OGS-00006's committed recipe gaining a `complete-ragged`
-    block. The golden was written by the planner before Ragged was admitted:
-    its observed-only plan of OGS-00006, then its completion phase for the
-    amended bundle, with the Observed-View Check's `--ld-panel` and
-    `--ancestry` added by hand. `complete-ragged` builds the Top-Hit Index
-    inline and a Ragged Store has no overview, so the completion phase is
-    `complete`, validate and the check.
-
-    The `complete` options are OGS-00002's, standing in for OGS-00006's own
-    until its bundle declares them (#224); the golden's completion phase is
-    regenerated then.
+    The fixture is OGS-00006's committed bundle, which declares its
+    `complete-ragged` block (#224). The golden's build phase was written by
+    the planner before Ragged was admitted, as OGS-00006's observed-only plan,
+    and its completion phase follows the bundle's own block: the UKB EUR panel
+    root at 32 workers. `complete-ragged` builds the Top-Hit Index inline and a
+    Ragged Store has no overview, so the completion phase is `complete`,
+    validate and the check.
     """
 
     GOLDEN = REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00006-single-id-completed.json"
-    LD_PANEL = "/data/opengwasdb/reference/hgdp1kgp-hg38/panel"
-    COMPLETE_BLOCK = {"command": "complete-ragged", "options": {"ld-panel": LD_PANEL, "ancestry": "EUR"}}
+    LD_PANEL = "/data/opengwasdb/reference/ld"
+    COMPLETE_BLOCK = {
+        "command": "complete-ragged",
+        "options": {"ld-panel": LD_PANEL, "ancestry": "EUR", "n-workers": 32},
+    }
 
     def completed(self, complete: dict | None = None) -> Bundle:
-        observed = load("OGS-00006")
+        """OGS-00006 as committed, or with another `complete` block in place of its own."""
+        bundle = load("OGS-00006")
+        if complete is None:
+            return bundle
         return Bundle(
-            store_id=observed.store_id,
-            root=observed.root,
-            release=observed.release,
-            build={
-                **observed.build,
-                "completion_state": "reference_completed",
-                "complete": complete or self.COMPLETE_BLOCK,
-            },
-            analyses_path=observed.analyses_path,
+            store_id=bundle.store_id,
+            root=bundle.root,
+            release=bundle.release,
+            build={**bundle.build, "complete": complete},
+            analyses_path=bundle.analyses_path,
         )
+
+    def test_the_committed_block_is_the_one_this_test_names(self) -> None:
+        """The goldens follow the bundle, so a changed block is seen here first."""
+        self.assertEqual(load("OGS-00006").build["complete"], self.COMPLETE_BLOCK)
 
     def test_both_phases_match_the_golden(self) -> None:
         """Build phase as today, then complete-ragged, validate and the check, which names the panel."""
@@ -1941,10 +1961,10 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
             validate_step_argv_against_cli(self, step)
 
     def test_the_build_phase_is_the_observed_only_plan(self) -> None:
-        """What OGS-00006 plans today is its build phase, step for step (ADR 0037, #305)."""
+        """What OGS-00006 planned before it declared completion is its build phase, step for step (ADR 0037, #305)."""
         steps = plan(self.completed())
         record_check()
-        self.assertEqual([s for s in steps if s.phase == "build"], plan(load("OGS-00006")))
+        self.assertEqual([s for s in steps if s.phase == "build"], plan(observed_only("OGS-00006")))
 
     def test_the_check_renders_each_option_as_complete_does(self) -> None:
         """One renderer for both steps, whatever the key's spelling or the value's type (ADR 0023)."""

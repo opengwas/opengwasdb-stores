@@ -1,6 +1,6 @@
 store_id: OGS-00006
 layout: ragged
-completion_state: observed_only
+completion_state: reference_completed
 build:
   command: build-ragged-ssf
   options:
@@ -8,3 +8,9 @@ build:
 post:
   top_hits: true
   overview: false
+complete:
+  command: complete-ragged
+  options:
+    ld-panel: /data/opengwasdb/reference/ld
+    ancestry: EUR
+    n-workers: 32
