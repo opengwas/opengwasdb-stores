@@ -19,9 +19,9 @@ the `--format json` block in Step 3, re-run on 2026-11-07 at opengwasdb 0.6.0
 against OGS-00001, this pilot store's published release, after
 opengwas/opengwasdb#394 made each JSON row the whole association record. The
 same day the `association_status` counts under "Observed versus
-reference-completed" were re-run against OGS-00002 with `cut -f12`: the TSV
-gained an `eaf` column before `association_status`, and the counts are
-unchanged.
+reference-completed" were re-run against OGS-00002, reading the last column
+rather than a numbered one: the TSV has since gained an `eaf` column before
+`association_status`, and the counts are unchanged.
 
 If you want the inventory of what exists rather than how to use it, see
 [the store master list](https://github.com/opengwas/opengwasdb-stores/blob/main/STORES.md).
@@ -430,7 +430,7 @@ which, via the `association_status` column, with no extra flag needed:
 
 ```bash
 ogdb query-analysis "$EQ/ragged__eqtlgen-cis-pilot__pilot-10-completed" "ENSG00000136997::whole_blood" \
-  | tail -n +2 | cut -f12 | sort | uniq -c
+  | awk -F'\t' 'NR > 1 {print $NF}' | sort | uniq -c
 ```
 
 ```
@@ -441,9 +441,12 @@ ogdb query-analysis "$EQ/ragged__eqtlgen-cis-pilot__pilot-10-completed" "ENSG000
 
 ::: {.callout-note}
 `association_status` is `observed`, `imputed`, or `missing` on every row, in
-both the default TSV (its 12th column, after `eaf`) and `--format json`. If you
-only want measured values, filter on it (`awk -F'\t' '$12=="observed"'`, or
-`jq '[.[] | select(.association_status == "observed")]'` on the JSON form) or
+both the default TSV and `--format json`. In the TSV it is always the last
+column, but which number that is depends on the query: `--variant-info` adds
+`rsid` as the third column, and a store with per-association sample sizes adds
+`n` just before `association_status`. So filter on the last column, not a
+numbered one (`awk -F'\t' '$NF=="observed"'`), or use
+`jq '[.[] | select(.association_status == "observed")]'` on the JSON form, or
 query the `observed_only` release instead. Filter on the status, never on
 `eaf`: an imputed row carries the LD reference panel's frequency where an
 observed one may have none.
