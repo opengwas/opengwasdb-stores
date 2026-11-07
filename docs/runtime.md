@@ -279,11 +279,13 @@ only whether `check-observed-view --help` succeeds, and on both it does. Here
 too the exact-pin check, not the probe, is what refuses an older runtime for a
 Ragged single-id release.
 
-The check compares observed SE exactly. `complete-ragged` refits and
-re-quantises SE stored as `int8_residual`, which on real data moves every
-observed SE slightly (opengwas/opengwasdb#301), so a Ragged Store whose builder
-chose that encoding, as OGS-00006's did, fails the check until #301 is
-resolved.
+The check compares observed SE exactly. Before opengwasdb `v0.6.2`,
+`complete-ragged` refit and re-quantised SE stored as `int8_residual`, which on
+real data moved every observed SE slightly, so a Ragged Store whose builder
+chose that encoding, as OGS-00006's did, failed the check. `v0.6.2` keeps the
+source's `se_coefficients` and carries each observed SE exactly
+(opengwas/opengwasdb#301, its ADR 0078), and the check passes on the three
+Chen 2023 Analyses #301 was measured on.
 
 ## Coordination with core #304
 

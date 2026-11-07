@@ -2021,12 +2021,13 @@ def create_signal_fixture_ssf(path: Path) -> Path:
 
     The position at `RAGGED_NO_EAF_INDEX` reports no frequency, which keeps
     SE `float16`: opengwasdb stores SE as `int8_residual`, predicted from
-    EAF, only when every association with an SE has an EAF. `complete-ragged`
-    refits and re-quantises a residual-coded SE, which on real data moves
-    observed SE slightly, and the Observed-View Check compares observed SE
-    exactly (opengwas/opengwasdb#301). This fixture's constant SE comes
-    through the refit unchanged, so it would pass either way; `float16` keeps
-    the test from depending on that.
+    EAF, only when every association with an SE has an EAF. Before
+    opengwasdb `v0.6.2`, `complete-ragged` refit and re-quantised a
+    residual-coded SE, which on real data moved observed SE slightly, and the
+    Observed-View Check compares observed SE exactly (opengwas/opengwasdb#301).
+    This fixture's constant SE came through the refit unchanged, so it would
+    pass either way; `float16` keeps the test from depending on the SE
+    encoding.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     lines = [
