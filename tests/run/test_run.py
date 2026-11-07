@@ -2324,22 +2324,34 @@ class TestVariantReferenceExecution(unittest.TestCase):
                 self.assertEqual(target.read_bytes(), written)
                 record_check()
 
+    #: The header opengwasdb wrote at 9244641, between v0.5.0 and v0.6.0: it had
+    #: added `reoriented_keys` but not yet renamed `source_keys`. The engine
+    #: refuses it, and `source_keys` is not its last column.
+    INTERIM_HEADER = "#alid\tchromosome\tposition\ta1\ta2\trsid\tsource_keys\treoriented_keys\n"
+
     def test_the_executor_refuses_exactly_the_references_the_pinned_engine_refuses(self) -> None:
-        """Each fixture is read by the pinned engine, and the executor refuses it exactly when the engine does.
+        """For each fixture, `refuse_unmarked_variant_reference` raises exactly when the pinned engine's reader refuses.
 
         The executor reads only the header, so this ties its rule to the
         engine's: if opengwasdb's artifact header or its refusal moves, this
         fails rather than the executor going on refusing a column the engine
-        has stopped refusing, or passing one it has started to.
+        has stopped refusing, or passing one it has started to. It calls the
+        function `execute_step` calls, so a wrong refusal there fails here.
         """
         from opengwasdb.variants import UnmarkedArtifactError, read_variant_reference
         from opengwasdb.variants.reference import ARTIFACT_HEADER
 
         self.assertEqual(self.MARKED_HEADER, ARTIFACT_HEADER, "the fixture's header is the one the engine writes")
+        unmarked_row = "1:100:A:G\t1\t100\tA\tG\t.\t1:100:A:G\n"
+        marked_row = "1:100:A:G\t1\t100\tA\tG\t.\t1:100:A:G\t\n"
         references = {
-            "unmarked.variant-ref.tsv.gz": self.UNMARKED_HEADER + "1:100:A:G\t1\t100\tA\tG\t.\t1:100:A:G\n",
-            "marked.variant-ref.tsv.gz": self.MARKED_HEADER + "1:100:A:G\t1\t100\tA\tG\t.\t1:100:A:G\t\n",
+            "unmarked.variant-ref.tsv.gz": self.UNMARKED_HEADER + unmarked_row,
+            "old.variant-ref.tsv": self.UNMARKED_HEADER + unmarked_row,
+            "interim.variant-ref.tsv.gz": self.INTERIM_HEADER + marked_row,
+            "marked.variant-ref.tsv.gz": self.MARKED_HEADER + marked_row,
+            "marked.variant-ref.tsv": self.MARKED_HEADER + marked_row,
             "alids.txt.gz": "1:100:A:G\n1:200:C:T\n",
+            "alids.txt": "1:100:A:G\n",
             "variants.tsv.gz": (
                 "#chromosome\tposition\tvariant_index\teffect_allele\tother_allele\talid\trsid\tsource_alid\n"
                 "1\t100\t0\tA\tG\t1:100:A:G\trs1\t.\n"
@@ -2356,11 +2368,18 @@ class TestVariantReferenceExecution(unittest.TestCase):
             else:
                 self.assertEqual(reference.alids[0], "1:100:A:G", f"{name} is a reference the engine reads")
             with self.subTest(name):
-                columns = run.variant_reference_columns(target)
-                executor_refuses = columns is not None and run.UNMARKED_VARIANT_REFERENCE_COLUMN in columns
-                self.assertEqual(executor_refuses, name in refused_by_engine)
+                if name in refused_by_engine:
+                    with self.assertRaises(run.UnmarkedVariantReferenceError):
+                        run.refuse_unmarked_variant_reference("variant-reference", target)
+                else:
+                    # Raises nothing: the executor provides what the engine reads.
+                    run.refuse_unmarked_variant_reference("variant-reference", target)
                 record_check()
-        self.assertEqual(refused_by_engine, {"unmarked.variant-ref.tsv.gz"})
+        self.assertEqual(
+            refused_by_engine,
+            {"unmarked.variant-ref.tsv.gz", "old.variant-ref.tsv", "interim.variant-ref.tsv.gz"},
+            "the fixtures hold the three headers the engine refuses and the five it reads",
+        )
 
     def test_absent_artifact_runs_extraction_atomically(self) -> None:
         """An absent artifact runs the extraction and renames the staged file into place."""
