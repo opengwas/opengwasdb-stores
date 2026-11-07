@@ -69,7 +69,7 @@
       "--ancestry",
       "EUR",
       "--n-workers",
-      "64"
+      "32"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"

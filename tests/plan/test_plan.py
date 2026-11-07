@@ -1916,7 +1916,7 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
     `complete-ragged` block (#224). The golden's build phase was written by
     the planner before Ragged was admitted, as OGS-00006's observed-only plan,
     and its completion phase follows the bundle's own block: the UKB EUR panel
-    root at 64 workers. `complete-ragged` builds the Top-Hit Index inline and a
+    root at 32 workers. `complete-ragged` builds the Top-Hit Index inline and a
     Ragged Store has no overview, so the completion phase is `complete`,
     validate and the check.
     """
@@ -1925,7 +1925,7 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
     LD_PANEL = "/data/opengwasdb/reference/ld"
     COMPLETE_BLOCK = {
         "command": "complete-ragged",
-        "options": {"ld-panel": LD_PANEL, "ancestry": "EUR", "n-workers": 64},
+        "options": {"ld-panel": LD_PANEL, "ancestry": "EUR", "n-workers": 32},
     }
 
     def completed(self, complete: dict | None = None) -> Bundle:

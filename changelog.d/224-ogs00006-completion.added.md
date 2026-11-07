@@ -4,7 +4,7 @@
   completion declaration, the one amendment ADR 0037's Decision 1 allows:
   `build.yaml` becomes `completion_state: reference_completed` and gains a
   `complete` block running `complete-ragged` against the panel root
-  `/data/opengwasdb/reference/ld` for ancestry EUR (`ld/EUR` is `ukb`) at 64
+  `/data/opengwasdb/reference/ld` for ancestry EUR (`ld/EUR` is `ukb`) at 32
   workers, and the build phase keeps exactly the argv that wrote the Store. The
   Store codes SE as `int8_residual`, so the declaration waited for opengwasdb
   `v0.6.2`, whose `complete-ragged` keeps the source's SE model and passes the

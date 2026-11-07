@@ -13,4 +13,4 @@ complete:
   options:
     ld-panel: /data/opengwasdb/reference/ld
     ancestry: EUR
-    n-workers: 64
+    n-workers: 32
