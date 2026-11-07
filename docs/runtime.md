@@ -312,8 +312,18 @@ the key is absent from the rsid index, which is how a Store already records a
 variant it can name no other way. The build always reports what its harvest
 compared as `rsid_conflicts: {policy, n_keys, n_variants, sample}` in its stdout
 JSON, with both counts `0` when nothing was disputed and `null` when no names
-were compared across sources (`--reference-panel`, or a reference that names its
-own rsids); a `--reference-panel` build refuses `drop` rather than ignore it.
+were compared across sources, which is now only a reference that names its own
+rsids. From opengwasdb v0.6.0 (opengwas/opengwasdb#379) a `--reference-panel`
+build harvests names with the same test, accepts `drop`, and reports counts
+where it reported `null`: where its sources spell one site in different case
+and name it differently, it kept the first source's name before. The other
+builders apply the same test with no option: `build-dense-vcf`,
+`build-ragged-ssf` and `extract-variant-reference` refuse such a site, naming
+it and both rsids, and report no `rsid_conflicts`. No published Store's names
+change, by the engine's own measurement: routing OGS-00003, -00004 and -00008's
+recorded sources and harvesting OGS-00006's and -00007's admitted rows finds no
+disputed key, and the other two-pass Stores (OGS-00009, OGS-00012 to -00017)
+hold no lower-case allele.
 The same change normalises a compound `rsN:pos:a:b` id and the first item of a
 `;` list in the readers, so a name that is really one rsid is compared as that
 rsid.
