@@ -70,6 +70,7 @@ from __future__ import annotations
 
 import datetime
 import difflib
+import gzip
 import json
 import os
 import re
@@ -79,6 +80,7 @@ import stat
 import subprocess
 import sys
 import time
+import zlib
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Iterable, Mapping
@@ -192,6 +194,21 @@ class ResumeRefusedError(ValueError):
     A refusal changes nothing: `execute_step` writes no record for it, so the
     interrupted run's record, the start record and the checkpoint stay as they
     were, and a later run under the right engine or plan can still resume.
+    """
+
+
+class UnmarkedVariantReferenceError(ValueError):
+    """Raised when a provided Variant Reference predates the record of the lift's re-orientation.
+
+    opengwasdb v0.6.0 renamed an artifact's routing column from `source_keys`
+    to `routed_source_keys` when it added `reoriented_keys`, and every reader
+    there refuses an artifact that still names `source_keys`
+    (`UnmarkedArtifactError`, opengwas/opengwasdb#354). Such a file at the
+    pre-stage's destination is therefore not a provided reference: the
+    executor refuses it, writing a failed record and running nothing, rather
+    than record a successful skip that the build then refuses. It deletes
+    nothing either, because the destination may be a reference it was handed
+    (ADR 0031).
     """
 
 
@@ -579,6 +596,50 @@ def variant_reference_partial_path(target: Path | str) -> Path:
     """
     target_p = Path(target)
     return target_p.with_name(f"{target_p.name}.partial")
+
+
+#: The routing column of a Variant Reference artifact `extract-variant-reference`
+#: wrote before opengwasdb v0.6.0, which renamed it `routed_source_keys`
+#: (opengwas/opengwasdb#354). Its presence alone is what the engine refuses.
+UNMARKED_VARIANT_REFERENCE_COLUMN = "source_keys"
+
+
+def variant_reference_columns(path: Path | str) -> list[str] | None:
+    """The column names of a Variant Reference's header, read as opengwasdb reads them, or None.
+
+    opengwasdb opens a name ending `.gz`, `.bgz` or `.bgzf` as gzip and takes a
+    first line holding a tab as the header, each name without a leading `#`;
+    any other first line begins a plain ALID list, which has no header. A file
+    that cannot be read that far is None too: whether it is a usable reference
+    is the engine's judgement, which the build makes when it reads it, so the
+    executor refuses only what it can name.
+    """
+    path = Path(path)
+    gzipped = path.name.lower().endswith((".gz", ".bgz", ".bgzf"))
+    try:
+        with (gzip.open(path, "rt", encoding="utf-8") if gzipped else path.open(encoding="utf-8")) as handle:
+            first = handle.readline()
+    except (OSError, EOFError, UnicodeDecodeError, zlib.error):
+        return None
+    if "\t" not in first:
+        return None
+    return [field.lstrip("#").strip() for field in first.rstrip("\n").split("\t")]
+
+
+def refuse_unmarked_variant_reference(step_name: str, target: Path | str) -> None:
+    """Refuse a provided Variant Reference whose header names the pre-v0.6.0 routing column (#354 there)."""
+    columns = variant_reference_columns(target)
+    if columns is None or UNMARKED_VARIANT_REFERENCE_COLUMN not in columns:
+        return
+    raise UnmarkedVariantReferenceError(
+        f"Step {step_name!r}: the variant reference {target} was extracted by an opengwasdb "
+        f"before v0.6.0. Its header names the routing column `{UNMARKED_VARIANT_REFERENCE_COLUMN}`, "
+        "which opengwasdb renamed `routed_source_keys` when it began recording the lift's "
+        "re-orientation in `reoriented_keys` (opengwas/opengwasdb#354), and every reader at the "
+        "pinned engine refuses it (UnmarkedArtifactError). It is not used as provided, nothing "
+        "was run, and the file is left as it is: delete it so this step extracts it again, or "
+        "replace it with one extracted by the pinned engine."
+    )
 
 
 def rewrite_argv_for_variant_reference(step: Step, target: Path | str) -> list[str]:
@@ -1474,9 +1535,37 @@ def execute_step(
     # Variant-reference skip-if-provided: an artifact already on disk (a shared
     # or pre-computed reference) is used as-is, so no subprocess is launched and
     # the record states the skip explicitly. Existence is a runtime fact, which
-    # is why the planner never checks it (#145/#147).
+    # is why the planner never checks it (#145/#147). The one exception is an
+    # artifact from before opengwasdb v0.6.0, which every reader there refuses:
+    # it is refused here, by its header alone, and left in place.
     if is_variant_reference and ref_target_p is not None and _lstat_exists(ref_target_p):
         skipped_at = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+        # A provided artifact the pinned engine refuses is not provided (#354 there).
+        try:
+            refuse_unmarked_variant_reference(step.name, ref_target_p)
+        except UnmarkedVariantReferenceError as refusal:
+            refused = StepResult(
+                step=step.name,
+                store_id=store_id,
+                exit_code=1,
+                success=False,
+                start_time=skipped_at,
+                end_time=skipped_at,
+                elapsed_seconds=0.0,
+                argv=planned_argv,
+                planned_argv=planned_argv,
+                inputs=[str(p) for p in step.inputs],
+                outputs=[str(p) for p in step.outputs],
+                opengwasdb_rev=ogdb_rev,
+                opengwasdb_version=ogdb_ver,
+                opengwasdb_executable=ogdb_exe,
+                stdout="",
+                stderr=str(refusal),
+                record_path=str(record_p),
+                published_store=None,
+            )
+            _write_record_atomically(refused.to_dict(), record_p)
+            raise
         skip_result = StepResult(
             step=step.name,
             store_id=store_id,

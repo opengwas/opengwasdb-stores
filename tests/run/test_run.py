@@ -2239,6 +2239,129 @@ class TestVariantReferenceExecution(unittest.TestCase):
             self.assertEqual(rec["argv"], rec["planned_argv"])
             record_check()
 
+    #: The header `extract-variant-reference` wrote before opengwas/opengwasdb#354,
+    #: and the one it writes from v0.6.0, which renamed the routing column when it
+    #: added `reoriented_keys` (opengwasdb's `variants/reference.py`).
+    UNMARKED_HEADER = "#alid\tchromosome\tposition\ta1\ta2\trsid\tsource_keys\n"
+    MARKED_HEADER = "#alid\tchromosome\tposition\ta1\ta2\trsid\trouted_source_keys\treoriented_keys\n"
+
+    def _write_reference(self, target: Path, text: str) -> bytes:
+        """Write `text` to `target`, gzipped when its name says so, as the engine reads it."""
+        import gzip
+
+        target.parent.mkdir(parents=True, exist_ok=True)
+        data = gzip.compress(text.encode()) if target.name.endswith(".gz") else text.encode()
+        target.write_bytes(data)
+        return data
+
+    def _launch_sentinel(self) -> tuple[Path, Path]:
+        sentinel = self.root / "launched.sentinel"
+        script = self._script(
+            "from pathlib import Path\n"
+            f"Path({str(sentinel)!r}).write_text('ran')\n",
+            name="mock_extract_sentinel.py",
+        )
+        return sentinel, script
+
+    def test_an_artifact_from_before_354_is_refused_not_provided(self) -> None:
+        """An artifact whose routing column is `source_keys` is refused, left in place, and nothing runs.
+
+        opengwasdb v0.6.0 refuses such an artifact in every reader
+        (`UnmarkedArtifactError`): it cannot say which keys its lift
+        re-oriented. Skipping the extraction as `provided` would record a
+        successful pre-stage for a reference no build can use, and the
+        executor deletes no file it was handed, so it refuses (#354 there).
+        """
+        for name in ("old.variant-ref.tsv.gz", "old.variant-ref.tsv"):
+            with self.subTest(name):
+                target = self.root / "refs" / name
+                written = self._write_reference(target, self.UNMARKED_HEADER + "1:100:A:G\t1\t100\tA\tG\t.\t1:100:A:G\n")
+                sentinel, script = self._launch_sentinel()
+
+                with self.assertRaises(run.UnmarkedVariantReferenceError) as ctx:
+                    execute_step(self._step(target, script), store_id=self.store_id, artifact_root=self.root)
+
+                message = str(ctx.exception)
+                for part in (str(target), "source_keys", "extract", "delete"):
+                    self.assertIn(part, message)
+                self.assertFalse(sentinel.exists(), "the refusal launches no extraction")
+                self.assertEqual(target.read_bytes(), written, "a provided artifact is never deleted or rewritten")
+                rec = load_record(self.store_id, "variant-reference", root=self.root)
+                assert rec is not None
+                self.assertFalse(rec["success"])
+                self.assertFalse(rec["skipped"])
+                self.assertIsNone(rec["skip_reason"])
+                self.assertEqual(rec["stderr"], message)
+                record_check()
+
+    def test_a_current_artifact_a_plain_list_and_a_variant_table_are_still_provided(self) -> None:
+        """Only the pre-#354 routing column is refused: every other reference opengwasdb reads is skipped as before.
+
+        `routed_source_keys` contains `source_keys`, so a check on the header's
+        text rather than its column names would refuse the current format.
+        """
+        references = {
+            "marked.variant-ref.tsv.gz": self.MARKED_HEADER + "1:100:A:G\t1\t100\tA\tG\t.\t1:100:A:G\t\n",
+            "alids.txt.gz": "1:100:A:G\n1:200:C:T\n",
+            "alids.txt": "1:100:A:G\n",
+            "variants.tsv.gz": (
+                "#chromosome\tposition\tvariant_index\teffect_allele\tother_allele\talid\trsid\tsource_alid\n"
+                "1\t100\t0\tA\tG\t1:100:A:G\trs1\t.\n"
+            ),
+        }
+        for name, text in references.items():
+            with self.subTest(name):
+                target = self.root / "refs" / name
+                written = self._write_reference(target, text)
+                sentinel, script = self._launch_sentinel()
+
+                res = execute_step(self._step(target, script), store_id=self.store_id, artifact_root=self.root)
+
+                self.assertTrue(res.success)
+                self.assertTrue(res.skipped)
+                self.assertEqual(res.skip_reason, "provided")
+                self.assertFalse(sentinel.exists())
+                self.assertEqual(target.read_bytes(), written)
+                record_check()
+
+    def test_the_executor_refuses_exactly_the_references_the_pinned_engine_refuses(self) -> None:
+        """Each fixture is read by the pinned engine, and the executor refuses it exactly when the engine does.
+
+        The executor reads only the header, so this ties its rule to the
+        engine's: if opengwasdb's artifact header or its refusal moves, this
+        fails rather than the executor going on refusing a column the engine
+        has stopped refusing, or passing one it has started to.
+        """
+        from opengwasdb.variants import UnmarkedArtifactError, read_variant_reference
+        from opengwasdb.variants.reference import ARTIFACT_HEADER
+
+        self.assertEqual(self.MARKED_HEADER, ARTIFACT_HEADER, "the fixture's header is the one the engine writes")
+        references = {
+            "unmarked.variant-ref.tsv.gz": self.UNMARKED_HEADER + "1:100:A:G\t1\t100\tA\tG\t.\t1:100:A:G\n",
+            "marked.variant-ref.tsv.gz": self.MARKED_HEADER + "1:100:A:G\t1\t100\tA\tG\t.\t1:100:A:G\t\n",
+            "alids.txt.gz": "1:100:A:G\n1:200:C:T\n",
+            "variants.tsv.gz": (
+                "#chromosome\tposition\tvariant_index\teffect_allele\tother_allele\talid\trsid\tsource_alid\n"
+                "1\t100\t0\tA\tG\t1:100:A:G\trs1\t.\n"
+            ),
+        }
+        refused_by_engine = set()
+        for name, text in references.items():
+            target = self.root / "engine" / name
+            self._write_reference(target, text)
+            try:
+                reference = read_variant_reference(target)
+            except UnmarkedArtifactError:
+                refused_by_engine.add(name)
+            else:
+                self.assertEqual(reference.alids[0], "1:100:A:G", f"{name} is a reference the engine reads")
+            with self.subTest(name):
+                columns = run.variant_reference_columns(target)
+                executor_refuses = columns is not None and run.UNMARKED_VARIANT_REFERENCE_COLUMN in columns
+                self.assertEqual(executor_refuses, name in refused_by_engine)
+                record_check()
+        self.assertEqual(refused_by_engine, {"unmarked.variant-ref.tsv.gz"})
+
     def test_absent_artifact_runs_extraction_atomically(self) -> None:
         """An absent artifact runs the extraction and renames the staged file into place."""
         target = self.root / "refs" / "extracted.tsv.gz"
