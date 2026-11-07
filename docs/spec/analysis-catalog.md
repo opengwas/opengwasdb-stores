@@ -192,10 +192,14 @@ category of its own, and so is `META`; any other value is counted as it
 stands. Each dimension sums to the number of listed Analyses.
 
 **Search** is the FTS5 table `analysis_search` over `analysis_label`,
-`trait_ontology_label`, `consortium` and `first_author`, external-content on
-the view `listed_search_content` (listed rows, exposing the `analyses` rowid),
-so `rebuild` and `integrity-check` agree with what is indexed and a placeholder
-row is never in it. It joins by rowid:
+`trait_ontology_label`, `consortium`, `first_author`, `analysis_id` and
+`source_analysis_id`, external-content on the view `listed_search_content`
+(listed rows, exposing the `analyses` rowid), so `rebuild` and
+`integrity-check` agree with what is indexed and a placeholder row is never in
+it. An ID is found by its own text: `GCST90476024`, or `"ukb-b-10001"` as a
+phrase, since the tokenizer splits it at the hyphens (#452). **The two IDs
+supersede ADR 0039's list** of what the full-text index covers (ADR 0041). It
+joins by rowid:
 
 ```sql
 SELECT a.* FROM analysis_search s JOIN analyses a ON a.rowid = s.rowid
@@ -213,6 +217,32 @@ website table and its filters, user stories 2 and 3 of epic
 comparison is never true for a `NULL` `col`, so a cursor over a nullable
 column pages its `NULL` rows first with `col IS NULL AND id > ?`, then the rest
 with the row-value form.
+
+### Built for reading over HTTP (#452, ADR 0041)
+
+opengwas.io's Data page reads `catalog.sqlite` in the browser over HTTP range
+requests (opengwasdb-website decision 13). Every request is a round trip, so
+the file is laid out to need few of them:
+
+- **32 KB pages** (`PRAGMA page_size = 32768`, set before the first table).
+- **Two covering indexes** for the Data page's default listings, partial
+  `WHERE listed = 1`. Each holds every column of the page's results table
+  (`id`, `store_id`, `analysis_label`, `ancestry_category`, `sample_size`,
+  `trait_class`, `outcome_type`, `tissue`), so a page of results is read from
+  the index alone:
+  - `analyses_browse_by_label` on `(analysis_label, id, …)`, for
+    `ORDER BY analysis_label, id`;
+  - `analyses_browse_by_sample_size` on `(sample_size DESC, id DESC, …)`, for
+    `ORDER BY sample_size DESC, id DESC`, stored largest-first so that order is
+    a forward read.
+
+  The names and the results table's columns (`RESULTS_COLUMNS` in
+  `columns.py`) are a contract with the website, which asks for the indexes
+  with `INDEXED BY` (ADR 0041).
+- **One search segment.** FTS5 `optimize` runs after `rebuild`, so a search
+  reads one segment rather than several.
+- **No free pages.** If merging the search index left any, the database is
+  vacuumed once after it is committed, so a reader never fetches dead pages.
 
 ## Versions
 

@@ -15,6 +15,7 @@ import csv
 import gzip
 import json
 import os
+import random
 import re
 import shutil
 import sqlite3
@@ -145,6 +146,11 @@ def query(artifact_root: Path, sql: str, *args: Any) -> list[tuple]:
         return connection.execute(sql, args).fetchall()
     finally:
         connection.close()
+
+
+def query_plan(artifact_root: Path, sql: str, *args: Any) -> str:
+    """`EXPLAIN QUERY PLAN` of `sql`, one step per `|`."""
+    return " | ".join(row[3] for row in query(artifact_root, "EXPLAIN QUERY PLAN " + sql, *args))
 
 
 def snapshot(root: Path) -> list[tuple[str, int, int]]:
@@ -1205,7 +1211,7 @@ class FeaturesTest(unittest.TestCase):
     # indexes
 
     def plan(self, sql: str, *args: Any) -> str:
-        return " | ".join(row[3] for row in query(self.root, "EXPLAIN QUERY PLAN " + sql, *args))
+        return query_plan(self.root, sql, *args)
 
     def test_sorting_and_keyset_paging_use_an_index_on_every_sortable_column(self) -> None:
         for column in SORTABLE_COLUMNS:
@@ -1275,6 +1281,109 @@ class SearchIntegrityTest(unittest.TestCase):
 
     def test_a_scan_of_the_index_holds_no_placeholder(self) -> None:
         self.assertEqual(query(self.root, "SELECT COUNT(*) FROM analysis_search"), [(2,)])
+
+
+class BrowsingTest(unittest.TestCase):
+    """Built for reading over HTTP range requests, as opengwas.io's Data page does (#452)."""
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.tmp = Path(tempfile.mkdtemp(prefix="analysis_catalog_browsing_"))
+        registry, cls.root = cls.tmp / "stores", cls.tmp / "root"
+        registry.mkdir()
+        cls.root.mkdir()
+        write_bundle(registry, "OGS-00001", rows=[
+            analysis_row("ukb-b-10001", analysis_label="Diastolic blood pressure", sample_size="400000"),
+            analysis_row("ukb-b-10002", analysis_label="Systolic blood pressure", sample_size="380000"),
+        ])
+        write_bundle(registry, "OGS-00002", rows=[
+            analysis_row("GCST90476024", analysis_label="Asthma", source_analysis_id="GCST90476024"),
+            analysis_row("A2", analysis_label="Height", source_analysis_id="finngen-R13-HEIGHT"),
+        ])
+        write_bundle(registry, "OGS-00003", status="withdrawn", rows=[
+            analysis_row("ukb-b-99999", analysis_label="Gone", source_analysis_id="GCST00000001"),
+        ])
+        # Enough distinct words that FTS5's `rebuild` writes its index as several segments.
+        words = random.Random(452)
+        write_bundle(registry, "OGS-00004", rows=[
+            analysis_row(f"W{i}", analysis_label=" ".join(
+                "".join(words.choices("abcdefghijklmnop", k=8)) for _ in range(40)))
+            for i in range(600)
+        ])
+        build_catalog(registry, cls.root)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def search(self, match: str) -> list[str]:
+        return [row[0] for row in query(
+            self.root, "SELECT a.id FROM analysis_search s JOIN analyses a ON a.rowid = s.rowid "
+                       "WHERE analysis_search MATCH ? ORDER BY a.id", match)]
+
+    def test_search_finds_an_analysis_by_its_own_and_its_sources_id(self) -> None:
+        for match, expected in (
+            ('"ukb-b-10001"', ["OGS-00001:ukb-b-10001"]),
+            ("GCST90476024", ["OGS-00002:GCST90476024"]),
+            ('"finngen-R13-HEIGHT"', ["OGS-00002:A2"]),
+            ("analysis_id:A2", ["OGS-00002:A2"]),
+        ):
+            with self.subTest(match=match):
+                self.assertEqual(self.search(match), expected)
+
+    def test_a_placeholder_rows_ids_are_not_searchable(self) -> None:
+        self.assertEqual(query(self.root, "SELECT listed FROM analyses WHERE id = 'OGS-00003:ukb-b-99999'"), [(0,)])
+        self.assertEqual(self.search('"ukb-b-99999"'), [])
+        self.assertEqual(self.search("GCST00000001"), [])
+
+    def test_pages_are_32_kb_so_each_range_request_reads_more(self) -> None:
+        self.assertEqual(query(self.root, "PRAGMA page_size"), [(32768,)])
+
+    def test_the_data_pages_default_listings_read_only_a_covering_index(self) -> None:
+        # The columns of the Data page's results table, in opengwasdb-website's `catalogue-search.js`.
+        columns = "id, store_id, analysis_label, ancestry_category, sample_size, trait_class, outcome_type, tissue"
+        for order, index in (
+            ("analysis_label, id", "analyses_browse_by_label"),
+            ("sample_size DESC, id DESC", "analyses_browse_by_sample_size"),
+        ):
+            with self.subTest(order=order):
+                # The page's second page: 25 results a page, and one more to know there is a next.
+                plan = query_plan(self.root, f"SELECT {columns} FROM listed_analyses "
+                                             f"ORDER BY {order} LIMIT 26 OFFSET 25")
+                self.assertEqual(plan, f"SCAN analyses USING COVERING INDEX {index}")
+
+    def search_blocks(self, *commands: str) -> tuple[list[tuple], list[tuple]]:
+        """The search index's blocks before and after running FTS5 `commands`, on a copy."""
+        copy = self.tmp / "search-commands.sqlite"
+        shutil.copyfile(self.root / "catalog" / "current" / "catalog.sqlite", copy)
+        connection = sqlite3.connect(copy)
+        try:
+            blocks = "SELECT id, block FROM analysis_search_data ORDER BY id"
+            before = connection.execute(blocks).fetchall()
+            for command in commands:
+                connection.execute("INSERT INTO analysis_search(analysis_search) VALUES(?)", (command,))
+            connection.commit()
+            return before, connection.execute(blocks).fetchall()
+        finally:
+            connection.close()
+
+    def test_the_fixture_has_enough_text_for_a_rebuild_to_need_optimising(self) -> None:
+        rebuilt, optimised = self.search_blocks("rebuild")[1], self.search_blocks("rebuild", "optimize")[1]
+        # Not assertNotEqual: a diff of the index's blocks takes minutes to print.
+        self.assertTrue(rebuilt != optimised, f"optimize left a fresh rebuild's {len(rebuilt)} blocks as they were")
+
+    def test_the_search_index_is_already_optimised(self) -> None:
+        # FTS5 `optimize` merges the index into one segment; on one already merged it changes nothing.
+        before, after = self.search_blocks("optimize")
+        self.assertTrue(after == before, f"optimize rewrote the index: {len(before)} blocks became {len(after)}")
+
+    def test_the_file_holds_no_free_pages_for_a_reader_to_fetch(self) -> None:
+        self.assertEqual(query(self.root, "PRAGMA freelist_count"), [(0,)])
+
+    def test_vacuuming_keeps_the_search_index_joined_to_its_rows(self) -> None:
+        # VACUUM may renumber rowids, and the search index finds its rows by rowid.
+        self.assertEqual(query(self.root, "PRAGMA integrity_check"), [("ok",)])
+        query(self.root, "INSERT INTO analysis_search(analysis_search, rank) VALUES('integrity-check', 1)")
 
 
 class OutcomeTypeTest(unittest.TestCase):
