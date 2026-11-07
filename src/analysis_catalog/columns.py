@@ -125,6 +125,24 @@ DDL: tuple[str, ...] = (
     "CREATE VIEW listed_analyses AS SELECT * FROM analyses WHERE listed = 1",
 )
 
+# The columns of opengwas.io's Data page results table (ADR 0041).
+RESULTS_COLUMNS: tuple[str, ...] = (
+    "id", "store_id", "analysis_label", "ancestry_category", "sample_size",
+    "trait_class", "outcome_type", "tissue",
+)
+
+
+def _covering_index(name: str, *sort: str) -> str:
+    """A partial index in `sort` order that also holds every other results column.
+
+    A page of results is then read from the index alone, with no trip to the
+    table per row (ADR 0041). `sort` items are columns, optionally `DESC`.
+    """
+    keys = {item.split()[0] for item in sort}
+    columns = [*sort, *(column for column in RESULTS_COLUMNS if column not in keys)]
+    return f"CREATE INDEX {name} ON analyses ({', '.join(columns)}) WHERE listed = 1"
+
+
 # Partial indexes over listed rows: a placeholder row costs a listing nothing.
 # Queries go through `listed_analyses`, which carries `listed = 1`.
 INDEXES: tuple[str, ...] = (
@@ -135,15 +153,27 @@ INDEXES: tuple[str, ...] = (
     "CREATE INDEX analyses_by_id ON analyses (id) WHERE listed = 1",
     "CREATE INDEX analyses_by_region ON analyses (trait_chr, trait_bp, id) WHERE listed = 1",
     "CREATE INDEX counts_lookup ON counts (dimension, value)",
+    # The Data page's two default listings, by name and largest first. Their names
+    # are a contract with the website, which asks for them with `INDEXED BY` (ADR 0041).
+    _covering_index("analyses_browse_by_label", "analysis_label", "id"),
+    # Stored largest-first, so the page's default order is a forward read.
+    _covering_index("analyses_browse_by_sample_size", "sample_size DESC", "id DESC"),
+)
+
+# What a search matches against (ADR 0039, and ADR 0041 for the two IDs).
+SEARCH_COLUMNS: tuple[str, ...] = (
+    "analysis_label", "trait_ontology_label", "consortium", "first_author", "analysis_id", "source_analysis_id",
 )
 
 # External-content full-text index over a listed-only view that exposes the `analyses` rowid, so
 # `rebuild` and `integrity-check` agree with what is indexed.
 SEARCH: tuple[str, ...] = (
-    "CREATE VIEW listed_search_content AS SELECT rowid AS analysis_rowid, analysis_label, "
-    "trait_ontology_label, consortium, first_author FROM analyses WHERE listed = 1",
-    "CREATE VIRTUAL TABLE analysis_search USING fts5("
-    "analysis_label, trait_ontology_label, consortium, first_author, "
+    f"CREATE VIEW listed_search_content AS SELECT rowid AS analysis_rowid, {', '.join(SEARCH_COLUMNS)} "
+    "FROM analyses WHERE listed = 1",
+    f"CREATE VIRTUAL TABLE analysis_search USING fts5({', '.join(SEARCH_COLUMNS)}, "
     "content='listed_search_content', content_rowid='analysis_rowid')",
     "INSERT INTO analysis_search(analysis_search) VALUES('rebuild')",
+    # `rebuild` leaves the index in several segments, and a search reads every one;
+    # merged into one, a search reads fewer pages (ADR 0041).
+    "INSERT INTO analysis_search(analysis_search) VALUES('optimize')",
 )

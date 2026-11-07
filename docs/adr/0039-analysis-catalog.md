@@ -254,3 +254,5 @@ possible export alongside it, not the served store.
   Parquet export are out of scope** here. The code follows in the catalog's
   command and versions (#323), its search, counts, paging indexes and
   placeholder rows (#324) and its summary report (#325). This adds no code.
+
+**Amended by [0041](0041-analysis-catalog-is-laid-out-for-http-range-reads.md).** The full-text index also covers `analysis_id` and `source_analysis_id`, so the list of what it covers under "Schema and build" no longer holds (issue #452). The catalog is also laid out for opengwas.io's range reads, with 32 KB pages, two covering indexes whose names the website relies on, an optimised search index and no free pages.

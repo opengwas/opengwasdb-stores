@@ -24,6 +24,9 @@ from analysis_catalog.policy import LISTED, PLACEHOLDER, POLICY, REFUSED, Decisi
 DATABASE = "catalog.sqlite"
 STORES_TSV = "stores.tsv"
 ANALYSES_TSV = "analyses.tsv.gz"
+# The website reads the database over HTTP range requests, one page or more per
+# round trip, so larger pages mean fewer trips (ADR 0041).
+PAGE_SIZE = 32768
 
 
 def write_database(
@@ -43,6 +46,8 @@ def write_database(
     connection = sqlite3.connect(path, isolation_level=None)
     try:
         connection.execute("PRAGMA synchronous = OFF")
+        # Only takes effect before the first table is created.
+        connection.execute(f"PRAGMA page_size = {PAGE_SIZE}")
         for statement in DDL:
             connection.execute(statement)
         connection.execute("BEGIN")
@@ -65,6 +70,10 @@ def write_database(
             ],
         )
         connection.execute("COMMIT")
+        # Merging the search index frees the pages its segments held. A reader over
+        # HTTP range requests would fetch them as part of the ranges it asks for.
+        if connection.execute("PRAGMA freelist_count").fetchone()[0]:
+            connection.execute("VACUUM")
         return tuple(final)
     finally:
         connection.close()
