@@ -68,7 +68,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <script src="../../site_libs/quarto-search/fuse.min.js"></script>
 <script src="../../site_libs/quarto-search/quarto-search.js"></script>
 <meta name="quarto:offset" content="../../">
-<link href="../../opengwasdb/benchmark-output/opengwasdb_se_residual_implementation.html" rel="next">
+<link href="../../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" rel="next">
 <link href="../../opengwasdb/adr/0066-withhold-an-rsid-its-sources-dispute.html" rel="prev">
 <script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
 <script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
@@ -1104,6 +1104,60 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1265,6 +1319,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2313,8 +2373,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
       </a>          
   </div>
   <div class="nav-page nav-page-next">
-      <a href="../../opengwasdb/benchmark-output/opengwasdb_se_residual_implementation.html" class="pagination-link" aria-label="Residual-SE implementation pilot">
-        <span class="nav-page-text">Residual-SE implementation pilot</span> <i class="bi bi-arrow-right-short"></i>
+      <a href="../../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="pagination-link" aria-label="Refuse an effect that contradicts its source's own p-value">
+        <span class="nav-page-text">Refuse an effect that contradicts its source’s own p-value</span> <i class="bi bi-arrow-right-short"></i>
       </a>
   </div>
 </nav>

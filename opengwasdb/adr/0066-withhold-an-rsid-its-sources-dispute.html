@@ -1104,6 +1104,60 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1265,6 +1319,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1734,10 +1794,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 
 <section id="withhold-an-rsid-its-sources-dispute-and-read-compound-ids-as-their-rs-identifier" class="level1">
 <h1>Withhold an rsid its sources dispute, and read compound ids as their rs identifier</h1>
+<blockquote class="blockquote">
+<p><strong>Clarified 5 November 2026</strong> (issue <a href="https://github.com/opengwas/opengwasdb/issues/379">#379</a>, the owner’s ruling “compare everywhere”). The rule below holds in every harvest, not only in a single-pass Hybrid build’s. A two-pass build, Hybrid or Dense, compares the names a site’s spellings carry and refuses or withholds a disputed one exactly as a single-pass build does, through the same test (<code>opengwasdb.variants.routing.names</code>), so no such name depends on the order of the sources. <code>--on-rsid-conflict</code> keeps its meaning, and a <code>--reference-panel</code> build now accepts <code>drop</code> and reports <code>n_keys</code> and <code>n_variants</code> instead of <code>null</code>; only a reference that names its own variants reports <code>null</code>. Variant Reference extraction has no policy and refuses, so an artifact a build uses as given never carries a disputed name. <code>build-ragged-ssf</code> compares the rows it admits, now that a <code>ReaderBatch</code> carries each row’s spelling (ADR 0076). It has no policy, so it refuses. It now takes the first non-empty rsid among a variant’s admitted rows (#400). It used to take the first admitted row’s, even a blank one, and the change renames no published variant. <code>build-dense</code> compares the rows it admits too, through the spellings its <code>ReaderBatch</code>es carry. It has no policy either, so it refuses, as <code>build-dense-vcf</code> does. A <code>build-ragged-besd</code> file set lists each variant once. The Consequence “A Dense build never meets this” stopped holding with ADR 0075, which upper-cases a Dense routing key too.</p>
+</blockquote>
 <p>A Hybrid build’s rsid harvest refuses a routing key whose sources name it with two different rsids (issue #255 round 4). OGS-00011, the GWAS Catalog EUR Hybrid release, has 99,577 such keys over 3,169 Analyses, so its rebuild cannot finish (opengwasdb-stores #225). This ADR records what a build may do instead, and the reader rule that removes the disagreements that were never real (issue #306).</p>
 <section id="context" class="level2">
 <h2 class="anchored" data-anchor-id="context">Context</h2>
-<p>A Hybrid routing key upper-cases alleles (<code>_routed_site_key</code>), because case is not an orientation change: a source writing <code>c</code>/<code>t</code> reports the same variant as one writing <code>C</code>/<code>T</code>. The single-pass rsid harvest keys every source site the same way, so two spellings of one site meet on one key. When their sources name it differently, there is no evidence in the sources for either name. Until issue #255 round 4 the harvest kept the last one silently; since then it refuses, which is right for a fixture and fatal for OGS-00011.</p>
+<p>A Hybrid routing key upper-cases alleles (<code>RoutingKey.CASE_FOLDED</code>), because case is not an orientation change: a source writing <code>c</code>/<code>t</code> reports the same variant as one writing <code>C</code>/<code>T</code>. The single-pass rsid harvest keys every source site the same way, so two spellings of one site meet on one key. When their sources name it differently, there is no evidence in the sources for either name. Until issue #255 round 4 the harvest kept the last one silently; since then it refuses, which is right for a fixture and fatal for OGS-00011.</p>
 <p>The opengwasdb-stores #225 scan of every OGS-00011 source found the disagreements are all one shape: 133 Analyses write every allele in lower case, and 105 Analyses (87 upper-case, 18 lower-case) name a shared key differently. By kind:</p>
 <table class="caption-top table">
 <colgroup>

@@ -1069,6 +1069,60 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1230,6 +1284,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1711,7 +1771,7 @@ ul.task-list li input[type="checkbox"] {
 <li>a matching physical directory rename (<code>git mv</code>), with the <code>store_id</code> updated;</li>
 <li>association/index artifacts left byte-identical, and an evidence record.</li>
 </ul>
-<p>The first case moved FinnGen from <code>OGS-00016</code> to <code>OGS-00017</code> so the MVP META observed-only Store could take <code>OGS-00016</code> ahead of it (owner decision 2026-10-13, “reorder the IDs”); see <a href="https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/ogs-00016-to-ogs-00017-migration.md"><code>docs/ogs-00016-to-ogs-00017-migration.md</code></a>. The <code>migration</code> block is provenance for the renumbering only; <code>store_uri</code> remains a pure function of the identifier (ADR 0030).</p>
+<p>The first case moved FinnGen from <code>OGS-00016</code> to <code>OGS-00017</code> so the MVP META observed-only Store could take <code>OGS-00016</code> ahead of it (owner decision 2026-10-13, “reorder the IDs”); see <a href="https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/ogs-00016-to-ogs-00017-migration.md"><code>docs/ogs-00016-to-ogs-00017-migration.md</code></a>. The <code>migration</code> block is provenance for the renumbering only; <code>store_uri</code> remains a pure function of the identifier (ADR 0030).</p>
 <p>Rejected alternatives:</p>
 <ul>
 <li><strong>Silent reassignment, or a directory rename alone.</strong> Rejected: the identifier is a join key across the registry, the artifact root and core-owned provenance; a rename without the recorded mapping, erratum and evidence is the silent rewrite this ADR forbids.</li>

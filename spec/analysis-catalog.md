@@ -2,7 +2,7 @@
 
 The specification of `pixi run catalog` (#323, epic #313). The decisions behind
 it are [ADR 0039](../adr/0039-analysis-catalog.md); the words are
-[CONTEXT.md](https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/CONTEXT.md)'s. This file is the contract: the command, the
+[CONTEXT.md](https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/CONTEXT.md)'s. This file is the contract: the command, the
 serving decisions, the tables, and the files a rebuild writes.
 
 The catalog is the package `src/analysis_catalog/`. It imports only

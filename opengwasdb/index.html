@@ -643,6 +643,60 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
         <li class="sidebar-item sidebar-item-section">
@@ -664,6 +718,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -753,7 +813,7 @@ ul.task-list li input[type="checkbox"] {
 </header>
 
 
-<p>opengwasdb’s documentation, rendered from the revision this registry pins (<a href="https://github.com/opengwas/opengwasdb/tree/1f1e289a47e84f79434263235e01ff8a94c4d37c"><code>1f1e289a47e84f79434263235e01ff8a94c4d37c</code></a>). It describes the runtime the registry imports, so the engine section moves when that pin moves.</p>
+<p>opengwasdb’s documentation, rendered from the revision this registry pins (<a href="https://github.com/opengwas/opengwasdb/tree/64b5bd06026463e9f711c232c032cadf5acaeb86"><code>64b5bd06026463e9f711c232c032cadf5acaeb86</code></a>). It describes the runtime the registry imports, so the engine section moves when that pin moves.</p>
 <section id="docs" class="level2">
 <h2 class="anchored" data-anchor-id="docs">Docs</h2>
 <ul>
@@ -839,6 +899,15 @@ ul.task-list li input[type="checkbox"] {
 <li><a href="adr/0065-count-overflow-only-alids-a-hybrid-index-skips.html">Leave an Overflow-only ALID out of a Hybrid’s Indexed Variant Subset on request, and count it</a></li>
 <li><a href="adr/0066-withhold-an-rsid-its-sources-dispute.html">Withhold an rsid its sources dispute, and read compound ids as their rs identifier</a></li>
 <li><a href="adr/0067-per-association-sample-size-and-besd-allele-frequency.html">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</a></li>
+<li><a href="adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html">Refuse an effect that contradicts its source’s own p-value</a></li>
+<li><a href="adr/0070-one-presence-rule-for-every-reader.html">One presence rule for every association reader</a></li>
+<li><a href="adr/0071-variant-routing-is-one-module.html">Variant Routing is one module</a></li>
+<li><a href="adr/0072-association-admission.html">Association Admission: one rule set, one gate, one record</a></li>
+<li><a href="adr/0074-validation-rules-over-shared-scans.html">Validation Rules over shared scans</a></li>
+<li><a href="adr/0075-alleles-are-upper-cased-before-identity-assignment.html">Alleles are upper-cased before identity assignment</a></li>
+<li><a href="adr/0076-the-source-reader-is-one-seam.html">The Source Reader is one seam</a></li>
+<li><a href="adr/0077-one-module-owns-how-an-association-is-encoded.html">One module owns how an association is encoded</a></li>
+<li><a href="adr/0078-completion-keeps-its-sources-se-model.html">Reference Completion keeps its source’s SE model</a></li>
 </ul>
 </section>
 <section id="benchmarks-and-reports" class="level2">
@@ -902,6 +971,7 @@ ul.task-list li input[type="checkbox"] {
 <ul>
 <li><a href="spec/bounded-evidence-scan-preregistration.html">Preregistration: Bounded-Prefix and Compiled-Parser Acceleration for Resolver Evidence Scans</a></li>
 <li><a href="spec/bounded-evidence-scan-report.html">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</a></li>
+<li><a href="spec/resolver-effect-consistency.html">Resolver effect-consistency check (ADR 0069, issue #345)</a></li>
 <li><a href="spec/resolver-reference-overlap.html">Resolver reference-overlap diagnostics</a></li>
 <li><a href="spec/store-format.html">OpenGWASDB Store Format Specification</a></li>
 </ul>

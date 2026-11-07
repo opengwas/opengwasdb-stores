@@ -301,7 +301,7 @@ boundary numbers above predate them.
 ## Genome-wide build (2026-10-22)
 
 The owner approved the build. It is declared as
-[`hgdp1kgp-hg38-amr-ld`](https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/resources/reference-resources/hgdp1kgp-hg38-amr-ld/resource.yaml)
+[`hgdp1kgp-hg38-amr-ld`](https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/resources/reference-resources/hgdp1kgp-hg38-amr-ld/resource.yaml)
 and ADR 0020 is amended.
 
 **Run:**

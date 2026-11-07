@@ -237,11 +237,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Sub-issues</td>
-<td>12 of 16 completed</td>
+<td>13 of 17 completed</td>
 </tr>
 <tr class="odd">
 <td>Next</td>
-<td>10/10 merged on PR #311 · PR #311 merged 23 Oct; #333/#336 done · left: #316, #318 (interrupt handling), opengwasdb#301 (blocks #224), opengwasdb#327</td>
+<td>#301 merged 7 Nov (opengwasdb PR #389), unblocking #224 · left: #316, #318 (interrupt handling), opengwasdb#327, opengwasdb#390</td>
 </tr>
 </tbody>
 </table>
@@ -270,8 +270,9 @@ ul.task-list li input[type="checkbox"] {
   n11["opengwasdb-stores#35;336 — Single-id completion for Ragged Stores"]:::closed
   n12["opengwasdb-stores#35;316 — An interrupted store-producing step leaves its staging directory (.store.opengwasdb.partial.tmp.*) behind"]:::open
   n13["opengwasdb-stores#35;318 — Entry point did not exit after SIGTERM to every process mid completion post step (release-faults/interrupts, once under load)"]:::open
-  n14["opengwasdb#35;301 — complete-ragged re-quantises observed SE when SE is stored int8_residual"]:::open
+  n14["opengwasdb#35;301 — complete-ragged re-quantises observed SE when SE is stored int8_residual"]:::closed
   n15["opengwasdb#35;327 — Completed Store manifests record a constant ld_panel_id (eur-hg38-gpm), not the panel actually used"]:::open
+  n16["opengwasdb#35;390 — Completion can re-quantise an observed EAF exception at the edge of its range"]:::open
   n0 --&gt; n2
   n2 --&gt; n3
   n1 --&gt; n4
@@ -368,11 +369,16 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/301">complete-ragged re-quantises observed SE when SE is stored int8_residual</a> (<code>opengwasdb#301</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/327">Completed Store manifests record a constant ld_panel_id (eur-hg38-gpm), not the panel actually used</a> (<code>opengwasdb#327</code>)</td>
+<td>OPEN</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/390">Completion can re-quantise an observed EAF exception at the edge of its range</a> (<code>opengwasdb#390</code>)</td>
 <td>OPEN</td>
 <td><em>not reported</em></td>
 </tr>

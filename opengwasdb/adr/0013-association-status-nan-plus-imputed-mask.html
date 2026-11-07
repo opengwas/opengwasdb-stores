@@ -1069,6 +1069,60 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1230,6 +1284,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1692,6 +1752,9 @@ ul.task-list li input[type="checkbox"] {
 
 <section id="encode-association-status-with-nan-and-an-imputed-mask" class="level1">
 <h1>Encode association status with NaN and an imputed mask</h1>
+<blockquote class="blockquote">
+<p><strong>Amended by <a href="../../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html">ADR 0070</a></strong> (issue #351). Presence is decided by each plane’s missing marker, not by finiteness: a cell neither of whose Z and SE carries its plane’s marker is present, and observed or imputed by its mask, so a finite Z beside an SE stored as <code>+inf</code> is an association. A float plane’s marker is the canonical NaN, and an integer plane’s is its sentinel (spec §15). The rejection of inconsistent states below stands; every writer enforces it in <code>storable</code> (ADR 0077).</p>
+</blockquote>
 <p>Reference-Completed Stores encode Association Status using canonical NaN values in the statistic arrays plus an imputed mask aligned to the dense grid or ragged sequence. Finite Z and SE with <code>imputed=false</code> means observed; finite Z and SE with <code>imputed=true</code> means imputed; NaN Z and SE means missing.</p>
 <p>This avoids a separate status array while retaining the three required states. Builders and validators must reject inconsistent states such as only one statistic being NaN, imputed values with NaN statistics, or non-canonical NaN payloads that would harm compression.</p>
 <p>The imputed mask is a dense boolean or uint8 Zarr array for Dense grids and an association-aligned boolean or uint8 array for Ragged Reference-Completed sequences. It is not a sparse offsets index like the top-hit significance index and is chunk-aligned with Z and SE arrays because most statistic reads also need association provenance.</p>

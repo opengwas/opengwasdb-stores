@@ -1069,6 +1069,60 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1230,6 +1284,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1689,6 +1749,7 @@ ul.task-list li input[type="checkbox"] {
   <li><a href="#clarified-by-305" id="toc-clarified-by-305" class="nav-link" data-scroll-target="#clarified-by-305">Clarified by #305</a></li>
   <li><a href="#clarified-by-333" id="toc-clarified-by-333" class="nav-link" data-scroll-target="#clarified-by-333">Clarified by #333</a></li>
   <li><a href="#clarified-by-336" id="toc-clarified-by-336" class="nav-link" data-scroll-target="#clarified-by-336">Clarified by #336</a></li>
+  <li><a href="#amendment-stores428-a-build-record-from-before---admission-record" id="toc-amendment-stores428-a-build-record-from-before---admission-record" class="nav-link" data-scroll-target="#amendment-stores428-a-build-record-from-before---admission-record">Amendment (stores#428): a build record from before <code>--admission-record</code></a></li>
   </ul></li>
   </ul>
 </nav>
@@ -1704,6 +1765,7 @@ ul.task-list li input[type="checkbox"] {
 <p>Status: accepted</p>
 <p>Supersedes <a href="../adr/0007-reference-completion-as-release-lineage.html">0007</a>.</p>
 <p><strong>Amended by <a href="../adr/0040-association-coverage-is-declared-in-the-release-bundle.html">0040</a>.</strong> A recorded build argv that names no <code>--association-coverage</code> matches a plan that differs only by the declaration-derived coverage pair; the exact-argv rule is otherwise unchanged.</p>
+<p><strong>Amended by #428</strong> (below). A recorded build argv that names no <code>--admission-record</code> matches a plan that differs only by the composed Admission record pair, and <code>register</code> accepts it too; the exact-argv rule is otherwise unchanged.</p>
 <p>ADR 0007 published a reference-completed Store under a second id, derived from its Observed-Only parent. For UKB-B that is OGS-00009 (observed, 33 GB) beside OGS-00010 (completed, 47 GB). Every observed cell is stored twice, and each completed Store costs a second registry id, a second Release Bundle and a second Store Release Build run.</p>
 <p>Completion cannot be an in-place addition the way the Top-Hit Index, Rho Matrix and Indexed Variant Subsets are. opengwasdb ADR 0061 allows in-place additions only when they can be deleted, an unaware reader still reads correctly, and no query answer changes. Completion fails all three: default queries include imputed associations (opengwasdb ADR 0012), and the axis becomes source ∪ reference panel (opengwasdb ADR 0022), so every Variant Index moves.</p>
 <p>Completion is still a replacement rather than an addition. The completed Store contains everything its parent held: completion copies each observed cell across in the source’s own encoding (opengwasdb ADR 0038 §4), and the imputed mask keeps imputed cells apart. <code>observed_only=True</code> returns the parent’s associations on every query path. Store Release Build can already replace a published Store safely: the forced-run transaction of #195 stages the new Store, sets the old one aside, swaps them, and archives the old records.</p>
@@ -1833,9 +1895,21 @@ Post steps of either phase (<code>top-hits</code>, <code>rho</code>, Indexed Var
 </ul></li>
 <li><strong>The check needs the panel.</strong> Retained regions are not stored as coordinates; the check rebuilds them from the LD panel completion used, and refuses a Ragged pair without it. So for a Ragged release the planner passes the <code>complete</code> block’s <code>ld-panel</code> to the check step, and refuses a <code>complete</code> block without one. Dense and Hybrid steps are unchanged.</li>
 <li><strong>The registry requires the ancestry.</strong> Neither command needs it: <code>complete-ragged</code> defaults to <code>EUR</code>, and the check reads the ancestry from the completed Store’s manifest. But a silent <code>EUR</code> default could complete a non-EUR Store against the wrong panel. So a completing Ragged bundle must declare <code>ancestry</code> too, the planner refuses one that does not, and the check is given it and cross-checks it against the completed Store’s record.</li>
-<li><strong>SE is compared exactly.</strong> <code>complete-ragged</code> refits and re-quantises SE stored as <code>int8_residual</code>, which on real data moves observed SE slightly (opengwas/opengwasdb#301). Until that is resolved, a Ragged Store whose SE is stored that way, as OGS-00006’s is, fails the check.</li>
+<li><strong>SE is compared exactly.</strong> Before opengwasdb <code>v0.6.2</code>, <code>complete-ragged</code> refit and re-quantised SE stored as <code>int8_residual</code>, which on real data moved observed SE slightly, so a Ragged Store whose SE is stored that way, as OGS-00006’s is, failed the check. From <code>v0.6.2</code> it codes every cell against the source’s <code>se_coefficients</code>, and observed SE comes through exactly (opengwas/opengwasdb#301, its ADR 0078). The check stays strict.</li>
 <li><strong>No resume and no extra steps.</strong> <code>complete-ragged</code> keeps no checkpoint, so an interrupted completion starts again from the published Observed-Only Store. It builds its Top-Hit Index inline and writes the format-0.2.0 <code>by_variant</code> index, which validation audits; a Ragged Store has no overview and no Indexed Variant Subsets. Its completion phase is <code>complete</code>, validation and the check.</li>
 </ul>
+</section>
+<section id="amendment-stores428-a-build-record-from-before---admission-record" class="level2">
+<h2 class="anchored" data-anchor-id="amendment-stores428-a-build-record-from-before---admission-record">Amendment (stores#428): a build record from before <code>--admission-record</code></h2>
+<p>From opengwasdb 0.5.0 every builder requires <code>--admission-record DIR</code> (opengwas/opengwasdb#357, opengwasdb ADR 0072), so <code>plan()</code> composes <code>--admission-record &lt;artifact-root&gt;/&lt;id&gt;/store.opengwasdb.admission</code> on every build step. Every Store published before #428 has a <code>build</code> record that names none. Read as a change, that refuses the one amendment this ADR allows to all seven published single-id releases (OGS-00009, -11, -12, -13, -14, -15 and -17). It also fails <code>register</code>’s drift check whenever a published Store’s build phase registers again, such as after a new Indexed Variant Subset. Neither is a rebuild. The owner ruled on 5 Nov 2026 to tolerate such records rather than rebuild their Stores.</p>
+<p><strong>Why it is safe.</strong> The flag only names where the builder writes its Association Admission record: a side record of what each Analysis examined, admitted and dropped. The record sits beside the Store, outside it, and publication does not move it. The Store’s bytes and <code>format_version</code> do not depend on it. A Store built before the flag was built without the record, by an engine that wrote none, and its data are what they were.</p>
+<p><strong>What is tolerated, and nothing else.</strong> A recorded argv equal to the plan without the one <code>--admission-record</code> pair, at the path <code>plan()</code> composes for the record’s own artifact root (<code>plan.planned_before_admission_record</code>):</p>
+<ul>
+<li>the amendment check accepts it, and for a Ragged record that also predates #341, the plan without both pairs (ADR 0040’s exception, unchanged);</li>
+<li><code>register</code>’s drift check accepts it, with the executed argv’s staging normalised first.</li>
+</ul>
+<p>A record that names an Admission record at any path is compared whole, as is every other token. Like #341’s, the exception is one-directional: a record cannot name a record its build never wrote, and a build at the current pin cannot run without the flag. So the only records it admits are ones written before #428.</p>
+<p><strong>The archived revisions are built through a shim.</strong> The workflow suite builds a Store with this repository’s code from before #304 and from before #341, to prove such a Store is completed or kept, not rebuilt or refused. Neither revision can name the flag the pinned runtime requires. A test-only <code>opengwasdb</code> on <code>PATH</code> adds it to the builder’s argv, as one already added #341’s coverage. The records are still that revision’s own, naming neither token.</p>
 
 
 </section>

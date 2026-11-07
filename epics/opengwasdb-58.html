@@ -221,11 +221,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>State</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 </tr>
 <tr class="odd">
 <td>Status</td>
-<td>Active</td>
+<td>Done</td>
 </tr>
 <tr class="even">
 <td>Workstream</td>
@@ -237,11 +237,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Sub-issues</td>
-<td>15 of 25 completed</td>
+<td>32 of 32 completed</td>
 </tr>
 <tr class="odd">
 <td>Next</td>
-<td>16/17 merged on PR #353 · fixing #55 · stores #428, #429 and #430 must land before the pin moves</td>
+<td>15/15 merged on PR #397 · merged to main as 4b72e2f (v0.6.0), 7 Nov</td>
 </tr>
 </tbody>
 </table>
@@ -258,13 +258,13 @@ ul.task-list li input[type="checkbox"] {
   classDef closed fill:#e6f4ea,stroke:#2e6b2e,color:#000
   n0["opengwasdb#35;53 — The Top-Hit Index has a format but no module"]:::closed
   n1["opengwasdb#35;54 — The two-pass VCF build is one module written twice"]:::closed
-  n2["opengwasdb#35;55 — Make a validation rule addressable"]:::open
+  n2["opengwasdb#35;55 — Make a validation rule addressable"]:::closed
   n3["opengwasdb#35;56 — The Source Reader seam has one user and four bypasses"]:::closed
   n4["opengwasdb#35;57 — The overview renderer should take data, not a path"]:::closed
   n5["opengwasdb#35;350 — One module owns how an association is encoded"]:::closed
   n6["opengwasdb#35;351 — One reader decodes associations and decides whether each is present"]:::closed
   n7["opengwasdb#35;352 — Variant routing becomes its own module"]:::closed
-  n8["opengwasdb#35;354 — Variant Reference extraction routes a reverse-strand lift to the wrong ALID"]:::open
+  n8["opengwasdb#35;354 — Variant Reference extraction routes a reverse-strand lift to the wrong ALID"]:::closed
   n9["opengwasdb#35;356 — regenerate-overview crashes on a subset group written before overflow_only_count"]:::closed
   n10["opengwasdb#35;357 — Association Admission: one module decides whether an association may be stored"]:::closed
   n11["opengwasdb#35;360 — A lower-case allele becomes its own ALID and loses associations silently"]:::closed
@@ -273,14 +273,21 @@ ul.task-list li input[type="checkbox"] {
   n14["opengwasdb#35;373 — check-observed-view reads a non-canonical marker as missing"]:::closed
   n15["opengwasdb#35;374 — zarr3_se_plan benchmark's write step fails: chunk does not tile shard"]:::closed
   n16["opengwasdb#35;375 — check-observed-view reports an unchecked part's counters as 0"]:::closed
-  n17["opengwasdb#35;378 — validate --format json names the rule behind each finding"]:::open
-  n18["opengwasdb#35;379 — Single-pass and two-pass Hybrid builds disagree on an rsid whose sources spell the alleles differently"]:::open
-  n19["opengwasdb#35;380 — validate fails format 0.1.0 Stores for lacking the by_variant index that only 0.2.0 requires"]:::open
-  n20["opengwasdb-stores#35;428 — Pass --admission-record to every builder step (opengwasdb#35;357)"]:::open
-  n21["opengwasdb#35;385 — Read build-dense's association TSV through a Source Reader"]:::open
-  n22["opengwasdb#35;386 — Lift a non-GRCh38 source in build-ragged-ssf, as the other layouts do"]:::open
-  n23["opengwasdb-stores#35;429 — Declare source_genome_build in the Ragged SSF bundle fixtures (opengwasdb#35;56)"]:::open
-  n24["opengwasdb-stores#35;430 — Replace DenseZPlane.patch in the workflow tests (opengwasdb#35;350)"]:::open
+  n17["opengwasdb#35;378 — validate --format json names the rule behind each finding"]:::closed
+  n18["opengwasdb#35;379 — Single-pass and two-pass Hybrid builds disagree on an rsid whose sources spell the alleles differently"]:::closed
+  n19["opengwasdb#35;380 — validate fails format 0.1.0 Stores for lacking the by_variant index that only 0.2.0 requires"]:::closed
+  n20["opengwasdb-stores#35;428 — Pass --admission-record to every builder step (opengwasdb#35;357)"]:::closed
+  n21["opengwasdb#35;385 — Read build-dense's association TSV through a Source Reader"]:::closed
+  n22["opengwasdb#35;386 — Lift a non-GRCh38 source in build-ragged-ssf, as the other layouts do"]:::closed
+  n23["opengwasdb-stores#35;429 — Declare source_genome_build in the Ragged SSF bundle fixtures (opengwasdb#35;56)"]:::closed
+  n24["opengwasdb-stores#35;430 — Replace DenseZPlane.patch in the workflow tests (opengwasdb#35;350)"]:::closed
+  n25["opengwasdb#35;372 — Reference extraction reaches into nine private names of the Dense VCF builder"]:::closed
+  n26["opengwasdb#35;391 — Hybrid completion reads the Overflow through the Association Reader, not its private members"]:::closed
+  n27["opengwasdb#35;392 — Every writer entry that takes parallel arrays refuses unequal lengths"]:::closed
+  n28["opengwasdb#35;393 — Association Reader: windows(max_cells) and Dense analyses(first, stop)"]:::closed
+  n29["opengwasdb#35;394 — query --format json carries eaf and association_status, as valid JSON"]:::closed
+  n30["opengwasdb#35;395 — Ancestry and phenotype-SD pipelines use build/ordered_pool"]:::closed
+  n31["opengwasdb-stores#35;440 — project-site spec example still counts 15 engine components"]:::closed
   x1["opengwasdb#35;86"]:::closed
   x2["opengwasdb#35;83"]:::closed
   x1 --&gt; n1
@@ -319,7 +326,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/55">Make a validation rule addressable</a> (<code>opengwasdb#55</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
@@ -349,7 +356,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/354">Variant Reference extraction routes a reverse-strand lift to the wrong ALID</a> (<code>opengwasdb#354</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
@@ -394,42 +401,77 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/378">validate –format json names the rule behind each finding</a> (<code>opengwasdb#378</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/379">Single-pass and two-pass Hybrid builds disagree on an rsid whose sources spell the alleles differently</a> (<code>opengwasdb#379</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/380">validate fails format 0.1.0 Stores for lacking the by_variant index that only 0.2.0 requires</a> (<code>opengwasdb#380</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/428">Pass –admission-record to every builder step (opengwasdb#357)</a> (<code>opengwasdb-stores#428</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/385">Read build-dense’s association TSV through a Source Reader</a> (<code>opengwasdb#385</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb/issues/386">Lift a non-GRCh38 source in build-ragged-ssf, as the other layouts do</a> (<code>opengwasdb#386</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/429">Declare source_genome_build in the Ragged SSF bundle fixtures (opengwasdb#56)</a> (<code>opengwasdb-stores#429</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/430">Replace DenseZPlane.patch in the workflow tests (opengwasdb#350)</a> (<code>opengwasdb-stores#430</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/372">Reference extraction reaches into nine private names of the Dense VCF builder</a> (<code>opengwasdb#372</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/391">Hybrid completion reads the Overflow through the Association Reader, not its private members</a> (<code>opengwasdb#391</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/392">Every writer entry that takes parallel arrays refuses unequal lengths</a> (<code>opengwasdb#392</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/393">Association Reader: windows(max_cells) and Dense analyses(first, stop)</a> (<code>opengwasdb#393</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/394">query –format json carries eaf and association_status, as valid JSON</a> (<code>opengwasdb#394</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td><a href="https://github.com/opengwas/opengwasdb/issues/395">Ancestry and phenotype-SD pipelines use build/ordered_pool</a> (<code>opengwasdb#395</code>)</td>
+<td>CLOSED</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td><a href="https://github.com/opengwas/opengwasdb-stores/issues/440">project-site spec example still counts 15 engine components</a> (<code>opengwasdb-stores#440</code>)</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 </tbody>

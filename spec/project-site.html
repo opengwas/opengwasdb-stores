@@ -1104,6 +1104,60 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1265,6 +1319,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -2369,13 +2429,13 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <section id="the-commands-output-and-exit-status" class="level3">
 <h3 class="anchored" data-anchor-id="the-commands-output-and-exit-status">The command’s output and exit status</h3>
 <p>One line per source, in this order (the architecture line is longer: components, gaps, upward imports, the seam and ADRs placed; <code>work</code> runs last, because it reads the board and architecture files just written, and adds <code>BRANCH FETCH FAILED</code> for a failed fetch), then the files are all written:</p>
-<pre class="text"><code>board: 17 epics, 2 milestones, 16 milestone lines
-catalog: 3 versions, current 1b3a155d449bb84a
-releases: 0 releases, 1 tags
+<pre class="text"><code>board: 24 epics, 3 milestones, 24 milestone lines
+catalog: 5 versions, current 88da43e2534cc126
+releases: 26 releases, 27 tags
 stores: 22 stores
-records: 0 epics, 0 invalid, 0 yardstick results, 0 invalid
-architecture: 10 registry + 15 engine components (engine model at main 1a2b3c4d), gaps registry 0/0 engine 0/0 (unclaimed/stale), ...
-work: 3 owners, 2 meets (1 coordinated, 1 uncoordinated), 2 branches</code></pre>
+records: 6 epics, 0 invalid, 5 yardstick results, 0 invalid
+architecture: 10 registry + 17 engine components (engine model at main 42850d8b), gaps registry 0/0 engine 0/0 (unclaimed/stale), 8 upward edges (13 imports), 96 registry-&gt;engine imports, 58 of 115 ADRs placed
+work: 14 owners, 10 meets (1 coordinated, 9 uncoordinated, 0 unlinkable), 11 branches</code></pre>
 <p>An unavailable source prints <code>UNAVAILABLE &lt;source&gt;: &lt;error&gt;</code> in place of its line. The exit status is <strong>0</strong> all the same: every file is written, and the pages show the notice from the file’s <code>available</code> and <code>error</code>. <code>--strict</code> exits 1 when any source is unavailable (after every file is written), for a caller that must not go on without it.</p>
 </section>
 </section>

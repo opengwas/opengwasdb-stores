@@ -1106,6 +1106,60 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1267,6 +1321,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1866,8 +1926,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 </section>
 <section id="the-data-pages" class="level2">
 <h2 class="anchored" data-anchor-id="the-data-pages">The data pages</h2>
-<p>Five pages are generated from the site’s own data rather than written by hand: the <a href="./index.html">Overview</a>, <a href="./stores.html">Stores</a>, <a href="./epics.html">Epics</a>, <a href="./trends.html">Trends</a> and <a href="./changelog.html">Changelog</a>, with one page per epic and one per registered Store beside them (<a href="https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/src/project_site/pages.py"><code>src/project_site/pages.py</code></a>, #391).</p>
-<p>Three more, under <strong>Architecture</strong> in the navbar, draw how OpenGWASDB fits together from both repositories’ <code>docs/architecture/components.yaml</code> and their code (<a href="https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/src/project_site/architecture_pages.py"><code>src/project_site/architecture_pages.py</code></a>, #418): <a href="./architecture.html">Pipeline</a> (the stages, their components and ADRs) and <a href="./architecture-structure.html">Structure and health</a> (context, containers and components, the engine by layer with its upward imports, and the gaps in the claims). The third, <a href="./architecture-work.html">Work map</a> (#419), shows where live work meets: which epics’, tickets’ and branches’ files fall on the same component, and whether a blocking edge between the specific tickets coordinates it. It shows pushed branches and the files tickets cite, says when it was measured, and says that branches existing only on a build host are not shown; <code>pixi run architecture conflicts</code> run on that host includes them. The engine is read at its <code>main</code> from the same bare clone the docs come from; the docs stay at the pinned tag. The diagrams are Quarto <code>{dot}</code> cells, drawn at render time, so no SVG is committed. Each page says what is written by hand and what is measured, and <code>docs/spec/project-site.md</code> (Architecture) is the contract.</p>
+<p>Five pages are generated from the site’s own data rather than written by hand: the <a href="./index.html">Overview</a>, <a href="./stores.html">Stores</a>, <a href="./epics.html">Epics</a>, <a href="./trends.html">Trends</a> and <a href="./changelog.html">Changelog</a>, with one page per epic and one per registered Store beside them (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/src/project_site/pages.py"><code>src/project_site/pages.py</code></a>, #391).</p>
+<p>Three more, under <strong>Architecture</strong> in the navbar, draw how OpenGWASDB fits together from both repositories’ <code>docs/architecture/components.yaml</code> and their code (<a href="https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/src/project_site/architecture_pages.py"><code>src/project_site/architecture_pages.py</code></a>, #418): <a href="./architecture.html">Pipeline</a> (the stages, their components and ADRs) and <a href="./architecture-structure.html">Structure and health</a> (context, containers and components, the engine by layer with its upward imports, and the gaps in the claims). The third, <a href="./architecture-work.html">Work map</a> (#419), shows where live work meets: which epics’, tickets’ and branches’ files fall on the same component, and whether a blocking edge between the specific tickets coordinates it. It shows pushed branches and the files tickets cite, says when it was measured, and says that branches existing only on a build host are not shown; <code>pixi run architecture conflicts</code> run on that host includes them. The engine is read at its <code>main</code> from the same bare clone the docs come from; the docs stay at the pinned tag. The diagrams are Quarto <code>{dot}</code> cells, drawn at render time, so no SVG is committed. Each page says what is written by hand and what is measured, and <code>docs/spec/project-site.md</code> (Architecture) is the contract.</p>
 <ul>
 <li><code>pixi run site</code> and <code>site-publish</code> <strong>collect the data themselves</strong> before the render, into the render’s own <code>_stage/_data</code>, from the <code>stores/</code> and <code>docs/_epics/</code> of the checkout being rendered. <code>$OPENGWASDB_SITE_DATA</code> names a directory collected already, and then nothing is collected.</li>
 <li><code>docs/_quarto.yml</code> names <code>docs/pre-render.sh</code> as the project’s <code>pre-render</code> hook. Quarto runs it inside the mirror before rendering, so the generator writes the pages where the render reads them and never into the checkout. The commit being rendered reaches it as <code>$OPENGWASDB_SITE_COMMIT</code>, which is what a generated link to a file outside <code>docs/</code> names.</li>

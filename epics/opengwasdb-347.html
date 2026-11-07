@@ -237,11 +237,11 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="even">
 <td>Sub-issues</td>
-<td>1 of 7 completed</td>
+<td>2 of 7 completed</td>
 </tr>
 <tr class="odd">
 <td>Next</td>
-<td>1/2 merged on PR #349 · waiting #338 · ready for your review · #338 waits for #350 (epic #58)</td>
+<td>Run restarts after #381 merges in #307’s run (owner, 7 Nov): #338 (takes the next format_version after #307’s), then #363, #366, #370, #371</td>
 </tr>
 </tbody>
 </table>
@@ -258,15 +258,17 @@ ul.task-list li input[type="checkbox"] {
   classDef closed fill:#e6f4ea,stroke:#2e6b2e,color:#000
   n0["opengwasdb#35;345 — Check a source's effect against its own p-value when resolving an Analysis"]:::closed
   n1["opengwasdb#35;338 — An SE above float16's range is stored as +inf with a finite Z"]:::open
-  n2["opengwasdb-stores#35;413 — Document the resolver's effect-consistency check and move the pin past it"]:::open
+  n2["opengwasdb-stores#35;413 — Document the resolver's effect-consistency check and move the pin past it"]:::closed
   n3["opengwasdb#35;363 — VCF reader ignores bcftools' exit status and yields 0 associations silently"]:::open
   n4["opengwasdb#35;366 — Ragged BESD never standardises SE by original_sd, and inf is accepted"]:::open
   n5["opengwasdb#35;370 — Refuse an Analysis whose stored z is deflated against its source p-value (median signed Δ)"]:::open
   n6["opengwasdb#35;371 — Calibrate an Analysis-level refusal for hits the source p-value contradicts"]:::open
-  x1["opengwasdb#35;357"]:::closed
-  x2["opengwasdb#35;350"]:::closed
+  x1["opengwasdb#35;301"]:::closed
+  x2["opengwasdb#35;357"]:::closed
+  x3["opengwasdb#35;350"]:::closed
   x1 --&gt; n1
   x2 --&gt; n1
+  x3 --&gt; n1
 </pre>
 </div>
 <p></p></figure><p></p>
@@ -294,7 +296,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td><a href="https://github.com/opengwas/opengwasdb-stores/issues/413">Document the resolver’s effect-consistency check and move the pin past it</a> (<code>opengwasdb-stores#413</code>)</td>
-<td>OPEN</td>
+<td>CLOSED</td>
 <td><em>not reported</em></td>
 </tr>
 <tr class="even">

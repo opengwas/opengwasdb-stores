@@ -1069,6 +1069,60 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1230,6 +1284,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1710,7 +1770,7 @@ ul.task-list li input[type="checkbox"] {
 <li>The effect is the resolved column’s own value when usable, else <code>log(odds_ratio)</code> when the file carries that second column and the value is positive and finite. A file naming one effect column is unaffected.</li>
 <li>The standard error is the first usable of: a positive finite <code>standard_error</code>; a 95% interval whose bounds are finite, ordered and around the row’s own effect on that row’s own scale (log scale for an odds ratio, linear for a beta); <code>|beta| / -Φ⁻¹(p / 2)</code> for a two-sided p in (0, 1) and a non-zero beta. A derived SE must itself be positive and finite.</li>
 </ul>
-<p>A source frequency of exactly <code>0.0</code> or exactly <code>1.0</code> is missing rather than a usable zero (ADR 0036), in every path that reads one.</p>
+<p>A source frequency of exactly <code>0.0</code> or exactly <code>1.0</code> is missing rather than a usable zero (ADR 0036), in every path that reads one. A build’s Admission record counts each reported frequency it made absent so (<code>eaf_made_absent</code>, issue #357, D7).</p>
 </section>
 <section id="whole-stream-evidence-stores-176" class="level2">
 <h2 class="anchored" data-anchor-id="whole-stream-evidence-stores-176">Whole-stream evidence (stores #176)</h2>
@@ -1733,13 +1793,13 @@ ul.task-list li input[type="checkbox"] {
 <li>The reader still stores no EAF for exactly <code>0.0</code>/<code>1.0</code> (ADR 0036, <code>stats.parse_af</code>), so those rows also reach admission as “no frequency” and are dropped under <code>filtered</code> for that reason.</li>
 <li>A row is dropped by MAF when the policy is <code>filtered</code> (&gt; 0) and either its MAF is below <code>maf_threshold</code> (equality passes) or it has no usable frequency. <code>0</code> (<code>disabled</code>) and <code>unavailable</code> drop nothing and preserve every frequency.</li>
 <li>When both filters would drop a row it is counted once, under <code>info_rows_below_threshold</code> (INFO first), never also under <code>maf_rows_below_threshold</code>.</li>
-<li><strong>Scope.</strong> The rule is the Hybrid builder’s Pass 2 and this record. A standalone Dense build (<code>build-dense-vcf</code>) writes a fixed reference-panel axis and applies no row admission, so a MAF floor has no admission decision to make there; the Ragged builders ignore a declared <code>maf_threshold</code> altogether today (ADR 0054’s scope amendment says both plainly).</li>
-<li><strong>Resume.</strong> <code>build-hybrid --checkpoint</code> records <code>CHECKPOINT_FORMAT_VERSION</code> 2; a format-1 checkpoint predates this rule and is refused rather than resumed.</li>
+<li><strong>Scope.</strong> The rule is every builder’s and this record’s (issue #357, D2, ADR 0072): <code>build-hybrid</code>, <code>build-dense-vcf</code> and <code>build-ragged-ssf</code> apply a declared INFO and MAF filter, and <code>build-ragged-besd</code> a declared MAF filter, judged on the <code>.esi</code> frequency (with <code>--store-esi-eaf</code>; a BESD source has no imputation score, so an INFO threshold there is refused). Before #357 only the Hybrid applied them (ADR 0054’s scope amendment).</li>
+<li><strong>Resume.</strong> <code>build-hybrid --checkpoint</code> records <code>CHECKPOINT_FORMAT_VERSION</code> 3; a format-1 checkpoint predates this rule, a format-2 one predates Admission’s reasons, and both are refused rather than resumed.</li>
 </ul>
 </section>
 <section id="one-admission-rule" class="level2">
 <h2 class="anchored" data-anchor-id="one-admission-rule">One admission rule</h2>
-<p><code>opengwasdb.build.row_admission.admit_rows</code> decides per batch which rows are admitted (<code>keep = ~info_drop &amp; ~maf_drop</code>). The resolver <code>_scan</code> and the Hybrid builder’s Pass 2 both call it, so <code>canonical_rows_retained</code> (resolver) and <code>associations_retained</code> (builder) are the same rule on their own populations. Ancestry/SD evidence and <code>build_eligible_rows*</code> see admitted rows only.</p>
+<p>Association Admission (<code>opengwasdb.admission</code>) decides per batch which rows are admitted, through one counting <code>Gate</code> per Analysis, and counts each dropped row under one reason, INFO before MAF. The resolver <code>_scan</code> and the Hybrid builder’s Pass 2 both judge through it, so <code>canonical_rows_retained</code> (resolver) and <code>associations_retained</code> (builder) are the same rule on their own populations. Ancestry/SD evidence and <code>build_eligible_rows*</code> see admitted rows only.</p>
 </section>
 <section id="per-analysis-json-diagnostics-all-row-counts-are-pre-deduplication" class="level2">
 <h2 class="anchored" data-anchor-id="per-analysis-json-diagnostics-all-row-counts-are-pre-deduplication">Per-Analysis JSON <code>diagnostics</code> (all row counts are pre-deduplication)</h2>

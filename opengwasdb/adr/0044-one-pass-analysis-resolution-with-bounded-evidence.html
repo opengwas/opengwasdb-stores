@@ -1069,6 +1069,60 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1230,6 +1284,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1697,6 +1757,9 @@ ul.task-list li input[type="checkbox"] {
 
 <section id="one-pass-pre-build-analysis-resolution-with-evidence-bounded-by-configuration" class="level1">
 <h1>One-pass pre-build Analysis resolution, with evidence bounded by configuration</h1>
+<blockquote class="blockquote">
+<p><strong>Amended by <a href="../../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html">ADR 0069</a></strong> in one respect: “no verdict is produced here” no longer holds without exception. The resolver now fails an Analysis whose stored z-score contradicts its source’s own p-value. Every other decision below stands.</p>
+</blockquote>
 <p>Phase B writes an Analysis’s Assigned Ancestry and its <code>original_sd</code>/<code>original_sd_method</code> into <code>analyses.tsv</code> before a Release Bundle is accepted (ADR 0029; <code>opengwasdb-stores</code>’ Phase B/Phase A split). Two stages produced those columns, and each opened the source separately: AF-based ancestry assignment (<code>assign-ancestry</code> → <code>ancestry.pipeline</code>) and phenotype-SD estimation (<code>estimate-phenotype-sd</code> → <code>build.phenotype_sd_pipeline</code>).</p>
 <p>On the store family that made this urgent — 4,570 genome-wide GWAS-SSF sources, 1.7 TB compressed — that is the same file decompressed and parsed twice for one number each. Both stages read the same row for it: ancestry wants the frequency, the estimator wants the standard error, and the two live in the same seven columns. Measured on one 258 MB, 8.26M-row source: 86.6 s for the ancestry pass and 74.2 s for the SD pass, against 55.4 s for one pass doing both.</p>
 <p>Memory was the second problem, and it was the one that could not be fixed by scheduling. The ancestry fit’s input was every site the source shares with the reference — millions, against a 21-column reference — and the estimator’s evidence was every qualifying row held as Python objects before <code>np.asarray</code>, which on an 85M-row file is several gigabytes per worker. Neither scaled with anything a caller had decided.</p>

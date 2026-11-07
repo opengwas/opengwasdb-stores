@@ -174,7 +174,7 @@ probes, the coordinator separately authorized and directly executed code
   is preserved; the successful retry snapshotted the actual named candidate TSV.
 
 Machine receipt:
-[`dbgap-phs002453-metadata-refresh-2026-10-13.json`](https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/resources/inventories/dbgap-phs002453-metadata-refresh-2026-10-13.json).
+[`dbgap-phs002453-metadata-refresh-2026-10-13.json`](https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/resources/inventories/dbgap-phs002453-metadata-refresh-2026-10-13.json).
 The runner, input metadata snapshot, execution log and resource log are preserved
 under the fresh output root and identified by metadata hashes in that receipt.
 [Coordinator run record](https://github.com/opengwas/opengwasdb-stores/issues/220#issuecomment-6145793629).

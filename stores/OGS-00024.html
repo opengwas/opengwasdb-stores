@@ -210,7 +210,7 @@ ul.task-list li input[type="checkbox"] {
 <tbody>
 <tr class="odd">
 <td>Release Status</td>
-<td>built</td>
+<td>validated</td>
 </tr>
 <tr class="even">
 <td>Validation status</td>
@@ -234,7 +234,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td>Validated</td>
-<td>2026-08-18 21:35:49.487402+00:00</td>
+<td>2026-11-06T04:21:38.506889Z</td>
 </tr>
 <tr class="even">
 <td>Superseded by</td>
@@ -274,7 +274,61 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="observed-counts" class="level2">
 <h2 class="anchored" data-anchor-id="observed-counts">Observed counts</h2>
-<p>This Store Release has no Validation Record, so it reports no observed count.</p>
+<p>As its Validation Record states them, with an unknown left as an unknown:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 50%">
+<col style="width: 50%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Count</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Format version (<code>format_version</code>)</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td>Analyses (<code>n_analyses</code>)</td>
+<td>1,034</td>
+</tr>
+<tr class="odd">
+<td>Variants (<code>n_variants</code>)</td>
+<td>7,067,555</td>
+</tr>
+<tr class="even">
+<td>Associations (<code>n_associations</code>)</td>
+<td>31,986,793</td>
+</tr>
+<tr class="odd">
+<td>Observed association coverage (<code>association_coverage</code>)</td>
+<td>signals_only</td>
+</tr>
+<tr class="even">
+<td>Reference assembly (<code>reference_assembly</code>)</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="odd">
+<td>Store bytes (<code>store_bytes</code>)</td>
+<td><em>not reported</em></td>
+</tr>
+<tr class="even">
+<td>Build elapsed (<code>build_elapsed_s</code>)</td>
+<td>615.211</td>
+</tr>
+<tr class="odd">
+<td>Validation (<code>validate_status</code>)</td>
+<td>passed_with_warnings</td>
+</tr>
+<tr class="even">
+<td>Completion (<code>completion_state</code>)</td>
+<td>observed_only</td>
+</tr>
+</tbody>
+</table>
 </section>
 <section id="size-and-query-performance" class="level2">
 <h2 class="anchored" data-anchor-id="size-and-query-performance">Size and query performance</h2>
@@ -282,11 +336,12 @@ ul.task-list li input[type="checkbox"] {
 </section>
 <section id="in-the-analysis-catalog" class="level2">
 <h2 class="anchored" data-anchor-id="in-the-analysis-catalog">In the Analysis Catalog</h2>
-<p>The current catalog version is <code>88da43e2534cc126</code>, built 2026-11-04T16:53:26.794796+00:00.</p>
-<p>Its decision is <strong>excluded</strong>, and the reason the catalog gives is:</p>
+<p>The current catalog version is <code>ca63d1274b70bd46</code>, built 2026-11-07T09:50:29.866803+00:00.</p>
+<p>Its decision is <strong>listed</strong>, and the reason the catalog gives is:</p>
 <blockquote class="blockquote">
-<p>Release Status is built, not validated</p>
+<p>Release Status is validated, Access Posture is public</p>
 </blockquote>
+<p>The version counts <strong>1,034</strong> of its Analyses as listed.</p>
 <p>The decision and the reason are the catalog’s own, read from the <code>selection</code> table of the version <code>current</code> names (<code>docs/spec/project-site.md</code>).</p>
 </section>
 <section id="release-notes" class="level2">
@@ -296,11 +351,14 @@ ul.task-list li input[type="checkbox"] {
 <p>Built (opengwasdb#100/#101 fixes; opengwasdb@1ecfd1e): 1,034 analyses, 7,067,555 variants, 31,986,793 associations. 22 duplicate (analysis, variant) pairs had conflicting z-scores across two source rows and were dropped entirely for those cells (opengwasdb#101) – see validation.yaml’s warning. Reference completion is currently blocked: complete_ragged_store only enumerates LD blocks via a cis window (trait_chr/trait_bp), which this no-gene-target family has none of, so completion is a no-op (opengwasdb#102). No Reference-Completed sibling exists yet.</p>
 <p>Release Erratum (issue #133, applied here during the #252 migration): the quantitative Analyses stored `n_cases` and `n_controls` as 0 where the counts are not applicable (`sample_size_kind: total`). Those cells are now empty, since absence is distinct from zero; `source_ancestry_label` keeps the source’s own “African”, and `assigned_ancestry` already held the super-population code. No Store artifact was rebuilt or rewritten.</p>
 <p>Migration (#252): migrated from the retired family-first `metabolome-plasma-2023/2023-chen-full-african` layout to OGS-00024, in the current bundle schema (`store_id`, `label`, `derived_from`; `build.yaml` with a `build` block). Its 1,034-Analysis Release Manifest, `built` Release Status and Validation Record are the ones the Store was released with; nothing was rebuilt, revalidated or rewritten. `derived_from` is null: the Chen ancestry slices are siblings of one Source Collection, not children of one another. The recorded generator command is the one that ran, path included, even though that config path went with the directory; the Chen Source Collection’s release config lives under `resources/generators/gwas-catalog-ragged/`.</p>
+<p>Release Erratum (issue #445, 2026-11-06): the Store this bundle records was gone. Neither `/data/opengwasdb/stores/OGS-00024/store.opengwasdb` nor the filtered sources its Release Manifest names under `/data/opengwasdb/metabolome-plasma-2023/` existed, and the release benchmark reported the Store as `artifact_absent`. On the owner decision of 2026-11-05 the Store was rebuilt in place from this unchanged bundle – same Release Manifest, same Build Recipe, still observed_only – as OGS-00006 was in #332.</p>
+<p>The sources were re-materialised first, each at the path the Release Manifest names: `materialise-gwas-ssf-ragged.R` downloaded every Analysis’s `source_url` from EBI again and filtered it to this bundle’s `sidecars/sparse_regions.tsv` and the QC panel `qc-panel-hg38`, unchanged since #29. 1,024 of the 1,034 files came out byte-identical to the R generator’s. In the other 10 the materialiser also kept a second row at a suggestive lead’s position and id, a multi-allelic sibling that R’s filter had not kept; each was cut back to R’s lead row, the sibling with the smaller p.&nbsp;All 1,034 files then matched the sha256 the Release Manifest records, so the rebuild read exactly the inputs the August build read.</p>
+<p>The run at opengwasdb `42850d8` (0.5.0, format 0.2.0) passed `–association-coverage signals_only` and `–admission-record`; its build step took 615 seconds, and it archived nothing under `replaced/` because there was no Store to replace. `opengwasdb info` reports format 0.2.0, `signals_only` and `observed_only`. The Store reproduces the August build’s counts: 1,034 Analyses, 7,067,555 variants and 31,986,793 associations, the Admission record dropping, as in August, the 22 duplicate (analysis, variant) pairs whose two source rows conflict (44 rows). The Validation Record is the one `register` wrote for that run, `passed_with_warnings`. 1,029 of the 1,034 Analyses store EAF whose orientation is unverified, because only 20 to 461 of their variants overlap the reference panel that check uses, below the 500 it requires (the class OGS-00006 carries). The record also notes that the Analyses were resolved with opengwasdb 0.1.0: that is the August resolution this unchanged bundle keeps. The release moves from `built` to `validated`.</p>
 <p>These are the bundle’s own words: <code>release.yaml</code>’s <code>description</code> and <code>notes</code>, which is where a Release Erratum is recorded (<code>docs/spec/analysis-catalog.md</code>).</p>
 </section>
 <section id="the-bundle" class="level2">
 <h2 class="anchored" data-anchor-id="the-bundle">The bundle</h2>
-<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/stores/OGS-00024"><code>stores/OGS-00024</code> at <code>2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1</code></a></p>
+<p><a href="https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/stores/OGS-00024"><code>stores/OGS-00024</code> at <code>bf5b262c27a3215e0c357da156bb304e5e0d61c3</code></a></p>
 
 
 </section>

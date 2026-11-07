@@ -381,7 +381,7 @@ requested `info_score_threshold`, or literal `NaN` when unmapped. Finalisation
 copies the requested floor and the exact triple into the candidate
 `analyses.tsv` only for an Analysis whose resolver record carries the post-INFO
 state and at least one usable score (see the family
-[README](https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/resources/generators/gwas-catalog-eur-hybrid/README.md) for the
+[README](https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/resources/generators/gwas-catalog-eur-hybrid/README.md) for the
 emission rule); every other Analysis emits literal `NaN` and empty triple
 cells. A declared Analysis with no usable score is retained: core no longer
 reports it as a controlled failure, the registry does not refuse it, and it is
@@ -793,6 +793,15 @@ renders `--association-coverage` on a Ragged build, since `release.yaml`
 declares that value (ADR 0040) and a recipe change would be a new Store Release
 (ADR 0004).
 
+So an engine option needs no registry change to be used. From opengwasdb
+v0.6.0, `build-ragged-ssf` lifts an Analysis whose manifest row declares GRCh37
+(opengwas/opengwasdb#386): such a recipe states `chain-file: <path>` and, to
+move the default of 0.01, `liftover-failure-threshold`, and `plan()` renders
+them as it renders any option. The lifted Store records `provenance.lift`, and
+the Admission record counts the lift's drops (`lift_unmapped`,
+`lift_ambiguous`). Every row of the committed Ragged SSF bundles declares
+GRCh38, so none names either option.
+
 ### Post-processing support
 
 Post-steps are conditional on `post` and on the selected command's Store-format
@@ -877,7 +886,7 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `observed.validate_status` | Yes | The validate verdict the release-level `status` is derived from. |
 | `observed.completion_state` | No | The completion state of the Store this publication published (#307, [ADR 0037](adr/0037-reference-completion-replaces-its-store.md)): `observed_only` for a build phase, which for a release that completes its own Store is the Observed-Only Store users can query while completion runs, and `reference_completed` for a completion phase or a two-id child. It follows the phase published, never `build.yaml`'s declaration, and is read from the plan and the bundle rather than from the Store (ADR 0023). Absent in records written before #307; the master list then reports the bundle's declared state, which for an Observed-Only Store and for a two-id child is the state that record's Store was published in. |
 | `observed.variant_reference` | No | Variant-reference provenance (issue #148): `provided` when the artifact already existed (a skipped `variant-reference` pre-stage, or a build option naming an existing panel with no declared pre-stage, as OGS-00004/OGS-00005 do), `extracted` when the workflow ran `extract-variant-reference`, and absent when the release uses no variant reference. |
-| `observed.rsid_conflicts` | No | What a Hybrid build's rsid harvest compared across its sources (issue #225, opengwas/opengwasdb#306): `policy`, the `on-rsid-conflict` policy it built under (`refuse` or `drop`); `n_keys`, how many routing keys its sources named differently; and `n_variants`, how many stored variants that left with no rsid under `drop`. The counts are `0` when the harvest disputed nothing and `null` when it compared no names across sources (`--reference-panel`, or a reference that names its own rsids), so absence is never recorded as zero. A release that completes its own Store carries them from its build phase, whose builder reports them and whose `complete-hybrid` reports none (issue #225, [ADR 0037](adr/0037-reference-completion-replaces-its-store.md)). Absent when no build record carries the block, as one from a runtime without the policy does. The build's `sample` of disputed keys is not a measurement and stays in its step record (`records/build.json`). |
+| `observed.rsid_conflicts` | No | What a Hybrid build's rsid harvest compared across its sources (issue #225, opengwas/opengwasdb#306): `policy`, the `on-rsid-conflict` policy it built under (`refuse` or `drop`); `n_keys`, how many routing keys its sources named differently; and `n_variants`, how many stored variants that left with no rsid under `drop`. The counts are `0` when the harvest disputed nothing and `null` when it compared no names across sources, so absence is never recorded as zero. From opengwasdb v0.6.0 only a reference that names its own rsids gives `null`: a `--reference-panel` build harvests names too, reports counts and accepts `drop` (opengwas/opengwasdb#379); a record written before then by such a build keeps its `null`s. A release that completes its own Store carries them from its build phase, whose builder reports them and whose `complete-hybrid` reports none (issue #225, [ADR 0037](adr/0037-reference-completion-replaces-its-store.md)). Absent when no build record carries the block, as one from a runtime without the policy does. The build's `sample` of disputed keys is not a measurement and stays in its step record (`records/build.json`). |
 | `checks.store` | Yes, `register` record | This run's `opengwasdb validate --format json` verdict: `failed` when `ok` is false, `passed_with_warnings` when it reported a warning, `passed` otherwise, and `not_run` when the plan has no validate step. The only check a `register`-written record carries (#195). |
 | `checks.schema` | Yes, Phase B record | Whether required files and fields conform to OpenGWASDB's shared core schema and this registry's release-bundle requirements. Written by a Manifest Generator; not carried into a registered record. |
 | `checks.files` | Yes, Phase B record | Whether referenced source or filtered files exist and match checksums. Written by a Manifest Generator; not carried into a registered record. |
@@ -1228,7 +1237,7 @@ release metadata are documented here.
 
 Phase B selects release membership from a **frozen Source Inventory** rather
 than from a glob over an acquisition mirror (issue #151). That directory's
-[README](https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/resources/inventories/README.md) is the authority on the inventory's
+[README](https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/resources/inventories/README.md) is the authority on the inventory's
 columns, its readiness vocabulary and the freeze/preflight commands. A generator
 config names the snapshot it selects from and the acquisition output that
 snapshot was frozen from:
@@ -1459,7 +1468,7 @@ release needs an `opengwasdb` providing `build-indexed-subset`, the release
 entry point probes for it and refuses a missing capability before any write; the
 repository's pinned current-format runtime provides it (stores#218). See
 `src/ogstores/resources.py`, `src/ogstores/runtime.py` and
-[the release runtime](https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/runtime.md).
+[the release runtime](https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/runtime.md).
 
 ### Quality Check configuration
 

@@ -6,6 +6,8 @@ Supersedes [0007](0007-reference-completion-as-release-lineage.md).
 
 **Amended by [0040](0040-association-coverage-is-declared-in-the-release-bundle.md).** A recorded build argv that names no `--association-coverage` matches a plan that differs only by the declaration-derived coverage pair; the exact-argv rule is otherwise unchanged.
 
+**Amended by #428** (below). A recorded build argv that names no `--admission-record` matches a plan that differs only by the composed Admission record pair, and `register` accepts it too; the exact-argv rule is otherwise unchanged.
+
 ADR 0007 published a reference-completed Store under a second id, derived from
 its Observed-Only parent. For UKB-B that is OGS-00009 (observed, 33 GB) beside
 OGS-00010 (completed, 47 GB). Every observed cell is stored twice, and each
@@ -259,13 +261,58 @@ it, every layout can.
   declare `ancestry` too, the planner refuses one that does not, and the
   check is given it and cross-checks it against the completed Store's
   record.
-- **SE is compared exactly.** `complete-ragged` refits and re-quantises SE
-  stored as `int8_residual`, which on real data moves observed SE slightly
-  (opengwas/opengwasdb#301). Until that is resolved, a Ragged Store whose SE
-  is stored that way, as OGS-00006's is, fails the check.
+- **SE is compared exactly.** Before opengwasdb `v0.6.2`, `complete-ragged`
+  refit and re-quantised SE stored as `int8_residual`, which on real data moved
+  observed SE slightly, so a Ragged Store whose SE is stored that way, as
+  OGS-00006's is, failed the check. From `v0.6.2` it codes every cell against
+  the source's `se_coefficients`, and observed SE comes through exactly
+  (opengwas/opengwasdb#301, its ADR 0078). The check stays strict.
 - **No resume and no extra steps.** `complete-ragged` keeps no checkpoint, so
   an interrupted completion starts again from the published Observed-Only
   Store. It builds its Top-Hit Index inline and writes the format-0.2.0
   `by_variant` index, which validation audits; a Ragged Store has no overview
   and no Indexed Variant Subsets. Its completion phase is `complete`,
   validation and the check.
+
+## Amendment (stores#428): a build record from before `--admission-record`
+
+From opengwasdb 0.5.0 every builder requires `--admission-record DIR`
+(opengwas/opengwasdb#357, opengwasdb ADR 0072), so `plan()` composes
+`--admission-record <artifact-root>/<id>/store.opengwasdb.admission` on every
+build step. Every Store published before #428 has a `build` record that names
+none. Read as a change, that refuses the one amendment this ADR allows to all
+seven published single-id releases (OGS-00009, -11, -12, -13, -14, -15 and
+-17). It also fails `register`'s drift check whenever a published Store's
+build phase registers again, such as after a new Indexed Variant Subset.
+Neither is a rebuild. The owner ruled on 5 Nov 2026 to tolerate such records
+rather than rebuild their Stores.
+
+**Why it is safe.** The flag only names where the builder writes its
+Association Admission record: a side record of what each Analysis examined,
+admitted and dropped. The record sits beside the Store, outside it, and
+publication does not move it. The Store's bytes and `format_version` do not
+depend on it. A Store built before the flag was built without the record, by
+an engine that wrote none, and its data are what they were.
+
+**What is tolerated, and nothing else.** A recorded argv equal to the plan
+without the one `--admission-record` pair, at the path `plan()` composes for
+the record's own artifact root (`plan.planned_before_admission_record`):
+
+- the amendment check accepts it, and for a Ragged record that also predates
+  #341, the plan without both pairs (ADR 0040's exception, unchanged);
+- `register`'s drift check accepts it, with the executed argv's staging
+  normalised first.
+
+A record that names an Admission record at any path is compared whole, as is
+every other token. Like #341's, the exception is one-directional: a record
+cannot name a record its build never wrote, and a build at the current pin
+cannot run without the flag. So the only records it admits are ones written
+before #428.
+
+**The archived revisions are built through a shim.** The workflow suite
+builds a Store with this repository's code from before #304 and from before
+#341, to prove such a Store is completed or kept, not rebuilt or refused.
+Neither revision can name the flag the pinned runtime requires. A test-only
+`opengwasdb` on `PATH` adds it to the builder's argv, as one already added
+#341's coverage. The records are still that revision's own, naming neither
+token.

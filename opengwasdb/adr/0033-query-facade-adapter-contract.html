@@ -1069,6 +1069,60 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1230,6 +1284,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1698,6 +1758,9 @@ ul.task-list li input[type="checkbox"] {
 
 <section id="query-facade-stays-three-adapters-behind-one-documented-contract" class="level1">
 <h1>Query facade stays three adapters behind one documented contract</h1>
+<blockquote class="blockquote">
+<p><strong>Partly superseded by <a href="../../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html">ADR 0070</a>.</strong> §7 (finiteness differs by layout) is replaced by one presence rule for every layout; §8 is withdrawn, since <code>top_hits()</code> applies the same rule; §1’s result type is an <code>Associations</code> record read as this mapping; and <code>lookup()</code> is Analysis-major on every adapter. The rest stands.</p>
+</blockquote>
 <p>Supersedes nothing; amends ADR-0006 the same way ADR-0020 does.</p>
 <section id="context" class="level2">
 <h2 class="anchored" data-anchor-id="context">Context</h2>
@@ -1714,7 +1777,7 @@ ul.task-list li input[type="checkbox"] {
 <p><strong>Keep the three adapter classes</strong>, selected by <code>query_store()</code> / <code>OpenGWASDBStore.query()</code> from the store manifest, and make the contract each one implements explicit rather than implicit:</p>
 <ol type="1">
 <li><p><strong>Result shape</strong> is identical across all three: <code>dict[str, np.ndarray]</code> with <code>variant_index</code> (int32), <code>analysis_index</code> (int32), <code>z</code> (float32), <code>se</code> (float32), <code>association_status</code> (object) as parallel arrays (ADR-0020).</p></li>
-<li><p><strong><code>top_hits()</code> ordering is genomic order</strong> — sorted by <code>(analysis_index, variant_index)</code> — on every adapter and every internal path, matching the <code>group.attrs["order"]</code> the top-hit index itself is built with (<code>layouts/dense/top_hits.py</code>, <code>layouts/ragged/top_hits.py</code>). The Ragged full-scan fallback previously sorted by descending <code>|z|</code> and ignored <code>analysis_id</code>; both are fixed in <code>facade.py</code> so the same call returns the same shape of answer regardless of which physical path served it. CSR segments are analysis-major and variant-index-ascending within each analysis by construction (<code>build_besd.py</code>, <code>build_ssf.py</code>, <code>complete.py</code> all re-sort each analysis’s segment), so the fallback needs no explicit re-sort to match this order — it only needed to stop re-sorting by significance.</p></li>
+<li><p><strong><code>top_hits()</code> ordering is genomic order</strong> — sorted by <code>(analysis_index, variant_index)</code> — on every adapter and every internal path, matching the <code>group.attrs["order"]</code> the top-hit index itself is built with (<code>opengwasdb/top_hits.py</code>, which every layout’s builder writes through; it was <code>layouts/dense/top_hits.py</code> and <code>layouts/ragged/top_hits.py</code> until issue #53). The Ragged full-scan fallback previously sorted by descending <code>|z|</code> and ignored <code>analysis_id</code>; both are fixed in <code>facade.py</code> so the same call returns the same shape of answer regardless of which physical path served it. CSR segments are analysis-major and variant-index-ascending within each analysis by construction (<code>build_besd.py</code>, <code>build_ssf.py</code>, <code>complete.py</code> all re-sort each analysis’s segment), so the fallback needs no explicit re-sort to match this order — it only needed to stop re-sorting by significance.</p></li>
 <li><p><strong><code>observed_only</code> is applied before <code>limit</code></strong>, everywhere <code>limit</code> is accepted: <code>limit</code> caps the already-filtered result, never the candidate set. The Ragged fallback previously did the opposite; fixed alongside (2).</p></li>
 <li><p><strong><code>variants_table()</code>/<code>analyses_table()</code> and context-manager support</strong> (<code>__enter__</code>/<code>__exit__</code>) are present on all three adapters. Previously <code>RaggedStoreQuery</code> had neither — there was no layout reason for the gap, just an implementation gap, so both are added. <code>analyses_table()</code>’s row shape still differs by layout: Dense/Hybrid rows carry the phenotype/effect-scale fields <code>analyses.tsv</code> stores; Ragged rows carry the molecular-QTL fields (probe/gene, tissue, context) the <code>analyses</code> SQLite table stores, because a Ragged Analysis is a QTL probe, not a GWAS phenotype — <code>analysis_id</code> is the one field both shapes share. This is a genuine metadata-schema difference, not a facade inconsistency.</p></li>
 <li><p><strong><code>rho()</code>/<code>rho_row()</code>/<code>rho_matrix()</code></strong> (ADR-0025) are storage artifacts of a Dense Store Release. They are exposed on <code>StoreQuery</code> directly and on <code>HybridStoreQuery</code> by delegating to its Dense Component (itself a self-contained Dense Store Release); they return the same empty result a Dense store with no Rho Matrix returns when the Dense Component has none. <code>RaggedStoreQuery</code> has no Rho Matrix format and does not expose these methods — a genuine capability difference, not an inconsistency.</p></li>

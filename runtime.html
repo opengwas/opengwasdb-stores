@@ -1104,6 +1104,60 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1265,6 +1319,12 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
   <div class="sidebar-item-container"> 
   <a href="./opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="./opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1810,6 +1870,7 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <li><strong>A policy for a Hybrid subset’s Overflow-only ALIDs</strong> (opengwas/opengwasdb#324, moved here for the same rebuild). <code>build-indexed-subset --overflow-only {refuse,skip}</code> decides a requested ALID only the Hybrid’s shared axis carries, and a <code>skip</code> build records how many. See “Coordination with core #324”.</li>
 <li><strong>One policy for a post-lift variant collision</strong> (opengwas/opengwasdb#304; moved here for stores #314’s OGS-00027). A chain set need not be injective: two hg19 loci can map into one hg38 position, and when their projected alleles agree they become one canonical variant. <code>build-ragged-besd</code> now drops every ESI entry in such a colliding group, with its associations, exactly as a liftover failure is, and records the counts in <code>provenance.lift</code>; a Ragged CSR cannot hold one <code>variant_index</code> twice in one Analysis’s segment. <code>validate</code> requires each Analysis’s <code>variant_index</code> slice to be <strong>strictly increasing</strong>, on every release, and reports a repeat separately from a decrease.</li>
 <li><strong>Per-association sample size, and the <code>.esi</code> allele frequency on request</strong> (opengwas/opengwasdb#302, ADR 0067; moved here for the OGS-00027 replacement, stores #314 in epic #282). <code>build-ragged-besd --sample-size-table</code> stores each stored pair’s published sample size in an opt-in <code>uint32</code> <code>n</code> plane and its by-variant copy, and never estimates one the table omits; <code>--store-esi-eaf</code> stores the <code>.esi</code> frequency per association, oriented to the effect allele and checked once against <code>--eaf-reference</code>. A Store holding an <code>n</code> plane keeps <code>se</code> in float16, the loader and <code>validate</code> refuse an <code>n</code> plane beside residual-coded <code>se</code>, every Ragged query result then carries <code>n</code>, and <code>info</code> reports <code>n=uint32</code>.</li>
+<li><strong>A lifting <code>build-ragged-ssf</code></strong> (opengwas/opengwasdb#386, v0.6.0). A manifest row declaring GRCh37 was refused; it is now lifted to GRCh38 with <code>--chain-file</code>, which such a row requires, and the build fails when more than <code>--liftover-failure-threshold</code> (default 0.01) of the lifted sites have no place on the chain. Both are Build Recipe options, rendered verbatim like any other (ADR 0023): <code>plan()</code> composes neither. The Admission record counts the lift’s drops as <code>lift_unmapped</code> and <code>lift_ambiguous</code>, under rules <code>admission/11</code>, and a lifted Store records <code>provenance.lift</code>, as a BESD build does. A build whose rows are all GRCh38 streams as before and writes the same Store but for <code>created_at</code> and the record’s <code>rules</code>; all 4,453 rows of the five committed Ragged SSF bundles declare GRCh38.</li>
 </ul>
 </section>
 <section id="the-pre-write-gate" class="level2">
@@ -1869,13 +1930,14 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <h2 class="anchored" data-anchor-id="coordination-with-core-296">Coordination with core #296</h2>
 <p>Core opengwas/opengwasdb#296 extends <code>check-observed-view</code> to Ragged pairs. A Ragged Store has no chunk-rows, so the check samples whole Analyses (<code>--n-random</code> of them, from the same seed) and, for each, rebuilds the regions completion retained from the LD panel: every observed association must come back identical and not imputed, and every imputed association must lie inside a retained region. That rebuild needs the panel completion used, so the check refuses a Ragged pair without <code>--ld-panel</code> (exit 2); <code>--ancestry</code> defaults to the one the completed Store records and, when given, must match it. The planner passes both from the bundle’s <code>complete</code> options. Stores #336 moved the pin to <code>32f47b3b</code>, #296’s merge into the same integration branch, so that a Ragged release can complete its own Store (ADR 0037). Like <code>eb4c749b</code>, it is not yet on core <code>dev</code>.</p>
 <p>The capability probe cannot tell <code>32f47b3b</code> from <code>eb4c749b</code> either: it asks only whether <code>check-observed-view --help</code> succeeds, and on both it does. Here too the exact-pin check, not the probe, is what refuses an older runtime for a Ragged single-id release.</p>
-<p>The check compares observed SE exactly. <code>complete-ragged</code> refits and re-quantises SE stored as <code>int8_residual</code>, which on real data moves every observed SE slightly (opengwas/opengwasdb#301), so a Ragged Store whose builder chose that encoding, as OGS-00006’s did, fails the check until #301 is resolved.</p>
+<p>The check compares observed SE exactly. Before opengwasdb <code>v0.6.2</code>, <code>complete-ragged</code> refit and re-quantised SE stored as <code>int8_residual</code>, which on real data moved every observed SE slightly, so a Ragged Store whose builder chose that encoding, as OGS-00006’s did, failed the check. <code>v0.6.2</code> keeps the source’s <code>se_coefficients</code> and carries each observed SE exactly (opengwas/opengwasdb#301, its ADR 0078), and the check passes on the three Chen 2023 Analyses #301 was measured on.</p>
 </section>
 <section id="coordination-with-core-304" class="level2">
 <h2 class="anchored" data-anchor-id="coordination-with-core-304">Coordination with core #304</h2>
 <p>Core opengwas/opengwasdb#304 is the fix for the collision class the full eQTLGen cis Store (OGS-00027, stores #314) hit: 13 of its hg19 SNPs land on one hg38 variant after the lift, so <code>d405de0</code>’s <code>validate</code> passed a Store whose CSR held a <code>variant_index</code> twice in one Analysis’s segment. The pin moved to <code>d8896e4</code>, the <code>dev</code> merge of PR #305, whose range from <code>d405de0</code> is #304’s three commits and its merge plus a docs-only merge (#293). The tightened ordering rule is a validation rule, so it applies to every release, not only to new builds: it reads each registered Ragged and Hybrid Store’s full <code>variant_index</code> and finds no repeat, so no published Store becomes invalid at this pin. A Store built before it that does carry a repeat must be rebuilt, not revalidated. ## Coordination with core #306</p>
 <p>A single-pass Hybrid build whose variant reference names no rsids harvests a name for each source site, and two sites that case-fold to one routing key can disagree: the EBI GWAS-SSF Sources spell some alleles in lower case and carry a compound <code>variant_id</code> as their name. Refusing that was what stopped the OGS-00011 rebuild of 2026-10-22, at <code>1:905:C:T</code>, and no option resolved it.</p>
-<p>Core opengwas/opengwasdb#306 adds <code>build-hybrid --on-rsid-conflict {refuse,drop}</code>, default <code>refuse</code>, which is the behaviour it had. Under <code>drop</code> the disputed routing key gives no rsid to the variants it reaches: the table cell is <code>.</code> and the key is absent from the rsid index, which is how a Store already records a variant it can name no other way. The build always reports what its harvest compared as <code>rsid_conflicts: {policy, n_keys, n_variants, sample}</code> in its stdout JSON, with both counts <code>0</code> when nothing was disputed and <code>null</code> when no names were compared across sources (<code>--reference-panel</code>, or a reference that names its own rsids); a <code>--reference-panel</code> build refuses <code>drop</code> rather than ignore it. The same change normalises a compound <code>rsN:pos:a:b</code> id and the first item of a <code>;</code> list in the readers, so a name that is really one rsid is compared as that rsid.</p>
+<p>Core opengwas/opengwasdb#306 adds <code>build-hybrid --on-rsid-conflict {refuse,drop}</code>, default <code>refuse</code>, which is the behaviour it had. Under <code>drop</code> the disputed routing key gives no rsid to the variants it reaches: the table cell is <code>.</code> and the key is absent from the rsid index, which is how a Store already records a variant it can name no other way. The build always reports what its harvest compared as <code>rsid_conflicts: {policy, n_keys, n_variants, sample}</code> in its stdout JSON, with both counts <code>0</code> when nothing was disputed and <code>null</code> when no names were compared across sources, which is now only a reference that names its own rsids. From opengwasdb v0.6.0 (opengwas/opengwasdb#379) a <code>--reference-panel</code> build harvests names with the same test, accepts <code>drop</code>, and reports counts where it reported <code>null</code>: where its sources spell one site in different case and name it differently, it kept the first source’s name before. The other builders apply the same test with no option: <code>build-dense-vcf</code>, <code>build-ragged-ssf</code> and <code>extract-variant-reference</code> refuse such a site, naming it and both rsids, and report no <code>rsid_conflicts</code>.</p>
+<p>What was measured, all read-only. The engine (opengwas/opengwasdb#379) routed OGS-00003, -00004 and -00008’s recorded sources and harvested OGS-00006’s and -00007’s admitted rows, and found no disputed key; the other two-pass Stores (OGS-00009, OGS-00012 to -00017) hold no lower-case allele. It did not measure the other three <code>build-ragged-ssf</code> Stores, OGS-00024, -00025 and -00026 (3,043 Analyses), which a rebuild would now refuse at a disputed key. A routing key only upper-cases a site’s alleles, so a disputed key needs one site spelt in two cases, and on 2026-11-07 none of the 46,020,914 rows of those three Stores’ source files spelt an allele in lower case (the same scan counts OGS-00006’s 58,054,430 rows, all upper-case, as the engine’s harvest did). Every variant of the three carries an rs identifier, so <code>build-ragged-ssf</code>’s naming by the first non-empty rsid, which differs from its old first-row rule only for a variant that rule left unnamed, renames none of them either. The same change normalises a compound <code>rsN:pos:a:b</code> id and the first item of a <code>;</code> list in the readers, so a name that is really one rsid is compared as that rsid.</p>
 <p>The policy is per Build Recipe, so it is the recipe that declares it; stores #225 adds <code>on-rsid-conflict: drop</code> to OGS-00011’s, as a Release Erratum, and <code>register</code> copies the counts into the Validation Record’s <code>observed.rsid_conflicts</code>. A release that completes its own Store carries them from its build phase, because <code>complete-hybrid</code> reports none: the counts describe the completed Store too. A checkpoint records the policy, so a build checkpointed before the option existed reads as <code>refuse</code>: resuming it under <code>drop</code> is refused, as resuming under any other changed parameter is.</p>
 </section>
 <section id="coordination-with-core-324" class="level2">

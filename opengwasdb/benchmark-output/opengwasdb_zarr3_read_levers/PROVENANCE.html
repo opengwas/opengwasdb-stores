@@ -23,6 +23,41 @@ ul.task-list li input[type="checkbox"] {
   margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
   vertical-align: middle;
 }
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
 </style>
 
 
@@ -1069,6 +1104,60 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1230,6 +1319,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../../../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1684,7 +1779,10 @@ ul.task-list li input[type="checkbox"] {
   <ul class="collapse">
   <li><a href="#environments" id="toc-environments" class="nav-link" data-scroll-target="#environments">Environments</a></li>
   <li><a href="#commit-names" id="toc-commit-names" class="nav-link" data-scroll-target="#commit-names">Commit names</a></li>
-  <li><a href="#outputs" id="toc-outputs" class="nav-link" data-scroll-target="#outputs">Outputs</a></li>
+  <li><a href="#outputs" id="toc-outputs" class="nav-link" data-scroll-target="#outputs">Outputs</a>
+  <ul class="collapse">
+  <li><a href="#the-format-0.2.0-se-plan-runs" id="toc-the-format-0.2.0-se-plan-runs" class="nav-link" data-scroll-target="#the-format-0.2.0-se-plan-runs">The format-0.2.0 SE plan runs</a></li>
+  </ul></li>
   <li><a href="#not-committed" id="toc-not-committed" class="nav-link" data-scroll-target="#not-committed">Not committed</a></li>
   </ul></li>
   </ul>
@@ -1904,6 +2002,22 @@ ul.task-list li input[type="checkbox"] {
 <td>smoke-run on 2,000 rows</td>
 </tr>
 <tr class="odd">
+<td><code>se_plan_check-format020.out</code></td>
+<td><code>zarr3_se_plan.py</code> (#374): <code>off 1</code>, <code>on 1</code>, <code>on 4</code>, <code>off 4</code></td>
+<td><code>4f903ba</code></td>
+<td>2 Nov 22:14–22:19</td>
+<td>one per label and worker count</td>
+<td>n/a: the transcript is the run</td>
+</tr>
+<tr class="even">
+<td><code>se_plan_check_fused-format020.out</code></td>
+<td><code>zarr3_se_plan.py</code> (#374): <code>asis 1</code>, <code>asis 4</code></td>
+<td><code>4f903ba</code></td>
+<td>2 Nov 22:19–22:21</td>
+<td>one per label and worker count</td>
+<td>n/a: the transcript is the run</td>
+</tr>
+<tr class="odd">
 <td><code>compare-split-bt-n1.txt</code>, <code>compare-split-fused.txt</code>, <code>chunk-diff-decode-fused-default.json</code></td>
 <td><code>zarr3_compare_trees.py</code> (was <code>scripts/compare_split.py</code>, <code>scripts/chunk_diff_decode.py</code>), on trees from #243’s <code>build_stores.py</code></td>
 <td>trees at <code>708d179</code>, the <code>1c27e64</code> and <code>8cc6ba1</code> changes, and 2.18</td>
@@ -2001,6 +2115,13 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 </tbody>
 </table>
+<section id="the-format-0.2.0-se-plan-runs" class="level3">
+<h3 class="anchored" data-anchor-id="the-format-0.2.0-se-plan-runs">The format-0.2.0 SE plan runs</h3>
+<p>The two <code>-format020</code> transcripts above were made by</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode bash code-with-copy"><code class="sourceCode bash"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="fu">nice</span> <span class="at">-n</span> 10 pixi run <span class="at">-e</span> dev python benchmarks/zarr3_se_plan.py <span class="op">&lt;</span>label<span class="op">&gt;</span> <span class="op">&lt;</span>n_workers<span class="op">&gt;</span> <span class="dt">\</span></span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a>    <span class="at">--store</span> /data/opengwasdb/stores/OGS-00009/store.opengwasdb <span class="at">--scratch</span> <span class="op">&lt;</span>scratch<span class="op">&gt;</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p>with <code>label</code> and <code>n_workers</code> as each row lists them, against that Store as it stood on 2 November 2026: format 0.2.0, <code>chunk_shape [1000, 64]</code>, <code>shard_shape [100000, 1024]</code>, 11,191,070 Variants and 2,514 Analyses. The #244 transcripts beside them measured a 2,024-Analysis OGS-00009 whose scratch planes were unsharded; these are the current format’s, and the shard the run stages is <code>[50000, 1024]</code> – the format’s shard clipped to the 50,000-row slice.</p>
+</section>
 </section>
 <section id="not-committed" class="level2">
 <h2 class="anchored" data-anchor-id="not-committed">Not committed</h2>

@@ -225,7 +225,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td>Status</td>
-<td>Todo</td>
+<td>Active</td>
 </tr>
 <tr class="even">
 <td>Workstream</td>
@@ -241,7 +241,7 @@ ul.task-list li input[type="checkbox"] {
 </tr>
 <tr class="odd">
 <td>Next</td>
-<td>17 tickets filed; ready now: #308–#313, #316, #320 (phase timings, harness, Top-Hit Index proof, key join, EAF encode)</td>
+<td>0/23 merged on PR #411 · implementing 381-build, #308, #309, #312 · ready #310, #311, #313, #320, #383, #387 · 13 blocked</td>
 </tr>
 </tbody>
 </table>
@@ -275,8 +275,11 @@ ul.task-list li input[type="checkbox"] {
   n16["opengwasdb#35;322 — Re-measure OGS-00009 end to end and record the second-language decision"]:::open
   n17["opengwasdb#35;383 — Forked build workers may pay GC on inherited memory; try gc.freeze() in fork_pool"]:::open
   n18["opengwasdb#35;387 — Read the Dense EAF exception table once per validation pass, not once per band"]:::open
+  x1["opengwasdb#35;381"]:::open
+  n18 --&gt; n6
   n0 --&gt; n6
   n6 --&gt; n7
+  x1 --&gt; n8
   n8 --&gt; n9
   n8 --&gt; n10
   n10 --&gt; n11

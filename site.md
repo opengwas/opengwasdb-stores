@@ -101,11 +101,11 @@ Five pages are generated from the site's own data rather than written by hand:
 the [Overview](index.qmd), [Stores](stores.qmd), [Epics](epics.qmd),
 [Trends](trends.qmd) and [Changelog](changelog.qmd), with one page per epic and
 one per registered Store beside them
-([`src/project_site/pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/src/project_site/pages.py), #391).
+([`src/project_site/pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/src/project_site/pages.py), #391).
 
 Three more, under **Architecture** in the navbar, draw how OpenGWASDB fits together
 from both repositories' `docs/architecture/components.yaml` and their code
-([`src/project_site/architecture_pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/2ba0fa5bfa4c16130aaa6f7ed44f1fab8c8fedf1/src/project_site/architecture_pages.py),
+([`src/project_site/architecture_pages.py`](https://github.com/opengwas/opengwasdb-stores/blob/bf5b262c27a3215e0c357da156bb304e5e0d61c3/src/project_site/architecture_pages.py),
 #418): [Pipeline](architecture.qmd) (the stages, their components and ADRs) and
 [Structure and health](architecture-structure.qmd) (context, containers and
 components, the engine by layer with its upward imports, and the gaps in the

@@ -1069,6 +1069,60 @@ ul.task-list li input[type="checkbox"] {
  <span class="menu-text">Store per-association sample size, and the BESD allele frequency, in Ragged Stores</span></a>
   </div>
 </li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0069-refuse-an-effect-that-contradicts-its-sources-p-value.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Refuse an effect that contradicts its source’s own p-value</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0070-one-presence-rule-for-every-reader.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One presence rule for every association reader</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0071-variant-routing-is-one-module.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Variant Routing is one module</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0072-association-admission.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Association Admission: one rule set, one gate, one record</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0074-validation-rules-over-shared-scans.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Validation Rules over shared scans</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0075-alleles-are-upper-cased-before-identity-assignment.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Alleles are upper-cased before identity assignment</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0076-the-source-reader-is-one-seam.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">The Source Reader is one seam</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0077-one-module-owns-how-an-association-is-encoded.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">One module owns how an association is encoded</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Reference Completion keeps its source’s SE model</span></a>
+  </div>
+</li>
       </ul>
   </li>
           <li class="sidebar-item sidebar-item-section">
@@ -1230,6 +1284,12 @@ ul.task-list li input[type="checkbox"] {
   <div class="sidebar-item-container"> 
   <a href="../../opengwasdb/spec/bounded-evidence-scan-report.html" class="sidebar-item-text sidebar-link">
  <span class="menu-text">Bounded-Prefix and Compiled-Parser Resolver Evidence Scan: Results (#209)</span></a>
+  </div>
+</li>
+          <li class="sidebar-item">
+  <div class="sidebar-item-container"> 
+  <a href="../../opengwasdb/spec/resolver-effect-consistency.html" class="sidebar-item-text sidebar-link">
+ <span class="menu-text">Resolver effect-consistency check (ADR 0069, issue #345)</span></a>
   </div>
 </li>
           <li class="sidebar-item">
@@ -1716,6 +1776,9 @@ ul.task-list li input[type="checkbox"] {
 <p><strong>Partly superseded by <a href="../../opengwasdb/adr/0041-reset-format-version-and-drop-pre-release-formats.html">ADR 0041</a></strong> (issue #143). The encoding decisions below still stand — they describe what <code>0.1.0</code> writes. What no longer holds is the version numbering: the pre-release formats this ADR introduced or discussed — <code>0.1</code>, <code>1.0</code>, <code>2.0</code>, <code>3.0</code> — were reset to <code>0.1.0</code>, and all four are refused rather than decoded. Read every version reference below as a historical name for what is now the one readable format.</p>
 </blockquote>
 <blockquote class="blockquote">
+<p><strong>Amended by <a href="../../opengwasdb/adr/0078-completion-keeps-its-sources-se-model.html">ADR 0078</a></strong> (issue #301) for §3’s completion bullet. Ragged completion no longer refits <code>se_coefficients</code>: like Dense and Hybrid completion, it codes every cell against its source’s model and range. Each observed cell is held exactly, and an imputed cell outside the range is an exact exception. The 2% exception budget is recorded per Analysis and reported, not enforced, after completion.</p>
+</blockquote>
+<blockquote class="blockquote">
 <p><strong>Excepted by <a href="../../opengwasdb/adr/0067-per-association-sample-size-and-besd-allele-frequency.html">ADR 0067</a> §4</strong> (issue #302) for <code>se</code> selection. A Ragged release carrying a per-association <code>n</code> plane keeps <code>se</code> in <code>float16</code> whatever §3’s measurements choose: the residual model’s one intercept per Analysis assumes one N per Analysis, and with eQTLGen’s per-pair N it cost up to 0.79% SE error against <code>float16</code>’s 0.049%. <code>decide()</code> applies the exception, and the loader and <code>validate</code> refuse a release that declares <code>n</code> beside <code>int8_residual</code>. §3 is otherwise unchanged.</p>
 </blockquote>
 <p>Supersedes ADR 0036’s Decision 3 (<code>float32</code> for <code>eaf</code>) and refines its Decision 5 (Reference Completion). Leaves ADR 0036’s semantics intact: EAF is still per (variant, Analysis), still oriented to the stored effect allele, still declared per Analysis by <code>eaf_scope</code>. Only the physical encoding changes — and, unlike ADR 0036, this <strong>is</strong> a breaking format change.</p>
@@ -2097,7 +2160,7 @@ ul.task-list li input[type="checkbox"] {
 <li><strong>The range is chosen per store from ±0.5, ±1, ±2</strong>, the smallest whose measured exception share is ≤ 2%, whose worst ordinary-cell relative error is ≤ 1%, and whose <em>measured compressed</em> bytes — codes, coefficients and both exception arrays — beat the same store’s <code>float16</code>. Nothing is hard-coded from the survey; a store that does not save bytes keeps <code>float16</code>.</li>
 <li><strong>Codes <code>-128</code> and <code>-127</code> are reserved</strong> for missing and exact exception, as §1 and §2 reserve theirs. Zero SE, non-finite predictions and out-of-range residuals all become exact exceptions; nothing is clipped.</li>
 <li><strong>Hybrid’s two components share one fit and one decision, gated independently as well as jointly.</strong> They partition the same Analyses, so a fit taken over only one of them would leave the shared manifest describing data it had not measured; and a component that would not save bytes on its own sends <em>both</em> back to <code>float16</code> rather than paying for the coding in one.</li>
-<li><strong>A plane’s codes and its coefficients are always written together.</strong> That is the invariant; who may refit follows from it. Dense and Hybrid completion <em>patch</em> the source’s plane, carrying its existing codes forward, so they read <code>se_coefficients</code> off the source and must never refit — a refit would silently re-point every carried-over code at a new model. Ragged completion rewrites the whole CSR plane from decoded values, so it refits, and its imputed cells are then modelled by the fit rather than excluded from it. Completion preserves the source’s <em>kind and range</em> either way (ADR 0038 §4); the coefficients are decode parameters of the array actually written, not part of the encoding the release declares.</li>
+<li><strong>A plane’s codes and its coefficients are always written together.</strong> That is the invariant; who may refit follows from it. Dense and Hybrid completion <em>patch</em> the source’s plane, carrying its existing codes forward, so they read <code>se_coefficients</code> off the source and must never refit — a refit would silently re-point every carried-over code at a new model. Ragged completion rewrites the whole CSR plane from decoded values, and it does not refit either (ADR 0078, issue #301). Its refit re-quantised every observed SE, all 135,596 of them on three Chen 2023 Analyses. It now codes every cell against the source’s coefficients and holds each observed cell exactly. Completion preserves the source’s <em>kind and range</em> either way (ADR 0038 §4).</li>
 </ul>
 <p>The gate is per Analysis, not pooled over the plane: an exception share taken across every cell lets one badly fitting Analysis hide behind its well-fitting neighbours, which is the GCST007320 case the issue was raised about.</p>
 <p>It <em>is</em> pooled across a Hybrid store’s two components, and that asymmetry is deliberate. What the 2% bounds is storage, not accuracy: an exact exception stores the source’s own value, so exceeding the budget costs side-table bytes and loses nothing. The quantity that bounds those bytes for one Analysis is its exception share over all of that Analysis’s cells, wherever they live — so a Hybrid Analysis is charged once over the pair, while two different Analyses are never charged together. Requiring each component to pass separately would instead reject a store whose overall side table is small because a minority of one Analysis’s cells sit in the Overflow Component.</p>
