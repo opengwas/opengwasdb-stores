@@ -893,6 +893,84 @@ class TestValidateVerdictContract(unittest.TestCase):
                     register.validate_verdict(record)
 
 
+def finding(severity: str, message: str, rule: str = "associations.se_range", target: str = "release") -> dict[str, Any]:
+    """One item of `findings`, as opengwasdb v0.6.0's `Finding.as_dict` prints it (#378)."""
+    return {"rule": rule, "severity": severity, "target": target, "message": message}
+
+
+SKIP = finding("skip", "no alias table", rule="sqlite.variant_aliases")
+
+
+class TestValidateVerdictWithFindings(unittest.TestCase):
+    """`validate --format json` from opengwasdb v0.6.0 adds `findings` (#378, ADR 0074 there).
+
+    `validate_verdict` reads either shape: the three keys an older engine
+    prints, or those three and `findings`. When `findings` is present its items
+    are checked, and `errors` and `warnings` must be exactly its error and
+    warning messages, in order, because the CLI builds all three from one
+    record list. A skip is reported, never a verdict.
+    """
+
+    def test_a_verdict_with_findings_is_read_from_ok_errors_and_warnings(self) -> None:
+        error, warning = finding("error", "tabix cannot fetch 23:1:A:G"), finding("warning", "EAF orientation unverified")
+        cases = {
+            "passing, with a skip": (verdict_json(True, [], [], findings=[SKIP]), 0, ("passed", [], [])),
+            "passing, nothing recorded": (verdict_json(True, [], [], findings=[]), 0, ("passed", [], [])),
+            "warning beside a skip": (
+                verdict_json(True, [], [warning["message"]], findings=[warning, SKIP]),
+                0,
+                ("passed_with_warnings", [warning["message"]], []),
+            ),
+            "failing": (
+                verdict_json(False, [error["message"]], [warning["message"]], findings=[error, SKIP, warning]),
+                1,
+                ("failed", [warning["message"]], [error["message"]]),
+            ),
+        }
+        for name, (stdout, exit_code, expected) in cases.items():
+            with self.subTest(name):
+                self.assertEqual(register.validate_verdict(validate_record(stdout, exit_code=exit_code)), expected)
+
+    def test_a_malformed_findings_list_is_refused(self) -> None:
+        def with_findings(findings: Any) -> str:
+            return verdict_json(True, [], [], findings=findings)
+
+        cases = {
+            "findings null": with_findings(None),
+            "findings an object": with_findings({}),
+            "an item that is a string": with_findings(["no alias table"]),
+            "an item with an extra key": with_findings([dict(SKIP, reasons=["no alias table"])]),
+            "an item missing its target": with_findings([{k: v for k, v in SKIP.items() if k != "target"}]),
+            "a null target": with_findings([dict(SKIP, target=None)]),
+            "an empty target": with_findings([dict(SKIP, target="")]),
+            "an empty rule": with_findings([dict(SKIP, rule="")]),
+            "a numeric message": with_findings([dict(SKIP, message=3)]),
+            "an unknown severity": with_findings([dict(SKIP, severity="info")]),
+            "an upper-case severity": with_findings([dict(SKIP, severity="SKIP")]),
+        }
+        for name, stdout in cases.items():
+            with self.subTest(name):
+                with self.assertRaises(register.ValidateVerdictError):
+                    register.validate_verdict(validate_record(stdout))
+
+    def test_findings_that_disagree_with_errors_or_warnings_are_refused(self) -> None:
+        e1, e2 = finding("error", "fatal one"), finding("error", "fatal two")
+        w1, w2 = finding("warning", "warn one"), finding("warning", "warn two")
+        cases = {
+            "an error finding errors omits": (verdict_json(True, [], [], findings=[e1]), 0),
+            "an error errors names and findings do not": (verdict_json(False, ["fatal one"], [], findings=[]), 1),
+            "errors in another order": (verdict_json(False, ["fatal two", "fatal one"], [], findings=[e1, e2]), 1),
+            "a warning finding warnings omits": (verdict_json(True, [], [], findings=[w1]), 0),
+            "warnings in another order": (verdict_json(True, [], ["warn two", "warn one"], findings=[w1, w2]), 0),
+            "a skip reported as a warning": (verdict_json(True, [], [SKIP["message"]], findings=[SKIP]), 0),
+            "a warning reported as an error": (verdict_json(False, ["warn one"], [], findings=[w1]), 1),
+        }
+        for name, (stdout, exit_code) in cases.items():
+            with self.subTest(name):
+                with self.assertRaises(register.ValidateVerdictError):
+                    register.validate_verdict(validate_record(stdout, exit_code=exit_code))
+
+
 class TestRegisterRefusesAContradictoryVerdict(unittest.TestCase):
     """A contradictory validate record stops registration before anything is written (#195)."""
 
