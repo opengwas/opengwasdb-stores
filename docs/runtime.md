@@ -108,6 +108,17 @@ history.
   Store holding an `n` plane keeps `se` in float16, the loader and `validate`
   refuse an `n` plane beside residual-coded `se`, every Ragged query result then
   carries `n`, and `info` reports `n=uint32`.
+- **A lifting `build-ragged-ssf`** (opengwas/opengwasdb#386, v0.6.0). A manifest
+  row declaring GRCh37 was refused; it is now lifted to GRCh38 with
+  `--chain-file`, which such a row requires, and the build fails when more than
+  `--liftover-failure-threshold` (default 0.01) of the lifted sites have no
+  place on the chain. Both are Build Recipe options, rendered verbatim like any
+  other (ADR 0023): `plan()` composes neither. The Admission record counts the
+  lift's drops as `lift_unmapped` and `lift_ambiguous`, under rules
+  `admission/11`, and a lifted Store records `provenance.lift`, as a BESD build
+  does. A build whose rows are all GRCh38 streams as before and writes the same
+  Store but for `created_at` and the record's `rules`; all 4,453 rows of the
+  five committed Ragged SSF bundles declare GRCh38.
 
 ## The pre-write gate
 

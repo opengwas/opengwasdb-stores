@@ -793,6 +793,15 @@ renders `--association-coverage` on a Ragged build, since `release.yaml`
 declares that value (ADR 0040) and a recipe change would be a new Store Release
 (ADR 0004).
 
+So an engine option needs no registry change to be used. From opengwasdb
+v0.6.0, `build-ragged-ssf` lifts an Analysis whose manifest row declares GRCh37
+(opengwas/opengwasdb#386): such a recipe states `chain-file: <path>` and, to
+move the default of 0.01, `liftover-failure-threshold`, and `plan()` renders
+them as it renders any option. The lifted Store records `provenance.lift`, and
+the Admission record counts the lift's drops (`lift_unmapped`,
+`lift_ambiguous`). Every row of the committed Ragged SSF bundles declares
+GRCh38, so none names either option.
+
 ### Post-processing support
 
 Post-steps are conditional on `post` and on the selected command's Store-format

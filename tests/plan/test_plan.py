@@ -1055,6 +1055,54 @@ class TestPlanRagged(unittest.TestCase):
 
         validate_step_argv_against_cli(self, build_step)
 
+    def test_a_lifting_ragged_ssf_recipe_plans_an_argv_the_pinned_cli_reads(self) -> None:
+        """A GRCh37 Ragged SSF recipe names its chain in `build.options`, rendered like any option (opengwasdb#386).
+
+        From opengwasdb v0.6.0 `build-ragged-ssf` lifts a manifest row that
+        declares GRCh37, given `--chain-file`, and fails a lift that loses more
+        than `--liftover-failure-threshold` of its sites. Both are recipe
+        options: `plan()` composes neither and interprets neither (ADR 0023), so
+        a recipe states them and the pinned CLI must read what `plan()` renders.
+        No committed Ragged SSF bundle has a GRCh37 row.
+        """
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            # The CLI checks the chain exists when it parses the argv.
+            chain = Path(tmp) / "hg19ToHg38.over.chain.gz"
+            chain.write_bytes(b"")
+            lifting = Bundle(
+                store_id="OGS-00095",
+                root=Path("stores/OGS-00095"),
+                release={"store_id": "OGS-00095", "association_coverage": "signals_only", "status": "accepted"},
+                build={
+                    "store_id": "OGS-00095",
+                    "layout": "ragged",
+                    "completion_state": "observed_only",
+                    "build": {
+                        "command": "build-ragged-ssf",
+                        "options": {"chain-file": str(chain), "liftover-failure-threshold": 0.02},
+                    },
+                    "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
+                },
+                analyses_path=Path("stores/OGS-00095/analyses.tsv"),
+            )
+            build_step = plan(lifting)[0]
+            argv = build_step.argv
+            self.assertEqual(argv[1], "build-ragged-ssf")
+            self.assertEqual(argv[argv.index("--chain-file") + 1], str(chain))
+            self.assertEqual(argv[argv.index("--liftover-failure-threshold") + 1], "0.02")
+            record_check()
+
+            command = typer.main.get_command(opengwasdb_cli.app).commands["build-ragged-ssf"]
+            try:
+                params = command.make_context("build-ragged-ssf", list(argv[2:])).params
+            except Exception as exc:  # noqa: BLE001 -- the parser's own refusal is the finding
+                self.fail(f"the pinned build-ragged-ssf does not read {argv}: {exc}")
+            self.assertEqual(Path(params["chain_file"]), chain)
+            self.assertEqual(params["liftover_failure_threshold"], 0.02)
+            record_check()
+
     def test_a_recipe_may_not_set_the_declared_coverage(self) -> None:
         """`--association-coverage` is the release's declaration, never a Build Recipe option (#341).
 

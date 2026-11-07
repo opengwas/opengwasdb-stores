@@ -2070,8 +2070,10 @@ def prepare_ragged_single_id_signal_release(root: Path, store_id: str) -> tuple[
     build_yaml["post"] = {"top_hits": True, "overview": False, "validate": True}
     build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
     ssf = create_signal_fixture_ssf(root / "signal.tsv.gz")
-    # `build-ragged-ssf` builds only rows that declare GRCh38 (opengwasdb#56,
-    # ADR 0076), as every committed Ragged SSF bundle does (#429).
+    # `build-ragged-ssf` refuses a row that declares no build (opengwasdb#56,
+    # ADR 0076) and lifts a GRCh37 one only given --chain-file
+    # (opengwas/opengwasdb#386); this one is GRCh38, as every committed Ragged
+    # SSF bundle's rows are (#429).
     (store_dir / "analyses.tsv").write_text(
         "analysis_index\tanalysis_id\tsource_file\ttrait_name\tsample_size\tstored_effect_scale\t"
         "assigned_ancestry\tancestry_assignment_method\tsource_genome_build\n"
@@ -4639,8 +4641,10 @@ def create_ragged_fixture_store(
         "sample_size", "tissue", "context", "mhc", "source_file",
         "stored_effect_scale", "sample_size_kind", "sample_size_scope",
         "original_effect_scale", "original_sd_method", "ancestry_assignment_method",
-        # `build-ragged-ssf` builds only rows that declare GRCh38 (opengwasdb#56,
-        # ADR 0076), as every committed Ragged SSF bundle does (#429).
+        # `build-ragged-ssf` refuses a row that declares no build (opengwasdb#56,
+        # ADR 0076) and lifts a GRCh37 one only given --chain-file
+        # (opengwas/opengwasdb#386); these are GRCh38, as every committed Ragged
+        # SSF bundle's rows are (#429).
         "source_genome_build",
     ]
     rows = [
