@@ -29,11 +29,19 @@ EUR panel's variant tables (`chr<c>.pvar.zst`, at the path #403's sweep names),
 decompressed with the `zstd` the dev environment ships, and each file's sha256
 is recorded beside its length.
 
+The region figures read #409's `eur_regions.json`. The extract refuses it unless
+the sweep, profile, selection, map, HapMap3 list, LD blocks and panel tables it
+records reading are the ones read here, and unless each Analysis's whole-genome
+index variants match the per-Analysis records and no method has more leads in
+its view than in the whole genome. The regions' rows go to a small TSV beside
+the extract, whose sha256 the extract records.
+
 Run from the repository root:
 
     pixi run -e dev python3 tools/locus_leads_prototype_extract.py \\
-        --engine <an opengwasdb checkout holding the commit> --commit 06d1a43 \\
-        --output docs/data/locus-leads-prototype.json
+        --engine <an opengwasdb checkout holding the commit> --commit 3c2bdd9 \\
+        --output docs/data/locus-leads-prototype.json \\
+        --regions-rows docs/data/locus-leads-regions.tsv
 """
 
 from __future__ import annotations
@@ -74,6 +82,8 @@ NAMED_ANALYSIS = "GCST90162563"
 PROMINENCE = "B 50 kb, f 0.75"
 # How close a statistic recomputed from the per-Analysis counts must come to the committed one.
 SAME_TO = 1e-12
+# The regions file's names for the four rules, and the per-Analysis counts' names for the same ones.
+REGION_METHODS = {"bp_only": "bp_only", "named_cm": "cm", "prominence": "prominence", "ld_blocks": "ld_blocks"}
 
 
 class Refused(SystemExit):
@@ -128,7 +138,10 @@ class Engine:
         """One output's parsed JSON and the sha256 of its committed bytes."""
         if name not in self._read:
             path = f"{OUTPUTS}/{name}"
-            raw = self._git("show", f"{self.commit}:{path}")
+            try:
+                raw = self._git("show", f"{self.commit}:{path}")
+            except subprocess.CalledProcessError as missing:
+                raise Refused(f"refused: {path} is not in the engine at {self.commit}; nothing written") from missing
             digest = hashlib.sha256(raw).hexdigest()
             self.sources.append({"path": path, "ticket": ticket, "bytes": len(raw), "sha256": digest})
             self._read[name] = (json.loads(raw), digest)
@@ -1026,7 +1039,116 @@ def extract_counts(engine: Engine, panel: Panel) -> dict[str, Any]:
     return per_analysis_counts(sweep, profile, ceiling) | {"ceiling": ceiling}
 
 
-def build(engine: Engine, panel: Panel) -> dict[str, Any]:
+# --------------------------------------------------------------------------- the region figures
+
+
+def regions_record(regions: dict[str, Any], *, sweep: dict[str, Any], sweep_sha: str, profile: dict[str, Any],
+                   profile_sha: str, selection: dict[str, Any], counts: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    """What the region figures and their prose show, and the TSV of the rows they draw.
+
+    The regions file must have read the committed sweep, profile and selection,
+    #403's map and HapMap3 list, #409's LD blocks, and the panel tables the
+    ceiling read. Each Analysis's whole-genome index variants must match the
+    per-Analysis records, and no rule may have more leads in its view than in
+    the whole genome.
+    """
+    inputs = regions["inputs"]
+    for name, theirs, ours in (("eur_sweep.json", inputs["sweep"]["sha256"], sweep_sha),
+                               ("eur_profile.json", inputs["profile"]["sha256"], profile_sha),
+                               ("eur_sweep_selection.json", inputs["selection_sha256"], selection_digest(selection))):
+        require(theirs == ours, f"eur_regions.json read {name} with sha256 {theirs}, not the committed {ours}")
+    require_same(inputs["genetic_map"], sweep["genetic_map"], "eur_regions.json inputs.genetic_map")
+    require_same(inputs["hm3"], sweep["hm3"], "eur_regions.json inputs.hm3")
+    require_same(inputs["blocks"], profile["inputs"]["blocks"], "eur_regions.json inputs.blocks")
+    panel = inputs["panel"]
+    require_same({key: panel[key] for key in ("path", "assembly")}, sweep["panel"], "eur_regions.json inputs.panel")
+    for contig in counts["ceiling"]["contigs"]:
+        theirs = panel["sha256"][contig["chromosome"]][".pvar.zst"]
+        require(theirs == contig["sha256"], f"eur_regions.json read chr{contig['chromosome']}.pvar.zst with sha256 "
+                                            f"{theirs}, the ceiling read {contig['sha256']}")
+    sources = {m["key"]: m["source"] for m in regions["methods"]}
+    ours = {theirs: next(m["source"] for m in counts["methods"] if m["key"] == mine)
+            for theirs, mine in REGION_METHODS.items()}
+    require(sources == ours, f"eur_regions.json draws its rules from {sources}, the per-Analysis counts from {ours}")
+
+    per_analysis = {(a["store"], a["analysis_id"]): a for a in counts["analyses"]}
+    named = regions["selection"]["named"]
+    drawn = {(d["chosen"]["store"], d["chosen"]["analysis_id"]): d for d in regions["selection"]["draws"]}
+    views, lines = [], ["analysis_id\tposition\tabs_z\tclump\tindex_variant"]
+    for region in regions["regions"]:
+        analysis = region["analysis"]
+        key = (analysis["store"], analysis["analysis_id"])
+        where = f"eur_regions.json {analysis['analysis_id']}"
+        require(key in per_analysis, f"{where} is not one of #403's swept Analyses")
+        mine = per_analysis[key]
+        for theirs, field in ((analysis["index_variants"], "analysis.index_variants"),
+                              (len(region["genome_index_variants"]["position"]), "genome_index_variants")):
+            require(theirs == mine["index_variants"], f"{where}: {theirs!r} index variants in {field}, "
+                                                      f"{mine['index_variants']!r} in the per-Analysis records")
+        leads = {}
+        for theirs_key, my_key in REGION_METHODS.items():
+            record = region["leads"][theirs_key]
+            kinds = [lead["kind"] for lead in record["leads"]]
+            require(len(kinds) <= mine["leads_full"][my_key],
+                    f"{where}: {len(kinds)} {my_key} leads in the view, more than the "
+                    f"{mine['leads_full'][my_key]} it has in the whole genome")
+            leads[my_key] = {"positions": [lead["position"] for lead in record["leads"]],
+                             "clumps": [lead["clump"] for lead in record["leads"]], "kinds": kinds,
+                             "leads": len(kinds), "spurious_splits": kinds.count("spurious_split"),
+                             "lost": record["lost"]}
+        rows = region["rows"]
+        for position, abs_z, clump, index in zip(rows["position"], rows["abs_z"], rows["clump"],
+                                                 rows["index_variant"], strict=True):
+            lines.append(f"{analysis['analysis_id']}\t{position}\t{abs_z!r}\t{clump}\t{int(index)}")
+        clumps = region["clumps"]
+        first, second = (clumps + [None, None])[:2]
+        widest = max(clumps, key=lambda c: c["end"] - c["start"])
+        not_drawn = region["not_drawn"]
+        views.append({
+            "analysis": {k: analysis[k] for k in ("analysis_id", "analysis_label", "store", "z_band", "max_abs_z",
+                                                  "index_variants")},
+            "chosen": ({"as": "named"} if key == (named["store"], named["analysis_id"]) else
+                       {"as": "drawn", "z_band": drawn[key]["z_band"], "eligible": len(drawn[key]["eligible"])}),
+            "window": region["window"], "view": region["view"],
+            "span_bp": region["view"]["end"] - region["view"]["start"],
+            "rows_drawn": len(rows["position"]),
+            "rows_in_view": len(rows["position"]) + not_drawn["rows"],
+            "index_in_view": sum(bool(i) for i in rows["index_variant"]),
+            "not_drawn": not_drawn,
+            "clumps": clumps,
+            "widest_clump": widest["clump"],
+            "second_clump": None if second is None else {
+                "clump": second["clump"], "distance_bp": abs(second["index_position"] - first["index_position"]),
+                "without_lead": [k for k, v in leads.items() if first["clump"] in v["clumps"]
+                                 and second["clump"] not in v["clumps"]]},
+            "same_for_every_rule": len({(v["leads"], v["lost"]) for v in leads.values()}) == 1,
+            "leads": leads,
+            "blocks": region["blocks"],
+            "profile": region["profile"],
+        })
+    tsv = "\n".join(lines) + "\n"
+    tiers = regions["tiers"]
+    return {
+        "rule": {"analyses": regions["definitions"]["analyses"], "window": regions["definitions"]["window"],
+                 "view": regions["definitions"]["view"], "seed": regions["selection"]["seed"],
+                 "min_index_variants": regions["selection"]["min_index_variants"]},
+        "tiers": tiers,
+        "z_at_rows_tier": statistics.NormalDist().inv_cdf(1 - tiers["rows"] / 2),
+        "z_at_profile_tier": statistics.NormalDist().inv_cdf(1 - tiers["profile"] / 2),
+        "views": views,
+        "rows": {"lines": len(lines) - 1, "sha256": hashlib.sha256(tsv.encode()).hexdigest()},
+    }, tsv
+
+
+def extract_regions(engine: Engine, counts: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    regions, _ = engine.read("eur_regions.json", "#409")
+    sweep, sweep_sha, selection = eur_inputs(engine)
+    profile, profile_sha = engine.read("eur_profile.json", "#409")
+    return regions_record(regions, sweep=sweep, sweep_sha=sweep_sha, profile=profile, profile_sha=profile_sha,
+                          selection=selection, counts=counts)
+
+
+def build(engine: Engine, panel: Panel) -> tuple[dict[str, Any], str]:
     stage = "method"
     try:
         method = extract_method(engine)
@@ -1044,6 +1166,8 @@ def build(engine: Engine, panel: Panel) -> dict[str, Any]:
         profile = extract_profile(engine)
         stage = "the per-Analysis counts"
         counts = extract_counts(engine, panel)
+        stage = "the regions"
+        regions, rows = extract_regions(engine, counts)
     except KeyError as missing:
         raise Refused(f"refused: reading {stage}'s outputs, an engine output has no key {missing}; "
                       "nothing written") from missing
@@ -1060,7 +1184,8 @@ def build(engine: Engine, panel: Panel) -> dict[str, Any]:
         "cost": cost,
         "profile": profile,
         "per_analysis_counts": counts,
-    }
+        "regions": regions,
+    }, rows
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -1068,9 +1193,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--engine", type=Path, required=True, help="an opengwasdb checkout holding --commit")
     parser.add_argument("--commit", required=True, help="the engine commit whose outputs are read")
     parser.add_argument("--output", type=Path, required=True)
+    parser.add_argument("--regions-rows", type=Path, required=True,
+                        help="the TSV of the rows the region figures draw, written beside the extract")
     args = parser.parse_args(argv)
-    extract = build(Engine(args.engine, args.commit), Panel())
+    extract, rows = build(Engine(args.engine, args.commit), Panel())
+    extract["regions"]["rows"]["file"] = args.regions_rows.name
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    args.regions_rows.parent.mkdir(parents=True, exist_ok=True)
+    args.regions_rows.write_text(rows, encoding="utf-8")
     args.output.write_text(json.dumps(extract, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
     print(f"wrote {args.output}: {len(extract['sources'])} sources at {extract['engine']['commit']}",
           file=sys.stderr)

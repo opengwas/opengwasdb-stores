@@ -8,8 +8,8 @@ They check that a copy of #403's numbers that differs from #403's in any field
 is refused, naming the field and both values; that an output whose sha256 is not
 the one another output names is refused; that a missing key refuses rather than
 writing a partial extract; that the per-Analysis counts both outputs give agree
-and give back the committed summary; the bp-only ceiling; and derivations
-against hand-worked values.
+and give back the committed summary; the bp-only ceiling; the region figures'
+data; and derivations against hand-worked values.
 
 Run from the repository root:
     python3 tests/locus-leads-extract/test_locus_leads_extract.py
@@ -22,6 +22,7 @@ import hashlib
 import importlib.util
 import json
 import math
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -60,7 +61,11 @@ class FixtureEngine(extract.Engine):
 
     def _git(self, *args: str) -> bytes:
         if args[0] == "show":
-            return self.files[args[1].rsplit("/", 1)[1]]
+            name = args[1].rsplit("/", 1)[1]
+            if name not in self.files:
+                # What `git show <commit>:<path>` does for a path the commit does not hold.
+                raise subprocess.CalledProcessError(128, ["git", *args])
+            return self.files[name]
         if args[0] == "log":
             return b"2026-11-05\n"
         raise AssertionError(f"unexpected git call {args}")
@@ -435,3 +440,138 @@ class DerivationTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# --------------------------------------------------------------------------- the region figures' data
+
+def regions_inputs() -> dict[str, Any]:
+    """The per-Analysis counts the regions file is checked against, and what it must have read."""
+    sweep, profile = counts_outputs()
+    sweep |= {"genetic_map": {"map": "EUR.tsv.gz", "sha256": "a" * 64, "assembly": "GRCh38"},
+              "hm3": {"path": "/hm3.txt", "sha256": "b" * 64, "alids": 10},
+              "panel": {"path": "/panel/EUR", "assembly": "gnomAD_GRCh38"}}
+    profile["inputs"] = {"blocks": {"path": "/blocks.tsv", "ancestry": "EUR", "sha256": "c" * 64, "blocks": 2}}
+    counts = extract.per_analysis_counts(sweep, profile, CEILING)
+    counts["ceiling"] = {"contigs": [{"chromosome": "1", "sha256": "d" * 64}]}
+    selection = {"rule": {"seed": 403}, "chosen": []}
+    return {"sweep": sweep, "profile": profile, "counts": counts, "selection": selection}
+
+
+def regions_file(inputs: dict[str, Any]) -> dict[str, Any]:
+    """One region of A2 (20 index variants genome-wide; bp-only 8, cM 12, prominence 9, LD blocks 2 leads)."""
+    def leads(*kinds: str) -> dict[str, Any]:
+        return {"leads": [{"position": 100 + 10 * i, "clump": i + 1, "kind": kind} for i, kind in enumerate(kinds)],
+                "lost": 2 - len(kinds) + kinds.count("spurious_split")}
+
+    return {
+        "definitions": {"analyses": "the named one, then a draw", "window": "the densest 10 Mb window",
+                        "view": "the window's rows, padded"},
+        "selection": {"seed": 62, "min_index_variants": 20, "named": {"store": "OGS-T", "analysis_id": "A2"},
+                      "draws": []},
+        "tiers": {"rows": 5e-08, "profile": 0.0005, "clump_r2": 0.01},
+        "methods": [{"key": "bp_only", "source": "eur_sweep.json"}, {"key": "named_cm", "source": "eur_sweep.json"},
+                    {"key": "prominence", "source": "eur_profile.json"},
+                    {"key": "ld_blocks", "source": "eur_profile.json"}],
+        "inputs": {"sweep": {"path": "eur_sweep.json", "sha256": "1" * 64},
+                   "profile": {"path": "eur_profile.json", "sha256": "2" * 64},
+                   "selection_sha256": extract.selection_digest(inputs["selection"]),
+                   "genetic_map": {"map": "EUR.tsv.gz", "sha256": "a" * 64, "assembly": "GRCh38"},
+                   "hm3": {"path": "/hm3.txt", "sha256": "b" * 64},
+                   "blocks": {"path": "/blocks.tsv", "sha256": "c" * 64},
+                   "panel": {"path": "/panel/EUR", "assembly": "gnomAD_GRCh38",
+                             "sha256": {"1": {".pvar.zst": "d" * 64, ".pgen": "e" * 64}}}},
+        "regions": [{
+            "analysis": {"analysis_id": "A2", "analysis_label": "a trait", "store": "OGS-T", "z_band": ">=100",
+                         "max_abs_z": 150.0, "index_variants": 20},
+            "window": {"chromosome": "1", "start": 100, "end": 10_000_100, "index_variants": 2},
+            "view": {"chromosome": "1", "start": 90, "end": 130},
+            "genome_index_variants": {"chromosome": ["1"] * 20, "position": list(range(100, 300, 10))},
+            "rows": {"position": [100, 105, 110], "abs_z": [150.0, 20.5, 9.25], "clump": [1, 1, 2],
+                     "index_variant": [True, False, True]},
+            "clumps": [{"clump": 1, "index_position": 100, "index_abs_z": 150.0, "rows": 2, "start": 100, "end": 105},
+                       {"clump": 2, "index_position": 110, "index_abs_z": 9.25, "rows": 1, "start": 110, "end": 110}],
+            "leads": {"bp_only": leads("agreed"), "named_cm": leads("agreed", "agreed"),
+                      "prominence": leads("agreed", "spurious_split"), "ld_blocks": leads("agreed")},
+            "blocks": [[0, 108], [108, 200]],
+            "profile": {"bin_bp": 50, "first_bin": 1, "max_abs_z": [150.0, None]},
+            "not_drawn": {"rows": 4, "max_abs_z": 30.5,
+                          "reasons": {"matched_no_cm": 0, "absent_at_position": 3, "allele_mismatch": 1}}}],
+    }
+
+
+def regions_record(files: dict[str, Any], inputs: dict[str, Any]) -> tuple[dict[str, Any], str]:
+    return extract.regions_record(files, sweep=inputs["sweep"], sweep_sha="1" * 64, profile=inputs["profile"],
+                                  profile_sha="2" * 64, selection=inputs["selection"], counts=inputs["counts"])
+
+
+class RegionsTest(unittest.TestCase):
+    """The region figures' data: present at the commit, read from the committed inputs, and in step with the
+    per-Analysis records."""
+
+    def test_the_fixture_region_extracts_with_its_counts_by_hand(self) -> None:
+        inputs = regions_inputs()
+        record, rows = regions_record(regions_file(inputs), inputs)
+        view = record["views"][0]
+        # By hand: 3 rows drawn and 4 not, so 7 in view; 2 index variants; prominence 2 leads, 1 a split.
+        self.assertEqual((view["rows_drawn"], view["rows_in_view"], view["index_in_view"]), (3, 7, 2))
+        self.assertEqual(view["leads"]["prominence"],
+                         {"positions": [100, 110], "clumps": [1, 2], "kinds": ["agreed", "spurious_split"],
+                          "leads": 2, "spurious_splits": 1, "lost": 1})
+        self.assertEqual(sorted(view["leads"]), ["bp_only", "cm", "ld_blocks", "prominence"])
+        self.assertEqual(view["chosen"], {"as": "named"})
+        self.assertEqual(rows.splitlines(), ["analysis_id\tposition\tabs_z\tclump\tindex_variant",
+                                             "A2\t100\t150.0\t1\t1", "A2\t105\t20.5\t1\t0",
+                                             "A2\t110\t9.25\t2\t1"])
+
+    def test_a_regions_file_the_commit_does_not_hold_is_refused_naming_it(self) -> None:
+        with self.assertRaises(extract.Refused) as raised:
+            FixtureEngine({}).read("eur_regions.json", "#409")
+        self.assertIn("eur_regions.json", str(raised.exception))
+
+    def test_a_regions_file_built_on_another_sweep_is_refused(self) -> None:
+        inputs = regions_inputs()
+        files = regions_file(inputs)
+        files["inputs"]["sweep"]["sha256"] = "9" * 64
+        with self.assertRaises(extract.Refused) as raised:
+            regions_record(files, inputs)
+        message = str(raised.exception)
+        self.assertIn("eur_sweep.json", message)
+        self.assertIn("9" * 64, message)
+
+    def test_a_panel_table_hashed_differently_from_the_ceilings_is_refused(self) -> None:
+        inputs = regions_inputs()
+        files = regions_file(inputs)
+        files["inputs"]["panel"]["sha256"]["1"][".pvar.zst"] = "8" * 64
+        with self.assertRaises(extract.Refused) as raised:
+            regions_record(files, inputs)
+        self.assertIn("chr1.pvar.zst", str(raised.exception))
+
+    def test_whole_genome_index_variants_that_differ_from_the_per_analysis_records_are_refused(self) -> None:
+        inputs = regions_inputs()
+        files = regions_file(inputs)
+        files["regions"][0]["analysis"]["index_variants"] = 21
+        with self.assertRaises(extract.Refused) as raised:
+            regions_record(files, inputs)
+        message = str(raised.exception)
+        self.assertIn("A2", message)
+        self.assertIn("21", message)
+        self.assertIn("20", message)
+
+    def test_a_genome_list_of_index_variants_of_another_length_is_refused(self) -> None:
+        inputs = regions_inputs()
+        files = regions_file(inputs)
+        files["regions"][0]["genome_index_variants"]["position"].pop()
+        with self.assertRaises(extract.Refused) as raised:
+            regions_record(files, inputs)
+        self.assertIn("genome_index_variants", str(raised.exception))
+
+    def test_more_leads_in_the_view_than_in_the_whole_genome_are_refused(self) -> None:
+        inputs = regions_inputs()
+        files = regions_file(inputs)
+        # A2 has 2 LD-block leads genome-wide; the view now claims 3.
+        files["regions"][0]["leads"]["ld_blocks"]["leads"] *= 3
+        with self.assertRaises(extract.Refused) as raised:
+            regions_record(files, inputs)
+        message = str(raised.exception)
+        self.assertIn("ld_blocks", message)
+        self.assertIn("whole genome", message)

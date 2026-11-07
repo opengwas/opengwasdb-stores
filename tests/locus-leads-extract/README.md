@@ -28,6 +28,14 @@ existed, or against a named mutation):
 - the bp-only ceiling: worked by hand from two chromosome lengths, with each
   variant table's sha256 recorded; a table on another assembly, or describing
   another chromosome, is refused;
+- the region figures' data (#409's `eur_regions.json`): a file the engine
+  commit does not hold is refused, naming it; so is one built on another sweep
+  than the committed one, or on a panel table hashed differently from the one
+  the ceiling read; an Analysis whose whole-genome index variants, in its
+  record or in its list of positions, differ from the per-Analysis records is
+  refused, naming both values; so is a rule with more leads in the view than
+  in the whole genome; and one region's counts are worked by hand (rows drawn
+  and not, index variants, leads, splits and lost, and the rows' TSV);
 - derivations against hand-worked values: how many disagreeing pairs lie past
   1 Mb or reach r² 0.05, the best |log2| gain over bp-only at the same W,
   Spearman's ρ with tied ranks (√0.9), and the Analyses with more clumps than
