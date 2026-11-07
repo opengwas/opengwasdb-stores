@@ -3,6 +3,21 @@
 Amends [0023](0023-the-registry-store-seam-is-a-command-line.md) with one bounded,
 syntactic exception to its "options are rendered verbatim, never interpreted" rule.
 
+**Amended for opengwasdb v0.6.0 (opengwas/opengwasdb#354).** Existence is no
+longer the executor's only question about a present artifact. An
+`extract-variant-reference` before v0.6.0 named its routing column
+`source_keys`; v0.6.0 renamed it `routed_source_keys` when it added
+`reoriented_keys`, the source keys whose statistics the lift re-oriented, and
+every reader there refuses an artifact that still names `source_keys`
+(`UnmarkedArtifactError`). So `run.execute_step` reads a present artifact's
+header line, as the engine reads it, and refuses one that names that column
+with `UnmarkedVariantReferenceError`: it writes a failed record, runs nothing,
+and leaves the file where it is. It does not delete it and extract again,
+because the destination may be a shared or pre-computed reference it was
+handed, which other releases read; the operator deletes it, and the next run
+extracts. Every other judgement of an artifact's content stays the engine's,
+made when the build reads it.
+
 A Build Recipe may declare an optional `variant_reference` pre-build stage for the
 Dense-VCF and Hybrid builders (#145): the release wants a variant axis extracted
 from its own derived build manifest before the store build runs:

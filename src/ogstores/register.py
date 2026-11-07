@@ -284,23 +284,64 @@ def _extract_json_from_text(text: str) -> dict[str, Any] | None:
     return None
 
 
-# The object `opengwasdb validate --format json` prints at the pinned revision:
+# The object `opengwasdb validate --format json` prints:
 # {"ok": bool, "errors": [str], "warnings": [str]}, with ok == (not errors), and
 # exit 1 exactly when not ok (opengwasdb#175; cli/main.py validate_command).
 VALIDATE_JSON_KEYS: frozenset[str] = frozenset({"ok", "errors", "warnings"})
+# From opengwasdb v0.6.0 it also prints `findings`, one object per record of the
+# run -- each error, warning and skipped rule -- from which `errors` and
+# `warnings` are projected (opengwas/opengwasdb#378, its ADR 0074). Both shapes
+# are read: the three keys are what every engine before v0.6.0 wrote, and the
+# records of published Stores carry them.
+VALIDATE_FINDINGS_KEY: str = "findings"
+VALIDATE_FINDING_KEYS: frozenset[str] = frozenset({"rule", "severity", "target", "message"})
+VALIDATE_FINDING_SEVERITIES: frozenset[str] = frozenset({"error", "warning", "skip"})
+
+
+def _check_validate_findings(findings: Any, errors: list[str], warnings: list[str]) -> str | None:
+    """Why `findings` is not what `validate --format json` prints beside `errors` and `warnings`.
+
+    Every item is exactly `{rule, severity, target, message}`, all strings, with a
+    known severity and a non-empty rule and target (the engine never writes a
+    null). The CLI builds the three lists from one record list, so `errors` and
+    `warnings` must be exactly the error and warning messages, in order; a skip
+    is in neither. Returns None when all of that holds.
+    """
+    if not isinstance(findings, list):
+        return f"`findings` is {findings!r}, not a list"
+    for index, item in enumerate(findings):
+        if not isinstance(item, dict) or set(item) != VALIDATE_FINDING_KEYS:
+            return f"`findings[{index}]` is {item!r}, not an object of exactly {sorted(VALIDATE_FINDING_KEYS)}"
+        if not all(isinstance(value, str) for value in item.values()):
+            return f"`findings[{index}]` is {item!r}; each of its values must be a string"
+        if item["severity"] not in VALIDATE_FINDING_SEVERITIES:
+            return f"`findings[{index}]` has severity {item['severity']!r}, not one of {sorted(VALIDATE_FINDING_SEVERITIES)}"
+        if not item["rule"] or not item["target"]:
+            return f"`findings[{index}]` is {item!r}; its rule and target must be non-empty"
+    for name, severity, printed in (("errors", "error", errors), ("warnings", "warning", warnings)):
+        projected = [item["message"] for item in findings if item["severity"] == severity]
+        if printed != projected:
+            return (
+                f"`{name}` is {printed!r}, but the {severity} findings say {projected!r}; "
+                "the CLI prints both from one record list"
+            )
+    return None
 
 
 def validate_verdict(validate_record: dict[str, Any] | None) -> tuple[str, list[str], list[str]]:
     """This run's validate verdict, warnings and errors, read from `--format json`.
 
-    The record's stdout must be exactly the one JSON object the pinned CLI
-    prints, `{"ok", "errors", "warnings"}`, with nothing before or after it, no
-    other key, a boolean `ok`, and lists of strings. It must also agree with
-    itself and with the step: `ok` is true exactly when `errors` is empty, and
-    the step, whose `exit_code` must be an int and `success` a bool, exited 0
-    and succeeded exactly when `ok` (#195). Then the verdict
-    is `failed` when not ok, `passed_with_warnings` when it reported a warning,
-    and `passed` otherwise. A plan without a validate step has no verdict, so it
+    The record's stdout must be exactly the one JSON object the CLI prints,
+    `{"ok", "errors", "warnings"}` or, from opengwasdb v0.6.0, those and
+    `findings`, with nothing before or after it, no other key, a boolean `ok`,
+    and lists of strings. A `findings` list must hold the CLI's records and
+    project to exactly `errors` and `warnings` (`_check_validate_findings`).
+    It must also agree with itself and with the step: `ok` is true exactly
+    when `errors` is empty, and the step, whose `exit_code` must be an int and
+    `success` a bool, exited 0 and succeeded exactly when `ok` (#195). Then the
+    verdict is `failed` when not ok, `passed_with_warnings` when it reported a
+    warning, and `passed` otherwise; a skipped rule is reported in `findings`
+    and moves no verdict. A plan without a validate step has no verdict, so it
     is `not_run` rather than an assumed pass.
 
     Anything else is refused with `ValidateVerdictError`, never coerced or
@@ -326,14 +367,21 @@ def validate_verdict(validate_record: dict[str, Any] | None) -> tuple[str, list[
         raise refuse(f"its stdout is not exactly one JSON object ({exc.msg})") from exc
     if not isinstance(payload, dict):
         raise refuse(f"its stdout is a JSON {type(payload).__name__}, not an object")
-    if set(payload) != VALIDATE_JSON_KEYS:
-        raise refuse(f"expected exactly the keys {sorted(VALIDATE_JSON_KEYS)}, got {sorted(payload)}")
+    if set(payload) not in (VALIDATE_JSON_KEYS, VALIDATE_JSON_KEYS | {VALIDATE_FINDINGS_KEY}):
+        raise refuse(
+            f"expected exactly the keys {sorted(VALIDATE_JSON_KEYS)}, or those and "
+            f"{VALIDATE_FINDINGS_KEY!r}, got {sorted(payload)}"
+        )
     ok, errors, warnings = payload["ok"], payload["errors"], payload["warnings"]
     if not isinstance(ok, bool):
         raise refuse(f"`ok` is {ok!r}, not a boolean")
     for name, items in (("errors", errors), ("warnings", warnings)):
         if not isinstance(items, list) or not all(isinstance(item, str) for item in items):
             raise refuse(f"`{name}` is {items!r}, not a list of strings")
+    if VALIDATE_FINDINGS_KEY in payload:
+        reason = _check_validate_findings(payload[VALIDATE_FINDINGS_KEY], errors, warnings)
+        if reason is not None:
+            raise refuse(reason)
     if ok != (not errors):
         raise refuse(f"`ok` is {ok} with {len(errors)} error(s); the CLI sets ok exactly when there are none")
     # The record's own fields must have the exact types run.py writes: an int

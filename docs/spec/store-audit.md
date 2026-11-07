@@ -160,6 +160,15 @@ guards, both recorded in `store.stable_view`:
 | canonical identity | every `variants.tsv.gz` row, plus the sorted ALID search index | the axis: one row per canonical ALID |
 | construction reference | `read_variant_reference` on the recorded path | the axis, and the Dense Component's row set |
 
+`read_variant_reference` is the engine's reader, so from opengwasdb v0.6.0 it
+refuses a Variant Reference artifact extracted before that release, whose
+routing column is `source_keys` (`UnmarkedArtifactError`,
+opengwas/opengwasdb#354). The audit raises that error, naming the file, rather
+than reconcile against an axis the engine will not read. No published Store
+records such an artifact: OGS-00005 records a plain ALID list and OGS-00011 the
+gnomAD v4 EUR list, and every reference a bundle or generator names is a plain
+list or a Store Variant Table.
+
 Canonical identity is counted twice on purpose. The table streaming pass counts
 duplicates only among rows sharing a position -- the axis is position-ordered --
 while the sorted ALID search index counts them exactly, with no ordering

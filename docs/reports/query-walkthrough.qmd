@@ -14,7 +14,14 @@ This is a walkthrough for someone who has never opened an OpenGWASDB store
 before. Everything below is run from the command line, against the real
 pilot stores on this machine, and every output block is pasted verbatim from
 an actual run on 2026-08-19 — except the `ogdb info` block in Step 1, re-run
-on 2026-08-30 after opengwasdb#114 added the `encoding` line to its output.
+on 2026-08-30 after opengwasdb#114 added the `encoding` line to its output, and
+the `--format json` block in Step 3, re-run on 2026-11-07 at opengwasdb 0.6.0
+against OGS-00001, this pilot store's published release, after
+opengwas/opengwasdb#394 made each JSON row the whole association record. The
+same day the `association_status` counts under "Observed versus
+reference-completed" were re-run against OGS-00002, reading the last column
+rather than a numbered one: the TSV has since gained an `eaf` column before
+`association_status`, and the counts are unchanged.
 
 If you want the inventory of what exists rather than how to use it, see
 [the store master list](https://github.com/opengwas/opengwasdb-stores/blob/main/STORES.md).
@@ -191,22 +198,30 @@ Two things are *not* on by default:
   dominate query time on a large result — see
   [Gotchas](#gotchas-things-that-will-trip-you-up).
 - **The raw index-keyed form**, for scripts/notebooks that want
-  `variant_index`/`analysis_index` rather than resolved identity:
+  `variant_index`/`analysis_index` rather than resolved identity. It is one
+  JSON array of association records; `jq -c '.[]'` prints one per line:
 
   ```bash
-  ogdb query-top-hits "$STORE" --limit 5 --format json
+  ogdb query-top-hits "$STORE" --limit 5 --format json | jq -c '.[]'
   ```
   ```json
-  [{"analysis_index": 0, "se": 0.01125335693359375, "variant_index": 44579, "z": -6.1796875},
-   {"analysis_index": 0, "se": 0.01198577880859375, "variant_index": 44652, "z": -5.9921875},
-   {"analysis_index": 0, "se": 0.0123138427734375,  "variant_index": 44682, "z": 6.359375},
-   {"analysis_index": 0, "se": 0.0099029541015625,  "variant_index": 44750, "z": 6.80859375},
-   {"analysis_index": 0, "se": 0.00830078125,       "variant_index": 44762, "z": 5.76171875}]
+  {"analysis_index":0,"association_status":"observed","eaf":null,"se":0.01125335693359375,"variant_index":44579,"z":-6.177734375}
+  {"analysis_index":0,"association_status":"observed","eaf":null,"se":0.01198577880859375,"variant_index":44652,"z":-5.9931640625}
+  {"analysis_index":0,"association_status":"observed","eaf":null,"se":0.0123138427734375,"variant_index":44682,"z":6.3583984375}
+  {"analysis_index":0,"association_status":"observed","eaf":null,"se":0.0099029541015625,"variant_index":44750,"z":6.8095703125}
+  {"analysis_index":0,"association_status":"observed","eaf":null,"se":0.00830078125,"variant_index":44762,"z":5.7626953125}
   ```
   `analysis_index`/`variant_index` are row numbers into `analyses.tsv`/
-  `variants.tsv.gz`. This is what every query command returned by default
-  before `--format tsv` became the default; `jq` is still the right tool if
-  you're consuming this form.
+  `variants.tsv.gz`. Each row is the whole association record: `z`, `se`,
+  `eaf` and `association_status`, and `n` where the store holds sample sizes.
+  It is valid JSON (opengwas/opengwasdb#394), so `jq` or any JSON parser reads
+  it: a value that is not there is `null`, and an infinite one is the string
+  `"Infinity"` or `"-Infinity"`, never a bare `NaN` or `Infinity`. `eaf` is
+  `null` here because this store holds no allele frequencies; a `null` `eaf`
+  says only that the frequency is not available, and `association_status`,
+  not `eaf`, says whether the association is. These rows came from OGS-00001,
+  this pilot store's published release, which stores `z` at 1/1024 precision
+  rather than as float16, hence the small differences from the TSV above.
 
 ## Step 4 — the five query commands
 
@@ -415,7 +430,7 @@ which, via the `association_status` column, with no extra flag needed:
 
 ```bash
 ogdb query-analysis "$EQ/ragged__eqtlgen-cis-pilot__pilot-10-completed" "ENSG00000136997::whole_blood" \
-  | tail -n +2 | cut -f11 | sort | uniq -c
+  | awk -F'\t' 'NR > 1 {print $NF}' | sort | uniq -c
 ```
 
 ```
@@ -426,9 +441,15 @@ ogdb query-analysis "$EQ/ragged__eqtlgen-cis-pilot__pilot-10-completed" "ENSG000
 
 ::: {.callout-note}
 `association_status` is `observed`, `imputed`, or `missing` on every row, in
-both the default TSV and `--format json`. If you only want measured values,
-filter on it (`awk -F'\t' '$11=="observed"'`) or query the `observed_only`
-release instead.
+both the default TSV and `--format json`. In the TSV it is always the last
+column, but which number that is depends on the query: `--variant-info` adds
+`rsid` as the third column, and a store with per-association sample sizes adds
+`n` just before `association_status`. So filter on the last column, not a
+numbered one (`awk -F'\t' '$NF=="observed"'`), or use
+`jq '[.[] | select(.association_status == "observed")]'` on the JSON form, or
+query the `observed_only` release instead. Filter on the status, never on
+`eaf`: an imputed row carries the LD reference panel's frequency where an
+observed one may have none.
 :::
 
 ## Indexed Variant Subsets — fast repeated extraction {#indexed-variant-subsets}

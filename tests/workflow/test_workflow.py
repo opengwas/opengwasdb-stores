@@ -2070,8 +2070,10 @@ def prepare_ragged_single_id_signal_release(root: Path, store_id: str) -> tuple[
     build_yaml["post"] = {"top_hits": True, "overview": False, "validate": True}
     build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
     ssf = create_signal_fixture_ssf(root / "signal.tsv.gz")
-    # `build-ragged-ssf` builds only rows that declare GRCh38 (opengwasdb#56,
-    # ADR 0076), as every committed Ragged SSF bundle does (#429).
+    # `build-ragged-ssf` refuses a row that declares no build (opengwasdb#56,
+    # ADR 0076) and lifts a GRCh37 one only given --chain-file
+    # (opengwas/opengwasdb#386); this one is GRCh38, as every committed Ragged
+    # SSF bundle's rows are (#429).
     (store_dir / "analyses.tsv").write_text(
         "analysis_index\tanalysis_id\tsource_file\ttrait_name\tsample_size\tstored_effect_scale\t"
         "assigned_ancestry\tancestry_assignment_method\tsource_genome_build\n"
@@ -2707,6 +2709,13 @@ def install_builder_shim(root: Path) -> Path:
     - `--admission-record` on every builder that names none, beside the Store's
       final path, as `plan()` now names it (opengwas/opengwasdb#357, #428).
 
+    And one thing the pinned runtime prints that such code cannot read: from
+    opengwasdb v0.6.0, `validate --format json` adds `findings` to `ok`, `errors`
+    and `warnings` (opengwas/opengwasdb#378), and an archived `register` refuses
+    any key but those three. The shim prints the object without it, sorted as
+    the runtime prints it, so the archived run's validate record holds the shape
+    an engine of its time wrote, which the current `register` must still read.
+
     The Store's records are still that run's own: `run.py` records the argv it
     planned, which names neither token, and which is the state under test. The
     shim sits in an install prefix whose `site-packages` is this environment's,
@@ -2726,7 +2735,8 @@ def install_builder_shim(root: Path) -> Path:
         f"""#!{sys.executable}
 # Test fixture only: archived code cannot declare a coverage (#341) or name an
 # Admission record (#428), and the pinned runtime requires both
-# (opengwas/opengwasdb#298, #357).
+# (opengwas/opengwasdb#298, #357); nor can it read validate's `findings`
+# (opengwas/opengwasdb#378).
 import os
 import sys
 
@@ -2743,6 +2753,26 @@ if argv[:1] and argv[0] in {BUILDER_COMMANDS!r} and len(staged) == 1 and not any
     token == flag or token.startswith(flag + "=") for token in argv
 ):
     argv = [*argv, flag, staged[0][: -len(".partial")] + ".admission"]
+# An archived register reads exactly {{ok, errors, warnings}}, as validate printed
+# them before opengwas/opengwasdb#378 added `findings`. Anything that is not
+# one JSON object passes through unchanged, for that register to refuse.
+if argv[:1] == ["validate"] and any(
+    token == "--format=json" or argv[i:i + 2] == ["--format", "json"] for i, token in enumerate(argv)
+):
+    import json
+    import subprocess
+
+    done = subprocess.run([{str(real_opengwasdb)!r}, *argv], stdout=subprocess.PIPE, text=True)
+    try:
+        payload = json.loads(done.stdout)
+    except ValueError:
+        payload = None
+    if isinstance(payload, dict):
+        payload.pop("findings", None)
+        sys.stdout.write(json.dumps(payload, sort_keys=True) + "\\n")
+    else:
+        sys.stdout.write(done.stdout)
+    sys.exit(done.returncode)
 os.execv({str(real_opengwasdb)!r}, [{str(real_opengwasdb)!r}, *argv])
 """,
         encoding="utf-8",
@@ -2759,8 +2789,9 @@ def pre_304_completion_template() -> dict[str, Any]:
     its own `ogstores` ahead of this checkout's editable install, and is
     repinned to the runtime this environment provides (below). Its build runs
     through `install_builder_shim`, which names the Admission record the
-    pinned runtime requires and that revision cannot (#428); its records keep
-    the argv that revision planned. The archive's
+    pinned runtime requires and that revision cannot (#428), and prints its
+    validate verdict without the `findings` that revision's `register` refuses
+    (opengwas/opengwasdb#378); its records keep the argv that revision planned. The archive's
     `.snakemake` is this checkout's, so the current code later reads that
     run's Snakemake metadata, as an operator's checkout would after a pull.
 
@@ -4610,8 +4641,10 @@ def create_ragged_fixture_store(
         "sample_size", "tissue", "context", "mhc", "source_file",
         "stored_effect_scale", "sample_size_kind", "sample_size_scope",
         "original_effect_scale", "original_sd_method", "ancestry_assignment_method",
-        # `build-ragged-ssf` builds only rows that declare GRCh38 (opengwasdb#56,
-        # ADR 0076), as every committed Ragged SSF bundle does (#429).
+        # `build-ragged-ssf` refuses a row that declares no build (opengwasdb#56,
+        # ADR 0076) and lifts a GRCh37 one only given --chain-file
+        # (opengwas/opengwasdb#386); these are GRCh38, as every committed Ragged
+        # SSF bundle's rows are (#429).
         "source_genome_build",
     ]
     rows = [
@@ -4785,7 +4818,9 @@ def pre_341_published_store() -> dict[str, Any]:
       small `opengwasdb` on `PATH` ahead of the real one, adds both to the
       builder's argv, so the *builder* can run. The Store's records are still
       that run's own: `run.py` records the argv it planned, which names
-      neither token, and which is the state under test.
+      neither token, and which is the state under test. The same shim prints
+      `validate --format json` without the `findings` key opengwasdb v0.6.0
+      added (opengwas/opengwasdb#378), which that revision's `register` refuses.
     """
     global _PRE_341_PUBLISHED
     if _PRE_341_PUBLISHED is not None:

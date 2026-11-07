@@ -108,6 +108,17 @@ history.
   Store holding an `n` plane keeps `se` in float16, the loader and `validate`
   refuse an `n` plane beside residual-coded `se`, every Ragged query result then
   carries `n`, and `info` reports `n=uint32`.
+- **A lifting `build-ragged-ssf`** (opengwas/opengwasdb#386, v0.6.0). A manifest
+  row declaring GRCh37 was refused; it is now lifted to GRCh38 with
+  `--chain-file`, which such a row requires, and the build fails when more than
+  `--liftover-failure-threshold` (default 0.01) of the lifted sites have no
+  place on the chain. Both are Build Recipe options, rendered verbatim like any
+  other (ADR 0023): `plan()` composes neither. The Admission record counts the
+  lift's drops as `lift_unmapped` and `lift_ambiguous`, under rules
+  `admission/11`, and a lifted Store records `provenance.lift`, as a BESD build
+  does. A build whose rows are all GRCh38 streams as before and writes the same
+  Store but for `created_at` and the record's `rules`; all 4,453 rows of the
+  five committed Ragged SSF bundles declare GRCh38.
 
 ## The pre-write gate
 
@@ -301,8 +312,28 @@ the key is absent from the rsid index, which is how a Store already records a
 variant it can name no other way. The build always reports what its harvest
 compared as `rsid_conflicts: {policy, n_keys, n_variants, sample}` in its stdout
 JSON, with both counts `0` when nothing was disputed and `null` when no names
-were compared across sources (`--reference-panel`, or a reference that names its
-own rsids); a `--reference-panel` build refuses `drop` rather than ignore it.
+were compared across sources, which is now only a reference that names its own
+rsids. From opengwasdb v0.6.0 (opengwas/opengwasdb#379) a `--reference-panel`
+build harvests names with the same test, accepts `drop`, and reports counts
+where it reported `null`: where its sources spell one site in different case
+and name it differently, it kept the first source's name before. The other
+builders apply the same test with no option: `build-dense-vcf`,
+`build-ragged-ssf` and `extract-variant-reference` refuse such a site, naming
+it and both rsids, and report no `rsid_conflicts`.
+
+What was measured, all read-only. The engine (opengwas/opengwasdb#379) routed
+OGS-00003, -00004 and -00008's recorded sources and harvested OGS-00006's and
+-00007's admitted rows, and found no disputed key; the other two-pass Stores
+(OGS-00009, OGS-00012 to -00017) hold no lower-case allele. It did not measure
+the other three `build-ragged-ssf` Stores, OGS-00024, -00025 and -00026 (3,043
+Analyses), which a rebuild would now refuse at a disputed key. A routing key
+only upper-cases a site's alleles, so a disputed key needs one site spelt in
+two cases, and on 2026-11-07 none of the 46,020,914 rows of those three Stores'
+source files spelt an allele in lower case (the same scan counts OGS-00006's
+58,054,430 rows, all upper-case, as the engine's harvest did). Every variant of
+the three carries an rs identifier, so `build-ragged-ssf`'s naming by the first
+non-empty rsid, which differs from its old first-row rule only for a variant
+that rule left unnamed, renames none of them either.
 The same change normalises a compound `rsN:pos:a:b` id and the first item of a
 `;` list in the readers, so a name that is really one rsid is compared as that
 rsid.

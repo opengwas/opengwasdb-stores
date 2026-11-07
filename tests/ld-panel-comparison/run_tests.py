@@ -11,10 +11,10 @@ substitutions. Two things must therefore hold, and this suite pins both:
   array, where the stored bytes are int8 residuals against the cell's frequency
   rather than standard errors.
 
-The fixture is a real Store, built and then completed by the core's own
-entry points in a temporary directory: 600 panel variants on chr22, 400 of them
-observed in the Store for two Analyses, so completion imputes 200 x 2 = 400
-cells. Every literal asserted here is computed from that construction -- the
+The fixture is a real Store, built by `opengwasdb build-dense` and then
+completed by the core's own entry point in a temporary directory: 600 panel
+variants on chr22, 400 of them observed in the Store for two Analyses, so
+completion imputes 200 x 2 = 400 cells. Every literal asserted here is computed from that construction -- the
 frequency table, the standard errors handed to the builder, and the index set
 of the observed variants -- never from the code under test.
 """
@@ -23,6 +23,7 @@ from __future__ import annotations
 import csv
 import importlib.util
 import shutil
+import subprocess
 import sys
 import tempfile
 from pathlib import Path
@@ -34,10 +35,7 @@ import zarr
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPTS = REPO_ROOT / "tools" / "ld-panel"
 
-from opengwasdb.build.source import NormalisedAssociation  # noqa: E402
-from opengwasdb.layouts.dense.build import build_dense_observed_store  # noqa: E402
 from opengwasdb.layouts.dense.complete import complete_dense_store  # noqa: E402
-from opengwasdb.variants import CanonicalVariant  # noqa: E402
 
 CHROM = "22"
 FIRST_POSITION = 1000
@@ -140,6 +138,42 @@ def write_panel(panel_root: Path) -> None:
              values=np.array([4.0, 2.0, 1.0, 0.5]), vectors=vectors)
 
 
+def write_build_manifest(directory: Path) -> Path:
+    """The build manifest `build-dense` reads, and one association TSV per Analysis.
+
+    Since opengwas/opengwasdb#385 `build-dense` takes a manifest whose rows
+    declare each Analysis, and reads each row's `source_file` as associations
+    only (`opengwasdb.association-tsv`). Each Analysis declares the SD effect
+    scale and SEs already standardised, so the Store holds the z and SE written
+    here; the effect allele is A, so each variant's ALID is `alid(index)`.
+    """
+    directory.mkdir(parents=True, exist_ok=True)
+    z = z_values()
+    manifest = directory / "manifest.tsv"
+    columns = ["analysis_id", "source_file", "source_assembly", "original_sd_method",
+               "stored_effect_scale", "maf_threshold", "info_score_threshold"]
+    with manifest.open("w", newline="") as handle:
+        rows = csv.DictWriter(handle, fieldnames=columns, delimiter="\t", lineterminator="\n")
+        rows.writeheader()
+        for column, analysis_id in enumerate(ANALYSES):
+            source = directory / f"{analysis_id}.tsv"
+            with source.open("w", newline="") as out:
+                associations = csv.writer(out, delimiter="\t", lineterminator="\n")
+                associations.writerow(["chromosome", "position", "effect_allele", "other_allele",
+                                       "z", "se", "eaf"])
+                for index in OBSERVED:
+                    associations.writerow([
+                        CHROM, FIRST_POSITION + index, "A", "G", repr(float(z[index, column])),
+                        repr(standard_errors(index, column)), repr(float(frequencies()[index])),
+                    ])
+            rows.writerow({
+                "analysis_id": analysis_id, "source_file": str(source), "source_assembly": "GRCh38",
+                "original_sd_method": "declared_standardised", "stored_effect_scale": "sd",
+                "maf_threshold": "NaN", "info_score_threshold": "NaN",
+            })
+    return manifest
+
+
 def build_store(tmp: Path) -> tuple[Path, Path]:
     """Build the observed-only Store, then complete it.
 
@@ -154,22 +188,14 @@ def build_store(tmp: Path) -> tuple[Path, Path]:
     for path in (observed_store, completed_store):
         if path.exists():
             shutil.rmtree(path)
-    z = z_values()
-    records = [
-        NormalisedAssociation(
-            analysis_id=analysis_id,
-            variant=CanonicalVariant(CHROM, FIRST_POSITION + index, "A", "G"),
-            z=float(z[index, column]),
-            se=standard_errors(index, column),
-            eaf=float(frequencies()[index]),
-        )
-        for column, analysis_id in enumerate(ANALYSES)
-        for index in OBSERVED
-    ]
-    build_dense_observed_store(
-        records, observed_store, store_id="OGS-99999", release_id="OGS-99999",
-        reference_assembly="GRCh38",
+    manifest = write_build_manifest(tmp / "sources")
+    built = subprocess.run(
+        ["opengwasdb", "build-dense", str(observed_store), "--manifest", str(manifest),
+         "--store-id", "OGS-99999", "--release-id", "OGS-99999", "--reference-assembly", "GRCh38",
+         "--admission-record", str(tmp / "observed.opengwasdb.admission")],
+        capture_output=True, text=True,
     )
+    check(built.returncode == 0, f"build-dense failed:\n{built.stdout}\n{built.stderr}")
     complete_dense_store(observed_store, completed_store, panel_root, ancestry="EUR",
                          release_id="OGS-99998")
     return observed_store, completed_store
