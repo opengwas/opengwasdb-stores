@@ -1,30 +1,2115 @@
 status: passed_with_warnings
-validated_at: 2026-08-18T21:35:49.487402+00:00
+validated_at: '2026-11-06T04:21:38.506889Z'
 validator:
-  name: resources/generators/gwas-ssf-ragged/build-store.py
-  version: null
+  name: opengwasdb validate
+  version: opengwasdb@42850d8b49ba0ad2626f1598ccf7956375c704ec
 build_environment:
-  repo_commit: 32b2e6d6522639157142367a45dd482c5c468121
-  opengwasdb_version: 0.1.0
-  opengwasdb_commit: 1ecfd1e7945d4258e5b0585ae9381be5ecbe9373
-  pixi_lock_sha256: f6775451715fb1f53d0e84a4814c2d0fb198acdd10c18dc91e52f6d7fdd1fe14
-  pixi_environment: default
-  platform: Linux-4.18.0-553.141.1.el8_10.x86_64-x86_64-with-glibc2.28
-  python_version: 3.11.15
+  opengwasdb_version: 0.5.0
+  opengwasdb_commit: 42850d8b49ba0ad2626f1598ccf7956375c704ec
+  python_version: 3.12.15
+  platform: Linux-4.18.0-553.177.1.el8_10.x86_64-x86_64-with-glibc2.28
+  engines:
+  - opengwasdb_commit: 42850d8b49ba0ad2626f1598ccf7956375c704ec
+    opengwasdb_version: 0.5.0
+    steps:
+    - build
+    - top-hits
+    - validate
+observed:
+  format_version: null
+  n_analyses: 1034
+  n_variants: 7067555
+  n_associations: 31986793
+  association_coverage: signals_only
+  reference_assembly: null
+  store_bytes: null
+  build_elapsed_s: 615.211
+  validate_status: passed_with_warnings
+  completion_state: observed_only
 checks:
-  schema: passed
-  files: passed
-  reader_smoke_test: passed
-  ancestry: passed
-  effect_scale: passed
-  sd_estimation: passed
-  sparse_regions: passed_with_warnings
-reports:
-  sparse_regions: sidecars/sparse_regions.tsv
-  filter_summary: sidecars/filter_summary.tsv
-  sd_estimation: sidecars/sd_estimation.tsv
-  ancestry: sidecars/ancestry.tsv
-  build_report: sidecars/build_report.tsv
+  store: passed_with_warnings
 warnings:
-  - store has 31986793 associations but filter summary records 31986837
+- 'analysis ''GCST90201021'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201022'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201023'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201024'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201025'' stores EAF whose orientation is unverified: only 63 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201026'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201027'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201028'' stores EAF whose orientation is unverified: only 90 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201029'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201030'' stores EAF whose orientation is unverified: only 72 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201031'' stores EAF whose orientation is unverified: only 129
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201032'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201033'' stores EAF whose orientation is unverified: only 144
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201034'' stores EAF whose orientation is unverified: only 77 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201035'' stores EAF whose orientation is unverified: only 63 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201036'' stores EAF whose orientation is unverified: only 70 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201037'' stores EAF whose orientation is unverified: only 97 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201038'' stores EAF whose orientation is unverified: only 22 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201039'' stores EAF whose orientation is unverified: only 281
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201040'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201041'' stores EAF whose orientation is unverified: only 237
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201042'' stores EAF whose orientation is unverified: only 172
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201043'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201044'' stores EAF whose orientation is unverified: only 66 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201045'' stores EAF whose orientation is unverified: only 62 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201046'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201047'' stores EAF whose orientation is unverified: only 58 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201048'' stores EAF whose orientation is unverified: only 50 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201049'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201050'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201051'' stores EAF whose orientation is unverified: only 37 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201052'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201053'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201054'' stores EAF whose orientation is unverified: only 79 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201055'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201056'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201057'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201058'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201059'' stores EAF whose orientation is unverified: only 59 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201060'' stores EAF whose orientation is unverified: only 77 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201061'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201062'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201063'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201064'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201065'' stores EAF whose orientation is unverified: only 62 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201066'' stores EAF whose orientation is unverified: only 25 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201067'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201068'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201069'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201070'' stores EAF whose orientation is unverified: only 66 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201071'' stores EAF whose orientation is unverified: only 355
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201072'' stores EAF whose orientation is unverified: only 173
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201073'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201074'' stores EAF whose orientation is unverified: only 61 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201075'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201076'' stores EAF whose orientation is unverified: only 221
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201077'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201078'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201079'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201080'' stores EAF whose orientation is unverified: only 59 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201081'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201082'' stores EAF whose orientation is unverified: only 164
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201083'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201084'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201085'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201086'' stores EAF whose orientation is unverified: only 202
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201087'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201088'' stores EAF whose orientation is unverified: only 101
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201089'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201090'' stores EAF whose orientation is unverified: only 88 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201091'' stores EAF whose orientation is unverified: only 59 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201092'' stores EAF whose orientation is unverified: only 93 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201093'' stores EAF whose orientation is unverified: only 89 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201094'' stores EAF whose orientation is unverified: only 37 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201095'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201096'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201097'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201098'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201099'' stores EAF whose orientation is unverified: only 76 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201100'' stores EAF whose orientation is unverified: only 132
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201101'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201102'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201103'' stores EAF whose orientation is unverified: only 60 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201104'' stores EAF whose orientation is unverified: only 92 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201105'' stores EAF whose orientation is unverified: only 70 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201106'' stores EAF whose orientation is unverified: only 118
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201107'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201108'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201109'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201110'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201111'' stores EAF whose orientation is unverified: only 88 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201112'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201113'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201114'' stores EAF whose orientation is unverified: only 245
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201115'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201116'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201117'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201118'' stores EAF whose orientation is unverified: only 118
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201119'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201120'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201121'' stores EAF whose orientation is unverified: only 142
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201122'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201123'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201124'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201125'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201126'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201127'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201128'' stores EAF whose orientation is unverified: only 24 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201129'' stores EAF whose orientation is unverified: only 212
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201130'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201131'' stores EAF whose orientation is unverified: only 89 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201132'' stores EAF whose orientation is unverified: only 141
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201133'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201134'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201135'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201136'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201137'' stores EAF whose orientation is unverified: only 209
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201138'' stores EAF whose orientation is unverified: only 85 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201139'' stores EAF whose orientation is unverified: only 98 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201140'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201141'' stores EAF whose orientation is unverified: only 291
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201142'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201143'' stores EAF whose orientation is unverified: only 72 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201144'' stores EAF whose orientation is unverified: only 22 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201145'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201146'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201147'' stores EAF whose orientation is unverified: only 61 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201148'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201149'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201150'' stores EAF whose orientation is unverified: only 37 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201151'' stores EAF whose orientation is unverified: only 267
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201152'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201153'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201154'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201155'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201156'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201157'' stores EAF whose orientation is unverified: only 77 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201158'' stores EAF whose orientation is unverified: only 174
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201159'' stores EAF whose orientation is unverified: only 141
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201160'' stores EAF whose orientation is unverified: only 100
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201161'' stores EAF whose orientation is unverified: only 97 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201162'' stores EAF whose orientation is unverified: only 351
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201163'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201164'' stores EAF whose orientation is unverified: only 66 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201165'' stores EAF whose orientation is unverified: only 101
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201166'' stores EAF whose orientation is unverified: only 78 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201167'' stores EAF whose orientation is unverified: only 50 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201168'' stores EAF whose orientation is unverified: only 418
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201169'' stores EAF whose orientation is unverified: only 74 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201170'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201171'' stores EAF whose orientation is unverified: only 59 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201172'' stores EAF whose orientation is unverified: only 58 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201173'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201174'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201175'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201176'' stores EAF whose orientation is unverified: only 61 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201177'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201178'' stores EAF whose orientation is unverified: only 110
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201179'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201180'' stores EAF whose orientation is unverified: only 245
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201181'' stores EAF whose orientation is unverified: only 141
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201182'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201183'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201184'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201185'' stores EAF whose orientation is unverified: only 113
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201186'' stores EAF whose orientation is unverified: only 79 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201187'' stores EAF whose orientation is unverified: only 66 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201188'' stores EAF whose orientation is unverified: only 60 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201189'' stores EAF whose orientation is unverified: only 108
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201190'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201191'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201192'' stores EAF whose orientation is unverified: only 124
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201193'' stores EAF whose orientation is unverified: only 66 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201194'' stores EAF whose orientation is unverified: only 94 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201195'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201196'' stores EAF whose orientation is unverified: only 78 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201197'' stores EAF whose orientation is unverified: only 66 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201198'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201199'' stores EAF whose orientation is unverified: only 57 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201200'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201201'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201202'' stores EAF whose orientation is unverified: only 91 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201203'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201204'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201205'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201206'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201207'' stores EAF whose orientation is unverified: only 77 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201208'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201209'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201210'' stores EAF whose orientation is unverified: only 106
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201211'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201212'' stores EAF whose orientation is unverified: only 255
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201213'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201214'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201215'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201216'' stores EAF whose orientation is unverified: only 84 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201217'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201218'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201219'' stores EAF whose orientation is unverified: only 121
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201220'' stores EAF whose orientation is unverified: only 51 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201221'' stores EAF whose orientation is unverified: only 253
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201222'' stores EAF whose orientation is unverified: only 95 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201223'' stores EAF whose orientation is unverified: only 24 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201224'' stores EAF whose orientation is unverified: only 78 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201225'' stores EAF whose orientation is unverified: only 92 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201226'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201227'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201228'' stores EAF whose orientation is unverified: only 92 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201229'' stores EAF whose orientation is unverified: only 105
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201230'' stores EAF whose orientation is unverified: only 98 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201231'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201232'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201234'' stores EAF whose orientation is unverified: only 94 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201235'' stores EAF whose orientation is unverified: only 332
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201237'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201238'' stores EAF whose orientation is unverified: only 110
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201239'' stores EAF whose orientation is unverified: only 108
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201240'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201241'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201242'' stores EAF whose orientation is unverified: only 64 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201243'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201244'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201245'' stores EAF whose orientation is unverified: only 254
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201246'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201247'' stores EAF whose orientation is unverified: only 62 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201248'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201249'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201250'' stores EAF whose orientation is unverified: only 57 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201251'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201252'' stores EAF whose orientation is unverified: only 69 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201253'' stores EAF whose orientation is unverified: only 66 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201254'' stores EAF whose orientation is unverified: only 109
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201255'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201256'' stores EAF whose orientation is unverified: only 118
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201257'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201258'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201259'' stores EAF whose orientation is unverified: only 72 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201260'' stores EAF whose orientation is unverified: only 287
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201261'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201262'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201263'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201264'' stores EAF whose orientation is unverified: only 70 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201265'' stores EAF whose orientation is unverified: only 60 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201266'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201267'' stores EAF whose orientation is unverified: only 109
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201268'' stores EAF whose orientation is unverified: only 86 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201269'' stores EAF whose orientation is unverified: only 62 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201270'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201271'' stores EAF whose orientation is unverified: only 79 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201272'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201273'' stores EAF whose orientation is unverified: only 69 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201274'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201275'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201276'' stores EAF whose orientation is unverified: only 84 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201277'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201278'' stores EAF whose orientation is unverified: only 351
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201279'' stores EAF whose orientation is unverified: only 90 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201280'' stores EAF whose orientation is unverified: only 69 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201281'' stores EAF whose orientation is unverified: only 77 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201282'' stores EAF whose orientation is unverified: only 50 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201283'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201284'' stores EAF whose orientation is unverified: only 103
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201285'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201286'' stores EAF whose orientation is unverified: only 62 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201287'' stores EAF whose orientation is unverified: only 95 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201288'' stores EAF whose orientation is unverified: only 64 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201289'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201290'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201291'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201292'' stores EAF whose orientation is unverified: only 22 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201293'' stores EAF whose orientation is unverified: only 29 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201294'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201295'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201296'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201297'' stores EAF whose orientation is unverified: only 96 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201298'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201299'' stores EAF whose orientation is unverified: only 106
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201300'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201301'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201302'' stores EAF whose orientation is unverified: only 144
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201303'' stores EAF whose orientation is unverified: only 37 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201304'' stores EAF whose orientation is unverified: only 60 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201305'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201306'' stores EAF whose orientation is unverified: only 54 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201307'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201308'' stores EAF whose orientation is unverified: only 117
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201309'' stores EAF whose orientation is unverified: only 91 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201310'' stores EAF whose orientation is unverified: only 37 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201311'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201312'' stores EAF whose orientation is unverified: only 98 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201313'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201314'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201315'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201316'' stores EAF whose orientation is unverified: only 90 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201317'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201318'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201319'' stores EAF whose orientation is unverified: only 111
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201320'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201321'' stores EAF whose orientation is unverified: only 107
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201322'' stores EAF whose orientation is unverified: only 105
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201323'' stores EAF whose orientation is unverified: only 97 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201324'' stores EAF whose orientation is unverified: only 86 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201325'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201326'' stores EAF whose orientation is unverified: only 59 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201327'' stores EAF whose orientation is unverified: only 104
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201328'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201329'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201330'' stores EAF whose orientation is unverified: only 140
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201331'' stores EAF whose orientation is unverified: only 227
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201332'' stores EAF whose orientation is unverified: only 78 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201333'' stores EAF whose orientation is unverified: only 92 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201334'' stores EAF whose orientation is unverified: only 74 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201335'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201336'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201337'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201338'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201339'' stores EAF whose orientation is unverified: only 90 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201340'' stores EAF whose orientation is unverified: only 96 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201341'' stores EAF whose orientation is unverified: only 147
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201342'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201343'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201344'' stores EAF whose orientation is unverified: only 92 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201345'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201346'' stores EAF whose orientation is unverified: only 98 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201347'' stores EAF whose orientation is unverified: only 59 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201348'' stores EAF whose orientation is unverified: only 150
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201349'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201350'' stores EAF whose orientation is unverified: only 106
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201351'' stores EAF whose orientation is unverified: only 81 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201352'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201353'' stores EAF whose orientation is unverified: only 51 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201354'' stores EAF whose orientation is unverified: only 72 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201355'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201356'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201357'' stores EAF whose orientation is unverified: only 95 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201358'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201359'' stores EAF whose orientation is unverified: only 51 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201360'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201362'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201363'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201364'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201365'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201366'' stores EAF whose orientation is unverified: only 125
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201367'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201368'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201369'' stores EAF whose orientation is unverified: only 74 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201370'' stores EAF whose orientation is unverified: only 86 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201371'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201372'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201373'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201374'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201375'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201376'' stores EAF whose orientation is unverified: only 63 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201377'' stores EAF whose orientation is unverified: only 86 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201378'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201379'' stores EAF whose orientation is unverified: only 130
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201380'' stores EAF whose orientation is unverified: only 69 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201381'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201382'' stores EAF whose orientation is unverified: only 51 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201383'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201384'' stores EAF whose orientation is unverified: only 149
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201385'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201386'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201387'' stores EAF whose orientation is unverified: only 66 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201388'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201389'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201390'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201391'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201392'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201393'' stores EAF whose orientation is unverified: only 60 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201394'' stores EAF whose orientation is unverified: only 135
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201395'' stores EAF whose orientation is unverified: only 58 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201396'' stores EAF whose orientation is unverified: only 37 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201397'' stores EAF whose orientation is unverified: only 54 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201398'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201399'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201400'' stores EAF whose orientation is unverified: only 179
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201401'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201402'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201403'' stores EAF whose orientation is unverified: only 350
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201404'' stores EAF whose orientation is unverified: only 118
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201405'' stores EAF whose orientation is unverified: only 74 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201406'' stores EAF whose orientation is unverified: only 197
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201407'' stores EAF whose orientation is unverified: only 123
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201408'' stores EAF whose orientation is unverified: only 57 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201409'' stores EAF whose orientation is unverified: only 37 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201410'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201411'' stores EAF whose orientation is unverified: only 70 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201412'' stores EAF whose orientation is unverified: only 84 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201413'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201414'' stores EAF whose orientation is unverified: only 69 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201415'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201416'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201417'' stores EAF whose orientation is unverified: only 137
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201418'' stores EAF whose orientation is unverified: only 75 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201419'' stores EAF whose orientation is unverified: only 54 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201420'' stores EAF whose orientation is unverified: only 50 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201421'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201422'' stores EAF whose orientation is unverified: only 87 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201423'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201424'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201425'' stores EAF whose orientation is unverified: only 111
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201426'' stores EAF whose orientation is unverified: only 127
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201427'' stores EAF whose orientation is unverified: only 160
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201428'' stores EAF whose orientation is unverified: only 116
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201429'' stores EAF whose orientation is unverified: only 85 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201430'' stores EAF whose orientation is unverified: only 72 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201431'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201432'' stores EAF whose orientation is unverified: only 86 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201433'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201434'' stores EAF whose orientation is unverified: only 70 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201435'' stores EAF whose orientation is unverified: only 158
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201436'' stores EAF whose orientation is unverified: only 129
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201437'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201438'' stores EAF whose orientation is unverified: only 63 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201439'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201440'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201441'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201442'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201443'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201444'' stores EAF whose orientation is unverified: only 74 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201445'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201446'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201447'' stores EAF whose orientation is unverified: only 26 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201448'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201449'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201450'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201451'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201452'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201453'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201454'' stores EAF whose orientation is unverified: only 76 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201455'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201456'' stores EAF whose orientation is unverified: only 50 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201457'' stores EAF whose orientation is unverified: only 154
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201458'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201459'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201460'' stores EAF whose orientation is unverified: only 90 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201461'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201462'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201463'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201464'' stores EAF whose orientation is unverified: only 91 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201465'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201466'' stores EAF whose orientation is unverified: only 132
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201467'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201468'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201469'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201470'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201471'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201472'' stores EAF whose orientation is unverified: only 22 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201473'' stores EAF whose orientation is unverified: only 108
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201474'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201475'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201476'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201477'' stores EAF whose orientation is unverified: only 50 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201478'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201479'' stores EAF whose orientation is unverified: only 64 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201480'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201481'' stores EAF whose orientation is unverified: only 136
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201482'' stores EAF whose orientation is unverified: only 24 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201483'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201484'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201485'' stores EAF whose orientation is unverified: only 29 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201486'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201487'' stores EAF whose orientation is unverified: only 83 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201488'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201489'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201490'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201491'' stores EAF whose orientation is unverified: only 85 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201492'' stores EAF whose orientation is unverified: only 28 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201493'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201494'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201495'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201496'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201497'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201498'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201499'' stores EAF whose orientation is unverified: only 74 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201500'' stores EAF whose orientation is unverified: only 54 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201501'' stores EAF whose orientation is unverified: only 81 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201502'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201503'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201504'' stores EAF whose orientation is unverified: only 59 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201505'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201506'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201507'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201508'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201509'' stores EAF whose orientation is unverified: only 62 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201510'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201511'' stores EAF whose orientation is unverified: only 58 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201512'' stores EAF whose orientation is unverified: only 111
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201513'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201514'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201515'' stores EAF whose orientation is unverified: only 93 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201516'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201517'' stores EAF whose orientation is unverified: only 102
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201518'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201519'' stores EAF whose orientation is unverified: only 418
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201520'' stores EAF whose orientation is unverified: only 173
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201521'' stores EAF whose orientation is unverified: only 122
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201522'' stores EAF whose orientation is unverified: only 75 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201523'' stores EAF whose orientation is unverified: only 84 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201524'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201525'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201526'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201527'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201528'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201529'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201530'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201531'' stores EAF whose orientation is unverified: only 108
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201532'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201533'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201534'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201535'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201536'' stores EAF whose orientation is unverified: only 81 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201537'' stores EAF whose orientation is unverified: only 25 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201538'' stores EAF whose orientation is unverified: only 24 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201539'' stores EAF whose orientation is unverified: only 93 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201540'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201541'' stores EAF whose orientation is unverified: only 27 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201542'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201543'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201544'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201545'' stores EAF whose orientation is unverified: only 117
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201546'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201547'' stores EAF whose orientation is unverified: only 72 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201548'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201549'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201550'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201551'' stores EAF whose orientation is unverified: only 63 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201552'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201553'' stores EAF whose orientation is unverified: only 107
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201554'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201555'' stores EAF whose orientation is unverified: only 113
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201556'' stores EAF whose orientation is unverified: only 114
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201557'' stores EAF whose orientation is unverified: only 81 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201558'' stores EAF whose orientation is unverified: only 115
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201559'' stores EAF whose orientation is unverified: only 100
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201560'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201561'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201562'' stores EAF whose orientation is unverified: only 76 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201563'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201564'' stores EAF whose orientation is unverified: only 24 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201565'' stores EAF whose orientation is unverified: only 27 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201566'' stores EAF whose orientation is unverified: only 82 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201567'' stores EAF whose orientation is unverified: only 74 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201568'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201569'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201570'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201571'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201572'' stores EAF whose orientation is unverified: only 138
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201573'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201574'' stores EAF whose orientation is unverified: only 217
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201575'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201576'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201577'' stores EAF whose orientation is unverified: only 72 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201578'' stores EAF whose orientation is unverified: only 198
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201579'' stores EAF whose orientation is unverified: only 133
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201580'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201581'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201582'' stores EAF whose orientation is unverified: only 94 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201583'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201584'' stores EAF whose orientation is unverified: only 102
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201585'' stores EAF whose orientation is unverified: only 229
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201586'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201587'' stores EAF whose orientation is unverified: only 54 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201588'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201589'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201590'' stores EAF whose orientation is unverified: only 80 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201591'' stores EAF whose orientation is unverified: only 121
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201592'' stores EAF whose orientation is unverified: only 58 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201593'' stores EAF whose orientation is unverified: only 91 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201594'' stores EAF whose orientation is unverified: only 84 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201595'' stores EAF whose orientation is unverified: only 119
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201596'' stores EAF whose orientation is unverified: only 75 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201597'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201598'' stores EAF whose orientation is unverified: only 93 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201599'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201600'' stores EAF whose orientation is unverified: only 91 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201601'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201602'' stores EAF whose orientation is unverified: only 61 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201603'' stores EAF whose orientation is unverified: only 51 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201604'' stores EAF whose orientation is unverified: only 115
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201605'' stores EAF whose orientation is unverified: only 208
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201606'' stores EAF whose orientation is unverified: only 22 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201607'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201608'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201609'' stores EAF whose orientation is unverified: only 165
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201610'' stores EAF whose orientation is unverified: only 66 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201611'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201612'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201613'' stores EAF whose orientation is unverified: only 101
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201614'' stores EAF whose orientation is unverified: only 75 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201615'' stores EAF whose orientation is unverified: only 23 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201616'' stores EAF whose orientation is unverified: only 100
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201617'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201618'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201619'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201620'' stores EAF whose orientation is unverified: only 310
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201621'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201622'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201623'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201624'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201625'' stores EAF whose orientation is unverified: only 22 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201626'' stores EAF whose orientation is unverified: only 70 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201627'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201628'' stores EAF whose orientation is unverified: only 82 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201629'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201630'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201631'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201632'' stores EAF whose orientation is unverified: only 141
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201633'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201634'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201635'' stores EAF whose orientation is unverified: only 183
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201636'' stores EAF whose orientation is unverified: only 61 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201637'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201638'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201639'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201640'' stores EAF whose orientation is unverified: only 95 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201641'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201642'' stores EAF whose orientation is unverified: only 29 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201643'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201644'' stores EAF whose orientation is unverified: only 105
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201645'' stores EAF whose orientation is unverified: only 105
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201646'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201647'' stores EAF whose orientation is unverified: only 105
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201648'' stores EAF whose orientation is unverified: only 85 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201649'' stores EAF whose orientation is unverified: only 119
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201650'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201651'' stores EAF whose orientation is unverified: only 28 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201652'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201653'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201654'' stores EAF whose orientation is unverified: only 189
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201655'' stores EAF whose orientation is unverified: only 128
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201656'' stores EAF whose orientation is unverified: only 50 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201657'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201658'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201659'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201660'' stores EAF whose orientation is unverified: only 84 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201661'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201662'' stores EAF whose orientation is unverified: only 62 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201663'' stores EAF whose orientation is unverified: only 163
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201664'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201665'' stores EAF whose orientation is unverified: only 77 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201666'' stores EAF whose orientation is unverified: only 102
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201667'' stores EAF whose orientation is unverified: only 77 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201668'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201669'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201670'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201671'' stores EAF whose orientation is unverified: only 174
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201672'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201673'' stores EAF whose orientation is unverified: only 90 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201674'' stores EAF whose orientation is unverified: only 108
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201675'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201676'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201677'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201678'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201679'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201680'' stores EAF whose orientation is unverified: only 63 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201681'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201682'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201683'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201684'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201685'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201686'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201687'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201688'' stores EAF whose orientation is unverified: only 126
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201689'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201690'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201691'' stores EAF whose orientation is unverified: only 51 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201692'' stores EAF whose orientation is unverified: only 51 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201693'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201694'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201695'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201696'' stores EAF whose orientation is unverified: only 84 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201697'' stores EAF whose orientation is unverified: only 305
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201698'' stores EAF whose orientation is unverified: only 101
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201699'' stores EAF whose orientation is unverified: only 103
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201700'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201701'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201702'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201703'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201704'' stores EAF whose orientation is unverified: only 122
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201705'' stores EAF whose orientation is unverified: only 160
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201706'' stores EAF whose orientation is unverified: only 290
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201707'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201708'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201709'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201710'' stores EAF whose orientation is unverified: only 29 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201711'' stores EAF whose orientation is unverified: only 125
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201712'' stores EAF whose orientation is unverified: only 114
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201713'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201714'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201715'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201716'' stores EAF whose orientation is unverified: only 134
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201717'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201718'' stores EAF whose orientation is unverified: only 63 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201719'' stores EAF whose orientation is unverified: only 122
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201720'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201721'' stores EAF whose orientation is unverified: only 74 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201722'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201723'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201724'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201725'' stores EAF whose orientation is unverified: only 183
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201726'' stores EAF whose orientation is unverified: only 72 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201727'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201728'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201729'' stores EAF whose orientation is unverified: only 111
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201730'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201731'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201732'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201733'' stores EAF whose orientation is unverified: only 81 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201734'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201735'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201736'' stores EAF whose orientation is unverified: only 54 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201737'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201738'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201739'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201740'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201741'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201742'' stores EAF whose orientation is unverified: only 57 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201743'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201744'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201745'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201746'' stores EAF whose orientation is unverified: only 119
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201747'' stores EAF whose orientation is unverified: only 64 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201748'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201749'' stores EAF whose orientation is unverified: only 248
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201750'' stores EAF whose orientation is unverified: only 87 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201751'' stores EAF whose orientation is unverified: only 26 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201752'' stores EAF whose orientation is unverified: only 57 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201753'' stores EAF whose orientation is unverified: only 145
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201754'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201755'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201756'' stores EAF whose orientation is unverified: only 200
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201757'' stores EAF whose orientation is unverified: only 76 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201758'' stores EAF whose orientation is unverified: only 169
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201759'' stores EAF whose orientation is unverified: only 171
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201760'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201761'' stores EAF whose orientation is unverified: only 254
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201762'' stores EAF whose orientation is unverified: only 106
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201763'' stores EAF whose orientation is unverified: only 198
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201764'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201765'' stores EAF whose orientation is unverified: only 77 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201766'' stores EAF whose orientation is unverified: only 88 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201767'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201768'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201769'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201770'' stores EAF whose orientation is unverified: only 93 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201771'' stores EAF whose orientation is unverified: only 223
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201772'' stores EAF whose orientation is unverified: only 72 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201773'' stores EAF whose orientation is unverified: only 76 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201774'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201775'' stores EAF whose orientation is unverified: only 102
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201776'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201777'' stores EAF whose orientation is unverified: only 54 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201778'' stores EAF whose orientation is unverified: only 70 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201779'' stores EAF whose orientation is unverified: only 351
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201780'' stores EAF whose orientation is unverified: only 130
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201781'' stores EAF whose orientation is unverified: only 37 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201782'' stores EAF whose orientation is unverified: only 74 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201783'' stores EAF whose orientation is unverified: only 150
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201784'' stores EAF whose orientation is unverified: only 357
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201785'' stores EAF whose orientation is unverified: only 95 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201786'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201787'' stores EAF whose orientation is unverified: only 51 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201788'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201789'' stores EAF whose orientation is unverified: only 61 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201790'' stores EAF whose orientation is unverified: only 86 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201791'' stores EAF whose orientation is unverified: only 57 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201792'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201793'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201794'' stores EAF whose orientation is unverified: only 444
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201795'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201796'' stores EAF whose orientation is unverified: only 147
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201797'' stores EAF whose orientation is unverified: only 144
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201798'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201799'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201800'' stores EAF whose orientation is unverified: only 59 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201801'' stores EAF whose orientation is unverified: only 84 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201802'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201803'' stores EAF whose orientation is unverified: only 54 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201804'' stores EAF whose orientation is unverified: only 80 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201805'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201806'' stores EAF whose orientation is unverified: only 27 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201807'' stores EAF whose orientation is unverified: only 57 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201808'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201809'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201810'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201811'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201812'' stores EAF whose orientation is unverified: only 91 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201813'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201814'' stores EAF whose orientation is unverified: only 64 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201815'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201816'' stores EAF whose orientation is unverified: only 60 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201817'' stores EAF whose orientation is unverified: only 115
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201818'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201819'' stores EAF whose orientation is unverified: only 23 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201820'' stores EAF whose orientation is unverified: only 151
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201822'' stores EAF whose orientation is unverified: only 224
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201823'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201824'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201825'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201826'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201827'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201828'' stores EAF whose orientation is unverified: only 83 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201829'' stores EAF whose orientation is unverified: only 135
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201830'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201831'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201832'' stores EAF whose orientation is unverified: only 75 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201833'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201834'' stores EAF whose orientation is unverified: only 72 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201835'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201836'' stores EAF whose orientation is unverified: only 95 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201837'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201838'' stores EAF whose orientation is unverified: only 118
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201839'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201840'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201841'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201842'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201843'' stores EAF whose orientation is unverified: only 29 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201844'' stores EAF whose orientation is unverified: only 51 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201845'' stores EAF whose orientation is unverified: only 90 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201846'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201847'' stores EAF whose orientation is unverified: only 46 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201848'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201849'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201850'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201851'' stores EAF whose orientation is unverified: only 119
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201852'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201853'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201854'' stores EAF whose orientation is unverified: only 123
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201855'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201856'' stores EAF whose orientation is unverified: only 86 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201857'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201858'' stores EAF whose orientation is unverified: only 76 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201859'' stores EAF whose orientation is unverified: only 28 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201860'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201861'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201862'' stores EAF whose orientation is unverified: only 127
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201863'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201864'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201865'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201866'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201867'' stores EAF whose orientation is unverified: only 111
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201868'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201869'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201870'' stores EAF whose orientation is unverified: only 28 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201871'' stores EAF whose orientation is unverified: only 205
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201872'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201873'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201874'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201875'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201876'' stores EAF whose orientation is unverified: only 174
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201877'' stores EAF whose orientation is unverified: only 376
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201878'' stores EAF whose orientation is unverified: only 60 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201879'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201880'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201881'' stores EAF whose orientation is unverified: only 99 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201882'' stores EAF whose orientation is unverified: only 28 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201883'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201884'' stores EAF whose orientation is unverified: only 36 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201885'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201886'' stores EAF whose orientation is unverified: only 128
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201887'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201888'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201889'' stores EAF whose orientation is unverified: only 75 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201890'' stores EAF whose orientation is unverified: only 89 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201891'' stores EAF whose orientation is unverified: only 37 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201892'' stores EAF whose orientation is unverified: only 23 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201893'' stores EAF whose orientation is unverified: only 167
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201894'' stores EAF whose orientation is unverified: only 70 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201896'' stores EAF whose orientation is unverified: only 130
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201897'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201898'' stores EAF whose orientation is unverified: only 107
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201899'' stores EAF whose orientation is unverified: only 188
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201900'' stores EAF whose orientation is unverified: only 58 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201901'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201902'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201903'' stores EAF whose orientation is unverified: only 120
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201904'' stores EAF whose orientation is unverified: only 81 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201905'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201906'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201907'' stores EAF whose orientation is unverified: only 56 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201908'' stores EAF whose orientation is unverified: only 43 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201909'' stores EAF whose orientation is unverified: only 50 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201910'' stores EAF whose orientation is unverified: only 187
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201911'' stores EAF whose orientation is unverified: only 57 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201912'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201913'' stores EAF whose orientation is unverified: only 22 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201914'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201915'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201916'' stores EAF whose orientation is unverified: only 82 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201917'' stores EAF whose orientation is unverified: only 161
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201918'' stores EAF whose orientation is unverified: only 269
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201919'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201920'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201921'' stores EAF whose orientation is unverified: only 103
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201922'' stores EAF whose orientation is unverified: only 141
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201923'' stores EAF whose orientation is unverified: only 68 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201924'' stores EAF whose orientation is unverified: only 50 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201925'' stores EAF whose orientation is unverified: only 33 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201926'' stores EAF whose orientation is unverified: only 118
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201927'' stores EAF whose orientation is unverified: only 27 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201928'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201929'' stores EAF whose orientation is unverified: only 192
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201930'' stores EAF whose orientation is unverified: only 420
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201931'' stores EAF whose orientation is unverified: only 429
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201932'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201933'' stores EAF whose orientation is unverified: only 101
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201934'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201935'' stores EAF whose orientation is unverified: only 296
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201936'' stores EAF whose orientation is unverified: only 264
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201937'' stores EAF whose orientation is unverified: only 51 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201938'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201939'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201940'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201941'' stores EAF whose orientation is unverified: only 195
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201942'' stores EAF whose orientation is unverified: only 461
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201943'' stores EAF whose orientation is unverified: only 106
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201944'' stores EAF whose orientation is unverified: only 141
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201945'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201946'' stores EAF whose orientation is unverified: only 101
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201947'' stores EAF whose orientation is unverified: only 27 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201948'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201949'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201950'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201951'' stores EAF whose orientation is unverified: only 81 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201952'' stores EAF whose orientation is unverified: only 240
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201953'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201954'' stores EAF whose orientation is unverified: only 30 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201955'' stores EAF whose orientation is unverified: only 80 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201956'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201957'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201958'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201959'' stores EAF whose orientation is unverified: only 101
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201960'' stores EAF whose orientation is unverified: only 84 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201961'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201962'' stores EAF whose orientation is unverified: only 87 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201963'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201964'' stores EAF whose orientation is unverified: only 57 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201965'' stores EAF whose orientation is unverified: only 81 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201966'' stores EAF whose orientation is unverified: only 196
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201967'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201968'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201969'' stores EAF whose orientation is unverified: only 132
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201970'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201971'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201972'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201973'' stores EAF whose orientation is unverified: only 79 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201974'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201975'' stores EAF whose orientation is unverified: only 50 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201976'' stores EAF whose orientation is unverified: only 62 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201977'' stores EAF whose orientation is unverified: only 91 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201978'' stores EAF whose orientation is unverified: only 42 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201979'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201980'' stores EAF whose orientation is unverified: only 63 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201981'' stores EAF whose orientation is unverified: only 37 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201982'' stores EAF whose orientation is unverified: only 113
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201983'' stores EAF whose orientation is unverified: only 35 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201984'' stores EAF whose orientation is unverified: only 54 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201985'' stores EAF whose orientation is unverified: only 58 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201986'' stores EAF whose orientation is unverified: only 62 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201987'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201988'' stores EAF whose orientation is unverified: only 77 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201989'' stores EAF whose orientation is unverified: only 49 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201990'' stores EAF whose orientation is unverified: only 114
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201991'' stores EAF whose orientation is unverified: only 44 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201992'' stores EAF whose orientation is unverified: only 61 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201993'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201994'' stores EAF whose orientation is unverified: only 47 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201995'' stores EAF whose orientation is unverified: only 71 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201996'' stores EAF whose orientation is unverified: only 188
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90201997'' stores EAF whose orientation is unverified: only 32 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201998'' stores EAF whose orientation is unverified: only 28 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90201999'' stores EAF whose orientation is unverified: only 45 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202000'' stores EAF whose orientation is unverified: only 122
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202001'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202002'' stores EAF whose orientation is unverified: only 254
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202003'' stores EAF whose orientation is unverified: only 39 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202004'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202005'' stores EAF whose orientation is unverified: only 86 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202006'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202007'' stores EAF whose orientation is unverified: only 73 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202008'' stores EAF whose orientation is unverified: only 57 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202009'' stores EAF whose orientation is unverified: only 129
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202010'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202011'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202012'' stores EAF whose orientation is unverified: only 109
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202013'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202014'' stores EAF whose orientation is unverified: only 108
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202015'' stores EAF whose orientation is unverified: only 79 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202016'' stores EAF whose orientation is unverified: only 89 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202017'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202018'' stores EAF whose orientation is unverified: only 90 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202019'' stores EAF whose orientation is unverified: only 91 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202020'' stores EAF whose orientation is unverified: only 136
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202021'' stores EAF whose orientation is unverified: only 70 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202022'' stores EAF whose orientation is unverified: only 273
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202023'' stores EAF whose orientation is unverified: only 67 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202024'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202025'' stores EAF whose orientation is unverified: only 65 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202026'' stores EAF whose orientation is unverified: only 427
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202027'' stores EAF whose orientation is unverified: only 142
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202028'' stores EAF whose orientation is unverified: only 58 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202029'' stores EAF whose orientation is unverified: only 100
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202030'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202031'' stores EAF whose orientation is unverified: only 41 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202032'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202033'' stores EAF whose orientation is unverified: only 124
+  variants overlap the reference, fewer than 500'
+- 'analysis ''GCST90202034'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202035'' stores EAF whose orientation is unverified: only 31 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202036'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202037'' stores EAF whose orientation is unverified: only 38 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202038'' stores EAF whose orientation is unverified: only 81 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202039'' stores EAF whose orientation is unverified: only 34 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202040'' stores EAF whose orientation is unverified: only 40 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202041'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202042'' stores EAF whose orientation is unverified: only 48 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202043'' stores EAF whose orientation is unverified: only 24 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202044'' stores EAF whose orientation is unverified: only 53 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202045'' stores EAF whose orientation is unverified: only 52 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202046'' stores EAF whose orientation is unverified: only 20 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202047'' stores EAF whose orientation is unverified: only 93 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202048'' stores EAF whose orientation is unverified: only 64 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202049'' stores EAF whose orientation is unverified: only 21 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202050'' stores EAF whose orientation is unverified: only 55 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202051'' stores EAF whose orientation is unverified: only 77 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202052'' stores EAF whose orientation is unverified: only 95 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202053'' stores EAF whose orientation is unverified: only 86 variants
+  overlap the reference, fewer than 500'
+- 'analysis ''GCST90202054'' stores EAF whose orientation is unverified: only 194
+  variants overlap the reference, fewer than 500'
+- built with opengwasdb 0.5.0 (42850d8b49ba0ad2626f1598ccf7956375c704ec), but its
+  Analyses were resolved with opengwasdb 0.1.0 (1ecfd1e7945d4258e5b0585ae9381be5ecbe9373);
+  regenerate the candidate under this engine if the resolver changed between them
 errors: []
+acceptance:
+  recorded_at: 2026-08-18 21:35:49.487402+00:00
+  commit: 321abb119b955cdaadad589dcf3ea00219d4388e
+  resolver_engine:
+    opengwasdb_commit: 1ecfd1e7945d4258e5b0585ae9381be5ecbe9373
+    opengwasdb_version: 0.1.0
+  checks:
+    schema: passed
+    files: passed
+    reader_smoke_test: passed
+    ancestry: passed
+    effect_scale: passed
+    sd_estimation: passed
+    sparse_regions: passed_with_warnings
+  reports:
+    sparse_regions: sidecars/sparse_regions.tsv
+    filter_summary: sidecars/filter_summary.tsv
+    sd_estimation: sidecars/sd_estimation.tsv
+    ancestry: sidecars/ancestry.tsv
+    build_report: sidecars/build_report.tsv
+  warnings:
+  - store has 31986793 associations but filter summary records 31986837

@@ -2,7 +2,7 @@ store_id: OGS-00025
 label: 2023-chen-full-east-asian
 association_coverage: signals_only
 access_posture: public
-status: built
+status: validated
 derived_from: null
 created_at: '2026-08-04T09:19:22Z'
 accepted_at: null
@@ -35,3 +35,31 @@ notes: |
   generator command is the one that ran, path included, even though that config
   path went with the directory; the Chen Source Collection's release config
   lives under `resources/generators/gwas-catalog-ragged/`.
+
+  Release Erratum (issue #445, 2026-11-06): the Store this bundle records was gone.
+  Neither `/data/opengwasdb/stores/OGS-00025/store.opengwasdb` nor the filtered sources
+  its Release Manifest names under `/data/opengwasdb/metabolome-plasma-2023/` existed,
+  and the release benchmark reported the Store as `artifact_absent`. On the owner
+  decision of 2026-11-05 the Store was rebuilt in place from this unchanged bundle --
+  same Release Manifest, same Build Recipe, still observed_only -- as OGS-00006 was in
+  #332.
+
+  The sources were re-materialised first, each at the path the Release Manifest names:
+  `materialise-gwas-ssf-ragged.R` downloaded every Analysis's `source_url` from EBI
+  again and filtered it to this bundle's `sidecars/sparse_regions.tsv` and the QC panel
+  `qc-panel-hg38`, unchanged since #29. All 1,038 files came out byte-identical to the R
+  generator's. All 1,038 files then matched the sha256 the Release Manifest records, so
+  the rebuild read exactly the inputs the August build read.
+
+  The run at opengwasdb `42850d8` (0.5.0, format 0.2.0) passed `--association-coverage
+  signals_only` and `--admission-record`; its build step took 158 seconds, and it
+  archived nothing under `replaced/` because there was no Store to replace. `opengwasdb
+  info` reports format 0.2.0, `signals_only` and `observed_only`. The Store reproduces
+  the August build's counts: 1,038 Analyses, 1,176,410 variants and 7,380,542
+  associations, the Admission record with no conflicting duplicate, as in August. The
+  Validation Record is the one `register` wrote for that run, `passed_with_warnings`.
+  All 1,038 Analyses store EAF whose orientation is unverified, because only 90 to 162
+  of their variants overlap the reference panel that check uses, below the 500 it
+  requires (the class OGS-00006 carries). The record also notes that the Analyses were
+  resolved with opengwasdb 0.1.0: that is the August resolution this unchanged bundle
+  keeps. The release moves from `built` to `validated`.
