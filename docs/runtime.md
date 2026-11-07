@@ -319,11 +319,21 @@ where it reported `null`: where its sources spell one site in different case
 and name it differently, it kept the first source's name before. The other
 builders apply the same test with no option: `build-dense-vcf`,
 `build-ragged-ssf` and `extract-variant-reference` refuse such a site, naming
-it and both rsids, and report no `rsid_conflicts`. No published Store's names
-change, by the engine's own measurement: routing OGS-00003, -00004 and -00008's
-recorded sources and harvesting OGS-00006's and -00007's admitted rows finds no
-disputed key, and the other two-pass Stores (OGS-00009, OGS-00012 to -00017)
-hold no lower-case allele.
+it and both rsids, and report no `rsid_conflicts`.
+
+What was measured, all read-only. The engine (opengwas/opengwasdb#379) routed
+OGS-00003, -00004 and -00008's recorded sources and harvested OGS-00006's and
+-00007's admitted rows, and found no disputed key; the other two-pass Stores
+(OGS-00009, OGS-00012 to -00017) hold no lower-case allele. It did not measure
+the other three `build-ragged-ssf` Stores, OGS-00024, -00025 and -00026 (3,043
+Analyses), which a rebuild would now refuse at a disputed key. A routing key
+only upper-cases a site's alleles, so a disputed key needs one site spelt in
+two cases, and on 2026-11-07 none of the 46,020,914 rows of those three Stores'
+source files spelt an allele in lower case (the same scan counts OGS-00006's
+58,054,430 rows, all upper-case, as the engine's harvest did). Every variant of
+the three carries an rs identifier, so `build-ragged-ssf`'s naming by the first
+non-empty rsid, which differs from its old first-row rule only for a variant
+that rule left unnamed, renames none of them either.
 The same change normalises a compound `rsN:pos:a:b` id and the first item of a
 `;` list in the readers, so a name that is really one rsid is compared as that
 rsid.
