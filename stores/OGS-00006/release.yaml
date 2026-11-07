@@ -79,4 +79,22 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   that run, `passed_with_warnings`, with 1,400 Analyses, 12,086,463 variants, 58,054,212
   associations and the same 1,397 EAF-orientation warnings; and the release stays `validated`.
 
+  Completion under its own id (issue #224, 2026-11-07). The bundle now declares
+  completion_state: reference_completed and, after its build phase, a complete block:
+  complete-ragged against the UK Biobank EUR LD Reference Resource, the panel root
+  /data/opengwasdb/reference/ld with ancestry EUR (ld/EUR points to ukb), at 64 workers. The
+  owner chose that panel for every EUR Store on 2026-10-21. It is the one amendment ADR
+  0037''s Decision 1 allows an accepted bundle (#305): the build phase still plans exactly the
+  argv that wrote the published Store, so completing it schedules no rebuild. The
+  declaration waited on opengwas/opengwasdb#301: this Store codes SE as int8_residual, and
+  before opengwasdb v0.6.2 complete-ragged refit that model, which moved every observed SE
+  and failed the strict Observed-View Check. From v0.6.2 it keeps the source''s
+  se_coefficients. Its Analyses have no Trait position, so the regions completion retains
+  are the LD blocks each Analysis already holds enough observations in (ADR 0039). The
+  completion phase writes to store.opengwasdb.partial, runs the Observed-View Check, and
+  publishes under the release id OGS-00006-completed, replacing the Observed-Only Store at
+  /data/opengwasdb/stores/OGS-00006/store.opengwasdb once it registers. Until that run
+  finishes, the Observed-Only Store described above is the one published. Release Status
+  stays validated.
+
   '
