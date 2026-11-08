@@ -183,4 +183,4 @@ components:
     container: orchestration
     stages: [cross]
     summary: Benchmarks, spikes and repository checks.
-    paths: [tools/benchmarks/, tools/ragged-spike/, tools/check_allele_orientation.py, tools/check_changelog.py, tools/env_check.py, tools/prune_worktrees.py]
+    paths: [tools/benchmarks/, tools/ragged-spike/, tools/check_allele_orientation.py, tools/check_changelog.py, tools/check_indel_alid_spelling.py, tools/env_check.py, tools/prune_worktrees.py, tools/verify_rescued_gwas_files.py]
