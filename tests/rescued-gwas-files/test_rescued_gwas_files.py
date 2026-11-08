@@ -5,11 +5,12 @@ opengwasdb#381 reads `other_allele` as the reference of a GWAS-SSF indel, so a
 rescued copy has to keep both allele columns exactly as the raw file has them.
 The rescue then expresses the statistics on the other allele:
 
-* `beta`, `z`, `Stat` are negated, `Direction` has its signs exchanged;
+* `beta` is negated;
 * `odds_ratio` is inverted and `ci_lower`/`ci_upper` are inverted and swapped;
-* `effect_allele_frequency` is complemented, `MinFreq`/`MaxFreq` complemented
-  and exchanged;
-* `hm_code` and every other column are byte-identical.
+* `effect_allele_frequency` is complemented;
+* `hm_code`, the unharmonised study columns (`MinFreq`, `MaxFreq`, `Direction`,
+  `FreqSE`) and every other column are byte-identical;
+* a column the rescue has not classified refuses the file.
 
 A missing value (`NA`, empty) stays what it was. `flip_frequency` is untouched.
 """
@@ -20,6 +21,7 @@ import sys
 import tempfile
 import unittest
 from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
 
 from manifest_generation.providers.gwas_catalog.create_rescued_gwas_files import rescue_file
@@ -42,12 +44,13 @@ OR_ROWS = [
     ["1", "200", "CTA", "C", "-0.5", "0.2", "0.15", "0.5", "rs2", "0.8", "0.5", "9", "lo", "0.625", "10", "1_200_C_CTA"],
     ["1", "300", "T", "C", "NA", "0.2", "0.2", "0.5", "rs3", "NA", "", "9", "rs", "NA", "11", "1_300_C_T"],
 ]
-ALL_HDR = ["chromosome", "base_pair_location", "effect_allele", "other_allele", "beta",
-           "standard_error", "effect_allele_frequency", "p_value", "z", "Stat", "Var",
-           "FreqSE", "MinFreq", "MaxFreq", "Direction", "hm_code"]
-ALL_ROWS = [
-    ["1", "1", "A", "G", "0.1", "0.1", "0.3", "0.5", "1.5", "47.5", "772.3", "0.02", "0.25", "0.4", "?+-", "11"],
-    ["1", "2", "A", "G", "0.1", "0.1", "0.3", "0.5", "NA", "", "5", "NA", "NA", "0.4", "???+", "11"],
+# Study-only columns the harmoniser never flipped stay exactly as raw (#455 review).
+STUDY_HDR = ["chromosome", "base_pair_location", "effect_allele", "other_allele", "beta",
+             "standard_error", "effect_allele_frequency", "p_value", "FreqSE", "MinFreq",
+             "MaxFreq", "Direction", "n", "hm_code"]
+STUDY_ROWS = [
+    ["1", "1", "A", "G", "0.1", "0.1", "0.3", "0.5", "0.02", "0.25", "0.4", "?+-", "9", "11"],
+    ["1", "2", "A", "G", "0.1", "0.1", "0.3", "0.5", "NA", "NA", "0.4", "???+", "9", "10"],
 ]
 
 
@@ -69,9 +72,9 @@ class SwapAllelesKeepsLabels(unittest.TestCase):
         self.addCleanup(self._tmp.cleanup)
         self.tmp = Path(self._tmp.name)
 
-    def rescue(self, hdr, rows, recommendation="swap_alleles", newline="\n"):
+    def rescue(self, hdr, rows, recommendation="swap_alleles"):
         raw, out = self.tmp / "raw.tsv.gz", self.tmp / "out.tsv.gz"
-        write_gz(raw, hdr, rows, newline)
+        write_gz(raw, hdr, rows)
         rescue_file(raw, out, recommendation)
         got_hdr, got_rows = read_gz(out)
         self.assertEqual(got_hdr, hdr)
@@ -108,29 +111,34 @@ class SwapAllelesKeepsLabels(unittest.TestCase):
         self.assertEqual((g("odds_ratio")[2], g("beta")[2]), ("NA", "NA"))
         self.assertEqual(g("beta")[:2], ["-0.5", "0.5"])
 
-    def test_signed_and_frequency_companions(self):
-        got = self.rescue(ALL_HDR, ALL_ROWS)
-        g = lambda n: self.col(ALL_HDR, got, n)
-        self.assertEqual(g("z"), ["-1.5", "NA"])
-        self.assertEqual(g("Stat"), ["-47.5", ""])
-        self.assertEqual(g("Direction"), ["?-+", "???-"])
-        # new MinFreq = 1 - old MaxFreq, new MaxFreq = 1 - old MinFreq
-        self.assertEqual(Decimal(g("MinFreq")[0]), Decimal("0.6"))
-        self.assertEqual(Decimal(g("MaxFreq")[0]), Decimal("0.75"))
-        self.assertEqual(g("MinFreq")[1], "0.6")  # from the old MaxFreq 0.4
-        self.assertEqual(g("FreqSE"), ["0.02", "NA"])
-        self.assertEqual(g("MaxFreq")[1], "NA")   # old MinFreq missing
+    def test_study_only_columns_stay_exactly_as_raw(self):
+        """MinFreq/MaxFreq/Direction follow the study's allele, not the harmonised one."""
+        got = self.rescue(STUDY_HDR, STUDY_ROWS)
+        for name in ("FreqSE", "MinFreq", "MaxFreq", "Direction", "n", "hm_code"):
+            self.assertEqual(self.col(STUDY_HDR, got, name), self.col(STUDY_HDR, STUDY_ROWS, name), name)
+        self.assertEqual(self.col(STUDY_HDR, got, "beta"), ["-0.1", "-0.1"])
 
     def test_hm_code_and_unlisted_columns_are_byte_identical(self):
-        changed = {"beta", "effect_allele_frequency", "z", "Stat", "Direction", "MinFreq", "MaxFreq"}
-        for hdr, rows in ((BETA_HDR, BETA_ROWS), (ALL_HDR, ALL_ROWS)):
+        for hdr, rows, changed in (
+            (BETA_HDR, BETA_ROWS, {"beta", "effect_allele_frequency"}),
+            (STUDY_HDR, STUDY_ROWS, {"beta", "effect_allele_frequency"}),
+            (OR_HDR, OR_ROWS, {"beta", "effect_allele_frequency", "odds_ratio", "ci_upper", "ci_lower"}),
+        ):
             got = self.rescue(hdr, rows)
             for name in hdr:
                 if name not in changed:
                     self.assertEqual(self.col(hdr, got, name), self.col(hdr, rows, name), name)
-        got = self.rescue(OR_HDR, OR_ROWS)
-        for name in set(OR_HDR) - {"beta", "effect_allele_frequency", "odds_ratio", "ci_upper", "ci_lower"}:
-            self.assertEqual(self.col(OR_HDR, got, name), self.col(OR_HDR, OR_ROWS, name), name)
+
+    def test_complement_is_exact_for_any_digits(self):
+        row = list(BETA_ROWS[0])
+        row[BETA_HDR.index("effect_allele_frequency")] = "1e-30"
+        got = self.rescue(BETA_HDR, [row])
+        self.assertEqual(Fraction(self.col(BETA_HDR, got, "effect_allele_frequency")[0]),
+                         1 - Fraction("1e-30"))
+        row[BETA_HDR.index("effect_allele_frequency")] = "0.123456789012345678901234567890123"
+        got = self.rescue(BETA_HDR, [row])
+        self.assertEqual(Fraction(self.col(BETA_HDR, got, "effect_allele_frequency")[0]),
+                         1 - Fraction("0.123456789012345678901234567890123"))
 
     def test_flip_frequency_is_unchanged(self):
         got = self.rescue(BETA_HDR, BETA_ROWS, "flip_frequency")
@@ -140,11 +148,73 @@ class SwapAllelesKeepsLabels(unittest.TestCase):
         self.assertEqual(self.col(BETA_HDR, got, "effect_allele_frequency"),
                          ["0.7", "0.85", "0.001", "", "NA"])
 
-    def test_an_unreadable_statistic_stops_the_rescue(self):
-        bad = [list(BETA_ROWS[0])]
-        bad[0][BETA_HDR.index("effect_allele_frequency")] = "oops"
+    def refuses(self, hdr, rows, **edit):
+        rows = [list(r) for r in rows[:1]]
+        for name, value in edit.items():
+            rows[0][hdr.index(name)] = value
         with self.assertRaises(ValueError):
-            self.rescue(BETA_HDR, bad)
+            self.rescue(hdr, rows)
+
+    def test_an_unreadable_statistic_stops_the_rescue(self):
+        self.refuses(BETA_HDR, BETA_ROWS, effect_allele_frequency="oops")
+        self.refuses(BETA_HDR, BETA_ROWS, beta="oops")
+
+    def test_inf_and_nan_stop_the_rescue(self):
+        for bad in ("inf", "-inf", "NaN", "nan"):
+            self.refuses(BETA_HDR, BETA_ROWS, beta=bad)
+            self.refuses(BETA_HDR, BETA_ROWS, effect_allele_frequency=bad)
+            self.refuses(OR_HDR, OR_ROWS, odds_ratio=bad)
+
+    def test_a_frequency_outside_zero_one_stops_the_rescue(self):
+        self.refuses(BETA_HDR, BETA_ROWS, effect_allele_frequency="1.2")
+        self.refuses(BETA_HDR, BETA_ROWS, effect_allele_frequency="-0.1")
+
+    def test_a_non_positive_odds_ratio_or_bound_stops_the_rescue(self):
+        for bad in ("0", "-1.5"):
+            self.refuses(OR_HDR, OR_ROWS, odds_ratio=bad)
+            self.refuses(OR_HDR, OR_ROWS, ci_lower=bad)
+
+    def test_a_wrong_field_count_stops_the_rescue(self):
+        raw, out = self.tmp / "raw.tsv.gz", self.tmp / "out.tsv.gz"
+        write_gz(raw, BETA_HDR, [BETA_ROWS[0][:-1]])
+        with self.assertRaises(ValueError):
+            rescue_file(raw, out, "swap_alleles")
+
+    def test_a_file_with_ci_but_no_odds_ratio_is_refused(self):
+        hdr = [h for h in OR_HDR if h != "odds_ratio"]
+        rows = [[v for h, v in zip(OR_HDR, r) if h != "odds_ratio"] for r in OR_ROWS]
+        with self.assertRaises(ValueError):
+            self.rescue(hdr, rows)
+
+    def test_a_column_in_neither_list_is_refused(self):
+        """A column the rescue has not classified might depend on the effect allele."""
+        for extra in ("zscore", "hm_beta", "OR", "z", "Stat", "ref_allele"):
+            hdr = BETA_HDR + [extra]
+            rows = [r + ["1"] for r in BETA_ROWS]
+            with self.assertRaises(ValueError, msg=extra):
+                self.rescue(hdr, rows)
+
+    def test_derived_base_without_manifest_out_is_refused(self):
+        """A scratch run must not record its checksums in the live manifest.
+
+        Everything the run could write is pointed into the temporary directory
+        and the per-study work is stubbed, so a failure of this test cannot touch
+        the real derived tree.
+        """
+        from unittest import mock
+
+        from manifest_generation.providers.gwas_catalog import create_rescued_gwas_files as mod
+
+        live = self.tmp / "live"
+        calls = []
+        with mock.patch.object(mod, "DERIVED_BASE", live), \
+             mock.patch.object(mod, "MANIFEST_OUT", live / "manifest.tsv"), \
+             mock.patch.object(mod, "ProcessPoolExecutor", side_effect=lambda *a, **k: calls.append(1)), \
+             self.assertRaises(SystemExit) as raised:
+            mod.main(["--derived-base", str(self.tmp / "scratch")])
+        self.assertNotEqual(raised.exception.code, 0)
+        self.assertEqual(calls, [])
+        self.assertFalse((live / "manifest.tsv").exists())
 
 
 if __name__ == "__main__":

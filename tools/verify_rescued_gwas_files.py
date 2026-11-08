@@ -1,23 +1,20 @@
 #!/usr/bin/env python3
 """Verify every row of the rescued `swap_alleles` copies against their raw files (#455).
 
-For each of the swap_alleles studies in `stores/OGS-00011/sidecars/allele-check/summary.tsv`
-this reads the raw GWAS-SSF file and the rescued copy side by side and checks, on
-every row, that
+For each swap_alleles study in `stores/OGS-00011/sidecars/allele-check/summary.tsv`
+(less `EXCLUDED_SWAP_STUDIES`) this reads the raw GWAS-SSF file and the rescued copy
+side by side and checks, on every row, that
 
 * the header is identical and the row counts are equal;
-* `effect_allele`, `other_allele` and `hm_code` are byte-identical;
-* each statistic is the raw value transformed: `beta`/`z`/`Stat` negated,
-  `odds_ratio` inverted, `ci_lower`/`ci_upper` inverted and exchanged,
-  `effect_allele_frequency` complemented, `MinFreq`/`MaxFreq` complemented and
-  exchanged, `Direction` with `+`/`-` exchanged -- and a missing value is
+* `beta` is negated, `odds_ratio` inverted, `ci_lower`/`ci_upper` inverted and
+  exchanged, `effect_allele_frequency` complemented -- and a missing value is
   byte-identical to the raw one;
-* every other column is byte-identical.
+* every other column -- the alleles, `hm_code`, and the unharmonised study columns
+  (`MinFreq`, `MaxFreq`, `Direction`, ...) -- is byte-identical.
 
-It does not reuse the rescue's own transformation: the expected values are
-recomputed here (exact decimal arithmetic for frequencies and negation).
-Writes a TSV receipt with per-file counts and the rescued copy's sha256, and
-exits non-zero on any mismatch.
+It does not reuse the rescue's transformation: the expected values are recomputed
+here, in exact rational arithmetic for negation and complements. Writes a TSV receipt
+with per-file counts and the rescued copy's sha256, and exits non-zero on any mismatch.
 
   pixi run -e dev python3 tools/verify_rescued_gwas_files.py \
       --derived-base DIR --receipt receipt.tsv
@@ -30,15 +27,16 @@ import gzip
 import hashlib
 import sys
 from concurrent.futures import ProcessPoolExecutor
-from decimal import Decimal
+from fractions import Fraction
 from pathlib import Path
+
+from manifest_generation.providers.gwas_catalog.create_rescued_gwas_files import EXCLUDED_SWAP_STUDIES
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 SUMMARY_TSV = REPO_ROOT / "stores/OGS-00011/sidecars/allele-check/summary.tsv"
 SOURCE_READINESS_TSV = REPO_ROOT / "stores/OGS-00011/sidecars/source_readiness.tsv"
 RAW_BASE = Path("/data/opengwasdb/raw/ebi-gwas-catalog")
 MISSING = {"", "NA"}
-NEGATED = ("beta", "z", "Stat")
 MAX_REPORTED = 5
 
 
@@ -46,19 +44,10 @@ def _miss(v: str) -> bool:
     return v.strip() in MISSING
 
 
-def expect_negated(raw: str) -> str | None:
-    """None means 'any string equal as a number to -raw'; missing is returned as is."""
-    return raw if _miss(raw) else None
-
-
 def check_row(hdr: list[str], raw: list[str], new: list[str]) -> list[str]:
     bad: list[str] = []
     ix = {n: i for i, n in enumerate(hdr)}
-    handled: set[str] = set()
-
-    def same(name: str, want: str) -> None:
-        if new[ix[name]] != want:
-            bad.append(f"{name}: {new[ix[name]]!r} != {want!r} (raw {raw[ix[name]]!r})")
+    transformed = {"beta", "odds_ratio", "ci_lower", "ci_upper", "effect_allele_frequency"}
 
     def num_equal(name: str, src: str, fn) -> None:
         got = new[ix[name]]
@@ -67,39 +56,28 @@ def check_row(hdr: list[str], raw: list[str], new: list[str]) -> list[str]:
                 bad.append(f"{name}: missing {src!r} became {got!r}")
             return
         try:
-            ok = fn(Decimal(got), Decimal(src))
+            ok = fn(Fraction(got), Fraction(src))
         except Exception:
             ok = False
         if not ok:
             bad.append(f"{name}: {got!r} is not the transform of raw {src!r}")
 
-    for name in ("effect_allele", "other_allele", "hm_code"):
-        same(name, raw[ix[name]])
-        handled.add(name)
-    for name in NEGATED:
-        if name in ix:
-            num_equal(name, raw[ix[name]], lambda g, s: g == -s)
-            handled.add(name)
+    def inverse(g: Fraction, s: Fraction) -> bool:
+        # the rescue writes repr(1/x) of the float: compare as floats
+        return float(g) == 1.0 / float(s)
+
+    if "beta" in ix:
+        num_equal("beta", raw[ix["beta"]], lambda g, s: g == -s)
     if "effect_allele_frequency" in ix:
-        num_equal("effect_allele_frequency", raw[ix["effect_allele_frequency"]], lambda g, s: g == Decimal(1) - s)
-        handled.add("effect_allele_frequency")
+        num_equal("effect_allele_frequency", raw[ix["effect_allele_frequency"]], lambda g, s: g == 1 - s)
     if "odds_ratio" in ix:
-        num_equal("odds_ratio", raw[ix["odds_ratio"]], lambda g, s: float(g) == 1.0 / float(s))
-        handled.add("odds_ratio")
+        num_equal("odds_ratio", raw[ix["odds_ratio"]], inverse)
     if "ci_lower" in ix:
-        num_equal("ci_lower", raw[ix["ci_upper"]], lambda g, s: float(g) == 1.0 / float(s))
-        num_equal("ci_upper", raw[ix["ci_lower"]], lambda g, s: float(g) == 1.0 / float(s))
-        handled |= {"ci_lower", "ci_upper"}
-    if "MinFreq" in ix:
-        num_equal("MinFreq", raw[ix["MaxFreq"]], lambda g, s: g == Decimal(1) - s)
-        num_equal("MaxFreq", raw[ix["MinFreq"]], lambda g, s: g == Decimal(1) - s)
-        handled |= {"MinFreq", "MaxFreq"}
-    if "Direction" in ix:
-        same("Direction", raw[ix["Direction"]].translate(str.maketrans("+-", "-+")))
-        handled.add("Direction")
+        num_equal("ci_lower", raw[ix["ci_upper"]], inverse)
+        num_equal("ci_upper", raw[ix["ci_lower"]], inverse)
     for name in hdr:
-        if name not in handled:
-            same(name, raw[ix[name]])
+        if name not in transformed and new[ix[name]] != raw[ix[name]]:
+            bad.append(f"{name}: {new[ix[name]]!r} != raw {raw[ix[name]]!r}")
     return bad
 
 
@@ -158,7 +136,8 @@ def main(argv: list[str] | None = None) -> int:
 
     with open(SUMMARY_TSV, newline="") as f:
         ids = [r["analysis_id"] for r in csv.DictReader(f, delimiter="\t")
-               if r["gate_reason"] == "eaf_orientation" and r["recommendation"] == "swap_alleles"]
+               if r["gate_reason"] == "eaf_orientation" and r["recommendation"] == "swap_alleles"
+               and r["analysis_id"] not in EXCLUDED_SWAP_STUDIES]
     with open(SOURCE_READINESS_TSV, newline="") as f:
         src = {r["analysis_id"]: r for r in csv.DictReader(f, delimiter="\t")}
     jobs = []

@@ -5,7 +5,7 @@ Rescues 91 studies from OGS-00011 that failed the EAF orientation gate:
 - 58 studies where correlation with comparison traits confirmed alleles are swapped:
   keeps both allele columns and `hm_code` exactly as the raw file has them (so
   `other_allele` stays the reference, which opengwasdb#381 reads for indels) and
-  rewrites the statistics instead (`SwapStatistics`; issue #455).
+  rewrites the harmonised statistics instead (unharmonised study columns stay as raw) (`SwapStatistics`; issue #455).
 - 33 studies where correlation confirmed alleles/beta are correct and only frequency was inverted:
   transforms `effect_allele_frequency` to `1.0 - EAF`.
 
@@ -29,7 +29,7 @@ import math
 import os
 import shutil
 import time
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, localcontext
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
@@ -57,6 +57,13 @@ MANIFEST_COLUMNS = [
     "seconds",
     "error",
 ]
+
+
+#: swap_alleles studies left out until the owner decides (review of #455): their `beta`
+#: (-9/9 by hm_code) and SE (1000) are dummies by their own yaml, so the verdict (r = -0.445
+#: over 62 variants) rests on no real effects. They are neither regenerated nor replaced; their
+#: manifest rows stay as they are.
+EXCLUDED_SWAP_STUDIES = frozenset({"GCST90275159", "GCST90275160"})
 
 
 def sha256_file(path: Path) -> str:
@@ -95,13 +102,16 @@ def _negate(value: str) -> str:
 
 
 def _complement(value: str) -> str:
-    """1 - value, exactly (decimal arithmetic); missing stays missing."""
+    """1 - value, exactly: the precision follows the input's own digits."""
     if _is_missing(value):
         return value
     number = _decimal(value)
     if not number.is_finite() or not Decimal(0) <= number <= Decimal(1):
         raise ValueError(f"frequency {value!r} is not in [0, 1]")
-    return format(Decimal(1) - number, "f")
+    _, digits, exponent = number.as_tuple()
+    with localcontext() as ctx:
+        ctx.prec = len(digits) + abs(int(exponent)) + 5
+        return format(Decimal(1) - number, "f")
 
 
 def _invert(value: str) -> str:
@@ -114,29 +124,37 @@ def _invert(value: str) -> str:
     return repr(1.0 / number)
 
 
-def _flip_direction(value: str) -> str:
-    """Exchange `+` and `-` in a per-cohort direction string (`?`/`0` stay)."""
-    return value.translate(str.maketrans("+-", "-+"))
-
-
 class SwapStatistics:
-    """Express a GWAS-SSF row's statistics on the other allele, labels untouched.
+    """Express a GWAS-SSF row's harmonised statistics on the other allele, labels untouched.
 
-    Every statistic that depends on which allele is the effect allele:
+    The EBI harmoniser flips `beta`, `odds_ratio`, its interval and
+    `effect_allele_frequency` along with the alleles (hm_code 11/6/13). Those,
+    and only those, are rewritten:
 
-    * negated: `beta`, `z`, `Stat` (the signed score statistic; `Var` is not);
-    * inverted: `odds_ratio`;
-    * `ci_lower`/`ci_upper` alongside an `odds_ratio` are on its scale:
+    * negated: `beta`;
+    * inverted: `odds_ratio`; `ci_lower`/`ci_upper` alongside it are on its scale:
       new lower = 1 / old upper, new upper = 1 / old lower;
-    * complemented: `effect_allele_frequency`;
-    * `MinFreq`/`MaxFreq`: new min = 1 - old max, new max = 1 - old min;
-    * `Direction`: `+` and `-` exchanged.
+    * complemented: `effect_allele_frequency`.
 
-    Allele columns, `hm_code`, `ref_allele` (a label naming the raw allele
-    roles, which stay) and every other column pass through as they are.
+    Allele columns, `hm_code` and the direction-free columns pass through as
+    they are. So do the **unharmonised study columns** (`MinFreq`, `MaxFreq`,
+    `Direction`, `FreqSE`): the harmoniser never flipped them, so they follow
+    the study's own effect allele on every row whatever its `hm_code`, and one
+    transformation would put them on the wrong allele for the rows it did not
+    flip (in raw GCST90446775, `[MinFreq, MaxFreq]` brackets the EAF on
+    4,503,340 of 4,503,368 rows with hm_code 10/5/12 but 26,727 of 3,756,738
+    with 11/6/13; `Direction` agrees with `beta` in 99.98% and 0.01% of the
+    same rows). A column in none of the three lists refuses the file: it might
+    depend on the effect allele.
     """
 
-    NEGATED = ("beta", "z", "Stat")
+    TRANSFORMED = frozenset({"beta", "odds_ratio", "ci_lower", "ci_upper", "effect_allele_frequency"})
+    DIRECTION_FREE = frozenset({
+        "chromosome", "base_pair_location", "effect_allele", "other_allele", "standard_error",
+        "p_value", "variant_id", "variant_id_when_present", "n", "hm_coordinate_conversion",
+        "hm_code", "rsid", "rs_id", "locus_id", "info",
+    })
+    UNHARMONISED = frozenset({"MinFreq", "MaxFreq", "Direction", "FreqSE"})
 
     def __init__(self, hdr: list[str]) -> None:
         self.hdr = hdr
@@ -144,13 +162,18 @@ class SwapStatistics:
         for required in ("effect_allele", "other_allele"):
             if required not in self.idx:
                 raise ValueError(f"no {required} column")
+        known = self.TRANSFORMED | self.DIRECTION_FREE | self.UNHARMONISED
+        unknown = [h for h in hdr if h not in known]
+        if unknown:
+            raise ValueError(
+                f"columns {unknown} are not classified as harmonised, direction-free or "
+                "unharmonised: no clear transformation"
+            )
         has_ci = "ci_lower" in self.idx or "ci_upper" in self.idx
         if has_ci and "odds_ratio" not in self.idx:
             raise ValueError("ci_lower/ci_upper without odds_ratio: scale unknown, no clear transformation")
         if ("ci_lower" in self.idx) != ("ci_upper" in self.idx):
             raise ValueError("only one of ci_lower/ci_upper present")
-        if ("MinFreq" in self.idx) != ("MaxFreq" in self.idx):
-            raise ValueError("only one of MinFreq/MaxFreq present")
         self.width = len(hdr)
 
     def row(self, parts: list[str]) -> list[str]:
@@ -158,9 +181,8 @@ class SwapStatistics:
             raise ValueError(f"row has {len(parts)} fields, header {self.width}")
         out = list(parts)
         i = self.idx
-        for name in self.NEGATED:
-            if name in i:
-                out[i[name]] = _negate(parts[i[name]])
+        if "beta" in i:
+            out[i["beta"]] = _negate(parts[i["beta"]])
         if "odds_ratio" in i:
             out[i["odds_ratio"]] = _invert(parts[i["odds_ratio"]])
         if "ci_lower" in i:
@@ -168,11 +190,6 @@ class SwapStatistics:
             out[i["ci_upper"]] = _invert(parts[i["ci_lower"]])
         if "effect_allele_frequency" in i:
             out[i["effect_allele_frequency"]] = _complement(parts[i["effect_allele_frequency"]])
-        if "MinFreq" in i:
-            out[i["MinFreq"]] = _complement(parts[i["MaxFreq"]])
-            out[i["MaxFreq"]] = _complement(parts[i["MinFreq"]])
-        if "Direction" in i:
-            out[i["Direction"]] = _flip_direction(parts[i["Direction"]])
         return out
 
 
@@ -269,6 +286,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--base-manifest", type=Path, default=MANIFEST_OUT,
                         help="manifest whose rows a partial run keeps for the studies it does not touch")
     args = parser.parse_args(argv)
+    if args.derived_base != DERIVED_BASE and args.manifest_out == MANIFEST_OUT:
+        parser.error("--derived-base needs --manifest-out: a scratch run must not overwrite the live manifest")
 
     # 1. Read targets from summary.tsv
     with open(SUMMARY_TSV, "r", encoding="utf-8") as f:
@@ -280,6 +299,10 @@ def main(argv: list[str] | None = None) -> None:
     all_targets = dict(targets)
     if args.only:
         targets = {k: v for k, v in targets.items() if v == args.only}
+    excluded = sorted(k for k in targets if k in EXCLUDED_SWAP_STUDIES and targets[k] == "swap_alleles")
+    targets = {k: v for k, v in targets.items() if k not in excluded}
+    if excluded:
+        print(f"Left out pending the owner (dummy effects): {', '.join(excluded)}")
 
     print(f"Target studies to rescue: {len(targets)} (swap_alleles: {sum(v == 'swap_alleles' for v in targets.values())}, flip_frequency: {sum(v == 'flip_frequency' for v in targets.values())})")
 
@@ -305,7 +328,7 @@ def main(argv: list[str] | None = None) -> None:
             print(f"[{i}/{len(targets)}] {res['analysis_id']} {res['error']} ({res['data_bytes']} bytes in {res['seconds']}s)", flush=True)
 
     # 4. A partial run keeps the other studies' rows exactly as they were.
-    if args.only:
+    if args.only or excluded:
         with open(args.base_manifest, "r", encoding="utf-8", newline="") as f:
             kept = [r for r in csv.DictReader(f, delimiter="\t") if r["analysis_id"] not in targets]
         unknown = {r["analysis_id"] for r in kept} - set(all_targets)

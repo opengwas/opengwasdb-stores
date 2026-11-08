@@ -8,10 +8,10 @@ a code-10 or code-11 row and spells that indel's ALID reference first:
 itself (not through the engine's `canonical_alid`), and compares it with the indel ALIDs of a
 Store built from the file under test (the raw file, or a rescued copy of it).
 
-  pixi run -e dev python3 check_indel_alid_spelling.py RAW.h.tsv.gz STORE.opengwasdb \
+  pixi run -e dev python3 tools/check_indel_alid_spelling.py RAW.h.tsv.gz STORE.opengwasdb \
       --label regen --json out.json
 
-Run from the engine's environment (it imports `opengwasdb`); exits 1 when any raw indel is not
+Reads the Store's variants.tsv.gz, so it imports nothing from the engine; exits 1 when any raw indel is not
 spelt reference-first in the Store, or the Store holds an indel the raw file does not.
 """
 from __future__ import annotations
@@ -22,7 +22,6 @@ import json
 import sys
 from pathlib import Path
 
-from opengwasdb.variants.axis import iter_variant_records, variant_table_path
 
 ACGT = frozenset("ACGT")
 
@@ -47,11 +46,20 @@ def raw_indels(raw: Path) -> tuple[set[str], set[str], int]:
 
 
 def store_indels(store: Path) -> set[str]:
+    """The indel ALIDs of a Store's `variants.tsv.gz` (BGZF, so `gzip` reads it).
+
+    Columns: chromosome, position, variant_index, effect_allele, other_allele, alid, ...;
+    `#` lines are the header (as `src/ogstores/audit.py` reads it).
+    """
     out: set[str] = set()
-    for rec in iter_variant_records(variant_table_path(store)):
-        _, _, a1, a2 = rec.alid.split(":")
-        if len(a1) != len(a2):
-            out.add(rec.alid)
+    with gzip.open(store / "variants.tsv.gz", "rt", encoding="utf-8") as fh:
+        for line in fh:
+            if line.startswith("#") or not line.strip():
+                continue
+            alid = line.split("\t")[5]
+            _, _, a1, a2 = alid.split(":")
+            if len(a1) != len(a2):
+                out.add(alid)
     return out
 
 
