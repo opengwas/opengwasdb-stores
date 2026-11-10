@@ -1,0 +1,3 @@
+analysis_id	old_status	old_sha256	new_status	reason
+GCST90275159	already_present	3a03fa344b468a474ef4f1f4a32b1b52abc217c7bfbaa5b12fda2188aced4148	excluded	excluded from rescue (owner, 10 Nov 2026): dummy beta (-9/9 by hm_code) and SE (1000) per its yaml, so the swap_alleles verdict (r = -0.445 over 62 variants) rests on no real effects
+GCST90275160	already_present	1f44c8324eea68c5d3d37cd0e867987016bb1f2d2d1ebe7d65fb9e2e92c5b09a	excluded	excluded from rescue (owner, 10 Nov 2026): dummy beta (-9/9 by hm_code) and SE (1000) per its yaml, so the swap_alleles verdict (r = -0.445 over 62 variants) rests on no real effects

@@ -59,11 +59,28 @@ MANIFEST_COLUMNS = [
 ]
 
 
-#: swap_alleles studies left out until the owner decides (review of #455): their `beta`
-#: (-9/9 by hm_code) and SE (1000) are dummies by their own yaml, so the verdict (r = -0.445
-#: over 62 variants) rests on no real effects. They are neither regenerated nor replaced; their
-#: manifest rows stay as they are.
+#: swap_alleles studies excluded from the rescue for good (owner, 10 Nov 2026; review of #455).
+#: GCST90275159 and GCST90275160 carry dummy effects by their own yaml: `beta` is -9 or 9 by
+#: hm_code and the standard error is 1000, so their swap_alleles verdict (r = -0.445 over 62
+#: variants) rests on no real effects. They are never regenerated or replaced; the rescue
+#: manifest marks them `excluded` with no file, checksum or size, so no reader takes them as
+#: rescued. Their current derived copies stay on disk, unused.
 EXCLUDED_SWAP_STUDIES = frozenset({"GCST90275159", "GCST90275160"})
+EXCLUDED_STATUS = "excluded"
+EXCLUDED_REASON = (
+    "excluded from rescue (owner, 10 Nov 2026): dummy beta (-9/9 by hm_code) and SE (1000) per its "
+    "yaml, so the swap_alleles verdict (r = -0.445 over 62 variants) rests on no real effects"
+)
+
+
+def excluded_row(row: dict[str, str]) -> dict[str, str]:
+    """The manifest row of an excluded study: described, never pointing at a file."""
+    out = {c: "" for c in MANIFEST_COLUMNS}
+    for c in ("analysis_id", "publication_pmid", "trait", "study_design", "sample_size", "data_url", "yaml_url"):
+        out[c] = row.get(c, "")
+    out["status"] = EXCLUDED_STATUS
+    out["error"] = EXCLUDED_REASON
+    return out
 
 
 def sha256_file(path: Path) -> str:
@@ -299,10 +316,10 @@ def main(argv: list[str] | None = None) -> None:
     all_targets = dict(targets)
     if args.only:
         targets = {k: v for k, v in targets.items() if v == args.only}
-    excluded = sorted(k for k in targets if k in EXCLUDED_SWAP_STUDIES and targets[k] == "swap_alleles")
+    excluded = sorted(k for k in all_targets if k in EXCLUDED_SWAP_STUDIES and all_targets[k] == "swap_alleles")
     targets = {k: v for k, v in targets.items() if k not in excluded}
     if excluded:
-        print(f"Left out pending the owner (dummy effects): {', '.join(excluded)}")
+        print(f"Excluded from the rescue (dummy effects, owner 10 Nov): {', '.join(excluded)}")
 
     print(f"Target studies to rescue: {len(targets)} (swap_alleles: {sum(v == 'swap_alleles' for v in targets.values())}, flip_frequency: {sum(v == 'flip_frequency' for v in targets.values())})")
 
@@ -311,7 +328,7 @@ def main(argv: list[str] | None = None) -> None:
         source_rows = {
             r["analysis_id"]: r
             for r in csv.DictReader(f, delimiter="\t")
-            if r["analysis_id"] in targets
+            if r["analysis_id"] in targets or r["analysis_id"] in excluded
         }
 
     # 3. Process studies in parallel
@@ -328,11 +345,13 @@ def main(argv: list[str] | None = None) -> None:
             print(f"[{i}/{len(targets)}] {res['analysis_id']} {res['error']} ({res['data_bytes']} bytes in {res['seconds']}s)", flush=True)
 
     # 4. A partial run keeps the other studies' rows exactly as they were.
-    if args.only or excluded:
+    results.extend(excluded_row(source_rows[aid]) for aid in excluded)
+    if args.only:
         with open(args.base_manifest, "r", encoding="utf-8", newline="") as f:
-            kept = [r for r in csv.DictReader(f, delimiter="\t") if r["analysis_id"] not in targets]
+            kept = [r for r in csv.DictReader(f, delimiter="\t")
+                    if r["analysis_id"] not in targets and r["analysis_id"] not in excluded]
         unknown = {r["analysis_id"] for r in kept} - set(all_targets)
-        missing = set(all_targets) - set(targets) - {r["analysis_id"] for r in kept}
+        missing = set(all_targets) - set(targets) - set(excluded) - {r["analysis_id"] for r in kept}
         if unknown or missing:
             raise SystemExit(f"base manifest disagrees with summary.tsv: unknown={sorted(unknown)} missing={sorted(missing)}")
         results.extend(kept)

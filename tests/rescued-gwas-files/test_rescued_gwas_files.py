@@ -16,6 +16,7 @@ A missing value (`NA`, empty) stays what it was. `flip_frequency` is untouched.
 """
 from __future__ import annotations
 
+import csv
 import gzip
 import sys
 import tempfile
@@ -193,6 +194,55 @@ class SwapAllelesKeepsLabels(unittest.TestCase):
             rows = [r + ["1"] for r in BETA_ROWS]
             with self.assertRaises(ValueError, msg=extra):
                 self.rescue(hdr, rows)
+
+    def test_an_excluded_study_is_never_regenerated_and_is_marked_in_the_manifest(self):
+        """GCST90275159/60 (dummy beta and SE) are excluded for good (owner, 10 Nov 2026)."""
+        from concurrent.futures import ThreadPoolExecutor
+        from unittest import mock
+
+        from manifest_generation.providers.gwas_catalog import create_rescued_gwas_files as mod
+
+        self.assertEqual(mod.EXCLUDED_SWAP_STUDIES, {"GCST90275159", "GCST90275160"})
+        t = self.tmp
+        summary, readiness, base = t / "summary.tsv", t / "readiness.tsv", t / "base.tsv"
+        ids = {"GCST90275159": "swap_alleles", "GCST90275160": "swap_alleles", "GCSTAAA": "swap_alleles", "GCSTBBB": "flip_frequency"}
+        summary.write_text("analysis_id\tgate_reason\trecommendation\n" + "".join(
+            f"{k}\teaf_orientation\t{v}\n" for k, v in ids.items()))
+        readiness.write_text("analysis_id\tpublication_pmid\ttrait\tstudy_design\tsample_size\tdata_url\tyaml_url\tdata_file\tyaml_file\n" + "".join(
+            f"{k}\t1\tT\tquantitative\t5\tu\ty\t/raw/{k}.tsv.gz\t/raw/{k}.yaml\n" for k in ids))
+        cols = mod.MANIFEST_COLUMNS
+        with open(base, "w", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=cols, delimiter="\t")
+            w.writeheader()
+            for k in ids:
+                w.writerow({c: {"analysis_id": k, "status": "already_present", "data_file": f"/derived/{k}.tsv.gz",
+                                "sha256": "old", "error": "rescued via swap_alleles"}.get(c, "") for c in cols})
+        regenerated = []
+
+        def fake(row, rec, write_base):
+            regenerated.append(row["analysis_id"])
+            return {c: {"analysis_id": row["analysis_id"], "status": "already_present", "sha256": "new",
+                        "data_file": f"/derived/{row['analysis_id']}.tsv.gz", "error": f"rescued via {rec}"}.get(c, "") for c in cols}
+
+        out = t / "out.tsv"
+        for only in (["--only", "swap_alleles"], []):
+            regenerated.clear()
+            with mock.patch.object(mod, "SUMMARY_TSV", summary), mock.patch.object(mod, "SOURCE_READINESS_TSV", readiness), \
+                 mock.patch.object(mod, "ProcessPoolExecutor", ThreadPoolExecutor), mock.patch.object(mod, "process_study", fake):
+                mod.main(["--derived-base", str(t / "scratch"), "--manifest-out", str(out), "--base-manifest", str(base), *only])
+            self.assertNotIn("GCST90275159", regenerated)
+            self.assertNotIn("GCST90275160", regenerated)
+            self.assertIn("GCSTAAA", regenerated)
+            with open(out, newline="") as f:
+                rows = {r["analysis_id"]: r for r in csv.DictReader(f, delimiter="\t")}
+            self.assertEqual(set(rows), set(ids))
+            for k in ("GCST90275159", "GCST90275160"):
+                self.assertEqual(rows[k]["status"], "excluded")
+                self.assertIn("dummy", rows[k]["error"])
+                self.assertNotIn("rescued", rows[k]["error"])
+                for c in ("data_file", "yaml_file", "sha256", "data_bytes", "yaml_bytes"):
+                    self.assertEqual(rows[k][c], "")
+            self.assertEqual(rows["GCSTAAA"]["status"], "already_present")
 
     def test_derived_base_without_manifest_out_is_refused(self):
         """A scratch run must not record its checksums in the live manifest.

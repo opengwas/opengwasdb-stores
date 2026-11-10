@@ -8,7 +8,8 @@
   study columns (`MinFreq`, `MaxFreq`, `Direction`) stay byte-identical, a missing
   value stays missing, and an unreadable value, a column it has not classified or a
   wrong field count stops the rescue. GCST90275159 and GCST90275160 (dummy
-  effects) are left out pending the owner. `tools/verify_rescued_gwas_files.py`
+  effects) are excluded from the rescue for good (owner, 10 Nov 2026) and marked
+  `excluded` in the rescue manifest. `tools/verify_rescued_gwas_files.py`
   checks every row of a regenerated copy against its raw file;
   `tools/replace_rescued_copies.sh` installs them without a mixed state;
   `--derived-base` needs `--manifest-out`. `flip_frequency` is unchanged.
