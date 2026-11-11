@@ -21,7 +21,8 @@ This suite asserts the container migration:
      force=1`, and OGS-00006 twice through issue #332: at format 0.2.0, then
      again at an opengwasdb that takes the bundle's declared Association
      Coverage as a build input, so the second rebuild is the first record here
-     that carries the two coverage keys. The one correction to OGS-00001..3
+     that carries the two coverage keys, and again when issue #224 rebuilt and
+     re-completed it under its own id. The one correction to OGS-00001..3
      since is their `format_version`, a Release Erratum (issue #195):
      `register` recorded its own fabricated default "1.0", and the true value
      is the "0.1.0" each Store's manifest declares.
@@ -211,17 +212,23 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # (opengwasdb#298, #341): the first rebuild had recorded the builder's own
     # `cis_and_signals` default, and the store now records the declared
     # `signals_only` and the assembly nothing reported.
+    # Rebuilt and re-completed under its own id on 11 Nov 2026 by a forced run
+    # at opengwasdb ea81c4a (0.9.0; #224, opengwasdb#430): `register` wrote the
+    # record for the Reference-Completed Store it published, completed only
+    # inside the regions its build recorded, so the counts are that Store's and
+    # `build_elapsed_s` sums the run's steps (build 1,194 + top hits 10 +
+    # validate 52 + complete 2,371 + validate 55 + Observed-View Check 290 s).
     "OGS-00006": {
         "format_version": None,
         "n_analyses": 1400,
-        "n_variants": 12086463,
-        "n_associations": 58054212,
+        "n_variants": 12357678,
+        "n_associations": 59092457,
         "association_coverage": "signals_only",
         "reference_assembly": None,
         "store_bytes": None,
-        "build_elapsed_s": 850.366,
+        "build_elapsed_s": 3972.747,
         "validate_status": "passed_with_warnings",
-        "completion_state": "observed_only",
+        "completion_state": "reference_completed",
     },
 }
 
