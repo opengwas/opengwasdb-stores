@@ -97,4 +97,62 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   finishes, the Observed-Only Store described above is the one published. Release Status
   stays validated.
 
+  Release Erratum (issue #224, opengwas/opengwasdb#430, 2026-11-11): the first completion
+  filled the wrong regions. After an attempt on 2026-11-07 at opengwasdb 0.7.1 that could not
+  merge its blocks in memory (opengwas/opengwasdb#424 fixed that in v0.7.4), an unforced
+  `release OGS-00006` at 56d36cb8, opengwasdb 0.7.4, ran from 2026-11-10 12:47 to 2026-11-11
+  01:08 UTC and published OGS-00006-completed with 10,001,552,498 imputed cells, 4.6M to 7.4M
+  per Analysis, over 14,273,581 variants. The engine''s region rule for an Analysis with no
+  Trait position then made any LD block holding at least four of its observations a region,
+  and this Store''s genome-wide QC panel (about 8,056 variants per Analysis, about six per
+  block) made 1,081 to 1,257 of the 1,348 blocks a region for every Analysis. About 885 of
+  them were filled; the rest added only missing rows, 2,238,487,317 in all. The 299 Analyses
+  with no significant region received a median of 7.15M imputed cells, as many as those with
+  signals. The Store passed validate and the Observed-View Check, which checked placement only
+  against the engine''s own region rule and so could not see the fault. The owner found it on 2026-11-11 ("It''s a signals only store so
+  imputation should only be done at the signals themselves"). opengwas/opengwasdb#430,
+  released in v0.9.0, completes each Ragged Analysis only inside its cis and significant
+  regions, from the region table the Store now records at build (regions.tsv, declared in its
+  manifest). The registry record of that completion (PR #458) was never merged. Its Store and
+  records are archived under /data/opengwasdb/stores/OGS-00006/replaced/20261111T221954Z/,
+  kept because the replacement was forced; deleting them is the owner''s call.
+
+  Rebuilt and re-completed (issue #224, 2026-11-11). On the owner''s approval, a forced
+  `release OGS-00006` at abce1d94, opengwasdb 0.9.0 (ea81c4a), ran from 22:19 to 23:26 UTC,
+  elapsed 1 h 07 m, exit 0. The build phase rebuilt the Observed-Only Store from this
+  unchanged bundle in 20 minutes: the same 1,400 Analyses, 12,086,463 variants and 58,054,212
+  associations, now carrying the bundle''s sidecars/sparse_regions.tsv as regions.tsv, declared
+  in the manifest and stamped format 0.2.1, the lowest version a Store with that file uses.
+  Its regions are 3,627 significant_trans regions over 1,101 Analyses; no cis rows, and the
+  111,595 suggestive_trans and 30,800 qc_panel rows are never completion regions. complete-ragged
+  against the UK Biobank EUR LD Reference Resource at 32 workers took 39 minutes and imputed
+  1,038,186 cells, all inside those regions, 110 to 161,591 per Analysis, leaving 59 missing.
+  The 299 Analyses with no significant region are carried observed-only. The variant axis grew
+  from 12,086,463 to 12,357,678 variants, 271,215 of them new panel variants, and no region lay
+  outside the panel''s blocks. 47 of the 59,092,398 stored SEs are exact exceptions, none on an
+  imputed cell, and no Analysis is over the 2% budget. validate (55 s) reports no errors and the
+  same 1,397 EAF-orientation warnings as the Observed-Only Store. The Observed-View Check (290 s)
+  passed: it compared 1,003 Analyses (1,000 at random, the 5 largest and 5 with no Trait
+  position, the strata overlapping), reproduced all 44,259,732 of their observed associations
+  exactly, found their 804,729 imputed cells inside the 2,757 significant regions those
+  Analyses hold (5,764 Analysis-block pairs, rebuilt from regions.tsv), and every failing
+  counter, imputed_outside_retained and missing_outside_retained among them, is zero. A scan of
+  all 1,400 Analyses finds every one of the 1,038,186 imputed and 59 missing cells inside a
+  significant_trans region. completion register published the Store under the release id
+  OGS-00006-completed, 1.5 GB against the first completion''s 44 GB. The Observed-Only Store it
+  replaced is archived whole, arrays included, under
+  /data/opengwasdb/stores/OGS-00006/replaced/20261111T232649Z/: ADR 0037 §3 deletes it on an
+  unforced completion swap, and it was kept only because this run was forced (#309), so
+  deleting it is also the owner''s call. The
+  panel''s EAF was measured rather than assumed: over 50 seeded Analyses, eaf_reference reads r
+  +0.9999 against the mean observed EAF of 728,867 variants, and every imputed cell read decodes
+  to it. The Validation Record was copied into this bundle unchanged and reads
+  passed_with_warnings, 1,400 Analyses, 12,357,678 variants, 59,092,457 associations and
+  completion_state reference_completed. Three earlier statements in these notes no longer
+  hold: the August note that reference completion is blocked and no Reference-Completed
+  sibling exists; the 2026-11-07 note that this Store''s regions are the LD blocks each Analysis
+  holds enough observations in; and its sentence that the Observed-Only Store is the one
+  published. Human scientific acceptance remains pending.
+  Release Status stays validated.
+
   '
