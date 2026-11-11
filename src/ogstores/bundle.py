@@ -360,6 +360,16 @@ QUALITY_CHECK_RESULTS: tuple[str, ...] = (
 )
 #: The exclusions sidecar, whose ``reason`` the Quality Check sidecar must agree with.
 EXCLUSIONS_SIDECAR: str = "sidecars/exclusions.tsv"
+#: ``sidecars/sparse_regions.tsv``: a region-filtered bundle's recorded regions
+#: (issue #459, opengwas/opengwasdb#430). One row per region -- an Analysis's cis
+#: region where it has a Trait position, and each of its significant trans
+#: regions within its own boundary -- with the genome build it is stated in. Its
+#: leading columns are the ones the engine reads by name out of the header, so
+#: the bundle's own file is the table the caller passes. ``build-ragged-ssf`` is
+#: given it as ``--regions`` and keeps it in the Store as ``regions.tsv``, which
+#: completion then reads with no flag of its own. Absent: the build is planned
+#: with no regions, exactly as before #459.
+SPARSE_REGIONS_SIDECAR: str = "sidecars/sparse_regions.tsv"
 #: How many row-level errors one sidecar reports before summarising the rest.
 _MAX_SIDECAR_ROW_ERRORS: int = 10
 
@@ -450,6 +460,17 @@ class Bundle:
     build: dict[str, Any]
     analyses_path: Path
     validation: dict[str, Any] | None = None
+    #: The bundle's recorded regions table, ``sidecars/sparse_regions.tsv``, or
+    #: ``None`` when it carries none (issue #459). Read once by :func:`load`, so
+    #: `plan()` decides ``--regions`` without touching the filesystem, and the
+    #: run-time capability guard reads the same answer.
+    sparse_regions_path: Path | None = None
+    #: Why the entry at ``sparse_regions_path`` is not a carried table, or ``None``
+    #: (issue #459). A bundle with a symbolic link or a directory there has not
+    #: recorded nothing: it has recorded something this registry does not carry,
+    #: so ``check()`` reports it and `plan()` refuses it rather than planning the
+    #: build without the regions the bundle meant to record.
+    sparse_regions_defect: str | None = None
 
     @property
     def status(self) -> str | None:
@@ -854,6 +875,7 @@ def load(store_id: str, registry_root: Path | str | None = None) -> Bundle:
         build=_read_yaml(root / "build.yaml") or {},
         analyses_path=root / "analyses.tsv",
         validation=_read_yaml(root / "validation.yaml"),
+        **_carried_file(root, SPARSE_REGIONS_SIDECAR),
     )
 
 
@@ -1569,6 +1591,54 @@ def _entry_kind(path: Path) -> str:
     return "directory" if path.is_dir() else "other"
 
 
+def _resolves_inside(root: Path, path: Path) -> bool:
+    """Whether `path` resolves to a location inside `root`'s own resolved location.
+
+    A bundle's carried files are its own bytes, so a `sidecars/` directory that
+    is a symbolic link out of the bundle, or a file that resolves out of it
+    through one, is not a carried file even when the final entry is a regular
+    file (CONTRIBUTING, keep Release Bundles self-contained). Both sides are
+    resolved, so a bundle reached through a link of its own -- the registry
+    itself linked into place -- is still its own location.
+    """
+    try:
+        return path.resolve().is_relative_to(root.resolve())
+    except OSError:  # An unreadable ancestor is not provably inside the bundle.
+        return False
+
+
+def _carried_file(root: Path, relative: str) -> dict[str, Any]:
+    """`Bundle`'s fields for the optional contract file ``root/relative`` (issue #459).
+
+    One read at :func:`load`, so a planner or a guard can ask whether the bundle
+    carries an optional contract file without touching the filesystem itself.
+    Three answers, and absence is only one of them: the file is carried and
+    named; the bundle has nothing there; or the bundle has something there that
+    it does not carry -- a link out of it, a link out of it by an ancestor, a
+    directory, a device (see :func:`_entry_kind`) -- which is a defect, reported
+    rather than read as absence, so a bundle cannot lose its recorded regions
+    silently (CONTRIBUTING, fail loudly rather than silently skipping).
+    """
+    path = root / relative
+    kind = _entry_kind(path)
+    if kind == "absent":
+        return {"sparse_regions_path": None, "sparse_regions_defect": None}
+    if kind == "file" and _resolves_inside(root, path):
+        return {"sparse_regions_path": path, "sparse_regions_defect": None}
+    if kind == "file":
+        return {
+            "sparse_regions_path": None,
+            "sparse_regions_defect": (
+                f"{relative} resolves outside the bundle, to {path.resolve()}; "
+                "a bundle carries its own files, not one linked in from elsewhere"
+            ),
+        }
+    return {
+        "sparse_regions_path": None,
+        "sparse_regions_defect": f"{relative} must be a regular file, not a {kind} entry",
+    }
+
+
 def _analyses_reader(bundle: Bundle) -> Callable[[], opengwasdb_analyses.AnalysesTable]:
     """``analyses.tsv``, parsed at most once by one ``check()``; a failed parse raises again."""
 
@@ -1996,6 +2066,17 @@ def _check_column_map(
     return errors, []
 
 
+def _check_sparse_regions(bundle: Bundle) -> list[str]:
+    """A bundle's recorded regions are a regular file inside it, where it has one (#459).
+
+    Absence is valid: a bundle that records no regions builds without
+    ``--regions``, exactly as every bundle did before #459. Anything else at
+    that path is reported by name, so `bundle-check` fails rather than the
+    bundle quietly building a Store with no regions to record.
+    """
+    return [bundle.sparse_regions_defect] if bundle.sparse_regions_defect else []
+
+
 def check(
     bundle: Bundle,
     previous_status: str | Bundle | None = None,
@@ -2029,6 +2110,7 @@ def check(
         ("validation.yaml", lambda: (_check_validation(bundle), [])),
         ("analyses.tsv", lambda: _check_analyses(bundle, analyses)),
         (QUALITY_CHECKS_SIDECAR, lambda: (_check_quality_checks(bundle, analyses), [])),
+        (SPARSE_REGIONS_SIDECAR, lambda: (_check_sparse_regions(bundle), [])),
         ("Column Map", lambda: _check_column_map(bundle, analyses)),
     )
     for label, stage in stages:
@@ -2066,6 +2148,7 @@ __all__ = [
     "QUALITY_CHECK_RESULTS",
     "NotBuildableError",
     "RELEASE_REQUIRED_KEYS",
+    "SPARSE_REGIONS_SIDECAR",
     "STORE_PRODUCING_STEPS",
     "SUPERPOPULATIONS",
     "TRAIT_ONTOLOGY_ID_SEPARATOR",
