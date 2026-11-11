@@ -113,7 +113,9 @@ SNAPSHOT_RESOLUTIONS: frozenset[str] = frozenset({"restore", "delete"})
 
 _TARGET = re.compile(r"\AOGS-\d{5}\Z|\Aall\Z")
 _WILDCARDS = re.compile(r"^\s*wildcards:\s*(?P<body>.*)$")
-_RELEASE_JOB = re.compile(r"^\s*(?:local)?rule (?P<rule>step|register|completion_register|build_manifest|column_map):\s*$")
+_RELEASE_JOB = re.compile(
+    r"^\s*(?:local)?rule (?P<rule>step|register|completion_register|build_manifest|column_map|sparse_regions):\s*$"
+)
 
 
 class UsageError(ValueError):
@@ -206,18 +208,47 @@ def snakemake_directory() -> Path:
     return Path(os.environ.get(SNAKEMAKE_DIRECTORY_ENV) or paths.REPO_ROOT)
 
 
+def _first_step_manifest_and_record(loaded: bundle.Bundle, root: Path) -> tuple[Path | None, Path]:
+    """The build manifest a bundle's first planned step reads (None if it reads none), and its record."""
+    first = plan_steps(loaded, artifact_root=root)[0]
+    manifest_p = paths.build_manifest_path(loaded.store_id, root=root)
+    return (
+        manifest_p if manifest_p in first.inputs else None,
+        paths.record_path(loaded.store_id, first.name, root=root),
+    )
+
+
 def _build_manifest_read_by_first_step(
     store_id: str, registry_root: Path, root: Path
 ) -> tuple[bundle.Bundle, Path | None, Path]:
     """The bundle, the build manifest its first planned step reads (None if it reads none), and that step's record."""
     b = bundle.load(store_id, registry_root=registry_root)
-    first = plan_steps(b, artifact_root=root)[0]
-    manifest_p = paths.build_manifest_path(store_id, root=root)
-    return (
-        b,
-        manifest_p if manifest_p in first.inputs else None,
-        paths.record_path(store_id, first.name, root=root),
-    )
+    return (b, *_first_step_manifest_and_record(b, root))
+
+
+def _named_releases_and_parents(
+    store_ids: Iterable[str], registry_root: Path
+) -> list[tuple[str, bundle.Bundle]]:
+    """Each named registered release and every registered parent it derives from, once each.
+
+    A run's build work is not only what it names: a named child schedules its
+    parent's build too, so anything compared against what a build would read has
+    to cover the parents (#339, #459).
+    """
+    registered = set(registered_ids(registry_root))
+    seen: set[str] = set()
+    pending = [store_id for store_id in store_ids if store_id in registered]
+    found: list[tuple[str, bundle.Bundle]] = []
+    while pending:
+        store_id = pending.pop()
+        if store_id in seen:
+            continue
+        seen.add(store_id)
+        loaded = bundle.load(store_id, registry_root=registry_root)
+        if loaded.derived_from in registered:
+            pending.append(loaded.derived_from)
+        found.append((store_id, loaded))
+    return found
 
 
 def forced_run_outputs(forced: Iterable[str], registry_root: Path, root: Path) -> list[str]:
@@ -251,35 +282,51 @@ def stale_manifest_outputs(store_ids: Iterable[str], registry_root: Path, root: 
     exist but are not `manifest.build_manifest_is_current` has its manifest
     named here, to be rerun with everything downstream. Nothing is written.
     """
-    registered = set(registered_ids(registry_root))
     outputs: list[str] = []
-    seen: set[str] = set()
-    pending = [store_id for store_id in store_ids if store_id in registered]
-    while pending:
-        store_id = pending.pop()
-        if store_id in seen:
-            continue
-        seen.add(store_id)
-        b, manifest_p, _ = _build_manifest_read_by_first_step(store_id, registry_root, root)
-        if b.derived_from in registered:
-            pending.append(b.derived_from)
+    for store_id, loaded in _named_releases_and_parents(store_ids, registry_root):
+        manifest_p, _ = _first_step_manifest_and_record(loaded, root)
         sidecar_p = paths.build_manifest_sidecar_path(store_id, root=root)
         if (
             manifest_p is not None
             and manifest_p.is_file()
             and sidecar_p.is_file()
-            and not manifest.build_manifest_is_current(b.analyses_path, manifest_p, sidecar_p)
+            and not manifest.build_manifest_is_current(loaded.analyses_path, manifest_p, sidecar_p)
         ):
             outputs.append(str(manifest_p))
+    return sorted(outputs)
+
+
+def stale_regions_outputs(store_ids: Iterable[str], registry_root: Path, root: Path) -> list[str]:
+    """The staged regions tables whose bytes no longer match the bundle's (#459).
+
+    Snakemake decides by mtime, so a bundle's `sidecars/sparse_regions.tsv`
+    edited to bytes older than the staged copy -- or a staged copy left by an
+    earlier run from a table since changed -- would leave the build reading the
+    stale copy. That is true of a forced run too, whose `--forcerun` names the
+    release's records and its derived manifest, not this file. Every release the
+    run will build -- each named one and every registered parent it derives from,
+    as `stale_manifest_outputs` covers them -- whose staged copy exists but is not
+    `resources.staged_regions_is_current` has it named here, to be restaged with
+    everything downstream of it. A missing copy, and a table rewritten with the
+    same bytes, are left to Snakemake. Nothing is written.
+    """
+    outputs: list[str] = []
+    for store_id, loaded in _named_releases_and_parents(store_ids, registry_root):
+        if loaded.sparse_regions_path is None:
+            continue
+        staged = paths.regions_table_path(store_id, root=root)
+        if staged.is_file() and not resources.staged_regions_is_current(loaded, staged):
+            outputs.append(str(staged))
     return sorted(outputs)
 
 
 def force_run_files(
     inv: Invocation, force: bool, requested: Iterable[str], registry_root: Path, root: Path
 ) -> list[str]:
-    """Everything the entry point reruns whatever Snakemake's mtimes say: forced releases and stale manifests."""
+    """Everything the entry point reruns whatever Snakemake's mtimes say: forced releases and stale staged inputs."""
     files = forced_run_outputs(run.forced_releases(force, inv.targets), registry_root, root)
     files += stale_manifest_outputs(requested, registry_root, root)
+    files += stale_regions_outputs(requested, registry_root, root)
     return list(dict.fromkeys(files))
 
 
@@ -317,12 +364,14 @@ def snakemake_argv(
 def _scheduled(dry_run_output: str) -> list[tuple[str, str, str, str | None]]:
     """The (rule, artifact root, store_id, step) of every release job a Snakemake dry run scheduled.
 
-    Every step, register, completion_register, build_manifest and column_map
-    job prints its wildcards after its rule line, so a job block without them
-    means the output is not what this parser expects, and that fails loudly
-    rather than under-reporting what the run will touch. `step` is `None` for a
-    job with no `step` wildcard (`build_manifest`, `column_map`, `register`,
-    `completion_register`).
+    Every step, register, completion_register, build_manifest, column_map and
+    sparse_regions job prints its wildcards after its rule line, so a job block
+    without them means the output is not what this parser expects, and that
+    fails loudly rather than under-reporting what the run will touch. `step` is
+    `None` for a job with no `step` wildcard (`build_manifest`, `column_map`,
+    `sparse_regions`, `register`, `completion_register`). A rule the Snakefile
+    can schedule and this pattern does not know is the failure this guard
+    exists for (#459).
     """
     found: list[tuple[str, str, str, str | None]] = []
     jobs = 0
@@ -361,8 +410,8 @@ def scheduled_records(dry_run_output: str) -> list[tuple[str, str, str | None]]:
     """The (artifact root, store_id, record) of every job a Snakemake dry run scheduled.
 
     `record` is the record the job writes (`run.job_record`), None for
-    `build_manifest` and `column_map`, so the preflight can tell a completion-phase job from a
-    build-phase one (#305).
+    `build_manifest`, `column_map` and `sparse_regions`, so the preflight can
+    tell a completion-phase job from a build-phase one (#305).
     """
     records = {
         (root, store_id, run.job_record(rule, step)) for rule, root, store_id, step in _scheduled(dry_run_output)
@@ -581,7 +630,7 @@ def held_by_live_runs(registry_root: Path, root: Path | str) -> frozenset[str]:
 
 
 def release_outputs(store_id: str, root: Path | str) -> list[Path]:
-    """The outputs Snakemake may mark incomplete for a release: its records and derived manifest."""
+    """The outputs Snakemake may mark incomplete for a release: its records, derived inputs and staged table."""
     records = paths.records_dir(store_id, root=root)
     outputs = sorted(records.glob("*.json")) if records.is_dir() else []
     staged_maps = paths.column_map_path(store_id, "*", root=root)
@@ -589,6 +638,7 @@ def release_outputs(store_id: str, root: Path | str) -> list[Path]:
         paths.build_manifest_path(store_id, root=root),
         paths.build_manifest_sidecar_path(store_id, root=root),
         *sorted(staged_maps.parent.glob(staged_maps.name)),
+        paths.regions_table_path(store_id, root=root),
     ]
 
 
@@ -872,6 +922,10 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
         resources.verify_observed_view_check_for_releases(idle, registry_root=registry_root)
     except resources.ObservedViewCheckRuntimeError as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
+    try:
+        resources.verify_regions_for_releases(idle, registry_root=registry_root)
+    except resources.RegionsTableRuntimeError as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
     return result.returncode
 
 
@@ -887,6 +941,7 @@ GUARD_ERRORS: tuple[type[BaseException], ...] = (
     resources.IndexedSubsetRuntimeError,
     resources.ObservedViewCheckRuntimeError,
     resources.ReferenceResourceError,
+    resources.RegionsTableRuntimeError,
     UsageError,
 )
 
@@ -965,6 +1020,9 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     # A release that completes its own Store gates its swap on the Observed-View
     # Check, which the resolved runtime must provide (#306).
     resources.verify_observed_view_check_for_releases(scheduled, registry_root=registry_root)
+    # A Ragged completion inside the regions its bundle records needs a runtime
+    # whose `complete-ragged` takes `--regions` (opengwas/opengwasdb#430, #459).
+    resources.verify_regions_for_releases(scheduled, registry_root=registry_root)
 
     stamp = run.utc_stamp()
     snapshots: list[Path] = []

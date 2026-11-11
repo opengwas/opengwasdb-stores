@@ -1123,24 +1123,18 @@ def _recorded_regions(
 
 
 def needs_recorded_regions(bundle: Bundle) -> bool:
-    """Whether `plan()` gives this bundle's build step the regions table the bundle records (#459).
+    """Whether `plan()` gives this release's build the regions table the bundle records (#459).
 
-    One answer for the planner and for the run-time guard that refuses a runtime
-    whose `build-ragged-ssf` takes no `--regions`
-    (`resources.verify_regions_for_releases`), so the two cannot disagree about
-    which releases need one. It asks the build step, because that is where the
-    Store records its regions: a release that completes its own Store plans its
-    build phase exactly as the same bundle plans as `observed_only` (ADR 0037),
-    and its completion phase takes no such flag.
+    Read off the plan itself, so the planner and the run-time guard that refuses
+    a runtime without `build-ragged-ssf --regions`
+    (`resources.verify_regions_for_releases`) cannot disagree about which releases
+    need one: a release that plans no build step -- a two-id child completing its
+    parent -- needs no flag, however its bundle is written, and one that completes
+    its own Store needs it on the build phase the planner gives it (ADR 0037).
     """
-    if not bundle.layout or not bundle.completion_state:
-        return False
-    block = bundle.build.get("build") or {}
-    command = block.get("command") or DEFAULT_COMMANDS.get((bundle.layout, "observed_only"))
-    spec = COMMANDS.get(command)
-    if spec is None or spec.phase != "build" or not spec.regions_table:
-        return False
-    return bundle.sparse_regions_path is not None
+    return any(
+        step.phase == BUILD_PHASE and f"--{REGIONS_FLAG}" in step.argv for step in plan(bundle)
+    )
 
 
 def _observed_view_check_options(
