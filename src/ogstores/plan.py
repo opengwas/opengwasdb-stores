@@ -55,6 +55,18 @@ last the Observed-View Check, which gates the replacement of the published
 Store. A Ragged release's check also takes the LD panel and ancestry its
 `complete` block declares. A two-id child (`derived_from`) plans as before.
 
+A bundle that carries its recorded regions (`sidecars/sparse_regions.tsv`,
+`bundle.SPARSE_REGIONS_SIDECAR`) is built inside them: the table's staged copy
+is passed as `--regions` to `build-ragged-ssf`, which writes it into the Store
+as `regions.tsv` (opengwas/opengwasdb#430, issue #459). Completion then reads
+that file from the Store and is given no flag of its own. Whether the bundle
+carries one is a fact `load()` recorded, so `plan()` stays a pure function of
+its Bundle, and the path is the release's own `work/` copy
+(`paths.regions_table_path`), which the workflow stages from the bundle's bytes
+as it stages the derived build manifest and a carried Column Map. A bundle
+without one plans with no `--regions`, as every committed bundle did before
+#459.
+
 This is the only place in the repository that knows how to invoke
 `opengwasdb`, which is why the Snakefile's rules and the master list's
 `build_command` are two renderings of one thing and cannot disagree.
@@ -79,6 +91,7 @@ from ogstores.bundle import (
     INDEXED_SUBSET_RESERVED_OPTION_KEYS,
     Bundle,
     ColumnMapBinding,
+    SPARSE_REGIONS_SIDECAR,
     column_map_binding,
     indexed_subset_step_name,
     is_valid_indexed_subset_name,
@@ -151,10 +164,21 @@ class CommandSpec:
     #: Takes `--column-map PATH|NAME` (opengwasdb ADR 0063): the build commands
     #: that read source files through a Column Map. A completion reads no source.
     column_map: bool = False
+    #: Takes `--regions TABLE` from the table the bundle records when it carries
+    #: one (`bundle.SPARSE_REGIONS_SIDECAR`, opengwas/opengwasdb#430, issue #459):
+    #: a builder that keeps each Analysis's own regions in the Store it writes.
+    #: Only `build-ragged-ssf` does, and no Bundle field supplies the table.
+    regions_table: bool = False
     top_hits_cmd: str | None = None
     rho_cmd: str | None = None
     overview_cmd: str | None = None
     check_options: tuple[str, ...] = ()
+
+
+#: The Ragged SSF builder (see its `CommandSpec` below). It is the only command
+#: that takes `--regions`, so the run-time capability guard probes this one's
+#: help (#459).
+RAGGED_SSF_COMMAND: str = "build-ragged-ssf"
 
 
 COMMANDS: dict[str, CommandSpec] = {
@@ -177,11 +201,15 @@ COMMANDS: dict[str, CommandSpec] = {
         column_map=True,
         overview_cmd="regenerate-overview",
     ),
-    "build-ragged-ssf": CommandSpec(
+    RAGGED_SSF_COMMAND: CommandSpec(
         phase="build",
         name="ragged-ssf",
         positionals=("analyses", "source", "store"),
         inputs=("analyses",),
+        # The bundle's recorded regions, when it carries them, so the Store
+        # keeps them as `regions.tsv` and completion reads them with no flag of
+        # its own (#459, opengwas/opengwasdb#430).
+        regions_table=True,
         top_hits_cmd="build-ragged-top-hits",
     ),
     # BESD builds top-hit indexes inline, and takes analyses as a flag not a positional.
@@ -215,7 +243,9 @@ COMMANDS: dict[str, CommandSpec] = {
     # the ancestry (`complete-ragged` defaults it to EUR), but a completing
     # Ragged bundle must declare it, so that a silent default cannot complete
     # a non-EUR Store against the wrong panel; the check then cross-checks it
-    # against the completed Store's record.
+    # against the completed Store's record. Neither is given the regions: the
+    # build recorded them in the Store, and completion and the check read them
+    # from there (#459, opengwas/opengwasdb#430).
     "complete-ragged": CommandSpec(
         phase="complete",
         name="ragged-completed",
@@ -256,7 +286,7 @@ _SHA256_RE: re.Pattern[str] = re.compile(r"\A[0-9a-fA-F]{64}\Z")
 DEFAULT_COMMANDS: dict[tuple[str, str], str] = {
     ("dense", "observed_only"): "build-dense-vcf",
     ("hybrid", "observed_only"): "build-hybrid",
-    ("ragged", "observed_only"): "build-ragged-ssf",
+    ("ragged", "observed_only"): RAGGED_SSF_COMMAND,
     ("dense", "reference_completed"): "complete-dense",
     ("hybrid", "reference_completed"): "complete-hybrid",
     ("ragged", "reference_completed"): "complete-ragged",
@@ -270,7 +300,7 @@ DEFAULT_COMMANDS: dict[tuple[str, str], str] = {
 # Recipe option, which would make a change to it a new Store Release (ADR 0004)
 # -- so `plan()` composes the flag exactly as it composes the identity ones.
 ASSOCIATION_COVERAGE_FLAG: str = "association-coverage"
-RAGGED_BUILD_COMMANDS: frozenset[str] = frozenset({"build-ragged-ssf", "build-ragged-besd"})
+RAGGED_BUILD_COMMANDS: frozenset[str] = frozenset({RAGGED_SSF_COMMAND, "build-ragged-besd"})
 # Every builder requires `--admission-record DIR` and writes nothing without it
 # (opengwas/opengwasdb#357, ADR 0072; #428). The record lists what each Analysis
 # examined, admitted and dropped. The builder has no default beside its
@@ -333,6 +363,19 @@ OBSERVED_VIEW_CHECK_STEP: str = "completion-observed-view-check"
 OBSERVED_VIEW_CHECK_SEED: int = 20261021
 OBSERVED_VIEW_CHECK_N_RANDOM: int = 1000
 OBSERVED_VIEW_VERDICT_FILENAME: str = "observed-view-check.json"
+
+# The regions a Ragged build records in the Store (opengwas/opengwasdb#430,
+# issue #459). The table is the bundle's recorded regions
+# (`bundle.SPARSE_REGIONS_SIDECAR`), copied byte for byte to the release's
+# `work/` directory and named there; the engine reads its `analysis_id,
+# region_kind, chromosome, start, end, source_genome_build` columns by name out
+# of the header, so the registry re-renders nothing. The build keeps it in the
+# Store as `regions.tsv`, and completion and the Observed-View Check read it
+# from there, so neither takes a flag. A recipe that rendered the same flag
+# could duplicate or contradict the table, so `plan()` refuses it, and the
+# run-time capability guard (`resources.verify_regions_for_releases`) refuses a
+# runtime whose `build-ragged-ssf` does not take it.
+REGIONS_FLAG: str = "regions"
 
 
 def completion_step_name(name: str) -> str:
@@ -849,6 +892,7 @@ def plan(
             )
     store_p = paths.store_path(bundle.store_id, root=root)
 
+    regions_args, regions_inputs = _recorded_regions(bundle, spec, command, options, root)
     argv = ["opengwasdb", command]
     for token in spec.positionals:
         argv.extend(str(p) for p in _resolve(token, bundle, root))
@@ -863,6 +907,7 @@ def plan(
         argv.extend(
             ["--" + ADMISSION_RECORD_FLAG, str(paths.admission_record_path(bundle.store_id, root=root))]
         )
+    argv.extend(regions_args)
     argv.extend(render_options(options))
     column_map_args, column_map_inputs = _column_map_arguments(bundle, spec, command, root)
     argv.extend(column_map_args)
@@ -871,6 +916,7 @@ def plan(
     for token in spec.inputs:
         inputs.extend(_resolve(token, bundle, root))
     inputs.extend(column_map_inputs)
+    inputs.extend(regions_inputs)
 
     steps: list[Step] = []
     declaration = _variant_reference_declaration(
@@ -1022,6 +1068,81 @@ def _completion_phase(bundle: Bundle, root: Path) -> list[Step]:
     ]
 
 
+def _recorded_regions(
+    bundle: Bundle, spec: CommandSpec, command: str, options: Mapping[Any, Any], root: Path
+) -> tuple[list[str], list[Path]]:
+    """`--regions TABLE` and the table among the inputs, for a command that takes it (#459).
+
+    The table is the bundle's own `sidecars/sparse_regions.tsv`; `load()` noted
+    whether it carries one, so this decides without touching the filesystem, and
+    the path named is the copy the workflow stages under the release's `work/`
+    directory -- `paths.regions_table_path`, the same from any checkout -- whose
+    contents are the bundle's bytes (`resources.stage_regions_table`). Staging is
+    what the workflow already does for the derived build manifest and for a
+    carried Column Map, and it is what makes a changed table rerun the step: the
+    staged copy is an input of the step, so the table's content reaches
+    Snakemake, and the entry point restages a copy whose bytes have drifted
+    (`release.stale_regions_outputs`).
+
+    A plan with no build step reads the Store's `regions.tsv` and is given no
+    flag, so a two-id child is exempt however its bundle is written. A build
+    command that takes no such flag, given a bundle that carries a table, is
+    refused: it would build a Store with no regions to record. A bundle that
+    carries no table plans exactly as it did before #459 -- the eQTLGen cis-only
+    Stores record none. A recipe option rendering the same flag is refused rather
+    than allowed to contradict or duplicate the table, and a bundle whose entry at
+    that path is not a carried file is refused rather than built without the
+    regions it meant to record.
+    """
+    if spec.phase != "build":
+        return [], []
+    if bundle.sparse_regions_defect:
+        raise ValueError(
+            f"Bundle {bundle.store_id}: {bundle.sparse_regions_defect}; the bundle's recorded "
+            f"regions ({SPARSE_REGIONS_SIDECAR}) are what {spec.phase}.options is given as "
+            f"--{REGIONS_FLAG} (opengwas/opengwasdb#430)"
+        )
+    overridden = reserved_options(options, (REGIONS_FLAG,))
+    if overridden:
+        raise ValueError(
+            f"Bundle {bundle.store_id}: {spec.phase}.options must not set {overridden}; "
+            f"--{REGIONS_FLAG} is the bundle's recorded regions table "
+            f"({SPARSE_REGIONS_SIDECAR}, opengwas/opengwasdb#430), which the "
+            "registry composes whenever the bundle carries one"
+        )
+    if bundle.sparse_regions_path is None:
+        return [], []
+    if not spec.regions_table:
+        raise ValueError(
+            f"Bundle {bundle.store_id} carries {SPARSE_REGIONS_SIDECAR}, but {command!r} takes no "
+            f"--{REGIONS_FLAG}: the Store it builds would record no regions. Drop the table, or "
+            "choose a build command that keeps it (opengwas/opengwasdb#430)"
+        )
+    table = paths.regions_table_path(bundle.store_id, root=root)
+    return [f"--{REGIONS_FLAG}", str(table)], [table]
+
+
+def needs_recorded_regions(bundle: Bundle) -> bool:
+    """Whether `plan()` gives this bundle's build step the regions table the bundle records (#459).
+
+    One answer for the planner and for the run-time guard that refuses a runtime
+    whose `build-ragged-ssf` takes no `--regions`
+    (`resources.verify_regions_for_releases`), so the two cannot disagree about
+    which releases need one. It asks the build step, because that is where the
+    Store records its regions: a release that completes its own Store plans its
+    build phase exactly as the same bundle plans as `observed_only` (ADR 0037),
+    and its completion phase takes no such flag.
+    """
+    if not bundle.layout or not bundle.completion_state:
+        return False
+    block = bundle.build.get("build") or {}
+    command = block.get("command") or DEFAULT_COMMANDS.get((bundle.layout, "observed_only"))
+    spec = COMMANDS.get(command)
+    if spec is None or spec.phase != "build" or not spec.regions_table:
+        return False
+    return bundle.sparse_regions_path is not None
+
+
 def _observed_view_check_options(
     bundle: Bundle, command: str, spec: CommandSpec, options: Mapping[Any, Any]
 ) -> list[str]:
@@ -1059,6 +1180,8 @@ __all__ = [
     "OBSERVED_VIEW_VERDICT_FILENAME",
     "POST_DEFAULTS",
     "RAGGED_BUILD_COMMANDS",
+    "RAGGED_SSF_COMMAND",
+    "REGIONS_FLAG",
     "REGISTER_STEPS",
     "SINGLE_ID_COMPLETION_LAYOUTS",
     "VARIANT_REFERENCE_BLOCK_KEYS",
@@ -1070,6 +1193,7 @@ __all__ = [
     "Step",
     "completion_step_name",
     "indexed_subset_declarations",
+    "needs_recorded_regions",
     "plan",
     "planned_before_admission_record",
     "release_register",

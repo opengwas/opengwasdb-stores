@@ -65,6 +65,7 @@ from ogstores.plan import (
     COMMANDS,
     DEFAULT_COMMANDS,
     POST_DEFAULTS,
+    RAGGED_SSF_COMMAND,
     IndexedSubsetDeclaration,
     Step,
     indexed_subset_declarations,
@@ -144,6 +145,24 @@ def assert_steps_match_golden(
         test_case.assertEqual(actual, expected)
 
 
+#: Planned flags the pinned `opengwasdb` predates, with the change that adds each.
+#: `build-ragged-ssf --regions` arrives with opengwas/opengwasdb#430, and the pin
+#: moves to that engine as a change of its own (stores #459); until it does, the
+#: pinned parser cannot be asked about the flag, and the run-time guard
+#: (`resources.verify_regions_for_releases`) refuses a runtime that lacks it.
+#: A test below fails once the pin takes the flag, which is when this goes.
+AWAITED_FLAGS: dict[str, str] = {"regions": "opengwas/opengwasdb#430"}
+
+
+def cli_takes_option(command_name: str, flag: str) -> bool:
+    """Whether the pinned `opengwasdb` CLI's `command_name` declares `--<flag>`."""
+    click_group = typer.main.get_command(opengwasdb_cli.app)
+    command = click_group.commands.get(command_name)
+    if command is None:
+        return False
+    return any(f"--{flag}" in getattr(param, "opts", ()) for param in command.params)
+
+
 def validate_step_argv_against_cli(test_case: unittest.TestCase, step: Step) -> None:
     """Validate that step.argv parses against the real pinned opengwasdb Click/Typer CLI."""
     click_group = typer.main.get_command(opengwasdb_cli.app)
@@ -159,14 +178,30 @@ def validate_step_argv_against_cli(test_case: unittest.TestCase, step: Step) -> 
         f"Command {cmd_name!r} not found in active opengwasdb CLI",
     )
     cmd = click_group.commands[cmd_name]
+    # A planned flag this runtime predates would fail the parser on a token it
+    # has never heard of, and the run-time guard refuses such a runtime before
+    # anything is written. Only that pair is set aside: the rest of a planned
+    # argv is still handed to the real parser, so a mistyped argument beside it
+    # is caught here (#459).
+    checked = list(cmd_args)
+    awaited: list[str] = []
+    for flag in AWAITED_FLAGS:
+        option = f"--{flag}"
+        if option not in checked or cli_takes_option(cmd_name, flag):
+            continue
+        index = checked.index(option)
+        awaited.append(flag)
+        del checked[index : index + 2]
     try:
-        ctx = cmd.make_context(cmd_name, list(cmd_args))
+        ctx = cmd.make_context(cmd_name, checked)
         record_check()
         test_case.assertIsNotNone(ctx)
     except Exception as exc:
         test_case.fail(
             f"Failed to parse argv for step {step.name!r} ({cmd_name}) against CLI:\n"
-            f"Argv: {step.argv}\nError: {exc}"
+            f"Argv: {step.argv}\n"
+            + (f"Checked without the awaited {awaited}: {checked}\n" if awaited else "")
+            + f"Error: {exc}"
         )
 
 
@@ -663,6 +698,10 @@ def observed_only(store_id: str) -> Bundle:
         release=amended.release,
         build=build,
         analyses_path=amended.analyses_path,
+        # The same bundle, so it carries the same recorded regions: the build
+        # phase is planned from the bundle, and #459 gives it `--regions`.
+        sparse_regions_path=amended.sparse_regions_path,
+        sparse_regions_defect=amended.sparse_regions_defect,
     )
 
 
@@ -956,7 +995,34 @@ class TestPlanRagged(unittest.TestCase):
                 paths.build_manifest_path("OGS-00001"),
             ],
         )
-        self.assertEqual(build_ssf.inputs, [paths.build_manifest_path("OGS-00006")])
+        # SSF has the manifest, and the recorded regions it records in the
+        # Store (#459); a BESD bundle records none.
+        self.assertEqual(
+            build_ssf.inputs,
+            [
+                paths.build_manifest_path("OGS-00006"),
+                paths.regions_table_path("OGS-00006"),
+            ],
+        )
+
+    def test_a_build_that_takes_no_regions_is_refused_a_bundle_that_carries_them(self) -> None:
+        """A carried table the command cannot take is refused, not silently dropped (#459).
+
+        `build-ragged-besd` takes a BESD prefix, not `--regions`, so a bundle
+        that records regions and asks for it would build a Store with none --
+        the failure `_column_map_arguments` refuses for a carried Column Map.
+        """
+        recorded = Path("stores/OGS-00001/sidecars/sparse_regions.tsv")
+        carrying = replace(self.bundle_00001, sparse_regions_path=recorded)
+        with self.assertRaises(ValueError) as ctx:
+            plan(carrying)
+        record_check()
+        message = str(ctx.exception)
+        self.assertIn("OGS-00001", message)
+        self.assertIn("build-ragged-besd", message)
+        self.assertIn("regions", message)
+        # The same bundle without a table plans exactly as its golden does.
+        assert_steps_match_golden(self, plan(self.bundle_00001), self.golden_path_00001)
 
     def test_ragged_build_subdispatch_table(self) -> None:
         """Both ragged observed-only build subcommands are configured with distinct argv shapes."""
@@ -1259,6 +1325,46 @@ class TestPlanReferenceCompleted(unittest.TestCase):
         steps = plan(self.bundle_00002)
         for step in steps:
             validate_step_argv_against_cli(self, step)
+
+    def test_a_two_id_ragged_child_with_recorded_regions_is_given_none(self) -> None:
+        """A completion takes no `--regions`, even where its own bundle records a table (#459).
+
+        The table is the build's input: `build-ragged-ssf` writes it into the
+        Store as `regions.tsv`, and completion reads it from there
+        (opengwas/opengwasdb#430). A two-id child plans no build, so its
+        completion is given no flag and reads the parent's recorded regions.
+        """
+        recorded = Path("stores/OGS-00088/sidecars/sparse_regions.tsv")
+        child = Bundle(
+            store_id="OGS-00088",
+            root=Path("stores/OGS-00088"),
+            release={"store_id": "OGS-00088", "derived_from": "OGS-00077", "status": "accepted"},
+            build={
+                "store_id": "OGS-00088",
+                "layout": "ragged",
+                "completion_state": "reference_completed",
+                "complete": {
+                    "command": "complete-ragged",
+                    "options": {"ld-panel": "/data/test/panel", "ancestry": "EUR"},
+                },
+                "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
+            },
+            analyses_path=Path("stores/OGS-00088/analyses.tsv"),
+            sparse_regions_path=recorded,
+        )
+        steps = plan(child, artifact_root="/custom/artifact/root")
+        record_check()
+        # It reads the parent's `regions.tsv`, so a carried table is not refused:
+        # a plan with no build step is outside the flag altogether.
+        self.assertIs(child.sparse_regions_path, recorded)
+        self.assertNotIn("build", [step.name for step in steps])
+        for step in steps:
+            self.assertNotIn("--regions", step.argv, step.name)
+            self.assertNotIn(
+                paths.regions_table_path("OGS-00088", root="/custom/artifact/root"),
+                step.inputs,
+                step.name,
+            )
 
     def test_parent_store_path_derived_solely_from_derived_from(self) -> None:
         """Parent store path is derived purely from release.yaml derived_from and artifact root."""
@@ -1939,6 +2045,7 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
             release=bundle.release,
             build={**bundle.build, "complete": complete},
             analyses_path=bundle.analyses_path,
+            sparse_regions_path=bundle.sparse_regions_path,
         )
 
     def test_the_committed_block_is_the_one_this_test_names(self) -> None:
@@ -1976,6 +2083,90 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
         self.assertEqual(complete.argv[-4:], ["--ld-panel", self.LD_PANEL, "--ancestry", "EUR"])
         output = check.argv.index("--output")
         self.assertEqual(check.argv[output - 4 : output], complete.argv[-4:])
+
+    def test_the_pinned_runtime_still_predates_the_flag(self) -> None:
+        """`--regions` is planned; the pin moves to the engine #430 releases as its own change.
+
+        This assertion is what retires `AWAITED_FLAGS` in this module: when the
+        pinned `build-ragged-ssf` takes the flag, it fails, and every planned
+        argv can be handed to the real parser again.
+        """
+        self.assertFalse(cli_takes_option(RAGGED_SSF_COMMAND, "regions"))
+        record_check()
+
+    def test_a_build_block_declaring_regions_is_refused(self) -> None:
+        """The registry composes the flag from the bundle, so a recipe may not contradict it."""
+        bundle = load("OGS-00006")
+        with self.assertRaises(ValueError) as ctx:
+            plan(
+                replace(
+                    bundle,
+                    build={
+                        **bundle.build,
+                        "build": {
+                            **(bundle.build.get("build") or {}),
+                            "options": {"regions": "/elsewhere.tsv"},
+                        },
+                    },
+                )
+            )
+        record_check()
+        self.assertIn("regions", str(ctx.exception))
+        self.assertIn("build.options", str(ctx.exception))
+
+    def test_the_build_step_is_given_the_recorded_regions(self) -> None:
+        """The build names the release's staged copy of the table, and lists it among its inputs (#459).
+
+        opengwas/opengwasdb#430 has `build-ragged-ssf` read the table, validate
+        it and keep it in the Store as `regions.tsv`, so completion reads it
+        from there and takes no flag. The path is the staged one, under the
+        artifact root, so the argv is the same from any checkout and the
+        table's content reaches Snakemake.
+        """
+        steps = plan(self.completed())
+        table = paths.regions_table_path("OGS-00006")
+        record_check()
+        self.assertIsNotNone(self.completed().sparse_regions_path)
+        build = next(s for s in steps if s.name == "build")
+        self.assertIn("--regions", build.argv)
+        self.assertEqual(build.argv[build.argv.index("--regions") + 1], str(table))
+        self.assertIn(table, build.inputs)
+        record_check()
+
+    def test_the_completion_and_its_check_are_given_no_regions(self) -> None:
+        """Completion reads the Store's `regions.tsv`; neither command takes a table (#459).
+
+        opengwas/opengwasdb#430 reads it from the source Store, and the
+        completed Store carries it forward, so a completion-time flag would be
+        a second source of the same fact.
+        """
+        steps = plan(self.completed())
+        record_check()
+        for step in steps:
+            if step.phase != "completion":
+                continue
+            self.assertNotIn("--regions", step.argv, step.name)
+            self.assertNotIn(paths.regions_table_path("OGS-00006"), step.inputs, step.name)
+
+    def test_the_build_phase_is_given_the_recorded_regions_as_the_observed_only_plan(self) -> None:
+        """The completion only changes the completion phase: the build is the observed-only one (#305, #459)."""
+        record_check()
+        self.assertEqual(
+            [s for s in plan(self.completed()) if s.phase == "build"],
+            plan(observed_only("OGS-00006")),
+        )
+
+    def test_a_bundle_with_no_recorded_regions_is_planned_as_before(self) -> None:
+        """OGS-00002 carries none, so it is given no `--regions` and its golden is unchanged (#459)."""
+        loaded = load("OGS-00002")
+        steps = plan(loaded)
+        assert_steps_match_golden(
+            self, steps, REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00002.json"
+        )
+        self.assertIsNone(loaded.sparse_regions_path)
+        for step in steps:
+            self.assertNotIn("--regions", step.argv, step.name)
+        record_check()
 
     def test_a_complete_block_without_the_panel_or_the_ancestry_is_refused(self) -> None:
         """Each is refused by name, so the check is never planned without it.

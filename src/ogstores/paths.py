@@ -13,6 +13,8 @@ with no registry lookup.
         work/analyses.tsv       derived build manifest: the bundle's analyses.tsv
                                 with `exclude_from_build` rows removed
         work/analyses.exclusions.json   audit sidecar naming the dropped rows
+        work/sparse_regions.tsv a region-filtered bundle's recorded regions,
+                                staged for the build that records them (#459)
         records/<step>.json     one per executed step
         tmp/                    a step's temporary files (TMPDIR), removed by the step
         store.opengwasdb        the Store Release
@@ -184,6 +186,18 @@ def column_map_path(store_id: str, file: str, root: Path | str = DEFAULT_ARTIFAC
     return work_dir(store_id, root=root) / "column_maps" / file
 
 
+def regions_table_path(store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT) -> Path:
+    """A bundle's recorded regions, staged for the release: `<root>/<store_id>/work/sparse_regions.tsv`.
+
+    Copied from the bundle's `sidecars/sparse_regions.tsv` when it carries one,
+    so the build names a path under the artifact root -- the same from any
+    checkout, as the derived build manifest and a staged Column Map are -- and
+    the table is an input of the step that reads it (#459). `build-ragged-ssf`
+    keeps it in the Store as `regions.tsv`, which completion reads.
+    """
+    return work_dir(store_id, root=root) / "sparse_regions.tsv"
+
+
 def build_manifest_sidecar_path(
     store_id: str, root: Path | str = DEFAULT_ARTIFACT_ROOT
 ) -> Path:
@@ -335,6 +349,7 @@ __all__ = [
     "publication_marker",
     "record_path",
     "records_dir",
+    "regions_table_path",
     "release_lock_path",
     "release_root",
     "replaced_dir",
