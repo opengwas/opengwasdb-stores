@@ -25,12 +25,14 @@ Fixtures are a shell `opengwasdb` stub, a `direct_url.json` and a dist-info
 from __future__ import annotations
 
 import json
+import os
 import re
 import shutil
 import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import tomllib
 import yaml
@@ -924,6 +926,31 @@ class RuntimeGuardTestCase(unittest.TestCase):
         record_check()
 
 
+class HelpProbeRenderingTestCase(unittest.TestCase):
+    """A capability probe reads the help however the host draws it (#459).
+
+    GitHub Actions sets `GITHUB_ACTIONS`, and the engine's typer/rich help then
+    forces terminal styling: the option is drawn as
+    `ESC[1;36m-ESC[0mESC[1;36m-regionsESC[0m`, which a plain match never finds.
+    CI then refused every Ragged release carrying a regions table, because the
+    run-time guard could not see `--regions` on the pinned engine (run
+    43059062259). These cases use that engine, not a stub.
+    """
+
+    def test_the_regions_flag_is_read_under_the_styling_github_actions_forces(self) -> None:
+        """The probe finds `--regions` with `GITHUB_ACTIONS` and `CI` set, as CI runs it."""
+        with mock.patch.dict(os.environ, {"GITHUB_ACTIONS": "true", "CI": "true"}):
+            self.assertTrue(resources.probe_opengwasdb_regions_capability())
+        record_check()
+
+    def test_styling_around_an_option_does_not_hide_it(self) -> None:
+        """An option drawn in pieces across escape sequences is still that option, and no other."""
+        styled = "\x1b[1;36m-\x1b[0m\x1b[1;36m-regions\x1b[0m  \x1b[2mPATH\x1b[0m\n"
+        self.assertTrue(resources._help_lists_flag(styled, "regions"))
+        self.assertFalse(resources._help_lists_flag(styled, "region"))
+        record_check()
+
+
 class ScheduledJobsParserTestCase(unittest.TestCase):
     """`release.scheduled_jobs` must expose the step, not just the Store id (#218)."""
 
@@ -970,6 +997,7 @@ def main() -> None:
     suite = unittest.TestSuite()
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(RuntimeGuardTestCase))
     suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(ScheduledJobsParserTestCase))
+    suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(HelpProbeRenderingTestCase))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
     if not result.wasSuccessful():

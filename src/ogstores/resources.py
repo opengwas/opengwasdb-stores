@@ -49,6 +49,7 @@ docs/spec/store-release-workflow.md.
 from __future__ import annotations
 
 import hashlib
+import os
 import re
 import subprocess
 from collections.abc import Callable, Iterable, Mapping
@@ -243,11 +244,51 @@ def probe_opengwasdb_regions_capability(executable: str | None = None) -> bool:
     return _probe_flag(RAGGED_SSF_COMMAND, REGIONS_FLAG, executable)
 
 
+#: The help a probe asks for: `TERM=dumb` and `NO_COLOR` for no styling, typer's
+#: own switch for the terminal it forces when `GITHUB_ACTIONS` is set, and a wide
+#: `COLUMNS` so no option or description cell is truncated. A help drawn for a
+#: terminal is not a help a machine can read: under `GITHUB_ACTIONS` the engine
+#: prints the option as `ESC[1;36m-ESC[0mESC[1;36m-regionsESC[0m`, which no plain
+#: match finds, and CI then refused every release whose build records regions
+#: (#459, run 43059062259).
+PROBE_HELP_ENV: dict[str, str] = {
+    "TERM": "dumb",
+    "NO_COLOR": "1",
+    "_TYPER_FORCE_DISABLE_TERMINAL": "1",
+    "COLUMNS": "400",
+}
+#: Variables that force colour on by being *set* -- `FORCE_COLOR=0` and
+#: `PY_COLORS=0` count -- so the probe drops them rather than overriding them.
+PROBE_HELP_ENV_UNSET: tuple[str, ...] = ("FORCE_COLOR", "PY_COLORS", "GITHUB_ACTIONS", "CI")
+
+#: An ANSI escape sequence: what a help drawn for a terminal wraps an option in.
+_ANSI_RE: re.Pattern[str] = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+
+def _probe_env() -> dict[str, str]:
+    """The environment a help probe runs in: ours, asking for plain unwrapped output."""
+    env = {key: value for key, value in os.environ.items() if key not in PROBE_HELP_ENV_UNSET}
+    env.update(PROBE_HELP_ENV)
+    return env
+
+
+def _plain_help(text: str) -> str:
+    """`text` with any styling removed: a probe reads what a help says, not how it is drawn."""
+    return _ANSI_RE.sub("", text)
+
+
+def _help_lists_flag(help_text: str, flag: str) -> bool:
+    """Whether a help text lists `--flag` as an option of its own, styled or not."""
+    return re.search(rf"(?<![\w-])--{re.escape(flag)}(?![\w-])", _plain_help(help_text)) is not None
+
+
 def _probe_help(command: str, executable: str | None) -> str | None:
-    """`opengwasdb <command> --help`'s output, or None when the command is not there.
+    """`opengwasdb <command> --help`'s output, plain, or None when the command is not there.
 
     One probe for both shapes: a subcommand's presence is its help exiting
-    cleanly, and a flag's presence is whether that help lists it.
+    cleanly, and a flag's presence is whether that help lists it. The text is
+    returned unstyled, so a matching flag cannot depend on the host's terminal
+    settings (`PROBE_HELP_ENV`, `_plain_help`).
     """
     resolved = executable if executable is not None else run.get_opengwasdb_executable()
     if not resolved or resolved == run.UNAVAILABLE:
@@ -258,12 +299,13 @@ def _probe_help(command: str, executable: str | None) -> str | None:
             capture_output=True,
             text=True,
             timeout=60,
+            env=_probe_env(),
         )
     except (OSError, subprocess.SubprocessError):
         return None
     if result.returncode != 0:
         return None
-    return f"{result.stdout}\n{result.stderr}"
+    return _plain_help(f"{result.stdout}\n{result.stderr}")
 
 
 def _probe_command(command: str, executable: str | None) -> bool:
@@ -274,7 +316,7 @@ def _probe_flag(command: str, flag: str, executable: str | None) -> bool:
     help_text = _probe_help(command, executable)
     if help_text is None:
         return False
-    return re.search(rf"(?<![\w-])--{re.escape(flag)}(?![\w-])", help_text) is not None
+    return _help_lists_flag(help_text, flag)
 
 
 def verify_indexed_subsets_for_releases(
