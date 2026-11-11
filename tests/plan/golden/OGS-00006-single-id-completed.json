@@ -15,11 +15,14 @@
       "signals_only",
       "--admission-record",
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb.admission",
+      "--regions",
+      "/data/opengwasdb/stores/OGS-00006/work/sparse_regions.tsv",
       "--stored-effect-scale",
       "sd"
     ],
     "inputs": [
-      "/data/opengwasdb/stores/OGS-00006/work/analyses.tsv"
+      "/data/opengwasdb/stores/OGS-00006/work/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00006/work/sparse_regions.tsv"
     ],
     "outputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"

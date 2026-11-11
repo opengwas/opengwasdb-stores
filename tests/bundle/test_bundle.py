@@ -2195,6 +2195,143 @@ class TestQualityCheckSidecar(unittest.TestCase):
 _OMIT: Any = object()
 
 
+class TestSparseRegionsSidecar(unittest.TestCase):
+    """`sidecars/sparse_regions.tsv` is read once, at load, so `plan()` can stay pure (#459).
+
+    A region-filtered Ragged build is given the table as `--regions`
+    (opengwas/opengwasdb#430). `plan()` may not touch the filesystem, so
+    `load()` records whether the bundle carries one and where, and both the
+    planner and the run-time capability guard read that one answer. An entry
+    that is not a carried file is recorded as a defect, never as absence.
+    """
+
+    REGIONS = "analysis_id\tregion_kind\tchromosome\tstart\tend\tsource_genome_build\nFIXTURE_1\tcis\t1\t100\t200\tGRCh38\n"
+
+    setUp = TestBundleContract.setUp
+    tearDown = TestBundleContract.tearDown
+
+    def loaded(self, *, sidecar: str | None = REGIONS, kind: str = "file") -> bundle.Bundle:
+        write_bundle(self.tmp_dir, "OGS-00096")
+        if sidecar is not None:
+            sidecars = self.tmp_dir / "OGS-00096" / "sidecars"
+            target = sidecars / "sparse_regions.tsv"
+            if kind == "symlinked-directory":
+                outside = self.tmp_dir / "elsewhere"
+                outside.mkdir()
+                (outside / "sparse_regions.tsv").write_text(sidecar, encoding="utf-8")
+                sidecars.symlink_to(outside, target_is_directory=True)
+                return bundle.load("OGS-00096", registry_root=self.tmp_dir)
+            sidecars.mkdir(exist_ok=True)
+            if kind == "symlink":
+                (self.tmp_dir / "regions.tsv").write_text(sidecar, encoding="utf-8")
+                target.symlink_to(self.tmp_dir / "regions.tsv")
+            elif kind == "directory":
+                target.mkdir()
+            else:
+                target.write_text(sidecar, encoding="utf-8")
+        return bundle.load("OGS-00096", registry_root=self.tmp_dir)
+
+    def test_a_carried_table_is_recorded_by_name(self) -> None:
+        loaded = self.loaded()
+        record_check()
+        self.assertEqual(
+            loaded.sparse_regions_path,
+            self.tmp_dir / "OGS-00096" / bundle.SPARSE_REGIONS_SIDECAR,
+        )
+        self.assertIsNone(loaded.sparse_regions_defect)
+        self.assertEqual(bundle.SPARSE_REGIONS_SIDECAR, "sidecars/sparse_regions.tsv")
+
+    def test_absent_is_no_table(self) -> None:
+        loaded = self.loaded(sidecar=None)
+        self.assertIsNone(loaded.sparse_regions_path)
+        self.assertIsNone(loaded.sparse_regions_defect)
+        record_check()
+
+    def test_a_link_out_of_the_bundle_is_reported_not_skipped(self) -> None:
+        """A contract file is a real file in the bundle, and a link out of it is a defect (#459).
+
+        Read as absence, it would plan a region-filtered build with no regions
+        and quietly publish a Store whose completion then has none to read
+        (CONTRIBUTING, fail loudly rather than silently skipping).
+        """
+        loaded = self.loaded(kind="symlink")
+        self.assertIsNone(loaded.sparse_regions_path)
+        self.assertIn(bundle.SPARSE_REGIONS_SIDECAR, loaded.sparse_regions_defect)
+        self.assertIn("regular file", loaded.sparse_regions_defect)
+        self.assertTrue(
+            [error for error in bundle.check(loaded) if bundle.SPARSE_REGIONS_SIDECAR in error],
+            bundle.check(loaded),
+        )
+        record_check()
+
+    def test_a_directory_is_reported_not_skipped(self) -> None:
+        loaded = self.loaded(kind="directory")
+        self.assertIsNone(loaded.sparse_regions_path)
+        self.assertIn("directory", loaded.sparse_regions_defect)
+        self.assertTrue(
+            [error for error in bundle.check(loaded) if bundle.SPARSE_REGIONS_SIDECAR in error],
+            bundle.check(loaded),
+        )
+        record_check()
+
+    def test_a_carried_table_raises_no_check_error(self) -> None:
+        loaded = self.loaded()
+        self.assertEqual(
+            [error for error in bundle.check(loaded) if bundle.SPARSE_REGIONS_SIDECAR in error], []
+        )
+        record_check()
+
+    def test_a_table_linked_in_through_its_directory_is_reported_not_skipped(self) -> None:
+        """A `sidecars/` link out of the bundle carries a file the bundle does not own (#459).
+
+        The final entry is a regular file, so checking only it would accept a
+        table from anywhere on the filesystem: the bundle would not be
+        self-contained and its bytes would depend on a file it does not carry
+        (CONTRIBUTING, keep Release Bundles self-contained).
+        """
+        loaded = self.loaded(kind="symlinked-directory")
+        self.assertIsNone(loaded.sparse_regions_path)
+        self.assertIn(bundle.SPARSE_REGIONS_SIDECAR, loaded.sparse_regions_defect)
+        self.assertIn("outside the bundle", loaded.sparse_regions_defect)
+        self.assertTrue(
+            [error for error in bundle.check(loaded) if bundle.SPARSE_REGIONS_SIDECAR in error],
+            bundle.check(loaded),
+        )
+        record_check()
+
+    def test_a_bundle_reached_through_a_link_of_its_own_still_carries_its_table(self) -> None:
+        """A registry linked into place is the bundle's own location, not an escape (#459).
+
+        The fixture carries a real table, so this fails if the containment check
+        resolves only one side: with the bundle's own path left unresolved, its
+        table would read as a link out of the bundle.
+        """
+        self.loaded()
+        linked = self.tmp_dir / "linked-registry"
+        linked.symlink_to(self.tmp_dir, target_is_directory=True)
+        loaded = bundle.load("OGS-00096", registry_root=linked)
+        self.assertIsNone(loaded.sparse_regions_defect)
+        self.assertEqual(loaded.sparse_regions_path, linked / "OGS-00096" / bundle.SPARSE_REGIONS_SIDECAR)
+        self.assertEqual(loaded.sparse_regions_path.read_text(encoding="utf-8"), self.REGIONS)
+        record_check()
+
+    def test_the_committed_region_filtered_bundles_carry_one(self) -> None:
+        for store_id in ("OGS-00006", "OGS-00007", "OGS-00024", "OGS-00025", "OGS-00026"):
+            loaded = bundle.load(store_id, registry_root=REPO_ROOT / "stores")
+            self.assertEqual(
+                loaded.sparse_regions_path,
+                loaded.root / bundle.SPARSE_REGIONS_SIDECAR,
+                store_id,
+            )
+            self.assertIsNone(loaded.sparse_regions_defect, store_id)
+            record_check()
+        # eQTLGen's cis-only release records none, and builds without one.
+        self.assertIsNone(
+            bundle.load("OGS-00002", registry_root=REPO_ROOT / "stores").sparse_regions_path
+        )
+        record_check()
+
+
 class TestColumnMapContract(unittest.TestCase):
     """A mapped Source Collection's Column Map travels in the bundle (#292, ADR 0036).
 

@@ -109,6 +109,7 @@ REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 from ogstores import (
     amendment,
     bundle,
+    engine,
     manifest,
     paths,
     register,
@@ -727,6 +728,9 @@ class TestWorkflowSnakefileStaticProperties(unittest.TestCase):
             'sidecar="{root}/{store_id}/work/analyses.exclusions.json",',
             # A carried Column Map, staged for the build (#292): a file too.
             '"{root}/{store_id}/work/column_maps/{file}"',
+            # A bundle's recorded regions, staged for the completion that reads
+            # them (#459): a file too.
+            '"{root}/{store_id}/work/sparse_regions.tsv"',
         )
         in_output_block = False
         for line in self.code_lines:
@@ -2083,6 +2087,20 @@ def prepare_ragged_single_id_signal_release(root: Path, store_id: str) -> tuple[
     )
     amend_to_complete_own_store(
         stores, store_id, ld_panel=create_signal_ld_panel(root / "ld-panel"), command="complete-ragged"
+    )
+    # The Analysis has no Trait position and the release is not `cis`, so
+    # `complete-ragged` needs the Store's `regions.tsv` and refuses a source
+    # without one (opengwas/opengwasdb#430). The bundle's recorded regions are
+    # the panel's one block, which is the region completion retains and the
+    # Observed-View Check then audits: `build-ragged-ssf` validates this table
+    # and keeps it in the Store, and the run stamps the Store 0.2.1 for it.
+    sidecars = store_dir / "sidecars"
+    sidecars.mkdir()
+    (sidecars / "sparse_regions.tsv").write_text(
+        "analysis_id\tregion_id\tregion_kind\tchromosome\tstart\tend\tsource_genome_build\n"
+        f"test_analysis_{store_id}\t{store_id}__cis__1\tcis\t1\t"
+        f"{SIGNAL_POSITIONS[0]}\t{SIGNAL_POSITIONS[-1]}\tGRCh38\n",
+        encoding="utf-8",
     )
     return stores, artifacts
 
@@ -3830,6 +3848,11 @@ class TestWorkflowSingleIdRaggedReferenceCompletion(unittest.TestCase):
         record = yaml.safe_load((self.template["stores"] / self.STORE_ID / "validation.yaml").read_text(encoding="utf-8"))
         self.assertIn(record["status"], ("passed", "passed_with_warnings"))
         self.assertEqual(record["observed"]["n_variants"], len(SIGNAL_POSITIONS), "the panel adds the held-out position")
+        # The Store keeps the bundle's regions table and says so, in the format
+        # stamp 0.2.1 that carries one (opengwas/opengwasdb#430, spec §21.3).
+        self.assertEqual(manifest_doc["format_version"], "0.2.1")
+        self.assertEqual(manifest_doc["regions"]["path"], "regions.tsv")
+        self.assertTrue((self.store_p / "regions.tsv").is_file())
 
     def test_the_check_rebuilt_the_retained_region_from_the_bundles_panel_and_passed(self) -> None:
         """The check took the `complete` block's panel and ancestry and found the one imputed cell in the one region."""
@@ -5124,6 +5147,239 @@ class TestWorkflowCompletingAStorePublishedBefore341(PublishedReleaseCopies):
         self.assertIn("/elsewhere.admission", moved[0])
         # Planned under the root the record names (`record_path`), the archived run's.
         self.assertIn(str(paths.admission_record_path(self.STORE_ID, root=self.template["artifacts"])), moved[0])
+
+
+class TestWorkflowRecordedRegions(unittest.TestCase):
+    """A region-filtered bundle's table is staged for its build, through the entry point (#459).
+
+    `build-ragged-ssf` is given the bundle's `sidecars/sparse_regions.tsv` as
+    `--regions`, from a copy under the artifact root, so the argv is the same
+    from any checkout (opengwas/opengwasdb#430). Both defects the review of the
+    earlier, completion-side attempt found are covered here through the
+    supported entry point rather than through one rule: the entry point's job
+    parser must know the `sparse_regions` rule it now schedules, for a fresh run
+    and for `--config force=1`; and a forced run must not build from a staged
+    copy whose bytes have drifted from the bundle's, whatever its mtime.
+
+    Most cases here run against a stub that answers as the tracked pin, because
+    the entry point probes the runtime's `--help` for every scheduled command and
+    each probe imports the real CLI: a pinned dry run costs seconds, and this
+    class makes a dozen. The pinned engine is the one the stub stands in for, and
+    `test_the_pinned_engine_itself_serves_the_run` runs it for real, so a stub
+    that stopped answering as the pin would not leave these cases passing
+    unproven.
+    """
+
+    STORE_ID = "OGS-00095"
+    REGIONS = (
+        "analysis_id\tregion_kind\tchromosome\tstart\tend\tsource_genome_build\n"
+        "FIXTURE_1\tcis\t1\t100\t200\tGRCh38\n"
+    )
+    EDITED = REGIONS + "FIXTURE_1\tsignificant_trans\t2\t300\t400\tGRCh38\n"
+
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(prefix="regions-workflow-")
+        root = Path(self._tmp.name)
+        self.stores, self.artifacts = root / "stores", root / "artifacts"
+        self.stores.mkdir()
+        self.artifacts.mkdir()
+        directory = create_ragged_fixture_store(self.stores, self.STORE_ID, artifact_root=self.artifacts)
+        sidecars = directory / "sidecars"
+        sidecars.mkdir()
+        self.carried = sidecars / "sparse_regions.tsv"
+        self.carried.write_text(self.REGIONS, encoding="utf-8")
+        self.staged = paths.regions_table_path(self.STORE_ID, root=self.artifacts)
+        self.runtime_bin = self.pinned_runtime()
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def pinned_runtime(self) -> Path:
+        """A stub `opengwasdb` the entry point accepts as the pin, whose builder takes `--regions`.
+
+        Only `--help` is ever answered: a dry run executes nothing. It stands in
+        for the pinned engine to keep this class quick, and answers as that engine
+        does -- `build-ragged-ssf` lists `--regions`, which
+        `opengwas/opengwasdb#430` gives it.
+        """
+        stub = Path(self._tmp.name) / "runtime"
+        binary = stub / "bin" / "opengwasdb"
+        binary.parent.mkdir(parents=True)
+        binary.write_text(
+            "#!/bin/sh\n"
+            'if [ "$2" = "--help" ]; then\n'
+            '  if [ "$1" = "build-ragged-ssf" ]; then printf \'%s\\n\' "  --regions PATH"; fi\n'
+            "  exit 0\n"
+            "fi\n"
+            "exit 2\n",
+            encoding="utf-8",
+        )
+        binary.chmod(0o755)
+        dist = stub / "lib" / "python3.12" / "site-packages" / "opengwasdb-0.7.4.dist-info"
+        dist.mkdir(parents=True)
+        (dist / "direct_url.json").write_text(
+            json.dumps({"url": engine.OPENGWASDB_GIT_URL, "vcs_info": {"vcs": "git", "commit_id": engine.locked_commit()}}),
+            encoding="utf-8",
+        )
+        (dist / "METADATA").write_text(
+            "Metadata-Version: 2.1\nName: opengwasdb\nVersion: 0.7.4\n", encoding="utf-8"
+        )
+        return stub / "bin"
+
+    def dry_run(
+        self, *words: str, config: dict[str, str] | None = None, store_id: str | None = None
+    ) -> subprocess.CompletedProcess[str]:
+        """The supported entry point's dry run, resolving the stub runtime first on `PATH`."""
+        return run_release(
+            [store_id or self.STORE_ID, "--dry-run", *words],
+            registry_root=self.stores,
+            artifact_root=self.artifacts,
+            config=config,
+            env={"PATH": f"{self.runtime_bin}{os.pathsep}{os.environ.get('PATH', '')}"},
+        )
+
+    def assert_schedules_staging(self, result: subprocess.CompletedProcess[str]) -> None:
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("rule sparse_regions:", result.stdout + result.stderr)
+        self.assertIn(str(self.staged), result.stdout + result.stderr)
+        # The parser reached the run's own preflight, rather than refusing the
+        # job list it could not read (#459, P1).
+        self.assertIn("release-dry: the real run would use", result.stdout)
+
+    def test_a_fresh_run_schedules_the_staging_and_the_parser_reads_the_job_list(self) -> None:
+        """A job parser that does not know `sparse_regions` refuses the whole dry run (#459, P1)."""
+        self.assert_schedules_staging(self.dry_run())
+
+    def test_a_forced_run_schedules_the_staging(self) -> None:
+        """`--config force=1` builds the same table, so its staging is scheduled too (#459, P1)."""
+        self.assert_schedules_staging(self.dry_run("--config", "force=1"))
+
+    def test_a_forced_run_restages_a_copy_whose_bytes_drifted(self) -> None:
+        """A newer staged copy of older bytes is restaged, not read (#459, P2).
+
+        Snakemake decides by mtime, and a forced run's `--forcerun` names the
+        release's records and its derived manifest, not this file, so without a
+        content check the build would read the drifted copy.
+        """
+        self.staged.parent.mkdir(parents=True)
+        self.staged.write_text(self.EDITED, encoding="utf-8")
+        later = self.carried.stat().st_mtime + 86_400
+        os.utime(self.staged, (later, later))
+        self.assertGreater(self.staged.stat().st_mtime, self.carried.stat().st_mtime)
+        self.assertIn(str(self.staged), self.dry_run("--config", "force=1").stdout.split("Command:")[1].split("--config")[0])
+        self.assert_schedules_staging(self.dry_run("--config", "force=1"))
+
+    def test_a_forced_run_with_the_bundle_bytes_staged_does_not_restage(self) -> None:
+        """The check is by content, not a blanket restage: an identical copy schedules nothing."""
+        self.carried.write_text(self.REGIONS, encoding="utf-8")
+        self.staged.parent.mkdir(parents=True)
+        self.staged.write_text(self.REGIONS, encoding="utf-8")
+        later = self.carried.stat().st_mtime + 86_400
+        os.utime(self.staged, (later, later))
+        result = self.dry_run("--config", "force=1")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("rule sparse_regions:", result.stdout + result.stderr)
+
+    def test_the_staging_rule_copies_the_bundle_bytes_to_the_planned_path(self) -> None:
+        """The rule the build depends on writes the file `plan()` names, byte for byte (#459)."""
+        with mock.patch.dict(os.environ, {"PATH": f"{self.runtime_bin}{os.pathsep}{os.environ.get('PATH', '')}"}):
+            staged = run_snakemake([str(self.staged)], registry_root=self.stores, artifact_root=self.artifacts)
+        self.assertEqual(staged.returncode, 0, staged.stderr)
+        self.assertEqual(self.staged.read_bytes(), self.REGIONS.encode("utf-8"))
+
+    def test_a_dependency_parents_drifted_table_is_restaged_too(self) -> None:
+        """A child's run builds its parent, so the parent's stale staged table is restaged (#459, P2).
+
+        The run is named for the child; the parent's build is scheduled by
+        lineage, and `stale_manifest_outputs` already follows registered parents
+        for exactly this reason (#339). A content check that stopped at the named
+        release let the parent build from a newer copy of older bytes.
+        """
+        parent_id, child_id = "OGS-00094", "OGS-00093"
+        parent = create_ragged_fixture_store(self.stores, parent_id, artifact_root=self.artifacts)
+        parent_carried = parent / "sidecars" / "sparse_regions.tsv"
+        parent_carried.parent.mkdir()
+        parent_carried.write_text(self.REGIONS, encoding="utf-8")
+        self.write_two_id_child(child_id, parent_id=parent_id)
+
+        parent_staged = paths.regions_table_path(parent_id, root=self.artifacts)
+        parent_staged.parent.mkdir(parents=True)
+        parent_staged.write_text(self.EDITED, encoding="utf-8")
+        later = parent_carried.stat().st_mtime + 86_400
+        os.utime(parent_staged, (later, later))
+
+        result = self.dry_run(store_id=child_id)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        output = result.stdout + result.stderr
+        self.assertIn("rule sparse_regions:", output)
+        self.assertIn(str(parent_staged), output)
+        self.assertIn(f"--forcerun {parent_staged}", output)
+
+    def write_two_id_child(self, child_id: str, *, parent_id: str) -> None:
+        """A Ragged two-id completion of `parent_id`: the one plan with no build step (#303)."""
+        directory = self.stores / child_id
+        directory.mkdir(parents=True)
+        (directory / "release.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "store_id": child_id,
+                    "label": f"fixture-completed-{child_id}",
+                    "status": "accepted",
+                    "association_coverage": "signals_only",
+                    "derived_from": parent_id,
+                    "created_at": "2026-08-18T16:00:00Z",
+                    "description": "Fixture Ragged two-id completion",
+                    "source_snapshot_id": "fixture-snapshot-v1",
+                    "generator": {"commands": ["fixtures/generate.py"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (directory / "build.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "store_id": child_id,
+                    "layout": "ragged",
+                    "completion_state": "reference_completed",
+                    "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
+                    "complete": {
+                        "command": "complete-ragged",
+                        "options": {"ld-panel": str(Path(self._tmp.name) / "panel"), "ancestry": "EUR"},
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
+        (directory / "analyses.tsv").write_text(
+            (self.stores / parent_id / "analyses.tsv").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+
+    def test_the_pinned_engine_itself_serves_the_run(self) -> None:
+        """The real pinned opengwasdb passes the guard and schedules the staging (#459).
+
+        No stub: the runtime the run resolves is the one `pixi.lock` installs, so
+        its `build-ragged-ssf` -- the engine opengwas/opengwasdb#430 shipped --
+        answers the capability probe itself.
+        """
+        result = run_release(
+            [self.STORE_ID, "--dry-run"],
+            registry_root=self.stores,
+            artifact_root=self.artifacts,
+        )
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 0, output)
+        self.assertIn("rule sparse_regions:", output)
+        self.assertIn(str(self.staged), output)
+        self.assertIn(f"pinned {engine.locked_commit()}", output)
+        self.assertNotIn("the real run would refuse", output)
+
+    def test_a_bundle_that_records_none_schedules_no_staging(self) -> None:
+        """The eQTLGen cis-only releases plan and schedule exactly as before (#459)."""
+        self.carried.unlink()
+        result = self.dry_run()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertNotIn("rule sparse_regions:", result.stdout + result.stderr)
+
 
 
 if __name__ == "__main__":

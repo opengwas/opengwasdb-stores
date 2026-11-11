@@ -579,6 +579,25 @@ class RuntimeGuardTestCase(unittest.TestCase):
         record_check()
         self.assertEqual(identity.format_version, "0.2.0")
 
+    def test_completion_parent_0_2_1_with_regions_passes(self) -> None:
+        """A Ragged parent at 0.2.1, which carries `regions.tsv`, completes here (#459).
+
+        `0.2.1` is `0.2.0` plus a Ragged release's manifest-declared
+        `regions.tsv` (opengwas/opengwasdb#430, spec §21.3), and the same
+        encoders write both, so a two-id completion of a region-carrying parent
+        is a run this pin can make rather than one it must refuse.
+        """
+        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
+        self._write_bundle("OGS-00090")
+        capable = self._capable_for_completion("capable", format_version="0.2.1")
+        (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
+        runtime.verify_runtime_for_releases(
+            [self._job("OGS-00091", "complete")],
+            registry_root=self.registry,
+            executable=str(capable.executable),
+        )
+        record_check()
+
     def test_enhancement_only_child_is_not_gated(self) -> None:
         """Adding HM3 to an existing 0.1.0 completed Store does not run completion."""
         self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090", indexed_subset=True)
@@ -750,6 +769,154 @@ class RuntimeGuardTestCase(unittest.TestCase):
         self._write_bundle("OGS-00090")
         self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
         resources.verify_observed_view_check_for_releases(
+            [(str(self.artifact_root), "OGS-00090"), (str(self.artifact_root), "OGS-00091")],
+            registry_root=self.registry,
+            executable="/definitely/missing",
+        )
+        record_check()
+
+    # --- Recorded regions capability (#459) -------------------------------
+
+    REGIONS_HEADER = (
+        "analysis_id\tregion_kind\tchromosome\tstart\tend\tsource_genome_build\n"
+        "GCST000001\tcis\t1\t100\t200\tGRCh38\n"
+    )
+
+    def _ragged_build(self, store_id: str, *, regions: bool, completes: bool = False) -> None:
+        """A Ragged release whose build is `build-ragged-ssf`, with or without its recorded regions.
+
+        `completes` adds the `complete` block a Reference-Completed release has:
+        the table belongs to the build, so whether the release also completes
+        its own Store must not change the answer (#459).
+        """
+        self._write_bundle(store_id, single_id=completes)
+        build_path = self.registry / store_id / "build.yaml"
+        build = yaml.safe_load(build_path.read_text(encoding="utf-8"))
+        build.update(
+            layout="ragged",
+            build={"command": "build-ragged-ssf", "options": {}},
+            post={"top_hits": False, "rho": False, "overview": False, "validate": True},
+        )
+        if completes:
+            build["complete"] = {
+                "command": "complete-ragged",
+                "options": {"ld-panel": "/p", "ancestry": "EUR"},
+            }
+        build_path.write_text(yaml.safe_dump(build), encoding="utf-8")
+        release_path = self.registry / store_id / "release.yaml"
+        release = yaml.safe_load(release_path.read_text(encoding="utf-8"))
+        release["association_coverage"] = "signals_only"
+        release_path.write_text(yaml.safe_dump(release), encoding="utf-8")
+        if regions:
+            sidecars = self.registry / store_id / "sidecars"
+            sidecars.mkdir(exist_ok=True)
+            (sidecars / "sparse_regions.tsv").write_text(self.REGIONS_HEADER, encoding="utf-8")
+
+    def _help_stub(self, name: str, help_text: str) -> Path:
+        """A stub that answers `--help` with `help_text` and every other call with exit 2."""
+        stub = self.tmp / name
+        stub.write_text(
+            "#!/bin/sh\n"
+            'if [ "$2" = "--help" ]; then\n'
+            f"  printf '%s\\n' '{help_text}'\n"
+            "  exit 0\n"
+            "fi\n"
+            "exit 2\n",
+            encoding="utf-8",
+        )
+        stub.chmod(0o755)
+        return stub
+
+    def test_a_ragged_build_of_recorded_regions_on_a_runtime_without_the_flag_is_refused(self) -> None:
+        """A runtime whose `build-ragged-ssf` takes no `--regions` cannot build the Store (#459)."""
+        self._ragged_build("OGS-00090", regions=True)
+        without_flag = self._help_stub(
+            "without-regions",
+            "Usage: opengwasdb build-ragged-ssf [OPTIONS] MANIFEST SOURCE STORE\n"
+            "  --store-id TEXT\n  --admission-record DIR",
+        )
+        before = sorted(self.tmp.rglob("*"))
+        with self.assertRaises(resources.RegionsTableRuntimeError) as ctx:
+            resources.verify_regions_for_releases(
+                [(str(self.artifact_root), "OGS-00090")],
+                registry_root=self.registry,
+                executable=str(without_flag),
+            )
+        record_check()
+        message = str(ctx.exception)
+        self.assertIn("OGS-00090", message)
+        self.assertIn("build-ragged-ssf", message)
+        self.assertIn("--regions", message)
+        self.assertIn("opengwas/opengwasdb#430", message)
+        self.assertEqual(sorted(self.tmp.rglob("*")), before, "a refusal writes nothing")
+
+    def test_a_two_id_child_carrying_the_table_is_not_gated(self) -> None:
+        """A completion plans no build, so it is given no flag and needs no capability (#459).
+
+        The child here is a real two-id Ragged completion of a published parent:
+        it carries a table of its own, and its plan still names no `--regions`.
+        """
+        self._write_bundle("OGS-00090")
+        bundle_root = self.registry / "OGS-00091"
+        bundle_root.mkdir(parents=True)
+        (bundle_root / "release.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "store_id": "OGS-00091",
+                    "label": "OGS-00091",
+                    "association_coverage": "signals_only",
+                    "status": "accepted",
+                    "derived_from": "OGS-00090",
+                    "created_at": "2026-01-01T00:00:00Z",
+                    "description": "fixture child",
+                    "generator": {"commands": ["fixture"]},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (bundle_root / "build.yaml").write_text(
+            yaml.safe_dump(
+                {
+                    "store_id": "OGS-00091",
+                    "layout": "ragged",
+                    "completion_state": "reference_completed",
+                    "post": {"top_hits": False, "rho": False, "overview": False, "validate": True},
+                    "complete": {"command": "complete-ragged", "options": {"ld-panel": "/p", "ancestry": "EUR"}},
+                }
+            ),
+            encoding="utf-8",
+        )
+        (bundle_root / "analyses.tsv").write_text("analysis_id\n", encoding="utf-8")
+        sidecars = bundle_root / "sidecars"
+        sidecars.mkdir()
+        (sidecars / "sparse_regions.tsv").write_text(self.REGIONS_HEADER, encoding="utf-8")
+        resources.verify_regions_for_releases(
+            [(str(self.artifact_root), "OGS-00091")],
+            registry_root=self.registry,
+            executable="/definitely/missing",
+        )
+        record_check()
+
+    def test_a_runtime_taking_the_flag_passes(self) -> None:
+        self._ragged_build("OGS-00090", regions=True)
+        resources.verify_regions_for_releases(
+            [(str(self.artifact_root), "OGS-00090")],
+            registry_root=self.registry,
+            executable=str(
+                self._help_stub(
+                    "with-regions",
+                    "Usage: opengwasdb build-ragged-ssf [OPTIONS] MANIFEST SOURCE STORE\n"
+                    "  --regions PATH\n  --admission-record DIR",
+                )
+            ),
+        )
+        record_check()
+
+    def test_a_release_with_no_recorded_regions_is_not_gated(self) -> None:
+        """A Ragged bundle without the table, and every Dense one, passes whatever the runtime."""
+        self._ragged_build("OGS-00090", regions=False, completes=True)
+        self._write_bundle("OGS-00091", single_id=True)
+        resources.verify_regions_for_releases(
             [(str(self.artifact_root), "OGS-00090"), (str(self.artifact_root), "OGS-00091")],
             registry_root=self.registry,
             executable="/definitely/missing",

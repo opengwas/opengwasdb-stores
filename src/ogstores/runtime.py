@@ -9,10 +9,11 @@ runtime that run will actually execute:
   onto `PATH`, and an unprovable identity is refused rather than assumed;
 * provides every subcommand the *scheduled* jobs will actually run; and
 * can complete each scheduled Reference-Completed release, i.e. the parent it
-  will consume is format 0.2.0 or is itself built in the same run.
+  will consume is in a format this runtime writes or is itself built in the
+  same run.
 
 The last point is a *format* gate, not a Store inspection: a 0.1.0 parent can
-be read but not completed by a format-0.2.0 builder (opengwas/opengwasdb#247,
+be read but not completed by the 0.2.x builders (opengwas/opengwasdb#247,
 `opengwasdb.store.open.check_completion_source`). Asking the runtime's own
 `info --format json` reports the parent's declared format through the core's
 supported interface, so this repository never opens the Store itself
@@ -29,7 +30,7 @@ job, so:
   recipe;
 * a parent on disk at 0.1.0 is not gated when a same-run `build`/`complete`
   producing step for that parent is scheduled, because that produces a fresh
-  0.2.0 Store;
+  0.2.x Store;
 * a parent that is neither on disk nor scheduled to be produced is refused
   loudly rather than left for Snakemake to fail on hours later.
 
@@ -51,10 +52,20 @@ from ogstores.plan import plan
 
 OPENGWASDB_GIT_URL: str = engine.OPENGWASDB_GIT_URL
 
-#: The Store format the pinned builders write and the only format Reference
-#: Completion may consume. It lives in the core, not here; this is the value the
-#: guard reports and compares against `opengwasdb info`.
+#: The Store format a release that uses no optional feature is stamped, and the
+#: one `pixi run engine-update` probes as the format a locked engine writes
+#: (`opengwasdb.store.open.CURRENT_FORMAT_VERSION`). It lives in the core, not
+#: here; this is the value the guard reports.
 REQUIRED_FORMAT_VERSION: str = "0.2.0"
+
+#: Every format the pinned writers stamp, and so every format Reference
+#: Completion may consume. `0.2.1` is `0.2.0` plus a Ragged release's
+#: manifest-declared `regions.tsv` (opengwas/opengwasdb#430, spec §21.3), which
+#: is what a bundle carrying `sidecars/sparse_regions.tsv` builds; completion
+#: re-stamps a release by its features, so such a parent completes as `0.2.1`.
+#: Both are written by the same encoders, and an older reader takes `0.2.0` as
+#: fully understood.
+WRITABLE_FORMAT_VERSIONS: frozenset[str] = frozenset({"0.2.0", "0.2.1"})
 
 #: Command the guard probes in addition to those a scheduled plan names, for the
 #: completion-parent format gate.
@@ -89,7 +100,7 @@ class RuntimeRevisionError(RuntimeGuardError):
 
 
 class CompletionParentFormatError(RuntimeGuardError):
-    """A scheduled Reference-Completed release has a parent no format-0.2.0 builder may complete."""
+    """A scheduled Reference-Completed release has a parent in a format this builder cannot write."""
 
 
 @dataclass(frozen=True)
@@ -427,11 +438,12 @@ def verify_runtime_for_releases(
                 "(lineage does this automatically) or correct `derived_from`."
             )
         format_version = _read_store_format_version(resolved, parent_store, timeout=timeout)
-        if format_version != REQUIRED_FORMAT_VERSION:
+        if format_version not in WRITABLE_FORMAT_VERSIONS:
+            accepted = " or ".join(sorted(WRITABLE_FORMAT_VERSIONS))
             raise CompletionParentFormatError(
                 f"Release {store_id} is Reference-Completed from parent {parent_id}, whose "
                 f"existing Store at {parent_store} is format_version={format_version!r}. A "
-                f"format-{REQUIRED_FORMAT_VERSION} builder reads but cannot write that "
+                f"builder at this pin writes {accepted} and reads but cannot write that "
                 "format; completion preserves its source's format (opengwas/opengwasdb ADR "
                 "0038 §4). Convert the parent to format 0.2.0 with the documented core "
                 "conversion procedure or rebuild the parent at the pinned runtime, then "
@@ -447,6 +459,7 @@ __all__ = [
     "INFO_COMMAND",
     "OPENGWASDB_GIT_URL",
     "REQUIRED_FORMAT_VERSION",
+    "WRITABLE_FORMAT_VERSIONS",
     "RuntimeCapabilityError",
     "RuntimeGuardError",
     "RuntimeIdentity",

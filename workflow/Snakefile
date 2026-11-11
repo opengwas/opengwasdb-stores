@@ -31,6 +31,12 @@ analyses.tsv`, which is the first planned step's input, so Snakemake builds the
 filtered manifest before the builder sees it. Completion commands read only
 their parent Store, so they depend on no manifest step.
 
+The `sparse_regions` rule stages a region-filtered bundle's recorded regions at
+`<artifact-root>/<store_id>/work/sparse_regions.tsv` for the same reason (#459):
+`plan()` names that path as `build-ragged-ssf`'s `--regions`, so the build reads
+a table under the artifact root and keeps it in the Store as `regions.tsv`,
+which completion then reads with no flag of its own.
+
 Post-steps exist only when supported by the selected command: notably, Ragged
 Store envelopes exclude overview.html, so Ragged plans go directly to validate
 after their final supported index step.
@@ -138,6 +144,18 @@ def stage_column_map(store_id: str, destination: Path) -> None:
     """
     try:
         resources.stage_column_map(get_bundle(store_id), destination)
+    except resources.ReferenceResourceError as exc:
+        raise WorkflowError(str(exc))
+
+
+def stage_regions_table(store_id: str, destination: Path) -> None:
+    """Stage a release's recorded regions, or refuse naming them (#459).
+
+    A function for the reason `stage_column_map` is one: in a rule's `run:`,
+    `resources` names Snakemake's own keyword and shadows the module.
+    """
+    try:
+        resources.stage_regions_table(get_bundle(store_id), destination)
     except resources.ReferenceResourceError as exc:
         raise WorkflowError(str(exc))
 
@@ -271,6 +289,12 @@ onstart:
         resources.verify_observed_view_check_for_releases(scheduled, registry_root=REGISTRY_ROOT)
     except resources.ObservedViewCheckRuntimeError as exc:
         raise WorkflowError(str(exc))
+    # And for a Ragged build that records its regions (#459): the runtime's
+    # `build-ragged-ssf` must take `--regions` (opengwas/opengwasdb#430).
+    try:
+        resources.verify_regions_for_releases(scheduled, registry_root=REGISTRY_ROOT)
+    except resources.RegionsTableRuntimeError as exc:
+        raise WorkflowError(str(exc))
 
 
 # `all` is every bundle the contract lets this workflow build, not every
@@ -333,6 +357,23 @@ rule column_map:
         "{root}/{store_id}/work/column_maps/{file}"
     run:
         stage_column_map(wildcards.store_id, Path(output[0]))
+
+
+# A region-filtered bundle's recorded regions, staged under the artifact root
+# where `plan()` names them as `build-ragged-ssf`'s `--regions`, so the build
+# reads a path the same from any checkout and keeps the table in the Store as
+# `regions.tsv` (#459). The bundle carries the table already; nothing here
+# interprets it, and the entry point restages a copy whose bytes have drifted
+# (`release.stale_regions_outputs`).
+rule sparse_regions:
+    input:
+        lambda wildcards: str(
+            Path(get_bundle(wildcards.store_id).root) / bundle.SPARSE_REGIONS_SIDECAR
+        )
+    output:
+        "{root}/{store_id}/work/sparse_regions.tsv"
+    run:
+        stage_regions_table(wildcards.store_id, Path(output[0]))
 
 
 rule step:
