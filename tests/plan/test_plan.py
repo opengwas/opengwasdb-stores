@@ -64,6 +64,7 @@ from ogstores.bundle import Bundle, load
 from ogstores.plan import (
     COMMANDS,
     DEFAULT_COMMANDS,
+    OBSERVED_VIEW_CHECK_COMMAND,
     POST_DEFAULTS,
     RAGGED_SSF_COMMAND,
     IndexedSubsetDeclaration,
@@ -145,15 +146,6 @@ def assert_steps_match_golden(
         test_case.assertEqual(actual, expected)
 
 
-#: Planned flags the pinned `opengwasdb` predates, with the change that adds each.
-#: `build-ragged-ssf --regions` arrives with opengwas/opengwasdb#430, and the pin
-#: moves to that engine as a change of its own (stores #459); until it does, the
-#: pinned parser cannot be asked about the flag, and the run-time guard
-#: (`resources.verify_regions_for_releases`) refuses a runtime that lacks it.
-#: A test below fails once the pin takes the flag, which is when this goes.
-AWAITED_FLAGS: dict[str, str] = {"regions": "opengwas/opengwasdb#430"}
-
-
 def cli_takes_option(command_name: str, flag: str) -> bool:
     """Whether the pinned `opengwasdb` CLI's `command_name` declares `--<flag>`."""
     click_group = typer.main.get_command(opengwasdb_cli.app)
@@ -178,30 +170,15 @@ def validate_step_argv_against_cli(test_case: unittest.TestCase, step: Step) -> 
         f"Command {cmd_name!r} not found in active opengwasdb CLI",
     )
     cmd = click_group.commands[cmd_name]
-    # A planned flag this runtime predates would fail the parser on a token it
-    # has never heard of, and the run-time guard refuses such a runtime before
-    # anything is written. Only that pair is set aside: the rest of a planned
-    # argv is still handed to the real parser, so a mistyped argument beside it
-    # is caught here (#459).
-    checked = list(cmd_args)
-    awaited: list[str] = []
-    for flag in AWAITED_FLAGS:
-        option = f"--{flag}"
-        if option not in checked or cli_takes_option(cmd_name, flag):
-            continue
-        index = checked.index(option)
-        awaited.append(flag)
-        del checked[index : index + 2]
     try:
-        ctx = cmd.make_context(cmd_name, checked)
+        ctx = cmd.make_context(cmd_name, list(cmd_args))
         record_check()
         test_case.assertIsNotNone(ctx)
     except Exception as exc:
         test_case.fail(
             f"Failed to parse argv for step {step.name!r} ({cmd_name}) against CLI:\n"
             f"Argv: {step.argv}\n"
-            + (f"Checked without the awaited {awaited}: {checked}\n" if awaited else "")
-            + f"Error: {exc}"
+            f"Error: {exc}"
         )
 
 
@@ -2084,15 +2061,24 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
         output = check.argv.index("--output")
         self.assertEqual(check.argv[output - 4 : output], complete.argv[-4:])
 
-    def test_the_pinned_runtime_still_predates_the_flag(self) -> None:
-        """`--regions` is planned; the pin moves to the engine #430 releases as its own change.
+    def test_the_pinned_runtime_takes_the_flag_only_where_it_is_planned(self) -> None:
+        """The pinned engine is the one opengwas/opengwasdb#430 shipped, and only the build takes it (#459).
 
-        This assertion is what retires `AWAITED_FLAGS` in this module: when the
-        pinned `build-ragged-ssf` takes the flag, it fails, and every planned
-        argv can be handed to the real parser again.
+        `build-ragged-ssf --regions TABLE` is what writes the Store's
+        `regions.tsv`; `complete-ragged` and `check-observed-view` read that file
+        from the Store and declare no such option. Every planned argv below is
+        handed to the pinned parser, so a plan that put the flag on either of
+        them would fail here as an unknown option.
         """
-        self.assertFalse(cli_takes_option(RAGGED_SSF_COMMAND, "regions"))
+        self.assertTrue(cli_takes_option(RAGGED_SSF_COMMAND, "regions"))
         record_check()
+        for command_name in ("complete-ragged", OBSERVED_VIEW_CHECK_COMMAND):
+            self.assertFalse(cli_takes_option(command_name, "regions"), command_name)
+            record_check()
+        steps = plan(self.completed())
+        build = next(step for step in steps if step.name == "build")
+        self.assertIn("--regions", build.argv)
+        validate_step_argv_against_cli(self, build)
 
     def test_a_build_block_declaring_regions_is_refused(self) -> None:
         """The registry composes the flag from the bundle, so a recipe may not contradict it."""

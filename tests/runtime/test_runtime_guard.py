@@ -579,6 +579,25 @@ class RuntimeGuardTestCase(unittest.TestCase):
         record_check()
         self.assertEqual(identity.format_version, "0.2.0")
 
+    def test_completion_parent_0_2_1_with_regions_passes(self) -> None:
+        """A Ragged parent at 0.2.1, which carries `regions.tsv`, completes here (#459).
+
+        `0.2.1` is `0.2.0` plus a Ragged release's manifest-declared
+        `regions.tsv` (opengwas/opengwasdb#430, spec §21.3), and the same
+        encoders write both, so a two-id completion of a region-carrying parent
+        is a run this pin can make rather than one it must refuse.
+        """
+        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
+        self._write_bundle("OGS-00090")
+        capable = self._capable_for_completion("capable", format_version="0.2.1")
+        (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
+        runtime.verify_runtime_for_releases(
+            [self._job("OGS-00091", "complete")],
+            registry_root=self.registry,
+            executable=str(capable.executable),
+        )
+        record_check()
+
     def test_enhancement_only_child_is_not_gated(self) -> None:
         """Adding HM3 to an existing 0.1.0 completed Store does not run completion."""
         self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090", indexed_subset=True)

@@ -6,5 +6,4 @@
   cis-only releases, plans and builds exactly as before, and a published Store
   gains `regions.tsv` only when it is rebuilt. A build that needs the table is
   refused before anything is written on an opengwasdb whose `build-ragged-ssf`
-  takes no `--regions`, naming the Store and opengwas/opengwasdb#430; the pin
-  still precedes that engine, so such a release is refused until it moves.
+  takes no `--regions`, naming the Store and opengwas/opengwasdb#430.

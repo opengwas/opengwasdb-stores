@@ -2088,6 +2088,20 @@ def prepare_ragged_single_id_signal_release(root: Path, store_id: str) -> tuple[
     amend_to_complete_own_store(
         stores, store_id, ld_panel=create_signal_ld_panel(root / "ld-panel"), command="complete-ragged"
     )
+    # The Analysis has no Trait position and the release is not `cis`, so
+    # `complete-ragged` needs the Store's `regions.tsv` and refuses a source
+    # without one (opengwas/opengwasdb#430). The bundle's recorded regions are
+    # the panel's one block, which is the region completion retains and the
+    # Observed-View Check then audits: `build-ragged-ssf` validates this table
+    # and keeps it in the Store, and the run stamps the Store 0.2.1 for it.
+    sidecars = store_dir / "sidecars"
+    sidecars.mkdir()
+    (sidecars / "sparse_regions.tsv").write_text(
+        "analysis_id\tregion_id\tregion_kind\tchromosome\tstart\tend\tsource_genome_build\n"
+        f"test_analysis_{store_id}\t{store_id}__cis__1\tcis\t1\t"
+        f"{SIGNAL_POSITIONS[0]}\t{SIGNAL_POSITIONS[-1]}\tGRCh38\n",
+        encoding="utf-8",
+    )
     return stores, artifacts
 
 
@@ -3834,6 +3848,11 @@ class TestWorkflowSingleIdRaggedReferenceCompletion(unittest.TestCase):
         record = yaml.safe_load((self.template["stores"] / self.STORE_ID / "validation.yaml").read_text(encoding="utf-8"))
         self.assertIn(record["status"], ("passed", "passed_with_warnings"))
         self.assertEqual(record["observed"]["n_variants"], len(SIGNAL_POSITIONS), "the panel adds the held-out position")
+        # The Store keeps the bundle's regions table and says so, in the format
+        # stamp 0.2.1 that carries one (opengwas/opengwasdb#430, spec §21.3).
+        self.assertEqual(manifest_doc["format_version"], "0.2.1")
+        self.assertEqual(manifest_doc["regions"]["path"], "regions.tsv")
+        self.assertTrue((self.store_p / "regions.tsv").is_file())
 
     def test_the_check_rebuilt_the_retained_region_from_the_bundles_panel_and_passed(self) -> None:
         """The check took the `complete` block's panel and ancestry and found the one imputed cell in the one region."""
@@ -5142,10 +5161,13 @@ class TestWorkflowRecordedRegions(unittest.TestCase):
     and for `--config force=1`; and a forced run must not build from a staged
     copy whose bytes have drifted from the bundle's, whatever its mtime.
 
-    The runtime here is a stub that answers as the tracked pin and lists
-    `--regions` on `build-ragged-ssf`: the pinned engine still predates the flag
-    (`AWAITED_FLAGS` in `tests/plan`), so the run-time guard would refuse the
-    real one before a dry run could show what was scheduled.
+    Most cases here run against a stub that answers as the tracked pin, because
+    the entry point probes the runtime's `--help` for every scheduled command and
+    each probe imports the real CLI: a pinned dry run costs seconds, and this
+    class makes a dozen. The pinned engine is the one the stub stands in for, and
+    `test_the_pinned_engine_itself_serves_the_run` runs it for real, so a stub
+    that stopped answering as the pin would not leave these cases passing
+    unproven.
     """
 
     STORE_ID = "OGS-00095"
@@ -5175,7 +5197,10 @@ class TestWorkflowRecordedRegions(unittest.TestCase):
     def pinned_runtime(self) -> Path:
         """A stub `opengwasdb` the entry point accepts as the pin, whose builder takes `--regions`.
 
-        Only `--help` is ever answered: a dry run executes nothing.
+        Only `--help` is ever answered: a dry run executes nothing. It stands in
+        for the pinned engine to keep this class quick, and answers as that engine
+        does -- `build-ragged-ssf` lists `--regions`, which
+        `opengwas/opengwasdb#430` gives it.
         """
         stub = Path(self._tmp.name) / "runtime"
         binary = stub / "bin" / "opengwasdb"
@@ -5328,6 +5353,25 @@ class TestWorkflowRecordedRegions(unittest.TestCase):
         (directory / "analyses.tsv").write_text(
             (self.stores / parent_id / "analyses.tsv").read_text(encoding="utf-8"), encoding="utf-8"
         )
+
+    def test_the_pinned_engine_itself_serves_the_run(self) -> None:
+        """The real pinned opengwasdb passes the guard and schedules the staging (#459).
+
+        No stub: the runtime the run resolves is the one `pixi.lock` installs, so
+        its `build-ragged-ssf` -- the engine opengwas/opengwasdb#430 shipped --
+        answers the capability probe itself.
+        """
+        result = run_release(
+            [self.STORE_ID, "--dry-run"],
+            registry_root=self.stores,
+            artifact_root=self.artifacts,
+        )
+        output = result.stdout + result.stderr
+        self.assertEqual(result.returncode, 0, output)
+        self.assertIn("rule sparse_regions:", output)
+        self.assertIn(str(self.staged), output)
+        self.assertIn(f"pinned {engine.locked_commit()}", output)
+        self.assertNotIn("the real run would refuse", output)
 
     def test_a_bundle_that_records_none_schedules_no_staging(self) -> None:
         """The eQTLGen cis-only releases plan and schedule exactly as before (#459)."""

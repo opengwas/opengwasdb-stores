@@ -11,7 +11,7 @@ provides, and what upgrading it does **not** do.
 | Repository | `https://github.com/opengwas/opengwasdb` |
 | Branch followed | `main`, in `pixi.toml`'s `[feature.store-build.pypi-dependencies]` |
 | Commit, and the package version | `pixi.lock`, and nowhere else (#253). `pixi run env-check` prints both, beside the installed engine's |
-| Writers' Store `format_version` | `0.2.0` (`ogstores.runtime.REQUIRED_FORMAT_VERSION`) |
+| Writers' Store `format_version` | `0.2.0`, or `0.2.1` for a Ragged Store carrying `regions.tsv` (`ogstores.runtime.WRITABLE_FORMAT_VERSIONS`; the baseline is `REQUIRED_FORMAT_VERSION`) |
 | Python floor | 3.12 |
 | Zarr / numcodecs | `zarr>=3.4,<4`, `numcodecs>=0.17` (Zarr v3 with the sharding codec) |
 
@@ -36,9 +36,10 @@ git commit pixi.lock -m "Move opengwasdb to <version> (<commit>)"
 Run it at the start of a working session, and commit the lock on its own, never
 inside a feature change. `engine-update` refuses, and puts the previous lock
 back, when the lock does not resolve exactly one commit, when an environment
-installs another, or when the new engine writes a Store format other than
+installs another, or when the new engine's baseline Store format is not
 `REQUIRED_FORMAT_VERSION`: a format change is a deliberate repository change,
-not an update. `pixi run engine-update --check` checks without moving anything.
+not an update. That baseline stays `0.2.0` across opengwasdb#430, which stamps
+only a region-carrying Ragged Store `0.2.1`, so the probe still passes. `pixi run engine-update --check` checks without moving anything.
 
 ### Engines within a phase
 
@@ -65,6 +66,12 @@ history.
   sharding codec; Dense inner chunk `[1000, 64]` and shard `[100000, 1024]`.
   `build-dense-vcf`, `build-hybrid`, `build-ragged-ssf` and `build-ragged-besd`
   all write it, and the converter writes the same layout from a 0.1.0 source.
+  **A build stamps `0.2.1` for a Ragged Store carrying `regions.tsv`**, and
+  `0.2.0` for every other Store (opengwas/opengwasdb#430, spec §21.3): `0.2.1`
+  is `0.2.0` plus a Ragged release's manifest-declared region table, which the
+  bundle's `sidecars/sparse_regions.tsv` puts in the Store as `regions.tsv`.
+  An older reader takes a `0.2.0` release as fully understood; a `0.2.1` one it
+  reports as needing a reader that knows the table.
 - **The required Ragged/Overflow `by_variant/` index**
   (opengwas/opengwasdb#252/#268). Every Ragged and Hybrid builder writes it
   inline; `opengwasdb validate` fails without it. It is part of the format
@@ -135,7 +142,9 @@ Before the entry point snapshots anything or a build writes a Store,
 3. the runtime does not provide every subcommand the *scheduled* jobs will run
    (probed with `--help`); or
 4. a **scheduled** `complete` job would consume an existing parent Store whose
-   declared `format_version` is not `0.2.0`.
+   declared `format_version` the pinned builders do not write -- neither `0.2.0`
+   nor the `0.2.1` a Ragged Store carrying `regions.tsv` is stamped
+   (`ogstores.runtime.WRITABLE_FORMAT_VERSIONS`).
 
 The gate is scheduled-step-aware, because an id appearing in the dry run is not
 proof that the Store is rebuilt. `workflow/release.py` and the Snakefile
@@ -145,8 +154,7 @@ proof that the Store is rebuilt. `workflow/release.py` and the Snakefile
   an enhancement-only rerun of an existing completed Store (build its HM3
   subset, validate, overview) never consults its unused completion recipe;
 * a same-run `build` or `complete` job for the parent produces a fresh
-  format-0.2.0 Store, so the stale on-disk artifact is not consumed and is not
-  gated;
+  0.2.x Store, so the stale on-disk artifact is not consumed and is not gated;
 * a parent that is neither on disk nor scheduled to be produced is refused
   loudly before Snakemake starts.
 

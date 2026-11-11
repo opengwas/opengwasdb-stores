@@ -2300,12 +2300,19 @@ class TestSparseRegionsSidecar(unittest.TestCase):
         record_check()
 
     def test_a_bundle_reached_through_a_link_of_its_own_still_carries_its_table(self) -> None:
-        """A registry linked into place is the bundle's own location, not an escape (#459)."""
-        self.loaded(sidecar=None)
+        """A registry linked into place is the bundle's own location, not an escape (#459).
+
+        The fixture carries a real table, so this fails if the containment check
+        resolves only one side: with the bundle's own path left unresolved, its
+        table would read as a link out of the bundle.
+        """
+        self.loaded()
         linked = self.tmp_dir / "linked-registry"
         linked.symlink_to(self.tmp_dir, target_is_directory=True)
         loaded = bundle.load("OGS-00096", registry_root=linked)
         self.assertIsNone(loaded.sparse_regions_defect)
+        self.assertEqual(loaded.sparse_regions_path, linked / "OGS-00096" / bundle.SPARSE_REGIONS_SIDECAR)
+        self.assertEqual(loaded.sparse_regions_path.read_text(encoding="utf-8"), self.REGIONS)
         record_check()
 
     def test_the_committed_region_filtered_bundles_carry_one(self) -> None:
