@@ -97,4 +97,51 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   finishes, the Observed-Only Store described above is the one published. Release Status
   stays validated.
 
+  Completed (issue #224, 2026-11-11). The completion phase ran on its own, as ADR 0037''s
+  single-id rule requires: an unforced `release OGS-00006` from this registry at 56d36cb8,
+  runtime opengwasdb 0.7.4 at f2ddb0f5 (format 0.2.0), started 2026-11-10 12:47 UTC and
+  finished 2026-11-11 01:08 UTC, elapsed 12 h 21 m, exit 0. A first attempt on 2026-11-07 at
+  opengwasdb 0.7.1 finished its 1,348 blocks but could not merge them: its merge held every
+  fill in memory, about 1.7 TB on a 1 TB host. On the owner''s word it was stopped and its
+  checkpoints deleted; nothing published changed. opengwas/opengwasdb#424 (v0.7.4) made that
+  merge stream through the code Dense completion and the Ragged builders already use.
+  complete-ragged against the UK Biobank EUR LD Reference Resource at
+  /data/opengwasdb/reference/ld, ancestry EUR at 32 workers, took 9 h 45 m: the 1,348 LD
+  blocks in 3 h 50 m, then the merge, the assembly, the zarr write, the variant-centric index
+  and the top-hit indexes in 5 h 55 m, at a peak resident memory of 207 GiB. It imputed
+  10,001,552,498 associations, in all 1,400 Analyses, every one of which is assigned EUR. The
+  variant axis grew from 12,086,463 to 14,273,581 variants, 2,187,118 of them new panel
+  variants, and 2,238,487,317 cells stay missing. 47 of the 10,059,606,710 stored SEs are
+  exact exceptions, none on an imputed cell, and no Analysis is over the 2% budget. validate
+  (46 m) and the Observed-View Check (1 h 50 m) followed, and completion register published
+  the Store under the release id OGS-00006-completed, replacing the Observed-Only Store it
+  had published. As ADR 0037 decides, the replaced Store''s arrays were deleted once the new
+  Store was in place; its records and Validation Record are archived under
+  /data/opengwasdb/stores/OGS-00006/replaced/20261111T010849Z/. The Observed-View Check
+  passed: it compared 1,003 Analyses (1,000 at random, the 5 largest and 5 with no Trait
+  position, the strata overlapping), reproduced all 44,259,732 of their observed
+  associations exactly (largest z, SE and EAF difference 0), and every failing counter is
+  zero. It is reported at /data/opengwasdb/stores/OGS-00006/work/observed-view-check.json.
+  validate reports no errors and the same 1,397 EAF-orientation warnings as the Observed-Only
+  Store. Completion reached every Analysis: all 1,400 carry imputed cells (4,584,425 to
+  7,440,171, median 7,148,219) and none is zero. The panel''s EAF was measured rather than
+  assumed: over 50 seeded Analyses, eaf_reference reads r +0.9999 against the mean observed
+  EAF of 728,867 variants, where the other allele''s frequency would read -0.9999, and every
+  imputed cell read decodes to it. The Validation Record was copied into this bundle
+  unchanged and reads passed_with_warnings, 1,400 Analyses, 14,273,581 variants,
+  12,298,094,027 associations and completion_state reference_completed, so the sentence
+  above that the Observed-Only Store is the one published no longer holds. Human scientific
+  acceptance remains pending. Release Status stays validated.
+
+  Reading this Store''s completion quality. completion_quality''s pearson_r is the in-sample
+  fit of each block''s prediction to the z values it observed, and a signals_only Analysis
+  observes few variants in each block it is completed in: the Observed-View Check''s sample
+  holds 44,259,732 observed against 7,165,588,488 imputed cells over 1,088,057 retained
+  blocks, about 41 observed to 6,586 imputed per block. A fit to so few points is close to
+  exact whatever the accuracy of the cells it imputes, so the per-Analysis median r reads 1.0
+  (0.9471 to 1.0) where OGS-00012, a gwas-coverage Store under the same panel, reads 0.946.
+  It does not measure imputation accuracy here and is not evidence that this completion is
+  better than OGS-00012''s. The 269,616 block rows with no r had too few observed points to
+  fit, imputed nothing and account for 2,151,367,854 of the missing cells.
+
   '

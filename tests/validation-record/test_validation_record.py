@@ -21,7 +21,8 @@ This suite asserts the container migration:
      force=1`, and OGS-00006 twice through issue #332: at format 0.2.0, then
      again at an opengwasdb that takes the bundle's declared Association
      Coverage as a build input, so the second rebuild is the first record here
-     that carries the two coverage keys. The one correction to OGS-00001..3
+     that carries the two coverage keys, and once more when issue #224
+     completed it under its own id. The one correction to OGS-00001..3
      since is their `format_version`, a Release Erratum (issue #195):
      `register` recorded its own fabricated default "1.0", and the true value
      is the "0.1.0" each Store's manifest declares.
@@ -211,17 +212,22 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # (opengwasdb#298, #341): the first rebuild had recorded the builder's own
     # `cis_and_signals` default, and the store now records the declared
     # `signals_only` and the assembly nothing reported.
+    # Completed under its own id on 11 Nov 2026 at opengwasdb f2ddb0f (#224,
+    # ADR 0037): `register` wrote the record for the Reference-Completed Store
+    # it published, so the counts are the completed Store's and
+    # `build_elapsed_s` adds the completion phase's complete, validate and
+    # Observed-View Check steps (35,081 + 2,782 + 6,605 s) to the build's 850 s.
     "OGS-00006": {
         "format_version": None,
         "n_analyses": 1400,
-        "n_variants": 12086463,
-        "n_associations": 58054212,
+        "n_variants": 14273581,
+        "n_associations": 12298094027,
         "association_coverage": "signals_only",
         "reference_assembly": None,
         "store_bytes": None,
-        "build_elapsed_s": 850.366,
+        "build_elapsed_s": 45318.143,
         "validate_status": "passed_with_warnings",
-        "completion_state": "observed_only",
+        "completion_state": "reference_completed",
     },
 }
 
