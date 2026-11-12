@@ -26,6 +26,9 @@ stores:
     exposure: GCST003566
   OGS-00005:
     exposure: GCST002047
+  OGS-00006:
+    # first row; it holds 5 significant regions, so the harness derives the PheWAS variant from them
+    exposure: GCST90199621
   OGS-00008:
     exposure: ukb-b-19953
   OGS-00009:
