@@ -1,17 +1,17 @@
 {
   "artifact_root": "/data/opengwasdb/stores",
   "core": {
-    "checkout": "/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3",
-    "opengwasdb_fingerprint": "e8938731ac790ddf24d00936400e43bc04750aaa97c33ee2e1bd7939c49ca2d7",
-    "opengwasdb_path": "/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/opengwasdb",
-    "revision": "1f1e289a47e84f79434263235e01ff8a94c4d37c"
+    "checkout": "/data/opengwasdb/work/odb-v090",
+    "opengwasdb_fingerprint": "3ecb94560b3125d5f3c307fe90dfe8fa17827a65f6f8acd5440d7187b2bf3217",
+    "opengwasdb_path": "/data/opengwasdb/work/odb-v090/opengwasdb",
+    "revision": "ea81c4aa2c8854b8d6bb5de6ca2268d02bf340fc"
   },
   "epic": "opengwas/opengwasdb-stores#214",
   "harness": "release_benchmark_report",
   "hm3_only": false,
   "hm3_source": "benchmarks._query_shapes.measure_hm3_extract",
   "issue": "opengwas/opengwasdb-stores#212",
-  "measured_at": "2026-11-04T00:18:40.770966+00:00",
+  "measured_at": "2026-11-12T12:20:08.360007+00:00",
   "reps": 5,
   "shape_errors": [
     "OGS-00003",
@@ -68,7 +68,7 @@
         "detail": "generic harness exited 1; see stderr for the first failing shape",
         "returncode": 1,
         "status": "error",
-        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 1296, in <module>\n    main()\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 1230, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 342, in _resolve_selection\n    random_alids, random_analyses = _query_shapes.resolve_axis_selections(\n                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/_query_shapes.py\", line 74, in resolve_axis_selections\n    for a in rng.choice(n_analyses, size=RANDOM_AXIS_SIZE, replace=False)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"numpy/random/_generator.pyx\", line 917, in numpy.random._generator.Generator.choice\nValueError: Cannot take a larger sample than population when replace is False\n",
+        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 1296, in <module>\n    main()\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 1230, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 342, in _resolve_selection\n    random_alids, random_analyses = _query_shapes.resolve_axis_selections(\n                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/_query_shapes.py\", line 74, in resolve_axis_selections\n    for a in rng.choice(n_analyses, size=RANDOM_AXIS_SIZE, replace=False)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"numpy/random/_generator.pyx\", line 917, in numpy.random._generator.Generator.choice\nValueError: Cannot take a larger sample than population when replace is False\n",
         "stdout_tail": ""
       },
       "store_id": "OGS-00003"
@@ -87,7 +87,7 @@
         "detail": "generic harness exited 1; see stderr for the first failing shape",
         "returncode": 1,
         "status": "error",
-        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 1296, in <module>\n    main()\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 1230, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 313, in _resolve_selection\n    q, _plan = _query_shapes.open_benchmark_store(spec.path)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/_query_shapes.py\", line 345, in open_benchmark_store\n    return query_store(store), StoreManifest.load(store)\n           ^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/opengwasdb/query/facade.py\", line 1578, in query_store\n    return HybridStoreQuery(store)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/opengwasdb/query/facade.py\", line 1228, in __init__\n    self._by_variant: ByVariantReader = _open_by_variant(store, self._variant_axis)\n                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/opengwasdb/query/facade.py\", line 196, in _open_by_variant\n    raise VariantIndexError(\nopengwasdb.layouts.ragged.by_variant.VariantIndexError: Store at /data/opengwasdb/stores/OGS-00004/store.opengwasdb carries no variant index (ragged/by_variant); build it with 'ogdb build-variant-index /data/opengwasdb/stores/OGS-00004/store.opengwasdb'\n",
+        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 1296, in <module>\n    main()\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 1230, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 313, in _resolve_selection\n    q, _plan = _query_shapes.open_benchmark_store(spec.path)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/_query_shapes.py\", line 345, in open_benchmark_store\n    return query_store(store), StoreManifest.load(store)\n           ^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/opengwasdb/query/facade.py\", line 945, in query_store\n    return HybridStoreQuery(store)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/opengwasdb/query/facade.py\", line 724, in __init__\n    self._overflow.open_variant_index(self._variant_axis.n_variants)\n  File \"/data/opengwasdb/work/odb-v090/opengwasdb/associations/csr.py\", line 147, in open_variant_index\n    raise VariantIndexError(\nopengwasdb.layouts.ragged.by_variant.VariantIndexError: Store at /data/opengwasdb/stores/OGS-00004/store.opengwasdb carries no variant index (ragged/by_variant); build it with 'ogdb build-variant-index /data/opengwasdb/stores/OGS-00004/store.opengwasdb'\n",
         "stdout_tail": ""
       },
       "store_id": "OGS-00004"
@@ -106,7 +106,7 @@
         "detail": "generic harness exited 1; see stderr for the first failing shape",
         "returncode": 1,
         "status": "error",
-        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 1296, in <module>\n    main()\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 1230, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 313, in _resolve_selection\n    q, _plan = _query_shapes.open_benchmark_store(spec.path)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/_query_shapes.py\", line 345, in open_benchmark_store\n    return query_store(store), StoreManifest.load(store)\n           ^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/opengwasdb/query/facade.py\", line 1578, in query_store\n    return HybridStoreQuery(store)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/opengwasdb/query/facade.py\", line 1228, in __init__\n    self._by_variant: ByVariantReader = _open_by_variant(store, self._variant_axis)\n                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/opengwasdb/query/facade.py\", line 196, in _open_by_variant\n    raise VariantIndexError(\nopengwasdb.layouts.ragged.by_variant.VariantIndexError: Store at /data/opengwasdb/stores/OGS-00005/store.opengwasdb carries no variant index (ragged/by_variant); build it with 'ogdb build-variant-index /data/opengwasdb/stores/OGS-00005/store.opengwasdb'\n",
+        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 1296, in <module>\n    main()\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 1230, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 313, in _resolve_selection\n    q, _plan = _query_shapes.open_benchmark_store(spec.path)\n               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/_query_shapes.py\", line 345, in open_benchmark_store\n    return query_store(store), StoreManifest.load(store)\n           ^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/opengwasdb/query/facade.py\", line 945, in query_store\n    return HybridStoreQuery(store)\n           ^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/opengwasdb/query/facade.py\", line 724, in __init__\n    self._overflow.open_variant_index(self._variant_axis.n_variants)\n  File \"/data/opengwasdb/work/odb-v090/opengwasdb/associations/csr.py\", line 147, in open_variant_index\n    raise VariantIndexError(\nopengwasdb.layouts.ragged.by_variant.VariantIndexError: Store at /data/opengwasdb/stores/OGS-00005/store.opengwasdb carries no variant index (ragged/by_variant); build it with 'ogdb build-variant-index /data/opengwasdb/stores/OGS-00005/store.opengwasdb'\n",
         "stdout_tail": ""
       },
       "store_id": "OGS-00005"
@@ -157,7 +157,7 @@
         "detail": "generic harness exited 1; see stderr for the first failing shape",
         "returncode": 1,
         "status": "error",
-        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 1296, in <module>\n    main()\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 1230, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/benchmark_store_comparison.py\", line 342, in _resolve_selection\n    random_alids, random_analyses = _query_shapes.resolve_axis_selections(\n                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/epic232/orchestrate/opengwasdb-stores-232/worktrees/odb-v0.3.3/benchmarks/_query_shapes.py\", line 74, in resolve_axis_selections\n    for a in rng.choice(n_analyses, size=RANDOM_AXIS_SIZE, replace=False)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"numpy/random/_generator.pyx\", line 917, in numpy.random._generator.Generator.choice\nValueError: Cannot take a larger sample than population when replace is False\n",
+        "stderr_tail": "Traceback (most recent call last):\n  File \"<frozen runpy>\", line 198, in _run_module_as_main\n  File \"<frozen runpy>\", line 88, in _run_code\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 1296, in <module>\n    main()\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 1230, in main\n    selection = _resolve_selection(\n                ^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/benchmark_store_comparison.py\", line 342, in _resolve_selection\n    random_alids, random_analyses = _query_shapes.resolve_axis_selections(\n                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/data/opengwasdb/work/odb-v090/benchmarks/_query_shapes.py\", line 74, in resolve_axis_selections\n    for a in rng.choice(n_analyses, size=RANDOM_AXIS_SIZE, replace=False)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"numpy/random/_generator.pyx\", line 917, in numpy.random._generator.Generator.choice\nValueError: Cannot take a larger sample than population when replace is False\n",
         "stdout_tail": ""
       },
       "store_id": "OGS-00008"
@@ -169,9 +169,9 @@
       "hm3_extract": {
         "analysis_id": "ukb-b-10001",
         "detail": "",
-        "first_read_ms": 557.528,
-        "median_ms": 531.045,
-        "p95_ms": 553.726,
+        "first_read_ms": 441.85,
+        "median_ms": 415.896,
+        "p95_ms": 427.441,
         "reps": 5,
         "result_count": 1189911,
         "status": "measured",
@@ -191,9 +191,9 @@
         "harness_hm3_extract": {
           "analysis_id": "ukb-b-10003",
           "detail": "",
-          "first_read_ms": 525.554,
-          "median_ms": 536.514,
-          "p95_ms": 555.355,
+          "first_read_ms": 589.387,
+          "median_ms": 643.096,
+          "p95_ms": 670.969,
           "reps": 5,
           "result_count": 1187986,
           "status": "measured",
@@ -210,193 +210,193 @@
         "status": "measured",
         "timings": [
           {
-            "first_call_ms": 9692.832,
+            "first_call_ms": 9388.633,
             "load_average_after": [
-              2.51,
-              2.7,
-              3.35
+              2.29,
+              2.8,
+              4.23
             ],
             "load_average_before": [
-              2.59,
-              2.74,
-              3.4
+              2.54,
+              2.94,
+              4.36
             ],
-            "median_ms": 7801.101,
-            "p95_ms": 9552.925,
+            "median_ms": 8001.87,
+            "p95_ms": 8856.555,
             "query": "bulk",
             "repetitions": 5,
             "result_count": 9883147,
             "timed_out": false,
             "warm_ms": [
-              9552.925,
-              7801.101,
-              8874.302,
-              7426.585,
-              7468.048
+              7656.026,
+              8678.379,
+              7375.879,
+              8856.555,
+              8001.87
             ],
-            "warmup_ms": 14904.12
+            "warmup_ms": 12758.977
           },
           {
-            "first_call_ms": 64.788,
+            "first_call_ms": 45.538,
             "load_average_after": [
-              2.51,
-              2.7,
-              3.35
+              2.29,
+              2.8,
+              4.23
             ],
             "load_average_before": [
-              2.51,
-              2.7,
-              3.35
+              2.29,
+              2.8,
+              4.23
             ],
-            "median_ms": 43.156,
-            "p95_ms": 50.506,
+            "median_ms": 53.965,
+            "p95_ms": 57.843,
             "query": "phewas",
             "repetitions": 5,
             "result_count": 2450,
             "timed_out": false,
             "warm_ms": [
-              45.337,
-              39.793,
-              34.147,
-              50.506,
-              43.156
+              57.843,
+              40.501,
+              57.788,
+              39.716,
+              53.965
             ],
-            "warmup_ms": 67.783
+            "warmup_ms": 48.034
           },
           {
-            "first_call_ms": 2054.356,
+            "first_call_ms": 1129.805,
             "load_average_after": [
-              2.16,
-              2.61,
-              3.3
+              2.17,
+              2.75,
+              4.2
             ],
             "load_average_before": [
-              2.51,
-              2.7,
-              3.35
+              2.29,
+              2.8,
+              4.23
             ],
-            "median_ms": 2154.335,
-            "p95_ms": 2386.993,
+            "median_ms": 1123.182,
+            "p95_ms": 1133.643,
             "query": "regional",
             "repetitions": 5,
             "result_count": 9669654,
             "timed_out": false,
             "warm_ms": [
-              2120.737,
-              2386.993,
-              2376.459,
-              2154.335,
-              2116.208
+              1123.279,
+              1123.182,
+              1120.983,
+              1133.643,
+              1118.987
             ],
-            "warmup_ms": 6948.386
+            "warmup_ms": 4408.508
           },
           {
-            "first_call_ms": 97.257,
+            "first_call_ms": 39.797,
             "load_average_after": [
-              2.16,
-              2.61,
-              3.3
+              2.17,
+              2.75,
+              4.2
             ],
             "load_average_before": [
-              2.16,
-              2.61,
-              3.3
+              2.17,
+              2.75,
+              4.2
             ],
-            "median_ms": 45.8,
-            "p95_ms": 48.085,
+            "median_ms": 43.537,
+            "p95_ms": 78.164,
             "query": "regional_one_analysis",
             "repetitions": 5,
             "result_count": 3786,
             "timed_out": false,
             "warm_ms": [
-              45.8,
-              46.709,
-              48.085,
-              42.205,
-              44.55
+              41.257,
+              78.164,
+              46.396,
+              41.628,
+              43.537
             ],
-            "warmup_ms": 100.231
+            "warmup_ms": 42.731
           },
           {
-            "first_call_ms": 23.529,
+            "first_call_ms": 23.841,
             "load_average_after": [
-              2.16,
-              2.61,
-              3.3
+              2.17,
+              2.75,
+              4.2
             ],
             "load_average_before": [
-              2.16,
-              2.61,
-              3.3
+              2.17,
+              2.75,
+              4.2
             ],
-            "median_ms": 10.283,
-            "p95_ms": 10.547,
+            "median_ms": 10.821,
+            "p95_ms": 11.102,
             "query": "tophits",
             "repetitions": 5,
             "result_count": 669,
             "timed_out": false,
             "warm_ms": [
-              9.839,
-              10.547,
-              10.455,
-              10.265,
-              10.283
+              10.841,
+              10.387,
+              11.102,
+              10.821,
+              10.729
             ],
-            "warmup_ms": 24.557
+            "warmup_ms": 24.756
           },
           {
-            "first_call_ms": 453.964,
+            "first_call_ms": 411.767,
             "load_average_after": [
-              2.16,
-              2.61,
-              3.3
+              2.07,
+              2.72,
+              4.19
             ],
             "load_average_before": [
-              2.16,
-              2.61,
-              3.3
+              2.17,
+              2.75,
+              4.2
             ],
-            "median_ms": 314.429,
-            "p95_ms": 393.126,
+            "median_ms": 397.083,
+            "p95_ms": 397.936,
             "query": "random_lookup_10_variants_100_analyses",
             "repetitions": 5,
             "result_count": 999,
             "timed_out": false,
             "warm_ms": [
-              250.86,
-              333.668,
-              393.126,
-              314.429,
-              246.955
+              397.083,
+              392.056,
+              395.24,
+              397.376,
+              397.936
             ],
-            "warmup_ms": 455.28
+            "warmup_ms": 412.913
           },
           {
-            "first_call_ms": 1532.196,
+            "first_call_ms": 1265.92,
             "load_average_after": [
-              2.21,
-              2.61,
-              3.29
+              2.23,
+              2.75,
+              4.18
             ],
             "load_average_before": [
-              2.16,
-              2.61,
-              3.3
+              2.07,
+              2.72,
+              4.19
             ],
-            "median_ms": 1051.429,
-            "p95_ms": 1265.51,
+            "median_ms": 1261.808,
+            "p95_ms": 1266.753,
             "query": "random_lookup_100_variants_10_analyses",
             "repetitions": 5,
             "result_count": 916,
             "timed_out": false,
             "warm_ms": [
-              1259.486,
-              997.518,
-              778.954,
-              1051.429,
-              1265.51
+              1256.968,
+              1266.753,
+              1259.305,
+              1263.075,
+              1261.808
             ],
-            "warmup_ms": 1533.441
+            "warmup_ms": 1267.031
           }
         ]
       },
@@ -409,9 +409,9 @@
       "hm3_extract": {
         "analysis_id": "GCST000028",
         "detail": "",
-        "first_read_ms": 264.523,
-        "median_ms": 252.29,
-        "p95_ms": 259.452,
+        "first_read_ms": 234.414,
+        "median_ms": 233.315,
+        "p95_ms": 235.573,
         "reps": 5,
         "result_count": 0,
         "status": "measured",
@@ -442,9 +442,9 @@
       "hm3_extract": {
         "analysis_id": "GCST90475091",
         "detail": "",
-        "first_read_ms": 758.642,
-        "median_ms": 768.452,
-        "p95_ms": 778.0,
+        "first_read_ms": 562.004,
+        "median_ms": 520.525,
+        "p95_ms": 532.926,
         "reps": 5,
         "result_count": 1202902,
         "status": "measured",
@@ -464,9 +464,9 @@
         "harness_hm3_extract": {
           "analysis_id": "GCST90475091",
           "detail": "",
-          "first_read_ms": 693.942,
-          "median_ms": 636.572,
-          "p95_ms": 774.114,
+          "first_read_ms": 563.814,
+          "median_ms": 606.316,
+          "p95_ms": 611.975,
           "reps": 5,
           "result_count": 1202902,
           "status": "measured",
@@ -483,193 +483,193 @@
         "status": "measured",
         "timings": [
           {
-            "first_call_ms": 20410.836,
+            "first_call_ms": 22596.157,
             "load_average_after": [
-              3.06,
-              3.5,
-              3.62
+              2.16,
+              2.49,
+              3.9
             ],
             "load_average_before": [
-              3.05,
-              3.75,
-              3.71
+              1.8,
+              2.6,
+              4.1
             ],
-            "median_ms": 15229.46,
-            "p95_ms": 15560.147,
+            "median_ms": 14168.736,
+            "p95_ms": 15105.386,
             "query": "bulk",
             "repetitions": 5,
             "result_count": 20131241,
             "timed_out": false,
             "warm_ms": [
-              15560.147,
-              14163.542,
-              14607.016,
-              15231.103,
-              15229.46
+              14168.736,
+              14400.878,
+              13768.738,
+              13726.986,
+              15105.386
             ],
-            "warmup_ms": 31511.288
+            "warmup_ms": 29671.225
           },
           {
-            "first_call_ms": 79.936,
+            "first_call_ms": 73.422,
             "load_average_after": [
-              3.06,
-              3.5,
-              3.62
+              2.16,
+              2.49,
+              3.9
             ],
             "load_average_before": [
-              3.06,
-              3.5,
-              3.62
+              2.16,
+              2.49,
+              3.9
             ],
-            "median_ms": 60.03,
-            "p95_ms": 60.52,
+            "median_ms": 51.165,
+            "p95_ms": 52.203,
             "query": "phewas",
             "repetitions": 5,
             "result_count": 1669,
             "timed_out": false,
             "warm_ms": [
-              60.041,
-              60.03,
-              59.524,
-              58.922,
-              60.52
+              52.203,
+              49.093,
+              51.913,
+              49.759,
+              51.165
             ],
-            "warmup_ms": 81.995
+            "warmup_ms": 75.299
           },
           {
-            "first_call_ms": 2551.529,
+            "first_call_ms": 1397.704,
             "load_average_after": [
-              2.86,
-              3.41,
-              3.58
+              1.9,
+              2.42,
+              3.86
             ],
             "load_average_before": [
-              3.06,
-              3.5,
-              3.62
+              2.16,
+              2.49,
+              3.9
             ],
-            "median_ms": 2903.988,
-            "p95_ms": 2931.947,
+            "median_ms": 1344.123,
+            "p95_ms": 1396.12,
             "query": "regional",
             "repetitions": 5,
             "result_count": 12459718,
             "timed_out": false,
             "warm_ms": [
-              2628.272,
-              2931.947,
-              2911.625,
-              2903.988,
-              2874.027
+              1350.82,
+              1344.123,
+              1326.936,
+              1338.088,
+              1396.12
             ],
-            "warmup_ms": 8837.498
+            "warmup_ms": 5597.756
           },
           {
-            "first_call_ms": 119.819,
+            "first_call_ms": 69.972,
             "load_average_after": [
-              2.86,
-              3.41,
-              3.58
+              1.9,
+              2.42,
+              3.86
             ],
             "load_average_before": [
-              2.86,
-              3.41,
-              3.58
+              1.9,
+              2.42,
+              3.86
             ],
-            "median_ms": 66.559,
-            "p95_ms": 89.885,
+            "median_ms": 63.318,
+            "p95_ms": 93.976,
             "query": "regional_one_analysis",
             "repetitions": 5,
             "result_count": 7530,
             "timed_out": false,
             "warm_ms": [
-              65.171,
-              65.584,
-              66.559,
-              67.096,
-              89.885
+              93.976,
+              62.656,
+              62.994,
+              63.318,
+              83.279
             ],
-            "warmup_ms": 123.757
+            "warmup_ms": 74.761
           },
           {
-            "first_call_ms": 50.779,
+            "first_call_ms": 31.011,
             "load_average_after": [
-              2.86,
-              3.41,
-              3.58
+              1.9,
+              2.42,
+              3.86
             ],
             "load_average_before": [
-              2.86,
-              3.41,
-              3.58
+              1.9,
+              2.42,
+              3.86
             ],
-            "median_ms": 34.43,
-            "p95_ms": 35.36,
+            "median_ms": 22.038,
+            "p95_ms": 24.601,
             "query": "tophits",
             "repetitions": 5,
             "result_count": 103886,
             "timed_out": false,
             "warm_ms": [
-              35.36,
-              34.896,
-              33.27,
-              34.43,
-              31.553
+              24.601,
+              20.991,
+              22.017,
+              22.038,
+              22.892
             ],
-            "warmup_ms": 84.953
+            "warmup_ms": 59.882
           },
           {
-            "first_call_ms": 446.596,
+            "first_call_ms": 454.723,
             "load_average_after": [
-              2.86,
-              3.41,
-              3.58
+              1.9,
+              2.42,
+              3.86
             ],
             "load_average_before": [
-              2.86,
-              3.41,
-              3.58
+              1.9,
+              2.42,
+              3.86
             ],
-            "median_ms": 299.293,
-            "p95_ms": 302.233,
+            "median_ms": 284.515,
+            "p95_ms": 291.046,
             "query": "random_lookup_10_variants_100_analyses",
             "repetitions": 5,
             "result_count": 992,
             "timed_out": false,
             "warm_ms": [
-              299.293,
-              302.233,
-              300.642,
-              297.15,
-              297.543
+              291.046,
+              285.323,
+              283.318,
+              284.515,
+              282.516
             ],
-            "warmup_ms": 447.84
+            "warmup_ms": 455.808
           },
           {
-            "first_call_ms": 1781.764,
+            "first_call_ms": 1973.493,
             "load_average_after": [
-              3.49,
-              3.53,
-              3.62
+              1.76,
+              2.37,
+              3.82
             ],
             "load_average_before": [
-              2.86,
-              3.41,
-              3.58
+              1.9,
+              2.42,
+              3.86
             ],
-            "median_ms": 1256.973,
-            "p95_ms": 1282.378,
+            "median_ms": 1215.549,
+            "p95_ms": 1241.148,
             "query": "random_lookup_100_variants_10_analyses",
             "repetitions": 5,
             "result_count": 951,
             "timed_out": false,
             "warm_ms": [
-              1282.378,
-              1260.429,
-              1249.318,
-              1256.649,
-              1256.973
+              1241.148,
+              1217.064,
+              1215.549,
+              1215.159,
+              1214.999
             ],
-            "warmup_ms": 1782.991
+            "warmup_ms": 1974.621
           }
         ]
       },
@@ -682,9 +682,9 @@
       "hm3_extract": {
         "analysis_id": "GCST90475090",
         "detail": "",
-        "first_read_ms": 635.961,
-        "median_ms": 766.717,
-        "p95_ms": 793.436,
+        "first_read_ms": 663.467,
+        "median_ms": 640.969,
+        "p95_ms": 661.462,
         "reps": 5,
         "result_count": 1203337,
         "status": "measured",
@@ -704,9 +704,9 @@
         "harness_hm3_extract": {
           "analysis_id": "GCST90475090",
           "detail": "",
-          "first_read_ms": 466.941,
-          "median_ms": 534.776,
-          "p95_ms": 697.886,
+          "first_read_ms": 609.692,
+          "median_ms": 609.334,
+          "p95_ms": 612.895,
           "reps": 5,
           "result_count": 1203337,
           "status": "measured",
@@ -723,193 +723,193 @@
         "status": "measured",
         "timings": [
           {
-            "first_call_ms": 31832.706,
+            "first_call_ms": 40336.674,
             "load_average_after": [
-              2.89,
-              3.21,
-              3.46
+              1.66,
+              2.08,
+              3.42
             ],
             "load_average_before": [
-              2.67,
-              3.31,
-              3.54
+              1.83,
+              2.36,
+              3.79
             ],
-            "median_ms": 28283.117,
-            "p95_ms": 28429.405,
+            "median_ms": 25463.901,
+            "p95_ms": 25954.949,
             "query": "bulk",
             "repetitions": 5,
             "result_count": 40152381,
             "timed_out": false,
             "warm_ms": [
-              28305.971,
-              28283.117,
-              27967.372,
-              28429.405,
-              28104.622
+              25693.348,
+              25036.072,
+              25954.949,
+              25463.901,
+              25425.067
             ],
-            "warmup_ms": 54932.482
+            "warmup_ms": 55202.54
           },
           {
-            "first_call_ms": 46.358,
+            "first_call_ms": 61.471,
             "load_average_after": [
-              2.89,
-              3.21,
-              3.46
+              1.66,
+              2.08,
+              3.42
             ],
             "load_average_before": [
-              2.89,
-              3.21,
-              3.46
+              1.66,
+              2.08,
+              3.42
             ],
-            "median_ms": 44.558,
-            "p95_ms": 48.646,
+            "median_ms": 45.488,
+            "p95_ms": 46.539,
             "query": "phewas",
             "repetitions": 5,
             "result_count": 1368,
             "timed_out": false,
             "warm_ms": [
-              48.646,
-              44.231,
-              44.491,
-              45.11,
-              44.558
+              46.539,
+              44.098,
+              45.414,
+              45.488,
+              45.888
             ],
-            "warmup_ms": 48.188
+            "warmup_ms": 62.958
           },
           {
-            "first_call_ms": 5059.814,
+            "first_call_ms": 2501.894,
             "load_average_after": [
-              2.53,
-              3.09,
-              3.41
+              1.82,
+              2.09,
+              3.4
             ],
             "load_average_before": [
-              2.89,
-              3.21,
-              3.46
+              1.66,
+              2.08,
+              3.42
             ],
-            "median_ms": 5118.94,
-            "p95_ms": 5887.499,
+            "median_ms": 2466.597,
+            "p95_ms": 2478.708,
             "query": "regional",
             "repetitions": 5,
             "result_count": 23056507,
             "timed_out": false,
             "warm_ms": [
-              5118.94,
-              5099.781,
-              5309.888,
-              5887.499,
-              5033.896
+              2466.597,
+              2460.803,
+              2465.486,
+              2476.115,
+              2478.708
             ],
-            "warmup_ms": 17236.105
+            "warmup_ms": 10520.202
           },
           {
-            "first_call_ms": 150.691,
+            "first_call_ms": 176.518,
             "load_average_after": [
-              2.53,
-              3.09,
-              3.41
+              1.75,
+              2.07,
+              3.39
             ],
             "load_average_before": [
-              2.53,
-              3.09,
-              3.41
+              1.82,
+              2.09,
+              3.4
             ],
-            "median_ms": 162.79,
-            "p95_ms": 176.264,
+            "median_ms": 157.005,
+            "p95_ms": 158.917,
             "query": "regional_one_analysis",
             "repetitions": 5,
             "result_count": 17068,
             "timed_out": false,
             "warm_ms": [
-              176.264,
-              142.893,
-              162.79,
-              142.091,
-              174.845
+              136.115,
+              157.005,
+              137.393,
+              157.808,
+              158.917
             ],
-            "warmup_ms": 155.983
+            "warmup_ms": 183.695
           },
           {
-            "first_call_ms": 25.81,
+            "first_call_ms": 24.076,
             "load_average_after": [
-              2.53,
-              3.09,
-              3.41
+              1.75,
+              2.07,
+              3.39
             ],
             "load_average_before": [
-              2.53,
-              3.09,
-              3.41
+              1.75,
+              2.07,
+              3.39
             ],
-            "median_ms": 11.452,
-            "p95_ms": 12.112,
+            "median_ms": 11.029,
+            "p95_ms": 13.329,
             "query": "tophits",
             "repetitions": 5,
             "result_count": 1879,
             "timed_out": false,
             "warm_ms": [
-              12.112,
-              11.524,
-              11.211,
-              11.452,
-              11.258
+              13.329,
+              11.703,
+              10.427,
+              10.58,
+              11.029
             ],
-            "warmup_ms": 28.01
+            "warmup_ms": 25.896
           },
           {
-            "first_call_ms": 266.119,
+            "first_call_ms": 479.484,
             "load_average_after": [
-              2.53,
-              3.09,
-              3.41
+              1.75,
+              2.07,
+              3.39
             ],
             "load_average_before": [
-              2.53,
-              3.09,
-              3.41
+              1.75,
+              2.07,
+              3.39
             ],
-            "median_ms": 288.563,
-            "p95_ms": 300.477,
+            "median_ms": 279.523,
+            "p95_ms": 284.702,
             "query": "random_lookup_10_variants_100_analyses",
             "repetitions": 5,
             "result_count": 992,
             "timed_out": false,
             "warm_ms": [
-              300.477,
-              249.185,
-              244.025,
-              288.563,
-              291.213
+              284.702,
+              278.334,
+              273.476,
+              279.523,
+              279.74
             ],
-            "warmup_ms": 267.349
+            "warmup_ms": 480.604
           },
           {
-            "first_call_ms": 1094.699,
+            "first_call_ms": 2130.434,
             "load_average_after": [
-              2.52,
-              3.07,
-              3.4
+              1.95,
+              2.1,
+              3.38
             ],
             "load_average_before": [
-              2.53,
-              3.09,
-              3.41
+              1.75,
+              2.07,
+              3.39
             ],
-            "median_ms": 1306.996,
-            "p95_ms": 1325.487,
+            "median_ms": 1243.048,
+            "p95_ms": 1270.904,
             "query": "random_lookup_100_variants_10_analyses",
             "repetitions": 5,
             "result_count": 986,
             "timed_out": false,
             "warm_ms": [
-              1293.894,
-              1306.996,
-              1325.487,
-              1317.192,
-              1302.336
+              1270.904,
+              1239.287,
+              1240.218,
+              1245.881,
+              1243.048
             ],
-            "warmup_ms": 1095.957
+            "warmup_ms": 2131.583
           }
         ]
       },
@@ -922,9 +922,9 @@
       "hm3_extract": {
         "analysis_id": "GCST90475089",
         "detail": "",
-        "first_read_ms": 723.224,
-        "median_ms": 751.141,
-        "p95_ms": 774.248,
+        "first_read_ms": 656.613,
+        "median_ms": 607.245,
+        "p95_ms": 634.102,
         "reps": 5,
         "result_count": 1205394,
         "status": "measured",
@@ -944,9 +944,9 @@
         "harness_hm3_extract": {
           "analysis_id": "GCST90475089",
           "detail": "",
-          "first_read_ms": 429.543,
-          "median_ms": 461.846,
-          "p95_ms": 479.589,
+          "first_read_ms": 623.506,
+          "median_ms": 598.813,
+          "p95_ms": 612.075,
           "reps": 5,
           "result_count": 1205394,
           "status": "measured",
@@ -963,193 +963,193 @@
         "status": "measured",
         "timings": [
           {
-            "first_call_ms": 29773.821,
+            "first_call_ms": 28950.451,
             "load_average_after": [
-              3.01,
-              2.99,
-              3.3
+              2.15,
+              2.06,
+              3.16
             ],
             "load_average_before": [
-              2.67,
-              3.07,
-              3.39
+              1.89,
+              2.08,
+              3.35
             ],
-            "median_ms": 21410.749,
-            "p95_ms": 21671.732,
+            "median_ms": 20247.233,
+            "p95_ms": 20969.173,
             "query": "bulk",
             "repetitions": 5,
             "result_count": 30340760,
             "timed_out": false,
             "warm_ms": [
-              21671.732,
-              21410.749,
-              20843.947,
-              20858.581,
-              21640.692
+              20247.233,
+              19368.985,
+              19827.349,
+              20535.708,
+              20969.173
             ],
-            "warmup_ms": 46298.134
+            "warmup_ms": 39728.874
           },
           {
-            "first_call_ms": 60.244,
+            "first_call_ms": 58.265,
             "load_average_after": [
-              3.01,
-              2.99,
-              3.3
+              2.15,
+              2.06,
+              3.16
             ],
             "load_average_before": [
-              3.01,
-              2.99,
-              3.3
+              2.15,
+              2.06,
+              3.16
             ],
-            "median_ms": 40.425,
-            "p95_ms": 42.372,
+            "median_ms": 41.292,
+            "p95_ms": 43.008,
             "query": "phewas",
             "repetitions": 5,
             "result_count": 1053,
             "timed_out": false,
             "warm_ms": [
-              41.662,
-              42.372,
-              39.72,
-              40.198,
-              40.425
+              43.008,
+              39.992,
+              41.292,
+              42.619,
+              40.534
             ],
-            "warmup_ms": 61.634
+            "warmup_ms": 59.468
           },
           {
-            "first_call_ms": 2582.659,
+            "first_call_ms": 1356.747,
             "load_average_after": [
-              2.75,
-              2.93,
-              3.27
+              2.04,
+              2.04,
+              3.14
             ],
             "load_average_before": [
-              3.01,
-              2.99,
-              3.3
+              2.15,
+              2.06,
+              3.16
             ],
-            "median_ms": 2969.052,
-            "p95_ms": 3002.769,
+            "median_ms": 1400.39,
+            "p95_ms": 1406.011,
             "query": "regional",
             "repetitions": 5,
             "result_count": 12792334,
             "timed_out": false,
             "warm_ms": [
-              2895.657,
-              2958.913,
-              2987.421,
-              2969.052,
-              3002.769
+              1369.495,
+              1389.72,
+              1406.011,
+              1400.39,
+              1403.54
             ],
-            "warmup_ms": 8959.04
+            "warmup_ms": 5619.202
           },
           {
-            "first_call_ms": 146.009,
+            "first_call_ms": 138.48,
             "load_average_after": [
-              2.75,
-              2.93,
-              3.27
+              2.04,
+              2.04,
+              3.14
             ],
             "load_average_before": [
-              2.75,
-              2.93,
-              3.27
+              2.04,
+              2.04,
+              3.14
             ],
-            "median_ms": 100.462,
-            "p95_ms": 123.796,
+            "median_ms": 100.104,
+            "p95_ms": 122.22,
             "query": "regional_one_analysis",
             "repetitions": 5,
             "result_count": 12636,
             "timed_out": false,
             "warm_ms": [
-              98.814,
-              117.986,
-              99.318,
-              100.462,
-              123.796
+              95.116,
+              100.104,
+              122.22,
+              99.277,
+              122.036
             ],
-            "warmup_ms": 150.824
+            "warmup_ms": 144.761
           },
           {
-            "first_call_ms": 25.663,
+            "first_call_ms": 25.775,
             "load_average_after": [
-              2.75,
-              2.93,
-              3.27
+              2.04,
+              2.04,
+              3.14
             ],
             "load_average_before": [
-              2.75,
-              2.93,
-              3.27
+              2.04,
+              2.04,
+              3.14
             ],
-            "median_ms": 10.881,
-            "p95_ms": 11.787,
+            "median_ms": 10.815,
+            "p95_ms": 11.755,
             "query": "tophits",
             "repetitions": 5,
             "result_count": 752,
             "timed_out": false,
             "warm_ms": [
-              11.787,
-              10.87,
-              10.97,
-              10.8,
-              10.881
+              11.755,
+              11.668,
+              10.081,
+              10.607,
+              10.815
             ],
-            "warmup_ms": 26.738
+            "warmup_ms": 26.743
           },
           {
-            "first_call_ms": 425.045,
+            "first_call_ms": 436.057,
             "load_average_after": [
-              2.75,
-              2.93,
-              3.27
+              2.04,
+              2.04,
+              3.14
             ],
             "load_average_before": [
-              2.75,
-              2.93,
-              3.27
+              2.04,
+              2.04,
+              3.14
             ],
-            "median_ms": 248.002,
-            "p95_ms": 250.596,
+            "median_ms": 249.059,
+            "p95_ms": 252.884,
             "query": "random_lookup_10_variants_100_analyses",
             "repetitions": 5,
             "result_count": 880,
             "timed_out": false,
             "warm_ms": [
-              248.002,
-              250.596,
-              246.532,
-              248.682,
-              245.427
+              251.447,
+              252.884,
+              249.059,
+              247.464,
+              246.762
             ],
-            "warmup_ms": 426.235
+            "warmup_ms": 437.158
           },
           {
-            "first_call_ms": 1592.714,
+            "first_call_ms": 1679.222,
             "load_average_after": [
-              2.87,
-              2.95,
-              3.27
+              1.96,
+              2.02,
+              3.12
             ],
             "load_average_before": [
-              2.75,
-              2.93,
-              3.27
+              2.04,
+              2.04,
+              3.14
             ],
-            "median_ms": 1056.985,
-            "p95_ms": 1080.01,
+            "median_ms": 1067.961,
+            "p95_ms": 1278.978,
             "query": "random_lookup_100_variants_10_analyses",
             "repetitions": 5,
             "result_count": 947,
             "timed_out": false,
             "warm_ms": [
-              1080.01,
-              1055.974,
-              1056.985,
-              1053.627,
-              1059.009
+              1067.961,
+              1031.001,
+              1030.358,
+              1156.218,
+              1278.978
             ],
-            "warmup_ms": 1593.98
+            "warmup_ms": 1680.531
           }
         ]
       },
@@ -1162,9 +1162,9 @@
       "hm3_extract": {
         "analysis_id": "GCST90476550",
         "detail": "",
-        "first_read_ms": 451.511,
-        "median_ms": 477.392,
-        "p95_ms": 493.125,
+        "first_read_ms": 612.642,
+        "median_ms": 601.736,
+        "p95_ms": 617.431,
         "reps": 5,
         "result_count": 1131026,
         "status": "measured",
@@ -1184,9 +1184,9 @@
         "harness_hm3_extract": {
           "analysis_id": "GCST90476556",
           "detail": "",
-          "first_read_ms": 454.046,
-          "median_ms": 471.856,
-          "p95_ms": 502.608,
+          "first_read_ms": 348.715,
+          "median_ms": 355.369,
+          "p95_ms": 392.301,
           "reps": 5,
           "result_count": 1131305,
           "status": "measured",
@@ -1203,193 +1203,193 @@
         "status": "measured",
         "timings": [
           {
-            "first_call_ms": 9906.181,
+            "first_call_ms": 9585.403,
             "load_average_after": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
             "load_average_before": [
-              2.95,
-              2.96,
-              3.27
+              2.21,
+              2.07,
+              3.12
             ],
-            "median_ms": 8197.434,
-            "p95_ms": 9109.705,
+            "median_ms": 8998.654,
+            "p95_ms": 9286.992,
             "query": "bulk",
             "repetitions": 5,
             "result_count": 11556283,
             "timed_out": false,
             "warm_ms": [
-              9109.705,
-              8397.714,
-              8148.466,
-              8197.434,
-              8161.044
+              9286.992,
+              9097.906,
+              8290.012,
+              8998.654,
+              8680.123
             ],
-            "warmup_ms": 15907.997
+            "warmup_ms": 15021.504
           },
           {
-            "first_call_ms": 21.733,
+            "first_call_ms": 25.32,
             "load_average_after": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
             "load_average_before": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
-            "median_ms": 18.488,
-            "p95_ms": 19.326,
+            "median_ms": 20.212,
+            "p95_ms": 20.742,
             "query": "phewas",
             "repetitions": 5,
             "result_count": 241,
             "timed_out": false,
             "warm_ms": [
-              18.488,
-              18.766,
-              17.254,
-              19.326,
-              17.463
+              20.742,
+              20.244,
+              20.212,
+              20.098,
+              20.037
             ],
-            "warmup_ms": 22.522
+            "warmup_ms": 25.981
           },
           {
-            "first_call_ms": 262.847,
+            "first_call_ms": 188.637,
             "load_average_after": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
             "load_average_before": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
-            "median_ms": 261.696,
-            "p95_ms": 263.915,
+            "median_ms": 181.022,
+            "p95_ms": 182.054,
             "query": "regional",
             "repetitions": 5,
             "result_count": 1126716,
             "timed_out": false,
             "warm_ms": [
-              253.941,
-              263.175,
-              256.586,
-              261.696,
-              263.915
+              177.343,
+              182.054,
+              181.022,
+              180.413,
+              181.475
             ],
-            "warmup_ms": 711.462
+            "warmup_ms": 763.449
           },
           {
-            "first_call_ms": 77.486,
+            "first_call_ms": 101.244,
             "load_average_after": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
             "load_average_before": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
-            "median_ms": 84.902,
-            "p95_ms": 117.915,
+            "median_ms": 98.709,
+            "p95_ms": 134.022,
             "query": "regional_one_analysis",
             "repetitions": 5,
             "result_count": 4705,
             "timed_out": false,
             "warm_ms": [
-              82.997,
-              117.915,
-              79.154,
-              85.312,
-              84.902
+              98.709,
+              134.022,
+              100.171,
+              96.97,
+              98.644
             ],
-            "warmup_ms": 80.864
+            "warmup_ms": 105.248
           },
           {
-            "first_call_ms": 23.842,
+            "first_call_ms": 22.128,
             "load_average_after": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
             "load_average_before": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
-            "median_ms": 9.151,
-            "p95_ms": 9.969,
+            "median_ms": 9.449,
+            "p95_ms": 9.675,
             "query": "tophits",
             "repetitions": 5,
             "result_count": 18,
             "timed_out": false,
             "warm_ms": [
-              9.151,
-              9.969,
-              9.314,
-              8.429,
-              8.135
+              9.502,
+              9.449,
+              9.675,
+              9.294,
+              9.279
             ],
-            "warmup_ms": 24.279
+            "warmup_ms": 22.595
           },
           {
-            "first_call_ms": 91.215,
+            "first_call_ms": 113.614,
             "load_average_after": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
             "load_average_before": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
-            "median_ms": 87.11,
-            "p95_ms": 93.167,
+            "median_ms": 96.996,
+            "p95_ms": 100.426,
             "query": "random_lookup_10_variants_100_analyses",
             "repetitions": 5,
             "result_count": 994,
             "timed_out": false,
             "warm_ms": [
-              86.679,
-              93.167,
-              89.955,
-              87.11,
-              84.467
+              100.426,
+              90.4,
+              94.082,
+              98.176,
+              96.996
             ],
-            "warmup_ms": 92.452
+            "warmup_ms": 114.764
           },
           {
-            "first_call_ms": 525.864,
+            "first_call_ms": 436.456,
             "load_average_after": [
-              3.14,
-              3.01,
-              3.27
+              2.16,
+              2.1,
+              3.05
             ],
             "load_average_before": [
-              3.06,
-              3.0,
-              3.27
+              2.26,
+              2.12,
+              3.07
             ],
-            "median_ms": 516.39,
-            "p95_ms": 520.166,
+            "median_ms": 509.532,
+            "p95_ms": 509.961,
             "query": "random_lookup_100_variants_10_analyses",
             "repetitions": 5,
             "result_count": 987,
             "timed_out": false,
             "warm_ms": [
-              516.39,
-              515.198,
-              520.166,
-              520.162,
-              516.222
+              509.961,
+              509.532,
+              443.846,
+              426.201,
+              509.632
             ],
-            "warmup_ms": 527.116
+            "warmup_ms": 437.603
           }
         ]
       },
@@ -1402,9 +1402,9 @@
       "hm3_extract": {
         "analysis_id": "GCST90479500",
         "detail": "",
-        "first_read_ms": 464.884,
-        "median_ms": 487.436,
-        "p95_ms": 715.045,
+        "first_read_ms": 635.018,
+        "median_ms": 581.215,
+        "p95_ms": 603.115,
         "reps": 5,
         "result_count": 1201645,
         "status": "measured",
@@ -1424,9 +1424,9 @@
         "harness_hm3_extract": {
           "analysis_id": "GCST90479500",
           "detail": "",
-          "first_read_ms": 555.947,
-          "median_ms": 576.281,
-          "p95_ms": 579.185,
+          "first_read_ms": 570.096,
+          "median_ms": 502.985,
+          "p95_ms": 557.216,
           "reps": 5,
           "result_count": 1201645,
           "status": "measured",
@@ -1443,193 +1443,193 @@
         "status": "measured",
         "timings": [
           {
-            "first_call_ms": 32761.133,
+            "first_call_ms": 33755.995,
             "load_average_after": [
-              2.55,
-              2.69,
-              3.09
+              1.92,
+              2.0,
+              2.86
             ],
             "load_average_before": [
-              3.0,
-              2.98,
-              3.25
+              2.05,
+              2.08,
+              3.04
             ],
-            "median_ms": 22517.699,
-            "p95_ms": 22634.995,
+            "median_ms": 20497.614,
+            "p95_ms": 21086.859,
             "query": "bulk",
             "repetitions": 5,
             "result_count": 27891092,
             "timed_out": false,
             "warm_ms": [
-              22634.995,
-              22517.699,
-              22348.13,
-              22606.368,
-              21334.652
+              20486.322,
+              20204.967,
+              20497.614,
+              20836.753,
+              21086.859
             ],
-            "warmup_ms": 47641.821
+            "warmup_ms": 43456.462
           },
           {
-            "first_call_ms": 65.651,
+            "first_call_ms": 70.346,
             "load_average_after": [
-              2.55,
-              2.69,
-              3.09
+              1.92,
+              2.0,
+              2.86
             ],
             "load_average_before": [
-              2.55,
-              2.69,
-              3.09
+              1.92,
+              2.0,
+              2.86
             ],
-            "median_ms": 45.724,
-            "p95_ms": 51.611,
+            "median_ms": 52.388,
+            "p95_ms": 54.8,
             "query": "phewas",
             "repetitions": 5,
             "result_count": 1691,
             "timed_out": false,
             "warm_ms": [
-              51.611,
-              43.961,
-              37.674,
-              45.724,
-              51.086
+              54.8,
+              52.388,
+              49.254,
+              52.642,
+              52.149
             ],
-            "warmup_ms": 67.804
+            "warmup_ms": 72.237
           },
           {
-            "first_call_ms": 3438.86,
+            "first_call_ms": 1885.574,
             "load_average_after": [
-              2.22,
-              2.6,
-              3.04
+              1.72,
+              1.95,
+              2.83
             ],
             "load_average_before": [
-              2.55,
-              2.69,
-              3.09
+              1.92,
+              2.0,
+              2.86
             ],
-            "median_ms": 3985.773,
-            "p95_ms": 3994.503,
+            "median_ms": 1908.248,
+            "p95_ms": 1914.51,
             "query": "regional",
             "repetitions": 5,
             "result_count": 16861437,
             "timed_out": false,
             "warm_ms": [
-              3570.289,
-              3985.773,
-              3942.107,
-              3993.056,
-              3994.503
+              1909.476,
+              1907.384,
+              1914.51,
+              1902.764,
+              1908.248
             ],
-            "warmup_ms": 12004.548
+            "warmup_ms": 7495.384
           },
           {
-            "first_call_ms": 203.695,
+            "first_call_ms": 211.585,
             "load_average_after": [
-              2.22,
-              2.6,
-              3.04
+              1.72,
+              1.95,
+              2.83
             ],
             "load_average_before": [
-              2.22,
-              2.6,
-              3.04
+              1.72,
+              1.95,
+              2.83
             ],
-            "median_ms": 158.069,
-            "p95_ms": 184.8,
+            "median_ms": 160.717,
+            "p95_ms": 184.934,
             "query": "regional_one_analysis",
             "repetitions": 5,
             "result_count": 11103,
             "timed_out": false,
             "warm_ms": [
-              160.071,
-              158.069,
-              184.8,
-              149.563,
-              157.78
+              159.772,
+              160.717,
+              184.934,
+              159.0,
+              161.346
             ],
-            "warmup_ms": 208.331
+            "warmup_ms": 217.629
           },
           {
-            "first_call_ms": 29.251,
+            "first_call_ms": 27.082,
             "load_average_after": [
-              2.22,
-              2.6,
-              3.04
+              1.72,
+              1.95,
+              2.83
             ],
             "load_average_before": [
-              2.22,
-              2.6,
-              3.04
+              1.72,
+              1.95,
+              2.83
             ],
-            "median_ms": 14.698,
-            "p95_ms": 15.502,
+            "median_ms": 12.171,
+            "p95_ms": 12.86,
             "query": "tophits",
             "repetitions": 5,
             "result_count": 24491,
             "timed_out": false,
             "warm_ms": [
-              13.623,
-              14.676,
-              14.698,
-              15.502,
-              14.731
+              12.86,
+              12.171,
+              11.976,
+              12.245,
+              11.991
             ],
-            "warmup_ms": 40.566
+            "warmup_ms": 38.536
           },
           {
-            "first_call_ms": 429.76,
+            "first_call_ms": 463.701,
             "load_average_after": [
-              2.2,
-              2.59,
-              3.04
+              1.66,
+              1.93,
+              2.82
             ],
             "load_average_before": [
-              2.22,
-              2.6,
-              3.04
+              1.72,
+              1.95,
+              2.83
             ],
-            "median_ms": 265.102,
-            "p95_ms": 269.012,
+            "median_ms": 261.169,
+            "p95_ms": 268.885,
             "query": "random_lookup_10_variants_100_analyses",
             "repetitions": 5,
             "result_count": 905,
             "timed_out": false,
             "warm_ms": [
-              269.012,
-              265.013,
-              267.038,
-              263.953,
-              265.102
+              268.885,
+              261.169,
+              262.28,
+              260.218,
+              260.356
             ],
-            "warmup_ms": 430.953
+            "warmup_ms": 464.743
           },
           {
-            "first_call_ms": 1742.806,
+            "first_call_ms": 1992.338,
             "load_average_after": [
-              2.27,
-              2.59,
-              3.04
+              1.69,
+              1.93,
+              2.81
             ],
             "load_average_before": [
-              2.2,
-              2.59,
-              3.04
+              1.66,
+              1.93,
+              2.82
             ],
-            "median_ms": 1112.757,
-            "p95_ms": 1120.886,
+            "median_ms": 1129.893,
+            "p95_ms": 1370.04,
             "query": "random_lookup_100_variants_10_analyses",
             "repetitions": 5,
             "result_count": 910,
             "timed_out": false,
             "warm_ms": [
-              1120.886,
-              1112.757,
-              1110.981,
-              1113.059,
-              1106.153
+              1129.893,
+              1107.013,
+              1103.072,
+              1230.619,
+              1370.04
             ],
-            "warmup_ms": 1744.001
+            "warmup_ms": 1993.381
           }
         ]
       },
@@ -1642,9 +1642,9 @@
       "hm3_extract": {
         "analysis_id": "finngen-r13-AB1_ACTINOMYCOSIS",
         "detail": "",
-        "first_read_ms": 624.792,
-        "median_ms": 628.374,
-        "p95_ms": 656.591,
+        "first_read_ms": 668.639,
+        "median_ms": 511.807,
+        "p95_ms": 658.921,
         "reps": 5,
         "result_count": 1201363,
         "status": "measured",
@@ -1664,9 +1664,9 @@
         "harness_hm3_extract": {
           "analysis_id": "finngen-r13-AB1_ARTHROPOD_WIDE",
           "detail": "",
-          "first_read_ms": 465.286,
-          "median_ms": 486.846,
-          "p95_ms": 492.559,
+          "first_read_ms": 646.746,
+          "median_ms": 599.928,
+          "p95_ms": 607.947,
           "reps": 5,
           "result_count": 1201373,
           "status": "measured",
@@ -1683,193 +1683,193 @@
         "status": "measured",
         "timings": [
           {
-            "first_call_ms": 21854.77,
+            "first_call_ms": 19373.032,
             "load_average_after": [
-              2.61,
-              2.63,
-              3.0
+              1.71,
+              1.86,
+              2.69
             ],
             "load_average_before": [
-              2.64,
-              2.66,
-              3.05
+              1.67,
+              1.92,
+              2.79
             ],
-            "median_ms": 13526.905,
-            "p95_ms": 14209.951,
+            "median_ms": 12650.105,
+            "p95_ms": 12878.604,
             "query": "bulk",
             "repetitions": 5,
             "result_count": 21549493,
             "timed_out": false,
             "warm_ms": [
-              14155.244,
-              14209.951,
-              13526.905,
-              13520.01,
-              13483.018
+              12878.604,
+              12714.751,
+              12650.105,
+              12341.676,
+              12332.708
             ],
-            "warmup_ms": 33747.255
+            "warmup_ms": 26920.19
           },
           {
-            "first_call_ms": 81.967,
+            "first_call_ms": 103.275,
             "load_average_after": [
-              2.61,
-              2.63,
-              3.0
+              1.71,
+              1.86,
+              2.69
             ],
             "load_average_before": [
-              2.61,
-              2.63,
-              3.0
+              1.71,
+              1.86,
+              2.69
             ],
-            "median_ms": 59.19,
-            "p95_ms": 61.162,
+            "median_ms": 67.308,
+            "p95_ms": 68.828,
             "query": "phewas",
             "repetitions": 5,
             "result_count": 2754,
             "timed_out": false,
             "warm_ms": [
-              61.162,
-              58.025,
-              59.19,
-              56.93,
-              60.213
+              67.308,
+              61.4,
+              56.656,
+              68.828,
+              68.609
             ],
-            "warmup_ms": 85.398
+            "warmup_ms": 106.078
           },
           {
-            "first_call_ms": 4737.624,
+            "first_call_ms": 2238.878,
             "load_average_after": [
-              2.16,
-              2.51,
-              2.94
+              1.65,
+              1.83,
+              2.66
             ],
             "load_average_before": [
-              2.61,
-              2.63,
-              3.0
+              1.71,
+              1.86,
+              2.69
             ],
-            "median_ms": 4319.807,
-            "p95_ms": 4778.844,
+            "median_ms": 2254.687,
+            "p95_ms": 2282.77,
             "query": "regional",
             "repetitions": 5,
             "result_count": 21802695,
             "timed_out": false,
             "warm_ms": [
-              4764.32,
-              4778.844,
-              4319.807,
-              4305.179,
-              4311.539
+              2247.947,
+              2256.322,
+              2254.687,
+              2232.291,
+              2282.77
             ],
-            "warmup_ms": 17741.212
+            "warmup_ms": 9815.102
           },
           {
-            "first_call_ms": 122.541,
+            "first_call_ms": 109.938,
             "load_average_after": [
-              2.16,
-              2.51,
-              2.94
+              1.65,
+              1.83,
+              2.66
             ],
             "load_average_before": [
-              2.16,
-              2.51,
-              2.94
+              1.65,
+              1.83,
+              2.66
             ],
-            "median_ms": 65.068,
-            "p95_ms": 88.736,
+            "median_ms": 66.531,
+            "p95_ms": 83.721,
             "query": "regional_one_analysis",
             "repetitions": 5,
             "result_count": 7917,
             "timed_out": false,
             "warm_ms": [
-              65.758,
-              64.128,
-              63.773,
-              88.736,
-              65.068
+              62.692,
+              66.531,
+              67.396,
+              62.932,
+              83.721
             ],
-            "warmup_ms": 126.305
+            "warmup_ms": 115.037
           },
           {
-            "first_call_ms": 24.591,
+            "first_call_ms": 25.697,
             "load_average_after": [
-              2.16,
-              2.51,
-              2.94
+              1.65,
+              1.83,
+              2.66
             ],
             "load_average_before": [
-              2.16,
-              2.51,
-              2.94
+              1.65,
+              1.83,
+              2.66
             ],
-            "median_ms": 11.204,
-            "p95_ms": 11.836,
+            "median_ms": 11.061,
+            "p95_ms": 11.48,
             "query": "tophits",
             "repetitions": 5,
             "result_count": 1848,
             "timed_out": false,
             "warm_ms": [
-              11.106,
-              11.836,
-              10.993,
-              11.226,
-              11.204
+              11.48,
+              11.112,
+              10.878,
+              10.729,
+              11.061
             ],
-            "warmup_ms": 26.769
+            "warmup_ms": 27.48
           },
           {
-            "first_call_ms": 551.4,
+            "first_call_ms": 643.454,
             "load_average_after": [
-              2.16,
-              2.51,
-              2.94
+              1.65,
+              1.83,
+              2.66
             ],
             "load_average_before": [
-              2.16,
-              2.51,
-              2.94
+              1.65,
+              1.83,
+              2.66
             ],
-            "median_ms": 335.848,
-            "p95_ms": 342.907,
+            "median_ms": 398.15,
+            "p95_ms": 406.54,
             "query": "random_lookup_10_variants_100_analyses",
             "repetitions": 5,
             "result_count": 1000,
             "timed_out": false,
             "warm_ms": [
-              342.907,
-              327.611,
-              335.848,
-              328.655,
-              336.902
+              406.54,
+              398.15,
+              399.308,
+              394.541,
+              397.636
             ],
-            "warmup_ms": 552.675
+            "warmup_ms": 644.579
           },
           {
-            "first_call_ms": 1894.22,
+            "first_call_ms": 2436.325,
             "load_average_after": [
-              2.29,
-              2.52,
-              2.94
+              1.78,
+              1.86,
+              2.66
             ],
             "load_average_before": [
-              2.16,
-              2.51,
-              2.94
+              1.65,
+              1.83,
+              2.66
             ],
-            "median_ms": 1120.355,
-            "p95_ms": 1184.755,
+            "median_ms": 1366.693,
+            "p95_ms": 1442.845,
             "query": "random_lookup_100_variants_10_analyses",
             "repetitions": 5,
             "result_count": 997,
             "timed_out": false,
             "warm_ms": [
-              1154.763,
-              1117.598,
-              1184.755,
-              1084.802,
-              1120.355
+              1389.732,
+              1352.799,
+              1366.693,
+              1355.897,
+              1442.845
             ],
-            "warmup_ms": 1895.463
+            "warmup_ms": 2437.428
           }
         ]
       },
@@ -1912,14 +1912,14 @@
       "artifact_path": "/data/opengwasdb/stores/OGS-00024/store.opengwasdb",
       "dense_component": false,
       "hm3_extract": {
-        "detail": "/data/opengwasdb/stores/OGS-00024/store.opengwasdb is not a built Store Release; the report records absence rather than opening a non-Store",
-        "status": "artifact_absent",
+        "detail": "Ragged layout carries no Dense Component; an Indexed Variant Subset is Dense-only (ADR 0061)",
+        "status": "not_applicable",
         "subset": "hm3"
       },
       "layout": "ragged",
       "shapes": {
-        "detail": "artifact absent",
-        "status": "not_run"
+        "detail": "Ragged-only Store: no Dense query shapes",
+        "status": "not_applicable"
       },
       "store_id": "OGS-00024"
     },
@@ -1928,14 +1928,14 @@
       "artifact_path": "/data/opengwasdb/stores/OGS-00025/store.opengwasdb",
       "dense_component": false,
       "hm3_extract": {
-        "detail": "/data/opengwasdb/stores/OGS-00025/store.opengwasdb is not a built Store Release; the report records absence rather than opening a non-Store",
-        "status": "artifact_absent",
+        "detail": "Ragged layout carries no Dense Component; an Indexed Variant Subset is Dense-only (ADR 0061)",
+        "status": "not_applicable",
         "subset": "hm3"
       },
       "layout": "ragged",
       "shapes": {
-        "detail": "artifact absent",
-        "status": "not_run"
+        "detail": "Ragged-only Store: no Dense query shapes",
+        "status": "not_applicable"
       },
       "store_id": "OGS-00025"
     },
@@ -1944,14 +1944,14 @@
       "artifact_path": "/data/opengwasdb/stores/OGS-00026/store.opengwasdb",
       "dense_component": false,
       "hm3_extract": {
-        "detail": "/data/opengwasdb/stores/OGS-00026/store.opengwasdb is not a built Store Release; the report records absence rather than opening a non-Store",
-        "status": "artifact_absent",
+        "detail": "Ragged layout carries no Dense Component; an Indexed Variant Subset is Dense-only (ADR 0061)",
+        "status": "not_applicable",
         "subset": "hm3"
       },
       "layout": "ragged",
       "shapes": {
-        "detail": "artifact absent",
-        "status": "not_run"
+        "detail": "Ragged-only Store: no Dense query shapes",
+        "status": "not_applicable"
       },
       "store_id": "OGS-00026"
     },
@@ -1970,12 +1970,44 @@
         "status": "not_applicable"
       },
       "store_id": "OGS-00027"
+    },
+    {
+      "analysis_id": "GCST001404",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00032/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "/data/opengwasdb/stores/OGS-00032/store.opengwasdb is not a built Store Release; the report records absence rather than opening a non-Store",
+        "status": "artifact_absent",
+        "subset": "hm3"
+      },
+      "layout": "hybrid",
+      "shapes": {
+        "detail": "artifact absent",
+        "status": "not_run"
+      },
+      "store_id": "OGS-00032"
+    },
+    {
+      "analysis_id": "GCST008027",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00033/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "detail": "/data/opengwasdb/stores/OGS-00033/store.opengwasdb is not a built Store Release; the report records absence rather than opening a non-Store",
+        "status": "artifact_absent",
+        "subset": "hm3"
+      },
+      "layout": "hybrid",
+      "shapes": {
+        "detail": "artifact absent",
+        "status": "not_run"
+      },
+      "store_id": "OGS-00033"
     }
   ],
   "summary": {
-    "artifact_absent": 5,
+    "artifact_absent": 4,
     "measured": 8,
     "missing": 4,
-    "not_applicable": 5
+    "not_applicable": 8
   }
 }

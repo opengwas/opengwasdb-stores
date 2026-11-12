@@ -24,8 +24,10 @@ result means, so a change bumps `workload_id`, and this section says why.
 |---|---|---|---|
 | OGS-00009 | Dense | gwas, Reference-Completed, with `hm3` | measured |
 | OGS-00027 | Ragged | cis | measured |
-| OGS-00006 | Ragged | signals_only | measured |
+| OGS-00006 | Ragged | signals_only, Reference-Completed inside its regions | measured |
 | OGS-00011 | Hybrid | gwas, Reference-Completed, with `hm3` | measured |
+
+`yardstick-3` measures OGS-00006 as Reference-Completed. On 2026-11-11 it was rebuilt to record its regions (`regions.tsv`, format 0.2.1) and completed only inside them (opengwas/opengwasdb#430, #224): 12,357,678 variants and 59,092,457 associations, 1,038,186 of them imputed. `yardstick-2` measured the Observed-Only Store. The identifiers are unchanged, so the timings stay comparable Store to Store, but a `yardstick-2` result and a `yardstick-3` one describe different contents. The other three Stores' entries are unchanged.
 
 `yardstick-2` measures OGS-00011, which `yardstick-1` listed as pending while
 its rebuild and completion ran (#371). It was added on 2026-11-01, once the

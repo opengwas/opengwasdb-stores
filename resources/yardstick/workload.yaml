@@ -7,7 +7,7 @@
 # Changing this file changes what every later result means: bump `workload_id`
 # and say why in docs/spec/yardstick.md.
 schema: 1
-workload_id: yardstick-2
+workload_id: yardstick-3
 # Warm repetitions behind each median. `analysis_full` is lower because one
 # full extraction of an OGS-00009 Analysis reads ~9.9 million rows.
 repetitions:
@@ -46,7 +46,7 @@ stores:
     layout: ragged
     coverage: signals_only
     status: measured
-    note: Ragged, Observed-Only, signals_only Association Coverage
+    note: Ragged, Reference-Completed inside its recorded regions (regions.tsv, format 0.2.1), signals_only Association Coverage
     rsid: rs78413525
     alid: "1:18521248:A:G"
     position: {chromosome: "1", position: 66546730}
