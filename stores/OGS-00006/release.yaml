@@ -155,4 +155,9 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   published. Human scientific acceptance remains pending.
   Release Status stays validated.
 
+  Archive deleted (2026-11-12). On the owner''s decision, the arrays of the Stores archived under
+  replaced/20261111T221954Z/ and replaced/20261111T232649Z/ were deleted. Each archive keeps its
+  records/ and validation.yaml, as ADR 0037 keeps on an unforced replacement, so the change stays
+  dated and evidenced.
+
   '

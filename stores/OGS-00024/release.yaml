@@ -82,3 +82,7 @@ notes: |
   /data/opengwasdb/stores/OGS-00024/replaced/20261111T233555Z/, kept because the run was forced
   (#309); deleting it is the owner's call. The Store stays observed_only, this bundle declares no
   completion, and the Release Status is unchanged at validated.
+
+  Archive deleted (2026-11-12). On the owner's decision, the arrays of the Store archived under
+  replaced/20261111T233555Z/ were deleted. The archive keeps its records/ and validation.yaml, as
+  ADR 0037 keeps on an unforced replacement, so the change stays dated and evidenced.
