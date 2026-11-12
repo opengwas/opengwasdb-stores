@@ -22,14 +22,17 @@ This suite asserts the container migration:
      again at an opengwasdb that takes the bundle's declared Association
      Coverage as a build input, so the second rebuild is the first record here
      that carries the two coverage keys, and again when issue #224 rebuilt and
-     re-completed it under its own id. The one correction to OGS-00001..3
+     re-completed it under its own id. OGS-00007 joined them when issue #224's
+     forced regions rebuild replaced its migrated record with `register`'s own
+     output. The one correction to OGS-00001..3
      since is their `format_version`, a Release Erratum (issue #195):
      `register` recorded its own fabricated default "1.0", and the true value
      is the "0.1.0" each Store's manifest declares.
-  4. The two remaining migrated records (OGS-00004, OGS-00007) record every
-     measurement they do not have as `null` rather than inventing one.
-     OGS-00005 and OGS-00006 were the others until a forced rebuild replaced
-     their migrated record with `register`'s own output. Only the release-level
+  4. The one remaining migrated record (OGS-00004) records every measurement it
+     does not have as `null` rather than inventing one. OGS-00005, OGS-00006 and
+     -- with issue #224's regions rebuild -- OGS-00007 were the others until a
+     forced rebuild replaced their migrated record with `register`'s own
+     output. Only the release-level
      verdict is carried, as `observed.validate_status`, because it is already
      recorded as the record's own `status`. Measurements live in the bundle's
      `sidecars/build_report.tsv`, but that describes a build the Validation
@@ -89,10 +92,10 @@ from ogstores.register import (
 STORES: tuple[str, ...] = tuple(f"OGS-{i:05d}" for i in range(1, 8))
 ALREADY_REGISTERED: tuple[str, ...] = ("OGS-00003",)
 # Rebuilt and re-registered through the release workflow's force path (#195,
-# #332, #348); their record is `register`'s own output and names the archived
-# release.
-REREGISTERED: tuple[str, ...] = ("OGS-00001", "OGS-00002", "OGS-00005", "OGS-00006")
-MIGRATED: tuple[str, ...] = ("OGS-00004", "OGS-00007")
+# #332, #348, #224); their record is `register`'s own output and names the
+# archived release.
+REREGISTERED: tuple[str, ...] = ("OGS-00001", "OGS-00002", "OGS-00005", "OGS-00006", "OGS-00007")
+MIGRATED: tuple[str, ...] = ("OGS-00004",)
 
 # The observed keys `register` writes only when they apply, with the values each
 # may take: `variant_reference` (issue #148, docs/release-metadata-schema.md)
@@ -229,6 +232,24 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "build_elapsed_s": 3972.747,
         "validate_status": "passed_with_warnings",
         "completion_state": "reference_completed",
+    },
+    # Rebuilt by a forced run on 11 Nov 2026 at opengwasdb ea81c4a (0.9.0) so
+    # that the Store records its bundle's region table (#224, opengwas#430,
+    # stores#459): `register` wrote this record, and the counts are the ones the
+    # migrated record left null -- 10 Analyses, 171,006 variants and 202,803
+    # associations, the same build the August record described. Null is what no
+    # step reported.
+    "OGS-00007": {
+        "format_version": None,
+        "n_analyses": 10,
+        "n_variants": 171006,
+        "n_associations": 202803,
+        "association_coverage": "cis_and_signals",
+        "reference_assembly": None,
+        "store_bytes": None,
+        "build_elapsed_s": 13.223,
+        "validate_status": "passed",
+        "completion_state": "observed_only",
     },
 }
 

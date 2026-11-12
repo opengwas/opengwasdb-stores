@@ -67,3 +67,18 @@ notes: |
   OGS-00006 carries). The record also notes that the Analyses were resolved with
   opengwasdb 0.1.0: that is the August resolution this unchanged bundle keeps. The
   release moves from `built` to `validated`.
+
+  Rebuilt to record its regions (issue #224, opengwas/opengwasdb#430, 2026-11-11). The owner decided
+  that a Ragged Store keeps the regions its Release Bundle retains (opengwas/opengwasdb-stores#459)
+  and approved a forced rebuild of this one. `pixi run -e workflow release OGS-00024 --config force=1`
+  at 8979754e, opengwasdb 0.9.0 (ea81c4a), ran from 23:35:46 to 23:47:22 UTC, exit 0, building in 10 m
+  24 s. The build reproduced the counts the paragraph above records from the August build of this
+  unchanged bundle: 1,034 Analyses, 7,067,555 variants and 31,986,793 associations, and now also
+  carries its sidecars/sparse_regions.tsv as regions.tsv, declared in the manifest and stamped format
+  0.2.1, the lowest version a Store with that file uses. Its regions are 4,252 significant_trans
+  regions over 918 of the 1,034 Analyses, plus 109,221 suggestive_trans and 22,748 qc_panel rows that
+  are never completion regions; 116 Analyses hold none. validate reports no errors and the same 1,029
+  EAF-orientation warnings as before. The Store it replaced is archived under
+  /data/opengwasdb/stores/OGS-00024/replaced/20261111T233555Z/, kept because the run was forced
+  (#309); deleting it is the owner's call. The Store stays observed_only, this bundle declares no
+  completion, and the Release Status is unchanged at validated.
