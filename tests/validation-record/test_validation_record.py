@@ -155,9 +155,14 @@ FORMAT_VERSION_SHAPE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # Rebuilt (OGS-00001) and re-completed (OGS-00002) at opengwasdb 0.3.2,
     # 44f25a96, and re-registered on 2 Nov 2026 (#348), so that OGS-00002 reads
-    # the repaired HGDP+1kGP EUR panel. Both are format 0.2.0 Stores; null is
-    # what no step reported, as for OGS-00005. Their counts match the 0.1.0
-    # records they replace.
+    # the repaired HGDP+1kGP EUR panel, then both again by the forced runs of
+    # 12-13 Nov 2026 at 9984588b, opengwasdb 0.9.1 (9c98a52), which lift the
+    # eQTLGen Trait positions into GRCh38 (#460, opengwasdb#433): OGS-00001
+    # rebuilt in 9 s and validating in 5 s, OGS-00002 re-completed in 82 s and
+    # validating in 4.5 s, `build_elapsed_s` summing each run's steps. Both are
+    # format 0.2.0 Stores; null is what no step reported, as for OGS-00005.
+    # OGS-00001's counts match the earlier records it replaces, and OGS-00002's
+    # are its re-completion's: imputation inside its 23 cis regions only.
     "OGS-00001": {
         "format_version": None,
         "n_analyses": 10,
@@ -166,19 +171,19 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "association_coverage": "cis",
         "reference_assembly": None,
         "store_bytes": None,
-        "build_elapsed_s": 16.8,
+        "build_elapsed_s": 14.603,
         "validate_status": "passed",
         "completion_state": "observed_only",
     },
     "OGS-00002": {
         "format_version": None,
         "n_analyses": 10,
-        "n_variants": 207764,
-        "n_associations": 207761,
+        "n_variants": 123895,
+        "n_associations": 123892,
         "association_coverage": "cis",
         "reference_assembly": None,
         "store_bytes": None,
-        "build_elapsed_s": 110.604,
+        "build_elapsed_s": 86.939,
         "validate_status": "passed",
         "completion_state": "reference_completed",
     },
