@@ -27,22 +27,6 @@
     ]
   },
   {
-    "name": "top-hits",
-    "argv": [
-      "opengwasdb",
-      "build-dense-top-hits",
-      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb",
-      "--n-workers",
-      "10"
-    ],
-    "inputs": [
-      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
-    ],
-    "outputs": [
-      "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
-    ]
-  },
-  {
     "name": "indexed-subset-hm3",
     "argv": [
       "opengwasdb",

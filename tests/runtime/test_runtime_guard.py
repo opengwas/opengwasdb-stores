@@ -430,7 +430,6 @@ class RuntimeGuardTestCase(unittest.TestCase):
             runtime.verify_runtime_for_releases(
                 [
                     self._job("OGS-00090", "build"),
-                    self._job("OGS-00090", "top-hits"),
                     self._job("OGS-00090", "overview"),
                     self._job("OGS-00090", "validate"),
                 ],
@@ -439,7 +438,6 @@ class RuntimeGuardTestCase(unittest.TestCase):
             )
         record_check()
         message = str(ctx.exception)
-        self.assertIn("build-dense-top-hits", message)
         self.assertIn("regenerate-overview", message)
         self.assertIn("validate", message)
 
@@ -483,7 +481,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
         self._write_bundle("OGS-00090")
         log = self.tmp / "probes.log"
         capable = self._runnable(
-            "capable", commands={"build-dense-vcf", "build-dense-top-hits", "validate"}, probe_log=log
+            "capable", commands={"build-dense-vcf", "regenerate-overview", "validate"}, probe_log=log
         )
         jobs = [self._job("OGS-00090", "build"), self._job("OGS-00090", "validate")]
         entry_point = runtime.verify_runtime_for_releases(
@@ -502,13 +500,13 @@ class RuntimeGuardTestCase(unittest.TestCase):
         self.assertEqual(onstart.commands, entry_point.commands)
 
         runtime.verify_runtime_for_releases(
-            [*jobs, self._job("OGS-00090", "top-hits")],
+            [*jobs, self._job("OGS-00090", "overview")],
             registry_root=self.registry,
             executable=str(capable.executable),
             handoff=entry_point.handoff(),
         )
         record_check()
-        self.assertEqual(self._probes(log), ["build-dense-top-hits"])
+        self.assertEqual(self._probes(log), ["regenerate-overview"])
 
     def test_a_hand_off_for_another_runtime_verifies_nothing(self) -> None:
         """A hand-off naming another executable or revision, or not parsing, leaves every command probed."""

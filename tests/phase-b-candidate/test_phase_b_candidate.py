@@ -3432,9 +3432,7 @@ class ReferenceCompletionTests(unittest.TestCase):
     GOLDEN_LD_PANEL = "/data/opengwasdb/reference/ld/hgdp1kgp-hg38"
     #: Options this fixture's recipe intentionally omits from a golden step.
     #: The build declares no worker count, so its `validate` is planned with none (stores#358).
-    OMITTED_OPTIONS: Mapping[str, tuple[str, ...]] = {
-        "build": ("--n-workers",), "validate": ("--n-workers",), "top-hits": ("--n-workers",),
-    }
+    OMITTED_OPTIONS: Mapping[str, tuple[str, ...]] = {"build": ("--n-workers",), "validate": ("--n-workers",)}
 
     def fixture_option_values(self, fixture: Fixture) -> Mapping[str, Mapping[str, str]]:
         """The few options this fixture sets differently from the golden's recipe.

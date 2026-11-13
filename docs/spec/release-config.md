@@ -81,7 +81,8 @@ completes against, and an `observed_only` one declares none (below). `command` n
 passed through verbatim (ADR 0023): `options` is opaque by design, and its keys
 are not checked here. `post` is the registry's own vocabulary -- `top_hits`,
 `overview`, `rho` and `validate`, each `true` or `false`, the steps
-`ogstores.plan` plans -- so an unknown key or a non-boolean is refused. An
+`ogstores.plan` plans (a Dense build meets `top_hits: true` itself, as it writes the
+Top-Hit Index inline, so that plan has no standalone step for it, stores#357) -- so an unknown key or a non-boolean is refused. An
 `indexed_subsets` entry takes only the Release Bundle contract's keys
 (`name`, `resource_id`, `variant_list`, `reference_assembly`, `checksum`,
 `options`). The recipe carries no artifact root

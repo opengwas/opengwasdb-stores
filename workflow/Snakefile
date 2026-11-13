@@ -17,7 +17,7 @@ that step's record file, never the Store directory -- a half-written Store
 must not satisfy a rule. It also materialises the derived build manifest by
 calling `ogstores.manifest`; it carries no filtering logic itself (ADR 0025).
 
-    build_manifest --> build (or complete) --> top_hits --> rho --> overview --> validate --> register
+    build_manifest --> build (or complete) --> top_hits (Ragged; a Dense build writes it inline) --> rho --> overview --> validate --> register
 
 A release that completes its own Store (ADR 0037) then runs its completion
 phase from that `register` record:

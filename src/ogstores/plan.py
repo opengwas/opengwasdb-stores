@@ -170,9 +170,12 @@ class CommandSpec:
     #: Only `build-ragged-ssf` does, and no Bundle field supplies the table.
     regions_table: bool = False
     top_hits_cmd: str | None = None
-    #: The standalone Top-Hit command takes `--n-workers` (opengwasdb#313):
-    #: `build-dense-top-hits` does, `build-ragged-top-hits` does not.
-    top_hits_workers: bool = False
+    #: The build command writes the Top-Hit Index itself (opengwasdb#312), so a
+    #: declared `top_hits` plans no standalone step after it. `build-dense-vcf`
+    #: does; a command with a `top_hits_cmd` and no inline index (Ragged SSF)
+    #: plans the step. The standalone `build-dense-top-hits` is run by hand to add
+    #: an index to an existing Dense Store (docs/spec/store-release-workflow.md).
+    top_hits_inline: bool = False
     rho_cmd: str | None = None
     overview_cmd: str | None = None
     check_options: tuple[str, ...] = ()
@@ -192,7 +195,7 @@ COMMANDS: dict[str, CommandSpec] = {
         inputs=("analyses",),
         column_map=True,
         top_hits_cmd="build-dense-top-hits",
-        top_hits_workers=True,
+        top_hits_inline=True,
         rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
     ),
@@ -500,8 +503,8 @@ def _resolve(token: str, bundle: Bundle, root: Path) -> list[Path]:
 
 
 #: The option a release declares to size a command's worker pool. `validate`
-#: and `build-dense-top-hits` take the same flag (opengwasdb#315, #313), and are
-#: given the count the release declares for its build or completion (stores#358).
+#: takes the same flag (opengwasdb#315) and is given the count the release
+#: declares for its build or completion (stores#358).
 #: A completion command's own `--n-workers` is rendered from its options, as
 #: every other option is (ADR 0023).
 WORKERS_FLAG: str = "n-workers"
@@ -540,27 +543,27 @@ def _post_steps(
 
     Keys the Build Recipe omits fall back to `POST_DEFAULTS`; an explicit value
     overrides the default (issue #128). `n_workers` is the release's declared
-    worker count (`declared_worker_count`), given to the `validate` step and to
-    a standalone Top-Hit command that takes one.
+    worker count (`declared_worker_count`), given to the `validate` step. A build
+    that writes the Top-Hit Index inline meets a declared `top_hits` itself and
+    plans no standalone step (stores#357).
     """
     post = {**POST_DEFAULTS, **(post or {})}
     steps: list[Step] = []
 
-    if post.get("top_hits") or post.get("top-hits"):
+    declared_top_hits = post.get("top_hits") if post.get("top_hits") is not None else post.get("top-hits")
+    if declared_top_hits not in (None, True, False):
+        raise ValueError(f"post.top_hits is {declared_top_hits!r}; it is true or false")
+    if declared_top_hits:
         if spec.top_hits_cmd is None:
             raise ValueError(
                 f"top_hits post-processing is not supported or built inline "
                 f"for {spec.name} layout"
             )
+    if declared_top_hits and not spec.top_hits_inline:
         steps.append(
             Step(
                 name="top-hits",
-                argv=[
-                    "opengwasdb",
-                    spec.top_hits_cmd,
-                    str(store_p),
-                    *(["--" + WORKERS_FLAG, str(n_workers)] if spec.top_hits_workers and n_workers is not None else []),
-                ],
+                argv=["opengwasdb", spec.top_hits_cmd, str(store_p)],
                 inputs=[store_p],
                 outputs=[store_p],
             )
@@ -898,6 +901,12 @@ def plan(
     A release that completes its own Store (`Bundle.completes_own_store`)
     returns its build phase, then its completion phase (ADR 0037); each
     Step's `phase` says which.
+
+    A Dense build writes the Top-Hit Index inline (opengwasdb#312), so a declared
+    `top_hits` plans no standalone step after it (stores#357); an index is added
+    to an existing Dense Store by running `opengwasdb build-dense-top-hits
+    --n-workers N <store>` by hand, as before, because the release workflow
+    refuses any re-run over a published release.
     """
     if bundle.completes_own_store:
         return _plan_completing_own_store(bundle, artifact_root)
