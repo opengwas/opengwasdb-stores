@@ -74,7 +74,9 @@
       "validate",
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
       "--format",
-      "json"
+      "json",
+      "--n-workers",
+      "24"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
@@ -152,7 +154,9 @@
       "validate",
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
       "--format",
-      "json"
+      "json",
+      "--n-workers",
+      "24"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"

@@ -388,7 +388,7 @@ class TestPlanDense(unittest.TestCase):
             steps[-1],
             Step(
                 name="validate",
-                argv=["opengwasdb", "validate", str(store_p), "--format", "json"],
+                argv=["opengwasdb", "validate", str(store_p), "--format", "json", "--n-workers", "10"],
                 inputs=[store_p],
                 outputs=[],
             ),
@@ -2174,6 +2174,98 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
                         plan(self.completed({"command": "complete-ragged", "options": options}))
                     record_check()
                     self.assertIn(f"declares no '{missing}'", str(ctx.exception))
+
+
+class TestValidateWorkerCount(unittest.TestCase):
+    """`validate` is planned with the worker count the release declares (stores#358).
+
+    The engine's `validate --n-workers N` (opengwasdb#315) spreads the Dense band
+    pass across forked workers and reports the same at any N. The planner takes N
+    from the declared build options, `complete.options` first for a completion
+    phase, and renders no flag where the release declares none (the engine's own
+    default of one worker is then what runs).
+    """
+
+    def _with_build_options(self, store_id: str, **options: object) -> Bundle:
+        bundle = load(store_id)
+        build = dict(bundle.build)
+        build["build"] = {**build["build"], "options": {**build["build"].get("options", {}), **options}}
+        return replace(bundle, build=build)
+
+    def _validate_argv(self, steps: list[Step], name: str = "validate") -> list[str]:
+        return next(step.argv for step in steps if step.name == name)
+
+    def test_validate_takes_the_declared_build_worker_count(self) -> None:
+        store_p = "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+        argv = self._validate_argv(plan(load("OGS-00003")))
+        record_check()
+        self.assertEqual(argv, ["opengwasdb", "validate", store_p, "--format", "json", "--n-workers", "10"])
+
+    def test_the_worker_count_follows_the_declaration(self) -> None:
+        argv = self._validate_argv(plan(self._with_build_options("OGS-00003", **{"n-workers": 3})))
+        record_check()
+        self.assertEqual(argv[-2:], ["--n-workers", "3"])
+        record_check()
+        self.assertEqual(argv.count("--n-workers"), 1)
+
+    def test_a_release_declaring_no_worker_count_plans_no_flag(self) -> None:
+        bundle = load("OGS-00003")
+        options = {key: value for key, value in bundle.build["build"]["options"].items() if key != "n-workers"}
+        build = {**bundle.build, "build": {**bundle.build["build"], "options": options}}
+        argv = self._validate_argv(plan(replace(bundle, build=build)))
+        record_check()
+        self.assertEqual(argv[-2:], ["--format", "json"])
+
+    def test_every_committed_validate_step_carries_its_releases_worker_count(self) -> None:
+        for store_id in EARLY_REGISTERED:
+            bundle = load(store_id)
+            declared = (bundle.build.get("build") or {}).get("options", {}).get("n-workers")
+            for step in plan(bundle):
+                if step.name != "validate":
+                    continue
+                with self.subTest(store_id):
+                    record_check()
+                    if declared is None:
+                        self.assertNotIn("--n-workers", step.argv)
+                    else:
+                        self.assertEqual(step.argv[-2:], ["--n-workers", str(declared)])
+
+    def test_the_completion_validate_takes_the_complete_blocks_count_else_the_builds(self) -> None:
+        bundle = load("OGS-00011")
+        record_check()
+        self.assertEqual(bundle.build["complete"]["options"]["n-workers"], 24)
+        argv = self._validate_argv(plan(bundle), "completion-validate")
+        record_check()
+        self.assertEqual(argv[-2:], ["--n-workers", "24"])
+        build = {**bundle.build, "complete": {**bundle.build["complete"], "options": {
+            **bundle.build["complete"]["options"], "n-workers": 5}}}
+        steps = plan(replace(bundle, build=build))
+        record_check()
+        self.assertEqual(self._validate_argv(steps, "completion-validate")[-2:], ["--n-workers", "5"])
+        record_check()
+        self.assertEqual(self._validate_argv(steps, "validate")[-2:], ["--n-workers", "24"])
+        options = {k: v for k, v in bundle.build["complete"]["options"].items() if k != "n-workers"}
+        steps = plan(replace(bundle, build={**bundle.build, "complete": {**bundle.build["complete"], "options": options}}))
+        record_check()
+        self.assertEqual(
+            self._validate_argv(steps, "completion-validate")[-2:], ["--n-workers", "24"],
+            "falls back to the build's own count",
+        )
+
+    def test_a_non_positive_or_non_integer_count_is_refused(self) -> None:
+        for bad in (0, -2, "many", True, 2.5):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    plan(self._with_build_options("OGS-00003", **{"n-workers": bad}))
+                record_check()
+
+    def test_the_pinned_cli_reads_the_planned_validate_argv(self) -> None:
+        for store_id in ("OGS-00003", "OGS-00004", "OGS-00006", "OGS-00011"):
+            for step in plan(load(store_id)):
+                if step.name.endswith("validate"):
+                    with self.subTest(store_id, step=step.name):
+                        record_check()
+                        validate_step_argv_against_cli(self, step)
 
 
 class TestBuildManifestSeam(unittest.TestCase):

@@ -495,11 +495,46 @@ def _resolve(token: str, bundle: Bundle, root: Path) -> list[Path]:
     raise ValueError(f"Unknown path token {token!r}")
 
 
-def _post_steps(store_p: Path, post: dict[str, Any], spec: CommandSpec) -> list[Step]:
+#: The option a release declares to size a command's worker pool. `validate`
+#: and `build-dense-top-hits` take the same flag (opengwasdb#315, #313), and are
+#: given the count the release declares for its build or completion (stores#358).
+WORKERS_FLAG: str = "n-workers"
+
+
+def declared_worker_count(bundle: Bundle, *blocks: str) -> int | None:
+    """The worker count the release declares, from the first of `blocks` that sets one.
+
+    `blocks` name `build.yaml` blocks (`complete`, then `build`) whose `options`
+    may declare `n-workers`. None when none does, so that no flag is rendered and
+    the engine's own default is what runs: the planner never invents a count. A
+    declared value that is not a positive integer is refused, since it would
+    reach a worker pool as it stands.
+    """
+    for block in blocks:
+        section = bundle.build.get(block)
+        options = section.get("options") if isinstance(section, Mapping) else None
+        if not isinstance(options, Mapping):
+            continue
+        for key, value in options.items():
+            if normalize_option_key(key) != WORKERS_FLAG or value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(
+                    f"Bundle {bundle.store_id}: {block}.options {key!r} is {value!r}; a worker "
+                    "count is a positive integer"
+                )
+            return value
+    return None
+
+
+def _post_steps(
+    store_p: Path, post: dict[str, Any], spec: CommandSpec, n_workers: int | None = None
+) -> list[Step]:
     """Construct post-build steps, rejecting any the subcommand cannot support.
 
     Keys the Build Recipe omits fall back to `POST_DEFAULTS`; an explicit value
-    overrides the default (issue #128).
+    overrides the default (issue #128). `n_workers` is the release's declared
+    worker count (`declared_worker_count`), given to the `validate` step.
     """
     post = {**POST_DEFAULTS, **(post or {})}
     steps: list[Step] = []
@@ -553,7 +588,14 @@ def _post_steps(store_p: Path, post: dict[str, Any], spec: CommandSpec) -> list[
         steps.append(
             Step(
                 name="validate",
-                argv=["opengwasdb", "validate", str(store_p), "--format", "json"],
+                argv=[
+                    "opengwasdb",
+                    "validate",
+                    str(store_p),
+                    "--format",
+                    "json",
+                    *(["--" + WORKERS_FLAG, str(n_workers)] if n_workers is not None else []),
+                ],
                 inputs=[store_p],
                 outputs=[],
             )
@@ -952,7 +994,8 @@ def plan(
     # Parse declarations before post-step validation so a Ragged recipe's
     # declaration is refused for the reason that matters (#209).
     subset_declarations = indexed_subset_declarations(bundle)
-    post_steps = _post_steps(store_p, bundle.build.get("post") or {}, spec)
+    n_workers = declared_worker_count(bundle, spec.phase, "build")
+    post_steps = _post_steps(store_p, bundle.build.get("post") or {}, spec, n_workers)
     subset_steps = _indexed_subset_steps(store_p, subset_declarations)
     steps.extend(_insert_subset_steps(post_steps, subset_steps))
     return steps
@@ -1035,7 +1078,7 @@ def _completion_phase(bundle: Bundle, root: Path) -> list[Step]:
         if key not in ("top_hits", "top-hits")
     }
     post_steps = _insert_subset_steps(
-        _post_steps(store_p, post, spec),
+        _post_steps(store_p, post, spec, declared_worker_count(bundle, "complete", "build")),
         _indexed_subset_steps(store_p, indexed_subset_declarations(bundle)),
     )
     check = Step(
@@ -1182,10 +1225,12 @@ __all__ = [
     "VARIANT_REFERENCE_COMMANDS",
     "VARIANT_REFERENCE_LAYOUT_COMMANDS",
     "VARIANT_REFERENCE_OUTPUT_KEYS",
+    "WORKERS_FLAG",
     "CommandSpec",
     "IndexedSubsetDeclaration",
     "Step",
     "completion_step_name",
+    "declared_worker_count",
     "indexed_subset_declarations",
     "needs_recorded_regions",
     "plan",
