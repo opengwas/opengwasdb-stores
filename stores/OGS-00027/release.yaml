@@ -77,4 +77,25 @@ notes: 'Every probe of the genome-wide BESD file set, one Analysis each. The Sto
 
   2026-10-27: replaced before release. The owner decided that OGS-00027 is replaced in place, with no erratum, because it is pre-release (opengwas/opengwasdb-stores#282 comment 6382592883). This bundle supersedes the one accepted on 2026-10-22 (inventory eqtlgen-cis-full-2026-10-22d, built at opengwasdb d8896e4, validated 2026-10-23). It differs in exactly these ways: each Analysis''s sample_size is the maximum of its probe''s published per-pair N (13,696 of 19,250 values differ from the recovered maximum: 13,645 lower by 1 to 13 and 51 higher by up to 1,402; 5,554 are unchanged); sample_size_scope is variant_level; the build stores the per-pair N plane (--sample-size-table) and the .esi allele frequency (--store-esi-eaf, checked against the UK Biobank United Kingdom frequencies) on opengwasdb 0d59f151, with SE float16; and the frozen inventory is eqtlgen-cis-full-2026-10-24. Membership, ancestry, quality checks and every other Analysis column are unchanged.
 
-  2026-10-28: validated and scientifically accepted. The replacement build passed opengwasdb validate with no errors or warnings; its membership, association ordering and sampled z/SE values match the Store it replaced, every Analysis sample_size equals its maximum stored n, and the stored .esi EAF passed the UK-frequency orientation check. The owner accepted this released Store in opengwas/opengwasdb-stores#314 comment 6478111346.'
+  2026-10-28: validated and scientifically accepted. The replacement build passed opengwasdb validate with no errors or warnings; its membership, association ordering and sampled z/SE values match the Store it replaced, every Analysis sample_size equals its maximum stored n, and the stored .esi EAF passed the UK-frequency orientation check. The owner accepted this released Store in opengwas/opengwasdb-stores#314 comment 6478111346.
+
+  Rebuilt to lift its Trait positions into GRCh38 (issue #460, opengwas/opengwasdb#433, 2026-11-12).
+  The eQTLGen source is on GRCh37 while this Store''s variants are GRCh38, so each Analysis''s
+  trait_chr/trait_bp named its gene''s GRCh37 position on top of GRCh38 variants; opengwas/opengwasdb#433,
+  released in v0.9.1, lifts them with the variants. On the owner''s approval of 2026-11-12 a forced
+  `pixi run -e workflow release OGS-00027 --config force=1` at 9984588b, opengwasdb 0.9.1 (9c98a52),
+  ran from 23:47:56 UTC on 2026-11-12 to 00:12:50 UTC on 2026-11-13, exit 0, building in 1,391 s
+  and validating in 75 s. The build
+  reproduced the counts the paragraph above records from the unchanged bundle: 19,250 Analyses,
+  8,927,061 variants and 127,112,772 associations. It lifted 19,199 of the 19,250 Trait positions; the
+  other 51 Analyses carry none, their genes'' positions not having lifted, and all 51 are named in
+  store.opengwasdb.admission/trait_positions_unlifted.tsv beside the Admission record. APOE
+  (ENSG00000130203) reads 19:44,907,573 where it read 19:45,410,830, and MYC (ENSG00000136997)
+  8:127,738,431 where it read 8:128,750,677. In a 200-Analysis sample drawn with random.Random(433),
+  rows on an Analysis''s own Trait chromosome outside trait_bp +- 1 Mb fell from 368,124 of 1,292,033
+  (28.49%), as the Store this run replaced held them, to 4,856 (0.38%). validate reports no errors and no
+  warnings, and the Store is format 0.2.0 as before. The Store it replaced is archived under
+  /data/opengwasdb/stores/OGS-00027/replaced/20261112T234803Z/; on the owner''s decision of 2026-11-12
+  its arrays were deleted, so the archive keeps its records/ and validation.yaml, as ADR 0037 keeps on an
+  unforced replacement, and the change stays dated and evidenced. The Store stays observed_only and the
+  Release Status is unchanged at validated.'

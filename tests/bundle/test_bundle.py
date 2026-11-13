@@ -276,7 +276,9 @@ class TestBundleContract(unittest.TestCase):
         its own, carrying the acceptance evidence under `acceptance.acceptance`
         with the commit it came from. The owner scientifically accepted that
         released Store (#314 comment 6478111346), so its Release Status is
-        `validated` and `human_acceptance` is `accepted`.
+        `validated` and `human_acceptance` is `accepted`. A forced rebuild on
+        12 Nov 2026 (#460) then re-registered the record at opengwasdb 0.9.1,
+        the run that lifted the Trait positions into GRCh38.
         """
         loaded = bundle.load("OGS-00027", registry_root=REPO_ROOT / "stores")
         record_check()
@@ -290,9 +292,18 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertEqual(loaded.validation["status"], "passed")
         record_check()
+        # The engine of the forced rebuild of 12 Nov 2026 (#460). Its commit is
+        # not restated here: since #253 the lock is the only place it is
+        # written (the `engine` suite refuses a tracked file that restates it),
+        # so this pins the version the record names and the agreement between
+        # the record's `validator` and its `build_environment`.
+        build_environment = loaded.validation["build_environment"]
+        record_check()
+        self.assertEqual(build_environment["opengwasdb_version"], "0.9.1")
+        record_check()
         self.assertEqual(
-            loaded.validation["build_environment"]["opengwasdb_commit"],
-            "0d59f151c7618933747a59f825deeef6a51de9e1",
+            loaded.validation["validator"]["version"],
+            f"opengwasdb@{build_environment['opengwasdb_commit']}",
         )
         observed = loaded.validation["observed"]
         record_check()

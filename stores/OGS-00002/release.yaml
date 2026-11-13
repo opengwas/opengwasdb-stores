@@ -76,4 +76,26 @@ notes: 'Completion adds no new Analyses -- analyses.tsv here is unchanged from p
   records are kept in
   /data/opengwasdb/stores/OGS-00002/replaced/20261102T073446Z. This supersedes the
   format 0.1.0 statements in the earlier errata above, which are left as written.
+
+  Release Erratum (issue #460, opengwas/opengwasdb#433, 2026-11-12): this Store''s completion was
+  centred off its genes. Its Trait positions were GRCh37 on GRCh38 variants, and the completion then
+  filled the LD blocks its regions touched rather than only its cis windows, so a #430-era check found
+  65,671 of its imputed and 11,519 of its missing rows outside the cis windows its Analyses hold. The
+  counts the two paragraphs above record -- 207,764 variants, 207,761 associations, 106,653 imputed and
+  14,735 missing -- are therefore no longer this Store''s. On the owner''s approval of 2026-11-12,
+  OGS-00001 was rebuilt at opengwasdb 0.9.1 (9c98a52) so that opengwas/opengwasdb#433 lifts Trait
+  positions with the variants, and a forced `pixi run -e workflow release OGS-00002 --config force=1`
+  at 9984588b re-completed this Store from that rebuild against
+  /data/opengwasdb/reference/hgdp1kgp-hg38/panel for EUR, running from 00:13:39 to 00:15:38 UTC on
+  2026-11-13, exit 0, completing in 82 s and validating in 4.5 s. The completion imputed only inside the
+  23 cis regions its 10 Analyses hold: 123,895 variants, 123,892 associations, 37,502 imputed and 17
+  missing. The Observed-View Check from the rebuilt OGS-00001 passed over all 10 Analyses: it reproduced
+  all 86,373 observed associations exactly, found the 37,502 imputed and the 17 missing rows all inside
+  those 23 cis regions, and every failing counter is zero. validate reports no errors and no warnings,
+  and the Store is format 0.2.0 as before. The Store it replaced is archived under
+  /data/opengwasdb/stores/OGS-00002/replaced/20261113T001349Z/; on the owner''s decision of 2026-11-12
+  its arrays were deleted, so the archive keeps its records/ and validation.yaml, as ADR 0037 keeps on
+  an unforced replacement, and the change stays dated and evidenced. The #195 erratum''s "987aec1, the
+  revision that rebuilt the published Store" no longer describes the published Store, which was
+  re-completed at 9c98a52, and the Release Status is unchanged at validated.
   '

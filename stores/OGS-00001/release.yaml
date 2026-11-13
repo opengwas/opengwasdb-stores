@@ -62,4 +62,21 @@ notes: 'Probes chosen for well-characterised cis-eQTL signal and biological fami
   /data/opengwasdb/stores/OGS-00001/replaced/20261102T072357Z. This supersedes
   the format 0.1.0 statements in the earlier errata above, which are left as
   written.
+
+  Rebuilt to lift its Trait positions into GRCh38 (issue #460, opengwas/opengwasdb#433, 2026-11-12).
+  The eQTLGen source is on GRCh37 while this Store''s variants are GRCh38, so each Analysis''s
+  trait_chr/trait_bp named its gene''s GRCh37 position on top of GRCh38 variants; opengwas/opengwasdb#433,
+  released in v0.9.1, lifts them with the variants. On the owner''s approval of 2026-11-12 a forced
+  `pixi run -e workflow release OGS-00001 --config force=1` at 9984588b, opengwasdb 0.9.1 (9c98a52),
+  ran from 00:12:50 to 00:13:39 UTC on 2026-11-13, exit 0, building in 9 s and validating in 5 s. The
+  build reproduced the counts the paragraph above records: 10 Analyses, 86,376 variants and 86,373
+  associations. All 10 Trait positions lifted: APOE (ENSG00000130203) reads 19:44,907,573 where it read
+  19:45,410,830, and MYC (ENSG00000136997) 8:127,738,431 where it read 8:128,750,677, the GRCh38 values
+  OGS-00027 holds too. validate reports no errors and no warnings, and the Store is format 0.2.0 as
+  before. The Store it replaced is archived under
+  /data/opengwasdb/stores/OGS-00001/replaced/20261113T001258Z/; on the owner''s decision of 2026-11-12
+  its arrays were deleted, so the archive keeps its records/ and validation.yaml, as ADR 0037 keeps on
+  an unforced replacement, and the change stays dated and evidenced. One statement above no longer
+  describes the published Store -- the #195 erratum''s "987aec1, the revision that rebuilt the published
+  Store": the Store published now was rebuilt at 9c98a52. Release Status is unchanged at built.
   '
