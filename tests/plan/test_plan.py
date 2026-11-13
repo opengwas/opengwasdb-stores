@@ -2268,6 +2268,55 @@ class TestValidateWorkerCount(unittest.TestCase):
                         validate_step_argv_against_cli(self, step)
 
 
+class TestTopHitWorkerCount(unittest.TestCase):
+    """The standalone `build-dense-top-hits` step takes the declared worker count (#313's option, stores#358).
+
+    `build-dense-top-hits --n-workers N` sizes the scan's process pool and the
+    index it writes does not depend on N (opengwasdb#313). `build-ragged-top-hits`
+    takes no such option, so its step is planned as before.
+    """
+
+    def _dense_with_top_hits(self, **options: object) -> Bundle:
+        bundle = load("OGS-00003")
+        build = dict(bundle.build)
+        declared = {k: v for k, v in build["build"]["options"].items() if k != "n-workers"}
+        build["build"] = {**build["build"], "options": {**declared, **options}}
+        return replace(bundle, build=build)
+
+    def _top_hits(self, bundle: Bundle) -> Step:
+        return next(step for step in plan(bundle) if step.name == "top-hits")
+
+    def test_the_dense_top_hit_step_takes_the_declared_count(self) -> None:
+        store_p = "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+        record_check()
+        self.assertEqual(
+            self._top_hits(load("OGS-00003")).argv,
+            ["opengwasdb", "build-dense-top-hits", store_p, "--n-workers", "10"],
+        )
+
+    def test_it_follows_the_declaration_and_is_absent_without_one(self) -> None:
+        record_check()
+        self.assertEqual(self._top_hits(self._dense_with_top_hits(**{"n-workers": 4})).argv[-2:], ["--n-workers", "4"])
+        bare = self._top_hits(self._dense_with_top_hits())
+        record_check()
+        self.assertEqual(bare.argv[:2], ["opengwasdb", "build-dense-top-hits"])
+        self.assertNotIn("--n-workers", bare.argv)
+
+    def test_the_ragged_top_hit_step_is_given_none(self) -> None:
+        bundle = load("OGS-00007")
+        build = dict(bundle.build)
+        build["build"] = {**build["build"], "options": {**build["build"].get("options", {}), "n-workers": 8}}
+        step = self._top_hits(replace(bundle, build=build))
+        record_check()
+        self.assertEqual(step.argv[1], "build-ragged-top-hits")
+        self.assertEqual(len(step.argv), 3, "a declared count must not reach a command that takes none")
+
+    def test_the_pinned_cli_reads_the_planned_step(self) -> None:
+        validate_step_argv_against_cli(self, self._top_hits(load("OGS-00003")))
+        validate_step_argv_against_cli(self, self._top_hits(load("OGS-00007")))
+        record_check()
+
+
 class TestBuildManifestSeam(unittest.TestCase):
     """plan() points every build-phase command at the derived build manifest (ADR 0025)."""
 

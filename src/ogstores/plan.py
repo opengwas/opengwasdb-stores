@@ -170,6 +170,9 @@ class CommandSpec:
     #: Only `build-ragged-ssf` does, and no Bundle field supplies the table.
     regions_table: bool = False
     top_hits_cmd: str | None = None
+    #: The standalone Top-Hit command takes `--n-workers` (opengwasdb#313):
+    #: `build-dense-top-hits` does, `build-ragged-top-hits` does not.
+    top_hits_workers: bool = False
     rho_cmd: str | None = None
     overview_cmd: str | None = None
     check_options: tuple[str, ...] = ()
@@ -189,6 +192,7 @@ COMMANDS: dict[str, CommandSpec] = {
         inputs=("analyses",),
         column_map=True,
         top_hits_cmd="build-dense-top-hits",
+        top_hits_workers=True,
         rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
     ),
@@ -498,6 +502,8 @@ def _resolve(token: str, bundle: Bundle, root: Path) -> list[Path]:
 #: The option a release declares to size a command's worker pool. `validate`
 #: and `build-dense-top-hits` take the same flag (opengwasdb#315, #313), and are
 #: given the count the release declares for its build or completion (stores#358).
+#: A completion command's own `--n-workers` is rendered from its options, as
+#: every other option is (ADR 0023).
 WORKERS_FLAG: str = "n-workers"
 
 
@@ -534,7 +540,8 @@ def _post_steps(
 
     Keys the Build Recipe omits fall back to `POST_DEFAULTS`; an explicit value
     overrides the default (issue #128). `n_workers` is the release's declared
-    worker count (`declared_worker_count`), given to the `validate` step.
+    worker count (`declared_worker_count`), given to the `validate` step and to
+    a standalone Top-Hit command that takes one.
     """
     post = {**POST_DEFAULTS, **(post or {})}
     steps: list[Step] = []
@@ -548,7 +555,12 @@ def _post_steps(
         steps.append(
             Step(
                 name="top-hits",
-                argv=["opengwasdb", spec.top_hits_cmd, str(store_p)],
+                argv=[
+                    "opengwasdb",
+                    spec.top_hits_cmd,
+                    str(store_p),
+                    *(["--" + WORKERS_FLAG, str(n_workers)] if spec.top_hits_workers and n_workers is not None else []),
+                ],
                 inputs=[store_p],
                 outputs=[store_p],
             )
