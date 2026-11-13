@@ -2093,7 +2093,7 @@ def prepare_ragged_single_id_signal_release(root: Path, store_id: str) -> tuple[
     # without one (opengwas/opengwasdb#430). The bundle's recorded regions are
     # the panel's one block, which is the region completion retains and the
     # Observed-View Check then audits: `build-ragged-ssf` validates this table
-    # and keeps it in the Store, and the run stamps the Store 0.2.1 for it.
+    # and keeps it in the Store, and the run stamps the Store 0.2.2 (every build does, #381).
     sidecars = store_dir / "sidecars"
     sidecars.mkdir()
     (sidecars / "sparse_regions.tsv").write_text(
@@ -3849,8 +3849,8 @@ class TestWorkflowSingleIdRaggedReferenceCompletion(unittest.TestCase):
         self.assertIn(record["status"], ("passed", "passed_with_warnings"))
         self.assertEqual(record["observed"]["n_variants"], len(SIGNAL_POSITIONS), "the panel adds the held-out position")
         # The Store keeps the bundle's regions table and says so, in the format
-        # stamp 0.2.1 that carries one (opengwas/opengwasdb#430, spec §21.3).
-        self.assertEqual(manifest_doc["format_version"], "0.2.1")
+        # stamp 0.2.2, as every build does since indel ALIDs spell the reference first (opengwasdb#381; 0.9.0 stamped 0.2.1 here, #430).
+        self.assertEqual(manifest_doc["format_version"], "0.2.2")
         self.assertEqual(manifest_doc["regions"]["path"], "regions.tsv")
         self.assertTrue((self.store_p / "regions.tsv").is_file())
 

@@ -9,9 +9,9 @@ provides, and what upgrading it does **not** do.
 | Fact | Where it is written |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Branch followed | `main`, in `pixi.toml`'s `[feature.store-build.pypi-dependencies]` |
+| Branch followed | `main`, in `pixi.toml`'s `[feature.store-build.pypi-dependencies]`. While opengwasdb epic #307 is unmerged, the branch that consumes it follows that epic's integration branch `orch/307-build-speed`; the run's finish moves the pin to the epic's merge commit on `main` |
 | Commit, and the package version | `pixi.lock`, and nowhere else (#253). `pixi run env-check` prints both, beside the installed engine's |
-| Writers' Store `format_version` | `0.2.0`, or `0.2.1` for a Ragged Store carrying `regions.tsv` (`ogstores.runtime.WRITABLE_FORMAT_VERSIONS`; the baseline is `REQUIRED_FORMAT_VERSION`) |
+| Writers' Store `format_version` | `0.2.2` from every builder and every completion (`ogstores.runtime.REQUIRED_FORMAT_VERSION`; `WRITABLE_FORMAT_VERSIONS` is the set completion may consume, the same one). The converter writes `0.2.0` |
 | Python floor | 3.12 |
 | Zarr / numcodecs | `zarr>=3.4,<4`, `numcodecs>=0.17` (Zarr v3 with the sharding codec) |
 
@@ -29,7 +29,7 @@ zarr 2.x environment cannot open a format-0.2.0 Store.
 ### Moving the engine
 
 ```bash
-pixi run engine-update     # relock to main's tip, install it, check it
+pixi run engine-update     # relock to the followed branch's tip, install it, check it
 git commit pixi.lock -m "Move opengwasdb to <version> (<commit>)"
 ```
 
@@ -38,8 +38,8 @@ inside a feature change. `engine-update` refuses, and puts the previous lock
 back, when the lock does not resolve exactly one commit, when an environment
 installs another, or when the new engine's baseline Store format is not
 `REQUIRED_FORMAT_VERSION`: a format change is a deliberate repository change,
-not an update. That baseline stays `0.2.0` across opengwasdb#430, which stamps
-only a region-carrying Ragged Store `0.2.1`, so the probe still passes. `pixi run engine-update --check` checks without moving anything.
+not an update. That baseline is `0.2.2` since opengwasdb#381 (ADR 0079): an
+engine that writes `0.2.0` or `0.2.1` is refused. `pixi run engine-update --check` checks without moving anything.
 
 ### Engines within a phase
 
@@ -66,12 +66,14 @@ history.
   sharding codec; Dense inner chunk `[1000, 64]` and shard `[100000, 1024]`.
   `build-dense-vcf`, `build-hybrid`, `build-ragged-ssf` and `build-ragged-besd`
   all write it, and the converter writes the same layout from a 0.1.0 source.
-  **A build stamps `0.2.1` for a Ragged Store carrying `regions.tsv`**, and
-  `0.2.0` for every other Store (opengwas/opengwasdb#430, spec §21.3): `0.2.1`
-  is `0.2.0` plus a Ragged release's manifest-declared region table, which the
-  bundle's `sidecars/sparse_regions.tsv` puts in the Store as `regions.tsv`.
-  An older reader takes a `0.2.0` release as fully understood; a `0.2.1` one it
-  reports as needing a reader that knows the table.
+- **Format 0.2.2: indel ALIDs spell the reference allele first**
+  (opengwas/opengwasdb#381, ADR 0079, `docs/store-format-compatibility.md` in the
+  engine). Every builder and every completion stamps `0.2.2`, with or without a
+  Ragged release's `regions.tsv` (which the released engine 0.9.0 stamped `0.2.1`,
+  opengwas/opengwasdb#430). The arrays and encodings are 0.2.0's. **Completion
+  consumes only `0.2.2`**: it refuses a `0.2.1`, `0.2.0` or `0.1.0` source, and
+  says to rebuild it. The converter still writes `0.2.0`, so a converted parent is
+  not completable either.
 - **The required Ragged/Overflow `by_variant/` index**
   (opengwas/opengwasdb#252/#268). Every Ragged and Hybrid builder writes it
   inline; `opengwasdb validate` fails without it. It is part of the format
@@ -142,9 +144,9 @@ Before the entry point snapshots anything or a build writes a Store,
 3. the runtime does not provide every subcommand the *scheduled* jobs will run
    (probed with `--help`); or
 4. a **scheduled** `complete` job would consume an existing parent Store whose
-   declared `format_version` the pinned builders do not write -- neither `0.2.0`
-   nor the `0.2.1` a Ragged Store carrying `regions.tsv` is stamped
-   (`ogstores.runtime.WRITABLE_FORMAT_VERSIONS`).
+   declared `format_version` the pinned builders do not write: anything but
+   `0.2.2` (`ogstores.runtime.WRITABLE_FORMAT_VERSIONS`). The refusal says to
+   rebuild the parent with the pinned engine.
 
 The gate is scheduled-step-aware, because an id appearing in the dry run is not
 proof that the Store is rebuilt. `workflow/release.py` and the Snakefile
@@ -154,7 +156,7 @@ proof that the Store is rebuilt. `workflow/release.py` and the Snakefile
   an enhancement-only rerun of an existing completed Store (build its HM3
   subset, validate, overview) never consults its unused completion recipe;
 * a same-run `build` or `complete` job for the parent produces a fresh
-  0.2.x Store, so the stale on-disk artifact is not consumed and is not gated;
+  0.2.2 Store, so the stale on-disk artifact is not consumed and is not gated;
 * a parent that is neither on disk nor scheduled to be produced is refused
   loudly before Snakemake starts.
 
@@ -164,7 +166,7 @@ repository. The run prints the resolved identity it will use, and every Step's
 durable record already carries the exact `opengwasdb` revision and executable
 that ran.
 
-The format-0.2.0 and required-`by_variant` guarantees rest on the **verified
+The format-0.2.2 and required-`by_variant` guarantees rest on the **verified
 pin identity**, not on the `--help` probes: the subcommand probe only proves the
 CLI surface a scheduled step calls exists. That is why an unprovable revision is
 refused even when the commands answer.
@@ -179,47 +181,60 @@ pixi run release OGS-00016
 The HM3 pipeline proof's temporary explicit `--opengwasdb-checkout` remains a
 proof tool, not the supported release entry point.
 
-## Converting or rebuilding a format-0.1.0 parent
+## Rebuilding a parent below format 0.2.2
 
-A `0.1.0` parent is readable but not completable by a format-0.2.0 builder
-(opengwas/opengwasdb ADR 0038 §4); completion writes into the source's arrays
-and never re-encodes them. When a build ticket needs a completed descendant of
-an existing `0.1.0` Store, it has two supported orders, both **core-owned
-procedures** rather than registry API:
-
-1. **Convert, then complete.** In the pinned `opengwasdb` checkout, convert the
-   parent to format 0.2.0 with the core's conversion tool
-   (`scripts/convert_store_to_0_2_0.py`; see the core's own documentation and
-   CHANGELOG), register the converted parent as its own release, then run the
-   completion against the converted Store. The core tool is the authority on
-   which layouts it supports and on its verification gate.
-2. **Rebuild the parent, then complete.** A fresh `pixi run release <parent>` at
-   the pinned runtime writes a new format-0.2.0 observed Store; the completion
-   can then consume it. This is the only order that applies the current builder
-   fixes to the parent's bytes.
-
+A parent below `0.2.2` is readable but not completable by the pinned engine
+(opengwas/opengwasdb ADR 0038 §4, ADR 0079): completion writes into the source's
+arrays and never re-encodes them, and a pre-`0.2.2` source spells its deletions
+the way an insertion is spelt, so completing it would sort the panel's indels
+beside them. **The remedy is a rebuild of the parent with this engine, then the
+completion**: a fresh `pixi run release <parent>` writes a new `0.2.2` observed
+Store. Converting is no remedy: the converter
+(`scripts/convert_store_to_0_2_0.py`) writes `0.2.0`, which completion refuses.
 The runtime gate refuses the wrong order before any write and directs the
-operator here; it does not itself invoke a converter. Remember that converting
-or rebuilding a *registered* release is a catalogue action with its own
-gates, not a side effect of a completion run.
+operator here; it does not itself invoke a converter. Rebuilding or replacing a
+*registered* release is a catalogue action with its own gates, not a side effect
+of a completion run.
+
+**Published Stores this affects.** Nothing is changed in any release's data: a
+published Store stays what its records say. But none of these can be the parent
+of a completion at this engine until it is rebuilt:
+
+- the five that the released engine 0.9.0 built at `0.2.1`, Ragged releases
+  carrying `regions.tsv`: **OGS-00006, OGS-00007, OGS-00024, OGS-00025 and
+  OGS-00026**;
+- the **0.2.0** Stores, read from their `manifest.json` in `/data/opengwasdb/stores`
+  on 13 Nov 2026: **OGS-00001, -02, -09, -11, -12, -13, -14, -15, -16, -17 and -27**;
+- the **0.1.0** Stores (Zarr v2, which completion refused before this pin too):
+  **OGS-00003, -04, -05 and -08**.
+
+OGS-00022 and -23 have no Store under the Artifact Root, and OGS-00032 and -33 are candidates with none built.
+Any release rebuilt or completed after this is `0.2.2` as it is written.
+
+A two-id completion from one of them is refused by this repository's guard
+before any write; a single-id completion of one (the Store completes itself) is
+refused by the engine's own `complete-*` command, which reads the format. Either
+stays refused until the Store is rebuilt. Reading, querying and validating them with this engine is
+unchanged. A `0.2.0` or `0.2.1` Store is read and validated as before and is
+never rewritten.
 
 ## Upgrading does not convert or requalify anything
 
 Bumping the pin changes what a **new** build is. It does not rebuild, convert,
 revalidate or requalify any published Store. Every registered Store built before
-the pin is still format 0.1.0, remains readable, and stays exactly as it was.
+the pin keeps the format it was built at (`0.1.0`, `0.2.0` or `0.2.1`), remains
+readable, and stays exactly as it was.
 
 Consequences a build ticket must handle explicitly:
 
-- A Reference Completion of a 0.1.0 parent is refused at the gate above and by
-  the core builder itself. Convert the parent to format 0.2.0 with the core's
-  conversion procedure, or rebuild the parent at the pinned runtime, then
-  complete the converted/rebuild release. A completion never re-encodes its
-  source. See "Converting or rebuilding a format-0.1.0 parent" above.
+- A Reference Completion of a parent below 0.2.2 is refused at the gate above and
+  by the core builder itself. Rebuild the parent at the pinned runtime, then
+  complete the rebuilt release; converting does not help, and a completion never
+  re-encodes its source. See "Rebuilding a parent below format 0.2.2" above.
 - Each build ticket must therefore supply a compatible observed parent before
   it can register a completed descendant. The existence of a published 0.1.0
   parent is not that parent.
-- The required `by_variant/` index is part of a 0.2.0 build; a converted or
+- The required `by_variant/` index is part of every 0.2.x build; a converted or
   older working copy that predates its required status still needs current
   validation.
 

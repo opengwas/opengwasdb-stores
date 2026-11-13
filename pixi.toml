@@ -56,7 +56,7 @@ threadpoolctl = ">=3.0"
 # dependency on it collides (conda + PyPI wheel installing the same compiled
 # extension into the same environment) if pysam is also pinned via conda, so it
 # is left for pip/uv to resolve as a transitive PyPI dependency of opengwasdb.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "main" }
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "orch/307-build-speed" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

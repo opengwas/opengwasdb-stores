@@ -238,8 +238,8 @@ def test_the_fixture_holds_imputed_cells(store: Path) -> None:
     check(all(imputed[index].sum() == len(ANALYSES) for index in IMPUTED),
           "a panel-only variant is not flagged imputed")
     manifest = comparison.store_metadata(store)
-    check(manifest["format_version"] == "0.2.0",
-          f"the fixture is not a format-0.2.0 Store: {manifest['format_version']}")
+    check(manifest["format_version"] == "0.2.2",
+          f"the fixture is not a format-0.2.2 Store: {manifest['format_version']}")
     check(manifest["completion_state"] == "reference_completed",
           f"the fixture is not Reference-Completed: {manifest['completion_state']}")
     check(manifest["has_imputed_plane"] is True, "the fixture has no imputed plane")

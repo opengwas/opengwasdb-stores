@@ -986,16 +986,21 @@ bounded Dense-validation memory work. `pixi.lock` resolves it with Python 3.12,
 
 Two consequences are contract, not incidental:
 
-- **Reference Completion needs a format-0.2.0 observed parent.** A 0.1.0 parent
-  is readable but not completable by a 0.2.0 builder (opengwas/opengwasdb ADR
-  0038 §4). The runtime guard refuses the run before any write when a
-  *scheduled* `complete` job would consume a 0.1.0 parent, and directs the
-  operator to [the release runtime](../runtime.md) for the supported conversion
-  or rebuild order. A same-run `build`/`complete` of the parent is a fresh
-  0.2.0 Store and is not gated; a missing parent that is not scheduled to be
-  produced is refused. Every completed-release build ticket must supply a
-  compatible parent, or convert/rebuild one first. Bumping the runtime does not
-  convert or requalify a published Store.
+- **Reference Completion needs a format-0.2.2 observed parent.** The pinned
+  engine completes only a `0.2.2` Store, the format every builder and completion
+  writes since indel ALIDs spell the reference allele first (opengwas/opengwasdb
+  #381, ADR 0079; ADR 0038 §4). A `0.2.1`, `0.2.0` or `0.1.0` parent is readable
+  but not completable, and a converted one is no better, because the converter
+  writes `0.2.0`. The runtime guard refuses the run before any write when a
+  *scheduled* `complete` job would consume such a two-id parent, and directs the
+  operator to [the release runtime](../runtime.md): the parent is **rebuilt**
+  with this engine. The Stores this affects are listed there (OGS-00006, -07,
+  -24, -25 and -26, built at `0.2.1` by engine 0.9.0, and every `0.2.0` and `0.1.0` Store, which that page lists by id);
+  their data and records are unchanged. A same-run `build`/`complete` of the
+  parent is a fresh `0.2.2` Store and is not gated; a missing parent that is not
+  scheduled to be produced is refused. Every completed-release build ticket must
+  supply a rebuilt parent. Bumping the runtime does not rebuild or requalify a
+  published Store.
 - **Inner chunks name the format's shape, and must tile the decided shard.**
   `--chunk-variants` / `--chunk-analyses` name the inner chunk; their defaults
   are `[1000, 64]`, and the shard `[100000, 1024]` is fixed and not exposed. On
