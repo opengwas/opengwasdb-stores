@@ -143,8 +143,13 @@ def verify_block(base: Path, genotypes: np.ndarray | None = None,
         except (ValueError, TypeError, AttributeError): return False
     alids = [r["SNP"] for r in rows]
     require(len(rows) == vectors.shape[0] == provenance["n_variants_retained"], "row_count")
+    def names_itself(row: dict[str, str]) -> bool:
+        """An SNV or substitution round-trips to its sorted ALID. An indel names no ALID (opengwasdb ADR 0079 §6):
+        a panel sorts its alleles and declares no reference, so `canonical_panel_alid` is None for it. `names`
+        has already held its id to `CHR:BP:EA:OA`, sorted by the `EA < OA` check."""
+        return len(row["EA"]) != len(row["OA"]) or row["SNP"] == canonical_panel_alid(row["SNP"])
     require(len(set(alids)) == len(alids) and all(
-        (r["EA"] or "") < (r["OA"] or "") and names(r, "EA", "OA") and r["SNP"] == canonical_panel_alid(r["SNP"])
+        (r["EA"] or "") < (r["OA"] or "") and names(r, "EA", "OA") and names_itself(r)
         for r in rows), "alids")
     # A row's source record, where recorded, must be the variant its ALID names.
     if rows and {"REF", "ALT"} <= set(rows[0]):

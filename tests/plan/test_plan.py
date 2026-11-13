@@ -13,7 +13,7 @@ Verifies:
 - Committed registry (#211): the eight Dense-component bundles declare `hm3`, and
   the declared subset Step sits before overview/validate; the four Ragged-only
   bundles declare none and plan unchanged.
-- Post-step sequencing: build -> top-hits (dense/ragged) -> rho (dense only) -> indexed-subset-<name> (Dense/Hybrid, when declared) -> overview (Dense/Hybrid only) -> validate.
+- Post-step sequencing: build -> top-hits (ragged only; a Dense build meets `true` inline, #357) -> rho (dense only) -> indexed-subset-<name> (Dense/Hybrid, when declared) -> overview (Dense/Hybrid only) -> validate.
 - Hybrid top-hits policy: top hits are built inline during build-hybrid, so no redundant/invalid
   dense-root build-dense-top-hits step is planned; setting post.top_hits=true on Hybrid is rejected.
 - Ragged top-hits policy: build-ragged-top-hits is planned for ragged layout when post.top_hits=true.
@@ -327,7 +327,7 @@ class TestPlanDense(unittest.TestCase):
         )
 
     def test_dense_rho_enabled_order(self) -> None:
-        """When rho is enabled on Dense, build-dense-rho runs between top-hits and overview."""
+        """When rho is enabled on Dense, build-dense-rho follows the build (which wrote the Top-Hit Index, #357) and precedes overview."""
         bundle_with_rho = Bundle(
             store_id="OGS-00003",
             root=Path("stores/OGS-00003"),
@@ -345,11 +345,11 @@ class TestPlanDense(unittest.TestCase):
         )
         steps = plan(bundle_with_rho)
         record_check()
-        self.assertEqual([s.name for s in steps], ["build", "top-hits", "rho", "overview", "validate"])
+        self.assertEqual([s.name for s in steps], ["build", "rho", "overview", "validate"])
         store_p = Path("/data/opengwasdb/stores/OGS-00003/store.opengwasdb")
         record_check()
         self.assertEqual(
-            steps[2],
+            steps[1],
             Step(
                 name="rho",
                 argv=["opengwasdb", "build-dense-rho", str(store_p)],
@@ -388,7 +388,7 @@ class TestPlanDense(unittest.TestCase):
             steps[-1],
             Step(
                 name="validate",
-                argv=["opengwasdb", "validate", str(store_p), "--format", "json"],
+                argv=["opengwasdb", "validate", str(store_p), "--format", "json", "--n-workers", "10"],
                 inputs=[store_p],
                 outputs=[],
             ),
@@ -1929,7 +1929,7 @@ class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
         self.assertEqual(
             [s.name for s in steps],
             [
-                "build", "top-hits", "rho", "indexed-subset-hm3", "validate",
+                "build", "rho", "indexed-subset-hm3", "validate",
                 "complete", "completion-rho", "completion-indexed-subset-hm3", "completion-validate",
                 "completion-observed-view-check",
             ],
@@ -2174,6 +2174,188 @@ class TestPlanSingleIdRaggedReferenceCompleted(unittest.TestCase):
                         plan(self.completed({"command": "complete-ragged", "options": options}))
                     record_check()
                     self.assertIn(f"declares no '{missing}'", str(ctx.exception))
+
+
+class TestValidateWorkerCount(unittest.TestCase):
+    """`validate` is planned with the worker count the release declares (stores#358).
+
+    The engine's `validate --n-workers N` (opengwasdb#315) spreads the Dense band
+    pass across forked workers and reports the same at any N. The planner takes N
+    from the declared build options, `complete.options` first for a completion
+    phase, and renders no flag where the release declares none (the engine's own
+    default of one worker is then what runs).
+    """
+
+    def _with_build_options(self, store_id: str, **options: object) -> Bundle:
+        bundle = load(store_id)
+        build = dict(bundle.build)
+        build["build"] = {**build["build"], "options": {**build["build"].get("options", {}), **options}}
+        return replace(bundle, build=build)
+
+    def _validate_argv(self, steps: list[Step], name: str = "validate") -> list[str]:
+        return next(step.argv for step in steps if step.name == name)
+
+    def test_validate_takes_the_declared_build_worker_count(self) -> None:
+        store_p = "/data/opengwasdb/stores/OGS-00003/store.opengwasdb"
+        argv = self._validate_argv(plan(load("OGS-00003")))
+        record_check()
+        self.assertEqual(argv, ["opengwasdb", "validate", store_p, "--format", "json", "--n-workers", "10"])
+
+    def test_the_worker_count_follows_the_declaration(self) -> None:
+        argv = self._validate_argv(plan(self._with_build_options("OGS-00003", **{"n-workers": 3})))
+        record_check()
+        self.assertEqual(argv[-2:], ["--n-workers", "3"])
+        record_check()
+        self.assertEqual(argv.count("--n-workers"), 1)
+
+    def test_a_release_declaring_no_worker_count_plans_no_flag(self) -> None:
+        bundle = load("OGS-00003")
+        options = {key: value for key, value in bundle.build["build"]["options"].items() if key != "n-workers"}
+        build = {**bundle.build, "build": {**bundle.build["build"], "options": options}}
+        argv = self._validate_argv(plan(replace(bundle, build=build)))
+        record_check()
+        self.assertEqual(argv[-2:], ["--format", "json"])
+
+    def test_every_committed_validate_step_carries_its_releases_worker_count(self) -> None:
+        for store_id in EARLY_REGISTERED:
+            bundle = load(store_id)
+            declared = (bundle.build.get("build") or {}).get("options", {}).get("n-workers")
+            for step in plan(bundle):
+                if step.name != "validate":
+                    continue
+                with self.subTest(store_id):
+                    record_check()
+                    if declared is None:
+                        self.assertNotIn("--n-workers", step.argv)
+                    else:
+                        self.assertEqual(step.argv[-2:], ["--n-workers", str(declared)])
+
+    def test_the_completion_validate_takes_the_complete_blocks_count_else_the_builds(self) -> None:
+        bundle = load("OGS-00011")
+        record_check()
+        self.assertEqual(bundle.build["complete"]["options"]["n-workers"], 24)
+        argv = self._validate_argv(plan(bundle), "completion-validate")
+        record_check()
+        self.assertEqual(argv[-2:], ["--n-workers", "24"])
+        build = {**bundle.build, "complete": {**bundle.build["complete"], "options": {
+            **bundle.build["complete"]["options"], "n-workers": 5}}}
+        steps = plan(replace(bundle, build=build))
+        record_check()
+        self.assertEqual(self._validate_argv(steps, "completion-validate")[-2:], ["--n-workers", "5"])
+        record_check()
+        self.assertEqual(self._validate_argv(steps, "validate")[-2:], ["--n-workers", "24"])
+        options = {k: v for k, v in bundle.build["complete"]["options"].items() if k != "n-workers"}
+        steps = plan(replace(bundle, build={**bundle.build, "complete": {**bundle.build["complete"], "options": options}}))
+        record_check()
+        self.assertEqual(
+            self._validate_argv(steps, "completion-validate")[-2:], ["--n-workers", "24"],
+            "falls back to the build's own count",
+        )
+
+    def test_a_non_positive_or_non_integer_count_is_refused(self) -> None:
+        for bad in (0, -2, "many", True, 2.5):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    plan(self._with_build_options("OGS-00003", **{"n-workers": bad}))
+                record_check()
+
+    def test_the_pinned_cli_reads_the_planned_validate_argv(self) -> None:
+        for store_id in ("OGS-00003", "OGS-00004", "OGS-00006", "OGS-00011"):
+            for step in plan(load(store_id)):
+                if step.name.endswith("validate"):
+                    with self.subTest(store_id, step=step.name):
+                        record_check()
+                        validate_step_argv_against_cli(self, step)
+
+
+class TestDenseBuildMeetsTopHits(unittest.TestCase):
+    """A Dense build meets its declared `top_hits` itself (stores#357, opengwasdb#312).
+
+    `build-dense-vcf` writes the Top-Hit Index inline, proven identical to the
+    standalone rebuild (opengwasdb#312), so a declared `top_hits` plans no
+    standalone step after it, as for completion and Hybrid builds. Ragged plans
+    are unchanged. #357's amendment criterion, a standalone command for an
+    existing Store, is met as before #357: `opengwasdb build-dense-top-hits
+    --n-workers N <store>` run by hand, since the release workflow refuses any
+    re-run over a published release.
+    """
+
+    def _with_post(self, store_id: str, **post: object) -> Bundle:
+        bundle = load(store_id)
+        return replace(bundle, build={**bundle.build, "post": {**bundle.build.get("post", {}), **post}})
+
+    def test_a_dense_plan_carries_no_standalone_top_hit_step(self) -> None:
+        for store_id in ("OGS-00003", "OGS-00008", "OGS-00009", "OGS-00016"):
+            bundle = load(store_id)
+            if (bundle.build.get("post") or {}).get("top_hits") is not True:
+                continue
+            with self.subTest(store_id):
+                names = [step.name for step in plan(bundle)]
+                record_check()
+                self.assertNotIn("top-hits", names)
+                record_check()
+                self.assertFalse(any("build-dense-top-hits" in step.argv for step in plan(bundle)))
+
+    def test_the_build_is_still_followed_by_the_other_post_steps(self) -> None:
+        record_check()
+        self.assertEqual(
+            [step.name for step in plan(load("OGS-00003"))],
+            ["build", "indexed-subset-hm3", "overview", "validate"],
+        )
+
+    def test_a_single_id_dense_completion_plans_no_standalone_step_in_either_phase(self) -> None:
+        bundle = load("OGS-00003")
+        build = {**bundle.build, "completion_state": "reference_completed", "complete": {
+            "command": "complete-dense", "options": {"ld-panel": "/data/opengwasdb/reference/ld", "n-workers": 16}}}
+        names = [step.name for step in plan(replace(bundle, build=build))]
+        record_check()
+        self.assertNotIn("top-hits", names)
+        record_check()
+        self.assertNotIn("completion-top-hits", names)
+
+    def test_ragged_plans_are_unchanged_and_the_ragged_command_takes_no_worker_count(self) -> None:
+        for store_id in ("OGS-00006", "OGS-00007"):
+            steps = plan(load(store_id))
+            with self.subTest(store_id):
+                record_check()
+                self.assertIn("top-hits", [step.name for step in steps])
+                record_check()
+                self.assertTrue(any(step.argv[1] == "build-ragged-top-hits" for step in steps))
+        bundle = load("OGS-00007")
+        build = dict(bundle.build)
+        build["build"] = {**build["build"], "options": {**build["build"].get("options", {}), "n-workers": 8}}
+        step = next(s for s in plan(replace(bundle, build=build)) if s.name == "top-hits")
+        record_check()
+        self.assertEqual(len(step.argv), 3, "a declared count must not reach a command that takes none")
+        validate_step_argv_against_cli(self, step)
+
+    def test_hybrid_plans_are_unchanged(self) -> None:
+        for store_id in ("OGS-00004", "OGS-00011"):
+            with self.subTest(store_id):
+                record_check()
+                self.assertNotIn("top-hits", [step.name for step in plan(load(store_id))])
+        with self.assertRaises(ValueError):
+            plan(self._with_post("OGS-00004", top_hits=True))
+        record_check()
+
+    def test_the_standalone_dense_command_is_one_the_pinned_cli_takes_with_a_worker_count(self) -> None:
+        """What the docs tell an operator to run by hand: `build-dense-top-hits --n-workers N <store>`."""
+        record_check()
+        self.assertTrue(cli_takes_option("build-dense-top-hits", "n-workers"))
+
+    def test_post_steps_are_not_what_amendment_compares(self) -> None:
+        """`top-hits` is a re-runnable post step, so `amendment.py` never compares it (ADR 0034)."""
+        from ogstores import amendment
+
+        record_check()
+        self.assertNotIn("top-hits", amendment.STORE_WRITING_STEPS)
+
+    def test_post_values_are_true_or_false_and_nothing_else(self) -> None:
+        for bad in ("rebuild", "yes please", 2, ["rebuild"]):
+            with self.subTest(bad=bad):
+                with self.assertRaises(ValueError):
+                    plan(self._with_post("OGS-00003", top_hits=bad))
+                record_check()
 
 
 class TestBuildManifestSeam(unittest.TestCase):

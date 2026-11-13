@@ -235,7 +235,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/wheel-0.47.0-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#9c98a52d33b5c999ce94649bb9d518014b516424
+      - pypi: git+https://github.com/opengwas/opengwasdb?branch=orch%2F307-build-speed#8acd22b02a7f61656cf9079e38939fb0ff255581
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
   dev:
     channels:
@@ -578,7 +578,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#9c98a52d33b5c999ce94649bb9d518014b516424
+      - pypi: git+https://github.com/opengwas/opengwasdb?branch=orch%2F307-build-speed#8acd22b02a7f61656cf9079e38939fb0ff255581
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/ab/ac/8f96ba9b4cfe3e4ea201f23f4f97165862395e9331a424ed325ae37024a8/setuptools_scm-8.3.1-py3-none-any.whl
   docs:
@@ -1012,7 +1012,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#9c98a52d33b5c999ce94649bb9d518014b516424
+      - pypi: git+https://github.com/opengwas/opengwasdb?branch=orch%2F307-build-speed#8acd22b02a7f61656cf9079e38939fb0ff255581
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
 packages:
 - conda: https://conda.anaconda.org/bioconda/linux-64/bcftools-1.24-h487d631_1.conda
@@ -1245,7 +1245,7 @@ packages:
   - zstd >=1.5.7,<1.6.0a0
   license: BSD-3-Clause AND MIT AND EPL-2.0
   purls:
-  - pkg:pypi/backports-zstd?source=compressed-mapping
+  - pkg:pypi/backports-zstd?source=hash-mapping
   run_exports: {}
   size: 241909
   timestamp: 1791654828167
@@ -2776,7 +2776,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/markupsafe?source=compressed-mapping
+  - pkg:pypi/markupsafe?source=hash-mapping
   run_exports: {}
   size: 27678
   timestamp: 1791548971554
@@ -4827,7 +4827,7 @@ packages:
   license: BSD-3-Clause
   license_family: BSD
   purls:
-  - pkg:pypi/gitpython?source=compressed-mapping
+  - pkg:pypi/gitpython?source=hash-mapping
   run_exports: {}
   size: 178869
   timestamp: 1788802794188
@@ -6614,16 +6614,16 @@ packages:
   license: MIT
   license_family: MIT
   purls:
-  - pkg:pypi/zarr?source=compressed-mapping
+  - pkg:pypi/zarr?source=hash-mapping
   run_exports: {}
   size: 556765
   timestamp: 1791523946731
 - pypi: ./
   name: ogstores
   requires_python: '>=3.12'
-- pypi: git+https://github.com/opengwas/opengwasdb?branch=main#9c98a52d33b5c999ce94649bb9d518014b516424
+- pypi: git+https://github.com/opengwas/opengwasdb?branch=orch%2F307-build-speed#8acd22b02a7f61656cf9079e38939fb0ff255581
   name: opengwasdb
-  version: 0.9.1
+  version: 0.9.1.dev177+g8acd22b02
   requires_dist:
   - numcodecs>=0.17
   - numpy>=1.26,<2.5

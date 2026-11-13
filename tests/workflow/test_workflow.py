@@ -884,7 +884,8 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         )
 
         rec_dir = paths.records_dir(store_id, root=self.template_artifacts)
-        expected_records = ["build.json", "top-hits.json", "overview.json", "validate.json", "register.json"]
+        # A Dense build writes the Top-Hit Index itself, so it has no `top-hits` record (#357).
+        expected_records = ["build.json", "overview.json", "validate.json", "register.json"]
         for rec_name in expected_records:
             rec_p = rec_dir / rec_name
             self.assertTrue(rec_p.is_file(), f"Expected record {rec_p} does not exist")
@@ -936,7 +937,7 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         b = bundle.load(store_id, registry_root=self.stores_dir)
         steps = plan(b, artifact_root=self.artifact_root)
         build_step = next(s for s in steps if s.name == "build")
-        top_hits_step = next(s for s in steps if s.name == "top-hits")
+        overview_step = next(s for s in steps if s.name == "overview")
 
         # The build step consumes the derived build manifest. Snakemake's
         # build_manifest rule would produce it first; running the step directly
@@ -948,17 +949,16 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         )
 
         run.run_step(build_step, store_id=store_id, artifact_root=self.artifact_root)
-        run.run_step(top_hits_step, store_id=store_id, artifact_root=self.artifact_root)
+        run.run_step(overview_step, store_id=store_id, artifact_root=self.artifact_root)
 
         rec_dir = paths.records_dir(store_id, root=self.artifact_root)
         self.assertTrue((rec_dir / "build.json").is_file())
-        self.assertTrue((rec_dir / "top-hits.json").is_file())
-        self.assertFalse((rec_dir / "overview.json").exists())
+        self.assertTrue((rec_dir / "overview.json").is_file())
         self.assertFalse((rec_dir / "validate.json").exists())
         self.assertFalse((rec_dir / "register.json").exists())
 
         build_mtime = (rec_dir / "build.json").stat().st_mtime_ns
-        top_hits_mtime = (rec_dir / "top-hits.json").stat().st_mtime_ns
+        overview_mtime = (rec_dir / "overview.json").stat().st_mtime_ns
 
         res_dry = run_snakemake(
             [store_id],
@@ -968,19 +968,17 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         )
         self.assertEqual(res_dry.returncode, 0)
         scheduled_rules = scheduled_targets(res_dry.stdout)
-        self.assertIn("overview", scheduled_rules)
         self.assertIn("validate", scheduled_rules)
         self.assertIn("register", scheduled_rules)
         self.assertNotIn("build", scheduled_rules)
-        self.assertNotIn("top-hits", scheduled_rules)
+        self.assertNotIn("overview", scheduled_rules)
 
         res_resume = run_snakemake([store_id], registry_root=self.stores_dir, artifact_root=self.artifact_root)
         self.assertEqual(res_resume.returncode, 0, f"Resume run failed:\n{res_resume.stderr}")
 
         self.assertEqual((rec_dir / "build.json").stat().st_mtime_ns, build_mtime)
-        self.assertEqual((rec_dir / "top-hits.json").stat().st_mtime_ns, top_hits_mtime)
+        self.assertEqual((rec_dir / "overview.json").stat().st_mtime_ns, overview_mtime)
 
-        self.assertTrue((rec_dir / "overview.json").is_file())
         self.assertTrue((rec_dir / "validate.json").is_file())
         self.assertTrue((rec_dir / "register.json").is_file())
         self.assertTrue(paths.store_path(store_id, root=self.artifact_root).is_dir())
@@ -1154,7 +1152,7 @@ class TestWorkflowEndToEndAndResumption(unittest.TestCase):
         self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
         self.assertEqual(
             scheduled_targets(dry.stdout),
-            ["analyses.exclusions", "build", "top-hits", "overview", "validate", "register", store_id],
+            ["analyses.exclusions", "build", "overview", "validate", "register", store_id],
             dry.stdout,
         )
         self.assertIn("would snapshot the records", dry.stdout)
@@ -2093,7 +2091,7 @@ def prepare_ragged_single_id_signal_release(root: Path, store_id: str) -> tuple[
     # without one (opengwas/opengwasdb#430). The bundle's recorded regions are
     # the panel's one block, which is the region completion retains and the
     # Observed-View Check then audits: `build-ragged-ssf` validates this table
-    # and keeps it in the Store, and the run stamps the Store 0.2.1 for it.
+    # and keeps it in the Store, and the run stamps the Store 0.2.2 (every build does, #381).
     sidecars = store_dir / "sidecars"
     sidecars.mkdir()
     (sidecars / "sparse_regions.tsv").write_text(
@@ -3849,8 +3847,8 @@ class TestWorkflowSingleIdRaggedReferenceCompletion(unittest.TestCase):
         self.assertIn(record["status"], ("passed", "passed_with_warnings"))
         self.assertEqual(record["observed"]["n_variants"], len(SIGNAL_POSITIONS), "the panel adds the held-out position")
         # The Store keeps the bundle's regions table and says so, in the format
-        # stamp 0.2.1 that carries one (opengwas/opengwasdb#430, spec §21.3).
-        self.assertEqual(manifest_doc["format_version"], "0.2.1")
+        # stamp 0.2.2, as every build does since indel ALIDs spell the reference first (opengwasdb#381; 0.9.0 stamped 0.2.1 here, #430).
+        self.assertEqual(manifest_doc["format_version"], "0.2.2")
         self.assertEqual(manifest_doc["regions"]["path"], "regions.tsv")
         self.assertTrue((self.store_p / "regions.tsv").is_file())
 

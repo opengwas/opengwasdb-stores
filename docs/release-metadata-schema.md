@@ -810,7 +810,7 @@ support:
 
 | Step | Supported by | Notes |
 |---|---|---|
-| `top_hits` | `build-dense-vcf`, `build-ragged-ssf`; built inline by `build-hybrid`, `build-ragged-besd`, and every `complete-*` | Ragged and Hybrid releases often declare `top_hits: false`. |
+| `top_hits` | `build-ragged-ssf` plans the standalone `build-ragged-top-hits`. Built inline, so planning no step while the build runs: `build-dense-vcf` (opengwasdb#312, stores#357), `build-hybrid`, `build-ragged-besd`, and every `complete-*`. | Ragged and Hybrid releases often declare `top_hits: false`. To add an index to an existing Dense Store, run `opengwasdb build-dense-top-hits --n-workers N <store>` by hand, as before #357: the release workflow refuses any re-run over a published release, and a forced run rebuilds the Store. |
 | `rho` | Dense only (via `complete-dense` or `build-dense-vcf`) | Defaults off. |
 | `overview` | Dense and Hybrid (`regenerate-overview`) | Ragged's closed Store envelope excludes `overview.html`, so Ragged releases declare `overview: false`. |
 | `validate` | Every release | Defaults on. |

@@ -170,6 +170,12 @@ class CommandSpec:
     #: Only `build-ragged-ssf` does, and no Bundle field supplies the table.
     regions_table: bool = False
     top_hits_cmd: str | None = None
+    #: The build command writes the Top-Hit Index itself (opengwasdb#312), so a
+    #: declared `top_hits` plans no standalone step after it. `build-dense-vcf`
+    #: does; a command with a `top_hits_cmd` and no inline index (Ragged SSF)
+    #: plans the step. The standalone `build-dense-top-hits` is run by hand to add
+    #: an index to an existing Dense Store (docs/spec/store-release-workflow.md).
+    top_hits_inline: bool = False
     rho_cmd: str | None = None
     overview_cmd: str | None = None
     check_options: tuple[str, ...] = ()
@@ -189,6 +195,7 @@ COMMANDS: dict[str, CommandSpec] = {
         inputs=("analyses",),
         column_map=True,
         top_hits_cmd="build-dense-top-hits",
+        top_hits_inline=True,
         rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
     ),
@@ -495,21 +502,64 @@ def _resolve(token: str, bundle: Bundle, root: Path) -> list[Path]:
     raise ValueError(f"Unknown path token {token!r}")
 
 
-def _post_steps(store_p: Path, post: dict[str, Any], spec: CommandSpec) -> list[Step]:
+#: The option a release declares to size a command's worker pool. `validate`
+#: takes the same flag (opengwasdb#315) and is given the count the release
+#: declares for its build or completion (stores#358).
+#: A completion command's own `--n-workers` is rendered from its options, as
+#: every other option is (ADR 0023).
+WORKERS_FLAG: str = "n-workers"
+
+
+def declared_worker_count(bundle: Bundle, *blocks: str) -> int | None:
+    """The worker count the release declares, from the first of `blocks` that sets one.
+
+    `blocks` name `build.yaml` blocks (`complete`, then `build`) whose `options`
+    may declare `n-workers`. None when none does, so that no flag is rendered and
+    the engine's own default is what runs: the planner never invents a count. A
+    declared value that is not a positive integer is refused, since it would
+    reach a worker pool as it stands.
+    """
+    for block in blocks:
+        section = bundle.build.get(block)
+        options = section.get("options") if isinstance(section, Mapping) else None
+        if not isinstance(options, Mapping):
+            continue
+        for key, value in options.items():
+            if normalize_option_key(key) != WORKERS_FLAG or value is None:
+                continue
+            if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                raise ValueError(
+                    f"Bundle {bundle.store_id}: {block}.options {key!r} is {value!r}; a worker "
+                    "count is a positive integer"
+                )
+            return value
+    return None
+
+
+def _post_steps(
+    store_p: Path, post: dict[str, Any], spec: CommandSpec, n_workers: int | None = None
+) -> list[Step]:
     """Construct post-build steps, rejecting any the subcommand cannot support.
 
     Keys the Build Recipe omits fall back to `POST_DEFAULTS`; an explicit value
-    overrides the default (issue #128).
+    overrides the default (issue #128). `n_workers` is the release's declared
+    worker count (`declared_worker_count`), given to the `validate` step. A build
+    that writes the Top-Hit Index inline meets a declared `top_hits` itself and
+    plans no standalone step (stores#357).
     """
     post = {**POST_DEFAULTS, **(post or {})}
     steps: list[Step] = []
 
-    if post.get("top_hits") or post.get("top-hits"):
+    declared_top_hits = post.get("top_hits") if post.get("top_hits") is not None else post.get("top-hits")
+    if declared_top_hits not in (None, True, False):
+        raise ValueError(f"post.top_hits is {declared_top_hits!r}; it is true or false")
+    if declared_top_hits:
         if spec.top_hits_cmd is None:
             raise ValueError(
                 f"top_hits post-processing is not supported or built inline "
                 f"for {spec.name} layout"
             )
+    if declared_top_hits and not spec.top_hits_inline:
         steps.append(
             Step(
                 name="top-hits",
@@ -553,7 +603,14 @@ def _post_steps(store_p: Path, post: dict[str, Any], spec: CommandSpec) -> list[
         steps.append(
             Step(
                 name="validate",
-                argv=["opengwasdb", "validate", str(store_p), "--format", "json"],
+                argv=[
+                    "opengwasdb",
+                    "validate",
+                    str(store_p),
+                    "--format",
+                    "json",
+                    *(["--" + WORKERS_FLAG, str(n_workers)] if n_workers is not None else []),
+                ],
                 inputs=[store_p],
                 outputs=[],
             )
@@ -844,6 +901,12 @@ def plan(
     A release that completes its own Store (`Bundle.completes_own_store`)
     returns its build phase, then its completion phase (ADR 0037); each
     Step's `phase` says which.
+
+    A Dense build writes the Top-Hit Index inline (opengwasdb#312), so a declared
+    `top_hits` plans no standalone step after it (stores#357); an index is added
+    to an existing Dense Store by running `opengwasdb build-dense-top-hits
+    --n-workers N <store>` by hand, as before, because the release workflow
+    refuses any re-run over a published release.
     """
     if bundle.completes_own_store:
         return _plan_completing_own_store(bundle, artifact_root)
@@ -952,7 +1015,8 @@ def plan(
     # Parse declarations before post-step validation so a Ragged recipe's
     # declaration is refused for the reason that matters (#209).
     subset_declarations = indexed_subset_declarations(bundle)
-    post_steps = _post_steps(store_p, bundle.build.get("post") or {}, spec)
+    n_workers = declared_worker_count(bundle, spec.phase, "build")
+    post_steps = _post_steps(store_p, bundle.build.get("post") or {}, spec, n_workers)
     subset_steps = _indexed_subset_steps(store_p, subset_declarations)
     steps.extend(_insert_subset_steps(post_steps, subset_steps))
     return steps
@@ -1035,7 +1099,7 @@ def _completion_phase(bundle: Bundle, root: Path) -> list[Step]:
         if key not in ("top_hits", "top-hits")
     }
     post_steps = _insert_subset_steps(
-        _post_steps(store_p, post, spec),
+        _post_steps(store_p, post, spec, declared_worker_count(bundle, "complete", "build")),
         _indexed_subset_steps(store_p, indexed_subset_declarations(bundle)),
     )
     check = Step(
@@ -1182,10 +1246,12 @@ __all__ = [
     "VARIANT_REFERENCE_COMMANDS",
     "VARIANT_REFERENCE_LAYOUT_COMMANDS",
     "VARIANT_REFERENCE_OUTPUT_KEYS",
+    "WORKERS_FLAG",
     "CommandSpec",
     "IndexedSubsetDeclaration",
     "Step",
     "completion_step_name",
+    "declared_worker_count",
     "indexed_subset_declarations",
     "needs_recorded_regions",
     "plan",

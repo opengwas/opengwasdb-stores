@@ -60,9 +60,15 @@ def _pin_spec_from_pixi_toml(toml_path: Path) -> dict:
 #: The one shape a lock reference to the pin may take: the request (the release
 #: tag, since #387) and the commit the solve resolved (`#`), with no other URL
 #: parts that could select something else.
+#: The branches `pixi.toml` may follow: `main`, and for the life of the branch
+#: that makes this repository consume opengwasdb epic #307's engine, that epic's
+#: integration branch. The run's finish moves the pin to the epic's merge commit
+#: on `main`; the lock then spells `branch=main`.
+PIN_BRANCHES = ("main", "orch/307-build-speed")
+
 _LOCK_REFERENCE = re.compile(
     r"\Agit\+https://github\.com/opengwas/opengwasdb"
-    r"\?branch=main#(?P<resolved>[0-9a-f]{40})\Z"
+    r"\?branch=(?:main|orch%2F307-build-speed)#(?P<resolved>[0-9a-f]{40})\Z"
 )
 
 
@@ -112,7 +118,7 @@ class _FakeRuntime:
         commands: set[str],
         commit: str | None,
         version: str = "0.3.0",
-        format_version: str = "0.2.0",
+        format_version: str = "0.2.2",
         probe_log: Path | None = None,
     ):
         self.root = root
@@ -229,7 +235,9 @@ class RuntimeGuardTestCase(unittest.TestCase):
         """`pixi.toml` names opengwasdb's `main`; the lock alone holds the commit (#253)."""
         spec = _pin_spec_from_pixi_toml(REPO_ROOT / "pixi.toml")
         record_check()
-        self.assertEqual(spec, {"git": runtime.OPENGWASDB_GIT_URL, "branch": "main"})
+        self.assertEqual(spec["git"], runtime.OPENGWASDB_GIT_URL)
+        self.assertIn(spec["branch"], PIN_BRANCHES)
+        self.assertEqual(set(spec), {"git", "branch"})
 
     def test_every_store_build_environment_resolves_the_locked_commit(self) -> None:
         """One stale lock entry selects another runtime, so every one must be the locked commit.
@@ -422,7 +430,6 @@ class RuntimeGuardTestCase(unittest.TestCase):
             runtime.verify_runtime_for_releases(
                 [
                     self._job("OGS-00090", "build"),
-                    self._job("OGS-00090", "top-hits"),
                     self._job("OGS-00090", "overview"),
                     self._job("OGS-00090", "validate"),
                 ],
@@ -431,7 +438,6 @@ class RuntimeGuardTestCase(unittest.TestCase):
             )
         record_check()
         message = str(ctx.exception)
-        self.assertIn("build-dense-top-hits", message)
         self.assertIn("regenerate-overview", message)
         self.assertIn("validate", message)
 
@@ -475,7 +481,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
         self._write_bundle("OGS-00090")
         log = self.tmp / "probes.log"
         capable = self._runnable(
-            "capable", commands={"build-dense-vcf", "build-dense-top-hits", "validate"}, probe_log=log
+            "capable", commands={"build-dense-vcf", "regenerate-overview", "validate"}, probe_log=log
         )
         jobs = [self._job("OGS-00090", "build"), self._job("OGS-00090", "validate")]
         entry_point = runtime.verify_runtime_for_releases(
@@ -494,13 +500,13 @@ class RuntimeGuardTestCase(unittest.TestCase):
         self.assertEqual(onstart.commands, entry_point.commands)
 
         runtime.verify_runtime_for_releases(
-            [*jobs, self._job("OGS-00090", "top-hits")],
+            [*jobs, self._job("OGS-00090", "overview")],
             registry_root=self.registry,
             executable=str(capable.executable),
             handoff=entry_point.handoff(),
         )
         record_check()
-        self.assertEqual(self._probes(log), ["build-dense-top-hits"])
+        self.assertEqual(self._probes(log), ["regenerate-overview"])
 
     def test_a_hand_off_for_another_runtime_verifies_nothing(self) -> None:
         """A hand-off naming another executable or revision, or not parsing, leaves every command probed."""
@@ -568,10 +574,10 @@ class RuntimeGuardTestCase(unittest.TestCase):
         record_check()
         self.assertIn("0.1.0", str(ctx.exception))
 
-    def test_completion_parent_0_2_0_passes(self) -> None:
+    def test_completion_parent_0_2_2_passes(self) -> None:
         self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
         self._write_bundle("OGS-00090")
-        capable = self._capable_for_completion("capable", format_version="0.2.0")
+        capable = self._capable_for_completion("capable", format_version="0.2.2")
         (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
         identity = runtime.verify_runtime_for_releases(
             [self._job("OGS-00091", "complete")],
@@ -579,26 +585,33 @@ class RuntimeGuardTestCase(unittest.TestCase):
             executable=str(capable.executable),
         )
         record_check()
-        self.assertEqual(identity.format_version, "0.2.0")
+        self.assertEqual(identity.format_version, "0.2.2")
 
-    def test_completion_parent_0_2_1_with_regions_passes(self) -> None:
-        """A Ragged parent at 0.2.1, which carries `regions.tsv`, completes here (#459).
+    def test_completion_parent_below_0_2_2_is_refused_and_rebuilt_not_converted(self) -> None:
+        """0.2.0 and 0.2.1 parents are refused: the pinned engine's completion consumes 0.2.2 only.
 
-        `0.2.1` is `0.2.0` plus a Ragged release's manifest-declared
-        `regions.tsv` (opengwas/opengwasdb#430, spec §21.3), and the same
-        encoders write both, so a two-id completion of a region-carrying parent
-        is a run this pin can make rather than one it must refuse.
+        Indel ALIDs spell the reference first from 0.2.2 (opengwasdb#381), so
+        completing an older parent would sort the panel's indels beside the
+        Store's own. The remedy is a rebuild with this engine; the converter
+        writes 0.2.0, which completion refuses too, so the message must not
+        send the operator to it.
         """
-        self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
-        self._write_bundle("OGS-00090")
-        capable = self._capable_for_completion("capable", format_version="0.2.1")
-        (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True)
-        runtime.verify_runtime_for_releases(
-            [self._job("OGS-00091", "complete")],
-            registry_root=self.registry,
-            executable=str(capable.executable),
-        )
-        record_check()
+        for old in ("0.2.0", "0.2.1"):
+            with self.subTest(parent_format=old):
+                self._write_bundle("OGS-00091", completion=True, derived_from="OGS-00090")
+                self._write_bundle("OGS-00090")
+                capable = self._capable_for_completion(f"capable-{old}", format_version=old)
+                (self.artifact_root / "OGS-00090" / "store.opengwasdb").mkdir(parents=True, exist_ok=True)
+                with self.assertRaises(runtime.CompletionParentFormatError) as ctx:
+                    runtime.verify_runtime_for_releases(
+                        [self._job("OGS-00091", "complete")],
+                        registry_root=self.registry,
+                        executable=str(capable.executable),
+                    )
+                record_check()
+                self.assertIn(old, str(ctx.exception))
+                self.assertIn("rebuild", str(ctx.exception))
+                self.assertNotIn("Convert the parent", str(ctx.exception))
 
     def test_enhancement_only_child_is_not_gated(self) -> None:
         """Adding HM3 to an existing 0.1.0 completed Store does not run completion."""

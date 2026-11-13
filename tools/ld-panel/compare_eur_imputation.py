@@ -52,7 +52,22 @@ BLOCKS = (
 )
 
 
-def canonical_alid(identifier: str) -> str:
+def indels_spelt_reference_first(format_version: str) -> bool:
+    """Whether a Store of this `format_version` spells an indel's reference allele first (0.2.2 on, #381)."""
+    return tuple(int(part) for part in format_version.split(".") if part.isdigit()) >= (0, 2, 2)
+
+
+def canonical_alid(identifier: str, *, indels_reference_first: bool) -> str | None:
+    """The Store ALID a panel id names: its alleles sorted.
+
+    Against a Store of format 0.2.2 or later (`indels_reference_first`) an indel
+    names none, and the answer is None. A panel sorts an indel's alleles and
+    declares no reference, so the id cannot say whether it is the deletion or the
+    insertion (ADR 0079 §6): matching its sorted spelling to a 0.2.2 Store's
+    reference-first ALIDs would score the wrong variant, so an indel takes no
+    part in that comparison. A pre-0.2.2 Store spells its indels sorted, as the
+    panel does, and they match as they always did.
+    """
     value = identifier.removeprefix("chr")
     parts = value.split(":")
     if len(parts) == 4:
@@ -62,14 +77,18 @@ def canonical_alid(identifier: str) -> str:
         position, first, second = rest.split("_")
     else:
         raise ValueError(f"unrecognised panel identifier: {identifier}")
+    if indels_reference_first and len(first) != len(second):
+        return None
     first, second = sorted((first.upper(), second.upper()))
     return f"{chrom}:{int(position)}:{first}:{second}"
 
 
-def load_panel_block(root: Path, chrom: str, block: str, thresh: float) -> dict[str, object]:
+def load_panel_block(
+    root: Path, chrom: str, block: str, thresh: float, *, indels_reference_first: bool
+) -> dict[str, object]:
     base = root / "EUR" / chrom / block
     rows = list(csv.DictReader(base.with_suffix(".tsv").open(), delimiter="\t"))
-    alids = [canonical_alid(row["SNP"]) for row in rows]
+    alids = [canonical_alid(row["SNP"], indels_reference_first=indels_reference_first) for row in rows]
     eaf = np.array([float(row["EAF"]) for row in rows], dtype=np.float64)
     positions = np.array([int(row["BP"]) for row in rows], dtype=np.int64)
     data = np.load(base.with_suffix(".ldeig.npz"))
@@ -81,10 +100,14 @@ def load_panel_block(root: Path, chrom: str, block: str, thresh: float) -> dict[
             "values": values[:k], "vectors": vectors[:, :k]}
 
 
-def panel_alids(root: Path, chrom: str, block: str) -> set[str]:
+def panel_alids(root: Path, chrom: str, block: str, *, indels_reference_first: bool) -> set[str]:
     path = root / "EUR" / chrom / f"{block}.tsv"
     with path.open() as handle:
-        return {canonical_alid(row["SNP"]) for row in csv.DictReader(handle, delimiter="\t")}
+        named = (
+            canonical_alid(row["SNP"], indels_reference_first=indels_reference_first)
+            for row in csv.DictReader(handle, delimiter="\t")
+        )
+        return {alid for alid in named if alid is not None}
 
 
 class StoreCells(NamedTuple):
@@ -161,10 +184,10 @@ def store_rows(store: Path, chrom: str, block: str) -> dict[str, int]:
 
 
 def held_out_alids(store: Path, panels: dict[str, Path], chrom: str, block: str,
-                   fraction: float, seed: int) -> tuple[set[str], int]:
+                   fraction: float, seed: int, *, indels_reference_first: bool) -> tuple[set[str], int]:
     shared = set(store_rows(store, chrom, block))
     for root in panels.values():
-        shared &= panel_alids(root, chrom, block)
+        shared &= panel_alids(root, chrom, block, indels_reference_first=indels_reference_first)
     ordered = np.array(sorted(shared), dtype=object)
     rng = np.random.default_rng(seed + int(chrom) * 1_000_003)
     n = max(1, int(round(len(ordered) * fraction)))
@@ -190,12 +213,16 @@ def evaluate(task: tuple[str, str, str, str, str, str, str, float, float, int]) 
      chrom, block, fraction, thresh, seed) = task
     threadpool_limits(limits=1)
     panel_root, store = Path(panel_root_s), Path(store_s)
-    panel = load_panel_block(panel_root, chrom, block, thresh)
+    # The truth Store's own format decides how it spells an indel, and so whether a panel's can match it.
+    reference_first = indels_spelt_reference_first(str(store_metadata(store)["format_version"]))
+    panel = load_panel_block(panel_root, chrom, block, thresh, indels_reference_first=reference_first)
     panels = {
         "UKB EUR": Path(ukb_root_s),
         "HGDP+1kGP EUR": Path(hgdp_root_s),
     }
-    heldout, n_shared = held_out_alids(store, panels, chrom, block, fraction, seed)
+    heldout, n_shared = held_out_alids(
+        store, panels, chrom, block, fraction, seed, indels_reference_first=reference_first
+    )
     mapping = store_rows(store, chrom, block)
     alids = panel["alids"]
     matched_local = [i for i, alid in enumerate(alids) if alid in mapping]
