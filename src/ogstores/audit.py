@@ -497,11 +497,35 @@ def _close_position_group(
         scan.multiallelic_rows += rows
 
 
+def indels_spelt_reference_first(format_version: str) -> bool:
+    """Whether a Store of this `format_version` spells an indel's reference allele first.
+
+    From 0.2.2 it does (opengwasdb#381, ADR 0079); 0.2.1, 0.2.0 and 0.1.0 spell
+    every ALID, an indel's included, with its alleles sorted.
+    """
+    parts = tuple(int(part) for part in format_version.split(".") if part.isdigit())
+    return parts >= (0, 2, 2)
+
+
+def alleles_in_alid_order(effect: str, other: str, *, indels_reference_first: bool) -> bool:
+    """Whether a stored ALID's alleles are spelt as its Store's format spells them.
+
+    An SNV or substitution spells them sorted. An indel does too below format
+    0.2.2; from it (`indels_reference_first`) its effect allele may sort after
+    its other allele, and the ALID alone cannot say which way is right, so a pair
+    of unequal alleles of unequal length is in order.
+    """
+    if indels_reference_first and len(effect) != len(other):
+        return effect != other
+    return effect < other
+
+
 def _scan_variant_table(
     table_path: Path,
     *,
     n_axis: int,
     reference: set[str] | None,
+    indels_reference_first: bool,
 ) -> _IdentityScan:
     """Stream the Store Variant Table once, for identity and partition facts.
 
@@ -534,7 +558,7 @@ def _scan_variant_table(
         chromosome = record.chromosome
         position = record.position
 
-        if effect >= other:
+        if not alleles_in_alid_order(effect, other, indels_reference_first=indels_reference_first):
             scan.non_canonical_rows += 1
         if record.rsid is None:
             scan.missing_rsid_rows += 1
@@ -1321,7 +1345,12 @@ def reconcile(
         table = variant_table_path(path)
         if not table.is_file():
             raise AuditError(f"{path} holds no variants.tsv.gz")
-        scan = _scan_variant_table(table, n_axis=n_axis, reference=reference_set)
+        scan = _scan_variant_table(
+            table,
+            n_axis=n_axis,
+            reference=reference_set,
+            indels_reference_first=indels_spelt_reference_first(manifest.format_version),
+        )
         index_scan: _AlidIndexScan | None = None
         bytes_path = variant_alid_bytes_path(path)
         rows_path = variant_alid_rows_path(path)

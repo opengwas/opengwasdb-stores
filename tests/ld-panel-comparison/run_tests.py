@@ -252,7 +252,7 @@ def test_the_fixture_holds_imputed_cells(store: Path) -> None:
 def test_imputed_cells_are_not_truth_and_not_training(tmp: Path, store: Path) -> None:
     panels = {"UKB EUR": tmp / "panel", "HGDP+1kGP EUR": tmp / "panel"}
     heldout, n_shared = comparison.held_out_alids(
-        store, panels, CHROM, BLOCK, MASK_FRACTION, SEED
+        store, panels, CHROM, BLOCK, MASK_FRACTION, SEED, indels_reference_first=True
     )
     observed_alids = {alid(index) for index in OBSERVED}
     # From the fixture's construction: truth is a held-out variant the Store
@@ -358,7 +358,32 @@ def test_a_store_without_an_imputed_plane_reads_every_cell(observed: Path,
           "completion changed an observed cell's z")
 
 
+def test_a_panel_indel_names_no_alid_for_a_0_2_2_truth_store() -> None:
+    """A panel id sorts an indel's alleles and declares no reference, so against a 0.2.2 Store it names no ALID (ADR 0079 §6).
+
+    The sorted spelling of a deletion is the insertion's, so matching it to a
+    0.2.2 Store's reference-first ALIDs would score the wrong variant. An SNV
+    still names its sorted ALID, and a block's indels fall out of the comparison.
+    A pre-0.2.2 truth Store spells its indels sorted, as the panel does, so
+    there the id names its sorted ALID as it always did.
+    """
+    for first in (True, False):
+        check(comparison.canonical_alid("1:100:G:A", indels_reference_first=first) == "1:100:A:G",
+              "an SNV is not named by its sorted ALID")
+        check(comparison.canonical_alid("chr1:100_G_A", indels_reference_first=first) == "1:100:A:G",
+              "the UKB underscore form is not read")
+    for indel in ("1:100:A:AT", "1:100:AT:A", "1:100_GGGGCC_G"):
+        check(comparison.canonical_alid(indel, indels_reference_first=True) is None, f"{indel} must name no ALID")
+    check(comparison.canonical_alid("1:100:AT:A", indels_reference_first=False) == "1:100:A:AT",
+          "a pre-0.2.2 truth Store's indel is not named by its sorted ALID")
+    check(comparison.canonical_alid("1:100_GGGGCC_G", indels_reference_first=False) == "1:100:G:GGGGCC",
+          "the UKB form's indel is not named sorted for a pre-0.2.2 truth Store")
+    for version, expected in (("0.1.0", False), ("0.2.0", False), ("0.2.1", False), ("0.2.2", True), ("0.3.0", True)):
+        check(comparison.indels_spelt_reference_first(version) is expected, f"{version}: {expected}")
+
+
 def main() -> None:
+    test_a_panel_indel_names_no_alid_for_a_0_2_2_truth_store()
     with tempfile.TemporaryDirectory() as tmp_name:
         tmp = Path(tmp_name)
         observed, store = build_store(tmp)
