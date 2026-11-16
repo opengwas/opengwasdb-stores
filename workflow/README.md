@@ -158,6 +158,23 @@ entry point's recovery or settlement either. `release.yaml`'s prose and
 provenance are left to review. `--config force=1` still rebuilds a named
 release from its bundle as it now stands.
 
+### Variant References declare indel semantics
+
+The `variant-reference` pre-stage invokes the engine extractor and preserves its
+marker v1 through atomic staging. A present reference is skipped as `provided`;
+registration records `provided` or `extracted` as acquisition provenance only.
+Neither value proves allele orientation. Builds and Store Audit consume the
+reference through the engine reader: an unmarked indel fails with a regeneration
+instruction, while unmarked SNV-only lists remain usable (engine ADR 0079 §9).
+The marker declares reference-first production semantics, not independent
+biological verification. There is no stores orientation flag or allele swap.
+
+Do not stamp old sorted ALIDs, including detached Store Variant Tables. Generate
+a separate reference from reference-declaring sources. Production regeneration
+or replacement under `/data/opengwasdb/reference` needs an owner choice of
+resources, timing, backups and receipts; updating this code authorizes no data
+operation. See the [gnomAD recipe](../resources/reference-resources/gnomad-v4-common-hg38/README.md).
+
 ### Temporary files
 
 Steps write temporary files to `<artifact root>/<store id>/tmp`, and the Snakemake run itself to `<artifact root>/.tmp`, never `/tmp`: `/tmp` is on a small root filesystem and a large build's spill fills it (#312). The release sets `TMPDIR`, `TMP` and `TEMP`; there is nothing to configure. A step killed mid-run (a signal, or `ENOSPC`) leaves its spill there until it is removed by hand (#316).

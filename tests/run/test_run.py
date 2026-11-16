@@ -72,6 +72,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+from opengwasdb.variants.reference import REFERENCE_FIRST_MARKER
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from ogstores import _pdeath_supervisor, bundle, paths, plan, release, run
@@ -2243,7 +2245,7 @@ class TestVariantReferenceExecution(unittest.TestCase):
     #: and the one it writes from v0.6.0, which renamed the routing column when it
     #: added `reoriented_keys` (opengwasdb's `variants/reference.py`).
     UNMARKED_HEADER = "#alid\tchromosome\tposition\ta1\ta2\trsid\tsource_keys\n"
-    MARKED_HEADER = "#alid\tchromosome\tposition\ta1\ta2\trsid\trouted_source_keys\treoriented_keys\n"
+    MARKED_HEADER = REFERENCE_FIRST_MARKER + "#alid\tchromosome\tposition\ta1\ta2\trsid\trouted_source_keys\treoriented_keys\n"
 
     def _write_reference(self, target: Path, text: str) -> bytes:
         """Write `text` to `target`, gzipped when its name says so, as the engine reads it."""
@@ -2380,6 +2382,60 @@ class TestVariantReferenceExecution(unittest.TestCase):
             {"unmarked.variant-ref.tsv.gz", "old.variant-ref.tsv", "interim.variant-ref.tsv.gz"},
             "the fixtures hold the three headers the engine refuses and the five it reads",
         )
+
+    def _write_declared_source_manifest(self) -> None:
+        import gzip
+
+        source = self.root / "source.tsv.gz"
+        with gzip.open(source, "wt") as handle:
+            handle.write("#chrom\tpos\tref\talt\trsids\tbeta\tsebeta\tpval\n"
+                         "1\t100\tG\tGG\t.\t0.1\t0.05\t0.1\n"
+                         "1\t100\tGG\tG\t.\t0.1\t0.05\t0.1\n"
+                         "1\t200\tT\tC\t.\t0.1\t0.05\t0.1\n")
+        self.manifest.write_text(
+            "trait_id\tfile_path\ttrait_name\tn\tstored_effect_scale\toriginal_sd_method\toriginal_sd\tsource_reader_capability\tsource_assembly\n"
+            f"a\t{source}\ta\t1000\tsd\tdeclared_standardised\t\topengwasdb.finngen-r13\thg38\n"
+        )
+
+    def test_real_extraction_preserves_the_declared_reference_through_atomic_staging(self) -> None:
+        import gzip
+        from opengwasdb.variants.reference import read_variant_reference
+
+        self._write_declared_source_manifest()
+        target = self.root / "extracted.tsv.gz"
+        step = Step(name="variant-reference", argv=["opengwasdb", "extract-variant-reference",
+                    str(self.manifest), "--output-path", str(target), "--n-workers", "1"],
+                    inputs=[self.manifest], outputs=[target])
+        result = execute_step(step, store_id=self.store_id, artifact_root=self.root)
+        self.assertTrue(result.success)
+        self.assertFalse(result.skipped)
+        with gzip.open(target, "rt") as handle:
+            self.assertEqual(handle.readline(), REFERENCE_FIRST_MARKER)
+        self.assertEqual(read_variant_reference(target).alids,
+                         ["1:100:G:GG", "1:100:GG:G", "1:200:C:T"])
+        provided = execute_step(step, store_id=self.store_id, artifact_root=self.root)
+        self.assertTrue(provided.skipped)
+        self.assertEqual(provided.skip_reason, "provided")
+
+    def test_provided_provenance_leaves_indel_refusal_to_the_engine(self) -> None:
+        self._write_declared_source_manifest()
+        target = self.root / "legacy.txt"
+        target.write_text("1:100:G:GG\n")
+        sentinel, script = self._launch_sentinel()
+        result = execute_step(self._step(target, script), store_id=self.store_id, artifact_root=self.root)
+        self.assertEqual(result.skip_reason, "provided")
+        self.assertFalse(sentinel.exists())
+        store = paths.store_path(self.store_id, root=self.root)
+        build = Step(name="build", argv=["opengwasdb", "build-dense-vcf", str(self.manifest),
+                     str(store), "--store-id", self.store_id, "--release-id", self.store_id,
+                     "--variant-reference", str(target), "--n-workers", "1",
+                     "--admission-record", str(self.root / "admission")],
+                     inputs=[self.manifest, target], outputs=[store])
+        with self.assertRaises(StepExecutionError) as caught:
+            execute_step(build, store_id=self.store_id, artifact_root=self.root)
+        self.assertIn("regenerated with reference-first indels", " ".join(caught.exception.result.stderr.split()))
+        self.assertFalse(store.exists())
+        self.assertEqual(target.read_text(), "1:100:G:GG\n")
 
     def test_absent_artifact_runs_extraction_atomically(self) -> None:
         """An absent artifact runs the extraction and renames the staged file into place."""

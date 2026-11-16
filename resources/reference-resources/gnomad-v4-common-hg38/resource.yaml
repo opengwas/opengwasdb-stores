@@ -3,7 +3,7 @@ label: gnomAD v4.1 common-variant axes per ancestry (GRCh38, MAF >= 1%)
 kind: variant_axis
 ancestry: [AFR, AMR, EAS, EUR, MID, SAS]
 genome_build: GRCh38
-variant_id_convention: "chr:pos:a1:a2 (a1 = min(ref, alt)); chromosome without 'chr' prefix, non-autosomal labels canonicalised to X/Y/MT (ADR 0052)"
+variant_id_convention: "chr:pos:a1:a2 (indels: a1 = gnomAD REF, a2 = ALT; equal-length alleles sorted); chromosome without 'chr' prefix, non-autosomal labels canonicalised to X/Y/MT (ADR 0052)"
 allele_columns:
   effect: a1
   other: a2
@@ -31,9 +31,11 @@ source:
   mirror: none
 description: >
   Per-ancestry common-variant axes for the Dense Component of a Hybrid or Dense
-  Store Release. Each `<SUPERPOP>-variants.txt.gz` is a plain newline-delimited
-  canonical ALID list -- the simplest of the three forms
-  `opengwasdb.variants.reference.read_variant_reference` accepts -- so a build
+  Store Release. Newly generated `<SUPERPOP>-variants.txt.gz` files carry the
+  engine Variant Reference marker v1 before the newline-delimited canonical
+  ALIDs. It declares reference-first indels derived from gnomAD REF/ALT; it is
+  not independent biological verification. The engine public reader consumes
+  these lists, so a build
   can be given `--variant-reference` for the ancestry it is building and skip
   Pass 1 (the variant union and liftover) entirely.
 
@@ -52,6 +54,13 @@ description: >
   and a 1.5 GB of output, not 550 GB of disk.
 status: available
 notes: >
+  This declaration describes the maintained producer after stores#472, not a
+  certification of the installed historical bytes. Existing indel-bearing lists
+  remain unmarked and are refused by the upgraded engine. Regeneration and
+  replacement under /data/opengwasdb/reference require a separate owner choice
+  covering resources, timing, receipts and immutable backups. Never stamp legacy
+  sorted bytes whose reference orientation was lost.
+
   `gnomad-groups/` holds the ten raw gnomAD ancestry groups, kept because the
   super-population composition below is a release decision that may change, and
   re-deriving a group from the gnomAD source to change it is far more expensive
