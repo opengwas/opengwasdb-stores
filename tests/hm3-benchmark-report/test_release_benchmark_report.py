@@ -12,7 +12,12 @@ and CI-safe:
 3. a ``measured`` record's timing fields survive;
 4. the generated Markdown states that HM3 benchmark absence is operational
    evidence, not a Store validation failure;
-5. the first ``analysis_id`` anchor is located by column name, not position.
+5. the first ``analysis_id`` anchor is located by column name, not position;
+6. a Store holding fewer Analyses than the core's ``RANDOM_AXIS_SIZE`` records
+   the seven shapes ``not_applicable`` without the harness being called
+   (stores#414);
+7. a captured harness tail names the checkout and artifact root by marker, not
+   by this host's absolute paths (stores#414).
 
 Run from repository root:
     pixi run python tests/hm3-benchmark-report/test_release_benchmark_report.py
@@ -27,6 +32,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
+from unittest import mock
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT_PATH = REPO_ROOT / "tools" / "benchmarks" / "release-benchmark-report.py"
@@ -59,6 +65,11 @@ class _State:
 
 class _FakeQueryShapes:
     """Stands in for benchmarks._query_shapes, keyed by Store id."""
+
+    #: Deliberately not the core's own size: the report must read the constant
+    #: from the core module, so the stub picks a value a small Store can exceed
+    #: (``RandomAxisTest`` asserts the report uses this one, not a literal).
+    RANDOM_AXIS_SIZE = 4
 
     def __init__(self, states: dict[str, _State], openable: set[str]) -> None:
         self._states = states
@@ -281,6 +292,72 @@ class ReportBuildTest(unittest.TestCase):
                 work_dir=Path(tmp) / "work",
             )
         self.assertEqual(report["stores"][0]["shapes"]["status"], "not_applicable")
+
+
+class RandomAxisTest(unittest.TestCase):
+    """stores#414: the shapes need `RANDOM_AXIS_SIZE` Analyses to draw from."""
+
+    def _build(
+        self, analyses: int, random_axis_size: int, harness: mock.Mock
+    ) -> dict[str, Any]:
+        """Build a report for one dense Store with `analyses` Analyses."""
+        store = _store("OGS-00003", "dense")
+        core = _fake_core({"OGS-00003": _State("missing", "no hm3 subset")})
+        core.query_shapes.RANDOM_AXIS_SIZE = random_axis_size
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "stores"
+            store_dir = root / store.store_id / "store.opengwasdb"
+            store_dir.mkdir(parents=True)
+            store_dir.joinpath("analyses.tsv").write_text(
+                "analysis_index\tanalysis_id\n"
+                + "".join(f"{i}\tGCST{i:06d}\n" for i in range(analyses))
+            )
+            with mock.patch.object(report_mod, "run_generic_shapes", harness):
+                return report_mod.build_report(
+                    core,
+                    [store],
+                    artifact_root=root,
+                    anchors={"OGS-00003": report_mod.Anchor(exposure="GCST000000")},
+                    reps=1,
+                    hm3_only=False,
+                    work_dir=Path(tmp) / "work",
+                )
+
+    def test_fewer_analyses_than_the_random_axis_skips_the_harness(self) -> None:
+        harness = mock.Mock(side_effect=AssertionError("the harness must not run"))
+        report = self._build(analyses=3, random_axis_size=4, harness=harness)
+
+        shapes = report["stores"][0]["shapes"]
+        self.assertEqual(shapes["status"], "not_applicable")
+        self.assertIn("holds 3 Analyses", shapes["detail"])
+        self.assertIn("RANDOM_AXIS_SIZE of 4", shapes["detail"])
+        self.assertEqual(report["shape_errors"], [])
+        harness.assert_not_called()
+
+    def test_enough_analyses_still_runs_the_harness(self) -> None:
+        harness = mock.Mock(return_value={"status": "measured", "detail": "stub"})
+        report = self._build(analyses=4, random_axis_size=4, harness=harness)
+
+        harness.assert_called_once()
+        self.assertEqual(report["stores"][0]["shapes"]["status"], "measured")
+
+
+class HarnessTailTest(unittest.TestCase):
+    def test_captured_tail_names_paths_by_marker(self) -> None:
+        core = _fake_core({})
+        store_path = Path("/data/opengwasdb/stores/OGS-00003/store.opengwasdb")
+        text = (
+            f'  File "{core.checkout}/benchmarks/_query_shapes.py", line 74\n'
+            f"ValueError: {store_path} carries no variant index\n"
+            f"wrote {store_path.parent.parent}/OGS-00003.shapes.json\n"
+        )
+
+        normalised = report_mod._normalised(text, core, store_path)
+
+        self.assertIn("<opengwasdb-checkout>/benchmarks/_query_shapes.py", normalised)
+        self.assertIn("<store> carries no variant index", normalised)
+        self.assertIn("<artifact-root>/OGS-00003.shapes.json", normalised)
+        self.assertNotIn("/data/opengwasdb", normalised)
 
 
 class RegistryDiscoveryTest(unittest.TestCase):

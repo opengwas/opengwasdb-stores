@@ -232,11 +232,11 @@ def load_core(checkout: Path | str) -> CoreModules:
 # --------------------------------------------------------------------------- #
 
 
-def first_analysis_id(analyses_tsv: Path) -> str | None:
-    """The first data row's ``analysis_id``, or ``None`` when unavailable.
+def _analysis_ids(analyses_tsv: Path) -> list[str] | None:
+    """Every non-empty ``analysis_id`` in an ``analyses.tsv``, in row order.
 
-    The first Analysis is the HM3 extraction anchor (stores#212): it exists in
-    every bundle without a per-Store measurement decision. Bundles differ in
+    ``None`` when there is no readable table to count: a missing file or a
+    header without ``analysis_id`` is not an empty Store. Bundles differ in
     column order (some lead with ``analysis_index``), so the column is located
     by name rather than position.
     """
@@ -252,10 +252,34 @@ def first_analysis_id(analyses_tsv: Path) -> str | None:
             index = header.index("analysis_id")
         except ValueError:
             return None
-        for row in reader:
-            if len(row) > index and row[index].strip():
-                return row[index].strip()
-    return None
+        return [
+            row[index].strip()
+            for row in reader
+            if len(row) > index and row[index].strip()
+        ]
+
+
+def first_analysis_id(analyses_tsv: Path) -> str | None:
+    """The first data row's ``analysis_id``, or ``None`` when unavailable.
+
+    The first Analysis is the HM3 extraction anchor (stores#212): it exists in
+    every bundle without a per-Store measurement decision.
+    """
+    ids = _analysis_ids(analyses_tsv)
+    return ids[0] if ids else None
+
+
+def analysis_count(analyses_tsv: Path) -> int | None:
+    """How many Analyses an ``analyses.tsv`` lists, or ``None`` when unreadable.
+
+    The report gates the seven shapes on the *Store's* own table, because that
+    is the axis the core harness samples: ``benchmark_store_comparison`` passes
+    ``len(q.analyses_table())``. A bundle lists Analyses the build can exclude, so
+    its row count is not the Store's Analysis count (stores#414: OGS-00011's
+    bundle lists 4783, its Store holds 3169).
+    """
+    ids = _analysis_ids(analyses_tsv)
+    return None if ids is None else len(ids)
 
 
 def registered_bundles(registry_root: Path | str) -> list[StoreRef]:
@@ -431,6 +455,23 @@ def measure_hm3(
 # --------------------------------------------------------------------------- #
 
 
+def _normalised(text: str, core: CoreModules, store_path: Path) -> str:
+    """A captured harness stream with this host's absolute paths replaced.
+
+    A failed shape's traceback embeds the checkout and artifact paths it ran
+    from, and this text goes into a tracked, generated artifact: the artifact
+    names both once, in ``core`` and ``artifact_root``, so the tail uses stable
+    markers instead of one host's layout (stores#414).
+    """
+    for path, marker in (
+        (store_path, "<store>"),
+        (store_path.parent.parent, "<artifact-root>"),
+        (core.checkout, "<opengwasdb-checkout>"),
+    ):
+        text = text.replace(str(path), marker)
+    return text
+
+
 def run_generic_shapes(
     core: CoreModules,
     store: StoreRef,
@@ -491,8 +532,8 @@ def run_generic_shapes(
                 f"generic harness exited {proc.returncode}; see stderr for the "
                 "first failing shape"
             ),
-            "stderr_tail": proc.stderr[-4000:],
-            "stdout_tail": proc.stdout[-2000:],
+            "stderr_tail": _normalised(proc.stderr, core, store_path)[-4000:],
+            "stdout_tail": _normalised(proc.stdout, core, store_path)[-2000:],
         }
     try:
         artifact = json.loads(Path(output_path).read_text(encoding="utf-8"))
@@ -502,7 +543,7 @@ def run_generic_shapes(
             "status": "error",
             "returncode": 0,
             "detail": f"generic harness wrote no readable artifact: {exc}",
-            "stdout_tail": proc.stdout[-2000:],
+            "stdout_tail": _normalised(proc.stdout, core, store_path)[-2000:],
         }
     return {
         "status": "measured",
@@ -576,14 +617,32 @@ def build_report(
                 ),
             }
         else:
-            entry["shapes"] = run_generic_shapes(
-                core,
-                store,
-                store_path,
-                anchors[store.store_id],
-                reps=reps,
-                output_path=work_dir / f"{store.store_id}.shapes.json",
-            )
+            n_analyses = analysis_count(store_path / "analyses.tsv")
+            random_axis_size = int(core.query_shapes.RANDOM_AXIS_SIZE)
+            if n_analyses is not None and n_analyses < random_axis_size:
+                # The core harness draws `RANDOM_AXIS_SIZE` Analyses without
+                # replacement (`benchmarks._query_shapes.resolve_axis_selections`),
+                # so a Store with a shorter Analysis axis cannot run the shapes at
+                # all: `rng.choice` raises `ValueError` (stores#414, OGS-00003 and
+                # OGS-00008). The size is read from the core module, never restated
+                # here, and both numbers are named so the status is checkable.
+                entry["shapes"] = {
+                    "status": "not_applicable",
+                    "detail": (
+                        f"{store.store_id} holds {n_analyses} Analyses, fewer than "
+                        f"the core harness's RANDOM_AXIS_SIZE of {random_axis_size}; "
+                        "its random-Axis shapes draw that many without replacement"
+                    ),
+                }
+            else:
+                entry["shapes"] = run_generic_shapes(
+                    core,
+                    store,
+                    store_path,
+                    anchors[store.store_id],
+                    reps=reps,
+                    output_path=work_dir / f"{store.store_id}.shapes.json",
+                )
         records.append(entry)
 
     summary: dict[str, int] = {}

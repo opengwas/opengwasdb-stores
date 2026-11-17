@@ -23,7 +23,10 @@ stores:
   OGS-00003:
     exposure: finngen-r13-BMI_IRN
   OGS-00004:
-    exposure: GCST003566
+    # anchor GCST003566 is excluded from the build (EAF flipped, excluded_2026-08-22);
+    # the first built Analysis with a 5e-08 hit is GCST005076 (1880 hits, checked in
+    # its Store's top_hits/p_5e_08 while the 0.1.0 Store awaited its rebuild, #414)
+    exposure: GCST005076
   OGS-00005:
     exposure: GCST002047
   OGS-00006:
@@ -35,7 +38,9 @@ stores:
     # anchor ukb-b-13414 has no genome-wide hit; the harness derives the PheWAS variant from one
     exposure: ukb-b-10003
   OGS-00011:
-    exposure: GCST000028
+    # anchor GCST000028 is absent from the Store; the first Analysis in its own
+    # analyses.tsv order with a hit in top_hits/p_5e_08 is GCST000998 (584 hits, #414)
+    exposure: GCST000998
   OGS-00012:
     exposure: GCST90475091
   OGS-00013:

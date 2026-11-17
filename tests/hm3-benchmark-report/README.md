@@ -11,7 +11,12 @@ through unchanged:
 3. a `measured` record's timing survives;
 4. the generated Markdown states that HM3 benchmark absence is operational
    evidence, not a Store validation failure;
-5. the first `analysis_id` anchor is located by column name.
+5. the first `analysis_id` anchor is located by column name;
+6. a Store holding fewer Analyses than the core's `RANDOM_AXIS_SIZE` records its
+   seven shapes `not_applicable`, with both numbers named and the harness never
+   called (stores#414);
+7. a captured harness tail names the `opengwasdb` checkout and artifact root by
+   marker rather than by this host's absolute paths (stores#414).
 
 The tests use a stub core checkout, so they never open a multi-gigabyte Store.
 `pixi run test` discovers and runs them.
