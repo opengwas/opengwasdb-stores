@@ -104,4 +104,15 @@ notes: 'original_sd_method starts at `unavailable` (never `declared_standardised
   rebuilt Store, whose analyses.tsv carries sample_size_kind, sample_size_scope and
   original_effect_scale, and records ancestry_assignment_method source_trusted_no_af.
 
+  Bundle amendment (2026-11-17, epic #232): the Build Recipe''s variant-reference moves from
+  /data/opengwasdb/wip/hybrid-ieua/panel_alids.txt to
+  /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz, so the forced rebuild that
+  follows has an axis the engine accepts. The old list is legacy, unmarked, and holds an indel, and
+  opengwasdb 0.10.0 refuses an unmarked Variant Reference that does (the owner''s ruling of 2026-11-16 on
+  opengwas/opengwasdb#381), which is how this release''s forced rebuild was refused. The regenerated
+  reference declares reference-first indels, keeps an insertion and a deletion at one site as two ALIDs,
+  and holds 13,718,605 EUR ALIDs where the old list held 9,847,807. Membership and every other build
+  option are unchanged: this is an amendment of an accepted trial bundle, made by owner decision of
+  2026-11-17, for the forced rebuild that follows.
+
   '

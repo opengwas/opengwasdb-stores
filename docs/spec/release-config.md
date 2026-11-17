@@ -26,9 +26,10 @@ defaulted. A relative path is relative to the repository root.
 
 A config states `release_config_version: 1`. A file without it predates this
 schema: the generator configs that produced the committed bundles
-(`config-full.yaml`, `config-pilot-10.yaml`, ...) are kept unchanged as the
-history their bundles' `generator.commands` cite, and are refused here by that
-key.
+(`config-full.yaml`, `config-pilot-10.yaml`, ...) are kept as the history their
+bundles' `generator.commands` cite, and are refused here by that key. Epic #232
+repointed the two pilots' Dense axis at the regenerated gnomAD directory and
+left every other key of theirs unchanged.
 
 ## Keys
 

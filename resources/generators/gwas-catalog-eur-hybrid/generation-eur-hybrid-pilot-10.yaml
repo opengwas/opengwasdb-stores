@@ -17,9 +17,13 @@ effects:
 shape:
   association_coverage: full_gwas
 reference_resources:
-- resource_id: hybrid-ieua-dense-panel
+# Amended 2026-11-17 (epic #232), so a re-emit agrees with OGS-00004's bundle:
+# this named `hybrid-ieua-dense-panel` at
+# /data/opengwasdb/wip/hybrid-ieua/panel_alids.txt, a legacy unmarked plain
+# list that opengwasdb 0.10.0 refuses for its indels.
+- resource_id: gnomad-v4-common-hg38
   kind: hybrid_dense_panel
   genome_build: GRCh38
-  variant_id_convention: chr:pos:A1:A2 (A1 = min(allele1, allele2))
-  location: /data/opengwasdb/wip/hybrid-ieua/panel_alids.txt
-  location_kind: external_file
+  variant_id_convention: "chr:pos:a1:a2 (indels: a1 = gnomAD REF, a2 = ALT; equal-length alleles sorted)"
+  location: /data/opengwasdb/reference/gnomad-v4-common-hg38-v2
+  location_kind: external_directory

@@ -14,8 +14,14 @@ score-declarations.tsv                 reviewed INFO score declarations (derive_
 maf-filter-exemptions.tsv              reviewed per-Analysis MAF-floor exemptions (#176)
 effect-placeholder-exclusions.tsv      reviewed effect-placeholder listing (#285)
 config-full.yaml, config-pilot-10.yaml, config-quant-pilot-10.yaml
-                                       pre-#287 configs, kept unchanged as the history
-                                       OGS-00011, OGS-00004 and OGS-00005 cite
+                                       pre-#287 configs, kept as the history
+                                       OGS-00011, OGS-00004 and OGS-00005 cite.
+                                       Epic #232 repointed the two pilots' Dense
+                                       axis, and the `generation-*.yaml`
+                                       provenance beside them, at the
+                                       regenerated gnomAD directory;
+                                       config-full.yaml keeps OGS-00011's
+                                       until #478
 ```
 
 ## The connectors and the frozen inventory

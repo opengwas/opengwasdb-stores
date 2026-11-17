@@ -41,4 +41,16 @@ notes: 'Deliberately restricted to case-control Analyses (stored_effect_scale= l
   source_ancestry_label remains "European" as source provenance.
   No Store artifact was rebuilt or rewritten by this registry metadata correction.
 
+  Bundle amendment (2026-11-17, epic #232): the Build Recipe''s variant-reference moves from
+  /data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz to
+  /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz, so the forced rebuild that
+  follows has an axis the engine accepts. The old panel is legacy, carries no Variant Reference marker,
+  and holds an indel, and opengwasdb 0.10.0 refuses an unmarked Variant Reference that does (the
+  owner''s ruling of 2026-11-16 on opengwas/opengwasdb#381), which is how this release''s forced rebuild
+  was refused. The regenerated reference declares reference-first indels, keeps an insertion and a
+  deletion at one site as two ALIDs, and holds 13,718,605 EUR ALIDs where the old panel held 9,847,807
+  (autosomes only, at a real floor of 3.24% MAF rather than the 1% it was taken for). Membership and
+  every other build option are unchanged: this is an amendment of an accepted trial bundle, made by
+  owner decision of 2026-11-17, for the forced rebuild that follows.
+
   '

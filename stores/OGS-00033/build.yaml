@@ -4,7 +4,7 @@ completion_state: observed_only
 build:
   command: build-hybrid
   options:
-    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz
+    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/AFR-variants.txt.gz
     n-workers: 24
     checkpoint: true
     source-reader-capability: opengwasdb.gwas-ssf

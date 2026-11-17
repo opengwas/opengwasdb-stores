@@ -52,12 +52,14 @@ build:
   completion_state: observed_only
   command: build-hybrid
   options:
-    # The Dense Component axis: gnomAD v4.1 common variants at MAF >= 1%
-    # (13,415,936 ALIDs; chr1-22, X, Y, MT), declared by
-    # resources/reference-resources/gnomad-v4-common-hg38. The X, Y and MT rows
-    # do not resolve yet (opengwas/opengwasdb#216) and route to the Ragged
-    # Overflow.
-    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
+    # The Dense Component axis: the regenerated, reference-first gnomAD v4.1
+    # common-variant axis at MAF >= 1% (13,718,605 ALIDs; chr1-22, X, Y, MT),
+    # declared by resources/reference-resources/gnomad-v4-common-hg38. It is the
+    # generation the trial bundle was amended onto on 2026-11-17 (epic #232): the
+    # earlier one is unmarked and opengwasdb 0.10.0 refuses it for its indels.
+    # The X, Y and MT rows do not resolve yet (opengwas/opengwasdb#216) and route
+    # to the Ragged Overflow.
+    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz
     # Pass 2 forks only when this is > 1; a Hybrid build reads every row. 24,
     # not 32: throughput is flat above 8 workers (#154) and the build shares the
     # host. --checkpoint lets a failed build --resume (#227).
