@@ -392,6 +392,16 @@ It reads `build.yaml` and `release.yaml` and nothing else: no I/O beyond path co
 
 A Build Recipe may also declare an optional `variant_reference` pre-build stage for the Dense-VCF and Hybrid builders (issue #145). `plan()` then prepends an `extract-variant-reference` Step and appends the artifact to the build step's inputs. The declared destination must equal the build step's `--variant-reference` option -- the bounded path-equality exception in [ADR 0031](../adr/0031-pure-planning-runtime-artifact-existence.md), alongside validation worker forwarding in [ADR 0023's stores#358 amendment](../adr/0023-the-registry-store-seam-is-a-command-line.md) -- but whether the artifact already exists is a runtime fact the executor decides when the step runs, never the planner (ADR 0031, issue #147). One present artifact is not used as provided: one whose header names the routing column `source_keys`, which `extract-variant-reference` wrote before opengwasdb v0.6.0 renamed it `routed_source_keys` and began recording the lift's re-orientation in `reoriented_keys` (opengwas/opengwasdb#354). Every reader at that engine refuses such an artifact, so the executor refuses it first, with `UnmarkedVariantReferenceError` and a failed record, runs nothing and deletes nothing; deleting it lets the next run extract it again (ADR 0031's amendment).
 
+The engine extractor now emits the versioned reference-first declaration
+(marker v1, engine ADR 0079 §9; stores #472). The planner/executor preserve its
+bytes; the engine reader refuses an unmarked indel in a supplied reference when
+the build consumes it. SNV-only unmarked input remains usable. `provided` and
+`extracted` record acquisition provenance, never proof of orientation. The
+marker declares production semantics rather than independently verifying
+biology. No stores orientation flag, second marker parser or automatic allele
+swap is introduced. Legacy sorted bytes are never stamped in place; production
+regeneration/replacement needs separate owner approval and receipts/backups.
+
 A Build Recipe that binds a Column Map has `plan()` append `--column-map PATH|NAME` to the build commands that take it and to the `variant-reference` pre-stage, naming a carried map's copy staged under the artifact root, like the derived build manifest below (#292). `plan()` reads only the binding's recorded fields. The commands, the staging and the checksum contract are in [the release metadata schema](../release-metadata-schema.md#column-map-binding).
 
 A Build Recipe may declare optional named `indexed_subsets` (stores #209). `plan()` then emits one `build-indexed-subset` Step per declaration, in declaration order, after the Store and its inline index steps exist and before `overview` and `validate`. Each Step is an ordinary `Step`, so `run.py` gives it the usual durable `records/indexed-subset-<name>.json`. `plan()` resolves nothing: the declaration records the maintained `resource_id`, the concrete `variant_list` path and the `reference_assembly`, and the release entry point verifies the maintained resource and the runtime capability before a build. A Ragged release rejects any declaration rather than silently dropping it. See "Indexed Variant Subsets" below and [ADR 0034](../adr/0034-indexed-variant-subsets-in-release-planning.md).

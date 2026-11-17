@@ -1,8 +1,10 @@
 # gnomad-v4-common-hg38
 
 Per-ancestry common-variant axes for the Dense Component of a Hybrid or Dense
-Store Release. Each `<SUPERPOP>-variants.txt.gz` is a newline-delimited list of
-canonical GRCh38 ALIDs — the plain-list form
+Store Release. Newly generated `<SUPERPOP>-variants.txt.gz` files start with
+the engine Variant Reference marker v1 (`#opengwasdb-variant-reference<TAB>1`,
+where `<TAB>` is one tab), then a newline-delimited list of canonical GRCh38
+ALIDs — the plain-list form
 `opengwasdb.variants.reference.read_variant_reference` detects by content — so a
 build can be handed `--variant-reference` for the ancestry it is building and
 skip Pass 1 (the variant union and liftover) entirely.
@@ -12,6 +14,45 @@ pixi run python tools/reference-resources/gnomad-v4-common-hg38/build_common_pan
   --out-dir /data/opengwasdb/reference/gnomad-v4-common-hg38 \
   --min-maf 0.01 --jobs 12
 ```
+
+## Reference-first production semantics (stores #472)
+
+The producer's local serializer uses gnomAD's declared REF/ALT:
+indels keep REF first, while equal-length substitutions sort their alleles.
+An insertion and deletion at one site therefore remain two ALIDs. The engine's
+`REFERENCE_FIRST_MARKER` declares that production convention; it does not
+independently verify biological orientation. Both ancestry and raw-group lists
+carry it, including mitochondrial output. `content_sha256` includes the marker,
+`file_sha256` covers compressed bytes, and `variants` counts only ALIDs.
+Offline fixtures compare the local serializer's identities and marker bytes
+against the pinned engine's public interfaces, so incompatible drift fails.
+
+The counts, sizes, timings and comparisons below describe the historical build.
+This code change has not regenerated or certified any installed reference.
+Unmarked indel-bearing references are refused by `read_variant_reference` and
+therefore by coverage verification and builds; SNV-only lists remain usable.
+Never prepend the marker to old sorted bytes: deletion orientation was lost.
+Production regeneration/replacement requires a separate owner choice of resource
+set and timing, immutable backups, and receipts with source/engine revisions,
+checksums, counts and semantic verification before replacement.
+
+The legacy `/data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz` has no
+maintained producer or production receipt in either repository: the remaining
+paths are consumers/comparators. It stays an orphaned legacy artifact, unmarked
+and refused when it contains indels; recovering an authoritative recipe or
+choosing its replacement is owner work. The maintained replacement producer is
+`tools/reference-resources/gnomad-v4-common-hg38/build_common_panel.py`.
+
+HapMap3 has a separate maintained derivation: engine
+`benchmarks/benchmark_indexed_subset.py`, `read_hapmap3` → `resolve_hapmap3` →
+`write_alid_list` at revision `a36ea78`, allele-safe rsID resolution against the
+OGS-00009 Store Variant Table. Its source, counts and checksums are retained in
+[its resource declaration](../hapmap3-hg38/resource.yaml), README and
+`provenance.json`. This ticket changes none of those bytes or checksums. Do not
+certify an indel from a legacy Store's sorted spelling; any future indel-bearing
+Variant Reference derived from it needs an authoritative reference-declaring
+source and fresh owner-approved evidence. Its existing SNV-only plain-list
+contract does not require a marker.
 
 ## Why this exists
 
@@ -123,7 +164,8 @@ variants move from the Ragged Overflow into the Dense Component. The consequence
 to record is that a store built before ADR 0052 and one built after are not the
 same store, so the pinned revision belongs in the build evidence either way.
 
-**The autosomal rows are unaffected and usable now.**
+The historical alias comparison above does not certify the installed lists
+under the reference-first declaration. Indel-bearing lists require regeneration.
 
 ## Verification
 

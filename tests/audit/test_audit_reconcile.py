@@ -396,6 +396,34 @@ class AuditTestCase(unittest.TestCase):
 class TestReconcileReport(AuditTestCase):
     """`ogstores.audit reconcile <store> --output <json>` writes the report."""
 
+    def test_declared_indel_reference_reconciles_both_distinct_dense_rows(self) -> None:
+        from opengwasdb.variants.reference import REFERENCE_FIRST_MARKER
+
+        variants = [
+            CanonicalVariant(chromosome="1", position=100, effect_allele="G", other_allele="GG"),
+            CanonicalVariant(chromosome="1", position=100, effect_allele="GG", other_allele="G"),
+            CanonicalVariant(chromosome="1", position=200, effect_allele="C", other_allele="T"),
+        ]
+        store, reference = build_hybrid_store(self.tmp, variants=variants, counts=[0, 0, 1])
+        manifest_path = store / "manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["format_version"] = "0.2.2"
+        manifest_path.write_text(json.dumps(manifest))
+        with gzip.open(reference, "wt") as handle:
+            handle.write(REFERENCE_FIRST_MARKER + "1:100:G:GG\n1:100:GG:G\n")
+        code, report = self.reconcile(store)
+        self.assertEqual(code, 0, report.get("inconsistencies"))
+        self.assertEqual(report["reference"]["n_alids"], 2)
+        self.assertEqual(report["reference"]["axis_rows_in_reference"], 2)
+        self.assertEqual(report["reference"]["reference_rows_not_in_dense_mapping"], 0)
+
+    def test_unmarked_indel_reference_is_refused_by_the_engine(self) -> None:
+        store, reference = self.default_store()
+        with gzip.open(reference, "wt") as handle:
+            handle.write("1:100:G:GG\n")
+        with self.assertRaisesRegex(ValueError, "regenerated with reference-first indels"):
+            self.reconcile(store)
+
     def test_reconcile_writes_the_documented_report(self) -> None:
         store, reference = self.default_store()
         code, report = self.reconcile(store)

@@ -169,6 +169,13 @@ records such an artifact: OGS-00005 records a plain ALID list and OGS-00011 the
 gnomAD v4 EUR list, and every reference a bundle or generator names is a plain
 list or a Store Variant Table.
 
+The same public reader enforces the reference-first declaration (engine ADR
+0079 §9; stores #472). An unmarked indel raises the engine's regeneration error;
+a marked insertion and deletion remain distinct, and unmarked SNV-only input
+remains usable. The marker declares producer semantics, not independent
+biological verification. Audit never repairs, marks or swaps reference bytes,
+and `provided`/`extracted` workflow provenance supplies no orientation proof.
+
 Canonical identity is counted twice on purpose. The table streaming pass counts
 duplicates only among rows sharing a position -- the axis is position-ordered --
 while the sorted ALID search index counts them exactly, with no ordering

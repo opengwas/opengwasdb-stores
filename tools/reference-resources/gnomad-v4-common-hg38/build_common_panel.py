@@ -27,9 +27,9 @@ over: gnomAD's chrM release is a different callset with a different model
 all. Its variants are admitted to every ancestry's axis on the global
 homoplasmic frequency, which is a simplification, not a per-ancestry claim.
 
-Output is a plain ALID list per ancestry -- the simplest of the three forms
-`opengwasdb.variants.reference.read_variant_reference` accepts -- so the axis
-is inspectable with `zcat` and carries no format of its own to drift.
+Output is an ALID list per ancestry with the engine's versioned reference-first
+declaration. gnomAD REF supplies the reference allele; the marker declares this
+production convention rather than independently verifying biological orientation.
 
     pixi run python tools/reference-resources/gnomad-v4-common-hg38/build_common_panel.py \
       --out-dir /data/opengwasdb/reference/gnomad-v4-common-hg38 \
@@ -49,6 +49,10 @@ import tempfile
 import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
+
+# Marker v1 declares this producer's reference-first serialization (#472).
+# Offline tests compare these bytes and identities with the pinned engine.
+REFERENCE_FIRST_MARKER = "#opengwasdb-variant-reference\t1\n"
 
 GNOMAD_V4 = (
     "https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/vcf/genomes/"
@@ -126,10 +130,8 @@ CANONICAL_NON_AUTOSOMAL: frozenset[str] = frozenset({"X", "Y", "MT"})
 def canonical_alid(chrom: str, pos: str, ref: str, alt: str) -> str | None:
     """The canonical ALID for one site, or ``None`` if it names no variant.
 
-    Mirrors `opengwasdb.variants.normalise`: strip a `chr` prefix, alias every
-    non-autosomal spelling to its one canonical label, and order the allele pair
-    lexically so a source that reports the pair the other way round resolves to
-    the same row.
+    gnomAD REF declares the reference. The engine preserves it first for
+    indels, while sorting equal-length substitutions (engine ADR 0079).
     """
     c = chrom[3:] if chrom.lower().startswith("chr") else chrom
     c = _CANONICAL_CHROMOSOME.get(c.upper(), c)
@@ -138,7 +140,7 @@ def canonical_alid(chrom: str, pos: str, ref: str, alt: str) -> str | None:
         return None
     if set(ref) - set("ACGT") or set(alt) - set("ACGT"):
         return None
-    a1, a2 = (ref, alt) if ref < alt else (alt, ref)
+    a1, a2 = (ref, alt) if len(ref) != len(alt) or ref < alt else (alt, ref)
     return f"{c}:{int(pos)}:{a1}:{a2}"
 
 
@@ -231,8 +233,12 @@ def _alid_sort_key(alid: str) -> tuple[int, str, int, str]:
     return rank, chrom, int(pos), f"{a1}:{a2}"
 
 
-def write_alids(path: Path, alids: set[str]) -> str:
-    """Write one sorted ALID list atomically; return its sha256.
+def write_alids(path: Path, alids: set[str]) -> tuple[str, str]:
+    """Write a declared ALID list atomically; return content and file sha256.
+
+    Callers must supply newly derived reference-first identities, never legacy
+    sorted bytes whose reference orientation was lost. The content digest
+    includes the declaration; the variant count excludes it.
 
     Refuses to write a label outside the canonical non-autosomal set, so a
     spelling no reader can resolve fails here rather than producing an axis whose
@@ -263,6 +269,8 @@ def write_alids(path: Path, alids: set[str]) -> str:
     # explicit GzipFile.)
     with open(tmp, "wb") as raw, gzip.GzipFile(fileobj=raw, mode="wb", mtime=0) as binary:
         fh = io.TextIOWrapper(binary, encoding="utf-8", newline="\n")
+        fh.write(REFERENCE_FIRST_MARKER)
+        digest.update(REFERENCE_FIRST_MARKER.encode("utf-8"))
         for alid in sorted(alids, key=_alid_sort_key):
             line = alid + "\n"
             fh.write(line)
