@@ -65,9 +65,10 @@ notes: >
   only for its header and row count (610,314 per-SNP rows, not 1,357 blocks),
   so how it relates to the blocks is unqualified.
 
-  `gpm-hg38-eur-ld` declares the same cohort's panel at the generation host's
+  `gpm-hg38-eur-ld` declared the same cohort's panel at the generation host's
   `/local-scratch/projects/genotype-phenotype-map/data/ld_reference_panel_hg38`,
-  which is absent here; reconciling the two is follow-up #335.
+  which is absent here; #335 retired that declaration, so this is the only EUR
+  LD declaration.
 
   Also qualified and active for the dbGaP MVP EUR Store (2026-10-22, #227).
   OGS-00012 completes against this panel on the same owner decision of
