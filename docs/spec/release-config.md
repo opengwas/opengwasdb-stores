@@ -78,8 +78,9 @@ a re-freeze is a new snapshot id.
 not. `completion_state` is `observed_only` or `reference_completed`; a
 `reference_completed` config declares the `completion` block that says what it
 completes against, and an `observed_only` one declares none (below). `command` names an `opengwasdb` subcommand and `options` are its flags,
-passed through verbatim (ADR 0023): `options` is opaque by design, and its keys
-are not checked here. `post` is the registry's own vocabulary -- `top_hits`,
+passed through verbatim: option semantics remain opaque here. Store Release
+Build's bounded worker-count interpretation is recorded in ADR 0023's
+stores#358 amendment. `post` is the registry's own vocabulary -- `top_hits`,
 `overview`, `rho` and `validate`, each `true` or `false`, the steps
 `ogstores.plan` plans (a Dense build meets `top_hits: true` itself, as it writes the
 Top-Hit Index inline, so that plan has no standalone step for it, stores#357) -- so an unknown key or a non-boolean is refused. An
