@@ -8,8 +8,8 @@ finished: "2026-11-17"
 summary: "Epic #307 removed repeated full-plane work, parallelised validation, encoding, Top-Hit scanning and completion writes, and replaced row-wise Pass 2 bottlenecks with exact columnar paths while retaining the Python reference implementations. The final OGS-00009 scratch release completed in 7h50m34.998s, 23.228% faster than the prior run and 1h09m25.002s inside the nine-hour gate, with clean validation and zero observed-view mismatches across 2.681 billion cells. Engine v0.10.0 and the matching stores contracts are released; value-changing completion work remains separately specified in #423, and no production reference regeneration was part of this epic."
 prs:
 - opengwasdb#411
-- opengwasdb-stores#470
 - opengwasdb-stores#457
+- opengwasdb-stores#470
 - opengwasdb-stores#473
 versions:
 - v0.10.0
