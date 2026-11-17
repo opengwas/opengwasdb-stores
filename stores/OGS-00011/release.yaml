@@ -159,4 +159,25 @@ notes: 'The candidate pool is 6,035 Analyses across 1,007 publications. Only the
   warning: GCST90271757''s EAF orientation is unverified, 342 variants overlapping the reference), and
   the completion''s Observed-View Check record passed. No fresh full validate was run: on this Store
   it takes about 10 h, and the completion''s own validate is the evidence. The owner approved marking
-  it validated in this registration on 2026-10-30.'
+  it validated in this registration on 2026-10-30.
+
+  Release Erratum (issues #403, #412; 2026-11-17): three Analyses store statistics computed from a
+  source effect column that does not hold what the build read it as. GCST002047 (educational
+  attainment, college completion; PMID 23722424; N = 126,559) writes odds ratios in `beta`, not
+  log-odds: at rs7903146 (10:112998590:C:T) the source gives beta 1.001, standard_error 0.011 and
+  p_value 0.9588, while the Store holds an observed z of -91.0 with SE 0.0045, and the Analysis
+  reports 2,313,655 associations at p < 5e-8. GCST004461 (low-grade serous ovarian cancer; N =
+  41,953) has an NA `beta` and log-odds in `odds_ratio` and `hm_odds_ratio`, negative values
+  included (for example -6.432), so taking their log again inflates z and drops every negative row:
+  at rs569167217 (10:14744:A:C) the source gives odds_ratio 0.1508, standard_error 0.1528 and
+  p_value 0.3237, and the Store holds an observed z of 12.38, which is |ln 0.1508| / 0.1528; the
+  Analysis reports 9,503,233 associations at p < 5e-8. GCST90165257 (telomere length; analysis_index
+  1123) has an `odds_ratio` column holding a REGENIE log-scale effect: 28,878,664 of its 57,644,247
+  rows are negative, `standard_error` is NA throughout, and the effect-consistency check
+  (opengwas/opengwasdb#345, ADR 0069) measures a median |Δlog10 p| of 12.9 between the z the build
+  stores and the source p_value, where the check refuses above 1.0 and the largest clean source in
+  the OGS-00011 manifest measures 0.346. The stored statistics of these three Analyses, and every
+  cell Reference Completion imputed from them, are wrong and must not be used.
+  opengwas/opengwasdb#345 (ADR 0069) now refuses such sources at resolution, and issue #478 tracks
+  the re-resolution and rebuild that replace them. The owner decided on 2026-11-17 that epic #232
+  closes with this erratum and that the rebuild is #478. Release Status is unchanged.'

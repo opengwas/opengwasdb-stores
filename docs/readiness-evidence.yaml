@@ -38,14 +38,12 @@ notes: >-
 # visible blocker rather than a silent observed-only opt-out.
 reference_declarations:
   - ancestry: AMR
-    status: no_declared_panel
+    status: available
     detail: >-
-      No declared matching AMR LD Reference Resource exists: hgdp1kgp-hg38-ld
-      declares AFR/EAS/SAS (and EUR only as a calibration control), with no AMR
-      panel or block definition. MVP AMR Reference Completion (#229) is required
-      by the epic, so this is a declared blocker, not an automatic
-      observed-only opt-out.
-    citation: 'hgdp1kgp-hg38-ld resource.yaml; #171; #229'
+      `hgdp1kgp-hg38-amr-ld` declares the AMR LD Reference Resource (#241), and
+      OGS-00014 (MVP AMR) is Reference-Completed against it and validated
+      (#229); its imputed EAF was corrected in place under #409.
+    citation: 'hgdp1kgp-hg38-amr-ld resource.yaml; #241; #229; #409'
   - ancestry: MID
     status: no_declared_panel
     detail: 'No declared matching MID LD Reference Resource (no panel or block definition).'

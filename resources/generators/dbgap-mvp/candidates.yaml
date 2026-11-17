@@ -97,7 +97,7 @@ stores:
         command: complete-dense
         ancestry: EUR
       reference:
-        resource_id: gpm-hg38-eur-ld
+        resource_id: ukb-hg38-eur-ld
         declared_status: available
         qualification: pending
         activation: pending

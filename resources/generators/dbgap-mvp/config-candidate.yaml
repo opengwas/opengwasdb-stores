@@ -89,14 +89,15 @@ stores:
     planned_manifest: dense-pmid-39024449-European-download-manifest.tsv
     resolution: pending
     completion_reference:
-      resource_id: gpm-hg38-eur-ld
+      resource_id: ukb-hg38-eur-ld
       ancestry: EUR
       declared_status: available
       qualification: pending
       activation: pending
-      # PROPOSED canonical EUR location; the actual alias is NOT active and the
-      # whole-panel qualification/activation is pending (#239). Retained only as
-      # a truthful suggested path, never as a qualified reference.
+      # The panel OGS-00012's completion actually used: `ukb-hg38-eur-ld`,
+      # activated at this location by the `EUR -> ukb` alias on 2026-10-21
+      # (#312), and the Store completed against it (#227). The fields above stay
+      # the #221 plan's record; the accepted bundle is the authority.
       suggested_ld_panel: /data/opengwasdb/reference/ld
   AFR:
     observed_store_id: OGS-00013
