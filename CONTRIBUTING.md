@@ -553,7 +553,8 @@ to `main` and publishes its notes; it never commits.
   alternative to checksums.
 - Do not copy OpenGWASDB builder logic into this repository. Invoke a documented
   OpenGWASDB CLI subcommand with explicit arguments; `build.options` keys are
-  flag names passed through verbatim, never interpreted here (ADR 0023).
+  flag names passed through verbatim, apart from the bounded planner exceptions
+  recorded in ADRs 0023 and 0031.
 - Comments should explain why a choice exists and cite the issue or ADR that
   constrained it.
 

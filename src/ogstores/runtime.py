@@ -12,8 +12,8 @@ runtime that run will actually execute:
   will consume is in a format this runtime writes or is itself built in the
   same run.
 
-The last point is a *format* gate, not a Store inspection: a 0.1.0 parent can
-be read but not completed by the 0.2.x builders (opengwas/opengwasdb#247,
+The last point is a *format* gate, not a Store inspection: a parent below 0.2.2 can
+be read but not completed by the pinned builders (opengwas/opengwasdb#247, #381,
 `opengwasdb.store.open.check_completion_source`). Asking the runtime's own
 `info --format json` reports the parent's declared format through the core's
 supported interface, so this repository never opens the Store itself
@@ -28,9 +28,9 @@ job, so:
   scheduled -- an enhancement-only rerun of an existing completed Store (build
   its HM3 subset, validate, overview) never consults its unused completion
   recipe;
-* a parent on disk at 0.1.0 is not gated when a same-run `build`/`complete`
+* a parent on disk below 0.2.2 is not gated when a same-run `build`/`complete`
   producing step for that parent is scheduled, because that produces a fresh
-  0.2.x Store;
+  0.2.2 Store;
 * a parent that is neither on disk nor scheduled to be produced is refused
   loudly rather than left for Snakemake to fail on hours later.
 
@@ -52,20 +52,21 @@ from ogstores.plan import plan
 
 OPENGWASDB_GIT_URL: str = engine.OPENGWASDB_GIT_URL
 
-#: The Store format a release that uses no optional feature is stamped, and the
-#: one `pixi run engine-update` probes as the format a locked engine writes
-#: (`opengwasdb.store.open.CURRENT_FORMAT_VERSION`). It lives in the core, not
-#: here; this is the value the guard reports.
-REQUIRED_FORMAT_VERSION: str = "0.2.0"
+#: The Store format every builder and completion of the pinned engine writes, and
+#: the one `pixi run engine-update` probes as the format a locked engine writes
+#: (`opengwasdb.store.open.CURRENT_FORMAT_VERSION`). `0.2.2` spells an indel's
+#: reference allele first (opengwas/opengwasdb#381, ADR 0079), so every build
+#: writes it, with or without a Ragged release's `regions.tsv`. It lives in the
+#: core, not here; this is the value the guard reports.
+REQUIRED_FORMAT_VERSION: str = "0.2.2"
 
-#: Every format the pinned writers stamp, and so every format Reference
-#: Completion may consume. `0.2.1` is `0.2.0` plus a Ragged release's
-#: manifest-declared `regions.tsv` (opengwas/opengwasdb#430, spec §21.3), which
-#: is what a bundle carrying `sidecars/sparse_regions.tsv` builds; completion
-#: re-stamps a release by its features, so such a parent completes as `0.2.1`.
-#: Both are written by the same encoders, and an older reader takes `0.2.0` as
-#: fully understood.
-WRITABLE_FORMAT_VERSIONS: frozenset[str] = frozenset({"0.2.0", "0.2.1"})
+#: Every format Reference Completion may consume: the formats the pinned writers
+#: stamp, which is `0.2.2` alone. The engine's completion refuses a `0.2.1`,
+#: `0.2.0` or `0.1.0` source and says to rebuild it: completing one would spell
+#: the panel's indels sorted beside the Store's own deletions. The converter
+#: writes `0.2.0`, so converting does not make a parent completable; a parent
+#: below `0.2.2` is rebuilt with this engine (docs/runtime.md).
+WRITABLE_FORMAT_VERSIONS: frozenset[str] = frozenset({"0.2.2"})
 
 #: Command the guard probes in addition to those a scheduled plan names, for the
 #: completion-parent format gate.
@@ -427,7 +428,7 @@ def verify_runtime_for_releases(
     for (root, store_id), (parent_id, _steps) in sorted(parents.items()):
         if (root, parent_id) in produced:
             # A same-run build or complete of the parent produces a fresh
-            # format-0.2.0 Store; the stale on-disk artifact is not consumed.
+            # format-0.2.2 Store; the stale on-disk artifact is not consumed.
             continue
         parent_store = paths.store_path(parent_id, root=root)
         if not parent_store.is_dir():
@@ -442,13 +443,13 @@ def verify_runtime_for_releases(
             accepted = " or ".join(sorted(WRITABLE_FORMAT_VERSIONS))
             raise CompletionParentFormatError(
                 f"Release {store_id} is Reference-Completed from parent {parent_id}, whose "
-                f"existing Store at {parent_store} is format_version={format_version!r}. A "
-                f"builder at this pin writes {accepted} and reads but cannot write that "
-                "format; completion preserves its source's format (opengwas/opengwasdb ADR "
-                "0038 §4). Convert the parent to format 0.2.0 with the documented core "
-                "conversion procedure or rebuild the parent at the pinned runtime, then "
-                "complete the converted release. See docs/runtime.md; upgrading the runtime "
-                "does not convert or requalify an existing Store."
+                f"existing Store at {parent_store} is format_version={format_version!r}. The "
+                f"pinned engine completes only a {accepted} Store (an indel's reference "
+                "allele is spelt first from 0.2.2, opengwas/opengwasdb#381) and refuses an "
+                "older one. Rebuild the parent with this engine, then complete the rebuilt "
+                "release; converting does not help, because the converter writes 0.2.0. See "
+                "docs/runtime.md; upgrading the runtime does not convert, rebuild or "
+                "requalify an existing Store."
             )
 
     return identity

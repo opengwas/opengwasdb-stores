@@ -12,6 +12,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from ogstores import engine_update, runtime
@@ -85,6 +86,41 @@ class EngineUpdateTest(unittest.TestCase):
         self.assertIn("0.3.0", str(ctx.exception))
         self.assertIn(runtime.REQUIRED_FORMAT_VERSION, str(ctx.exception))
         self.assertEqual(self.lock.read_text(encoding="utf-8"), self.before)
+
+    def test_an_engine_writing_0_2_2_is_accepted_and_one_writing_0_2_0_is_refused(self) -> None:
+        """The guard's format is what the pinned engine writes: 0.2.2 (opengwasdb#381)."""
+        self.assertEqual(runtime.REQUIRED_FORMAT_VERSION, "0.2.2")
+        self.assertEqual(
+            self.tool.update(self.lock, self.manifest, run=self._runner(written="0.2.2")),
+            (OLD, "0.3.2", NEW, "0.3.9"),
+        )
+        self.lock.write_text(self.before, encoding="utf-8")
+        with self.assertRaises(self.tool.EngineUpdateError):
+            self.tool.update(self.lock, self.manifest, run=self._runner(written="0.2.0"))
+        self.assertEqual(self.lock.read_text(encoding="utf-8"), self.before)
+
+    def test_the_message_names_the_branch_pixi_toml_follows_not_main(self) -> None:
+        """A branch pin (an epic's integration branch) is reported as that branch's tip, never `main`'s."""
+        import contextlib
+        import io
+
+        manifest = self.manifest.parent / "followed.toml"
+        manifest.write_text(
+            '[feature.store-build.pypi-dependencies]\nopengwasdb = { git = "https://github.com/opengwas/opengwasdb", '
+            'branch = "orch/307-build-speed" }\n',
+            encoding="utf-8",
+        )
+        self.assertEqual(self.tool.followed_branch(manifest), "orch/307-build-speed")
+        self.lock.write_text(_lock_text(NEW, "0.3.9"), encoding="utf-8")
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), mock.patch.object(self.tool, "update", return_value=(NEW, "0.3.9", NEW, "0.3.9")), \
+                mock.patch.object(self.tool, "REPO_ROOT", manifest.parent), \
+                mock.patch.object(self.tool.engine, "locked_commit", return_value=NEW):
+            (manifest.parent / "pixi.toml").write_text(manifest.read_text(), encoding="utf-8")
+            (manifest.parent / "pixi.lock").write_text(self.lock.read_text(), encoding="utf-8")
+            self.assertEqual(self.tool.main([]), 0)
+        self.assertIn("tip of orch/307-build-speed", out.getvalue())
+        self.assertNotIn("main's tip", out.getvalue())
 
     def test_an_environment_installing_another_commit_is_refused_and_the_lock_restored(self) -> None:
         with self.assertRaises(self.tool.EngineUpdateError) as ctx:

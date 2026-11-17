@@ -549,7 +549,8 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         """`build_environment.engines` names the one engine and every step it ran (#253, #410)."""
         b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00051")
         planned = [s.name for s in plan(b, artifact_root=artifact_root)]
-        self.assertEqual(planned, ["build", "top-hits", "overview", "validate"], "the fixture's phase")
+        # A Dense build writes the Top-Hit Index itself and plans no standalone step (#357).
+        self.assertEqual(planned, ["build", "overview", "validate"], "the fixture's phase")
 
         register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
 
@@ -595,7 +596,7 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
                 {
                     "opengwasdb_commit": "a9e8bc825af692cdb5bb7cba39d56d11654fcebe",
                     "opengwasdb_version": "0.3.0",
-                    "steps": ["build", "top-hits", "overview"],
+                    "steps": ["build", "overview"],
                 },
                 {"opengwasdb_commit": "b" * 40, "opengwasdb_version": "0.3.3", "steps": ["validate"]},
             ],
@@ -1833,8 +1834,8 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
     def test_build_phase_records_from_before_195_hold_all_the_completion_phase_reads(self) -> None:
         """The completion phase registers over build-phase records shaped as published Stores' are (#309).
 
-        `build`, `top-hits`, `overview` and `validate` as OGS-00009's records/
-        holds them: their key set, a `validate` run without `--format json`
+        `build`, `overview` and `validate` as OGS-00009's records/ holds them
+        (it holds a `top-hits` record too, which a Dense build no longer plans, #357): their key set, a `validate` run without `--format json`
         that printed `valid`, and their elapsed seconds. The release's elapsed
         total counts them, and nothing else in the path reads them.
         """
@@ -1850,7 +1851,6 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         partial = str(paths.partial_store_path(b.store_id, root=artifact_root))
         published = {
             "build": {"elapsed_seconds": 21298.442, "stdout": '{"n_analyses": 2, "n_variants": 1000}\n'},
-            "top-hits": {"elapsed_seconds": 2335.25, "stdout": "done\n"},
             "overview": {"elapsed_seconds": 1.932, "stdout": f"wrote {partial}/overview.html\n"},
             "validate": {
                 "elapsed_seconds": 4688.449, "stdout": "valid\n", "argv": ["opengwasdb", "validate", partial],
@@ -1880,7 +1880,7 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
 
         self.assert_completed_and_deleted(b, artifact_root, build_register)
         # The four build-phase steps above, then four completion steps of 5 s each.
-        self.assertEqual(written["observed"]["build_elapsed_s"], 28344.073)
+        self.assertEqual(written["observed"]["build_elapsed_s"], 26008.823)
         self.assertEqual(written["status"], "passed")
 
     def test_a_marker_written_before_deletion_existed_still_archives(self) -> None:

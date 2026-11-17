@@ -72,6 +72,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
+from opengwasdb.variants.reference import REFERENCE_FIRST_MARKER
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from ogstores import _pdeath_supervisor, bundle, paths, plan, release, run
@@ -2243,7 +2245,7 @@ class TestVariantReferenceExecution(unittest.TestCase):
     #: and the one it writes from v0.6.0, which renamed the routing column when it
     #: added `reoriented_keys` (opengwasdb's `variants/reference.py`).
     UNMARKED_HEADER = "#alid\tchromosome\tposition\ta1\ta2\trsid\tsource_keys\n"
-    MARKED_HEADER = "#alid\tchromosome\tposition\ta1\ta2\trsid\trouted_source_keys\treoriented_keys\n"
+    MARKED_HEADER = REFERENCE_FIRST_MARKER + "#alid\tchromosome\tposition\ta1\ta2\trsid\trouted_source_keys\treoriented_keys\n"
 
     def _write_reference(self, target: Path, text: str) -> bytes:
         """Write `text` to `target`, gzipped when its name says so, as the engine reads it."""

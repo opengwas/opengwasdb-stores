@@ -1,9 +1,10 @@
-"""Move pixi.lock to opengwasdb `main`'s tip, and check what it moved to (#253).
+"""Move pixi.lock to the tip of the branch pixi.toml follows, and check what it moved to (#253).
 
     pixi run engine-update            # relock, install, check; say what moved
     pixi run engine-update --check    # check the lock and the installed engine only
 
-`pixi.toml` follows opengwasdb's `main`; the lock holds the exact commit. This
+`pixi.toml` follows an opengwasdb branch (`main`, or an epic's integration branch
+while it is unmerged); the lock holds the exact commit. This
 moves the lock (`pixi update opengwasdb`), installs it, and checks that:
 
 * the lock resolves exactly one opengwasdb commit;
@@ -67,6 +68,15 @@ def store_build_environments(manifest: Path) -> list[str]:
     )
 
 
+def followed_branch(manifest: Path) -> str:
+    """The opengwasdb branch `pixi.toml` follows, as `store-build`'s dependency names it."""
+    import tomllib
+
+    document = tomllib.loads(manifest.read_text(encoding="utf-8"))
+    spec = document["feature"]["store-build"]["pypi-dependencies"]["opengwasdb"]
+    return str(spec.get("branch") or spec.get("tag") or spec.get("rev") or "main")
+
+
 def locked_version(lock: Path) -> str:
     """The opengwasdb version the lock's package entry records."""
     document = yaml.load(lock.read_text(encoding="utf-8"), Loader=yaml.CSafeLoader) or {}
@@ -104,7 +114,7 @@ def _dirty(paths_: Sequence[str], run: Runner) -> str:
 
 
 def update(lock: Path, manifest: Path, *, run: Runner = _run) -> tuple[str, str, str, str]:
-    """Relock to `main`'s tip and check it. Returns (old commit, old version, new commit, new version).
+    """Relock to the followed branch's tip and check it. Returns (old commit, old version, new commit, new version).
 
     The previous lock is restored when anything fails, so a refused update
     leaves the checkout as it was.
@@ -141,7 +151,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"engine-update: refused: {exc}", file=sys.stderr)
         return 1
     if before == after:
-        print(f"opengwasdb {after_version} at {after} is already main's tip; pixi.lock is unchanged.")
+        print(f"opengwasdb {after_version} at {after} is already the tip of {followed_branch(manifest)}; pixi.lock is unchanged.")
         return 0
     print(f"opengwasdb {before_version} ({before[:12]}) -> {after_version} ({after[:12]})")
     print(f"  what changed: https://github.com/opengwas/opengwasdb/compare/{before}...{after}")

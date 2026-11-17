@@ -89,7 +89,9 @@
       "validate",
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
       "--format",
-      "json"
+      "json",
+      "--n-workers",
+      "32"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
