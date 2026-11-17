@@ -13,7 +13,7 @@
       "--admission-record",
       "/data/opengwasdb/stores/OGS-00004/store.opengwasdb.admission",
       "--variant-reference",
-      "/data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz",
+      "/data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz",
       "--source-reader-capability",
       "opengwasdb.gwas-ssf",
       "--source-assembly",

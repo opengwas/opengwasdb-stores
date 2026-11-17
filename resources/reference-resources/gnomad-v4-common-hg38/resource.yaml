@@ -8,8 +8,36 @@ allele_columns:
   effect: a1
   other: a2
   freq: null
-location: /data/opengwasdb/reference/gnomad-v4-common-hg38
+location: /data/opengwasdb/reference/gnomad-v4-common-hg38-v2
 location_kind: external_directory
+# The declared location is the regenerated, reference-first generation of
+# 2026-11-17 (epic #232). Its lists all start with the engine's Variant
+# Reference marker, which is what makes them usable: opengwasdb 0.10.0 refuses
+# an unmarked Variant Reference that carries an indel. `counts` are the ALIDs of
+# the three axes a Release Bundle names; `manifest.json` in that directory
+# records every axis, its composition and both checksums.
+variant_reference:
+  marker: "#opengwasdb-variant-reference\t1"
+  built_at: '2026-11-17T22:44:20Z'
+  manifest: /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/manifest.json
+  counts:
+    EUR: 13718605
+    EAS: 10912248
+    AFR: 20600947
+# The first generation, kept unchanged and unmarked. OGS-00011's published Store
+# was built from its EUR list, so that accepted bundle still names it; #478
+# repoints it at `location` when it rebuilds. Nothing was replaced in place, and
+# no legacy byte was stamped with the marker: the orientation its sorted bytes
+# lost is not recoverable.
+prior_generation:
+  location: /data/opengwasdb/reference/gnomad-v4-common-hg38
+  marker: none
+  built_at: '2026-09-23T23:12:11Z'
+  used_by: OGS-00011 (published Store, built 2026-10-29)
+  counts:
+    EUR: 13415936
+    EAS: 10718294
+    AFR: 20149213
 source:
   cohort: gnomAD v4.1 genomes (sites), plus gnomAD v3.1 for the mitochondrion
   n_genomes: 76215
@@ -54,12 +82,15 @@ description: >
   and a 1.5 GB of output, not 550 GB of disk.
 status: available
 notes: >
-  This declaration describes the maintained producer after stores#472, not a
-  certification of the installed historical bytes. Existing indel-bearing lists
-  remain unmarked and are refused by the upgraded engine. Regeneration and
-  replacement under /data/opengwasdb/reference require a separate owner choice
-  covering resources, timing, receipts and immutable backups. Never stamp legacy
-  sorted bytes whose reference orientation was lost.
+  The declaration describes the maintained producer after stores#472 and the
+  generation it produced on 2026-11-17, on the owner's decision of that date
+  (epic #232): every `<SUPERPOP>-variants.txt.gz` under `location` starts with
+  the engine Variant Reference marker v1 and declares reference-first indels.
+  The first generation is kept, unmarked and unchanged, as `prior_generation`.
+  Nothing was replaced in place and no legacy bytes were stamped: an unmarked
+  Variant Reference that carries an indel is refused by opengwasdb 0.10.0 (the
+  owner's ruling of 2026-11-16, opengwas/opengwasdb#381), which is why the
+  legacy lists below are unusable rather than merely undeclared.
 
   `gnomad-groups/` holds the ten raw gnomAD ancestry groups, kept because the
   super-population composition below is a release decision that may change, and

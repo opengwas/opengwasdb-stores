@@ -123,7 +123,9 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         "phase": "build",
         "command": "build-hybrid",
         "options": {
-            "variant-reference": "/data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz",
+            # Epic #232 amended this trial bundle's Dense axis: the legacy
+            # alid-panel list is unmarked and opengwasdb 0.10.0 refuses it.
+            "variant-reference": "/data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz",
             "source-reader-capability": "opengwasdb.gwas-ssf",
             "source-assembly": "hg38",
         },
@@ -133,7 +135,9 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         "phase": "build",
         "command": "build-hybrid",
         "options": {
-            "variant-reference": "/data/opengwasdb/wip/hybrid-ieua/panel_alids.txt",
+            # Epic #232 amended this trial bundle's Dense axis: the legacy
+            # panel_alids.txt list is unmarked and opengwasdb 0.10.0 refuses it.
+            "variant-reference": "/data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz",
             "source-reader-capability": "opengwasdb.gwas-ssf",
             "source-assembly": "hg38",
         },

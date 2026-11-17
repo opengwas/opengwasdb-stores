@@ -46,8 +46,10 @@ build:
   options:
     # The Dense Component axis: gnomAD v4.1 variants common (MAF >= 1%) in its
     # AFR group, declared by resources/reference-resources/gnomad-v4-common-hg38.
-    # OGS-00011 uses the EUR axis from the same resource.
-    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/AFR-variants.txt.gz
+    # OGS-00011 uses the EUR axis from the same resource. The axis is the
+    # regenerated, reference-first generation of 2026-11-17 (epic #232); the one
+    # OGS-00011's published Store was built from is unmarked and refused.
+    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/AFR-variants.txt.gz
     n-workers: 24
     checkpoint: true
     source-reader-capability: opengwasdb.gwas-ssf

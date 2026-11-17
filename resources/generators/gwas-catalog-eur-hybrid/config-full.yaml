@@ -68,6 +68,11 @@ build:
     # therefore still route to the Ragged Overflow exactly as they do today; the
     # autosomal rows resolve at 80.27% against this axis versus 78.11% against
     # the panel it replaces.
+    #
+    # Deliberately unchanged by epic #232: OGS-00011's published Store was built
+    # from this file, so its bundle keeps naming what built it. #478 repoints it
+    # at the regenerated, reference-first generation
+    # (/data/opengwasdb/reference/gnomad-v4-common-hg38-v2) when it rebuilds.
     variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
     # Pass 2 routes every association of every study, and forks only when this is
     # > 1 -- the CLI default is 1, which is a single core on a 224-core host. A

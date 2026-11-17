@@ -11,9 +11,18 @@ skip Pass 1 (the variant union and liftover) entirely.
 
 ```sh
 pixi run python tools/reference-resources/gnomad-v4-common-hg38/build_common_panel.py \
-  --out-dir /data/opengwasdb/reference/gnomad-v4-common-hg38 \
+  --out-dir /data/opengwasdb/reference/gnomad-v4-common-hg38-v2 \
   --min-maf 0.01 --jobs 12
 ```
+
+`/data/opengwasdb/reference/gnomad-v4-common-hg38-v2/` is the declared
+`location`: the generation produced on 2026-11-17 at revision `5760e78b` in
+3,196 s with the command above, on the owner's decision of that date (epic
+#232). `/data/opengwasdb/reference/gnomad-v4-common-hg38/` is the first
+generation. It is kept unchanged and unmarked, because OGS-00011's published
+Store was built from its EUR list and that accepted bundle keeps naming what
+built it; #478 repoints it when it rebuilds. `resource.yaml` records both
+locations.
 
 ## Reference-first production semantics (stores #472)
 
@@ -27,20 +36,22 @@ carry it, including mitochondrial output. `content_sha256` includes the marker,
 Offline fixtures compare the local serializer's identities and marker bytes
 against the pinned engine's public interfaces, so incompatible drift fails.
 
-The counts, sizes, timings and comparisons below describe the historical build.
-This code change has not regenerated or certified any installed reference.
-Unmarked indel-bearing references are refused by `read_variant_reference` and
-therefore by coverage verification and builds; SNV-only lists remain usable.
-Never prepend the marker to old sorted bytes: deletion orientation was lost.
-Production regeneration/replacement requires a separate owner choice of resource
-set and timing, immutable backups, and receipts with source/engine revisions,
-checksums, counts and semantic verification before replacement.
+The counts below describe the regenerated generation of 2026-11-17, and the
+comparisons were measured against the axis it replaced. Unmarked indel-bearing
+references are refused by `read_variant_reference` and therefore by coverage
+verification and builds; SNV-only lists remain usable. Never prepend the marker
+to old sorted bytes: deletion orientation was lost.
 
-The legacy `/data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz` has no
-maintained producer or production receipt in either repository: the remaining
-paths are consumers/comparators. It stays an orphaned legacy artifact, unmarked
-and refused when it contains indels; recovering an authoritative recipe or
-choosing its replacement is owner work. The maintained replacement producer is
+The legacy **`/data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz` is
+unmarked, has no maintained producer or production receipt in either
+repository, and no Release Bundle names it any more**: OGS-00004's Build Recipe
+moved to the EUR list above on 2026-11-17 (epic #232). The remaining paths are
+consumers/comparators, and the file is refused when it contains indels.
+**`/data/opengwasdb/wip/hybrid-ieua/panel_alids.txt` is the same: an unmarked
+legacy plain list, no longer named by any bundle** — OGS-00005's Build Recipe
+moved to the EUR list above in the same amendment. Neither is a candidate for
+the marker, and neither is regenerable: recovering an authoritative recipe for
+either is owner work. The maintained replacement producer is
 `tools/reference-resources/gnomad-v4-common-hg38/build_common_panel.py`.
 
 HapMap3 has a separate maintained derivation: engine
@@ -62,7 +73,7 @@ limitations this one does not:
 
 | | `alid-panel/EUR-variants.tsv.gz` | this resource (EUR) |
 |---|---|---|
-| variants | 9,847,807 | **13,415,936** |
+| variants | 9,847,807 | **13,718,605** (13,415,936 first generation) |
 | chromosomes | 1–22 | **1–22, X, Y, MT** |
 | real MAF floor | **3.24%**, not 1% | 1% as declared |
 | source | HGDP+1kGP, 772 EUR samples | gnomAD v4.1, 34,029 NFE genomes |
@@ -80,14 +91,18 @@ the old one.
 
 | file | variants | composition |
 |---|---|---|
-| `AFR-variants.txt.gz` | 20,149,213 | `afr` |
-| `AMR-variants.txt.gz` | 13,487,396 | `amr` |
-| `EAS-variants.txt.gz` | 10,718,294 | `eas` |
-| `EUR-variants.txt.gz` | 13,415,936 | `nfe` + `fin` |
-| `MID-variants.txt.gz` | 14,133,778 | `mid` |
-| `SAS-variants.txt.gz` | 12,266,874 | `sas` |
-| `ALL-variants.txt.gz` | 27,447,322 | union of the above |
-| `gnomad-groups/*.txt.gz` | 10.7–20.1 M each | the ten raw gnomAD groups |
+| `AFR-variants.txt.gz` | 20,600,947 | `afr` |
+| `AMR-variants.txt.gz` | 13,758,984 | `amr` |
+| `EAS-variants.txt.gz` | 10,912,248 | `eas` |
+| `EUR-variants.txt.gz` | 13,718,605 | `nfe` + `fin` |
+| `MID-variants.txt.gz` | 14,400,675 | `mid` |
+| `SAS-variants.txt.gz` | 12,493,799 | `sas` |
+| `ALL-variants.txt.gz` | 28,129,628 | union of the above |
+| `gnomad-groups/*.txt.gz` | 11.6–20.6 M each | the ten raw gnomAD groups |
+
+The first generation held EUR 13,415,936, EAS 10,718,294 and AFR 20,149,213.
+Each gain equals that axis's indel rows, because a deletion is no longer folded
+into the insertion at the same site.
 
 **No `NAF` axis is emitted** — gnomAD v4.1 has no North African ancestry group.
 The absence is recorded in `manifest.json` rather than left as a missing file.
@@ -101,9 +116,10 @@ exists costs nothing.
 
 Nothing is mirrored. The gnomAD sites VCFs are ~550 GB only because of VEP
 annotation this axis never reads, and they are bgzip+tabix indexed, so
-`bcftools` streams them over HTTPS a 10 Mb region at a time (322 shards, ~52
-min at 12 jobs) and each shard is reduced to ALIDs on the way past. Total output
-is 957 MB, all of it inspectable with `zcat`.
+`bcftools` streams them over HTTPS a 10 Mb region at a time (322 shards, 1,817 s
+of shard reading and 3,196 s in total at 12 jobs for the 2026-11-17
+generation) and each shard is reduced to ALIDs on the way past. Total output is
+983 MB, all of it inspectable with `zcat`.
 
 Two guards, because a frequency alone is not evidence a population was actually
 observed:
@@ -119,7 +135,7 @@ observed:
 
 gnomAD's chrM release is a different callset with a different model —
 homoplasmy and heteroplasmy, `AF_hom` — and carries **no per-ancestry allele
-frequency at all**. Its 425 variants above 1% are admitted to *every* ancestry's
+frequency at all**. Its 426 variants above 1% are admitted to *every* ancestry's
 axis on the global homoplasmic frequency. That is not a per-ancestry claim and
 `manifest.json` says so.
 
@@ -165,14 +181,17 @@ to record is that a store built before ADR 0052 and one built after are not the
 same store, so the pinned revision belongs in the build evidence either way.
 
 The historical alias comparison above does not certify the installed lists
-under the reference-first declaration. Indel-bearing lists require regeneration.
+under the reference-first declaration. That is now the regenerated generation's
+evidence rather than the reason it was wanted: the lists that were unmarked when
+this comparison was measured have been regenerated (epic #232), and the pinned
+revision still decides which rows resolve.
 
 ## Verification
 
 ```sh
 pixi run python tools/reference-resources/gnomad-v4-common-hg38/verify_axis_coverage.py \
   --inventory resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv \
-  --axis /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz \
+  --axis /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz \
   --axis /data/opengwasdb/reference/alid-panel/EUR-variants.tsv.gz \
   --sample 40
 ```
