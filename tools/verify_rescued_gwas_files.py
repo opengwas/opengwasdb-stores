@@ -44,9 +44,17 @@ def _miss(v: str) -> bool:
     return v.strip() in MISSING
 
 
+def _column_index(hdr: list[str]) -> dict[str, int]:
+    ix = {n: i for i, n in enumerate(hdr)}
+    if len(ix) != len(hdr):
+        duplicates = sorted({name for name in hdr if hdr.count(name) > 1})
+        raise ValueError(f"duplicate column names: {duplicates}")
+    return ix
+
+
 def check_row(hdr: list[str], raw: list[str], new: list[str]) -> list[str]:
     bad: list[str] = []
-    ix = {n: i for i, n in enumerate(hdr)}
+    ix = _column_index(hdr)
     transformed = {"beta", "odds_ratio", "ci_lower", "ci_upper", "effect_allele_frequency"}
 
     def num_equal(name: str, src: str, fn) -> None:
@@ -99,6 +107,8 @@ def verify_file(args: tuple[str, str, str]) -> dict[str, str]:
          gzip.open(new_path, "rt", encoding="utf-8") as fn:
         hdr = fr.readline().rstrip("\r\n").split("\t")
         nhdr = fn.readline().rstrip("\r\n").split("\t")
+        _column_index(hdr)
+        _column_index(nhdr)
         if hdr != nhdr:
             header_ok = False
         else:

@@ -6,15 +6,16 @@
 #
 #   --scratch  the regenerated tree: <DIR>/<bucket>/<accession>/harmonised/*.h.tsv.gz and
 #              <DIR>/eur-hybrid-rescue-orientation-manifest.tsv (what the rescue wrote with --derived-base)
-#   --receipt  tools/verify_rescued_gwas_files.py's receipt: the file list (analysis_id) and each
-#              regenerated file's sha256. The list comes from here, never from a directory listing.
+#   --receipt  tools/verify_rescued_gwas_files.py's successful full-verification receipt.
+#              Its file list must cover all replacements in the manifest, without duplicates.
 #   --before   where the current live manifest is saved first (refused if it exists and differs)
 #   --live     default /data/opengwasdb/derived/ebi-gwas-catalog
 #   --dry-run  do every check and print the plan; write nothing
 #
 # Order, and what a failure leaves:
-#   0. checks (no writes): every receipt file exists in scratch with the receipt's sha256, its live
-#      directory exists, the scratch manifest names the same files and checksums.
+#   0. checks (no writes): every receipt row passed full verification and covers exactly the
+#      manifest's replacements; only unchanged frequency-only and approved excluded rows are
+#      exempt. Every receipt file exists in scratch with its sha256 and has a live directory.
 #      Failure: nothing changed.
 #   1. save the live manifest to --before.   Failure: nothing changed (a stray --before copy only).
 #   2. copy every file to <target>.part beside its target and verify each .part's sha256.
@@ -49,6 +50,57 @@ smanifest=$scratch/$man lmanifest=$live/$man
 staged=()
 cleanup() { local p; for p in "${staged[@]:-}"; do if [ -n "$p" ]; then rm -f -- "$p"; fi; done; return 0; }
 trap cleanup EXIT
+
+# A verifier writes a receipt even on failure: a checksum alone is not approval.
+# Keep this validation before the backup and before creating any .part file.
+python3 - "$receipt" "$smanifest" "$lmanifest" <<'PY'
+import csv
+import sys
+
+
+def read_rows(path, required):
+    with open(path, newline="") as f:
+        reader = csv.DictReader(f, delimiter="\t")
+        header = reader.fieldnames or []
+        if not required <= set(header) or len(header) != len(set(header)):
+            sys.exit(f"{path}: unexpected TSV header")
+        rows = {}
+        for row in reader:
+            aid = row["analysis_id"]
+            if None in row or None in row.values() or not aid or aid in rows:
+                sys.exit(f"{path}: malformed or duplicate row for {aid!r}")
+            rows[aid] = row
+        return rows
+
+
+receipt = read_rows(sys.argv[1], {
+    "analysis_id", "sha256", "mismatching_rows", "header_identical", "row_counts_equal",
+})
+for aid, row in receipt.items():
+    if (row["mismatching_rows"], row["header_identical"], row["row_counts_equal"]) != ("0", "true", "true"):
+        sys.exit(f"{aid}: receipt does not record successful full verification")
+
+columns = {"analysis_id", "data_file", "sha256", "status", "error", "yaml_file", "data_bytes", "yaml_bytes"}
+scratch = read_rows(sys.argv[2], columns)
+live = read_rows(sys.argv[3], columns)
+if scratch.keys() != live.keys():
+    sys.exit("scratch and live manifest membership differs")
+
+replacements = set()
+for aid, row in scratch.items():
+    if aid in {"GCST90275159", "GCST90275160"}:
+        if row["status"] != "excluded" or any(row[c] for c in ("data_file", "yaml_file", "sha256", "data_bytes", "yaml_bytes")):
+            sys.exit(f"{aid}: approved exclusion must have no file, checksum or size")
+    elif row["error"] == "rescued via flip_frequency" and row == live[aid]:
+        continue
+    elif row["status"] == "already_present" and row["error"] == "rescued via swap_alleles" and row["data_file"] and row["sha256"]:
+        # Include already-installed rows too, so retrying cannot hide an omission.
+        replacements.add(aid)
+    else:
+        sys.exit(f"{aid}: manifest row is neither a replacement, unchanged frequency-only row nor approved exclusion")
+if receipt.keys() != replacements:
+    sys.exit(f"receipt membership differs from replacements: missing={sorted(replacements - receipt.keys())}, extra={sorted(receipt.keys() - replacements)}")
+PY
 
 # column index of a header name in a TSV's first line
 col() { awk -F'\t' -v n="$2" 'NR==1{sub(/\r$/,"");for(i=1;i<=NF;i++)if($i==n){print i;exit}}' "$1"; }

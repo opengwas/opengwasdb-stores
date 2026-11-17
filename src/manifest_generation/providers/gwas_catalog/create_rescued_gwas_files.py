@@ -141,6 +141,12 @@ def _invert(value: str) -> str:
     return repr(1.0 / number)
 
 
+def _check_unique_columns(hdr: list[str]) -> None:
+    if len(hdr) != len(set(hdr)):
+        duplicates = sorted({name for name in hdr if hdr.count(name) > 1})
+        raise ValueError(f"duplicate column names: {duplicates}")
+
+
 class SwapStatistics:
     """Express a GWAS-SSF row's harmonised statistics on the other allele, labels untouched.
 
@@ -174,6 +180,7 @@ class SwapStatistics:
     UNHARMONISED = frozenset({"MinFreq", "MaxFreq", "Direction", "FreqSE"})
 
     def __init__(self, hdr: list[str]) -> None:
+        _check_unique_columns(hdr)
         self.hdr = hdr
         self.idx = {name: i for i, name in enumerate(hdr)}
         for required in ("effect_allele", "other_allele"):
@@ -216,6 +223,7 @@ def rescue_file(raw_path: Path, out_path: Path, recommendation: str) -> None:
          gzip.open(out_path, "wt", encoding="utf-8") as f_out:
         header_line = f_in.readline()
         hdr = header_line.rstrip("\r\n").split("\t")
+        _check_unique_columns(hdr)
         f_out.write("\t".join(hdr) + "\n")
 
         if recommendation == "swap_alleles":

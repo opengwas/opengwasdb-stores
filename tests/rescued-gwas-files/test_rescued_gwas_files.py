@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import csv
 import gzip
+import runpy
 import sys
 import tempfile
 import unittest
@@ -194,6 +195,41 @@ class SwapAllelesKeepsLabels(unittest.TestCase):
             rows = [r + ["1"] for r in BETA_ROWS]
             with self.assertRaises(ValueError, msg=extra):
                 self.rescue(hdr, rows)
+
+    def test_duplicate_beta_columns_are_refused_before_a_statistic_can_be_left_untransformed(self):
+        hdr = ["effect_allele", "other_allele", "beta", "beta", "effect_allele_frequency"]
+        for recommendation in ("swap_alleles", "flip_frequency"):
+            with self.subTest(recommendation=recommendation), self.assertRaisesRegex(ValueError, "duplicate.*beta"):
+                self.rescue(hdr, [["A", "AT", "2", "3", "0.25"]], recommendation)
+
+    def test_verifier_refuses_duplicate_beta_even_when_the_last_beta_is_transformed(self):
+        # tools/ is not a package: load this standalone verifier without running main.
+        verifier = runpy.run_path(str(Path(__file__).resolve().parents[2] / "tools/verify_rescued_gwas_files.py"))
+        hdr = ["effect_allele", "other_allele", "beta", "beta", "effect_allele_frequency"]
+        raw_row = ["A", "AT", "2", "3", "0.25"]
+        partial = ["A", "AT", "2", "-3", "0.75"]
+        with self.assertRaisesRegex(ValueError, "duplicate.*beta"):
+            verifier["check_row"](hdr, raw_row, partial)
+        raw, out = self.tmp / "raw.tsv.gz", self.tmp / "out.tsv.gz"
+        # Validate both headers even when there are no rows, or the headers differ.
+        for raw_hdr, out_hdr in ((hdr, hdr), (hdr, BETA_HDR), (BETA_HDR, hdr)):
+            with self.subTest(raw_header=raw_hdr, new_header=out_hdr):
+                write_gz(raw, raw_hdr, [])
+                write_gz(out, out_hdr, [])
+                with self.assertRaisesRegex(ValueError, "duplicate.*beta"):
+                    verifier["verify_file"](("GCST1", str(raw), str(out)))
+
+    def test_verifier_accepts_a_fully_transformed_file_with_unique_columns(self):
+        verifier = runpy.run_path(str(Path(__file__).resolve().parents[2] / "tools/verify_rescued_gwas_files.py"))
+        raw, out = self.tmp / "raw.tsv.gz", self.tmp / "out.tsv.gz"
+        hdr = ["effect_allele", "other_allele", "beta", "effect_allele_frequency"]
+        write_gz(raw, hdr, [["A", "AT", "2", "0.25"]])
+        write_gz(out, hdr, [["A", "AT", "-2", "0.75"]])
+        result = verifier["verify_file"](("GCST1", str(raw), str(out)))
+        self.assertEqual(result["rows"], "1")
+        self.assertEqual(result["mismatching_rows"], "0")
+        self.assertEqual(result["header_identical"], "true")
+        self.assertEqual(result["row_counts_equal"], "true")
 
     def test_an_excluded_study_is_never_regenerated_and_is_marked_in_the_manifest(self):
         """GCST90275159/60 (dummy beta and SE) are excluded for good (owner, 10 Nov 2026)."""

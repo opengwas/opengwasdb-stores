@@ -40,12 +40,12 @@ class ReplaceScript(unittest.TestCase):
         for base, rows in ((self.live, rows_old), (self.scratch, rows_new)):
             with open(base / MAN, "w", newline="") as f:
                 w = csv.writer(f, delimiter="\t", lineterminator="\n")
-                w.writerow(["analysis_id", "data_file", "sha256"])
-                w.writerows(rows)
+                w.writerow(["analysis_id", "data_file", "sha256", "status", "error", "yaml_file", "data_bytes", "yaml_bytes"])
+                w.writerows((*r, "already_present", "rescued via swap_alleles", "", "9", "") for r in rows)
         with open(self.receipt, "w", newline="") as f:
             w = csv.writer(f, delimiter="\t", lineterminator="\n")
-            w.writerow(["analysis_id", "rows", "sha256"])
-            w.writerows((a, 1, s) for a, _, s in rows_new)
+            w.writerow(["analysis_id", "rows", "mismatching_rows", "header_identical", "row_counts_equal", "sha256", "examples"])
+            w.writerows((a, 1, 0, "true", "true", s, "") for a, _, s in rows_new)
         self.live_manifest = (self.live / MAN).read_bytes()
 
     def run_script(self, *extra):
@@ -56,6 +56,95 @@ class ReplaceScript(unittest.TestCase):
 
     def live_bytes(self, aid):
         return (self.live / self.old[aid][0]).read_bytes()
+
+    def assert_untouched(self):
+        for aid in self.old:
+            self.assertEqual(self.live_bytes(aid), self.old[aid][1])
+        self.assertEqual((self.live / MAN).read_bytes(), self.live_manifest)
+        self.assertFalse(self.before.exists())
+        self.assertEqual(list(self.live.rglob("*.part")), [])
+
+    def edit_tsv(self, path, edit):
+        with open(path, newline="") as f:
+            reader = csv.DictReader(f, delimiter="\t")
+            columns, rows = reader.fieldnames, list(reader)
+        edit(rows)
+        with open(path, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=columns, delimiter="\t")
+            writer.writeheader()
+            writer.writerows(rows)
+
+    def add_unchanged_and_excluded_rows(self):
+        frequency = {"analysis_id": "GCST3", "status": "already_present", "error": "rescued via flip_frequency",
+                     "data_file": str(self.live / "frequency.tsv.gz"), "sha256": sha(b"frequency")}
+        (self.live / "frequency.tsv.gz").write_bytes(b"frequency")
+        exclusions = [{"analysis_id": aid, "status": "excluded", "error": "owner-approved exclusion"}
+                      for aid in ("GCST90275159", "GCST90275160")]
+        for base in (self.live, self.scratch):
+            self.edit_tsv(base / MAN, lambda rows: rows.extend([frequency, *exclusions]))
+        self.live_manifest = (self.live / MAN).read_bytes()
+
+    def test_unchanged_frequency_only_and_approved_excluded_rows_need_no_receipt(self):
+        self.add_unchanged_and_excluded_rows()
+        r = self.run_script()
+        self.assertEqual(r.returncode, 0, r.stderr)
+        self.assertEqual((self.live / MAN).read_bytes(), (self.scratch / MAN).read_bytes())
+        self.assertEqual((self.live / "frequency.tsv.gz").read_bytes(), b"frequency")
+
+    def test_a_changed_frequency_only_row_is_refused_before_writing(self):
+        self.add_unchanged_and_excluded_rows()
+        self.edit_tsv(self.scratch / MAN, lambda rows: rows[2].update(sha256=sha(b"changed")))
+        r = self.run_script()
+        self.assert_untouched()
+        self.assertNotEqual(r.returncode, 0, r.stdout)
+
+    def test_an_excluded_row_naming_a_file_is_refused_before_writing(self):
+        self.add_unchanged_and_excluded_rows()
+        self.edit_tsv(self.scratch / MAN, lambda rows: rows[3].update(data_file="unexpected.tsv.gz"))
+        r = self.run_script()
+        self.assert_untouched()
+        self.assertNotEqual(r.returncode, 0, r.stdout)
+
+    def test_a_failed_verification_receipt_changes_nothing(self):
+        good = self.receipt.read_text()
+        for failed in ("1\tfalse\tfalse", "1\ttrue\ttrue", "0\tfalse\ttrue", "0\ttrue\tfalse"):
+            with self.subTest(result=failed):
+                self.receipt.write_text(good.replace("0\ttrue\ttrue", failed))
+                r = self.run_script()
+                self.assert_untouched()
+                self.assertNotEqual(r.returncode, 0, r.stdout)
+
+    def test_an_omitted_replacement_receipt_row_changes_nothing(self):
+        lines = self.receipt.read_text().splitlines(keepends=True)
+        self.receipt.write_text("".join(lines[:2]))
+        r = self.run_script()
+        self.assert_untouched()
+        self.assertNotEqual(r.returncode, 0, r.stdout)
+
+    def test_a_duplicate_replacement_receipt_row_changes_nothing(self):
+        lines = self.receipt.read_text().splitlines(keepends=True)
+        self.receipt.write_text("".join(lines + [lines[1]]))
+        r = self.run_script()
+        self.assert_untouched()
+        self.assertNotEqual(r.returncode, 0, r.stdout)
+
+    def test_a_receipt_missing_verification_columns_changes_nothing(self):
+        self.receipt.write_text("analysis_id\tsha256\n" + "".join(
+            f"{aid}\t{sha(body)}\n" for aid, (_, body) in self.new.items()))
+        r = self.run_script()
+        self.assert_untouched()
+        self.assertNotEqual(r.returncode, 0, r.stdout)
+
+    def test_an_omitted_already_installed_replacement_is_still_refused(self):
+        # Resuming must require the whole receipt, even if a manifest row is already current.
+        self.edit_tsv(self.live / MAN, lambda rows: rows[1].update(sha256=sha(self.new["GCST2"][1])))
+        (self.live / self.old["GCST2"][0]).write_bytes(self.new["GCST2"][1])
+        self.old["GCST2"] = self.new["GCST2"]
+        self.live_manifest = (self.live / MAN).read_bytes()
+        self.edit_tsv(self.receipt, lambda rows: rows.pop())
+        r = self.run_script()
+        self.assert_untouched()
+        self.assertNotEqual(r.returncode, 0, r.stdout)
 
     def test_replaces_every_file_then_the_manifest_and_saves_the_old_one(self):
         r = self.run_script()
@@ -96,7 +185,7 @@ class ReplaceScript(unittest.TestCase):
 
     def test_a_receipt_file_the_manifest_does_not_name_is_refused(self):
         with open(self.receipt, "a") as f:
-            f.write("GCST9\t1\t" + "0" * 64 + "\n")
+            f.write("GCST9\t1\t0\ttrue\ttrue\t" + "0" * 64 + "\t\n")
         self.assertNotEqual(self.run_script().returncode, 0)
         self.assertEqual(self.live_bytes("GCST1"), self.old["GCST1"][1])
 

@@ -52,6 +52,8 @@ GENERATION_AND_TESTS = ("src/manifest_generation/", "resources/generators/", "te
 # one exercises. Each may load that script by path or put its directory on
 # sys.path.
 EXEMPT_TESTS: dict[str, str] = {
+    "tests/rescued-gwas-files/test_rescued_gwas_files.py":
+        "tools/verify_rescued_gwas_files.py, the standalone row verifier for rescued copies (#455)",
     "tests/ld-panel-comparison/run_tests.py":
         "the EUR-panel imputation comparison (tools/ld-panel), a script whose directory is not a package",
     "tests/ld-panel-generation/run_tests.py": "LD-panel Reference Resource scripts (tools/ld-panel)",
