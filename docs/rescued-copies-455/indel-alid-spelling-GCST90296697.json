@@ -1,0 +1,53 @@
+{
+  "regen": {
+    "label": "regen",
+    "raw_indel_rows_code_10_11": 992071,
+    "expected_reference_first_alids": 991008,
+    "store_indel_alids": 991008,
+    "expected_spelt_reference_first_in_store": 991008,
+    "expected_missing_from_store": 0,
+    "store_indels_not_in_raw_expectation": 0,
+    "expected_found_only_inverted": 0,
+    "alids_spelt_both_ways_in_raw": 0,
+    "examples_missing": [],
+    "examples_unexpected": []
+  },
+  "swapped": {
+    "label": "swapped",
+    "raw_indel_rows_code_10_11": 992071,
+    "expected_reference_first_alids": 991008,
+    "store_indel_alids": 991008,
+    "expected_spelt_reference_first_in_store": 0,
+    "expected_missing_from_store": 991008,
+    "store_indels_not_in_raw_expectation": 991008,
+    "expected_found_only_inverted": 991008,
+    "alids_spelt_both_ways_in_raw": 0,
+    "examples_missing": [
+      "10:100001839:CAA:C",
+      "10:100002300:GA:G",
+      "10:100002330:AAAAG:A",
+      "10:100002336:AAGAG:A",
+      "10:100004254:A:AAT"
+    ],
+    "examples_unexpected": [
+      "10:100001839:C:CAA",
+      "10:100002300:G:GA",
+      "10:100002330:A:AAAAG",
+      "10:100002336:A:AAGAG",
+      "10:100004254:AAT:A"
+    ]
+  },
+  "raw": {
+    "label": "raw",
+    "raw_indel_rows_code_10_11": 992071,
+    "expected_reference_first_alids": 991008,
+    "store_indel_alids": 991008,
+    "expected_spelt_reference_first_in_store": 991008,
+    "expected_missing_from_store": 0,
+    "store_indels_not_in_raw_expectation": 0,
+    "expected_found_only_inverted": 0,
+    "alids_spelt_both_ways_in_raw": 0,
+    "examples_missing": [],
+    "examples_unexpected": []
+  }
+}
