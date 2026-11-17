@@ -8,6 +8,9 @@ finished: "2026-11-17"
 summary: "Epic #307 removed repeated full-plane work, parallelised validation, encoding, Top-Hit scanning and completion writes, and replaced row-wise Pass 2 bottlenecks with exact columnar paths while retaining the Python reference implementations. The final OGS-00009 scratch release completed in 7h50m34.998s, 23.228% faster than the prior run and 1h09m25.002s inside the nine-hour gate, with clean validation and zero observed-view mismatches across 2.681 billion cells. Engine v0.10.0 and the matching stores contracts are released; value-changing completion work remains separately specified in #423, and no production reference regeneration was part of this epic."
 prs:
 - opengwasdb#411
+- opengwasdb-stores#470
+- opengwasdb-stores#457
+- opengwasdb-stores#473
 versions:
 - v0.10.0
 - v0.24.1
@@ -82,13 +85,13 @@ tickets:
   title: Read the Dense EAF exception table once per validation pass
   pr: null
   merge: "723cac0"
-- key: null
+- key: opengwasdb-stores#357
   title: "opengwasdb-stores#357: a Dense build meets its declared top_hits itself"
-  pr: null
+  pr: opengwasdb-stores#470
   merge: "4e61ebe403c816cf35eb3d9e197b0ec2f6d8ca54"
-- key: null
+- key: opengwasdb-stores#358
   title: "opengwasdb-stores#358: the Store Release Build passes a worker count to validate"
-  pr: null
+  pr: opengwasdb-stores#470
   merge: "4e61ebe403c816cf35eb3d9e197b0ec2f6d8ca54"
 - key: null
   title: "Dense SE exceptions stored float32-exact, not float16-rounded (code fix; #355 stays open for published Releases under #367)"
@@ -106,13 +109,13 @@ tickets:
   title: "Re-measure OGS-00009 end to end; record the second-language decision"
   pr: null
   merge: b0ceafd
-- key: null
+- key: opengwasdb-stores#455
   title: "opengwasdb-stores#455: rescued swap_alleles copies rewrite statistics, not allele labels"
-  pr: null
+  pr: opengwasdb-stores#457
   merge: "59d666cf1f6b1b94068eca8822de2dc21dade9b5"
-- key: null
+- key: opengwasdb-stores#472
   title: "opengwasdb-stores#472: Variant Reference producers declare reference-first indels"
-  pr: null
+  pr: opengwasdb-stores#473
   merge: aab9fb4fbdde736d4aeb57c883daa3b508cf7a2c
 - key: opengwasdb#422
   title: "Reference Completion forms an LD block's fills as arrays"
