@@ -50,8 +50,9 @@ import time
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 
-from opengwasdb.variants.normalise import canonical_alid as engine_canonical_alid
-from opengwasdb.variants.reference import REFERENCE_FIRST_MARKER
+# Marker v1 declares this producer's reference-first serialization (#472).
+# Offline tests compare these bytes and identities with the pinned engine.
+REFERENCE_FIRST_MARKER = "#opengwasdb-variant-reference\t1\n"
 
 GNOMAD_V4 = (
     "https://storage.googleapis.com/gcp-public-data--gnomad/release/4.1/vcf/genomes/"
@@ -139,7 +140,8 @@ def canonical_alid(chrom: str, pos: str, ref: str, alt: str) -> str | None:
         return None
     if set(ref) - set("ACGT") or set(alt) - set("ACGT"):
         return None
-    return engine_canonical_alid(c, int(pos), ref, alt)
+    a1, a2 = (ref, alt) if len(ref) != len(alt) or ref < alt else (alt, ref)
+    return f"{c}:{int(pos)}:{a1}:{a2}"
 
 
 def _query(url: str, region: str, fields: str, retries: int = 4) -> str:

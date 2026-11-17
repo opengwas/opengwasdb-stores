@@ -550,8 +550,8 @@ def _post_steps(
     post = {**POST_DEFAULTS, **(post or {})}
     steps: list[Step] = []
 
-    declared_top_hits = post.get("top_hits") if post.get("top_hits") is not None else post.get("top-hits")
-    if declared_top_hits not in (None, True, False):
+    declared_top_hits = post.get("top_hits") if "top_hits" in post else post.get("top-hits", False)
+    if not isinstance(declared_top_hits, bool):
         raise ValueError(f"post.top_hits is {declared_top_hits!r}; it is true or false")
     if declared_top_hits:
         if spec.top_hits_cmd is None:

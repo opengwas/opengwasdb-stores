@@ -17,13 +17,15 @@ pixi run python tools/reference-resources/gnomad-v4-common-hg38/build_common_pan
 
 ## Reference-first production semantics (stores #472)
 
-The producer uses gnomAD's declared REF/ALT with the engine's `canonical_alid`:
+The producer's local serializer uses gnomAD's declared REF/ALT:
 indels keep REF first, while equal-length substitutions sort their alleles.
 An insertion and deletion at one site therefore remain two ALIDs. The engine's
 `REFERENCE_FIRST_MARKER` declares that production convention; it does not
 independently verify biological orientation. Both ancestry and raw-group lists
 carry it, including mitochondrial output. `content_sha256` includes the marker,
 `file_sha256` covers compressed bytes, and `variants` counts only ALIDs.
+Offline fixtures compare the local serializer's identities and marker bytes
+against the pinned engine's public interfaces, so incompatible drift fails.
 
 The counts, sizes, timings and comparisons below describe the historical build.
 This code change has not regenerated or certified any installed reference.

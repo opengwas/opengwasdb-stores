@@ -2351,11 +2351,31 @@ class TestDenseBuildMeetsTopHits(unittest.TestCase):
         self.assertNotIn("top-hits", amendment.STORE_WRITING_STEPS)
 
     def test_post_values_are_true_or_false_and_nothing_else(self) -> None:
-        for bad in ("rebuild", "yes please", 2, ["rebuild"]):
-            with self.subTest(bad=bad):
-                with self.assertRaises(ValueError):
-                    plan(self._with_post("OGS-00003", top_hits=bad))
-                record_check()
+        for store_id in ("OGS-00003", "OGS-00006", "OGS-00004"):
+            for key in ("top_hits", "top-hits"):
+                for bad in (0, 1, 0.0, 1.0, None, "rebuild", "yes please", 2, ["rebuild"]):
+                    with self.subTest(store_id=store_id, key=key, bad=bad):
+                        bundle = load(store_id)
+                        post = {**bundle.build.get("post", {})}
+                        post.pop("top_hits", None)
+                        post.pop("top-hits", None)
+                        post[key] = bad
+                        with self.assertRaisesRegex(ValueError, "post.top_hits"):
+                            plan(replace(bundle, build={**bundle.build, "post": post}))
+                        record_check()
+
+    def test_ragged_top_hits_accepts_booleans_and_omission(self) -> None:
+        bundle = load("OGS-00006")
+        post = {key: value for key, value in bundle.build.get("post", {}).items()
+                if key not in ("top_hits", "top-hits")}
+        for key in ("top_hits", "top-hits"):
+            for value in (True, False):
+                with self.subTest(key=key, value=value):
+                    steps = plan(replace(bundle, build={**bundle.build, "post": {**post, key: value}}))
+                    self.assertEqual("top-hits" in [step.name for step in steps], value)
+                    record_check()
+        self.assertNotIn("top-hits", [step.name for step in plan(replace(bundle, build={**bundle.build, "post": post}))])
+        record_check()
 
 
 class TestBuildManifestSeam(unittest.TestCase):

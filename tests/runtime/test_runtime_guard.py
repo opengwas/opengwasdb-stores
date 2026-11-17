@@ -57,18 +57,12 @@ def _pin_spec_from_pixi_toml(toml_path: Path) -> dict:
     return pypi["opengwasdb"]
 
 
-#: The one shape a lock reference to the pin may take: the request (the release
-#: tag, since #387) and the commit the solve resolved (`#`), with no other URL
+#: The one shape a lock reference to the pin may take: the request (`main`)
+#: and the commit the solve resolved (`#`), with no other URL
 #: parts that could select something else.
-#: The branches `pixi.toml` may follow: `main`, and for the life of the branch
-#: that makes this repository consume opengwasdb epic #307's engine, that epic's
-#: integration branch. The run's finish moves the pin to the epic's merge commit
-#: on `main`; the lock then spells `branch=main`.
-PIN_BRANCHES = ("main", "orch/307-build-speed")
-
 _LOCK_REFERENCE = re.compile(
     r"\Agit\+https://github\.com/opengwas/opengwasdb"
-    r"\?branch=(?:main|orch%2F307-build-speed)#(?P<resolved>[0-9a-f]{40})\Z"
+    r"\?branch=main#(?P<resolved>[0-9a-f]{40})\Z"
 )
 
 
@@ -235,9 +229,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
         """`pixi.toml` names opengwasdb's `main`; the lock alone holds the commit (#253)."""
         spec = _pin_spec_from_pixi_toml(REPO_ROOT / "pixi.toml")
         record_check()
-        self.assertEqual(spec["git"], runtime.OPENGWASDB_GIT_URL)
-        self.assertIn(spec["branch"], PIN_BRANCHES)
-        self.assertEqual(set(spec), {"git", "branch"})
+        self.assertEqual(spec, {"git": runtime.OPENGWASDB_GIT_URL, "branch": "main"})
 
     def test_every_store_build_environment_resolves_the_locked_commit(self) -> None:
         """One stale lock entry selects another runtime, so every one must be the locked commit.

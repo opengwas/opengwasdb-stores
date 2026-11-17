@@ -9,7 +9,7 @@ provides, and what upgrading it does **not** do.
 | Fact | Where it is written |
 |---|---|
 | Repository | `https://github.com/opengwas/opengwasdb` |
-| Branch followed | `main`, in `pixi.toml`'s `[feature.store-build.pypi-dependencies]`. While opengwasdb epic #307 is unmerged, the branch that consumes it follows that epic's integration branch `orch/307-build-speed`; the run's finish moves the pin to the epic's merge commit on `main` |
+| Branch followed | `main`, in `pixi.toml`'s `[feature.store-build.pypi-dependencies]` |
 | Commit, and the package version | `pixi.lock`, and nowhere else (#253). `pixi run env-check` prints both, beside the installed engine's |
 | Writers' Store `format_version` | `0.2.2` from every builder and every completion (`ogstores.runtime.REQUIRED_FORMAT_VERSION`; `WRITABLE_FORMAT_VERSIONS` is the set completion may consume, the same one). The converter writes `0.2.0` |
 | Python floor | 3.12 |

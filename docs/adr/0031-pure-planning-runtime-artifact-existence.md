@@ -1,7 +1,8 @@
 # Planning is pure; artifact existence is a runtime fact
 
-Amends [0023](0023-the-registry-store-seam-is-a-command-line.md) with one bounded,
-syntactic exception to its "options are rendered verbatim, never interpreted" rule.
+Amends [0023](0023-the-registry-store-seam-is-a-command-line.md) with a bounded,
+syntactic exception to its opaque-options rule. ADR 0023's 17 November 2026
+amendment records the additional worker-count forwarding exception for stores#358.
 
 **Amended for opengwasdb v0.6.0 (opengwas/opengwasdb#354).** Existence is no
 longer the executor's only question about a present artifact. An
@@ -65,8 +66,8 @@ input. That mismatch is the whole decision: where does the existence check go?
   compares the declared `variant_reference` destination with the build step's
   `variant-reference` option and rejects a Build Recipe whose two copies of the
   same path disagree, or that declares the pre-stage without the option. ADR 0023
-  says an option key is rendered, never interpreted; this is the single sanctioned
-  exception, because two paths for one artifact must not be allowed to diverge
+  otherwise keeps option semantics opaque; this exception exists because two
+  paths for one artifact must not be allowed to diverge
   silently. The check is syntactic -- path equality on the declared strings, no
   filesystem access -- so it preserves the purity the decision rests on.
 
@@ -107,7 +108,7 @@ there.
 - A skipped extraction is visible in the release evidence rather than implied by
   a missing file, so an auditor can distinguish "extracted during this run" from
   "provided by the host".
-- The bounded option-key cross-check is the only place a `build.options` value is
-  read rather than rendered. Any future proposal to interpret another option key
-  must clear the same bar: two renderings of one fact must not be allowed to
-  disagree, and the check must stay syntactic.
+- The bounded option-key cross-check and ADR 0023's stores#358 worker-count
+  forwarding are the documented cases where the planner reads an option value
+  rather than only rendering it. Any future proposal to interpret another key
+  must be recorded explicitly, reuse a declared fact and preserve pure planning.

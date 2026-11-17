@@ -12,6 +12,7 @@ import unittest
 from pathlib import Path
 
 from manifest_generation.source_inventory import INVENTORY_COLUMNS
+from opengwasdb.variants.normalise import canonical_alid
 from opengwasdb.variants.reference import REFERENCE_FIRST_MARKER, read_variant_reference
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -54,8 +55,12 @@ class TestGnomadReference(unittest.TestCase):
                         self.assertEqual(reference.alids, [
                             f"{chromosome}:100:G:GG", f"{chromosome}:100:GG:G", f"{chromosome}:200:C:T",
                         ])
+                        self.assertEqual(reference.alids, [
+                            canonical_alid(chromosome, pos, ref, alt)
+                            for pos, ref, alt in ((100, "G", "GG"), (100, "GG", "G"), (200, "T", "C"))
+                        ])
                         raw = gzip.decompress(path.read_bytes())
-                        self.assertTrue(raw.startswith(REFERENCE_FIRST_MARKER.encode()))
+                        self.assertEqual(raw.splitlines(keepends=True)[0], REFERENCE_FIRST_MARKER.encode())
                         self.assertEqual(output["variants"], 3)
                         self.assertEqual(output["content_sha256"], hashlib.sha256(raw).hexdigest())
                         self.assertEqual(output["file_sha256"], hashlib.sha256(path.read_bytes()).hexdigest())

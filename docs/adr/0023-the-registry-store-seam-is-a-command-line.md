@@ -8,7 +8,30 @@ The only thing this repository computes on the path from an accepted Release Bun
 
 `build.yaml` names an `opengwasdb` CLI subcommand, never a Python entry point. The previous `builder.entrypoint` field named an internal `opengwasdb` module and function, which encoded the seam violation in the data model itself and forced typed dispatch, per-layout adapters, and registry-side knowledge of builder signatures. A subcommand name is a supported public interface; a dotted import path is not.
 
-Build parameters are passed through verbatim. `build.options` keys are `opengwasdb` flag names, rendered onto the command line without interpretation. The registry does not know what `--min-cor` means and must not acquire a mirrored copy of `opengwasdb`'s parameter schema, which would drift. The only arguments this repository composes are the ones that are its own facts: store identity, the bundle's `analyses.tsv` path, and artifact paths. An unrecognised flag fails in the CLI's argument parser within milliseconds, before any expensive work begins.
+Build parameters are passed through verbatim, apart from the bounded planner exceptions recorded here and in [ADR 0031](0031-pure-planning-runtime-artifact-existence.md). `build.options` keys are `opengwasdb` flag names; other option semantics remain opaque. The registry does not know what `--min-cor` means and must not acquire a mirrored copy of `opengwasdb`'s parameter schema, which would drift. It composes arguments for its own facts: store identity, the bundle's `analyses.tsv` path, and artifact paths; the worker-count amendment below additionally reuses one declared option for validation. An unrecognised flag fails in the CLI's argument parser within milliseconds, before any expensive work begins.
+
+**Amended 17 November 2026: validation worker forwarding (stores#358).** This
+records the existing owner-authored acceptance contract in
+[stores#358](https://github.com/opengwas/opengwasdb-stores/issues/358), opened
+by Gibran Hemani (`explodecomputer`) on **22 October 2026**: the planner passes
+the release's declared worker count to validation. It is a bounded exception to
+opaque options, implemented by `ogstores.plan.declared_worker_count`, so the
+build and its validation reuse one declared execution setting:
+
+- A build-phase `validate` uses `build.options.n-workers`. A completion's
+  validation uses `complete.options.n-workers` first and falls back to
+  `build.options.n-workers`; this includes `completion-validate` for a release
+  that completes its own Store.
+- A missing or null option is absent, as in option rendering. If neither
+  applicable block declares a count, validation gets no `--n-workers` flag and
+  the engine's own default runs. The planner invents no count.
+- The first applicable non-null count must be a positive integer. Booleans,
+  floats, strings, zero and negative values are refused at planning time;
+  an invalid completion count is not replaced by the build's count.
+- Build and completion commands still receive their own options verbatim.
+  Forwarding this count adds no filesystem access, new worker setting or
+  general engine-option schema. The variant-reference path-equality check in
+  ADR 0031 remains the other bounded exception.
 
 This makes the seam a single pure function, `plan(bundle) -> list[Step]`, mapping a Release Bundle to a sequence of argv lists. That function is the entire adapter layer, and it is testable by comparing argv against golden values with no fixture stores. The master list is rendered from it, so the published build command is derived rather than maintained; what actually ran is a separate fact, recorded per step at execution time and compared against the planned argv before a release is registered.
 
