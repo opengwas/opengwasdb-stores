@@ -382,7 +382,7 @@ class TestRegistryMigration(unittest.TestCase):
 
         Note: OGS-00012/13/14/16 additionally carry the owner-authorized
         execution-only `n-workers: 16` amendment, and OGS-00009 (#312),
-        OGS-00011 (#334, plus #225's rsid-conflict policy), OGS-00012 (#227),
+        OGS-00011 (#334, plus #225's rsid-conflict policy, and #487's Column Map binding), OGS-00012 (#227),
         OGS-00013 (#228), OGS-00014 (#229), OGS-00015 (#230) and OGS-00017
         (#223) their completion phase.
         """
@@ -390,10 +390,12 @@ class TestRegistryMigration(unittest.TestCase):
             build = load_build(store_id)
             phase = expected["phase"]
             completion = {"complete"} if "complete" in expected else set()
+            # OGS-00011 binds a Column Map for GCST90446466 (#487, opengwasdb#370).
+            mapped = {"column_map"} if store_id == "OGS-00011" else set()
             record_check()
             self.assertEqual(
                 set(build),
-                {"store_id", "layout", "completion_state", phase, "post", "indexed_subsets"} | completion,
+                {"store_id", "layout", "completion_state", phase, "post", "indexed_subsets"} | completion | mapped,
                 store_id,
             )
             if completion:
