@@ -22,10 +22,13 @@
       "--source-reader-capability",
       "opengwasdb.gwas-ssf",
       "--source-assembly",
-      "hg38"
+      "hg38",
+      "--column-map",
+      "/data/opengwasdb/stores/OGS-00011/work/column_maps/gwas-ssf-no-p.toml"
     ],
     "inputs": [
-      "/data/opengwasdb/stores/OGS-00011/work/analyses.tsv"
+      "/data/opengwasdb/stores/OGS-00011/work/analyses.tsv",
+      "/data/opengwasdb/stores/OGS-00011/work/column_maps/gwas-ssf-no-p.toml"
     ],
     "outputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"

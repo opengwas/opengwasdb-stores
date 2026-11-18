@@ -787,6 +787,41 @@ class TestBundleContract(unittest.TestCase):
         self.assertEqual(gaps[0].count, 2972)
         self.assertEqual(gaps[0].detail, "non-CURIE trait_ontology_id values")
 
+    def test_ogs_00011_gcst90446466_reads_through_the_map_without_its_p_value(self) -> None:
+        """opengwasdb#370: GCST90446466's `p_value` holds 1 - p/2, so it reads through a map with no p.
+
+        The effect-consistency check refuses it on that column (median signed
+        delta 0.2394); through the built-in `gwas-ssf` map less `p_value` and
+        `p_value_form` it resolves with the check skipped (`no_source_p_value`).
+        Only that Analysis reads through the carried map; the other 4,782 keep
+        the dedicated `opengwasdb.gwas-ssf` reader.
+        """
+        registry = REPO_ROOT / "stores"
+        loaded = bundle.load("OGS-00011", registry_root=registry)
+        self.assertEqual(list(bundle.check(loaded, registry_root=registry)), [])
+        with open(loaded.analyses_path, newline="", encoding="utf-8") as handle:
+            readers = {
+                row["analysis_id"]: row["source_reader_capability"]
+                for row in csv.DictReader(handle, delimiter="\t")
+            }
+        self.assertEqual(readers.pop("GCST90446466"), "opengwasdb.column-map")
+        self.assertEqual(set(readers.values()), {"opengwasdb.gwas-ssf"})
+        binding = bundle.column_map_binding(loaded.build)
+        assert binding is not None
+        self.assertEqual((binding.name, binding.file), ("gwas-ssf-no-p", "gwas-ssf-no-p.toml"))
+        carried = registry / "OGS-00011" / "column_maps" / "gwas-ssf-no-p.toml"
+        self.assertEqual(hashlib.sha256(carried.read_bytes()).hexdigest(), binding.sha256)
+        builtin = importlib.resources.files("opengwasdb.readers.column_maps").joinpath("gwas-ssf.toml")
+        expected = [
+            line
+            for line in builtin.read_text(encoding="utf-8").splitlines()
+            if not line.startswith(("p_value =", "p_value_form ="))
+        ]
+        got = carried.read_text(encoding="utf-8").splitlines()
+        self.assertEqual([l for l in got if not l.startswith("name =")], [l for l in expected if not l.startswith("name =")])
+        self.assertIn('name = "gwas-ssf-no-p"', got)
+        record_check()
+
     def test_one_pass_accumulates_independent_errors(self) -> None:
         checked = self.make_bundle()
         bad_release = dict(checked.release)
