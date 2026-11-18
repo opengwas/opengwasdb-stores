@@ -16,9 +16,7 @@
       "--admission-record",
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb.admission",
       "--regions",
-      "/data/opengwasdb/stores/OGS-00006/work/sparse_regions.tsv",
-      "--stored-effect-scale",
-      "sd"
+      "/data/opengwasdb/stores/OGS-00006/work/sparse_regions.tsv"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00006/work/analyses.tsv",

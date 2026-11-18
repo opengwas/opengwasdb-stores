@@ -1093,7 +1093,6 @@ class TestPlanRagged(unittest.TestCase):
                 "build": {
                     "command": "build-ragged-ssf",
                     "options": {
-                        "stored-effect-scale": "log_or",
                         "allow-unverified-eaf": True,
                         "eaf-reference-ancestry": "EUR",
                     },
@@ -1105,9 +1104,11 @@ class TestPlanRagged(unittest.TestCase):
         steps = plan(synthetic_bundle)
         build_step = steps[0]
         record_check()
-        self.assertIn("--stored-effect-scale", build_step.argv)
-        idx_scale = build_step.argv.index("--stored-effect-scale")
-        self.assertEqual(build_step.argv[idx_scale + 1], "log_or")
+        # `build-ragged-ssf` no longer takes `--stored-effect-scale` (opengwasdb ADR 0084 / #347
+        # final fix): each manifest row declares its own scale, so a plan never passes one.
+        self.assertNotIn("--stored-effect-scale", build_step.argv)
+        for registered in ("OGS-00006", "OGS-00007", "OGS-00024", "OGS-00025", "OGS-00026"):
+            self.assertNotIn("--stored-effect-scale", plan(load(registered))[0].argv, registered)
 
         self.assertIn("--allow-unverified-eaf", build_step.argv)
         self.assertIn("--eaf-reference-ancestry", build_step.argv)
