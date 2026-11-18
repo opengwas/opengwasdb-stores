@@ -90,47 +90,47 @@ passes, and a committed-baseline ID difference is not built-ID reconciliation.
 | `OGS-00003` | built_membership | pass | built Analysis IDs (10) match admitted membership via opengwasdb v0.10.0@511f25378ba3 |
 | `OGS-00003` | reference_completion | not_applicable | completion_state='observed_only' |
 | `OGS-00003` | required_variant_index | not_applicable | layout 'dense' has no required variant-side index |
-| `OGS-00003` | format_migration | missing | published format 0.1.0: migration to 0.2.0 (sharding and required variant indexes) needs a rebuild at the adopted runtime, which does not convert or requalify a published Store (#218); catalogue conversion is #197, and whether `validate` at the pin accepts this Store is what its Validation Record states, not what the format identifier implies |
+| `OGS-00003` | format_migration | pass | published format 0.2.2 |
 | `OGS-00003` | optional_hm3 | missing | HM3 Indexed Variant Subset declared but absent from the published artifact; optional, so this is not invalidity (ADR 0061) |
 | `OGS-00003` | store_validation | historical | committed record (committed Store validation 'passed' by opengwasdb validate) describes a different artifact than the published Store; kept as history, not a current verdict; host-side: published Store built/validated 2026-09-18; committed record describes the 2026-09-16 build |
 | `OGS-00003` | registration | historical | host-side registration: host records/build.json, validate.json, register.json from 2026-09-18 |
-| `OGS-00003` | format_runtime | pass | opengwasdb info: format 0.1.0, layout dense, completion observed_only |
+| `OGS-00003` | format_runtime | pass | opengwasdb info: format 0.2.2, layout dense, completion observed_only |
 | `OGS-00003` | lineage | not_applicable | no derived_from lineage |
-| `OGS-00003` | warnings | pass_with_warnings | 1 warning(s): finngen-r13-HEIGHT_IRN: empirical effect-scale status=failed |
+| `OGS-00003` | warnings | pass | a Validation Record is present and records no warnings |
 | `OGS-00003` | committed_validation_record | pass | committed Store validation 'passed' by opengwasdb validate |
-| `OGS-00003` | validation_record_completeness | missing | recorded null: n_associations, association_coverage, reference_assembly |
+| `OGS-00003` | validation_record_completeness | missing | recorded null: n_associations, reference_assembly |
 | `OGS-00004` | release_status | pass | syntactically valid declared status 'built' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00004` | source_acquisition | unknown | source snapshot 'gwas-catalog-v1.0.3.1-r2026-07-10' is declared but its selection and checksums are not independently verified here |
 | `OGS-00004` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 10 manifest rows are a selection, not intended membership |
 | `OGS-00004` | observed_build | pass | published artifact holds 9 Analyses (read via opengwasdb v0.10.0@511f25378ba3) |
 | `OGS-00004` | built_membership | pass | built Analysis IDs (9) match admitted membership via opengwasdb v0.10.0@511f25378ba3 |
 | `OGS-00004` | reference_completion | not_applicable | completion_state='observed_only' |
-| `OGS-00004` | required_variant_index | not_applicable | historical 0.1.0 baseline (layout 'hybrid'); by_variant is a format-0.2.0 requirement and is not expected on this artifact (#218) |
-| `OGS-00004` | format_migration | missing | published format 0.1.0: migration to 0.2.0 (sharding and required variant indexes) needs a rebuild at the adopted runtime, which does not convert or requalify a published Store (#218); catalogue conversion is #197, and whether `validate` at the pin accepts this Store is what its Validation Record states, not what the format identifier implies |
+| `OGS-00004` | required_variant_index | unknown | format 0.2.0 requires by_variant (ADR 0060); presence not exposed by the supported info command and not verified by a validate run (#218) |
+| `OGS-00004` | format_migration | pass | published format 0.2.2 |
 | `OGS-00004` | optional_hm3 | missing | HM3 Indexed Variant Subset declared but absent from the published artifact; optional, so this is not invalidity (ADR 0061) |
-| `OGS-00004` | store_validation | historical | committed record (committed Store validation 'passed_with_warnings' by opengwasdb validate) describes a different artifact than the published Store; kept as history, not a current verdict; host-side: published Store built/validated 2026-09-18 |
+| `OGS-00004` | store_validation | historical | committed record (committed Store validation 'passed' by opengwasdb validate) describes a different artifact than the published Store; kept as history, not a current verdict; host-side: published Store built/validated 2026-09-18 |
 | `OGS-00004` | registration | historical | host-side registration: host records/build.json, validate.json, register.json from 2026-09-18 |
-| `OGS-00004` | format_runtime | pass | opengwasdb info: format 0.1.0, layout hybrid, completion observed_only |
+| `OGS-00004` | format_runtime | pass | opengwasdb info: format 0.2.2, layout hybrid, completion observed_only |
 | `OGS-00004` | lineage | not_applicable | no derived_from lineage |
-| `OGS-00004` | warnings | pass_with_warnings | 47 warning(s): GCST003566: excluded from build -- excluded_2026-08-22: effect_allele_frequency reported against the other allele (r=-0.999 vs EUR panel and vs the other nine studies); opengwasdb#115; GCST005076: n_cases present in the manifest but missing from the built store's analyses.tsv; GCST005076: n_controls present in the manifest but missing from the built store's analyses.tsv; … (44 more) |
-| `OGS-00004` | committed_validation_record | pass_with_warnings | committed Store validation 'passed_with_warnings' by opengwasdb validate |
-| `OGS-00004` | validation_record_completeness | missing | recorded null: n_analyses, n_variants, n_associations, association_coverage, reference_assembly |
+| `OGS-00004` | warnings | pass_with_warnings | 1 warning(s): 10 manifest rows, 1 excluded (GCST003566 EAF reported against the other allele, opengwasdb#115): admitted membership is 9, not 10. |
+| `OGS-00004` | committed_validation_record | pass | committed Store validation 'passed' by opengwasdb validate |
+| `OGS-00004` | validation_record_completeness | missing | recorded null: n_associations, reference_assembly |
 | `OGS-00005` | release_status | pass | syntactically valid declared status 'validated' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00005` | source_acquisition | unknown | source snapshot 'gwas-catalog-v1.0.3.1-r2026-07-10' is declared but its selection and checksums are not independently verified here |
 | `OGS-00005` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 10 manifest rows are a selection, not intended membership |
 | `OGS-00005` | observed_build | pass | published artifact holds 10 Analyses (read via opengwasdb v0.10.0@511f25378ba3) |
 | `OGS-00005` | built_membership | pass | built Analysis IDs (10) match admitted membership via opengwasdb v0.10.0@511f25378ba3 |
 | `OGS-00005` | reference_completion | not_applicable | completion_state='observed_only' |
-| `OGS-00005` | required_variant_index | not_applicable | historical 0.1.0 baseline (layout 'hybrid'); by_variant is a format-0.2.0 requirement and is not expected on this artifact (#218) |
-| `OGS-00005` | format_migration | missing | published format 0.1.0: migration to 0.2.0 (sharding and required variant indexes) needs a rebuild at the adopted runtime, which does not convert or requalify a published Store (#218); catalogue conversion is #197, and whether `validate` at the pin accepts this Store is what its Validation Record states, not what the format identifier implies |
+| `OGS-00005` | required_variant_index | unknown | format 0.2.0 requires by_variant (ADR 0060); presence not exposed by the supported info command and not verified by a validate run (#218) |
+| `OGS-00005` | format_migration | pass | published format 0.2.2 |
 | `OGS-00005` | optional_hm3 | missing | HM3 Indexed Variant Subset declared but absent from the published artifact; optional, so this is not invalidity (ADR 0061) |
 | `OGS-00005` | store_validation | pass_with_warnings | committed Store validation 'passed_with_warnings' by opengwasdb validate; host-side history corroborates: published Store rebuilt and re-registered 2026-10-08/09 through the supported force/archive workflow |
 | `OGS-00005` | registration | historical | host-side registration: host records from the 2026-10-08/09 re-registration |
-| `OGS-00005` | format_runtime | pass | opengwasdb info: format 0.1.0, layout hybrid, completion observed_only |
+| `OGS-00005` | format_runtime | pass | opengwasdb info: format 0.2.2, layout hybrid, completion observed_only |
 | `OGS-00005` | lineage | not_applicable | no derived_from lineage |
-| `OGS-00005` | warnings | pass_with_warnings | 2 warning(s): analysis 'GCST003898' stores EAF whose orientation is unverified: only 120 variants overlap the reference, fewer than 500; GCST003898 stores EAF whose orientation is unverified (only 120 variants overlap the reference, fewer than 500); a known source-coordinate provenance difference remains. |
+| `OGS-00005` | warnings | pass_with_warnings | 2 warning(s): analysis 'GCST003898' stores EAF whose orientation is unverified: only 99 variants overlap the reference, fewer than 500; GCST003898 stores EAF whose orientation is unverified (only 120 variants overlap the reference, fewer than 500); a known source-coordinate provenance difference remains. |
 | `OGS-00005` | committed_validation_record | pass_with_warnings | committed Store validation 'passed_with_warnings' by opengwasdb validate |
-| `OGS-00005` | validation_record_completeness | missing | recorded null: n_associations, association_coverage, reference_assembly |
+| `OGS-00005` | validation_record_completeness | missing | recorded null: n_associations, reference_assembly |
 | `OGS-00006` | release_status | pass | syntactically valid declared status 'validated' (a declared lifecycle label, not an operational readiness verdict) |
 | `OGS-00006` | source_acquisition | unknown | source snapshot 'gwas-catalog-v1.0.3.1-r2026-07-10' is declared but its selection and checksums are not independently verified here |
 | `OGS-00006` | intended_membership | unknown | no authoritative intended Source Inventory recorded; the 1400 manifest rows are a selection, not intended membership |

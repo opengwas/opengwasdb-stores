@@ -58,4 +58,24 @@ notes: 'Deliberately restricted to case-control Analyses (stored_effect_scale= l
   overflow axis cannot be indexed by the Dense Component (opengwas/opengwasdb#271), so the subset
   leaves them out and records how many. The first forced rebuild refused for 16,369 such variants.
 
+  Rebuilt at format 0.2.2 (issues #197, #344; 2026-11-18). On the owner''s approval of 2026-11-17, this
+  Store''s 0.1.0 trial arrays move to the format the current engine writes, as the registered Stores''
+  conversion does (#197) and the trial pilots'' (#344). `pixi run -e workflow release OGS-00004 --config
+  force=1` at opengwasdb 0.10.0, the revision pixi.lock pins, ran from 01:34:20 to 02:24:15 UTC, exit 0,
+  building in 2,669 s against the regenerated gnomAD v4.1 EUR reference the Bundle amendment above
+  records (#481) and with the hm3 declaration above (#483). It published a format-0.2.2 Store holding 9
+  Analyses and 23,726,262 shared variants -- 13,718,605 on-panel + 10,007,657 off-panel -- and 25,935,980
+  Ragged Overflow associations; its hm3 subset requested 1,206,903 variants, indexed 1,189,603, found 931
+  absent and skipped 16,369 that reach only the overflow axis. validate reports no errors and no warnings,
+  where the Validation Record the Status paragraph above describes reported passed_with_warnings. The 10
+  Analyses, 20,531,956 shared variants and 27,810,834 Ragged Overflow associations that paragraph records
+  no longer describe this Store. The Store it replaced is archived under
+  /data/opengwasdb/stores/OGS-00004/replaced/20261118T013434Z/. The Release Status is unchanged at
+  `built`.
+
+  Archive deleted (2026-11-18). On the owner''s decision, the arrays of the Store archived under
+  replaced/20261118T013434Z/ were deleted, after this run''s validate passed. The archive keeps its
+  records/ and validation.yaml, as ADR 0037 keeps on an unforced replacement, so the change stays dated
+  and evidenced.
+
   '

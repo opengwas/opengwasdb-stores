@@ -25,19 +25,27 @@ This suite asserts the container migration:
      re-completed it under its own id. OGS-00007 joined them when issue #224's
      forced regions rebuild replaced its migrated record with `register`'s own
      output. The one correction to OGS-00001..3
-     since is their `format_version`, a Release Erratum (issue #195):
-     `register` recorded its own fabricated default "1.0", and the true value
-     is the "0.1.0" each Store's manifest declares.
-  4. The one remaining migrated record (OGS-00004) records every measurement it
-     does not have as `null` rather than inventing one. OGS-00005, OGS-00006 and
-     -- with issue #224's regions rebuild -- OGS-00007 were the others until a
-     forced rebuild replaced their migrated record with `register`'s own
-     output. Only the release-level
-     verdict is carried, as `observed.validate_status`, because it is already
-     recorded as the record's own `status`. Measurements live in the bundle's
-     `sidecars/build_report.tsv`, but that describes a build the Validation
-     Record did not observe and `register` never reads it, so promoting it into
-     `observed` would launder a fact about a different run (issue #122).
+     while they were format 0.1.0 Stores was their `format_version`, a Release
+     Erratum (issue #195): `register` recorded its own fabricated default "1.0",
+     and the true value is the "0.1.0" each Store's manifest then declared.
+     OGS-00003, OGS-00004 and OGS-00005 were then rebuilt to format 0.2.2 by the
+     forced runs of 17 and 18 Nov 2026 (issue #232, #197, #344), which replaced
+     the format-0.1.0 Store each of them described, so their pins carry the null
+     `format_version` `register` records when no step reports one. OGS-00004
+     left the migrated group with that run.
+  4. No migrated record remains: OGS-00004 was the last one, and the forced
+     rebuild of 18 Nov 2026 (issue #232) replaced it with `register`'s own
+     output. A migrated record recorded every measurement it does not have as
+     `null` rather than inventing one. OGS-00005, OGS-00006 and -- with issue
+     #224's regions rebuild -- OGS-00007 were the others until a forced rebuild
+     replaced their migrated record with `register`'s own output. Only the
+     release-level verdict is carried, as `observed.validate_status`, because it
+     is already recorded as the record's own `status`. Measurements live in the
+     bundle's `sidecars/build_report.tsv`, but that describes a build the
+     Validation Record did not observe and `register` never reads it, so
+     promoting it into `observed` would launder a fact about a different run
+     (issue #122). `MIGRATED` is kept, empty, so the two tests below still state
+     what such a record must look like.
   5. `observed.validate_status` agrees with the record's own `status`, which is
      the only value the master list publishes (issue #124).
   6. A recorded `observed.format_version` is MAJOR.MINOR.PATCH, the only shape
@@ -92,10 +100,14 @@ from ogstores.register import (
 STORES: tuple[str, ...] = tuple(f"OGS-{i:05d}" for i in range(1, 8))
 ALREADY_REGISTERED: tuple[str, ...] = ("OGS-00003",)
 # Rebuilt and re-registered through the release workflow's force path (#195,
-# #332, #348, #224); their record is `register`'s own output and names the
+# #332, #348, #224, #232); their record is `register`'s own output and names the
 # archived release.
-REREGISTERED: tuple[str, ...] = ("OGS-00001", "OGS-00002", "OGS-00005", "OGS-00006", "OGS-00007")
-MIGRATED: tuple[str, ...] = ("OGS-00004",)
+REREGISTERED: tuple[str, ...] = (
+    "OGS-00001", "OGS-00002", "OGS-00004", "OGS-00005", "OGS-00006", "OGS-00007"
+)
+# Empty since the forced rebuild of 18 Nov 2026 replaced OGS-00004's migrated
+# record with `register`'s own output (#232).
+MIGRATED: tuple[str, ...] = ()
 
 # The observed keys `register` writes only when they apply, with the values each
 # may take: `variant_reference` (issue #148, docs/release-metadata-schema.md)
@@ -141,17 +153,17 @@ DELETED_ADAPTERS: tuple[str, ...] = ("build-store.py",)
 # The only shape opengwasdb stamps a Store's format_version in (its ADR 0041).
 FORMAT_VERSION_SHAPE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 
-# Observed measurements of the three records rebuilt through the workflow.
-# Pinned so a later change that rewrites or drops them fails here. The
-# fabricated OGS-00003 `n_associations` (n_variants x n_analyses, issue #122)
-# is preserved as-is: this ticket migrates the container and must not make that
-# number look more credible by recomputing it.
+# Observed measurements of the records rebuilt through the workflow. Pinned so
+# a later change that rewrites or drops them fails here.
 #
-# `format_version` is pinned at its corrected value. `register` recorded "1.0",
-# its own default when no step reported a version, and issue #195 removed that
-# default. Each Store's manifest.json declares "0.1.0", the only format the
-# recorded opengwasdb revisions wrote; the correction is a Release Erratum in
-# each release.yaml.
+# OGS-00003's pin was once its format-0.1.0 record, whose `n_associations` was
+# the fabricated n_variants x n_analyses product (issue #122) and whose
+# `format_version` was issue #195's correction of `register`'s own "1.0"
+# default: the Store's manifest.json declared "0.1.0", the only format the
+# opengwasdb revision that wrote it stamped. Both are Release Errata in its
+# release.yaml. The forced rebuild of 17 Nov 2026 (#232) replaced that Store, so
+# the pin is now `register`'s own record of the run: null is what no step
+# reported, and the format the Store carries is the manifest's 0.2.2.
 GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # Rebuilt (OGS-00001) and re-completed (OGS-00002) at opengwasdb 0.3.2,
     # 44f25a96, and re-registered on 2 Nov 2026 (#348), so that OGS-00002 reads
@@ -187,29 +199,70 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "validate_status": "passed",
         "completion_state": "reference_completed",
     },
+    # Rebuilt by the owner-approved forced run of 17 Nov 2026 (#232, #197,
+    # #344) at opengwasdb 0.10.0: `register` wrote this record, the build took
+    # 855 s and validate 89 s (964.505 s across the run's steps), and the Store
+    # it published holds 21,327,043 variants where the 0.1.0 Store it replaced
+    # held 21,230,615. Null is again what no step reported; the Store's
+    # manifest declares format 0.2.2.
     "OGS-00003": {
-        "format_version": "0.1.0",
+        "format_version": None,
         "n_analyses": 10,
-        "n_variants": 21230615,
+        "n_variants": 21327043,
         "n_associations": None,
+        "association_coverage": "gwas",
+        "reference_assembly": None,
         "store_bytes": None,
-        "build_elapsed_s": 1730.458,
+        "build_elapsed_s": 964.505,
         "validate_status": "passed",
+        "completion_state": "observed_only",
+    },
+    # The last migrated record until the owner-approved forced run of 18 Nov
+    # 2026 (#232, #197, #344) replaced it with `register`'s own output: 9
+    # Analyses (the bundle excludes GCST003566), 23,726,262 variants, a build of
+    # 2,669 s and a validate of 246 s (2,946.643 s across the run's steps), and
+    # `passed` with no warnings where the migrated record carried
+    # `passed_with_warnings`. `variant_reference: provided` and `rsid_conflicts`
+    # are the documented conditional keys a Hybrid build records, and the Store
+    # is format 0.2.2.
+    "OGS-00004": {
+        "format_version": None,
+        "n_analyses": 9,
+        "n_variants": 23726262,
+        "n_associations": None,
+        "association_coverage": "gwas",
+        "reference_assembly": None,
+        "store_bytes": None,
+        "build_elapsed_s": 2946.643,
+        "validate_status": "passed",
+        "completion_state": "observed_only",
+        "variant_reference": "provided",
+        "rsid_conflicts": {"policy": "refuse", "n_keys": 0, "n_variants": 0},
     },
     # Rebuilt at opengwasdb 7b0c42d and re-registered by `register` on 8 Oct
-    # 2026 (#195). Null is what no step reported: the build and validate
-    # records carry no format_version, association count or store size, and
-    # `register` no longer invents any of them. `variant_reference: provided`
-    # is the documented conditional key for a recipe naming an existing panel.
+    # 2026 (#195), then again by the owner-approved forced run of 18 Nov 2026
+    # (#232, #197, #344): 10 Analyses, 18,483,436 variants where the replaced
+    # Store held 14,763,864, a build of 1,844 s and a validate of 153 s
+    # (2,029.08 s across the run's steps). Still `passed_with_warnings` on
+    # GCST003898's EAF orientation, now with 99 overlapping variants where it
+    # read 120. Null is what no step reported: the build and validate records
+    # carry no format_version, association count or store size, and `register`
+    # no longer invents any of them. `variant_reference: provided` and
+    # `rsid_conflicts` are the documented conditional keys for a Hybrid build
+    # over a recipe naming an existing panel, and the Store is format 0.2.2.
     "OGS-00005": {
         "format_version": None,
         "n_analyses": 10,
-        "n_variants": 14763864,
+        "n_variants": 18483436,
         "n_associations": None,
+        "association_coverage": "gwas",
+        "reference_assembly": None,
         "store_bytes": None,
-        "build_elapsed_s": 1819.797,
+        "build_elapsed_s": 2029.08,
         "validate_status": "passed_with_warnings",
+        "completion_state": "observed_only",
         "variant_reference": "provided",
+        "rsid_conflicts": {"policy": "refuse", "n_keys": 0, "n_variants": 0},
     },
     # Rebuilt from the unchanged bundle at opengwasdb d405de0 and re-registered
     # on 22 Oct 2026 (#332): the format-0.1.0 Store published in September
@@ -356,10 +409,9 @@ class TestCommittedValidationRecords(unittest.TestCase):
     def test_already_registered_records_keep_their_observed_measurements(self) -> None:
         """Every record registered through the workflow keeps its observed block, exactly pinned.
 
-        OGS-00003 is pinned with the issue-#195 erratum applied, so its
-        `format_version` is "0.1.0"; OGS-00001 and OGS-00002 are pinned as the
-        #348 re-registration recorded them; OGS-00005 is pinned as its #195
-        re-registration recorded it.
+        OGS-00003 is pinned as the #232 forced rebuild recorded it, OGS-00001
+        and OGS-00002 as the #348 and #460 re-registrations recorded them, and
+        OGS-00004 and OGS-00005 as the #232 forced rebuilds recorded them.
         """
         self.assertEqual(set(GOLDEN_OBSERVED), set(ALREADY_REGISTERED) | set(REREGISTERED))
         for store_id, expected in GOLDEN_OBSERVED.items():
