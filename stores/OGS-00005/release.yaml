@@ -115,4 +115,9 @@ notes: 'original_sd_method starts at `unavailable` (never `declared_standardised
   option are unchanged: this is an amendment of an accepted trial bundle, made by owner decision of
   2026-11-17, for the forced rebuild that follows.
 
+  Its hm3 declaration gains overflow-only: skip (2026-11-18), as OGS-00011''s did on the owner
+  decision of 2026-10-23: against the gnomAD v4.1 common axis, HapMap3 variants that reach only the
+  overflow axis cannot be indexed by the Dense Component (opengwas/opengwasdb#271), so the subset
+  leaves them out and records how many. The first forced rebuild refused for 16,369 such variants.
+
   '
