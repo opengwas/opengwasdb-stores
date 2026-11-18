@@ -69,6 +69,13 @@ helper:
 ogdb() { pixi run --environment dev opengwasdb "$@"; }
 ```
 
+Without a checkout of this repository, `pip install opengwasdb` gives the same
+`opengwasdb` command on Linux with Python 3.12 or newer
+([installing OpenGWASDB](https://blog.opengwas.io/opengwasdb/install.html)),
+and the helper is just `ogdb() { opengwasdb "$@"; }`. This repository's
+environment follows opengwasdb's `main`; pip installs the newest release
+published to PyPI.
+
 And one store to point at:
 
 ```bash
