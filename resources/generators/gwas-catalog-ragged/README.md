@@ -69,3 +69,20 @@ pixi run generate-candidate <store-id> \
 OGS-00006 and OGS-00007 are `built`, so a regeneration emits into a temporary
 `--registry-root` for comparison; a new release of either needs a new Store
 Release id.
+
+## The phenotype SD every builder applies (opengwasdb#366)
+
+From opengwasdb ADR 0084, one seam standardises every builder's standard errors:
+an Analysis whose `original_sd_method` carries an SD magnitude
+(`source_provided`, `estimated_from_source_maf`, `estimated_from_reference_maf`,
+`estimated_from_beta_distribution`) has each SE divided by its `original_sd`
+before the association is encoded, in `build-ragged-ssf` and `build-ragged-besd`
+as in the Dense and Hybrid builders, and the Ragged `analyses.tsv` records that
+`original_sd` (`build-ragged-ssf` used to write a blank one). `validate` fails a
+Release whose rescaling method has a blank, non-finite or non-positive
+`original_sd` (`analyses.original_sd_recorded`).
+
+OGS-00006, OGS-00024, OGS-00025 and OGS-00026 (4,443 Analyses, all
+`estimated_from_source_maf`, SDs 0.64 to 1.04) were built before it. They hold
+their source's own standard errors beside a blank `original_sd`, so `validate`
+fails them until they are rebuilt or repaired (stores#486).
