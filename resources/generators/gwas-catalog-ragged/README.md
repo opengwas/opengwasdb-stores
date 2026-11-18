@@ -80,7 +80,7 @@ before the association is encoded, in `build-ragged-ssf` and `build-ragged-besd`
 as in the Dense and Hybrid builders, and the Ragged `analyses.tsv` records that
 `original_sd` (`build-ragged-ssf` used to write a blank one). `validate` fails a
 Release whose rescaling method has a blank, non-finite or non-positive
-`original_sd` (`analyses.original_sd_recorded`).
+`original_sd` (`analyses.original_sd_recorded`). A second rule, `analyses.sd_scale_standardised`, fails a Store with `stored_effect_scale=sd` and no rescaling or `declared_standardised` method; it fails none of the published Stores, while `original_sd_recorded` fails exactly the four below.
 
 OGS-00006, OGS-00024, OGS-00025 and OGS-00026 (4,443 Analyses, all
 `estimated_from_source_maf`, SDs 0.64 to 1.04) were built before it. They hold
