@@ -3847,8 +3847,10 @@ class TestWorkflowSingleIdRaggedReferenceCompletion(unittest.TestCase):
         self.assertIn(record["status"], ("passed", "passed_with_warnings"))
         self.assertEqual(record["observed"]["n_variants"], len(SIGNAL_POSITIONS), "the panel adds the held-out position")
         # The Store keeps the bundle's regions table and says so, in the format
-        # stamp 0.2.2, as every build does since indel ALIDs spell the reference first (opengwasdb#381; 0.9.0 stamped 0.2.1 here, #430).
-        self.assertEqual(manifest_doc["format_version"], "0.2.2")
+        # stamp 0.2.3, as every build and completion does: indel ALIDs spell the reference
+        # first (0.2.2, opengwasdb#381; 0.9.0 stamped 0.2.1 here, #430) and each Analysis
+        # counts the SEs left out above 65,504 (0.2.3, opengwasdb#338).
+        self.assertEqual(manifest_doc["format_version"], "0.2.3")
         self.assertEqual(manifest_doc["regions"]["path"], "regions.tsv")
         self.assertTrue((self.store_p / "regions.tsv").is_file())
 
