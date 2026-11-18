@@ -23,14 +23,16 @@
 #   warnings:             [str]        warnings beyond the committed record
 #   errata:               [str]        recorded corrections/asymmetries
 #   blockers:             [str]        unresolved items preventing readiness
-recorded_at: '2026-10-12'
+recorded_at: '2026-11-18'
 artifact_root: /data/opengwasdb/stores
 notes: >-
-  Read-only reconciliation of the 12 registered Release Bundles against the
-  historical 11 October 2026 host inspection. No build, conversion, repair or
-  Store validation was rerun. A successful historical validate/register on the
-  host is evidence about a past run, not a claim that current HEAD revalidated
-  the artifact.
+  Read-only reconciliation of the 12 Releases this ledger records host evidence
+  for. No build, conversion, repair or Store validation was rerun. A
+  successful validate/register on the host is evidence about a past run, not a
+  claim that current HEAD revalidated the artifact. The entries were reconciled
+  against the host on 2026-11-18: every published format, built-Analysis count,
+  HM3 presence, host record and committed-record match is what the host held
+  that day.
 
 # Prospective (not yet registered) reference declarations that gate epic #232
 # completion. These are declaration-level facts, not freshly verified or
@@ -56,57 +58,69 @@ reference_declarations:
 releases:
   OGS-00001:
     built_analyses: 10
-    published_format: '0.1.0'
+    published_format: '0.2.0'
     host_validation: >-
-      published Store built/validated 2026-09-18; committed Validation Record
-      describes the 2026-09-16 build (opengwasdb@a9e8bc8)
-    host_registration: 'host records/register.json from 2026-09-18'
-    committed_matches_published: false
+      published Store rebuilt and validated 2026-11-13 through the forced
+      release workflow (#460); records/build.json, validate.json, register.json
+      from 2026-11-13
+    host_registration: 'host records/register.json from 2026-11-13'
+    committed_matches_published: true
     warnings:
       - '#134: 70 blank required Analysis values tolerated (BESD metadata exemption)'
     errata:
       - >-
         #199: the committed Validation Record describes the 16 Sep build, not
         the published 18 Sep Store. Preserved as history; a forced re-register
-        needs its own gate.
+        needs its own gate. Resolved 2026-11-13 by #460: the forced rebuild's
+        register wrote the committed record, whose validated_at is that run's
+        register step, and the Store it describes is the published one.
 
   OGS-00002:
     built_analyses: 10
-    published_format: '0.1.0'
+    published_format: '0.2.0'
     host_validation: >-
-      published Store reference-completed and validated 2026-09-18; committed
-      record describes the 2026-09-15 build (opengwasdb@a9e8bc8)
-    host_registration: 'host records/complete.json, validate.json, register.json from 2026-09-18'
-    committed_matches_published: false
+      published Store re-completed and validated 2026-11-13 through the forced
+      release workflow (#460), from OGS-00001's rebuild; records/complete.json,
+      completion-validate.json, completion-register.json from 2026-11-13
+    host_registration: 'host records/completion-register.json from 2026-11-13'
+    committed_matches_published: true
     warnings:
       - '#134: 70 blank required Analysis values tolerated (BESD metadata exemption)'
     errata:
       - >-
         #199: the committed Validation Record describes an older build than the
-        published Store. Preserved as history.
+        published Store. Preserved as history. Resolved 2026-11-13 by #460: the
+        forced re-completion's register wrote the committed record, whose
+        validated_at is that run's completion-register step.
 
   OGS-00003:
     built_analyses: 10
-    published_format: '0.1.0'
+    published_format: '0.2.2'
     host_validation: >-
-      published Store built/validated 2026-09-18; committed record describes the
-      2026-09-16 build
-    host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
-    committed_matches_published: false
-    hm3_present: false
+      published Store rebuilt and validated 2026-11-17 through the forced
+      release workflow (#232); records/build.json, validate.json, register.json
+      from 2026-11-17
+    host_registration: 'host records/build.json, validate.json, indexed-subset-hm3.json, register.json from 2026-11-17'
+    committed_matches_published: true
+    hm3_present: true
     errata:
       - >-
         #199: committed record predates the published Store, and
         `release.yaml` still describes a 20-Analysis order while the bundle
-        holds 10 admitted Analyses. Membership is the bundle's 10.
+        holds 10 admitted Analyses. Membership is the bundle's 10. Resolved
+        2026-11-17 by #232 as far as the record: the forced rebuild's register
+        wrote the committed record, for the Store it published.
 
   OGS-00004:
     built_analyses: 9
-    published_format: '0.1.0'
-    host_validation: 'published Store built/validated 2026-09-18'
-    host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
-    committed_matches_published: false
-    hm3_present: false
+    published_format: '0.2.2'
+    host_validation: >-
+      published Store rebuilt and validated 2026-11-18 through the forced
+      release workflow (#232); records/build.json, validate.json, register.json
+      from 2026-11-18
+    host_registration: 'host records/build.json, validate.json, indexed-subset-hm3.json, register.json from 2026-11-18'
+    committed_matches_published: true
+    hm3_present: true
     warnings:
       - >-
         10 manifest rows, 1 excluded (GCST003566 EAF reported against the other
@@ -114,38 +128,47 @@ releases:
 
   OGS-00005:
     built_analyses: 10
-    published_format: '0.1.0'
-    host_validation: 'published Store rebuilt and re-registered 2026-10-08/09 through the supported force/archive workflow'
-    host_registration: 'host records from the 2026-10-08/09 re-registration'
+    published_format: '0.2.2'
+    host_validation: >-
+      published Store rebuilt and validated 2026-11-18 through the forced
+      release workflow (#232); records/build.json, validate.json, register.json
+      from 2026-11-18
+    host_registration: 'host records/build.json, validate.json, indexed-subset-hm3.json, register.json from 2026-11-18'
     committed_matches_published: true
-    hm3_present: false
-    warnings:
-      - >-
-        GCST003898 stores EAF whose orientation is unverified (only 120
-        variants overlap the reference, fewer than 500); a known
-        source-coordinate provenance difference remains.
+    hm3_present: true
 
   OGS-00006:
     built_analyses: 1400
-    published_format: '0.1.0'
-    host_validation: 'published Store built/validated 2026-09-18'
-    host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
-    committed_matches_published: false
+    published_format: '0.2.1'
+    host_validation: >-
+      published Store rebuilt and re-completed, then validated 2026-11-11
+      through the forced release workflow (#224); records/build.json,
+      completion-validate.json, completion-register.json from 2026-11-11
+    host_registration: 'host records/completion-register.json from 2026-11-11'
+    committed_matches_published: true
     warnings:
       - 'bundle carries a scientific association-count warning; production-sized Ragged qualification asset'
 
   OGS-00007:
     built_analyses: 10
-    published_format: '0.1.0'
-    host_validation: 'published Store built/validated 2026-09-18'
-    host_registration: 'host records/build.json, validate.json, register.json from 2026-09-18'
-    committed_matches_published: false
+    published_format: '0.2.1'
+    host_validation: >-
+      published Store rebuilt and validated 2026-11-11 through the forced
+      release workflow (#224); records/build.json, validate.json, register.json
+      from 2026-11-11
+    host_registration: 'host records/register.json from 2026-11-11'
+    committed_matches_published: true
 
   OGS-00008:
     built_analyses: 10
     published_format: '0.1.0'
-    host_validation: 'published Store built/validated 2026-09-18'
+    host_validation: >-
+      published Store built and validated 2026-09-18 through the release
+      workflow; records/build.json, validate.json, register.json from
+      2026-09-18
     host_registration: 'host records/register.json from 2026-09-18'
+    # No committed Validation Record exists to match against the host.
+    committed_matches_published: false
     hm3_present: false
     errata:
       - >-
@@ -153,17 +176,22 @@ releases:
         exists, although the host holds a built/validated/registered Store.
 
   OGS-00009:
-    built_analyses: 2024
-    incomplete_membership: true
-    published_format: '0.1.0'
+    built_analyses: 2514
+    published_format: '0.2.0'
     intended_source_inventory: 2514
     intended_state: frozen
     intended_source: 'frozen Source Inventory ukb-b-restored-2026-10-11 (frozen 2026-10-12T00:48:51Z, #219), which OGS-00009 declares since #312'
     restored_available: 490
-    host_validation: 'published Store built 2026-09-19, validated/registered 2026-09-20 (9,847,701 variants; build 5.92 h, validate 1.30 h)'
-    host_registration: 'host records/register.json from 2026-09-20'
+    host_validation: >-
+      published Store reference-completed and validated 2026-10-23 through the
+      release workflow, from the 2,514-Analysis observed build of 2026-10-22;
+      records/complete.json, completion-validate.json, completion-register.json
+      from 2026-10-23, then records/se-reencode.json re-encoded the SE plane in
+      place on 2026-10-25 with decoded equality verified
+    host_registration: 'host records/completion-register.json from 2026-10-23'
     host_evidence_ref: 'origin/feat/ogs-00009-build-evidence@bf4446d'
-    hm3_present: false
+    committed_matches_published: true
+    hm3_present: true
     errata:
       - >-
         The rebuilt OGS-00009-completed Store (2026-10-23, #312) has eight
@@ -174,14 +202,9 @@ releases:
         lift (opengwasdb#325). Recorded in the bundle's release.yaml notes; to
         be fixed at the next rebuild. The other fields of this entry still
         describe the earlier 2,024-Analysis artifact and are not updated here.
-    blockers:
-      - >-
-        The published 2,024-Analysis artifact is incomplete. Since #312 the
-        OGS-00009 bundle declares the frozen 2,514-Analysis inventory, all
-        buildable (the provider JSON resolution supplies the 3 rows the API
-        resolution left unresolved), so the 490 restored Analyses need the
-        bundle's forced rebuild. (Until #312 this entry recorded the count as
-        preliminary and the totals as not yet frozen, #219.)
+        Resolved 2026-11-18 by #232's host reconciliation: this entry's built
+        count, format and membership describe the published 2,514-Analysis
+        completed Store, which the committed record matches.
 
   OGS-00010:
     built_analyses: 2024
@@ -211,24 +234,46 @@ releases:
       - 'requires a compatible complete observed parent (#219/#222)'
 
   OGS-00011:
-    built_analyses: 3317
+    built_analyses: 3169
     built_baseline_ref: 26fb1ec
     intended_source_inventory: 6035
     intended_state: frozen
     intended_source: 'frozen Source Inventory gwas-catalog-ssf-eur-hybrid-2026-09-22; manifest is the selected subset'
     baseline_note: >-
-      The old published 3,317-Analysis Store (built/validated 2026-09-30,
-      11.72 h build, 1.63 h validate) predates the #203 composition change. The
-      current accepted bundle admits 3,169; the explicit delta is the 148
+      The retired 3,317-Analysis Store (built/validated 2026-09-30, 11.72 h
+      build, 1.63 h validate) predates the #203 composition change. The current
+      accepted bundle admits 3,169; the explicit delta is the 148
       not_maf_filtered Analyses routed to #204 (zero additions).
-    published_format: '0.1.0'
-    host_validation: 'the previous 3,317-Analysis artifact was built 2026-09-30 and validated (1.63 h); the current 3,169-member bundle is not built'
-    host_registration: 'host records/register.json from the 2026-09-30 previous-bundle run'
-    hm3_present: false
-    blockers:
-      - 'the current 3,169 admitted composition is not built (#225)'
+    published_format: '0.2.0'
+    host_validation: >-
+      published Store reference-completed and validated 2026-11-01 through the
+      release workflow, from the 3,169-Analysis build of 2026-10-26/27;
+      records/build.json, complete.json, completion-validate.json,
+      completion-register.json from 2026-10-26 to 2026-11-01
+    host_registration: 'host records/completion-register.json from 2026-11-01'
+    committed_matches_published: true
+    hm3_present: true
+    errata:
+      - >-
+        Resolved 2026-11-18 by #232's host reconciliation: the current
+        3,169 admitted composition is built, and the published Store is that
+        2026-10-26/27 build, completed and validated on 2026-11-01 (#225).
 
   # The 2,754-Analysis Store built 2026-09-30 (fix/ogs-00016-build-tmpdir@c871b61)
-  # was the old OGS-00016 numbering. Today's OGS-00016 is MVP META and is not
-  # built, so none of that evidence is attributed to it (#326).
-  OGS-00016: {}
+  # was the old OGS-00016 numbering, and none of that evidence is attributed here
+  # (#326). Today's OGS-00016 is MVP META: the Store below is the one the host
+  # holds, built 2026-10-20/21 in a development work root and relocated into the
+  # artifact root on 2026-10-22.
+  OGS-00016:
+    built_analyses: 1691
+    published_format: '0.2.0'
+    host_validation: >-
+      published Store built and validated 2026-10-20/21 through the release
+      workflow; records/build.json, validate.json, register.json from
+      2026-10-20/21, relocated into the artifact root 2026-10-22
+      (relocations/20261022T151443.904667Z.json), then records/se-reencode.json
+      re-encoded the SE plane in place on 2026-10-25/26 with decoded equality
+      verified
+    host_registration: 'host records/register.json from 2026-10-21'
+    committed_matches_published: true
+    hm3_present: true
