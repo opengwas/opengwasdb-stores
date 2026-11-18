@@ -10,6 +10,10 @@ build:
     on-rsid-conflict: drop
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
+column_map:
+  name: gwas-ssf-no-p
+  sha256: f73a5881759db74eccc2fba5ac487a827fd0369d4287689975f6d0323e726b44
+  file: gwas-ssf-no-p.toml
 complete:
   command: complete-hybrid
   options:

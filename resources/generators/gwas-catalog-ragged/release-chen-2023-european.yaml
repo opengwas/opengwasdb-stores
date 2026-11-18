@@ -53,8 +53,7 @@ build:
   layout: ragged
   completion_state: observed_only
   command: build-ragged-ssf
-  options:
-    stored-effect-scale: sd
+  options: {}
   post:
     top_hits: true
     overview: false

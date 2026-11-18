@@ -2069,7 +2069,7 @@ def prepare_ragged_single_id_signal_release(root: Path, store_id: str) -> tuple[
     build_yaml_p = store_dir / "build.yaml"
     build_yaml = yaml.safe_load(build_yaml_p.read_text(encoding="utf-8"))
     build_yaml["layout"] = "ragged"
-    build_yaml["build"] = {"command": "build-ragged-ssf", "options": {"stored-effect-scale": "sd"}}
+    build_yaml["build"] = {"command": "build-ragged-ssf", "options": {}}
     build_yaml["post"] = {"top_hits": True, "overview": False, "validate": True}
     build_yaml_p.write_text(yaml.safe_dump(build_yaml), encoding="utf-8")
     ssf = create_signal_fixture_ssf(root / "signal.tsv.gz")
@@ -2079,8 +2079,8 @@ def prepare_ragged_single_id_signal_release(root: Path, store_id: str) -> tuple[
     # SSF bundle's rows are (#429).
     (store_dir / "analyses.tsv").write_text(
         "analysis_index\tanalysis_id\tsource_file\ttrait_name\tsample_size\tstored_effect_scale\t"
-        "assigned_ancestry\tancestry_assignment_method\tsource_genome_build\n"
-        f"0\ttest_analysis_{store_id}\t{ssf}\tTest Trait\t10000\tsd\tEUR\tsource_fallback\tGRCh38\n",
+        "original_sd_method\tassigned_ancestry\tancestry_assignment_method\tsource_genome_build\n"
+        f"0\ttest_analysis_{store_id}\t{ssf}\tTest Trait\t10000\tsd\tdeclared_standardised\tEUR\tsource_fallback\tGRCh38\n",
         encoding="utf-8",
     )
     amend_to_complete_own_store(
@@ -3847,8 +3847,10 @@ class TestWorkflowSingleIdRaggedReferenceCompletion(unittest.TestCase):
         self.assertIn(record["status"], ("passed", "passed_with_warnings"))
         self.assertEqual(record["observed"]["n_variants"], len(SIGNAL_POSITIONS), "the panel adds the held-out position")
         # The Store keeps the bundle's regions table and says so, in the format
-        # stamp 0.2.2, as every build does since indel ALIDs spell the reference first (opengwasdb#381; 0.9.0 stamped 0.2.1 here, #430).
-        self.assertEqual(manifest_doc["format_version"], "0.2.2")
+        # stamp 0.2.3, as every build and completion does: indel ALIDs spell the reference
+        # first (0.2.2, opengwasdb#381; 0.9.0 stamped 0.2.1 here, #430) and each Analysis
+        # counts the SEs left out above 65,504 (0.2.3, opengwasdb#338).
+        self.assertEqual(manifest_doc["format_version"], "0.2.3")
         self.assertEqual(manifest_doc["regions"]["path"], "regions.tsv")
         self.assertTrue((self.store_p / "regions.tsv").is_file())
 

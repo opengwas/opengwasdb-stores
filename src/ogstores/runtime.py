@@ -55,18 +55,22 @@ OPENGWASDB_GIT_URL: str = engine.OPENGWASDB_GIT_URL
 #: The Store format every builder and completion of the pinned engine writes, and
 #: the one `pixi run engine-update` probes as the format a locked engine writes
 #: (`opengwasdb.store.open.CURRENT_FORMAT_VERSION`). `0.2.2` spells an indel's
-#: reference allele first (opengwas/opengwasdb#381, ADR 0079), so every build
-#: writes it, with or without a Ragged release's `regions.tsv`. It lives in the
-#: core, not here; this is the value the guard reports.
-REQUIRED_FORMAT_VERSION: str = "0.2.2"
+#: reference allele first (opengwas/opengwasdb#381, ADR 0079); `0.2.3` adds
+#: `n_missing_se_out_of_range` to `analyses.tsv` and stores no SE above 65,504
+#: (opengwas/opengwasdb#338, ADR 0068). Every build writes `0.2.3`, with or
+#: without a Ragged release's `regions.tsv`. It lives in the core, not here;
+#: this is the value the guard reports.
+REQUIRED_FORMAT_VERSION: str = "0.2.3"
 
-#: Every format Reference Completion may consume: the formats the pinned writers
-#: stamp, which is `0.2.2` alone. The engine's completion refuses a `0.2.1`,
-#: `0.2.0` or `0.1.0` source and says to rebuild it: completing one would spell
-#: the panel's indels sorted beside the Store's own deletions. The converter
-#: writes `0.2.0`, so converting does not make a parent completable; a parent
-#: below `0.2.2` is rebuilt with this engine (docs/runtime.md).
-WRITABLE_FORMAT_VERSIONS: frozenset[str] = frozenset({"0.2.2"})
+#: Every format Reference Completion may consume: `0.2.2` and `0.2.3`. A `0.2.2`
+#: source completes to `0.2.3`, because every completion records
+#: `n_missing_se_out_of_range` (opengwas/opengwasdb#338, ADR 0068). The engine's
+#: completion refuses a `0.2.1`, `0.2.0` or `0.1.0` source and says to rebuild
+#: it: completing one would spell the panel's indels sorted beside the Store's
+#: own deletions. The converter writes `0.2.0`, so converting does not make a
+#: parent completable; a parent below `0.2.2` is rebuilt with this engine
+#: (docs/runtime.md).
+WRITABLE_FORMAT_VERSIONS: frozenset[str] = frozenset({"0.2.2", "0.2.3"})
 
 #: Command the guard probes in addition to those a scheduled plan names, for the
 #: completion-parent format gate.

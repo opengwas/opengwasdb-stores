@@ -69,3 +69,32 @@ pixi run generate-candidate <store-id> \
 OGS-00006 and OGS-00007 are `built`, so a regeneration emits into a temporary
 `--registry-root` for comparison; a new release of either needs a new Store
 Release id.
+
+## The phenotype SD every builder applies (opengwasdb#366)
+
+From opengwasdb ADR 0084, one seam standardises every builder's standard errors:
+an Analysis whose `original_sd_method` carries an SD magnitude
+(`source_provided`, `estimated_from_source_maf`, `estimated_from_reference_maf`,
+`estimated_from_beta_distribution`) has each SE divided by its `original_sd`
+before the association is encoded, in `build-ragged-ssf` and `build-ragged-besd`
+as in the Dense and Hybrid builders, and the Ragged `analyses.tsv` records that
+`original_sd` (`build-ragged-ssf` used to write a blank one). `validate` fails a
+Release whose rescaling method has a blank, non-finite or non-positive
+`original_sd` (`analyses.original_sd_recorded`). A second rule, `analyses.sd_scale_standardised`, fails a Store with `stored_effect_scale=sd` and no rescaling or `declared_standardised` method; it fails none of the published Stores, while `original_sd_recorded` fails exactly the four below.
+
+OGS-00006, OGS-00024, OGS-00025 and OGS-00026 (4,443 Analyses, all
+`estimated_from_source_maf`, SDs 0.64 to 1.04) were built before it. They hold
+their source's own standard errors beside a blank `original_sd`, so `validate`
+fails them until they are rebuilt or repaired (stores#486).
+
+## The stored effect scale is a row's own
+
+`build-ragged-ssf` no longer takes `--stored-effect-scale`: each manifest row
+declares its `stored_effect_scale`, and a row with none, or an unknown one, is
+refused. OGS-00006, -00007, -00024, -00025 and -00026 declare `sd` on every row
+(1,400, 10, 1,034, 1,038 and 971 rows), which is what the option used to give, so
+their Build Recipes drop it (`options: {}`) and no row changes. A recipe that
+still names it would plan a flag the engine does not have, and the engine would
+refuse the command as an unknown option; the plan test parses every planned argv
+against the pinned CLI. Every builder also refuses an `sd` row whose
+`original_sd_method` is neither a rescaling method nor `declared_standardised`.

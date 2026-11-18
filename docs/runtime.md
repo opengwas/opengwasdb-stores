@@ -11,7 +11,7 @@ provides, and what upgrading it does **not** do.
 | Repository | `https://github.com/opengwas/opengwasdb` |
 | Branch followed | `main`, in `pixi.toml`'s `[feature.store-build.pypi-dependencies]` |
 | Commit, and the package version | `pixi.lock`, and nowhere else (#253). `pixi run env-check` prints both, beside the installed engine's |
-| Writers' Store `format_version` | `0.2.2` from every builder and every completion (`ogstores.runtime.REQUIRED_FORMAT_VERSION`; `WRITABLE_FORMAT_VERSIONS` is the set completion may consume, the same one). The converter writes `0.2.0` |
+| Writers' Store `format_version` | `0.2.3` from every builder and every completion (`ogstores.runtime.REQUIRED_FORMAT_VERSION`). `WRITABLE_FORMAT_VERSIONS` is the set completion may consume, `0.2.2` and `0.2.3`: a `0.2.2` source completes to `0.2.3`. The converter writes `0.2.0` |
 | Python floor | 3.12 |
 | Zarr / numcodecs | `zarr>=3.4,<4`, `numcodecs>=0.17` (Zarr v3 with the sharding codec) |
 
@@ -38,8 +38,9 @@ inside a feature change. `engine-update` refuses, and puts the previous lock
 back, when the lock does not resolve exactly one commit, when an environment
 installs another, or when the new engine's baseline Store format is not
 `REQUIRED_FORMAT_VERSION`: a format change is a deliberate repository change,
-not an update. That baseline is `0.2.2` since opengwasdb#381 (ADR 0079): an
-engine that writes `0.2.0` or `0.2.1` is refused. `pixi run engine-update --check` checks without moving anything.
+not an update. That baseline is `0.2.3` since opengwasdb#338 (ADR 0068; it was
+`0.2.2` from opengwasdb#381, ADR 0079): an engine that writes `0.2.0`, `0.2.1` or
+`0.2.2` is refused. `pixi run engine-update --check` checks without moving anything.
 
 ### Engines within a phase
 
@@ -71,9 +72,26 @@ history.
   engine). Every builder and every completion stamps `0.2.2`, with or without a
   Ragged release's `regions.tsv` (which the released engine 0.9.0 stamped `0.2.1`,
   opengwas/opengwasdb#430). The arrays and encodings are 0.2.0's. **Completion
-  consumes only `0.2.2`**: it refuses a `0.2.1`, `0.2.0` or `0.1.0` source, and
-  says to rebuild it. The converter still writes `0.2.0`, so a converted parent is
-  not completable either.
+  consumes `0.2.2` and `0.2.3`**: it refuses a `0.2.1`, `0.2.0` or `0.1.0` source,
+  and says to rebuild it. The converter still writes `0.2.0`, so a converted
+  parent is not completable either.
+- **Format 0.2.3: an SE above 65,504 is not stored, and each Analysis counts the
+  ones left out** (opengwas/opengwasdb#338, ADR 0068). `analyses.tsv` gains the
+  store-only column `n_missing_se_out_of_range`, a non-negative integer on every
+  row from 0.2.3 (a Hybrid root's included), and `format_version` moves to
+  `0.2.3`. 65,504 is the largest value a `float16` plane holds; an SE above it,
+  `+inf` included, is almost certainly an error in its source. A writer leaves
+  the association out under every plan, z, SE and EAF together, so **from 0.2.3
+  no query returns a `+inf` SE**. `validate` fails a 0.2.3 release holding one
+  (`associations.se_out_of_range`) and warns on a `+inf` below 0.2.3
+  (`associations.se_infinite`). Every builder and every completion stamps `0.2.3`,
+  so a `0.2.2` source completes to `0.2.3`; arrays and `index.sqlite` are not
+  re-encoded. The converter writes `0.2.0` and refuses a source holding such an
+  SE. On OGS-00011's three Analyses with an SE above the bound, a rebuild counts
+  `1`, `5` and `2` at the root (`0`, `2` and `2` in the Dense Component);
+  stores#403 is that rebuild. No published Store changes: a Store built at
+  `0.2.2` or below keeps its `format_version`, with no column and, where one
+  held a `+inf`, that value.
 - **The required Ragged/Overflow `by_variant/` index**
   (opengwas/opengwasdb#252/#268). Every Ragged and Hybrid builder writes it
   inline; `opengwasdb validate` fails without it. It is part of the format
@@ -145,7 +163,7 @@ Before the entry point snapshots anything or a build writes a Store,
    (probed with `--help`); or
 4. a **scheduled** `complete` job would consume an existing parent Store whose
    declared `format_version` the pinned builders do not write: anything but
-   `0.2.2` (`ogstores.runtime.WRITABLE_FORMAT_VERSIONS`). The refusal says to
+   `0.2.2` or `0.2.3` (`ogstores.runtime.WRITABLE_FORMAT_VERSIONS`). The refusal says to
    rebuild the parent with the pinned engine.
 
 The gate is scheduled-step-aware, because an id appearing in the dry run is not
@@ -156,7 +174,7 @@ proof that the Store is rebuilt. `workflow/release.py` and the Snakefile
   an enhancement-only rerun of an existing completed Store (build its HM3
   subset, validate, overview) never consults its unused completion recipe;
 * a same-run `build` or `complete` job for the parent produces a fresh
-  0.2.2 Store, so the stale on-disk artifact is not consumed and is not gated;
+  0.2.3 Store, so the stale on-disk artifact is not consumed and is not gated;
 * a parent that is neither on disk nor scheduled to be produced is refused
   loudly before Snakemake starts.
 
@@ -166,7 +184,7 @@ repository. The run prints the resolved identity it will use, and every Step's
 durable record already carries the exact `opengwasdb` revision and executable
 that ran.
 
-The format-0.2.2 and required-`by_variant` guarantees rest on the **verified
+The format-0.2.3 and required-`by_variant` guarantees rest on the **verified
 pin identity**, not on the `--help` probes: the subcommand probe only proves the
 CLI surface a scheduled step calls exists. That is why an unprovable revision is
 refused even when the commands answer.
@@ -188,7 +206,7 @@ A parent below `0.2.2` is readable but not completable by the pinned engine
 arrays and never re-encodes them, and a pre-`0.2.2` source spells its deletions
 the way an insertion is spelt, so completing it would sort the panel's indels
 beside them. **The remedy is a rebuild of the parent with this engine, then the
-completion**: a fresh `pixi run release <parent>` writes a new `0.2.2` observed
+completion**: a fresh `pixi run release <parent>` writes a new `0.2.3` observed
 Store. Converting is no remedy: the converter
 (`scripts/convert_store_to_0_2_0.py`) writes `0.2.0`, which completion refuses.
 The runtime gate refuses the wrong order before any write and directs the
@@ -209,7 +227,7 @@ of a completion at this engine until it is rebuilt:
   **OGS-00003, -04, -05 and -08**.
 
 OGS-00022 and -23 have no Store under the Artifact Root, and OGS-00032 and -33 are candidates with none built.
-Any release rebuilt or completed after this is `0.2.2` as it is written.
+Any release rebuilt or completed after this is `0.2.3` as it is written.
 
 A two-id completion from one of them is refused by this repository's guard
 before any write; a single-id completion of one (the Store completes itself) is

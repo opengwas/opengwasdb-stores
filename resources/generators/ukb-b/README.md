@@ -14,6 +14,18 @@ release-full.yaml                       OGS-00009's content: all 2,514 Analyses
 release-probe-10.yaml                   the ten-Analysis probe before the full resolve
 ```
 
+## The GWAS-VCF header the reader requires (opengwasdb#363)
+
+From the engine's second run for epic #347, a GWAS-VCF whose header declares no
+FORMAT tag from which any record's z can be formed, neither `EZ` nor `ES` with
+`SE`, is refused by the projections that form an association or a metric block,
+naming the file and the tags it found (opengwasdb ADR 0076, addendum of
+2026-11-18). Read as a file with no rows it was an Analysis stored with 0
+associations. A declared tag whose record holds `.` is unchanged: that
+record's association is missing. No source here is affected: each of the 2,514
+VCFs under `/data/opengwasdb/raw/gwas-vcf/ukb-b` declares `ES,SE,LP,AF,SS,EZ,SI,NC,ID`
+in its own header.
+
 ## The connectors
 
 Both are written from what this host has, never from a network call: the
