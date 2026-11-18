@@ -1,28 +1,43 @@
 status: passed_with_warnings
-validated_at: '2026-10-08T23:22:50.901395Z'
+validated_at: '2026-11-18T02:58:38.458092Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@7b0c42d94e439d4ce6de2cf046fb41a9f3a7eb2e
+  version: opengwasdb@511f25378ba34a50197e248f1e2892e6f9b1b378
 build_environment:
-  opengwasdb_version: 0.3.0
-  opengwasdb_commit: 7b0c42d94e439d4ce6de2cf046fb41a9f3a7eb2e
-  python_version: 3.11.15
-  platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
+  opengwasdb_version: 0.10.0
+  opengwasdb_commit: 511f25378ba34a50197e248f1e2892e6f9b1b378
+  python_version: 3.12.15
+  platform: Linux-4.18.0-553.177.1.el8_10.x86_64-x86_64-with-glibc2.28
+  engines:
+  - opengwasdb_commit: 511f25378ba34a50197e248f1e2892e6f9b1b378
+    opengwasdb_version: 0.10.0
+    steps:
+    - build
+    - indexed-subset-hm3
+    - overview
+    - validate
 observed:
   format_version: null
   n_analyses: 10
-  n_variants: 14763864
+  n_variants: 18483436
   n_associations: null
+  association_coverage: gwas
+  reference_assembly: null
   store_bytes: null
-  build_elapsed_s: 1819.797
+  build_elapsed_s: 2029.08
   validate_status: passed_with_warnings
+  completion_state: observed_only
   variant_reference: provided
+  rsid_conflicts:
+    policy: refuse
+    n_keys: 0
+    n_variants: 0
 checks:
   store: passed_with_warnings
 warnings:
-- 'analysis ''GCST003898'' stores EAF whose orientation is unverified: only 120 variants
+- 'analysis ''GCST003898'' stores EAF whose orientation is unverified: only 99 variants
   overlap the reference, fewer than 500'
 errors: []
 replaced:
-  archive: /data/opengwasdb/stores/OGS-00005/replaced/20261008T225216Z
-  replaced_at: '2026-10-08T23:22:50.901395Z'
+  archive: /data/opengwasdb/stores/OGS-00005/replaced/20261118T022424Z
+  replaced_at: '2026-11-18T02:58:38.458092Z'

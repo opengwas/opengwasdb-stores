@@ -120,4 +120,28 @@ notes: 'original_sd_method starts at `unavailable` (never `declared_standardised
   overflow axis cannot be indexed by the Dense Component (opengwas/opengwasdb#271), so the subset
   leaves them out and records how many. The first forced rebuild refused for 16,369 such variants.
 
+  Rebuilt at format 0.2.2 (issues #197, #344; 2026-11-18). On the owner''s approval of 2026-11-17, this
+  Store''s 0.1.0 trial arrays move to the format the current engine writes, as the registered Stores''
+  conversion does (#197) and the trial pilots'' (#344). `pixi run -e workflow release OGS-00005 --config
+  force=1` at opengwasdb 0.10.0, the revision pixi.lock pins, ran from 02:24:15 to 02:58:44 UTC, exit 0,
+  building in 1,844 s against the regenerated gnomAD v4.1 EUR reference the Bundle amendment above
+  records (#481) and with the hm3 declaration above (#483). It published a format-0.2.2 Store holding 10
+  Analyses and 18,483,436 shared variants -- 13,718,605 on-panel + 4,764,831 off-panel -- and 5,910,011
+  Ragged Overflow associations; its hm3 subset requested 1,206,903 variants, indexed 1,189,603, found
+  2,462 absent and skipped 14,838 that reach only the overflow axis, this Store''s own count (the number
+  the paragraph above records is OGS-00004''s). validate reports one warning: GCST003898''s EAF orientation
+  is unverified, with 99 variants overlapping the reference, fewer than the 500 it requires. The replaced
+  release carried the same warning with 120 overlapping variants, and the Status paragraph above records
+  it, so the warning predates this run. The counts the paragraphs above record -- 14,763,864 shared
+  variants, 6,562,223 Ragged Overflow associations and the rsid, EAF-cell and EAF-orientation
+  measurements taken against them -- no longer describe this Store, and neither does the sentence of
+  8 Oct 2026 saying its archive is never deleted. The Store it replaced is archived under
+  /data/opengwasdb/stores/OGS-00005/replaced/20261118T022424Z/. The Release Status is unchanged at
+  `validated`.
+
+  Archive deleted (2026-11-18). On the owner''s decision, the arrays of the Stores archived under
+  replaced/20261118T022424Z/ and replaced/20261008T225216Z/ were deleted, after this run''s validate
+  reported its verdict. Each archive keeps its records/ and validation.yaml, as ADR 0037 keeps on an
+  unforced replacement, so the change stays dated and evidenced.
+
   '
