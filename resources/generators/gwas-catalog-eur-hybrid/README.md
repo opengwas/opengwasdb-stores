@@ -414,7 +414,11 @@ that have a usable effect and SE, a source p in `(0, 1]`, and an SE *not*
 derived from that p (opengwasdb ADR 0055). The sample is deterministic: the
 `evidence_sample` rows (default 20,000) with the lowest `site_hash`. For each
 row it compares the p implied by the stored z (`beta / se`) with the reported
-p, as `Δ = log10 p_implied − log10 p_source`, and takes the median.
+p, as `Δ = log10 p_implied − log10 p_source`, and takes two medians: the median
+|Δ| and the median signed Δ. From opengwasdb #370 (ADR 0069's 18 Nov 2026
+addendum) the check refuses on either: a stored z that carries no signal gives
+Δ ≈ −log10 p_source, whose null median is log10 2 = 0.30, so the |Δ| rule cannot
+refuse it, while every clean source's signed median is near 0.
 
 The measurement is recorded beside the other diagnostics, as
 `diagnostics.effect_consistency`:
@@ -427,19 +431,25 @@ The measurement is recorded beside the other diagnostics, as
 | `median_abs_delta` | the refusal statistic, median \|Δ\|; `null` for a skip |
 | `median_delta` | median signed Δ; negative means the implied p is smaller than the reported one, so the stored z is too large; `null` for a skip |
 | `skip_reason` | `null` when compared; otherwise why nothing was compared (below) |
-| `refused` | whether `median_abs_delta` exceeded the threshold |
+| `refused` | whether either statistic exceeded its threshold |
+| `refused_by` | `"median_abs_delta"` or `"median_delta"` when refused, else `null` |
 
 A record whose scan did not complete has `diagnostics.effect_consistency:
 null`. That is no measurement, which is not the same as a skip: a skip is a
 fact about a source that was read. The threshold and the minimum row count the
 verdict was drawn under are fingerprinted, as
 `fingerprints.resolution_config.effect_consistency: {max_median_abs_delta: 1.0,
-min_compared_rows: 50}`. The resolver has no CLI flag for either, so this
-pipeline always runs the defaults.
+max_median_delta: 0.1, min_compared_rows: 50}`. `max_median_delta` is the
+fingerprint field #370 added. The resolver has no CLI flag for any of the three,
+so this pipeline always runs the defaults.
 
-- **A refusal.** When `median_abs_delta` exceeds 1.0 (one order of magnitude),
-  the record has `status: controlled_failure` and `refused: true`. Its `error`
-  names the median |Δ|, the median signed Δ, the row count and the threshold.
+- **A refusal.** When either rule fires, the record has
+  `status: controlled_failure`, `refused: true` and `refused_by` naming the
+  rule. The |Δ| rule is tested first: `median_abs_delta` above 1.0 (one order of
+  magnitude). The second, from #370, is `median_delta` above `max_median_delta`
+  (0.1): only the positive side is refused, because the negative tail reaches
+  −0.34 among clean sources. The `error` names the rule, the statistic that
+  fired and its value, the other median, the row count and the threshold.
   `render` excludes the Analysis as `resolution_failed`, with that error as the
   detail, as it excludes any controlled failure. A `controlled_failure` record
   is always re-run, never reused. The source stays out until it is repaired
@@ -452,8 +462,8 @@ pipeline always runs the defaults.
   - `all_se_from_p_value`: every row's SE was derived from its p, so the
     comparison would be circular;
   - `too_few_rows`: fewer than 50 rows were compared.
-- **Records resolved before the check** keep `record_schema_version` 1, but
-  their fingerprint digest differs. The next resolve of every Source Collection
+- **Records resolved before the check, or before #370's threshold,** keep
+  `record_schema_version` 1, but their fingerprint digest differs. The next resolve of every Source Collection
   recomputes them under `--resume` rather than reusing them, and the Resolution
   Area keeps the new records beside the old.
 
@@ -465,6 +475,16 @@ On OGS-00011's 4,783 sources the check refuses 4 (0.1%):
 The largest clean source is 0.346. A regenerated OGS-00011 candidate therefore
 excludes those four as `resolution_failed`, unless they are repaired or
 remapped first.
+
+**The signed rule (#370).** `max_median_delta` 0.1 refuses 11 more of the
+3,767 compared sources (calibrated with the real `resolve-analyses`, each scan
+stopping at 1M rows; whole-file confirmation in the engine's ADR 0069
+addendum). The clean maximum is +0.0148, so 0.1 is 6.8× above it, and the
+smallest flagged is +0.2522 (whole-file), 2.5× above. Ten are data-broken
+sources (+0.2750 … +0.3413); the eleventh is `GCST90446466`, whose `p_value`
+column holds 1 − p/2 while its beta and se are sound (owner decision,
+2 Nov 2026, opengwasdb#370). Nothing the #345 check passed and the data
+supports is refused: every clean source stays.
 
 ### Store composition (#203)
 
