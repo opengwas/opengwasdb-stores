@@ -108,6 +108,11 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   `n_variants`, `n_associations`, `store_bytes`, `format_version`,
   `reference_assembly`). `reference_assembly` is opengwasdb's value stored as
   reported, and `NULL` while a record lacks it (opengwasdb#294).
+  `format_version` is the Store's own stamp, so a Store built from opengwasdb
+  0.2.3 on (format `0.2.3`, opengwasdb#338, ADR 0068) is one whose
+  `analyses.tsv` carries `n_missing_se_out_of_range` and which holds no SE above
+  65,504, hence no `+inf` SE; an earlier stamp says neither. The catalog does not
+  carry the count: it is a column of the Store's own `analyses.tsv`.
   `opengwasdb_version` names one engine even when a later step of the phase ran
   under a newer one of the same Store format; the Validation Record's
   `build_environment.engines` lists them all, and the catalog does not carry

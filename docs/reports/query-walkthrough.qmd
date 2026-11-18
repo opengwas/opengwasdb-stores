@@ -223,7 +223,11 @@ Two things are *not* on by default:
   `eaf` and `association_status`, and `n` where the store holds sample sizes.
   It is valid JSON (opengwas/opengwasdb#394), so `jq` or any JSON parser reads
   it: a value that is not there is `null`, and an infinite one is the string
-  `"Infinity"` or `"-Infinity"`, never a bare `NaN` or `Infinity`. `eaf` is
+  `"Infinity"` or `"-Infinity"`, never a bare `NaN` or `Infinity`. No `se` is
+  infinite in a Store of format 0.2.3 or later: an SE above 65,504, `+inf`
+  included, is left out as a missing association, and `analyses.tsv` counts the
+  ones left out per Analysis (`n_missing_se_out_of_range`, opengwasdb#338). A
+  Store built before 0.2.3 may still return `"Infinity"` for an `se`. `eaf` is
   `null` here because this store holds no allele frequencies; a `null` `eaf`
   says only that the frequency is not available, and `association_status`,
   not `eaf`, says whether the association is. These rows came from OGS-00001,
