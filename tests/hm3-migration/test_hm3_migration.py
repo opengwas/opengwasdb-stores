@@ -100,9 +100,14 @@ HAPMAP3_DECLARATION: dict[str, Any] = {
 # The one declaration that is not the plain migration: OGS-00011's Hybrid subset
 # also declares how to treat a requested ALID only its shared axis carries
 # (stores #225, opengwas/opengwasdb#324). 17,151 of its 1,206,903 HM3 ALIDs are
-# such ALIDs, so the subset cannot be built on the default policy.
+# such ALIDs, so the subset cannot be built on the default policy. The EUR Hybrid
+# pilots OGS-00004 and OGS-00005 take the same option once their Dense Component
+# is built on the same gnomAD v4.1 common axis (epic #232): against it, 16,369
+# HM3 ALIDs reach only OGS-00004's shared axis.
 HAPMAP3_OVERFLOW_ONLY_OPTIONS: dict[str, Any] = {"overflow-only": "skip"}
 DECLARATION_OPTIONS: dict[str, dict[str, Any]] = {
+    "OGS-00004": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
+    "OGS-00005": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
     "OGS-00011": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
 }
 
