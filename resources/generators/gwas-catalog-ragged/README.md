@@ -86,3 +86,15 @@ OGS-00006, OGS-00024, OGS-00025 and OGS-00026 (4,443 Analyses, all
 `estimated_from_source_maf`, SDs 0.64 to 1.04) were built before it. They hold
 their source's own standard errors beside a blank `original_sd`, so `validate`
 fails them until they are rebuilt or repaired (stores#486).
+
+## The stored effect scale is a row's own
+
+`build-ragged-ssf` no longer takes `--stored-effect-scale`: each manifest row
+declares its `stored_effect_scale`, and a row with none, or an unknown one, is
+refused. OGS-00006, -00007, -00024, -00025 and -00026 declare `sd` on every row
+(1,400, 10, 1,034, 1,038 and 971 rows), which is what the option used to give, so
+their Build Recipes drop it (`options: {}`) and no row changes. A recipe that
+still names it would plan a flag the engine does not have, and the engine would
+refuse the command as an unknown option; the plan test parses every planned argv
+against the pinned CLI. Every builder also refuses an `sd` row whose
+`original_sd_method` is neither a rescaling method nor `declared_standardised`.
