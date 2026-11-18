@@ -238,8 +238,9 @@ def test_the_fixture_holds_imputed_cells(store: Path) -> None:
     check(all(imputed[index].sum() == len(ANALYSES) for index in IMPUTED),
           "a panel-only variant is not flagged imputed")
     manifest = comparison.store_metadata(store)
-    check(manifest["format_version"] == "0.2.2",
-          f"the fixture is not a format-0.2.2 Store: {manifest['format_version']}")
+    # A completion the pinned engine writes is 0.2.3 (n_missing_se_out_of_range, opengwasdb#338).
+    check(manifest["format_version"] == "0.2.3",
+          f"the fixture is not a format-0.2.3 Store: {manifest['format_version']}")
     check(manifest["completion_state"] == "reference_completed",
           f"the fixture is not Reference-Completed: {manifest['completion_state']}")
     check(manifest["has_imputed_plane"] is True, "the fixture has no imputed plane")
@@ -378,7 +379,7 @@ def test_a_panel_indel_names_no_alid_for_a_0_2_2_truth_store() -> None:
           "a pre-0.2.2 truth Store's indel is not named by its sorted ALID")
     check(comparison.canonical_alid("1:100_GGGGCC_G", indels_reference_first=False) == "1:100:G:GGGGCC",
           "the UKB form's indel is not named sorted for a pre-0.2.2 truth Store")
-    for version, expected in (("0.1.0", False), ("0.2.0", False), ("0.2.1", False), ("0.2.2", True), ("0.3.0", True)):
+    for version, expected in (("0.1.0", False), ("0.2.0", False), ("0.2.1", False), ("0.2.2", True), ("0.2.3", True), ("0.3.0", True)):
         check(comparison.indels_spelt_reference_first(version) is expected, f"{version}: {expected}")
 
 
