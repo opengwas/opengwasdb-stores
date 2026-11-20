@@ -42,12 +42,19 @@ from opengwasdb.build.resolve import (  # type: ignore[import-untyped]
 from opengwasdb.model.enums import OriginalSdMethod, StoredEffectScale  # type: ignore[import-untyped]
 from opengwasdb.readers.gwas_ssf import GwasSsfReader  # type: ignore[import-untyped]
 from manifest_generation import REPO_ROOT
+from manifest_generation.p_value_tests import declared_p_value_test, read_p_value_tests
 from manifest_generation.source_inventory import (
     ReleaseConfiguration,
     SourceInventoryRow,
     load_release_configuration,
     read_inventory,
     sha256_file,
+)
+
+
+#: The reviewed p-value tests of the Source Collection the study samples.
+DEFAULT_P_VALUE_TESTS = (
+    REPO_ROOT / "resources" / "generators" / "gwas-catalog-eur-hybrid" / "p-value-tests.tsv"
 )
 
 
@@ -239,8 +246,15 @@ def compare_single_analysis(
     reference: AncestryReference,
     panel_alids: set[str],
     gates: Gates,
+    *,
+    p_value_test: str,
 ) -> AnalysisConcordanceResult:
-    """Run one Analysis under both Full Reference and QC Panel and compare outputs."""
+    """Run one Analysis under both Full Reference and QC Panel and compare outputs.
+
+    ``p_value_test`` is the Analysis's declared p-value test (opengwasdb ADR 0085),
+    as its manifest cell: ``AnalysisRequest`` converts it, and refuses a value
+    that is not one. A declared ``mr_mega`` is refused unread.
+    """
     sample_size = None
     if sample_size_str.strip():
         try:
@@ -254,6 +268,7 @@ def compare_single_analysis(
         sample_size=sample_size,
         original_sd_method=original_sd_method,
         stored_effect_scale=stored_effect_scale,
+        p_value_test=p_value_test,
     )
 
     data_file = Path(data_file_path)
@@ -442,8 +457,8 @@ def _init_worker(ref: AncestryReference, panel_alids: set[str], gates: Gates) ->
     _WORKER_GATES = gates
 
 
-def _worker_task(task_args: tuple[dict[str, str], str, str]) -> AnalysisConcordanceResult:
-    row_dict, orig_method_str, stored_scale_str = task_args
+def _worker_task(task_args: tuple[dict[str, str], str, str, str]) -> AnalysisConcordanceResult:
+    row_dict, orig_method_str, stored_scale_str, p_value_test_str = task_args
     assert _WORKER_REF is not None and _WORKER_PANEL is not None and _WORKER_GATES is not None
     return compare_single_analysis(
         analysis_id=row_dict["analysis_id"],
@@ -457,6 +472,7 @@ def _worker_task(task_args: tuple[dict[str, str], str, str]) -> AnalysisConcorda
         reference=_WORKER_REF,
         panel_alids=_WORKER_PANEL,
         gates=_WORKER_GATES,
+        p_value_test=p_value_test_str,
     )
 
 
@@ -495,8 +511,15 @@ def evaluate_concordance_study(
     max_analyses: int | None = None,
     dry_run: bool = False,
     qc_panel_path: Path | None = None,
+    p_value_tests_path: Path | None = None,
 ) -> ConcordanceStudySummary:
-    """Execute the concordance study on the sample manifest."""
+    """Execute the concordance study on the sample manifest.
+
+    Each Analysis's p-value test is declared as Manifest Generation declares it
+    (opengwasdb#371): from the reviewed ``p_value_tests_path`` table
+    (default: the EUR Hybrid's), else ``wald_1df``, unless the sample's ``trait``
+    label names a 2-df test or MR-MEGA, which is refused.
+    """
     repo_root = REPO_ROOT
     config = load_release_configuration(config_path, repo_root)
     raw_doc = yaml.safe_load(config_path.read_text(encoding="utf-8")) if config_path.is_file() else {}
@@ -548,6 +571,10 @@ def evaluate_concordance_study(
     with panel_file.open("r", encoding="utf-8") as fh:
         qc_alids = {row["alid"] for row in csv.DictReader(fh, delimiter="\t")}
 
+    declared = read_p_value_tests(
+        DEFAULT_P_VALUE_TESTS if p_value_tests_path is None else p_value_tests_path
+    )
+
     # Prepare worker tasks
     tasks = []
     for r in raw_rows:
@@ -555,7 +582,13 @@ def evaluate_concordance_study(
         if sd not in config.method_tiers:
             raise ValueError(f"Config declares no method tier for study design {sd!r}")
         tier = config.method_tiers[sd]
-        tasks.append((r, tier.original_sd_method, tier.stored_effect_scale))
+        if "trait" not in r:
+            raise ValueError(
+                f"sample manifest {manifest_path} has no 'trait' column: a p-value test "
+                "cannot be declared without the Analysis's label (opengwasdb#371)"
+            )
+        p_value_test = declared_p_value_test(r["analysis_id"], r["trait"], declared)
+        tasks.append((r, tier.original_sd_method, tier.stored_effect_scale, p_value_test))
 
     if dry_run or len(tasks) == 0:
         return ConcordanceStudySummary(

@@ -215,6 +215,7 @@ def compute_fingerprints(row: dict, options: dict) -> dict:
             "stored_effect_scale": row.get("stored_effect_scale", ""),
             "sample_size": sample_size,
             "source_reader_capability": row.get("source_reader_capability", ""),
+            "p_value_test": row.get("p_value_test"),
             "maf_floor": float(options.get("maf_floor", 0.01)),
             "evidence_sample": int(options.get("evidence_sample", 20000)),
             "gates": {
