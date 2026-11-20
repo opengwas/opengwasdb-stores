@@ -1315,7 +1315,10 @@ an Analysis appears twice, when a kept record's bytes no longer match the
 checksum the receipt bound, when a record declares a `record_schema_version`
 this registry does not accept, or when a record's source checksum/size/file,
 method tier and reader capability no longer match the manifest that was
-resolved. Records in a shared checkpoint for Analyses outside the Selection
+resolved, or when a record's `resolution_config.p_value_test` is not the
+row's. A record without one was resolved before opengwasdb 0.14.0, by an engine
+that did not act on the declaration, so it is never frozen. Records in a shared
+checkpoint for Analyses outside the Selection
 belong to other Selections and are not a failure. The fingerprint digest is
 recomputed over the record's own inputs, and the source file's recorded
 size/mtime are re-checked against disk, so an edited, replaced or stale record

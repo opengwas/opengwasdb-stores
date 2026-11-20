@@ -1469,6 +1469,50 @@ class CandidateWorkflowTests(unittest.TestCase):
             "GCST90000002": {"p_value_test": "joint_2df", "reason": "joint test (fixture)"},
         })
 
+    def test_a_record_must_carry_the_declared_p_value_test(self) -> None:
+        """A record resolved before opengwasdb 0.14.0, or under another declaration,
+        is not frozen: an MR-MEGA success from such a record would be stored."""
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        manifest = list(self._derived().values())
+        self.assertEqual(account_records(manifest, _checkpoint(self.fixture))[1], [])
+
+        def _declaring(value: str | None):
+            def _forge(record: dict) -> None:
+                config = record["fingerprints"]["resolution_config"]
+                if value is None:
+                    del config["p_value_test"]
+                else:
+                    config["p_value_test"] = value
+                record["fingerprints"]["fingerprint_digest"] = _fingerprint_digest(
+                    record["fingerprints"]
+                )
+            return _forge
+
+        record_path = _checkpoint(self.fixture) / "GCST90000001.json"
+        original = record_path.read_text()
+        self.assertEqual(
+            json.loads(original)["fingerprints"]["resolution_config"]["p_value_test"],
+            "wald_1df",
+        )
+        for value in (None, "joint_2df"):
+            with self.subTest(p_value_test=value):
+                record = json.loads(original)
+                _declaring(value)(record)
+                record_path.write_text(json.dumps(record))
+                _, failures = account_records(manifest, _checkpoint(self.fixture))
+                self.assertIn(
+                    f"GCST90000001: resolver resolution_config.p_value_test is {value!r}, "
+                    "expected 'wald_1df'",
+                    failures,
+                )
+        record_path.write_text(original)
+
+        _forge_kept_record(self.fixture, "GCST90000001", _declaring(None))
+        stale = _run_cli(self.fixture, "--stage", "emit")
+        self.assertNotEqual(stale.returncode, 0)
+        self.assertIn("resolution_config.p_value_test", stale.stderr + stale.stdout)
+
     def test_a_label_naming_another_test_is_refused_until_it_is_declared(self) -> None:
         self._rewrite_candidate_traits(
             {"GCST90000003": ("HDL x anxiety interaction (2df test)", "", "")}

@@ -1614,6 +1614,7 @@ def _expected_resolution_fields(row: ResolverRow) -> dict[str, Any]:
         "original_sd_method": row.original_sd_method,
         "source_reader_capability": row.source_reader_capability,
         "sample_size": float(row.sample_size) if row.sample_size else None,
+        "p_value_test": row.p_value_test,
     }
 
 
@@ -1630,6 +1631,9 @@ _FINGERPRINT_CONFIG_KEYS: tuple[str, ...] = (
     "original_sd_method",
     "source_reader_capability",
     "sample_size",
+    # Bound since opengwasdb 0.14.0 (ADR 0085). A record without it was resolved
+    # by an engine that ignored the declaration, so it cannot be frozen.
+    "p_value_test",
 )
 
 

@@ -37,6 +37,7 @@ from manifest_generation.concordance_sampling import (
     build_concordance_sample,
     write_sample_manifest,
 )
+from manifest_generation.p_value_tests import ReviewedTableError
 from manifest_generation.qc_panel_concordance import (
     AnalysisConcordanceResult,
     categorize_disagreement,
@@ -317,6 +318,7 @@ class TestSyntheticConcordanceFixtures(unittest.TestCase):
             reference=self.ref,
             panel_alids=self.panel_alids,
             gates=self.gates,
+            p_value_test="wald_1df",
         )
 
         self.assertTrue(res.ancestry_match)
@@ -345,6 +347,7 @@ class TestSyntheticConcordanceFixtures(unittest.TestCase):
             reference=self.ref,
             panel_alids=self.panel_alids,
             gates=self.gates,
+            p_value_test="wald_1df",
         )
 
         self.assertTrue(res.ancestry_match)
@@ -373,6 +376,7 @@ class TestSyntheticConcordanceFixtures(unittest.TestCase):
             reference=self.ref,
             panel_alids=self.panel_alids,
             gates=self.gates,
+            p_value_test="wald_1df",
         )
 
         self.assertTrue(res.ancestry_match)
@@ -399,6 +403,7 @@ class TestSyntheticConcordanceFixtures(unittest.TestCase):
             reference=self.ref,
             panel_alids=self.panel_alids,
             gates=self.gates,
+            p_value_test="wald_1df",
         )
 
         self.assertTrue(res.ancestry_match)
@@ -419,6 +424,7 @@ class TestReferenceAfFallbackPolicy(unittest.TestCase):
             sample_size=10000.0,
             original_sd_method=OriginalSdMethod.ESTIMATED_FROM_SOURCE_MAF,
             stored_effect_scale=StoredEffectScale.SD,
+            p_value_test="wald_1df",
         )
         # Empty reference list (source-AF-only policy)
         # Testing resolve behavior when source AF is absent
@@ -431,6 +437,7 @@ class TestReferenceAfFallbackPolicy(unittest.TestCase):
             sample_size=10000.0,
             original_sd_method=OriginalSdMethod.BINARY_TRAIT,
             stored_effect_scale=StoredEffectScale.LOG_OR,
+            p_value_test="wald_1df",
         )
         self.assertEqual(req.original_sd_method, OriginalSdMethod.BINARY_TRAIT)
         self.assertEqual(req.stored_effect_scale, StoredEffectScale.LOG_OR)
@@ -572,12 +579,16 @@ class TestSyntheticConcordanceStudyEndToEnd(unittest.TestCase):
         with open(self.manifest_path, "w", newline="") as fh:
             writer = csv.DictWriter(
                 fh,
-                fieldnames=["analysis_id", "study_design", "sample_size", "data_file", "data_bytes", "stratum"],
+                fieldnames=[
+                    "analysis_id", "trait", "study_design", "sample_size", "data_file",
+                    "data_bytes", "stratum",
+                ],
                 delimiter="\t",
             )
             writer.writeheader()
             writer.writerow({
                 "analysis_id": "SYNTH_Q",
+                "trait": "Height",
                 "study_design": "quantitative",
                 "sample_size": "5000",
                 "data_file": str(eur_path),
@@ -586,6 +597,7 @@ class TestSyntheticConcordanceStudyEndToEnd(unittest.TestCase):
             })
             writer.writerow({
                 "analysis_id": "SYNTH_CC",
+                "trait": "Asthma",
                 "study_design": "case-control",
                 "sample_size": "5000",
                 "data_file": str(cc_path),
@@ -682,6 +694,58 @@ class TestSyntheticConcordanceStudyEndToEnd(unittest.TestCase):
         self.assertIn("# QC Panel Concordance Study Report", report)
         self.assertIn("Total Analyses Evaluated:** 2", report)
         self.assertIn("ADOPT_QC_PANEL", report)
+
+    def _declare(self, rows: str) -> Path:
+        table = self.dir / "p-value-tests.tsv"
+        table.write_text("analysis_id\tp_value_test\treason\n" + rows, encoding="utf-8")
+        return table
+
+    def _study(self, p_value_tests_path: Path, *, dry_run: bool = False):
+        return evaluate_concordance_study(
+            manifest_path=self.manifest_path,
+            config_path=self.config_path,
+            cores=1,
+            dry_run=dry_run,
+            qc_panel_path=self.qc_panel_path,
+            p_value_tests_path=p_value_tests_path,
+        )
+
+    def test_a_declared_mr_mega_sample_is_refused_unread(self) -> None:
+        """The study passes each sample's declared p-value test to the resolver (#371)."""
+        summary = self._study(self._declare("SYNTH_Q\tmr_mega\tMR-MEGA meta-analysis\n"))
+
+        by_id = {result.analysis_id: result for result in summary.results}
+        self.assertEqual(by_id["SYNTH_Q"].disagreement_category, "execution_error")
+        self.assertTrue(by_id["SYNTH_Q"].error.startswith("p_value_test is mr_mega"))
+        self.assertEqual(by_id["SYNTH_CC"].full_assigned_ancestry, "EUR")
+        self.assertFalse(summary.criteria_evaluation["zero_execution_errors"])
+
+    def test_an_undeclared_two_df_label_is_refused(self) -> None:
+        """A sample whose label names a 2-df test is not read as wald_1df by silence."""
+        rows = self.manifest_path.read_text(encoding="utf-8")
+        self.manifest_path.write_text(
+            rows.replace("\tHeight\t", "\tHeight (2df test)\t"), encoding="utf-8"
+        )
+        with self.assertRaises(ReviewedTableError) as ctx:
+            self._study(self._declare(""), dry_run=True)
+        self.assertIn("SYNTH_Q", str(ctx.exception))
+
+        declared = self._declare("SYNTH_Q\tjoint_2df\tinteraction and main effect\n")
+        self.assertEqual(self._study(declared, dry_run=True).total_analyses, 2)
+
+    def test_a_sample_manifest_without_labels_is_refused(self) -> None:
+        rows = self.manifest_path.read_text(encoding="utf-8").splitlines()
+        header = rows[0].split("\t")
+        at = header.index("trait")
+        self.manifest_path.write_text(
+            "\n".join(
+                "\t".join(cell for i, cell in enumerate(row.split("\t")) if i != at)
+                for row in rows
+            ) + "\n",
+            encoding="utf-8",
+        )
+        with self.assertRaisesRegex(ValueError, "no 'trait' column"):
+            self._study(self._declare(""), dry_run=True)
 
 
 class TestFinalizedConcordanceOutputs(unittest.TestCase):
