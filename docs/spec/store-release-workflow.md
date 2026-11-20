@@ -1299,6 +1299,15 @@ already-frozen Selection, never a second selection: membership is still the
 inventory's. An inventory frozen without its connectors (the pre-#283
 candidate-table freeze) is refused.
 
+Each row also declares `p_value_test`, the test the source's `p_value` comes
+from (opengwasdb#371, ADR 0085). The engine requires the column, with no default:
+it refuses `mr_mega` unread and skips its p-value check for `joint_2df`. The value
+is the one `release_policy.p_value_tests` lists, else `wald_1df`. An Analysis whose
+Source Trait Label names a 2-df test or MR-MEGA and that the table does not list
+is refused when the manifest is derived. A row's `maf_threshold` is
+`release_policy.maf_threshold_overrides`' value where the Analysis is listed
+there.
+
 **Record accounting.** `verify` fails, and `emit` refuses before anything
 replaces a prior candidate, when a selected Analysis has no record, when the
 receipt names a record for an Analysis outside the Selection's manifest, when

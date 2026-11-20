@@ -116,7 +116,7 @@ from manifest_generation.resolution_area import (  # noqa: E402
     ResolutionAreaLocked,
     resolution_root,
 )
-from manifest_generation.release_config import RELEASE_CONFIG_VERSION  # noqa: E402
+from manifest_generation.release_config import RELEASE_CONFIG_VERSION, ReleaseConfigError  # noqa: E402
 from manifest_generation.source_inventory import (  # noqa: E402
     PreflightConfigError,
     SourceInventoryRow,
@@ -574,9 +574,11 @@ def _two_resolver_rows() -> list[ResolverRow]:
     """Two minimal resolver rows for unit-level accounting tests."""
     return [
         ResolverRow("GCST1", "/tmp/a.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
-                    "estimated_from_source_maf", "100", "a" * 64, "sha256", "10"),
+                    "estimated_from_source_maf", "100", "a" * 64, "sha256", "10",
+                    p_value_test="wald_1df"),
         ResolverRow("GCST2", "/tmp/b.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
-                    "estimated_from_source_maf", "200", "b" * 64, "sha256", "20"),
+                    "estimated_from_source_maf", "200", "b" * 64, "sha256", "20",
+                    p_value_test="wald_1df"),
     ]
 
 
@@ -1223,6 +1225,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             "GCST1", "/tmp/a.h.tsv.gz", "opengwasdb.gwas-ssf", "sd",
             "estimated_from_source_maf", "100", "a" * 64, "sha256", "10",
             maf_threshold="0.005",
+            p_value_test="wald_1df",
         )
         matching = {
             "diagnostics": {"maf_state": "filtered"},
@@ -1413,6 +1416,146 @@ class CandidateWorkflowTests(unittest.TestCase):
         self._write_exemptions("GCST90000001\tsecond reason\n")
         self._assert_emit_rejects_and_preserves("resolution contract changed")
 
+    # -- p-value tests and MAF overrides (opengwasdb#371) -------------------------
+
+    def _set_policy_table(self, key: str, name: str, header: str, rows: str) -> Path:
+        path = self.fixture.root / name
+        path.write_text(header + rows, encoding="utf-8")
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["release_policy"][key] = str(path)
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+        return path
+
+    def _declare_p_value_tests(self, rows: str) -> Path:
+        return self._set_policy_table(
+            "p_value_tests", "p-value-tests.tsv", "analysis_id\tp_value_test\treason\n", rows
+        )
+
+    def _override_maf(self, rows: str) -> Path:
+        return self._set_policy_table(
+            "maf_threshold_overrides", "maf-threshold-overrides.tsv",
+            "analysis_id\tmaf_threshold\treason\n", rows,
+        )
+
+    def _derived(self) -> dict[str, ResolverRow]:
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        rows = read_inventory(self.fixture.inventory_path)
+        metadata = read_analysis_metadata(
+            self.fixture.provenance_path, (row.analysis_id for row in rows if row.ready)
+        )
+        return {row.analysis_id: row for row in derive_resolver_manifest(rows, config, metadata)}
+
+    def test_declared_p_value_tests_reach_the_resolver_manifest_and_receipt(self) -> None:
+        self._declare_p_value_tests(
+            "GCST90000001\tmr_mega\tMR-MEGA (fixture)\n"
+            "GCST90000002\tjoint_2df\tjoint test (fixture)\n"
+        )
+        by_id = self._derived()
+        self.assertEqual(by_id["GCST90000001"].p_value_test, "mr_mega")
+        self.assertEqual(by_id["GCST90000002"].p_value_test, "joint_2df")
+        unlisted = [row for key, row in by_id.items() if key not in {"GCST90000001", "GCST90000002"}]
+        self.assertTrue(unlisted)
+        self.assertEqual({row.p_value_test for row in unlisted}, {"wald_1df"})
+        header = render_resolver_manifest(list(by_id.values())).splitlines()[0].split("\t")
+        self.assertIn("p_value_test", header)
+
+        result = _run_cli(self.fixture)
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        receipt = read_resolution_receipt(
+            self.fixture.work_root / STORE_ID / "resolver" / RECEIPT_FILENAME
+        )
+        self.assertEqual(receipt["contract"]["p_value_tests"], {
+            "GCST90000001": {"p_value_test": "mr_mega", "reason": "MR-MEGA (fixture)"},
+            "GCST90000002": {"p_value_test": "joint_2df", "reason": "joint test (fixture)"},
+        })
+
+    def test_a_label_naming_another_test_is_refused_until_it_is_declared(self) -> None:
+        self._rewrite_candidate_traits(
+            {"GCST90000003": ("HDL x anxiety interaction (2df test)", "", "")}
+        )
+        with self.assertRaises(CandidateError) as caught:
+            self._derived()
+        self.assertIn("GCST90000003", str(caught.exception))
+        self.assertIn("(2df test)", str(caught.exception))
+        self.assertIn("p_value_tests", str(caught.exception))
+
+        self._declare_p_value_tests("GCST90000003\twald_1df\tp_value is the 1-df p (fixture)\n")
+        self.assertEqual(self._derived()["GCST90000003"].p_value_test, "wald_1df")
+
+    def test_a_maf_threshold_override_replaces_the_default_floor(self) -> None:
+        self._set_maf_threshold(0.005)
+        self._override_maf("GCST90000001\t0.1\tlow-frequency rows contradict p (fixture)\n")
+
+        by_id = self._derived()
+
+        self.assertEqual(by_id["GCST90000001"].maf_threshold, "0.1")
+        self.assertEqual(by_id["GCST90000002"].maf_threshold, "0.005")
+
+    def test_an_override_on_an_exempt_analysis_is_refused(self) -> None:
+        self._set_maf_threshold(0.005)
+        self._override_maf("GCST90000001\t0.1\toverride (fixture)\n")
+        exempt = self._write_exemptions("GCST90000001\tplaceholder frequency (fixture)\n")
+        self._set_maf_exempt_analyses(str(exempt))
+
+        with self.assertRaises(CandidateError) as caught:
+            self._derived()
+        self.assertIn("maf_filter_exempt_analyses", str(caught.exception))
+
+    def test_an_override_needs_a_default_floor(self) -> None:
+        self._set_maf_threshold(None)
+        self._override_maf("GCST90000001\t0.1\toverride (fixture)\n")
+
+        with self.assertRaises(ReleaseConfigError) as caught:
+            load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+        self.assertIn("maf_threshold_overrides needs a defaults.maf_threshold", str(caught.exception))
+
+    def test_a_reviewed_table_refuses_a_row_it_cannot_read(self) -> None:
+        self._set_maf_threshold(0.005)
+        for rows, expected in (
+            ("GCST90000001\twald\tr\n", "p_value_test must be one of"),
+            ("GCST90000001\tmr_mega\t\n", "must be non-empty"),
+            ("GCST90000001\tmr_mega\tr\nGCST90000001\tjoint_2df\tr\n", "duplicate"),
+        ):
+            with self.subTest(rows=rows):
+                self._declare_p_value_tests(rows)
+                with self.assertRaises(CandidateError) as caught:
+                    load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+                self.assertIn(expected, str(caught.exception))
+        self._declare_p_value_tests("")
+        for value in ("0", "0.6", "NaN", "x"):
+            with self.subTest(maf=value):
+                self._override_maf(f"GCST90000001\t{value}\tr\n")
+                with self.assertRaises(CandidateError) as caught:
+                    load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+                self.assertIn("maf_threshold must be a number in (0, 0.5]", str(caught.exception))
+
+    def test_committed_p_value_tests_and_overrides_are_opengwasdb_371s(self) -> None:
+        document = yaml.safe_load(self.fixture.config_path.read_text())
+        document["defaults"]["maf_threshold"] = 0.005
+        document["release_policy"]["p_value_tests"] = (
+            "resources/generators/gwas-catalog-eur-hybrid/p-value-tests.tsv"
+        )
+        document["release_policy"]["maf_threshold_overrides"] = (
+            "resources/generators/gwas-catalog-eur-hybrid/maf-threshold-overrides.tsv"
+        )
+        self.fixture.config_path.write_text(yaml.safe_dump(document))
+
+        config = load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
+
+        tests: dict[str, set[str]] = {}
+        for analysis_id, found in config.p_value_tests.items():
+            tests.setdefault(found.value, set()).add(analysis_id)
+        self.assertEqual({key: len(ids) for key, ids in tests.items()},
+                         {"mr_mega": 8, "joint_2df": 35, "wald_1df": 6})
+        self.assertEqual(tests["mr_mega"], {
+            "GCST90833021", "GCST90444480", *(f"GCST900{n}" for n in range(14299, 14305)),
+        })
+        self.assertEqual(
+            {key: found.value for key, found in config.maf_threshold_overrides.items()},
+            {"GCST90572747": "0.1", "GCST90243957": "0.075", "GCST90243956": "0.075",
+             "GCST90002238": "0.025", "GCST90002227": "0.04"},
+        )
+
     def test_declared_analysis_with_no_usable_scores_is_included_with_nan_info(self) -> None:
         # Core no longer treats zero usable scores as a controlled failure, and
         # the registry no longer refuses the Analysis (#176): every row is
@@ -1449,6 +1592,7 @@ class CandidateWorkflowTests(unittest.TestCase):
             info_score_threshold="0.6", imputation_score_column="imputation_INFO",
             imputation_score_kind="imputation_info",
             imputation_score_provenance="provider: INFO quality",
+            p_value_test="wald_1df",
         )
         matching_fingerprint = {
             "resolution_config": {
@@ -2715,11 +2859,13 @@ class CandidateWorkflowTests(unittest.TestCase):
                 filtered.analysis_id, "/mirror/GCST90000001.h.tsv.gz",
                 "opengwasdb.gwas-ssf", "sd", "estimated_from_source_maf", "5000",
                 "a" * 64, "sha256", "100", maf_threshold="0.005",
+                p_value_test="wald_1df",
             ),
             ResolverRow(
                 unfiltered.analysis_id, "/mirror/second.gz", "opengwasdb.gwas-ssf",
                 "sd", "estimated_from_source_maf", "5000", "b" * 64, "sha256",
                 "100", maf_threshold="NaN",
+                p_value_test="wald_1df",
             ),
         ]
         return filtered, unfiltered, [filtered_record, unfiltered_record], declarations

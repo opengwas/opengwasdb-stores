@@ -1,0 +1,6 @@
+analysis_id	maf_threshold	reason
+GCST90002227	0.04	p from the inverse-normal model beside raw-trait beta/se; false hits concentrate at low MAF: 82 of 641 hits false at the 0.005 default, 3 of 555 at 0.04, keeping 63.5% of rows (opengwasdb#371)
+GCST90002238	0.025	p from the inverse-normal model beside raw-trait beta/se; false hits concentrate at low MAF: 980 of 3,089 hits false at the 0.005 default, 18 of 2,115 at 0.025, keeping 70.9% of rows (opengwasdb#371)
+GCST90243956	0.075	case-control (N 26,351): Wald SE too small at low MAF beside the score-test p; 807 of 10,778 hits false at the 0.005 default, 42 of 8,147 at 0.075, keeping 62.7% of rows (opengwasdb#371)
+GCST90243957	0.075	case-control (SNPTEST, N 10,771): Wald SE too small at low MAF beside the score-test p; 1,425 of 5,928 hits false at the 0.005 default, 31 of 4,231 at 0.075, keeping 62.8% of rows (opengwasdb#371)
+GCST90572747	0.1	case-control (N 6,355): Wald SE too small at low MAF beside the score-test p; 366 of 468 hits false at the 0.005 default, 23 of 109 at 0.05, 0 of 42 at 0.1, keeping 61.8% of rows (opengwasdb#371)

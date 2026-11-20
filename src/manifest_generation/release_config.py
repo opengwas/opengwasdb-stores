@@ -183,6 +183,12 @@ class ReleaseConfig:
     maf_filter_exempt_genotyping_technologies: tuple[str, ...]
     maf_filter_exempt_analyses_path: Path | None
     effect_placeholder_exclusions_path: Path | None
+    #: The reviewed per-Analysis p-value tests (``release_policy.p_value_tests``,
+    #: opengwasdb#371), or ``None``: every Analysis is then ``wald_1df``.
+    p_value_tests_path: Path | None
+    #: The reviewed per-Analysis MAF floors that replace ``defaults.maf_threshold``
+    #: (``release_policy.maf_threshold_overrides``, opengwasdb#371), or ``None``.
+    maf_threshold_overrides_path: Path | None
     quality_check_overrides: Mapping[str, Any]
     reference_resources: Mapping[str, ReferenceResource]
     ancestry_reference_resource_id: str
@@ -279,6 +285,7 @@ RELEASE_POLICY_OPTIONAL = (
     "store_composition", "trust_source_ancestry_without_af", "imputation_score_declarations",
     "maf_filter_exempt_genotyping_technologies", "maf_filter_exempt_analyses",
     "effect_placeholder_exclusions", "keep_unassigned_ancestry_as_warning",
+    "p_value_tests", "maf_threshold_overrides",
 )
 RESOURCE_REQUIRED = ("resource_id", "kind", "location")
 RESOURCE_OPTIONAL = (
@@ -307,6 +314,19 @@ def _optional_path(block: Mapping[str, Any], key: str, where: str, repo_root: Pa
     if block.get(key) is None:
         return None
     return _path(block[key], f"{where}.{key}", repo_root)
+
+
+def _maf_threshold_overrides_path(
+    policy: Mapping[str, Any], maf_threshold: str | None, where: str, repo_root: Path
+) -> Path | None:
+    """``release_policy.maf_threshold_overrides``; it replaces a floor, so it needs one."""
+    found = _optional_path(policy, "maf_threshold_overrides", where, repo_root)
+    if found is not None and maf_threshold is None:
+        raise ReleaseConfigError(
+            f"{where}.maf_threshold_overrides needs a defaults.maf_threshold: an override "
+            "replaces the release's MAF floor, and this release declares none"
+        )
+    return found
 
 
 def _number_in(value: Any, where: str, low: Decimal, high: Decimal) -> str:
@@ -806,6 +826,12 @@ def load_release_config(path: Path | str, repo_root: Path | str) -> ReleaseConfi
         ),
         effect_placeholder_exclusions_path=_optional_path(
             policy, "effect_placeholder_exclusions", _where(path, "release_policy"), repo_root
+        ),
+        p_value_tests_path=_optional_path(
+            policy, "p_value_tests", _where(path, "release_policy"), repo_root
+        ),
+        maf_threshold_overrides_path=_maf_threshold_overrides_path(
+            policy, maf_threshold, _where(path, "release_policy"), repo_root
         ),
         quality_check_overrides=overrides,
         reference_resources=resources,
