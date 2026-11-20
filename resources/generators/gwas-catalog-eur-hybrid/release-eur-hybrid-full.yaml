@@ -142,6 +142,15 @@ release_policy:
   # GCST90428462 and GCST90428463 carry effect_allele_frequency 0.0 on every
   # row, which core reads as missing (#176, 2026-09-29).
   maf_filter_exempt_analyses: resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv
+  # opengwasdb#371 (owner ruling 20 Nov 2026): five Analyses whose low-frequency
+  # rows contradict their own p-value take a higher MAF floor, each chosen from
+  # the whole-file measurement as the lowest that leaves about 1% of hits false.
+  maf_threshold_overrides: resources/generators/gwas-catalog-eur-hybrid/maf-threshold-overrides.tsv
+  # opengwasdb#371, ADR 0085: the test each source's p-value comes from, for
+  # every Analysis that is not a 1-df Wald test or whose label suggests it is
+  # not. The 8 MR-MEGA Analyses are refused by the resolver (owner: drop); the
+  # 35 joint 2-df tests resolve with the effect-consistency check skipped.
+  p_value_tests: resources/generators/gwas-catalog-eur-hybrid/p-value-tests.tsv
   # The 27 included Analyses with a +-2.2250738585072014e-308 placeholder
   # effect, excluded as effect_placeholder_rows until core refuses it (#285).
   effect_placeholder_exclusions: resources/generators/gwas-catalog-eur-hybrid/effect-placeholder-exclusions.tsv

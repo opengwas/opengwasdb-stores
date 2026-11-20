@@ -231,6 +231,8 @@ fallback (opengwasdb#277).
 | `maf_filter_exempt_genotyping_technologies` | No | Technologies exempt from the MAF floor (#176). Policy over a fact: an Analysis is exempt when its Source Metadata Table `genotyping_technology` is non-empty and every technology it lists is named here. The column records what the source says and never decides exemption; a blank column is never exempt, and shared code reads no source metadata file (#347). |
 | `maf_filter_exempt_analyses` | No | The reviewed per-Analysis MAF-floor exemptions (#176). |
 | `effect_placeholder_exclusions` | No | The reviewed effect-placeholder listing the `effect_placeholder_rows` Quality Check reads (#285). |
+| `p_value_tests` | No | The reviewed per-Analysis p-value tests (opengwasdb#371, ADR 0085): a TSV of exactly `analysis_id`, `p_value_test` (`wald_1df`, `joint_2df` or `mr_mega`) and a non-empty `reason`. The resolver manifest's required `p_value_test` column takes the listed value. An unlisted Analysis is `wald_1df`, except that one whose Source Trait Label names a 2-df test or MR-MEGA is refused until the table lists it. The resolver refuses `mr_mega` unread and skips its p-value check for `joint_2df`. The rows and reasons are recorded in the resolution receipt's contract. |
+| `maf_threshold_overrides` | No | The reviewed per-Analysis MAF floors that replace `defaults.maf_threshold` (opengwasdb#371): a TSV of exactly `analysis_id`, `maf_threshold` (in (0, 0.5]) and a non-empty `reason`. It needs a `defaults.maf_threshold`. An Analysis that is also MAF-exempt is refused. The rows and reasons are recorded in the resolution receipt's contract. |
 
 ### `region_policy`
 
@@ -392,6 +394,8 @@ release_policy:
     - Exome-wide sequencing
   maf_filter_exempt_analyses: resources/generators/gwas-catalog-eur-hybrid/maf-filter-exemptions.tsv
   effect_placeholder_exclusions: resources/generators/gwas-catalog-eur-hybrid/effect-placeholder-exclusions.tsv
+  maf_threshold_overrides: resources/generators/gwas-catalog-eur-hybrid/maf-threshold-overrides.tsv
+  p_value_tests: resources/generators/gwas-catalog-eur-hybrid/p-value-tests.tsv
 
 reference_resources:
   - resource_id: ukb-ancestry-mixture-hg38

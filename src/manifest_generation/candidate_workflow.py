@@ -99,6 +99,13 @@ from manifest_generation.source_inventory import (
     SourceInventoryRow,
     duplicate_content_groups,
 )
+from manifest_generation.p_value_tests import (
+    ReviewedTableError,
+    ReviewedValue,
+    declared_p_value_test,
+    read_maf_threshold_overrides,
+    read_p_value_tests,
+)
 from manifest_generation.release_config import ReleaseConfig, load_release_config
 from manifest_generation.connector_tsv import FreezeError
 from manifest_generation.freeze import (
@@ -143,6 +150,7 @@ RESOLVER_MANIFEST_COLUMNS: tuple[str, ...] = (
     "imputation_score_provenance",
     "maf_threshold",
     "source_probe_id",
+    "p_value_test",
 )
 
 #: The canonical Release Bundle ``analyses.tsv`` columns this generator emits.
@@ -483,6 +491,14 @@ class CandidateConfiguration:
     #: The completion recipe the release config declares (#340, ADR 0037), or
     #: ``None`` for a release that completes nothing.
     completion: CompletionRecipe | None = None
+    #: ``release_policy.p_value_tests`` and what it declares (opengwasdb#371):
+    #: ``analysis_id -> (p_value_test, reason)``; see ``p_value_tests``.
+    p_value_tests_path: Path | None = None
+    p_value_tests: Mapping[str, ReviewedValue] = field(default_factory=dict)
+    #: ``release_policy.maf_threshold_overrides`` and its rows (opengwasdb#371):
+    #: ``analysis_id -> (maf_threshold, reason)``, each replacing the default floor.
+    maf_threshold_overrides_path: Path | None = None
+    maf_threshold_overrides: Mapping[str, ReviewedValue] = field(default_factory=dict)
 
 
 #: The Ancestry Assignment Method of an Analysis whose source has no allele
@@ -562,7 +578,22 @@ def load_candidate_configuration(path: Path, repo_root: Path) -> CandidateConfig
             else None
         ),
         completion=base.completion,
+        p_value_tests_path=base.p_value_tests_path,
+        p_value_tests=_reviewed(read_p_value_tests, base.p_value_tests_path),
+        maf_threshold_overrides_path=base.maf_threshold_overrides_path,
+        maf_threshold_overrides=_reviewed(
+            read_maf_threshold_overrides, base.maf_threshold_overrides_path
+        ),
     )
+
+
+def _reviewed(
+    read: Callable[[Path | None], dict[str, ReviewedValue]], path: Path | None
+) -> dict[str, ReviewedValue]:
+    try:
+        return read(path)
+    except ReviewedTableError as exc:
+        raise CandidateError(str(exc)) from exc
 
 
 #: The exact reviewed MAF-floor exemption table header
@@ -713,24 +744,42 @@ def maf_threshold_emission(
 def analysis_maf_threshold(
     row: SourceInventoryRow, config: CandidateConfiguration, metadata: AnalysisMetadata | None
 ) -> str:
-    """The manifest ``maf_threshold`` for one Analysis: the default or ``NaN``.
+    """The manifest ``maf_threshold`` for one Analysis: the default, an override, or ``NaN``.
 
     An Analysis is exempt when ``release_policy.maf_filter_exempt_analyses`` lists it
     (the operator's reviewed reason is carried into the resolution receipt), or
     when it has non-empty technology metadata and *every* technology is in
     ``release_policy.maf_filter_exempt_genotyping_technologies``. Missing technology
-    metadata is never an exemption (#176).
+    metadata is never an exemption (#176). An Analysis that
+    ``release_policy.maf_threshold_overrides`` lists takes its reviewed floor
+    instead of the default (opengwasdb#371); one that is also exempt is refused,
+    because the two reviewed facts contradict each other.
     """
     if config.maf_threshold is None:
         return "NaN"
-    if row.analysis_id in config.maf_filter_exempt_analyses:
+    override = config.maf_threshold_overrides.get(row.analysis_id)
+    exempt_by = _maf_exemption(row, config, metadata)
+    if override is not None and exempt_by:
+        raise CandidateError(
+            f"{row.analysis_id}: release_policy.maf_threshold_overrides raises its MAF floor "
+            f"to {override.value}, and {exempt_by} exempts it from any floor"
+        )
+    if exempt_by:
         return "NaN"
+    return override.value if override is not None else config.maf_threshold
+
+
+def _maf_exemption(
+    row: SourceInventoryRow, config: CandidateConfiguration, metadata: AnalysisMetadata | None
+) -> str:
+    """Which reviewed rule exempts the Analysis from the MAF floor, or ``""``."""
+    if row.analysis_id in config.maf_filter_exempt_analyses:
+        return "release_policy.maf_filter_exempt_analyses"
     exempt = set(config.maf_filter_exempt_genotyping_technologies)
-    if exempt:
-        technologies = metadata.genotyping_technologies if metadata else []
-        if technologies and all(technology in exempt for technology in technologies):
-            return "NaN"
-    return config.maf_threshold
+    technologies = metadata.genotyping_technologies if metadata else []
+    if exempt and technologies and all(technology in exempt for technology in technologies):
+        return "release_policy.maf_filter_exempt_genotyping_technologies"
+    return ""
 
 
 # ---------------------------------------------------------------------------
@@ -1084,6 +1133,9 @@ class ResolverRow:
     #: The ``.epi`` probe a BESD Analysis reads in the file set ``source_file`` is the
     #: prefix of; blank for every other source (#291).
     source_probe_id: str = ""
+    #: The test the source's p-value comes from (opengwasdb#371). No default: the
+    #: resolver refuses a row without it.
+    p_value_test: str = field(kw_only=True)
 
     def as_dict(self) -> dict[str, str]:
         return {name: getattr(self, name) for name in RESOLVER_MANIFEST_COLUMNS}
@@ -1145,11 +1197,22 @@ def derive_resolver_manifest(
                 imputation_score_provenance=provenance,
                 maf_threshold=analysis_maf_threshold(row, config, resolved),
                 source_probe_id=resolved.source_probe_id if resolved else "",
+                p_value_test=_p_value_test(row, config, resolved),
             )
         )
     if not manifest:
         raise CandidateError("no ready Analysis was selected; refusing to emit an empty candidate")
     return manifest
+
+
+def _p_value_test(
+    row: SourceInventoryRow, config: CandidateConfiguration, metadata: AnalysisMetadata | None
+) -> str:
+    label = metadata.source_label if metadata else ""
+    try:
+        return declared_p_value_test(row.analysis_id, label, dict(config.p_value_tests))
+    except ReviewedTableError as exc:
+        raise CandidateError(str(exc)) from exc
 
 
 def render_resolver_manifest(rows: Sequence[ResolverRow]) -> str:
@@ -2182,6 +2245,19 @@ def compute_resolution_contract(config: CandidateConfiguration) -> dict[str, Any
             contract["maf_filter_exempt_analyses_reasons"] = dict(
                 config.maf_filter_exempt_analyses
             )
+        # opengwasdb#371: each override, with its recorded reason.
+        if config.maf_threshold_overrides_path is not None:
+            contract["maf_threshold_overrides"] = {
+                analysis_id: {"maf_threshold": found.value, "reason": found.reason}
+                for analysis_id, found in config.maf_threshold_overrides.items()
+            }
+    # opengwasdb#371: the reviewed p-value tests, which decide whether the
+    # resolver refuses, checks or skips an Analysis. Absent: all wald_1df.
+    if config.p_value_tests_path is not None:
+        contract["p_value_tests"] = {
+            analysis_id: {"p_value_test": found.value, "reason": found.reason}
+            for analysis_id, found in config.p_value_tests.items()
+        }
     # The effective Quality Check thresholds, defaults included, and the
     # release's overrides (#285): changing a shared default or an override makes
     # the receipt stale. A receipt written before #285 lacks the key and is
