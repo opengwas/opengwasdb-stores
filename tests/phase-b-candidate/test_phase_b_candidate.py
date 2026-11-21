@@ -1573,7 +1573,7 @@ class CandidateWorkflowTests(unittest.TestCase):
                     load_candidate_configuration(self.fixture.config_path, REPO_ROOT)
                 self.assertIn("maf_threshold must be a number in (0, 0.5]", str(caught.exception))
 
-    def test_committed_p_value_tests_and_overrides_are_opengwasdb_371s(self) -> None:
+    def test_committed_p_value_tests_and_overrides_are_opengwasdb_371s_and_491s(self) -> None:
         document = yaml.safe_load(self.fixture.config_path.read_text())
         document["defaults"]["maf_threshold"] = 0.005
         document["release_policy"]["p_value_tests"] = (
@@ -1590,9 +1590,10 @@ class CandidateWorkflowTests(unittest.TestCase):
         for analysis_id, found in config.p_value_tests.items():
             tests.setdefault(found.value, set()).add(analysis_id)
         self.assertEqual({key: len(ids) for key, ids in tests.items()},
-                         {"mr_mega": 8, "joint_2df": 35, "wald_1df": 6})
+                         {"mr_mega": 9, "joint_2df": 35, "wald_1df": 6})
         self.assertEqual(tests["mr_mega"], {
             "GCST90833021", "GCST90444480", *(f"GCST900{n}" for n in range(14299, 14305)),
+            "GCST90860792",  # new in the 2026-11-19 release (#491)
         })
         self.assertEqual(
             {key: found.value for key, found in config.maf_threshold_overrides.items()},
@@ -2778,7 +2779,7 @@ class CandidateWorkflowTests(unittest.TestCase):
     def test_committed_effect_placeholder_exclusions_are_readable(self) -> None:
         path = REPO_ROOT / "resources/generators/gwas-catalog-eur-hybrid/effect-placeholder-exclusions.tsv"
         found = read_effect_placeholder_exclusions(path)
-        self.assertEqual(len(found), 27)
+        self.assertEqual(len(found), 48)  # 27, and 21 new in the 2026-11-20 snapshot (#491)
         for analysis_id in ("GCST90454200", "GCST90454201", "GCST90565871", "GCST90565872"):
             self.assertIn("standard_error 0", found[analysis_id])
         self.assertEqual(read_effect_placeholder_exclusions(None), {})

@@ -1,0 +1,4 @@
+analysis_id	reason
+GCST90474644	The GWAS Catalog 2026-11-19 release lists no full summary statistics for it (FULL SUMMARY STATISTICS no; 2026-07-10: yes), so ebi-studies.r no longer makes it a candidate. Never ready: no harmonised metadata upstream in September (#491).
+GCST90474645	The GWAS Catalog 2026-11-19 release lists no full summary statistics for it (FULL SUMMARY STATISTICS no; 2026-07-10: yes), so ebi-studies.r no longer makes it a candidate. Never ready: no harmonised metadata upstream in September (#491).
+GCST90474646	The GWAS Catalog 2026-11-19 release lists no full summary statistics for it (FULL SUMMARY STATISTICS no; 2026-07-10: yes), so ebi-studies.r no longer makes it a candidate. Never ready: no harmonised metadata upstream in September (#491).

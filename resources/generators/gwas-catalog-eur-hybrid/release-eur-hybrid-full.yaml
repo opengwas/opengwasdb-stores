@@ -6,22 +6,26 @@
 #
 # Membership comes from the frozen Source Inventory named below, never from a
 # glob over the acquisition mirror (/data/opengwasdb/raw/ebi-gwas-catalog,
-# ~1.8 TB, never copied). That snapshot is the shared freeze (#283) of the
-# GWAS Catalog's two connector files for this Selection:
+# ~1.9 TB, never copied). That snapshot is the shared freeze (#283) of the
+# GWAS Catalog's two connector files for this Selection, refreshed by #491 from
+# the GWAS Catalog's 2026-11-19 release:
 #   - the Source Metadata Table the GWAS Catalog adapter writes from
-#     providers/gwas_catalog/ebi-studies.r's candidate table (sha256 aef4dbe2...,
-#     the table the 2026-09-22 snapshot froze against);
-#   - the Acquisition Manifest the GWAS Catalog writer overlays from the three
-#     download passes the 2026-09-22 snapshot froze (base, retry_transient,
-#     rescue_upstream_harmonised).
-# Both connector files, the pass lineage and the candidate table are kept,
-# read-only, in /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-24/
-# (#347: the same table with the sidecar's genotyping_technology and
-# source_genome_build columns added; 2026-10-20/ holds the first set).
-# Their selected rows are frozen beside the inventory and checksummed into its
-# provenance, so this config names only the frozen snapshot: a new acquisition
-# or a changed Selection is a re-freeze under a new snapshot id, with
-# source_collection.connectors naming the new connector files.
+#     providers/gwas_catalog/ebi-studies.r's candidate table, curated from that
+#     release (sha256 80e29438...);
+#   - the Acquisition Manifest the GWAS Catalog writer overlays from five
+#     download passes: September's base, retry_transient and
+#     rescue_upstream_harmonised; refresh_2026_11_19, the candidates new to the
+#     pool; and reacquire_changed_upstream, the 21 sources EBI replaced since
+#     September (each in reacquired-2026-11-20/, beside the September bytes).
+#     resources/generators/gwas-catalog-eur-hybrid/acquisition-retirements.tsv
+#     retires the candidates the release no longer lists.
+# The connector files, the pass lineage and the candidate table are kept,
+# read-only, in /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-20/;
+# 2026-10-24/ holds OGS-00011's first set (curated from the 2026-07-10
+# release). Their selected rows are frozen beside the inventory and
+# checksummed into its provenance. A new acquisition or a changed Selection is
+# a re-freeze under a new snapshot id, with source_collection.connectors naming
+# the new connector files.
 
 release_config_version: 1
 
@@ -36,7 +40,7 @@ description: >
   and case-control Analyses are stored on the log-OR scale with SD estimation
   explicitly skipped rather than defaulted.
 notes: >
-  The candidate pool is 6,035 Analyses across 1,007 publications. Only the
+  The candidate pool is 6,219 Analyses (GWAS Catalog release 2026-11-19). Only the
   subset the frozen Source Inventory records as ready becomes release membership;
   the remaining inputs stay inventory facts and are never selected. Two
   accession pairs are byte-identical under different accessions and are reported
@@ -46,15 +50,17 @@ notes: >
 source_collection:
   source_collection_id: gwas-catalog-ssf
   inventory:
-    # Re-frozen by the shared freeze on 2026-10-24 (#347), after 2026-10-20
-    # (#287). Its inventory TSV is byte-identical to
-    # gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv, which the
-    # candidate-table freeze wrote and OGS-00011 was built from.
-    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-10-24
+    # Refreshed from the GWAS Catalog's 2026-11-19 release (#491). The
+    # 2026-10-24 snapshot (#347) is the one OGS-00011's published Store was
+    # built from; its inventory TSV is byte-identical to the 2026-09-22 one.
+    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-11-20
     directory: resources/inventories
+  connectors:
+    source_metadata_table: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-20/gwas-catalog-ssf.source-metadata.tsv
+    acquisition_manifest: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-20/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.tsv
 
 # Every Analysis the candidate table's curation groups as hybrid__European
-# (its ancestry_group is European for all 6,035).
+# (its ancestry_group is European for all 6,219).
 selection:
   where:
     store_key: hybrid__European

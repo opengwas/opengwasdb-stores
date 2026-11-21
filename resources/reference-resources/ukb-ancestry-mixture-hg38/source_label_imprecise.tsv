@@ -4,3 +4,4 @@ NR/Unknown	The source did not report ancestry (GWAS Catalog NR) or ebi-studies.r
 Other	GWAS Catalog's residual category, which names no population a super-population code could stand for.
 Asian (unspecified)	Spans East, South and South East Asian populations, which map to different super-populations (EAS, SAS).
 META	dbGaP's cross-ancestry meta-analysis bucket: several super-populations contribute, so no single super-population code describes the Analysis.
+Central Asian	GWAS Catalog category new in the 2026-11-19 release (#491). Central Asian populations are admixed between West Eurasian and East Asian ancestry, which map to different super-populations (EUR, EAS).

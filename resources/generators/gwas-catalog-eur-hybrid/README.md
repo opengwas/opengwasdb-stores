@@ -27,49 +27,95 @@ config-full.yaml, config-pilot-10.yaml, config-quant-pilot-10.yaml
 ## The connectors and the frozen inventory
 
 The Source Collection plugs in through two connector files
-([source connectors](../../../docs/spec/source-connectors.md)):
+([source connectors](../../../docs/spec/source-connectors.md)). Refreshing them
+from a new GWAS Catalog release (#491) runs, in order:
 
 ```sh
-# The Source Metadata Table, from providers/gwas_catalog/ebi-studies.r's candidate table:
-pixi run python3 -m manifest_generation.providers.gwas_catalog.source_metadata_adapter \
-  --candidates resources/data/derived/store-candidates-analyses.tsv \
-  --out <dir>/gwas-catalog-ssf.source-metadata.tsv
-
-# The Acquisition Manifest, overlaying the download passes earliest first:
+R=/data/opengwasdb/raw/ebi-gwas-catalog
+# 1. The release's published-study downloads, kept read-only and checksummed:
+#    $R/catalog-releases/<release date>/gwas-catalog-download-{studies,ancestries}-v1.0.3.1.tsv
+# 2. The candidate table, curated from that release (no default release):
+Rscript src/manifest_generation/providers/gwas_catalog/ebi-studies.r \
+  $R/catalog-releases/<date>/gwas-catalog-download-studies-v1.0.3.1.tsv \
+  $R/catalog-releases/<date>/gwas-catalog-download-ancestries-v1.0.3.1.tsv <out-dir>
+# 3. A download pass over the candidates new to the pool, and a re-acquisition
+#    pass for sources EBI replaced, into their own tree so the bytes an earlier
+#    snapshot froze stay on disk:
+pixi run python3 -m manifest_generation.providers.gwas_catalog.download_ebi_gwas_catalog_eur_hybrid \
+  --candidates <out-dir>/store-candidates-analyses.tsv --accessions-file <ids> --manifest <pass.tsv> [--dest <tree>]
+# 4. The Acquisition Manifest, overlaying every pass earliest first and retiring
+#    the candidates the release no longer lists:
 pixi run python3 -m manifest_generation.providers.gwas_catalog.write_acquisition_manifest \
-  --pass base=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-manifest.tsv \
-  --pass retry_transient=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-download-retry-transient-manifest.tsv \
-  --pass rescue_upstream_harmonised=/data/opengwasdb/raw/ebi-gwas-catalog/eur-hybrid-rescue-upstream-harmonised-manifest.tsv \
+  --pass base=$R/eur-hybrid-download-manifest.tsv \
+  --pass retry_transient=$R/eur-hybrid-download-retry-transient-manifest.tsv \
+  --pass rescue_upstream_harmonised=$R/eur-hybrid-rescue-upstream-harmonised-manifest.tsv \
+  --pass refresh_2026_11_19=$R/eur-hybrid-download-refresh-2026-11-19-manifest.tsv \
+  --pass reacquire_changed_upstream=$R/eur-hybrid-download-reacquire-2026-11-20-manifest.tsv \
+  --retire resources/generators/gwas-catalog-eur-hybrid/acquisition-retirements.tsv \
   --out <dir>/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.tsv
+# 5. The Source Metadata Table:
+pixi run python3 -m manifest_generation.providers.gwas_catalog.source_metadata_adapter \
+  --candidates <out-dir>/store-candidates-analyses.tsv \
+  --acquisition-manifest <dir>/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.tsv \
+  --out <dir>/gwas-catalog-ssf.source-metadata.tsv
 ```
 
-The connector files every snapshot below was frozen from are kept, read-only,
-beside the download passes in
-`/data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-24/`: the Source
-Metadata Table, the Acquisition Manifest with its pass lineage
-(`.acquisition-manifest.meta.yaml`), and the candidate table the adapter read
-(sha256 `aef4dbe2...`). `2026-10-20/` beside it holds the first set, whose Source
-Metadata Table lacks the sidecar columns below; Chen 2023's and Sun 2018's
-snapshots still cite it. A later acquisition writes a new dated directory.
+`acquisition-retirements.tsv` is a reviewed table (`analysis_id`, `reason`) of
+candidates the release no longer lists. An overlay can only add or replace
+rows, and the freeze refuses an Acquisition Manifest entry no Analysis claims,
+so a candidate that leaves is retired by name, never dropped by silence. The
+pass lineage records each one with its reason and last status. Naming an
+Analysis no pass covers is refused.
 
-The `2026-10-24` Source Metadata Table is the same adapter run over the same
-candidate table with `--acquisition-manifest`, so it adds two columns the
-`2026-10-20` one lacks (#347): `source_genome_build` (`GRCh38` on all 4,783
-ready Analyses) and `genotyping_technology` (blank on 175 of them, which record
-none). The Acquisition Manifest and pass lineage are byte-identical copies.
+`release-eur-hybrid-full.yaml` names the set written on 2026-11-20 from the
+GWAS Catalog's 2026-11-19 release, kept read-only with a `SHA256SUMS` in
+`$R/connectors/2026-11-20/`. Against OGS-00011's set (`2026-10-24/`, curated
+from the 2026-07-10 release) the `hybrid__European` pool moved from 6,035 to
+6,219 candidates, and from 4,783 to 4,886 ready Analyses:
+
+- 187 candidates joined. 186 are new to the catalogue, and one moved from
+  `hybrid__East-Asian`. 103 had a harmonised file and were acquired
+  (`refresh_2026_11_19`). EBI's harmonised index lists none for the other 84.
+- 3 left: GCST90474644/5/6, which the release no longer lists with full summary
+  statistics. None was ready.
+- 21 acquired sources had been replaced upstream since September (EBI
+  re-harmonised them), and were re-acquired into `$R/reacquired-2026-11-20/`
+  (`reacquire_changed_upstream`).
+- 117 acquired sources no longer have a harmonised file upstream; EBI's folder
+  for each now holds only the submitted file. Their September harmonised copies
+  are kept as acquired.
+
+The reviewed tables were extended to the 124 new or re-acquired sources, each
+read whole (#491):
+- `p-value-tests.tsv`: #371's scan (stored hits whose source p is above 1e-4,
+  lost hits, median Δ) found one more MR-MEGA source, GCST90860792 (98.0% of
+  its 57,002 hits; median |Δ| 0.268). Its label says so too. No other source
+  has more than 1% false hits or a joint test's pattern, so no new MAF
+  threshold override was needed.
+- `effect-placeholder-exclusions.tsv`: 21 new Analyses
+  (GCST90838603–GCST90838626) write the #285 placeholder effect.
+- `score-declarations.tsv`: re-derived from the new inventory, adding 8.
+  The two pilot configs keep `score-declarations-2026-10-24.tsv`, the table
+  their Selections were resolved with.
+- `maf-filter-exemptions.tsv`: unchanged. No source writes an all-zero
+  frequency. Eight new sources (GCST90104678–84 and GCST90129505) write no
+  frequency at all; the resolver refuses them, since it can neither assign
+  ancestry nor estimate an SD without one.
+
+`2026-10-24/` holds OGS-00011's set, and `2026-10-20/` the first set, whose
+Source Metadata Table lacks the `source_genome_build` and
+`genotyping_technology` sidecar columns (#347); Chen 2023's and Sun 2018's
+snapshots still cite it. A later acquisition writes a new dated directory.
 
 A release config whose `source_collection.connectors` names them freezes its
 Selection with `pixi run inventory-freeze --config <release config>` (or the
 entry point's `freeze` stage) into `resources/inventories/`, and preflights it
-with `pixi run preflight --config <release config>`. The three release configs
-here name only their committed frozen snapshots
-(`gwas-catalog-ssf-eur-hybrid*-2026-10-24`), frozen on 2026-10-24 (#347; the
-`2026-10-20` ones stay as history, with identical inventory TSVs) from the
-candidate table the 2026-09-22 snapshot froze against (sha256 `aef4dbe2...`) and
-the three passes it overlaid. The full release's inventory TSV is byte-identical
-to `gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv`. A later acquisition, or a
-changed Selection, is a re-freeze under a new snapshot id with `connectors`
-naming the new files.
+with `pixi run preflight --config <release config>`. The full release names
+`gwas-catalog-ssf-eur-hybrid-2026-11-20`. The two pilot configs keep their
+`2026-10-24` snapshots, and the full release's `2026-10-24` inventory TSV is
+byte-identical to `gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv`, the one
+OGS-00011 was built from. A later acquisition, or a changed Selection, is a
+re-freeze under a new snapshot id with `connectors` naming the new files.
 
 ### The rescue pass (issue #151)
 
@@ -325,7 +371,8 @@ numeric threshold.
 deterministically from the header of every ready inventory row:
 
 ```sh
-pixi run python3 -m manifest_generation.providers.gwas_catalog.derive_score_declarations
+pixi run python3 -m manifest_generation.providers.gwas_catalog.derive_score_declarations \
+  --inventory resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-11-20.tsv
 ```
 
 The synonym table is fixed and case-sensitive (the OGS-00011 admission
