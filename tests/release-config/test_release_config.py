@@ -709,6 +709,15 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         settings = resolved[4:resolved.index("--n-workers")]
         groups = settings.index("--ancestry-groups") + 2
         settings[groups:groups] = ["--reference-build", "GRCh38"]
+        # #478 moves the Variant Reference to the regenerated, reference-first
+        # generation, which the engine requires since opengwasdb#381; the
+        # recorded command names the first generation.
+        reference = settings.index("--variant-reference") + 1
+        self.assertEqual(
+            settings[reference],
+            "/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz",
+        )
+        settings[reference] = "/data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz"
         self.assertEqual(resolver_settings(config), settings)
 
     def test_the_gwas_catalog_snapshots_refrozen_for_the_metadata_columns_keep_their_inventories(self) -> None:

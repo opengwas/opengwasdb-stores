@@ -75,16 +75,16 @@ build:
   command: build-hybrid
   options:
     # The Dense Component axis: gnomAD v4.1 common variants at MAF >= 1%
-    # (13,415,936 ALIDs; chr1-22, X, Y, MT), declared by
+    # (13,718,605 ALIDs; chr1-22, X, Y, MT), declared by
     # resources/reference-resources/gnomad-v4-common-hg38. The X, Y and MT rows
     # do not resolve yet (opengwas/opengwasdb#216) and route to the Ragged
     # Overflow.
     #
-    # Deliberately unchanged by epic #232: OGS-00011's published Store was built
-    # from this file, so its bundle keeps naming what built it. #478 repoints
-    # this at the regenerated, reference-first generation
-    # (/data/opengwasdb/reference/gnomad-v4-common-hg38-v2) when it rebuilds.
-    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
+    # The regenerated, reference-first generation (opengwasdb ADR 0079, #381).
+    # The engine refuses the first generation, which OGS-00011's 2026-10
+    # Store was built from (13,415,936 ALIDs, sorted indels), at its first
+    # indel; #478's rebuild moves to this one.
+    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz
     # Pass 2 forks only when this is > 1; a Hybrid build reads every row. 24,
     # not 32: throughput is flat above 8 workers (#154) and the build shares the
     # host. --checkpoint lets a failed build --resume (#227).
