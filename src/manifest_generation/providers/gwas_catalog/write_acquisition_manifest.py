@@ -26,9 +26,10 @@ Usage:
         --pass base=<manifest.tsv> --pass retry_transient=<manifest.tsv> \\
         [--retire <acquisition-retirements.tsv>] --out <manifest.tsv>
 
-``--retire`` names a reviewed table of candidates that left the candidate table
-(#491): the freeze refuses an Acquisition Manifest entry no Analysis claims, and
-an overlay can only add or replace rows, never remove one.
+``--retire`` names a reviewed table of candidates that ``ebi-studies.r``'s
+refreshed candidate table no longer lists (#491): the freeze refuses an
+Acquisition Manifest entry no Analysis claims, and an overlay can only add or
+replace rows, never remove one.
 """
 
 from __future__ import annotations
@@ -270,11 +271,14 @@ def read_retirements(path: Path) -> dict[str, str]:
 
 def retire_analyses(
     merged: Sequence[Mapping[str, str]],
-    passes: Sequence[tuple[str, Sequence[Mapping[str, str]]]],
+    pass_rows: Sequence[tuple[str, Sequence[Mapping[str, str]]]],
     retired: Mapping[str, str],
 ) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
-    """Remove the retired Analyses from ``merged``; return what is kept and what was retired."""
-    last_pass = {row["analysis_id"]: role for role, rows in passes for row in rows}
+    """Remove the retired Analyses from ``merged``; return what is kept and what was retired.
+
+    ``pass_rows`` is each pass's ``(role, rows)``, earliest first, as read.
+    """
+    last_pass = {row["analysis_id"]: role for role, rows in pass_rows for row in rows}
     unknown = sorted(set(retired) - set(last_pass))
     if unknown:
         raise InventoryError(
@@ -302,8 +306,8 @@ def write_from_passes(
     """Overlay ``passes`` (earliest first) into one Acquisition Manifest; return its sidecar path.
 
     ``retire`` is a reviewed table of Analyses to leave out, with a reason each:
-    the candidates that left the Source Collection's candidate table (#491). Every
-    retired Analysis is recorded in the sidecar.
+    the candidates ``ebi-studies.r``'s refreshed candidate table no longer lists
+    (#491). Every retired Analysis is recorded in the sidecar.
     """
     if not passes:
         raise InventoryError("an Acquisition Manifest needs at least one download pass")

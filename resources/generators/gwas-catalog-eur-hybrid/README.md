@@ -73,9 +73,11 @@ GWAS Catalog's 2026-11-19 release, kept read-only with a `SHA256SUMS` in
 from the 2026-07-10 release) the `hybrid__European` pool moved from 6,035 to
 6,219 candidates, and from 4,783 to 4,886 ready Analyses:
 
-- 187 candidates joined. 186 are new to the catalogue, and one moved from
-  `hybrid__East-Asian`. 103 had a harmonised file and were acquired
-  (`refresh_2026_11_19`). EBI's harmonised index lists none for the other 84.
+- 187 candidates joined. 186 are new to the catalogue, and one,
+  GCST90129505, moved from `hybrid__East-Asian` and was already on disk. 103
+  had a harmonised file and were acquired (`refresh_2026_11_19`). EBI's
+  harmonised index lists none for the other 84. The pass had no transient
+  failure, so no retry pass was needed.
 - 3 left: GCST90474644/5/6, which the release no longer lists with full summary
   statistics. None was ready.
 - 21 acquired sources had been replaced upstream since September (EBI
@@ -84,6 +86,18 @@ from the 2026-07-10 release) the `hybrid__European` pool moved from 6,035 to
 - 117 acquired sources no longer have a harmonised file upstream; EBI's folder
   for each now holds only the submitted file. Their September harmonised copies
   are kept as acquired.
+- 4 acquired sources (GCST90002227/32/38/44) answered every probe with HTTP
+  403, so whether EBI changed them could not be checked. Their September copies
+  are kept.
+- For Analyses that were already ready, the catalogue changed some study
+  metadata. GCST90627758 and GCST90627773 are now quantitative instead of
+  case-control, so they move to the `sd` tier. Five lost about half their
+  controls (GCST90011804/08/16/20/21). 279 changed their mapped trait.
+
+`refresh-2026-11-20.tsv` lists each of these by Analysis (`analysis_id`,
+`change`, `detail`), for #478's release notes. It is derived from the two
+candidate tables, the two inventories, the acquisition passes and the upstream
+check.
 
 The reviewed tables were extended to the 124 new or re-acquired sources, each
 read whole (#491):
@@ -91,7 +105,10 @@ read whole (#491):
   lost hits, median Δ) found one more MR-MEGA source, GCST90860792 (98.0% of
   its 57,002 hits; median |Δ| 0.268). Its label says so too. No other source
   has more than 1% false hits or a joint test's pattern, so no new MAF
-  threshold override was needed.
+  threshold override was needed. GCST90726625 is declared `wald_1df` with its
+  reason: it is BOLT-LMM, and its source p comes from the non-infinitesimal
+  model, which makes it more significant than beta/se on 59,278 of its 154,525
+  significant rows. None of its hits is false or lost.
 - `effect-placeholder-exclusions.tsv`: 21 new Analyses
   (GCST90838603–GCST90838626) write the #285 placeholder effect.
 - `score-declarations.tsv`: re-derived from the new inventory, adding 8.
@@ -99,8 +116,11 @@ read whole (#491):
   their Selections were resolved with.
 - `maf-filter-exemptions.tsv`: unchanged. No source writes an all-zero
   frequency. Eight new sources (GCST90104678–84 and GCST90129505) write no
-  frequency at all; the resolver refuses them, since it can neither assign
-  ancestry nor estimate an SD without one.
+  frequency at all. They resolve with no ancestry assigned and no row retained,
+  because a missing frequency fails the MAF floor. The release policy then
+  excludes them as `no_build_eligible_rows`. That exclusion's detail ("no row
+  with a finite effect and positive standard error") and the record's
+  `skip_reason: no_source_p_value` both name the wrong cause.
 
 `2026-10-24/` holds OGS-00011's set, and `2026-10-20/` the first set, whose
 Source Metadata Table lacks the `source_genome_build` and

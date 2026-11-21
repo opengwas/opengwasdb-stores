@@ -1590,7 +1590,7 @@ class CandidateWorkflowTests(unittest.TestCase):
         for analysis_id, found in config.p_value_tests.items():
             tests.setdefault(found.value, set()).add(analysis_id)
         self.assertEqual({key: len(ids) for key, ids in tests.items()},
-                         {"mr_mega": 9, "joint_2df": 35, "wald_1df": 6})
+                         {"mr_mega": 9, "joint_2df": 35, "wald_1df": 7})
         self.assertEqual(tests["mr_mega"], {
             "GCST90833021", "GCST90444480", *(f"GCST900{n}" for n in range(14299, 14305)),
             "GCST90860792",  # new in the 2026-11-19 release (#491)
