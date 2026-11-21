@@ -477,6 +477,19 @@ Analysis -- and records each pass's path, sha256, size, row count, readiness
 counts and overrides there. The pass columns, their parsing, the overlay and the regression check are this writer's alone (#347): no shared module knows the download manifests' shape. It drops the download manifests' study columns
 (intent, the table's job) and per-run `seconds`.
 
+An overlay can add or replace a row but never remove one, and freeze refuses an
+Acquisition Manifest entry no Analysis claims. So when a refresh's candidate
+table (`ebi-studies.r`'s output) no longer lists a candidate, the writer's
+`--retire` names it in a reviewed table (#491). That table has exactly the
+columns `analysis_id` and `reason`, a non-empty value in both on every row, and
+no `analysis_id` twice. The writer leaves each retired Analysis out of the
+manifest, and records it in the pass lineage under `retired`: the table's
+`path` and `sha256`, and per Analysis its `reason`, its merged `status` and the
+`last_pass` that covered it. A retired Analysis that no pass covers is refused,
+and so is a table that breaks the column rules; nothing is written. The EUR
+Hybrid's table is
+`resources/generators/gwas-catalog-eur-hybrid/acquisition-retirements.tsv`.
+
 Example (abridged):
 
 ```text

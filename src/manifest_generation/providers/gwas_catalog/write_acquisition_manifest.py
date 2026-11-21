@@ -23,12 +23,19 @@ Usage:
     python3 -m manifest_generation.providers.gwas_catalog.write_acquisition_manifest \\
         --config resources/generators/gwas-catalog-eur-hybrid/config-full.yaml --out <manifest.tsv>
     python3 -m manifest_generation.providers.gwas_catalog.write_acquisition_manifest \\
-        --pass base=<manifest.tsv> --pass retry_transient=<manifest.tsv> --out <manifest.tsv>
+        --pass base=<manifest.tsv> --pass retry_transient=<manifest.tsv> \\
+        [--retire <acquisition-retirements.tsv>] --out <manifest.tsv>
+
+``--retire`` names a reviewed table of candidates that ``ebi-studies.r``'s
+refreshed candidate table no longer lists (#491): the freeze refuses an
+Acquisition Manifest entry no Analysis claims, and an overlay can only add or
+replace rows, never remove one.
 """
 
 from __future__ import annotations
 
 import argparse
+import csv
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -238,13 +245,78 @@ def parse_pass_arguments(values: Sequence[str], *, flag: str) -> tuple[Acquisiti
     return tuple(passes)
 
 
-def write_from_passes(passes: Sequence[AcquisitionPass], out: Path) -> Path:
-    """Overlay ``passes`` (earliest first) into one Acquisition Manifest; return its sidecar path."""
+RETIREMENT_COLUMNS = ["analysis_id", "reason"]
+
+
+def read_retirements(path: Path) -> dict[str, str]:
+    """``analysis_id -> reason`` from a reviewed retirement table (#491).
+
+    Exact headers, a non-empty id and reason on every row, no id twice.
+    """
+    retired: dict[str, str] = {}
+    with Path(path).open(newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle, delimiter="\t")
+        if reader.fieldnames != RETIREMENT_COLUMNS:
+            raise InventoryError(f"{path}: expected exact TSV headers {RETIREMENT_COLUMNS}")
+        for number, row in enumerate(reader, 2):
+            analysis_id = (row["analysis_id"] or "").strip()
+            reason = (row["reason"] or "").strip()
+            if not analysis_id or not reason:
+                raise InventoryError(f"{path}:{number}: analysis_id and reason must be non-empty")
+            if analysis_id in retired:
+                raise InventoryError(f"{path}:{number}: {analysis_id} is retired twice")
+            retired[analysis_id] = reason
+    return retired
+
+
+def retire_analyses(
+    merged: Sequence[Mapping[str, str]],
+    pass_rows: Sequence[tuple[str, Sequence[Mapping[str, str]]]],
+    retired: Mapping[str, str],
+) -> tuple[list[dict[str, str]], dict[str, dict[str, str]]]:
+    """Remove the retired Analyses from ``merged``; return what is kept and what was retired.
+
+    ``pass_rows`` is each pass's ``(role, rows)``, earliest first, as read.
+    """
+    last_pass = {row["analysis_id"]: role for role, rows in pass_rows for row in rows}
+    unknown = sorted(set(retired) - set(last_pass))
+    if unknown:
+        raise InventoryError(
+            f"the retirement table names {len(unknown)} Analysis(es) no acquisition pass "
+            f"covers: {', '.join(unknown[:10])}"
+        )
+    kept: list[dict[str, str]] = []
+    record: dict[str, dict[str, str]] = {}
+    for row in merged:
+        analysis_id = row["analysis_id"]
+        if analysis_id in retired:
+            record[analysis_id] = {
+                "reason": retired[analysis_id],
+                "status": row["status"],
+                "last_pass": last_pass[analysis_id],
+            }
+        else:
+            kept.append(dict(row))
+    return kept, record
+
+
+def write_from_passes(
+    passes: Sequence[AcquisitionPass], out: Path, *, retire: Path | None = None
+) -> Path:
+    """Overlay ``passes`` (earliest first) into one Acquisition Manifest; return its sidecar path.
+
+    ``retire`` is a reviewed table of Analyses to leave out, with a reason each:
+    the candidates ``ebi-studies.r``'s refreshed candidate table no longer lists
+    (#491). Every retired Analysis is recorded in the sidecar.
+    """
     if not passes:
         raise InventoryError("an Acquisition Manifest needs at least one download pass")
     read = [(entry.role, read_acquisition_pass(entry.path)) for entry in passes]
     merged, overrides = merge_acquisition_manifests(read)
     reject_ready_regressions(read, {row["analysis_id"]: row for row in merged})
+    retired: dict[str, dict[str, str]] = {}
+    if retire is not None:
+        merged, retired = retire_analyses(merged, read, read_retirements(retire))
     out = Path(out)
     write_connector(
         out,
@@ -279,6 +351,12 @@ def write_from_passes(passes: Sequence[AcquisitionPass], out: Path) -> Path:
             for entry, (_, rows) in zip(passes, read)
         ],
     }
+    if retire is not None:
+        document["retired"] = {
+            "path": str(retire),
+            "sha256": sha256_file(Path(retire)),
+            "analyses": retired,
+        }
     atomic_write(sidecar, yaml.safe_dump(document, sort_keys=False, default_flow_style=False, width=100))
     return sidecar
 
@@ -299,11 +377,13 @@ def main(argv: Sequence[str] | None = None) -> int:
     source.add_argument("--config", type=Path, help="a config whose source.inventory.freeze_inputs lists the passes")
     source.add_argument("--pass", dest="passes", action="append", metavar="ROLE=PATH",
                         help="one download pass; repeatable, earliest first")
+    parser.add_argument("--retire", type=Path,
+                        help="a reviewed TSV (analysis_id, reason) of Analyses to leave out (#491)")
     parser.add_argument("--out", required=True, type=Path, help="the Acquisition Manifest to write")
     args = parser.parse_args(argv)
     try:
         passes = passes_from_config(args.config) if args.config else parse_pass_arguments(args.passes, flag="--pass")
-        sidecar = write_from_passes(passes, args.out)
+        sidecar = write_from_passes(passes, args.out, retire=args.retire)
     except InventoryError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

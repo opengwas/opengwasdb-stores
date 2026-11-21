@@ -8,7 +8,9 @@ that a future edit cannot widen the declaration silently.
 
 from __future__ import annotations
 
+import contextlib
 import gzip
+import io
 import tempfile
 import unittest
 from pathlib import Path
@@ -139,6 +141,12 @@ class DeriveDeclarationsTests(unittest.TestCase):
                 "imputation_score_provenance",
             )
             self.assertEqual(len(lines), 3)
+
+    def test_the_inventory_is_named_never_defaulted(self) -> None:
+        """A default snapshot re-derives a stale table silently after a re-freeze (#491)."""
+        with contextlib.redirect_stderr(io.StringIO()) as err, self.assertRaises(SystemExit):
+            derive.parse_args([])
+        self.assertIn("--inventory", err.getvalue())
 
     def test_declaration_columns_match_the_candidate_workflow_contract(self) -> None:
         from manifest_generation.candidate_workflow import SCORE_DECLARATION_COLUMNS
