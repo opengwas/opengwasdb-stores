@@ -1,0 +1,1 @@
+**opengwasdb-stores is now released under GPL-3.0-only, and the University of Bristol holds the copyright** (opengwas/opengwasdb#452, og-dev-hub ADR 0005). It was under AGPL-3.0, from its first commit. Contributions from outside the University of Bristol need a signed Harmony CLA (`CLA.md`); the CLA bot asks on a contributor's first pull request into `main`.

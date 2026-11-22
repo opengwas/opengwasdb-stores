@@ -199,3 +199,10 @@ resources/generators/finngen-r13/  its release configs and reviewed inputs
 Since #252 `stores/` is the only home for a Release Bundle: the family-first
 archive that sat beside it is gone, every bundle it held was either registered
 under its own OGS id or retired, and git history keeps the retired ones.
+
+## Licence
+
+GPL-3.0-only. See [LICENSE](./LICENSE). Copyright © University of Bristol.
+Contributions from outside the University of Bristol need a signed
+[Contributor License Agreement](./CLA.md). Before this change the repository
+was under AGPL-3.0.
