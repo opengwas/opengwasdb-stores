@@ -66,10 +66,32 @@ notes: >
   quantitative. The Dense axis is the reference-first gnomAD generation
   (opengwasdb ADR 0079, #381): a deletion is spelt reference first, so its z
   has the opposite sign to the published Store's, and a deletion and an
-  insertion at one position are two variants. #225's on-rsid-conflict: drop
-  and hm3 overflow-only: skip are carried. #487's gwas-ssf-no-p Column Map is
-  not: GCST90446466, the one Analysis it read, resolves through it but fails
-  the ancestry gate (residual), so it is excluded with or without it.
+  insertion at one position are two variants. The rebuild writes format
+  0.2.3, which stores an SE beyond float16's range as missing and counts it
+  (opengwasdb ADR 0068), so the eight +inf SE cells of the 2026-11-01 erratum
+  (#401) are not stored again. #225's on-rsid-conflict: drop and hm3
+  overflow-only: skip are carried.
+
+  Per Analysis, #478 refuses rather than remaps. GCST90165257 cannot be
+  remapped: its standard_error is NA throughout. GCST002047 (odds ratios in
+  `beta`) and GCST004461 (log-odds in `odds_ratio`) could be read through a
+  Column Map of their own, but a release reads one Column Map and the
+  resolver takes one per run, so remapping them is left as a separate change.
+
+  #487's gwas-ssf-no-p Column Map is not carried. Without it GCST90446466 is
+  refused at resolution as `resolution_failed`, and the recorded detail
+  calls its z deflated; that is the effect-consistency check reading its
+  `p_value`, which holds 1 - p/2 (owner ruling of 2 Nov 2026,
+  opengwasdb#370), not a fault in its beta/se. Through the map it resolves at
+  0.14.1 but fails the ancestry gate (residual 0.219 against 0.06), so it is
+  excluded either way.
+
+  Until the rebuild publishes, the Store served as OGS-00011 is the
+  3,169-Analysis build of 2026-10-26/27, completed and validated on
+  2026-11-01, from the bundle committed at 373f9a0f, whose notes carry its
+  errata (#225, #401, #403, #412). In that Store the statistics of
+  GCST002047, GCST004461 and GCST90165257, and every cell Reference
+  Completion imputed from them, are wrong and must not be used.
 
 source_collection:
   source_collection_id: gwas-catalog-ssf

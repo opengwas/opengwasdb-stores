@@ -342,7 +342,9 @@ under consideration and what has been built appear in one list.
 
 A bundle is immutable once accepted. A material change to membership or to the
 Build Recipe is a **new** Store Release (ADR 0004), not an edit. Correcting
-Analytical Metadata after publication is a Release Erratum.
+Analytical Metadata after publication is a Release Erratum. The one exception,
+OGS-00011's re-emit under its own id before the first release (#478), is
+recorded in ADR 0004.
 
 This is the *only* home for a Release Bundle. The family-first archive that
 once sat beside it held bundles in the pre-ADR-0022 schema and is gone (#252):
@@ -615,9 +617,8 @@ else with `--skip-release-stack`.
 contract. It returns a list of every registry-side error it can find (an empty
 list means valid) and never raises for invalid bundle content. The returned
 list also carries a second channel, `.tolerated`, naming the suppressions the
-#134 legacy exemption, the #286 exemption for OGS-00011's non-CURIE
-`trait_ontology_id` values (an accepted bundle is never rewritten), and a
-bundle Store Release Build will not build deliberately tolerate -- with
+#134 legacy exemption and a bundle Store Release Build will not build
+deliberately tolerate -- with
 their count and citation -- so a caller can surface the gap rather than read a
 clean `[]` that silently erased it (issue #142). It reads only
 files inside Release Bundles, plus a parent bundle when resolving

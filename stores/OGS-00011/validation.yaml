@@ -1,5 +1,5 @@
 status: passed_with_warnings
-validated_at: '2026-11-22T07:26:42Z'
+validated_at: '2026-11-22T07:44:52Z'
 validator:
   name: manifest_generation.generate_candidate
   version: null

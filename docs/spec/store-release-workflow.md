@@ -1450,7 +1450,8 @@ emitter stages it under `stores/.staging/<id>/` (hidden, so
 then swaps it into `stores/<id>/` in one step (`renameat2(RENAME_EXCHANGE)`,
 falling back to a move with restore). It replaces only an earlier candidate: a
 bundle with any later Release Status is refused, and needs a new Store Release
-id. A killed resolver, a failed check or a refused emit leaves the previous
+id. (OGS-00011's re-emit for #478 was the one owner-approved exception: its
+bundle was set back to `candidate` by hand first; see ADR 0004.) A killed resolver, a failed check or a refused emit leaves the previous
 candidate untouched.
 
 The command log in `release.yaml` records the operator invocation and the exact

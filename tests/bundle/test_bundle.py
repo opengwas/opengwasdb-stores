@@ -776,32 +776,29 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertTrue(any("is not a CURIE" in error for error in result), result)
         self.assertEqual(list(result.tolerated), [])
-        registry = REPO_ROOT / "stores"
-        record_check()
-        self.assertEqual(
-            bundle.check(bundle.load("OGS-00011", registry_root=registry), registry_root=registry),
-            [],
-        )
 
     def test_ogs_00011_gcst90446466_is_excluded_without_a_column_map(self) -> None:
         """opengwasdb#370: GCST90446466's `p_value` holds 1 - p/2.
 
-        #487 read it through a map without its p column. Through that map it
-        resolves, but fails the ancestry gate (residual), so #478's re-emit
-        carries no map: every Analysis reads through `opengwasdb.gwas-ssf`, and
-        GCST90446466, refused at resolution on that column, is never built.
+        Read through the dedicated reader, the effect-consistency check refuses
+        it on that column, so it is excluded as `resolution_failed`. #487 read
+        it through a map without its p column instead; through that map it
+        resolves but fails the ancestry gate (residual), so it is excluded
+        either way, and #478's re-emit carries no map: every Analysis reads
+        through `opengwasdb.gwas-ssf`.
         """
         registry = REPO_ROOT / "stores"
         loaded = bundle.load("OGS-00011", registry_root=registry)
         self.assertEqual(list(bundle.check(loaded, registry_root=registry)), [])
         with open(loaded.analyses_path, newline="", encoding="utf-8") as handle:
-            rows = {row["analysis_id"]: row for row in csv.DictReader(handle, delimiter="\t")}
-        self.assertEqual({row["source_reader_capability"] for row in rows.values()}, {"opengwasdb.gwas-ssf"})
+            readers = {row["source_reader_capability"] for row in csv.DictReader(handle, delimiter="\t")}
+        self.assertEqual(readers, {"opengwasdb.gwas-ssf"})
         self.assertIsNone(bundle.column_map_binding(loaded.build))
         exclusions = registry / "OGS-00011" / "sidecars" / "exclusions.tsv"
         with open(exclusions, newline="", encoding="utf-8") as handle:
             excluded = {row["analysis_id"]: row for row in csv.DictReader(handle, delimiter="\t")}
         self.assertEqual(excluded["GCST90446466"]["reason"], "resolution_failed")
+        self.assertIn("deflated against the source's own p-value", excluded["GCST90446466"]["detail"])
         self.assertEqual(excluded["GCST90446466"]["exclude_from_build"], "true")
         record_check()
 
