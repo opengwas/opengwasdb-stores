@@ -235,15 +235,16 @@ releases:
 
   OGS-00011:
     built_analyses: 3169
-    built_baseline_ref: 26fb1ec
-    intended_source_inventory: 6035
+    built_baseline_ref: af266cc3
+    intended_source_inventory: 6219
     intended_state: frozen
-    intended_source: 'frozen Source Inventory gwas-catalog-ssf-eur-hybrid-2026-09-22; manifest is the selected subset'
+    intended_source: 'frozen Source Inventory gwas-catalog-ssf-eur-hybrid-2026-11-20; manifest is the selected subset'
     baseline_note: >-
-      The retired 3,317-Analysis Store (built/validated 2026-09-30, 11.72 h
-      build, 1.63 h validate) predates the #203 composition change. The current
-      accepted bundle admits 3,169; the explicit delta is the 148
-      not_maf_filtered Analyses routed to #204 (zero additions).
+      The published Store's 3,169 Analyses, as the #203 re-emit (af266cc3)
+      admitted them. #478 re-emits the bundle from the GWAS Catalog's
+      2026-11-19 release at opengwasdb 0.14.1: 13 leave, refused at resolution
+      (#403, #412, opengwasdb#371, ADR 0069), and 89 join. The retired
+      3,317-Analysis Store of 2026-09-30 (26fb1ec) predates both.
     published_format: '0.2.0'
     host_validation: >-
       published Store reference-completed and validated 2026-11-01 through the
@@ -251,13 +252,17 @@ releases:
       records/build.json, complete.json, completion-validate.json,
       completion-register.json from 2026-10-26 to 2026-11-01
     host_registration: 'host records/completion-register.json from 2026-11-01'
-    committed_matches_published: true
+    committed_matches_published: false
     hm3_present: true
     errata:
       - >-
         Resolved 2026-11-18 by #232's host reconciliation: the current
         3,169 admitted composition is built, and the published Store is that
         2026-10-26/27 build, completed and validated on 2026-11-01 (#225).
+      - >-
+        2026-11-22 (#478): the committed bundle is a re-emitted candidate of
+        3,245 Analyses that the published 3,169-Analysis Store was not built
+        from; they match again once the rebuild publishes.
 
   # The 2,754-Analysis Store built 2026-09-30 (fix/ogs-00016-build-tmpdir@c871b61)
   # was the old OGS-00016 numbering, and none of that evidence is attributed here

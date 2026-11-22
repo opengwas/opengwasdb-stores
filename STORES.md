@@ -15,7 +15,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00007` | 2018-sun-pilot-10 | true | ragged | observed_only | built | - | 10 | 0 | 171,006 | 202,803 | passed |
 | `OGS-00008` | ukb-b-pilot-10 | true | dense | observed_only | candidate | - | 10 | 0 | - | - | - |
 | `OGS-00009` | ukb-b-full | false | dense | reference_completed | validated | - | 2,514 | 0 | 11,191,070 | - | passed |
-| `OGS-00011` | eur-hybrid-full | false | hybrid | reference_completed | validated | - | 3,169 | 1,614 | 48,069,918 | - | passed_with_warnings |
+| `OGS-00011` | eur-hybrid-full | false | hybrid | observed_only (completion pending) | candidate | - | 3,245 | 1,641 | - | - | passed_with_warnings |
 | `OGS-00012` | mvp-phs002453-eur | false | dense | reference_completed | validated | - | 1,669 | 0 | 20,548,967 | - | passed |
 | `OGS-00013` | mvp-phs002453-afr | false | dense | reference_completed | validated | - | 1,368 | 0 | 40,200,979 | - | passed |
 | `OGS-00014` | mvp-phs002453-amr | false | dense | reference_completed | validated | - | 1,053 | 0 | 30,380,465 | - | passed |
@@ -46,7 +46,7 @@ Every value below is derived from the Release Bundle's `analyses.tsv`; `NA` mean
 | `OGS-00007` | Sun BB | 29875488 | plasma | SomaScan | EUR | 3301 | http://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00008` | Ben Elsworth | NA | NA | NA | EUR | 352094-462933 | NA |
 | `OGS-00009` | Ben Elsworth | NA | NA | NA | EUR | 10339-463010 | NA |
-| `OGS-00011` | mixed (662) | mixed (758) | NA | NA | NA | 15-2586691 | https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
+| `OGS-00011` | mixed (685) | mixed (784) | NA | NA | NA | 15-2733380 | https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/ |
 | `OGS-00012` | NA | NA | NA | NA | EUR | 5266-451195 | NA |
 | `OGS-00013` | NA | NA | NA | NA | AFR | 3435-121774 | NA |
 | `OGS-00014` | NA | NA | NA | NA | NA | 1454-59807 | NA |
@@ -72,4 +72,3 @@ These bundles pass the Release Bundle gate only because a named exemption tolera
 | `OGS-00001` | 70 blank required Analysis values (tolerated under #134) |
 | `OGS-00002` | 10 analysis_id values containing ':' (tolerated under #319) |
 | `OGS-00002` | 70 blank required Analysis values (tolerated under #134) |
-| `OGS-00011` | 2972 non-CURIE trait_ontology_id values (tolerated under #286) |
