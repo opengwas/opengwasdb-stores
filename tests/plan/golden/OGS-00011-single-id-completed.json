@@ -15,7 +15,7 @@
       "--variant-reference",
       "/data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz",
       "--n-workers",
-      "24",
+      "10",
       "--checkpoint",
       "--on-rsid-conflict",
       "drop",
@@ -76,7 +76,7 @@
       "--format",
       "json",
       "--n-workers",
-      "24"
+      "10"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"

@@ -5,7 +5,7 @@ build:
   command: build-hybrid
   options:
     variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz
-    n-workers: 24
+    n-workers: 10
     checkpoint: true
     on-rsid-conflict: drop
     source-reader-capability: opengwasdb.gwas-ssf
