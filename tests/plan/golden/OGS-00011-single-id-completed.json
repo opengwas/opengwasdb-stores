@@ -13,7 +13,7 @@
       "--admission-record",
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb.admission",
       "--variant-reference",
-      "/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz",
+      "/data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz",
       "--n-workers",
       "24",
       "--checkpoint",
@@ -22,13 +22,10 @@
       "--source-reader-capability",
       "opengwasdb.gwas-ssf",
       "--source-assembly",
-      "hg38",
-      "--column-map",
-      "/data/opengwasdb/stores/OGS-00011/work/column_maps/gwas-ssf-no-p.toml"
+      "hg38"
     ],
     "inputs": [
-      "/data/opengwasdb/stores/OGS-00011/work/analyses.tsv",
-      "/data/opengwasdb/stores/OGS-00011/work/column_maps/gwas-ssf-no-p.toml"
+      "/data/opengwasdb/stores/OGS-00011/work/analyses.tsv"
     ],
     "outputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"

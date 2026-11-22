@@ -767,59 +767,42 @@ class TestBundleContract(unittest.TestCase):
                 )
                 self.assertEqual(list(result.tolerated), [])
 
-    def test_ogs_00011_raw_uris_are_tolerated_and_disclosed(self) -> None:
-        """#286: OGS-00011 was accepted with raw URIs; they are tolerated, never rewritten.
-
-        The tolerance is scoped to that one release by name, like #134's, and is
-        reported on check()'s second channel with its count (#142).
-        """
-        self.assertEqual(
-            bundle.LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES, frozenset({"OGS-00011"})
+    def test_ogs_00011_is_held_to_the_curie_form_like_every_bundle(self) -> None:
+        """#478 re-emitted OGS-00011 with CURIEs, so its #286 tolerance for raw URIs is gone."""
+        bad = self._trait_ontology_bundle(
+            "OGS-00011", "http://www.ebi.ac.uk/efo/EFO_0004839", "a trait"
         )
-        registry = REPO_ROOT / "stores"
-        result = bundle.check(
-            bundle.load("OGS-00011", registry_root=registry), registry_root=registry
-        )
+        result = bundle.check(bad, registry_root=self.tmp_dir)
         record_check()
-        self.assertEqual(result, [], result)
-        gaps = [gap for gap in result.tolerated if gap.citation == "#286"]
-        self.assertEqual(len(gaps), 1, result.tolerated)
-        self.assertEqual(gaps[0].count, 2972)
-        self.assertEqual(gaps[0].detail, "non-CURIE trait_ontology_id values")
+        self.assertTrue(any("is not a CURIE" in error for error in result), result)
+        self.assertEqual(list(result.tolerated), [])
+        registry = REPO_ROOT / "stores"
+        record_check()
+        self.assertEqual(
+            bundle.check(bundle.load("OGS-00011", registry_root=registry), registry_root=registry),
+            [],
+        )
 
-    def test_ogs_00011_gcst90446466_reads_through_the_map_without_its_p_value(self) -> None:
-        """opengwasdb#370: GCST90446466's `p_value` holds 1 - p/2, so it reads through a map with no p.
+    def test_ogs_00011_gcst90446466_is_excluded_without_a_column_map(self) -> None:
+        """opengwasdb#370: GCST90446466's `p_value` holds 1 - p/2.
 
-        The effect-consistency check refuses it on that column (median signed
-        delta 0.2394); through the built-in `gwas-ssf` map less `p_value` and
-        `p_value_form` it resolves with the check skipped (`no_source_p_value`).
-        Only that Analysis reads through the carried map; the other 4,782 keep
-        the dedicated `opengwasdb.gwas-ssf` reader.
+        #487 read it through a map without its p column. Through that map it
+        resolves, but fails the ancestry gate (residual), so #478's re-emit
+        carries no map: every Analysis reads through `opengwasdb.gwas-ssf`, and
+        GCST90446466, refused at resolution on that column, is never built.
         """
         registry = REPO_ROOT / "stores"
         loaded = bundle.load("OGS-00011", registry_root=registry)
         self.assertEqual(list(bundle.check(loaded, registry_root=registry)), [])
         with open(loaded.analyses_path, newline="", encoding="utf-8") as handle:
-            readers = {
-                row["analysis_id"]: row["source_reader_capability"]
-                for row in csv.DictReader(handle, delimiter="\t")
-            }
-        self.assertEqual(readers.pop("GCST90446466"), "opengwasdb.column-map")
-        self.assertEqual(set(readers.values()), {"opengwasdb.gwas-ssf"})
-        binding = bundle.column_map_binding(loaded.build)
-        assert binding is not None
-        self.assertEqual((binding.name, binding.file), ("gwas-ssf-no-p", "gwas-ssf-no-p.toml"))
-        carried = registry / "OGS-00011" / "column_maps" / "gwas-ssf-no-p.toml"
-        self.assertEqual(hashlib.sha256(carried.read_bytes()).hexdigest(), binding.sha256)
-        builtin = importlib.resources.files("opengwasdb.readers.column_maps").joinpath("gwas-ssf.toml")
-        expected = [
-            line
-            for line in builtin.read_text(encoding="utf-8").splitlines()
-            if not line.startswith(("p_value =", "p_value_form ="))
-        ]
-        got = carried.read_text(encoding="utf-8").splitlines()
-        self.assertEqual([l for l in got if not l.startswith("name =")], [l for l in expected if not l.startswith("name =")])
-        self.assertIn('name = "gwas-ssf-no-p"', got)
+            rows = {row["analysis_id"]: row for row in csv.DictReader(handle, delimiter="\t")}
+        self.assertEqual({row["source_reader_capability"] for row in rows.values()}, {"opengwasdb.gwas-ssf"})
+        self.assertIsNone(bundle.column_map_binding(loaded.build))
+        exclusions = registry / "OGS-00011" / "sidecars" / "exclusions.tsv"
+        with open(exclusions, newline="", encoding="utf-8") as handle:
+            excluded = {row["analysis_id"]: row for row in csv.DictReader(handle, delimiter="\t")}
+        self.assertEqual(excluded["GCST90446466"]["reason"], "resolution_failed")
+        self.assertEqual(excluded["GCST90446466"]["exclude_from_build"], "true")
         record_check()
 
     def test_one_pass_accumulates_independent_errors(self) -> None:

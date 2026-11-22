@@ -697,27 +697,13 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         self.assertEqual(config.target_ancestry, "EUR")
         self.assertEqual(len(config.effect_placeholder_exclusions), 48)
         self.assertEqual(set(config.maf_filter_exempt_analyses), {"GCST90428462", "GCST90428463"})
-        # The resolver is passed the settings OGS-00011 was resolved under, plus
-        # the Ancestry Reference Panel's declared build, which the pinned
-        # resolver requires since opengwasdb#277 and the recorded command
-        # predates.
+        # The resolver is passed the settings OGS-00011 was resolved under (#478).
         release = yaml.safe_load((REPO_ROOT / "stores/OGS-00011/release.yaml").read_text())
         resolved = next(
             command for command in release["generator"]["commands"]
             if command.startswith("opengwasdb resolve-analyses")
         ).split()
         settings = resolved[4:resolved.index("--n-workers")]
-        groups = settings.index("--ancestry-groups") + 2
-        settings[groups:groups] = ["--reference-build", "GRCh38"]
-        # #478 moves the Variant Reference to the regenerated, reference-first
-        # generation, which the engine requires since opengwasdb#381; the
-        # recorded command names the first generation.
-        reference = settings.index("--variant-reference") + 1
-        self.assertEqual(
-            settings[reference],
-            "/data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz",
-        )
-        settings[reference] = "/data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz"
         self.assertEqual(resolver_settings(config), settings)
 
     def test_the_gwas_catalog_snapshots_refrozen_for_the_metadata_columns_keep_their_inventories(self) -> None:
