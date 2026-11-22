@@ -2244,12 +2244,12 @@ class TestValidateWorkerCount(unittest.TestCase):
         record_check()
         self.assertEqual(self._validate_argv(steps, "completion-validate")[-2:], ["--n-workers", "5"])
         record_check()
-        self.assertEqual(self._validate_argv(steps, "validate")[-2:], ["--n-workers", "24"])
+        self.assertEqual(self._validate_argv(steps, "validate")[-2:], ["--n-workers", "10"])
         options = {k: v for k, v in bundle.build["complete"]["options"].items() if k != "n-workers"}
         steps = plan(replace(bundle, build={**bundle.build, "complete": {**bundle.build["complete"], "options": options}}))
         record_check()
         self.assertEqual(
-            self._validate_argv(steps, "completion-validate")[-2:], ["--n-workers", "24"],
+            self._validate_argv(steps, "completion-validate")[-2:], ["--n-workers", "10"],
             "falls back to the build's own count",
         )
 

@@ -131,10 +131,12 @@ build:
     # Store was built from (13,415,936 ALIDs, sorted indels), at its first
     # indel; #478's rebuild moves to this one.
     variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz
-    # Pass 2 forks only when this is > 1; a Hybrid build reads every row. 24,
-    # not 32: throughput is flat above 8 workers (#154) and the build shares the
-    # host. --checkpoint lets a failed build --resume (#227).
-    n-workers: 24
+    # Pass 2 forks only when this is > 1; a Hybrid build reads every row.
+    # Throughput is flat above 8 workers (#154) and the build shares the host.
+    # 10, not 24: at engine 0.14.1 a worker held about 34 GB (PSS + swap), and
+    # 24 of them beside the host's LD API exhausted its 1,006 GB (#478,
+    # 2026-11-22). --checkpoint lets a failed build --resume (#227).
+    n-workers: 10
     checkpoint: true
     # A variant its sources name with two rsids stores none, and the build
     # counts them (#225, opengwasdb#306).

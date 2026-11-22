@@ -180,7 +180,8 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
         "options": {
             # #478 re-emits OGS-00011 against the reference-first generation.
             "variant-reference": "/data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz",
-            "n-workers": 24,
+            # Execution-only (#478): 24 workers exhausted the host's memory.
+            "n-workers": 10,
             "checkpoint": True,
             # #225 adds the rsid-conflict policy as a Release Erratum: the sources
             # name some variants two ways, and the build refused them rather than
@@ -382,7 +383,8 @@ class TestRegistryMigration(unittest.TestCase):
         """The key is the only addition; options, command and post are unchanged.
 
         Note: OGS-00012/13/14/16 additionally carry the owner-authorized
-        execution-only `n-workers: 16` amendment, and OGS-00009 (#312),
+        execution-only `n-workers: 16` amendment, OGS-00011 its `n-workers: 10`
+        one (#478), and OGS-00009 (#312),
         OGS-00011 (#334, plus #225's rsid-conflict policy, re-emitted by #478), OGS-00012 (#227),
         OGS-00013 (#228), OGS-00014 (#229), OGS-00015 (#230) and OGS-00017
         (#223) their completion phase.
