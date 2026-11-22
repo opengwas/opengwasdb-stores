@@ -823,17 +823,21 @@ class TestRenderingAndRepoView(unittest.TestCase):
         by_id = {r.store_id: r for r in releases}
         self.assertIn("OGS-00011", by_id)
         eleven = by_id["OGS-00011"]
-        self.assertEqual(eleven.membership.n_manifest, 4783)
-        self.assertEqual(eleven.membership.n_admitted, 3169)
-        self.assertEqual(eleven.membership.n_excluded, 1614)
+        # #478 re-emits OGS-00011 from the GWAS Catalog's 2026-11-19 release.
+        self.assertEqual(eleven.membership.n_manifest, 4886)
+        self.assertEqual(eleven.membership.n_admitted, 3245)
+        self.assertEqual(eleven.membership.n_excluded, 1641)
         self.assertIsNotNone(eleven.membership.intended)
-        self.assertEqual(eleven.membership.intended.count, 6035)
+        self.assertEqual(eleven.membership.intended.count, 6219)
         # The delta needs the baseline commit; a shallow checkout may not carry
         # it, in which case the tool records a blocker instead of inventing one.
         if eleven.delta is not None:
-            self.assertEqual(eleven.delta.baseline_admitted, 3317)
-            self.assertEqual(len(eleven.delta.removed), 148)
-            self.assertEqual(eleven.delta.added, ())
+            # Against the published Store's 3,169: the 13 the resolver now
+            # refuses leave, and 89 join.
+            self.assertEqual(eleven.delta.baseline_admitted, 3169)
+            self.assertEqual(len(eleven.delta.removed), 13)
+            self.assertIn("GCST002047", eleven.delta.removed)
+            self.assertEqual(len(eleven.delta.added), 89)
         else:
             self.assertTrue(
                 any("baseline" in blocker for blocker in eleven.blockers),
@@ -849,7 +853,7 @@ class TestRenderingAndRepoView(unittest.TestCase):
         self.assertIn("Intended", text)
         self.assertIn("Admitted", text)
         self.assertIn("Excluded", text)
-        self.assertIn("26fb1ec", text)
+        self.assertIn("af266cc3", text)
         self.assertIn("OGS-00011", text)
 
     def test_yaml_document_round_trips(self) -> None:

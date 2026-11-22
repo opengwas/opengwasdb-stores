@@ -282,14 +282,6 @@ _TRAIT_ONTOLOGY_CURIE: re.Pattern[str] = re.compile(
     r"[A-Za-z][A-Za-z0-9._-]*:[A-Za-z0-9][A-Za-z0-9._-]*"
 )
 
-# Accepted Store Releases emitted before #286 with ``trait_ontology_id`` values
-# that are not CURIEs: OGS-00011 carries GWAS Catalog's raw EFO/ORDO URIs and
-# half-converted lists. An accepted bundle is never rewritten, so its values
-# are tolerated by name and disclosed on check()'s second channel (#142); every
-# other bundle is held to the CURIE form.
-LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES: frozenset[str] = frozenset({"OGS-00011"})
-
-
 def trait_ontology_id_terms(value: str) -> list[str]:
     """The terms of a ``trait_ontology_id`` value, in order; empty for a blank value.
 
@@ -1433,8 +1425,6 @@ def _check_analyses(
     # answer where no acceptable term exists. Each term of a list is checked,
     # and each term must be a CURIE (#286).
     if "trait_ontology_id" in table.fieldnames:
-        tolerate_non_curie = bundle.store_id in LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES
-        tolerated_non_curie = 0
         for row in table.rows:
             analysis_id = row.get("analysis_id") or "<unknown analysis_id>"
             ontology_id = row.get("trait_ontology_id") or ""
@@ -1445,14 +1435,11 @@ def _check_analyses(
                     "(or empty), never a gene or protein identifier"
                 )
             elif not is_canonical_trait_ontology_id(ontology_id):
-                if tolerate_non_curie:
-                    tolerated_non_curie += 1
-                else:
-                    errors.append(
-                        f"analysis {analysis_id!r} has trait_ontology_id {ontology_id!r}, "
-                        "which is not a CURIE or a list of CURIEs joined by "
-                        f"{TRAIT_ONTOLOGY_ID_SEPARATOR!r}"
-                    )
+                errors.append(
+                    f"analysis {analysis_id!r} has trait_ontology_id {ontology_id!r}, "
+                    "which is not a CURIE or a list of CURIEs joined by "
+                    f"{TRAIT_ONTOLOGY_ID_SEPARATOR!r}"
+                )
             if is_authority_name_trait_ontology_label(row.get("trait_ontology_label") or ""):
                 errors.append(
                     f"analysis {analysis_id!r} has trait_ontology_label "
@@ -1460,15 +1447,6 @@ def _check_analyses(
                     "authority rather than a Trait; use the trait label or leave it "
                     "empty"
                 )
-        if tolerated_non_curie:
-            tolerated.append(
-                ToleratedGap(
-                    store_id=bundle.store_id,
-                    count=tolerated_non_curie,
-                    detail="non-CURIE trait_ontology_id values",
-                    citation="#286",
-                )
-            )
 
     # Assigned Ancestry is the registry-normalised super-population code, never a
     # free-text Source Ancestry Label. Empty is the one valid way to record an
@@ -2140,7 +2118,6 @@ __all__ = [
     "column_map_binding",
     "LEGACY_ANALYSIS_ID_RELEASES",
     "LEGACY_BLANK_ANALYSIS_RELEASES",
-    "LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES",
     "LEGAL_STATUS_TRANSITIONS",
     "QUALITY_CHECKS_SIDECAR",
     "QUALITY_CHECK_LEADING_COLUMNS",

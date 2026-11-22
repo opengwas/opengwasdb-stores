@@ -26,9 +26,13 @@ analyses_path <- file.path(derived_dir, "store-candidates-analyses.tsv")
 # The curation itself lives in ebi-studies.r and writes the two TSVs below.
 # Parsing the free-text sample-size field over the whole catalogue takes ~1
 # minute, so this report reads the pre-computed outputs rather than re-running
-# the pipeline. Regenerate them with:  Rscript src/manifest_generation/providers/gwas_catalog/ebi-studies.r
+# the pipeline. Regenerate them from one GWAS Catalog release (#491) with:
+#   R=/data/opengwasdb/raw/ebi-gwas-catalog/catalog-releases/<release date>
+#   Rscript src/manifest_generation/providers/gwas_catalog/ebi-studies.r \
+#     $R/gwas-catalog-download-studies-v1.0.3.1.tsv \
+#     $R/gwas-catalog-download-ancestries-v1.0.3.1.tsv resources/data/derived
 if (!file.exists(summary_path) || !file.exists(analyses_path)) {
-  stop("Derived tables not found. Run `Rscript src/manifest_generation/providers/gwas_catalog/ebi-studies.r` first.")
+  stop("Derived tables not found. Run src/manifest_generation/providers/gwas_catalog/ebi-studies.r on a GWAS Catalog release first.")
 }
 
 store_summary <- fread(summary_path, sep = "\t", na.strings = "")

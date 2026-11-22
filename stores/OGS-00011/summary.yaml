@@ -1,11 +1,11 @@
-n_manifest: 4783
-n_admitted: 3169
-n_excluded: 1614
-n_analyses: 3169
-first_author: mixed (662)
-publication_pmid: mixed (758)
+n_manifest: 4886
+n_admitted: 3245
+n_excluded: 1641
+n_analyses: 3245
+first_author: mixed (685)
+publication_pmid: mixed (784)
 tissue: NA
 context: NA
 assigned_ancestry: NA
-sample_size: 15-2586691
+sample_size: 15-2733380
 source_url: https://ftp.ebi.ac.uk/pub/databases/gwas/summary_statistics/

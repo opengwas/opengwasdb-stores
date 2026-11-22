@@ -13,7 +13,11 @@ look-alike such as ``additional_info`` or ``r2_iCOGS`` never becomes a score.
 The first synonym declared, in the listed order, wins: every ``imputation_info``
 synonym is preferred over every ``imputation_r2`` synonym.
 
-    pixi run python3 -m manifest_generation.providers.gwas_catalog.derive_score_declarations
+    pixi run python3 -m manifest_generation.providers.gwas_catalog.derive_score_declarations \
+        --inventory resources/inventories/<snapshot_id>.tsv
+
+The inventory has no default: after a re-freeze, a default naming the old
+snapshot re-derived the old table without a word (#491).
 
 Writes ``resources/generators/gwas-catalog-eur-hybrid/score-declarations.tsv``
 (or ``--out``) and prints a per-header count.  The output columns are exactly
@@ -42,7 +46,6 @@ from manifest_generation.source_inventory import (
 )
 
 FAMILY_DIR = "resources/generators/gwas-catalog-eur-hybrid"
-DEFAULT_INVENTORY = "resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv"
 DEFAULT_OUT = f"{FAMILY_DIR}/score-declarations.tsv"
 
 #: The exact, case-sensitive synonym table (OGS-00011 admission contract #176).
@@ -207,7 +210,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument("--inventory", default=DEFAULT_INVENTORY, help="frozen Source Inventory TSV")
+    parser.add_argument("--inventory", required=True, help="the frozen Source Inventory TSV the release names")
     parser.add_argument("--out", default=DEFAULT_OUT, help="declaration TSV to write")
     parser.add_argument("--repo-root", default=str(REPO_ROOT))
     parser.add_argument("--stdout", action="store_true", help="write the TSV to stdout instead of --out")

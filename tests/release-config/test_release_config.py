@@ -30,7 +30,7 @@ from manifest_generation.release_config import (
     load_release_config,
 )
 from manifest_generation.selection import SelectionError
-from manifest_generation.source_inventory import frozen_for_release_problems, sha256_file
+from manifest_generation.source_inventory import frozen_for_release_problems, read_inventory, sha256_file
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -674,7 +674,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         # An allowance that no shipped snapshot uses is stale, not a licence.
         self.assertEqual(sorted(durable), sorted(bound))
 
-    def test_the_ogs_00011_config_reproduces_its_inventory_and_resolver_settings(self) -> None:
+    def test_the_ogs_00011_config_keeps_its_analyses_and_resolver_settings(self) -> None:
         from manifest_generation.candidate_workflow import (
             load_candidate_configuration,
             resolver_settings,
@@ -682,28 +682,28 @@ class ShippedReleaseConfigTests(unittest.TestCase):
 
         path = EUR_HYBRID / "release-eur-hybrid-full.yaml"
         config = load_candidate_configuration(path, REPO_ROOT)
-        # The shared freeze of this Selection is the candidate-table freeze's
-        # inventory, byte for byte.
-        self.assertEqual(
-            config.base.inventory_path.read_bytes(),
-            (REPO_ROOT / "resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv").read_bytes(),
-        )
+        # Refreshed from the GWAS Catalog's 2026-11-19 release (#491): every
+        # Analysis OGS-00011 was built from is still ready, and 103 joined.
+        def ready(inventory: Path) -> set[str]:
+            return {row.analysis_id for row in read_inventory(inventory) if row.ready}
+
+        self.assertEqual(config.base.inventory_path.name, "gwas-catalog-ssf-eur-hybrid-2026-11-20.tsv")
+        built_from = ready(REPO_ROOT / "resources/inventories/gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv")
+        refreshed = ready(config.base.inventory_path)
+        self.assertEqual(len(built_from), 4783)
+        self.assertEqual(built_from - refreshed, set())
+        self.assertEqual(len(refreshed - built_from), 103)
         self.assertTrue(config.require_maf_filtered)
         self.assertEqual(config.target_ancestry, "EUR")
-        self.assertEqual(len(config.effect_placeholder_exclusions), 27)
+        self.assertEqual(len(config.effect_placeholder_exclusions), 48)
         self.assertEqual(set(config.maf_filter_exempt_analyses), {"GCST90428462", "GCST90428463"})
-        # The resolver is passed the settings OGS-00011 was resolved under, plus
-        # the Ancestry Reference Panel's declared build, which the pinned
-        # resolver requires since opengwasdb#277 and the recorded command
-        # predates.
+        # The resolver is passed the settings OGS-00011 was resolved under (#478).
         release = yaml.safe_load((REPO_ROOT / "stores/OGS-00011/release.yaml").read_text())
         resolved = next(
             command for command in release["generator"]["commands"]
             if command.startswith("opengwasdb resolve-analyses")
         ).split()
         settings = resolved[4:resolved.index("--n-workers")]
-        groups = settings.index("--ancestry-groups") + 2
-        settings[groups:groups] = ["--reference-build", "GRCh38"]
         self.assertEqual(resolver_settings(config), settings)
 
     def test_the_gwas_catalog_snapshots_refrozen_for_the_metadata_columns_keep_their_inventories(self) -> None:
@@ -787,7 +787,7 @@ class ShippedReleaseConfigTests(unittest.TestCase):
         # releases, each deriving its own from its pool's headers (#441).
         # FinnGen publishes no INFO column, so its release declares none (#288).
         declarations_by_generator = {
-            "gwas-catalog-eur-hybrid": 704,
+            "gwas-catalog-eur-hybrid": 712,  # 704 + 8 for the 2026-11-20 snapshot (#491)
             "gwas-catalog-eas-hybrid": 128,
             "gwas-catalog-afr-hybrid": 6,
         }

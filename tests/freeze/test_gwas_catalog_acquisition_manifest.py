@@ -104,6 +104,51 @@ class AcquisitionManifestWriterTest(unittest.TestCase):
             [("base", str(base), sha256_file(base), 2, 0), ("retry_transient", str(retry), sha256_file(retry), 1, 1)],
         )
 
+    def write_retirements(self, rows: str) -> Path:
+        path = self.tmp / "acquisition-retirements.tsv"
+        path.write_text("analysis_id\treason\n" + rows, encoding="utf-8")
+        return path
+
+    def test_a_retired_analysis_leaves_the_manifest_and_is_recorded(self) -> None:
+        """An Analysis that left the candidate table is removed by name, not by silence (#491)."""
+        base = self.write_pass("base", [failed("GCST1"), ready("GCST2", "b"), ready("GCST3", "c")])
+        retire = self.write_retirements("GCST1\tleft the candidate table in the 2026-11-19 release\n")
+
+        lineage = write_from_passes((AcquisitionPass("base", base),), self.out, retire=retire)
+
+        manifest = load_acquisition_manifest(self.out)
+        self.assertEqual([entry.source_analysis_id for entry in manifest.entries], ["GCST2", "GCST3"])
+        document = yaml.safe_load(lineage.read_text(encoding="utf-8"))
+        self.assertEqual(document["rows"], 2)
+        self.assertEqual(document["retired"], {
+            "path": str(retire),
+            "sha256": sha256_file(retire),
+            "analyses": {
+                "GCST1": {
+                    "reason": "left the candidate table in the 2026-11-19 release",
+                    "status": "data_failed",
+                    "last_pass": "base",
+                },
+            },
+        })
+
+    def test_a_retirement_table_that_cannot_be_applied_as_written_is_refused(self) -> None:
+        base = self.write_pass("base", [ready("GCST1", "a"), ready("GCST2", "b")])
+        cases = {
+            "an Analysis no pass covers": ("analysis_id\treason\nGCST9\tgone\n", "GCST9"),
+            "a repeated Analysis": ("analysis_id\treason\nGCST1\tgone\nGCST1\tgone\n", "GCST1"),
+            "a blank reason": ("analysis_id\treason\nGCST1\t \n", "reason"),
+            "another header": ("accession\treason\nGCST1\tgone\n", "analysis_id"),
+        }
+        for name, (text, named) in cases.items():
+            with self.subTest(name):
+                retire = self.tmp / "acquisition-retirements.tsv"
+                retire.write_text(text, encoding="utf-8")
+                with self.assertRaises(InventoryError) as raised:
+                    write_from_passes((AcquisitionPass("base", base),), self.out, retire=retire)
+                self.assertIn(named, str(raised.exception))
+                self.assertFalse(self.out.exists(), "nothing is written from a refused table")
+
     def test_a_later_pass_may_not_regress_a_ready_analysis(self) -> None:
         base = self.write_pass("base", [ready("GCST1", "a")])
         retry = self.write_pass("retry", [failed("GCST1")])
@@ -111,6 +156,16 @@ class AcquisitionManifestWriterTest(unittest.TestCase):
             write_from_passes((AcquisitionPass("base", base), AcquisitionPass("retry", retry)), self.out)
         self.assertIn("GCST1", str(caught.exception))
         self.assertFalse(self.out.exists())
+
+    def test_the_command_retires_what_its_table_names(self) -> None:
+        base = self.write_pass("base", [ready("GCST1", "a"), ready("GCST2", "b")])
+        retire = self.write_retirements("GCST2\tleft the candidate table\n")
+
+        code = main(["--pass", f"base={base}", "--retire", str(retire), "--out", str(self.out)])
+
+        self.assertEqual(code, 0)
+        manifest = load_acquisition_manifest(self.out)
+        self.assertEqual([entry.source_analysis_id for entry in manifest.entries], ["GCST1"])
 
     def test_the_command_names_its_own_flag_in_errors(self) -> None:
         err = io.StringIO()

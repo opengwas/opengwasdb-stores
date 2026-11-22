@@ -6,22 +6,26 @@
 #
 # Membership comes from the frozen Source Inventory named below, never from a
 # glob over the acquisition mirror (/data/opengwasdb/raw/ebi-gwas-catalog,
-# ~1.8 TB, never copied). That snapshot is the shared freeze (#283) of the
-# GWAS Catalog's two connector files for this Selection:
+# ~1.9 TB, never copied). That snapshot is the shared freeze (#283) of the
+# GWAS Catalog's two connector files for this Selection, refreshed by #491 from
+# the GWAS Catalog's 2026-11-19 release:
 #   - the Source Metadata Table the GWAS Catalog adapter writes from
-#     providers/gwas_catalog/ebi-studies.r's candidate table (sha256 aef4dbe2...,
-#     the table the 2026-09-22 snapshot froze against);
-#   - the Acquisition Manifest the GWAS Catalog writer overlays from the three
-#     download passes the 2026-09-22 snapshot froze (base, retry_transient,
-#     rescue_upstream_harmonised).
-# Both connector files, the pass lineage and the candidate table are kept,
-# read-only, in /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-10-24/
-# (#347: the same table with the sidecar's genotyping_technology and
-# source_genome_build columns added; 2026-10-20/ holds the first set).
-# Their selected rows are frozen beside the inventory and checksummed into its
-# provenance, so this config names only the frozen snapshot: a new acquisition
-# or a changed Selection is a re-freeze under a new snapshot id, with
-# source_collection.connectors naming the new connector files.
+#     providers/gwas_catalog/ebi-studies.r's candidate table, curated from that
+#     release (sha256 80e29438...);
+#   - the Acquisition Manifest the GWAS Catalog writer overlays from five
+#     download passes: September's base, retry_transient and
+#     rescue_upstream_harmonised; refresh_2026_11_19, the candidates new to the
+#     pool; and reacquire_changed_upstream, the 21 sources EBI replaced since
+#     September (each in reacquired-2026-11-20/, beside the September bytes).
+#     resources/generators/gwas-catalog-eur-hybrid/acquisition-retirements.tsv
+#     retires the candidates the release no longer lists.
+# The connector files, the pass lineage and the candidate table are kept,
+# read-only, in /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-20/;
+# 2026-10-24/ holds OGS-00011's first set (curated from the 2026-07-10
+# release). Their selected rows are frozen beside the inventory and
+# checksummed into its provenance. A new acquisition or a changed Selection is
+# a re-freeze under a new snapshot id, with source_collection.connectors naming
+# the new connector files.
 
 release_config_version: 1
 
@@ -36,25 +40,73 @@ description: >
   and case-control Analyses are stored on the log-OR scale with SD estimation
   explicitly skipped rather than defaulted.
 notes: >
-  The candidate pool is 6,035 Analyses across 1,007 publications. Only the
+  The candidate pool is 6,219 Analyses (GWAS Catalog release 2026-11-19). Only the
   subset the frozen Source Inventory records as ready becomes release membership;
   the remaining inputs stay inventory facts and are never selected. Two
   accession pairs are byte-identical under different accessions and are reported
   for an explicit review decision instead of being silently collapsed
   (`sidecars/source_readiness.tsv` and `duplicates` in the preflight report).
 
+  Release Erratum (issue #478, 2026-11-22): this bundle replaces the one the
+  OGS-00011 Store published on 2026-11-01 was built from, on the owner's
+  decision of 2026-11-22 to re-emit and rebuild it under its own id. It is
+  re-resolved at opengwasdb 0.14.1 from the GWAS Catalog's 2026-11-19 release
+  (#491). Membership moves from 3,169 to 3,245 Analyses. Thirteen leave,
+  refused at resolution: GCST002047, GCST004461 and GCST90165257, whose effect
+  contradicts their own p-value (#403, #412, ADR 0069), the Store having held
+  statistics read from a mislabelled effect column; GCST90014299 to
+  GCST90014304, GCST90444480 and GCST90833021, whose p-value test is MR-MEGA
+  (opengwasdb#371, ADR 0085); and GCST90572740 and GCST90572741, whose beta/se
+  is deflated against their own p-value (ADR 0069). Eighty-nine join: 66 of
+  the 103 Analyses new to the catalogue; 19 previously excluded as
+  ancestry_unassigned whose sources EBI has since re-harmonised; GCST90278455
+  and GCST90278456, previously ancestry_unassigned, whose sources are
+  unchanged and whose ancestry residual now falls below the gate; and
+  GCST90627758 and GCST90627773, which the catalogue now records as
+  quantitative. The Dense axis is the reference-first gnomAD generation
+  (opengwasdb ADR 0079, #381): a deletion is spelt reference first, so its z
+  has the opposite sign to the published Store's, and a deletion and an
+  insertion at one position are two variants. The rebuild writes format
+  0.2.3, which stores an SE beyond float16's range as missing and counts it
+  (opengwasdb ADR 0068), so the eight +inf SE cells of the 2026-11-01 erratum
+  (#401) are not stored again. #225's on-rsid-conflict: drop and hm3
+  overflow-only: skip are carried.
+
+  Per Analysis, #478 refuses rather than remaps. GCST90165257 cannot be
+  remapped: its standard_error is NA throughout. GCST002047 (odds ratios in
+  `beta`) and GCST004461 (log-odds in `odds_ratio`) could be read through a
+  Column Map of their own, but a release reads one Column Map and the
+  resolver takes one per run, so remapping them is left as a separate change.
+
+  #487's gwas-ssf-no-p Column Map is not carried. Without it GCST90446466 is
+  refused at resolution as `resolution_failed`, and the recorded detail
+  calls its z deflated; that is the effect-consistency check reading its
+  `p_value`, which holds 1 - p/2 (owner ruling of 2 Nov 2026,
+  opengwasdb#370), not a fault in its beta/se. Through the map it resolves at
+  0.14.1 but fails the ancestry gate (residual 0.219 against 0.06), so it is
+  excluded either way.
+
+  Until the rebuild publishes, the Store served as OGS-00011 is the
+  3,169-Analysis build of 2026-10-26/27, completed and validated on
+  2026-11-01, from the bundle committed at 373f9a0f, whose notes carry its
+  errata (#225, #401, #403, #412). In that Store the statistics of
+  GCST002047, GCST004461 and GCST90165257, and every cell Reference
+  Completion imputed from them, are wrong and must not be used.
+
 source_collection:
   source_collection_id: gwas-catalog-ssf
   inventory:
-    # Re-frozen by the shared freeze on 2026-10-24 (#347), after 2026-10-20
-    # (#287). Its inventory TSV is byte-identical to
-    # gwas-catalog-ssf-eur-hybrid-2026-09-22.tsv, which the
-    # candidate-table freeze wrote and OGS-00011 was built from.
-    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-10-24
+    # Refreshed from the GWAS Catalog's 2026-11-19 release (#491). The
+    # 2026-10-24 snapshot (#347) is the one OGS-00011's published Store was
+    # built from; its inventory TSV is byte-identical to the 2026-09-22 one.
+    snapshot_id: gwas-catalog-ssf-eur-hybrid-2026-11-20
     directory: resources/inventories
+  connectors:
+    source_metadata_table: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-20/gwas-catalog-ssf.source-metadata.tsv
+    acquisition_manifest: /data/opengwasdb/raw/ebi-gwas-catalog/connectors/2026-11-20/gwas-catalog-ssf-eur-hybrid.acquisition-manifest.tsv
 
 # Every Analysis the candidate table's curation groups as hybrid__European
-# (its ancestry_group is European for all 6,035).
+# (its ancestry_group is European for all 6,219).
 selection:
   where:
     store_key: hybrid__European
@@ -69,26 +121,41 @@ build:
   command: build-hybrid
   options:
     # The Dense Component axis: gnomAD v4.1 common variants at MAF >= 1%
-    # (13,415,936 ALIDs; chr1-22, X, Y, MT), declared by
+    # (13,718,605 ALIDs; chr1-22, X, Y, MT), declared by
     # resources/reference-resources/gnomad-v4-common-hg38. The X, Y and MT rows
     # do not resolve yet (opengwas/opengwasdb#216) and route to the Ragged
     # Overflow.
     #
-    # Deliberately unchanged by epic #232: OGS-00011's published Store was built
-    # from this file, so its bundle keeps naming what built it. #478 repoints
-    # this at the regenerated, reference-first generation
-    # (/data/opengwasdb/reference/gnomad-v4-common-hg38-v2) when it rebuilds.
-    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38/EUR-variants.txt.gz
+    # The regenerated, reference-first generation (opengwasdb ADR 0079, #381).
+    # The engine refuses the first generation, which OGS-00011's 2026-10
+    # Store was built from (13,415,936 ALIDs, sorted indels), at its first
+    # indel; #478's rebuild moves to this one.
+    variant-reference: /data/opengwasdb/reference/gnomad-v4-common-hg38-v2/EUR-variants.txt.gz
     # Pass 2 forks only when this is > 1; a Hybrid build reads every row. 24,
     # not 32: throughput is flat above 8 workers (#154) and the build shares the
     # host. --checkpoint lets a failed build --resume (#227).
     n-workers: 24
     checkpoint: true
+    # A variant its sources name with two rsids stores none, and the build
+    # counts them (#225, opengwasdb#306).
+    on-rsid-conflict: drop
     source-reader-capability: opengwasdb.gwas-ssf
     source-assembly: hg38
   post:
     top_hits: false
     overview: true
+
+# The maintained hm3 Indexed Variant Subset, plus #225's overflow-only: skip:
+# an hm3 ALID only the Hybrid's Overflow carries stays out of the subset, which
+# records how many (opengwasdb#324).
+indexed_subsets:
+  - name: hm3
+    resource_id: hapmap3-hg38
+    variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
+    reference_assembly: GRCh38
+    checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+    options:
+      overflow-only: skip
 
 defaults:
   # Collection-wide facts the GWAS Catalog adapter does not write (#283): the

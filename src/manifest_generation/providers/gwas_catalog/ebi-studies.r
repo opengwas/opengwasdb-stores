@@ -1,8 +1,15 @@
 ## Curate GWAS Catalog studies into candidate OpenGWASDB stores.
 ##
-## Inputs:
-##   resources/data/gwas-catalog-v1.0.3.1-studies-r2026-07-10.tsv
-##   resources/data/gwas-catalog-v1.0.3.1-ancestries-r2026-07-10.tsv
+## Usage (#491):
+##   Rscript ebi-studies.r <studies.tsv> <ancestries.tsv> <out-dir>
+##
+## Inputs: one GWAS Catalog release's published-study downloads,
+## gwas-catalog-download-studies-v1.0.3.1.tsv and
+## gwas-catalog-download-ancestries-v1.0.3.1.tsv. Each release is kept, read-only
+## and checksummed, under
+## /data/opengwasdb/raw/ebi-gwas-catalog/catalog-releases/<release date>/. There is
+## no default release: which one a candidate table was curated from is part of
+## its provenance.
 ##
 ## Every row of the studies file is one GWAS Catalog "study accession", which
 ## in OpenGWASDB vocabulary is one Analysis (one trait tested against
@@ -16,7 +23,7 @@
 ##   hybrid - everything left over, pooled across publications within one
 ##            major ancestry group
 ##
-## Outputs (resources/data/derived/):
+## Outputs (<out-dir>):
 ##   store-candidates-analyses.tsv - one row per Analysis with its store
 ##                                   assignment, study design, and per-analysis
 ##                                   sample-size / case-control counts
@@ -60,9 +67,17 @@ GENOME_MB <- 3000
 RAGGED_KEPT_MB <- 20             # genomic Mb retained per analysis
 RAGGED_BYTES_PER_ASSOC <- 5      # bytes per stored variant (sparse indexing)
 
-data_dir <- "resources/data"
-derived_dir <- file.path(data_dir, "derived")
-dir.create(derived_dir, showWarnings = FALSE)
+args <- commandArgs(trailingOnly = TRUE)
+if (length(args) != 3) {
+  stop("usage: Rscript ebi-studies.r <studies.tsv> <ancestries.tsv> <out-dir>", call. = FALSE)
+}
+studies_path <- args[[1]]
+ancestries_path <- args[[2]]
+derived_dir <- args[[3]]
+for (path in c(studies_path, ancestries_path)) {
+  if (!file.exists(path)) stop("GWAS Catalog release file not found: ", path, call. = FALSE)
+}
+dir.create(derived_dir, showWarnings = FALSE, recursive = TRUE)
 
 ## ---------------------------------------------------------------------
 ## Parsing helpers
@@ -138,9 +153,6 @@ classify_molecular <- function(text) {
 safe_median <- function(x) if (all(is.na(x))) NA_real_ else median(x, na.rm = TRUE)
 safe_min <- function(x) if (all(is.na(x))) NA_real_ else min(x, na.rm = TRUE)
 safe_max <- function(x) if (all(is.na(x))) NA_real_ else max(x, na.rm = TRUE)
-
-studies_path <- file.path(data_dir, "gwas-catalog-v1.0.3.1-studies-r2026-07-10.tsv")
-ancestries_path <- file.path(data_dir, "gwas-catalog-v1.0.3.1-ancestries-r2026-07-10.tsv")
 
 studies <- fread(studies_path, sep = "\t", quote = "", na.strings = NULL, encoding = "UTF-8")
 setnames(studies, make.names(names(studies)))

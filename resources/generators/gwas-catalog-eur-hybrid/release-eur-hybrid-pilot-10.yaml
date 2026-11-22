@@ -112,8 +112,10 @@ release_policy:
   store_composition:
     require_maf_filtered: true
   # Reviewed per-Analysis provider score declarations (#176), derived by
-  # derive_score_declarations.py.
-  imputation_score_declarations: resources/generators/gwas-catalog-eur-hybrid/score-declarations.tsv
+  # derive_score_declarations.py from the 2026-10-24 snapshot this Selection
+  # was frozen from. score-declarations.tsv follows the full release's newer
+  # snapshot (#491), whose Analyses this Source Collection does not intend.
+  imputation_score_declarations: resources/generators/gwas-catalog-eur-hybrid/score-declarations-2026-10-24.tsv
   # Sequencing-only studies are exempt from the MAF floor (#176, 2026-09-28):
   # their low-frequency calls are observed, not imputed. An Analysis that also
   # lists an array is still filtered.

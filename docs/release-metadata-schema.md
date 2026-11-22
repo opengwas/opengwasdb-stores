@@ -306,12 +306,9 @@ is in canonical form only when its parts are all CURIEs and rejoining them with
 refused.
 
 `bundle.check()` also rejects a `trait_ontology_id` term that is not a CURIE,
-such as a raw `http://` URI (#286). `OGS-00011` was accepted before this check
-with GWAS Catalog's raw EFO and ORDO URIs in 2,972 rows. An accepted bundle is
-never rewritten, so those values are tolerated for that release by name
-(`LEGACY_NON_CURIE_TRAIT_ONTOLOGY_RELEASES`) and reported on `check()`'s
-second channel with their count. Every other bundle, buildable or not, is held
-to the CURIE form.
+such as a raw `http://` URI (#286), in every bundle, buildable or not.
+`OGS-00011`, accepted before this check with raw EFO and ORDO URIs in 2,972
+rows, was tolerated by name until #478 re-emitted it with CURIEs.
 
 ### Column reference
 
