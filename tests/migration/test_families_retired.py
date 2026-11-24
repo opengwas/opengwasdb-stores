@@ -60,8 +60,7 @@ HISTORICAL_PREFIXES: tuple[str, ...] = (
     "docs/software-management-audit.md",
     "docs/workflow-engine-comparison.md",
     "docs/ukb-b-restored-inventory-2026-10-11.md",
-    # Recorded history: a GitHub response and the epic records say what an issue was called.
-    "tests/project-site-data/fixtures/",
+    # Recorded history: the epic records say what an issue was called.
     "docs/_epics/",
 )
 

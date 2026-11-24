@@ -55,6 +55,6 @@ else
   echo "    (skipped imputation-filters.html — render it first to refresh)"
 fi
 
-echo "Done. These pages are published by the site build: \`pixi run site\` renders"
-echo "docs/ into the site, and \`pixi run site-publish\` publishes it. Commit the"
+echo "Done. These pages are published by og-dev-hub's site: its \`pixi run site\` renders"
+echo "this docs/ into the site, and \`pixi run site-publish\` publishes it. Commit the"
 echo "refreshed HTML; do not push docs/ to Pages."

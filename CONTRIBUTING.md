@@ -506,7 +506,7 @@ Repository tooling that belongs to neither workflow and is not an input: the
 LD-panel toolchain (`ld-panel/`), the release benchmarks and the proofs that
 write `docs/benchmark-output/` (`benchmarks/`), the Reference Resources' build
 and verify scripts (`reference-resources/<resource_id>/`), the environment
-check (`env_check.py`, `pixi run env-check`), the site build (`build-site.sh`,
+check (`env_check.py`, `pixi run env-check`), the report build (`build-site.sh`,
 `pixi run docs`), the move of a published release to another Artifact Root
 with its step records (`relocate_store.py`), and one-off analyses and spikes.
 None of it is a package: each is run as a script, and the few tests that load
@@ -521,10 +521,13 @@ One directory per suite, and `run_all_tests.py`, the runner behind
 
 ### `docs/`
 
-Decisions (`adr/`), specifications (`spec/`), and the site GitHub Pages
-serves. The sources of its rendered reports (`*.qmd`, `make-dashboard.r`) are
-in `reports/`; `pixi run docs` renders each and copies it to the name the
-site publishes, so a published link does not change when its source moves.
+Decisions (`adr/`), specifications (`spec/`), reports, and the pages the
+project site renders from them. The site itself is og-dev-hub's
+([`docs/site.md`](https://github.com/opengwas/og-dev-hub/blob/main/docs/site.md)):
+it stages this `docs/` at the root of <https://blog.opengwas.io/og-dev-hub/>.
+The sources of its rendered reports (`*.qmd`, `make-dashboard.r`) are in
+`reports/`; `pixi run docs` renders each and copies it to the name the site
+publishes, so a published link does not change when its source moves.
 
 ### `.github/`
 

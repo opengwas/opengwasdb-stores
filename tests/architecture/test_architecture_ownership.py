@@ -2,12 +2,13 @@
 """Who owns which file: the claims in `docs/architecture/components.yaml` (#418).
 
 The functions under test are the ones the site's architecture collector and this
-repository's own ownership check share, so the fixtures here are small literal
+repository's own ownership check share (og-dev-hub's `project_site`, which the
+`dev` environment installs; og-dev-hub#7), so the fixtures here are small literal
 models and lists of tracked paths. The last test runs this repository's own model
 against the files git tracks, which is the check that keeps the model true.
 
 Run from the repository root:
-    python3 tests/project-site-architecture/test_architecture_ownership.py
+    python3 tests/architecture/test_architecture_ownership.py
 """
 
 from __future__ import annotations

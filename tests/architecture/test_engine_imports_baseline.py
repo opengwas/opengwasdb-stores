@@ -21,7 +21,7 @@ computed the way the code computes it would pass by construction and could
 never disagree with it.
 
 Run from the repository root:
-    python3 tests/project-site-architecture/test_engine_imports_baseline.py
+    python3 tests/architecture/test_engine_imports_baseline.py
 """
 
 from __future__ import annotations

@@ -6,7 +6,9 @@ Working artefacts for delineating GWAS Catalog full-summary-statistic analyses
 into candidate OpenGWASDB stores, and deciding what to build first. Their sources
 are in `docs/reports/`; the pages linked here are the committed, self-contained
 HTML the site copies as it is, so a report is refreshed with `pixi run docs` and
-never re-executed at render time.
+never re-executed at render time. The site itself is og-dev-hub's
+([how it is built](https://github.com/opengwas/og-dev-hub/blob/main/docs/site.md)):
+`pixi run site` there renders this `docs/` into it.
 
 ### [Progress update, October 2026](progress-2026-10.html) {#progress}
 

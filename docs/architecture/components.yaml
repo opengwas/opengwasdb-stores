@@ -12,7 +12,7 @@
 #
 # Two readers hold this repository's imports of engine modules, one per
 # (importing file, imported name): `docs/architecture/engine-imports-baseline.yaml`
-# lists them, and tests/project-site-architecture/test_engine_imports_baseline.py
+# lists them, and tests/architecture/test_engine_imports_baseline.py
 # fails on a new one and on a listed one that has gone. It measures them with the
 # same import graph, so the page's seam counts and the baseline cannot disagree.
 #
@@ -20,9 +20,10 @@
 # claims one file. The longest claimed prefix wins, so a file belongs to exactly
 # one component. A tracked code file under src/, workflow/ or tools/ that no
 # component claims, or a claim that matches no tracked file, fails
-# tests/project-site-architecture/test_architecture_ownership.py. The same
-# functions (src/project_site/collect/architecture_model.py) report the engine's
-# gaps on the site, where they never fail the build.
+# tests/architecture/test_architecture_ownership.py. The same functions
+# (og-dev-hub's src/project_site/collect/architecture_model.py, installed in the
+# `dev` environment) report the engine's gaps on the site, where they never fail
+# the build.
 #
 # Vocabulary follows CONTEXT.md (Store Release, Release Bundle, Manifest
 # Generation, Analysis Resolution, Reference Completion, ...).
@@ -166,12 +167,6 @@ components:
     stages: [publish]
     summary: A generated, versioned SQLite database over Release Bundles.
     paths: [src/analysis_catalog/]
-  - id: project_site
-    name: Project site
-    container: site
-    stages: [cross]
-    summary: Collectors, generated pages and the Quarto build of the project site.
-    paths: [src/project_site/, tools/build-site.sh, tools/locus_leads_prototype_extract.py, docs/_quarto.yml, docs/pre-render.sh, docs/architecture/components.yaml]
   - id: yardstick
     name: Yardstick
     container: site
@@ -182,5 +177,5 @@ components:
     name: Developer tools
     container: orchestration
     stages: [cross]
-    summary: Benchmarks, spikes and repository checks.
-    paths: [tools/benchmarks/, tools/ragged-spike/, tools/check_allele_orientation.py, tools/check_changelog.py, tools/check_indel_alid_spelling.py, tools/env_check.py, tools/prune_worktrees.py, tools/replace_rescued_copies.sh, tools/verify_rescued_gwas_files.py]
+    summary: Benchmarks, spikes, repository checks and the report build.
+    paths: [tools/build-site.sh, tools/locus_leads_prototype_extract.py, tools/benchmarks/, tools/ragged-spike/, tools/check_allele_orientation.py, tools/check_changelog.py, tools/check_indel_alid_spelling.py, tools/env_check.py, tools/prune_worktrees.py, tools/replace_rescued_copies.sh, tools/verify_rescued_gwas_files.py]
