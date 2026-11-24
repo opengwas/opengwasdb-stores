@@ -93,38 +93,46 @@ WORKER_MODULE = "yardstick.worker"
 INDEX = "index.sqlite"
 
 
-def carries_index(store_path: Path) -> bool:
-    """Whether the release at `store_path` ships an `index.sqlite`.
+def guarded_indexes(store_path: Path) -> tuple[str, ...]:
+    """The `index.sqlite` files the release at `store_path` ships, relative to it.
 
-    Every 0.2 release does. From 0.3.0 the file holds only `completion_quality`, so an
-    Observed-Only release has none, and neither has a Hybrid's outer release (its Dense
-    Component holds it); the Store Reader never opens one (opengwasdb ADR 0102). For such a
-    release a missing index is the Store as built, not a reason to refuse it.
-
-    This is the engine's `ships_index` (`opengwasdb.store.open`), read from the manifest's
-    three fields. It is written out rather than imported because
-    docs/architecture/engine-imports-baseline.yaml admits no new engine import; the test
-    `CarriesIndexAgreesWithTheEngineTest` holds the two together.
+    Every 0.2 release ships one at its root. From 0.3.0 the file holds only
+    `completion_quality`, so an Observed-Only release ships none, and a Hybrid's outer
+    release none either: its Dense Component holds it (`dense/index.sqlite`), and the
+    Hybrid facade opens that one (opengwasdb ADR 0102 §3). Which of the two a release
+    ships is the engine's `ships_index`, asked of the manifest's own fields. For a
+    release that ships none, a missing index is the Store as built, not a reason to refuse it.
     """
-    manifest = json.loads((store_path / "manifest.json").read_text(encoding="utf-8"))
-    major, minor = (int(part) for part in str(manifest["format_version"]).split(".")[:2])
-    if (major, minor) < (0, 3):
-        return True
-    return manifest["completion_state"] == "reference_completed" and manifest["primary_layout"] != "hybrid"
+    from opengwasdb.model.manifest import StoreManifest
+    from opengwasdb.store.open import ships_index
+
+    manifest = StoreManifest.from_dict(json.loads((store_path / "manifest.json").read_text(encoding="utf-8")))
+    ships = [
+        (relative, ships_index(manifest.primary_layout, manifest.format_version, manifest.completion_state, dense_component=nested))
+        for relative, nested in ((INDEX, False), (f"dense/{INDEX}", True))
+        if not nested or manifest.primary_layout.value == "hybrid"
+    ]
+    return tuple(relative for relative, shipped in ships if shipped)
 
 
 def snapshot(store_path: Path) -> dict[str, Any]:
-    """The Store directory's top-level entries, and `index.sqlite`'s size and mtime.
+    """The Store directory's top-level entries, and the size and mtime of each `index.sqlite`.
 
-    `query_store` opens `index.sqlite` read-write (opengwasdb store/open.py), so
+    `query_store` opens a shipped `index.sqlite` read-write (opengwasdb store/open.py), so
     a missing index would be created beside the Store. The runner records the
-    directory before a Store's worker starts and compares afterwards.
+    directory before a Store's worker starts and compares afterwards. `index` is the
+    root's, `dense_index` a Hybrid's Dense Component's.
     """
-    index = store_path / INDEX
-    stat = index.stat() if index.is_file() else None
+
+    def stamp(relative: str) -> tuple[int, int] | None:
+        path = store_path / relative
+        stat = path.stat() if path.is_file() else None
+        return (stat.st_size, stat.st_mtime_ns) if stat else None
+
     return {
         "entries": sorted(os.listdir(store_path)),
-        "index": (stat.st_size, stat.st_mtime_ns) if stat else None,
+        "index": stamp(INDEX),
+        "dense_index": stamp(f"dense/{INDEX}") if (store_path / "dense").is_dir() else None,
     }
 
 
@@ -133,6 +141,8 @@ def compare(before: dict[str, Any], after: dict[str, Any]) -> list[str]:
     problems = [f"new top-level entry: {name}" for name in after["entries"] if name not in before["entries"]]
     if before["index"] != after["index"]:
         problems.append(f"{INDEX} changed")
+    if before["dense_index"] != after["dense_index"]:
+        problems.append(f"dense/{INDEX} changed")
     return problems
 
 
@@ -175,9 +185,13 @@ def _store(
         return {**head, "status": "pending", "reason": entry["reason"]}, []
     wanted = entry["measures"]
     before = snapshot(store_path)
-    guards_index = carries_index(store_path)
-    if guards_index and before["index"] is None:
-        error = f"{INDEX} missing; refusing to let the query path create it"
+    guarded = guarded_indexes(store_path)
+
+    def missing() -> list[str]:
+        return [relative for relative in guarded if not (store_path / relative).is_file()]
+
+    if missing():
+        error = f"{', '.join(missing())} missing; refusing to let the query path create it"
         measures = {name: {"status": "unavailable", "error": error} for name in wanted}
         return {**head, "status": "measured", "measures": measures}, []
     remaining = lambda: deadline - _now()  # noqa: E731
@@ -194,9 +208,9 @@ def _store(
     try:
         for position, (mode, names) in enumerate(steps):
             # Before every worker: a worker never opens a Store that has lost its index, or one already disturbed.
-            if guards_index and not (store_path / INDEX).is_file():
+            if missing():
                 for _, rest in steps[position:]:
-                    unavailable(rest, f"{INDEX} missing before the {mode} worker; refusing to let the query path create it")
+                    unavailable(rest, f"{', '.join(missing())} missing before the {mode} worker; refusing to let the query path create it")
                 break
             try:
                 record = _worker(mode, store_path, entry, workload, scratch, timeout=remaining())

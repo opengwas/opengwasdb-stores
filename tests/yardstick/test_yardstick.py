@@ -518,26 +518,6 @@ class ProcessGroupTest(unittest.TestCase):
                 self.fail("the worker's child survived the timeout")
 
 
-class CarriesIndexAgreesWithTheEngineTest(unittest.TestCase):
-    """`runner.carries_index` is a copy of the engine's `ships_index`, so it is checked against it."""
-
-    def test_every_version_layout_and_state(self) -> None:
-        from opengwasdb.store.open import ships_index
-        from opengwasdb.store_reader.enums import CompletionState, PrimaryStorageLayout
-
-        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
-            store = Path(tmp)
-            for version in ("0.1.0", "0.2.0", "0.2.3", "0.2.10", "0.3.0", "0.3.1", "0.10.0"):
-                for layout in PrimaryStorageLayout:
-                    for state in CompletionState:
-                        (store / "manifest.json").write_text(manifest_text(version, layout=layout.value, state=state.value))
-                        self.assertEqual(
-                            runner.carries_index(store),
-                            ships_index(layout, version, state, dense_component=False),
-                            (version, layout, state),
-                        )
-
-
 class RunnerGuardTest(unittest.TestCase):
     """The guard and the budget, at the seam, with no query run."""
 
@@ -586,6 +566,45 @@ class RunnerGuardTest(unittest.TestCase):
             {"store_id": "OGS-00099", "problem": "new top-level entry: index.sqlite"},
             result["guard_violations"],
         )
+
+    def test_a_0_3_0_reference_completed_hybrid_guards_its_dense_components_index(self) -> None:
+        """The outer release ships no index, the Dense Component does, and the Hybrid facade
+        opens that one (opengwasdb ADR 0102 section 3): it must stay, and be refused if absent."""
+        store, calls = self.copy(), []
+        (store / "index.sqlite").unlink()
+        (store / "dense").mkdir()
+        (store / "dense" / "index.sqlite").write_bytes(b"abc")
+        (store / "manifest.json").write_text(manifest_text("0.3.0", layout="hybrid", state="reference_completed"))
+        self.assertEqual(runner.guarded_indexes(store), ("dense/index.sqlite",))
+        with mock.patch.object(runner, "_worker", stub_worker(calls)):
+            self.assertEqual(self.go(store)["guard_violations"], [])
+        self.assertEqual(calls, ["timed", "rss"])
+        # Removed by a worker: a violation, and the rss worker does not run.
+        store, calls = self.copy(), []
+        (store / "index.sqlite").unlink()
+        (store / "dense").mkdir()
+        (store / "dense" / "index.sqlite").write_bytes(b"abc")
+        (store / "manifest.json").write_text(manifest_text("0.3.0", layout="hybrid", state="reference_completed"))
+        with mock.patch.object(runner, "_worker", stub_worker(calls, lambda m, p: (p / "dense" / "index.sqlite").unlink())):
+            result = self.go(store)
+        self.assertEqual(calls, ["timed"])
+        self.assertEqual(result["guard_violations"], [{"store_id": "OGS-00099", "problem": "dense/index.sqlite changed"}])
+        # Absent from the start: refused before any worker.
+        store, calls = self.copy(), []
+        (store / "index.sqlite").unlink()
+        (store / "dense").mkdir()
+        (store / "manifest.json").write_text(manifest_text("0.3.0", layout="hybrid", state="reference_completed"))
+        with mock.patch.object(runner, "_worker", stub_worker(calls)):
+            result = self.go(store)
+        self.assertEqual(calls, [])
+        for record in result["stores"][0]["measures"].values():
+            self.assertIn("dense/index.sqlite missing", record["error"])
+
+    def test_a_0_3_0_observed_only_hybrid_ships_no_index_at_all(self) -> None:
+        store = self.copy()
+        (store / "index.sqlite").unlink()
+        (store / "manifest.json").write_text(manifest_text("0.3.0", layout="hybrid"))
+        self.assertEqual(runner.guarded_indexes(store), ())
 
     def test_a_0_3_0_reference_completed_release_without_its_index_is_refused(self) -> None:
         store, calls = self.copy(), []
@@ -753,8 +772,15 @@ PENDING = {"store_id": "OGS-00011", "layout": "hybrid", "coverage": "gwas", "sta
 
 
 def manifest_text(version: str, *, layout: str = "dense", state: str = "observed_only") -> str:
-    """The three manifest fields the runner reads to know whether a release ships `index.sqlite`."""
-    return json.dumps({"format_version": version, "primary_layout": layout, "completion_state": state})
+    """A manifest the engine parses: the runner asks it (`ships_index`) which `index.sqlite` files ship."""
+    return json.dumps({
+        "store_id": "OGS-00099", "release_id": "OGS-00099", "format_version": version,
+        "primary_layout": layout, "association_coverage": "full", "completion_state": state,
+        "reference_assembly": "GRCh38", "created_at": "2026-01-01T00:00:00+00:00",
+        "encoding": {"version": 3, "z": {"kind": "int16_fixed", "scale": 1024},
+                     "se": {"kind": "float16"}, "eaf": {"kind": "absent"}},
+        "provenance": {},
+    })
 
 
 def fixture_workload(**extra: object) -> dict:
