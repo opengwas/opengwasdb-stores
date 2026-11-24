@@ -138,7 +138,7 @@ The storage organisation used for a Store Release, such as dense observed-only, 
 _Avoid_: source format
 
 **Yardstick**:
-The fixed query workload, run against one representative Store of each GWAS Store Layout and each kind of LD Store, once per engine version, to show how query time, peak memory and size change as the engine changes. Not a gate: it records.
+The fixed query workload, run against one representative Store of each GWAS Store Layout and each kind of LD Store, once at the finish of every epic that changes the engine, to show how query time, peak memory and size change as the engine changes. Not a gate: it records.
 _Avoid_: benchmark (the opengwasdb `benchmarks/` harnesses are one-off), performance test, gate
 
 **Store Composition Rule**:

@@ -1,6 +1,6 @@
 # The yardstick
 
-One fixed query workload, run on every opengwasdb release (opengwas/opengwasdb#487), and on every ogquery release once it exists (#506), so that a performance trend
+One fixed query workload, run at the finish of every epic that changes opengwasdb, or ogquery once it exists (opengwas/opengwasdb#487, #506), so that a performance trend
 compares like with like (#390). opengwasdb's `benchmarks/` holds one-off
 harnesses; the yardstick is the single workload this repository re-runs.
 
