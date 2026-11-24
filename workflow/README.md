@@ -75,6 +75,30 @@ They refuse an unbuildable bundle as the entry point does, and the
 Snakefile's `all` target expands only to buildable bundles.
 See the specification's Safety section.
 
+### Checking the Artifact Root against the registry
+
+```sh
+pixi run check-artifact-root \
+  --json docs/artifact-root-check.json --markdown docs/artifact-root-check.md
+```
+
+The Artifact Root check (#510) compares the committed Release Bundles with
+the Artifact Root on this host, read-only. It reports a `built` or `validated`
+bundle with no Store, a release directory with no bundle, a Store whose bundle
+is `candidate`, `accepted`, `superseded` or `withdrawn`, a broken `by-label`
+link, and a pending `publication.json` or staged `.partial` Store. It exits 1
+for a missing Store or a broken link, and 0 otherwise. A status disagreement
+does not fail it: a release completing its own Store is `accepted` while its
+first Store is published. Run it, and commit the report:
+
+- before and after any migration or re-registration that changes Artifact
+  Root paths;
+- at the finish of a Store epic.
+
+What to do about a finding (rebuild, withdraw, finish a publication) is the
+operator's decision; the check changes nothing. See the specification's *The
+Artifact Root check*.
+
 ### A reference-completed release is published twice under one id
 
 A Dense release whose bundle declares `completion_state: reference_completed`,
