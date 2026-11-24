@@ -927,6 +927,20 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `acceptance.commit` | Yes, in the block | The commit the candidate record came from, or `null` when the file was untracked or modified since its last commit, so no commit describes it. |
 | `acceptance.<block>` | No | Every other block of the candidate record, verbatim, except `status`, `validated_at`, `validator`, `build_environment`, `observed` and `errors`: its `checks`, `warnings` and `reports`, and any evidence its generator records. A block the candidate did not have is absent. |
 
+**Recording observations into a published bundle (#502).** The Store facts
+`store_bytes`, `has_hm3`, `has_rho` and `n_top_hits` describe the Store as it
+is served, and a record written before `register` measured them lacks them.
+`pixi run -e dev backfill-observed` (`tools/backfill_observed.py`) writes them
+into the Validation Record of every `built` or `validated` bundle, by the same
+rules `register` uses, reading the Artifact Root without writing to it. This
+changes no membership, so it does not breach an accepted bundle's
+immutability; only these observations may change this way. The tool edits
+those four keys and refuses a record whose edit would change any other, skips
+a record with no `observed` block, and is idempotent; `--dry-run` prints what
+it would change. It runs once, after opengwas/opengwasdb-stores#498 rewrites
+every Store to format 0.3.0, and again for the counts once
+opengwas/opengwasdb#488 reports them.
+
 The record's top-level `status` is the release-level verdict, and the generated
 master list publishes that value and no other. A per-check entry in `checks`
 describes one check and cannot override the record: a record reads
