@@ -39,15 +39,22 @@ import numpy as np
 import zarr
 
 from opengwasdb.model.manifest import StoreManifest
-from opengwasdb.variants.axis import write_variant_axis
 from opengwasdb.variants.normalise import CanonicalVariant
 
-from ogstores import audit
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import layouts  # noqa: E402
+
+from ogstores import audit  # noqa: E402
 
 STORE_ID = "OGS-00090"
 DENSE_STORE_ID = "OGS-00091"
 
 n_checks = 0
+
+#: The layout `build_hybrid_store` writes, set per test by `AuditTestCase.setUp`: format
+#: 0.3.0 (the engine's writer) or 0.2.x (what hosted releases are until the rebuild,
+#: opengwas/opengwasdb-stores#498). Every case runs in both.
+LAYOUT = "0.3"
 
 
 def record_check() -> None:
@@ -208,7 +215,7 @@ def write_manifest(
         {
             "store_id": store_id,
             "release_id": store_id,
-            "format_version": "0.2.0",
+            "format_version": layouts.FORMAT_VERSION[LAYOUT],
             "primary_layout": layout,
             "association_coverage": "full",
             "completion_state": "observed_only",
@@ -306,7 +313,7 @@ def build_hybrid_store(
     store = root / store_id / "store.opengwasdb"
     store.mkdir(parents=True)
     rsids = rsids or {}
-    write_variant_axis(store, variants, rsids)
+    layouts.write_axis(store, variants, rsids, LAYOUT)
 
     reference = root / f"{store_id}-reference-EUR-variants.txt.gz"
     if reference_alids is None:
@@ -315,7 +322,7 @@ def build_hybrid_store(
 
     dense_dir = store / "dense"
     dense_dir.mkdir()
-    write_variant_axis(dense_dir, [variants[row] for row in dense_rows], rsids)
+    layouts.write_dense_axis(dense_dir, [variants[row] for row in dense_rows], rsids, LAYOUT)
     mapping = dense_to_shared if dense_to_shared is not None else dense_rows
     np.save(dense_dir / "dense_to_shared.npy", np.asarray(mapping, dtype="int32"))
 
@@ -349,7 +356,11 @@ def tree_digests(root: Path) -> dict[str, tuple[int, int, str]]:
 
 
 class AuditTestCase(unittest.TestCase):
+    LAYOUT = "0.3"
+
     def setUp(self) -> None:
+        global LAYOUT
+        LAYOUT = self.LAYOUT
         self.tmp = Path(tempfile.mkdtemp(prefix="ogstores_audit_"))
         self.evidence = self.tmp / "evidence"
 
@@ -407,7 +418,7 @@ class TestReconcileReport(AuditTestCase):
         store, reference = build_hybrid_store(self.tmp, variants=variants, counts=[0, 0, 1])
         manifest_path = store / "manifest.json"
         manifest = json.loads(manifest_path.read_text())
-        manifest["format_version"] = "0.2.2"
+        manifest["format_version"] = "0.2.2" if self.LAYOUT == "0.2" else "0.3.0"
         manifest_path.write_text(json.dumps(manifest))
         with gzip.open(reference, "wt") as handle:
             handle.write(REFERENCE_FIRST_MARKER + "1:100:G:GG\n1:100:GG:G\n")
@@ -617,6 +628,15 @@ class TestUnobservedAxisEntries(AuditTestCase):
         variants = axis_variants(4)
         # Two rows with the same canonical identity: the same variant twice.
         variants = [variants[0], variants[1], variants[1], variants[2]]
+        if self.LAYOUT == "0.3":
+            # A 0.3.0 axis cannot hold the repeat: its writer refuses it, so there is no
+            # Store for the audit to count (`test_an_unsound_alid_sidecar...` covers a
+            # sidecar damaged after the write).
+            from opengwasdb.store_reader.alid_sidecar import DuplicateAlidError
+
+            with self.assertRaises(DuplicateAlidError):
+                build_hybrid_store(self.tmp, variants=variants, counts=[0, 2, 3, 4], dense_rows=[0])
+            return
         store, _ = build_hybrid_store(self.tmp, variants=variants, counts=[0, 2, 3, 4], dense_rows=[0])
         code, report = self.reconcile(store)
         record_check()
@@ -628,6 +648,42 @@ class TestUnobservedAxisEntries(AuditTestCase):
         self.assertIn(
             "duplicate_alid", [entry["kind"] for entry in report["inconsistencies"]]
         )
+
+    def test_a_hybrid_dense_component_with_no_axis_of_its_own_reconciles(self) -> None:
+        """From 0.3.0 the Dense Component shares the root's axis (opengwasdb#472), so the
+        audit reads its rows through `dense_to_shared.npy` and has no second axis length."""
+        store, _ = self.default_store()
+        has_own_axis = (store / "dense" / "variants.tsv.gz").exists()
+        self.assertEqual(has_own_axis, self.LAYOUT == "0.2")
+        code, report = self.reconcile(store)
+        record_check()
+        self.assertEqual(code, 0, report.get("inconsistencies"))
+        expected = 2 if has_own_axis else None
+        self.assertEqual(report["axis"]["dense_axis_rows"], expected)
+
+    def test_an_unsound_alid_sidecar_is_an_inconsistency(self) -> None:
+        if self.LAYOUT != "0.3":
+            self.skipTest("the ALID sidecar is a 0.3.0 file")
+        store, _ = self.default_store()
+        keys = np.load(store / "variant_alid_keys.npy")
+        np.save(store / "variant_alid_keys.npy", keys[::-1].copy())
+        code, report = self.reconcile(store)
+        record_check()
+        self.assertEqual(code, 1)
+        kinds = [entry["kind"] for entry in report["inconsistencies"]]
+        self.assertIn("alid_sidecar_unsound", kinds)
+        self.assertNotIn("alid_search_index_absent", kinds)
+
+    def test_a_missing_alid_index_stops_the_audit_in_either_layout(self) -> None:
+        """The engine refuses to open an axis whose index is missing, so the audit stops
+        there rather than counting duplicates it cannot see."""
+        store, _ = self.default_store()
+        names = ("variant_alid_bytes.npy", "variant_alid_rows.npy") if self.LAYOUT == "0.2" else layouts.ALID_SIDECAR_FILENAMES
+        for name in names:
+            (store / name).unlink()
+        with self.assertRaises(FileNotFoundError):
+            self.reconcile(store)
+        record_check()
 
     def test_multiallelic_sites_are_counted_without_calling_them_duplicates(self) -> None:
         variants = [
@@ -948,6 +1004,8 @@ class TestFailLoudlyOnMissingOrContradictedEvidence(AuditTestCase):
         self.assertIn("n_overflow_associations", incomplete["counts"]["missing"])
 
     def test_an_unsorted_alid_index_is_a_visible_failure(self) -> None:
+        if self.LAYOUT != "0.2":
+            self.skipTest("the fixed-width ALID pair is a 0.2 file; a 0.3.0 sidecar is covered by test_an_unsound_alid_sidecar_is_an_inconsistency")
         store, _ = self.default_store()
         bytes_path = store / "variant_alid_bytes.npy"
         rows_path = store / "variant_alid_rows.npy"
@@ -961,6 +1019,8 @@ class TestFailLoudlyOnMissingOrContradictedEvidence(AuditTestCase):
         self.assertIn("alid_index_not_sorted", [e["kind"] for e in report["inconsistencies"]])
 
     def test_an_alid_index_that_lost_rows_is_a_visible_failure(self) -> None:
+        if self.LAYOUT != "0.2":
+            self.skipTest("the fixed-width ALID pair is a 0.2 file; a 0.3.0 sidecar is covered by test_an_unsound_alid_sidecar_is_an_inconsistency")
         store, _ = self.default_store()
         bytes_path = store / "variant_alid_bytes.npy"
         rows_path = store / "variant_alid_rows.npy"
@@ -976,6 +1036,8 @@ class TestFailLoudlyOnMissingOrContradictedEvidence(AuditTestCase):
         )
 
     def test_a_half_written_alid_index_is_a_visible_failure(self) -> None:
+        if self.LAYOUT != "0.2":
+            self.skipTest("the fixed-width ALID pair is a 0.2 file; a 0.3.0 sidecar is covered by test_an_unsound_alid_sidecar_is_an_inconsistency")
         store, _ = self.default_store()
         rows_path = store / "variant_alid_rows.npy"
         np.save(rows_path, np.load(rows_path)[:-1])
@@ -1181,7 +1243,7 @@ class TestTheProductionStoreIsUnchanged(unittest.TestCase):
 
 def main() -> None:
     suite = unittest.TestSuite()
-    for case in (
+    for case in layouts.twin_for_each_layout(globals(), (
         TestReconcileReport,
         TestUnobservedAxisEntries,
         TestReconciledAgainstWhatTheStoreRecords,
@@ -1190,7 +1252,7 @@ def main() -> None:
         TestTheEvidenceFileIsWrittenSafely,
         TestTheStoreIsUnchanged,
         TestTheProductionStoreIsUnchanged,
-    ):
+    )):
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(case))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)
