@@ -2959,6 +2959,73 @@ class TestImportCost(unittest.TestCase):
         record_check()
 
 
+class TestManifestSummary(unittest.TestCase):
+    """`manifest_summary`: built and excluded counts, the median sample size and Assigned Ancestry counts (og-dev-hub#16)."""
+
+    setUp = TestBundleSummary.setUp
+    tearDown = TestBundleSummary.tearDown
+    make_bundle = TestBundleSummary.make_bundle
+
+    COLUMNS = ["analysis_id", "assigned_ancestry", "sample_size", "exclude_from_build"]
+
+    def rows(self, *values: tuple[str, str, str, str]) -> list[dict[str, str]]:
+        return [dict(zip(self.COLUMNS, row)) for row in values]
+
+    def test_counts_median_and_ancestry_are_over_built_rows_only(self) -> None:
+        checked = self.make_bundle(self.COLUMNS, self.rows(
+            ("A1", "EUR", "100", ""),
+            ("A2", "EUR", "200", "false"),
+            ("A3", "AFR", "300", ""),
+            ("A4", "", "", ""),
+            # Excluded: counted as excluded only. Its 1,000,000 would make the median 250.
+            ("A5", "EAS", "1000000", "true"),
+        ))
+        summary = bundle.manifest_summary(checked)
+        record_check()
+        self.assertEqual(summary, {
+            "n_built": 4,
+            "n_excluded": 1,
+            "median_sample_size": 200,
+            "n_with_sample_size": 3,
+            "n_unparseable_sample_size": 0,
+            "ancestry": {"AFR": 1, "EUR": 2, "unassigned": 1},
+        })
+
+    def test_the_median_of_an_even_count_is_the_mean_of_the_middle_two(self) -> None:
+        checked = self.make_bundle(self.COLUMNS, self.rows(("A1", "EUR", "10", ""), ("A2", "EUR", "15", "")))
+        record_check()
+        self.assertEqual(bundle.manifest_summary(checked)["median_sample_size"], 12.5)
+
+    def test_an_unparseable_sample_size_is_counted_not_dropped_and_never_crashes(self) -> None:
+        checked = self.make_bundle(self.COLUMNS, self.rows(
+            ("A1", "EUR", "100", ""), ("A2", "EUR", "unknown", ""), ("A3", "EUR", "NaN", ""), ("A4", "EUR", "300", "")))
+        summary = bundle.manifest_summary(checked)
+        record_check()
+        self.assertEqual(
+            (summary["median_sample_size"], summary["n_with_sample_size"], summary["n_unparseable_sample_size"]),
+            (200, 2, 2),
+        )
+
+    def test_no_built_row_with_a_sample_size_has_no_median(self) -> None:
+        checked = self.make_bundle(self.COLUMNS, self.rows(("A1", "EUR", "", ""), ("A2", "EUR", "5", "true")))
+        summary = bundle.manifest_summary(checked)
+        record_check()
+        self.assertIsNone(summary["median_sample_size"])
+        self.assertEqual((summary["n_with_sample_size"], summary["n_excluded"]), (0, 1))
+
+    def test_a_manifest_without_the_columns_has_no_ancestry_and_no_median(self) -> None:
+        checked = self.make_bundle(["analysis_id"], [{"analysis_id": "A1"}, {"analysis_id": "A2"}])
+        summary = bundle.manifest_summary(checked)
+        record_check()
+        self.assertEqual((summary["n_built"], summary["ancestry"], summary["median_sample_size"]), (2, None, None))
+
+    def test_a_malformed_exclusion_is_refused_as_partition_membership_refuses_it(self) -> None:
+        checked = self.make_bundle(self.COLUMNS, self.rows(("A1", "EUR", "1", "maybe")))
+        with self.assertRaises(ValueError):
+            bundle.manifest_summary(checked)
+        record_check()
+
+
 def main() -> None:
     suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
