@@ -130,11 +130,20 @@ The four fields worth understanding:
 
 ## Step 2 — what's in it?
 
-`analyses.tsv` is a plain TSV, so just read it. It's wide (33 columns), so cut
-the ones you care about:
+`analyses.tsv` is a plain TSV, so just read it. It's wide (33 columns), so pick
+out the ones you care about. Pick them **by name**: the query commands' TSV has
+gained columns before (`beta`, `eaf`, `n`, `rsid`), so a column number that was
+right last release is the wrong column this one. This one-line shell function
+prints the named columns of the TSV on its standard input, in the order given,
+and stops with an error if a name is not there:
 
 ```bash
-cut -f2,3,8,9,31 "$STORE/analyses.tsv" | column -t -s$'\t'
+cols() { awk -F'\t' -v want="$1" 'BEGIN { n = split(want, w, ",") }
+  NR == 1 { for (i = 1; i <= NF; i++) at[$i] = i
+            for (j = 1; j <= n; j++) if (!(w[j] in at)) { print "no column " w[j] > "/dev/stderr"; exit 1 } }
+  { line = $(at[w[1]]); for (j = 2; j <= n; j++) line = line "\t" $(at[w[j]]); print line }'; }
+
+cols analysis_id,analysis_label,trait_chr,trait_bp,n_hits_5e8 < "$STORE/analyses.tsv" | column -t -s$'\t'
 ```
 
 ```
@@ -157,7 +166,7 @@ you can see at a glance that ERAP2 (`ENSG00000164308`) and GSDMB
 APOE (`ENSG00000130203`) has none in this pilot.
 
 ::: {.callout-tip}
-For a quick sanity check on any store, `cut -f2,3 analyses.tsv` (the ID and
+For a quick sanity check on any store, `cols analysis_id,analysis_label < analyses.tsv` (the ID and
 its human-readable label) is almost always what you want.
 :::
 
@@ -166,8 +175,13 @@ its human-readable label) is almost always what you want.
 Let's ask for the strongest associations in the store:
 
 ```bash
-ogdb query-top-hits "$STORE" --limit 5 | column -t -s$'\t'
+ogdb query-top-hits "$STORE" --limit 5 \
+  | cols analysis_id,analysis_label,chromosome,position,alid,effect_allele,other_allele,z,se,p,association_status \
+  | column -t -s$'\t'
 ```
+
+(The command prints more columns than this, `beta` and `eaf` among them, and the
+table shows a selection of them by name.)
 
 ```
 analysis_id                   analysis_label   chromosome  position  alid            effect_allele  other_allele  z         se          p         association_status
@@ -189,7 +203,9 @@ The columns:
 - `chromosome`/`position`/`alid`/`effect_allele`/`other_allele` — resolved
   from the variant's own `alid` (`chr:pos:effect_allele:other_allele`), so
   these come back essentially for free.
-- `z`/`se` — the stored statistics, exactly as before.
+- `z`/`se` — the stored statistics, exactly as before. `beta` is the effect
+  size derived from them, and `eaf` the effect-allele frequency (`.` where the
+  store has none).
 - `p` — a two-sided p-value derived from `z`. Past the point a p-value
   underflows float64 (`|z|` beyond ~38, which real GWAS hit — see the
   FADS1/FADS2 example [below](#metabolome-plasma-2023--1400-metabolites-ragged)),
@@ -201,8 +217,8 @@ Two things are *not* on by default:
 
 - **`rsid`** — pass `--variant-info` to add it (`ogdb query-top-hits "$STORE"
   --limit 5 --variant-info`). It's opt-in because, unlike the columns above,
-  resolving it needs an extra lookup against `variants.tsv.gz` that can
-  dominate query time on a large result — see
+  resolving it needs an extra lookup (the release's rsID index from format 0.3.0,
+  `variants.tsv.gz` before) that can dominate query time on a large result — see
   [Gotchas](#gotchas-things-that-will-trip-you-up).
 - **The raw index-keyed form**, for scripts/notebooks that want
   `variant_index`/`analysis_index` rather than resolved identity. It is one
@@ -272,7 +288,7 @@ planes; see [Indexed Variant Subsets](#indexed-variant-subsets) below.
 One variant, every Analysis in the store:
 
 ```bash
-ogdb query-phewas "$STORE" 8:127730605:C:T | column -t -s$'\t'
+ogdb query-phewas "$STORE" 8:127730605:C:T | cols analysis_id,analysis_label,chromosome,position,alid,effect_allele,other_allele,z,se,p,association_status | column -t -s$'\t'
 ```
 
 ```
@@ -293,7 +309,7 @@ match on the text you already know:
 ```bash
 ogdb query-top-hits "$STORE" --threshold 5e-8 \
   | awk -F'\t' 'NR==1 || $1=="ENSG00000136997::whole_blood"' \
-  | head -6 | column -t -s$'\t'
+  | cols analysis_id,analysis_label,chromosome,position,alid,effect_allele,other_allele,z,se,p,association_status | head -6 | column -t -s$'\t'
 ```
 
 ```
@@ -320,7 +336,7 @@ The four pilot stores deliberately cover different shapes of data. Set
 
 ```bash
 STORE=/data/opengwasdb/pilot/finngen-r13/releases/r13-pilot-20/store.opengwasdb
-cut -f2,3 "$STORE/analyses.tsv" | head -7 | column -t -s$'\t'
+cols analysis_id,analysis_label < "$STORE/analyses.tsv" | head -7 | column -t -s$'\t'
 ```
 
 ```
@@ -339,7 +355,7 @@ a single call:
 ```bash
 ogdb query-lookup "$STORE" 1:1585345:C:T \
   finngen-r13-BMI_IRN,finngen-r13-HEIGHT_IRN,finngen-r13-WEIGHT_IRN,finngen-r13-FG_CVD \
-  | cut -f1,2,5,8,9,10 | column -t -s$'\t'
+  | cols analysis_id,analysis_label,alid,z,se,p | column -t -s$'\t'
 ```
 
 ```
@@ -361,7 +377,7 @@ invisible at query time:
 
 ```bash
 STORE=/data/opengwasdb/pilot/gwas-catalog-eur-hybrid/releases/eur-hybrid-pilot-10/store/hybrid__European__pilot10-cc
-ogdb query-phewas "$STORE" 1:152220451:C:G | cut -f1,2,8,10 | column -t -s$'\t'
+ogdb query-phewas "$STORE" 1:152220451:C:G | cols analysis_id,analysis_label,z,p | column -t -s$'\t'
 ```
 
 ```
@@ -395,11 +411,15 @@ metabolite's single strongest variant (largest `|z|`), then take the top 6 —
 `--variant-info` here to get rsids alongside:
 
 ```bash
-ogdb query-range-phewas "$STORE" 11 61750000 61900000 --variant-info | tail -n +2 \
-  | awk -F'\t' '{az=$9<0?-$9:$9; if (az>maxz[$1]) { maxz[$1]=az; row[$1]=$0 } }
-                END { for (a in row) print maxz[a]"\t"row[a] }' \
-  | sort -t$'\t' -k1,1gr | head -6 | cut -f2- \
-  | cut -f1,2,3,6,9,11 | column -t -s$'\t'
+{ printf 'analysis_id\tanalysis_label\trsid\talid\tz\tp\n'
+  ogdb query-range-phewas "$STORE" 11 61750000 61900000 --variant-info \
+    | awk -F'\t' 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
+        { a = $c["analysis_id"]; z = $c["z"]; az = z < 0 ? -z : z
+          if (az > maxz[a]) { maxz[a] = az
+            row[a] = a "\t" $c["analysis_label"] "\t" $c["rsid"] "\t" $c["alid"] "\t" z "\t" $c["p"] } }
+        END { for (a in row) print maxz[a] "\t" row[a] }' \
+    | sort -t$'\t' -k1,1gr | head -6 | cut -f2-
+} | column -t -s$'\t'
 ```
 
 ```
@@ -565,7 +585,7 @@ benchmark harness built this one on a reflinked OGS-00009 copy:
 
 ```bash
 ogdb query-analysis "$STORE" ukb-b-17805 --indexed-subset hm3 \
-  | cut -f1,5,8,9,10,11,12 | head -5 | column -t -s$'\t'
+  | cols analysis_id,alid,z,se,p,eaf,association_status | head -5 | column -t -s$'\t'
 ```
 
 ```
@@ -733,19 +753,24 @@ ogdb query-phewas "$STORE" rs16902359         # -> header only
 ogdb query-phewas "$STORE" 8:127730605:C:T    # -> the association
 ```
 
-To go from an rsid to its `alid`, scan the store's variant table (column 7 is
-the rsid, column 6 the `alid`):
+To go from an rsid to its `alid`, ask the Store Reader, which reads the release's
+own rsID index and is the same call on every format version (`variants()` takes
+rsIDs or ALIDs, and an identifier the release lacks is simply absent):
 
 ```bash
 MET=/data/opengwasdb/pilot/metabolome-plasma-2023/releases/2023-chen-full-european/store/ragged__pmid-36635386__European
-zcat "$MET/variants.tsv.gz" | awk -F'\t' '$7=="rs174564" {print $6; exit}'
+python3 -c 'import sys; from opengwasdb.query import query_store
+for row in query_store(sys.argv[1]).variants(["rs174564"]).values(): print(row["alid"])' "$MET"
 ```
 
 ```
 11:61820833:A:G
 ```
 
-If you already know the position, `tabix` is instant and avoids the scan:
+If you already know the position, ask for the range the same way
+(`variants_in_range(chromosome, start, end)`), which a 0.3.0 release answers from
+its position sidecar. On a release before 0.3.0 `tabix` on the Store Variant Table
+answers it as well:
 
 ```bash
 tabix "$STORE/variants.tsv.gz" 8:127730605-127730605
@@ -772,7 +797,7 @@ Table's own missing marker), same as an individual variant with no rsid in a
 store that otherwise has them:
 
 ```bash
-ogdb query-lookup "$STORE" 1:1585345:C:T finngen-r13-BMI_IRN --variant-info | tail -n +2 | cut -f3
+ogdb query-lookup "$STORE" 1:1585345:C:T finngen-r13-BMI_IRN --variant-info | cols rsid | tail -n +2
 ```
 
 ```
