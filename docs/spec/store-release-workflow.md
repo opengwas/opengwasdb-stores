@@ -264,7 +264,8 @@ The one thing Phase A writes is the **derived build manifest** under the artifac
 
 The package is shared by both phases. Its module surfaces are `bundle.py`,
 `plan.py`, `paths.py`, `manifest.py`, `run.py`, `index.py`, `register.py`,
-`resources.py`, `runtime.py`, `release.py` and `readiness.py`;
+`resources.py`, `runtime.py`, `release.py`, `readiness.py` and
+`artifact_root_check.py`;
 `_pdeath_supervisor.py` is an internal helper `run.py` uses to contain a
 detached build's process group (ADR 0026).
 
@@ -886,6 +887,71 @@ prospective reference-declaration gaps, live in `docs/readiness-evidence.yaml`,
 rendered to `docs/store-release-readiness.md`.
 
 Two commands per store matter, and they are different kinds of thing. The **generator command log** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml` as `generator.commands`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
+
+### The Artifact Root check (issue #510)
+
+`readiness.py` and `index` read git, never the Artifact Root, so nothing they
+render can say that a Store a bundle registers has gone from disk. OGS-00022
+and OGS-00023 were registered `validated` on 21 October at paths that never
+existed, and nobody noticed for three days. `artifact_root_check.py`, run as
+`pixi run check-artifact-root`, is the one place the registry is compared with
+the disk. It is not a reconcile: that word is the Store Audit's, which checks
+one Store against its own records.
+
+It reads the bundles through `readiness.discover_bundles` and every path
+through `paths` (`artifact_root()`, `store_path`, `store_dir`,
+`publication_marker`, `partial_store_path`, `by_label_dir`), and reports five
+categories:
+
+1. **Registered but missing**: a `built` or `validated` bundle with no Store at
+   `<root>/<id>/store.opengwasdb`.
+2. **On disk but unregistered**: a release directory `<root>/<id>` with no
+   bundle. Only Store Release ids are release directories, so `catalog/`,
+   `by-label/` and `.tmp/` are not read as releases.
+3. **Status disagreement**: a Store present while its bundle is `candidate` or
+   `accepted`, or `superseded` or `withdrawn`. It is reported, not judged: a
+   release that completes its own Store is `accepted` while its Observed-Only
+   Store is published.
+4. **Broken `by-label` link**: a link under `<root>/by-label/` whose target is
+   missing.
+5. **Stray state**: `publication.json`, or a staged Store
+   (`store.opengwasdb.partial*`, `.store.opengwasdb.partial*`, the set
+   `tools/relocate_store.py` refuses to move), worded as the entry point's
+   refusals and its dry run word them. When a run holds the release's lock
+   (`release.lock_holder`, which only reads), the finding names the holder.
+
+A Store is present when its path exists, by `lstat`, the test the entry
+point's refusal of a published release makes. A release that completes its own
+Store is published twice under one id (ADR 0037), both times at that path, so
+the test does not change for it.
+
+It exits 1 when it finds category 1 or 4, 0 otherwise, and 2 when it refuses: an
+Artifact Root that is not a directory, or a report path under the Artifact
+Root. It never writes under the Artifact Root and never changes a bundle;
+fixing a finding (rebuild, withdraw, finish a publication) is the operator's
+decision. `--json` and `--markdown` write the report, which the run on the
+production host commits as `docs/artifact-root-check.json` and
+`docs/artifact-root-check.md`. The report records the UTC time, the host, the
+Artifact Root and each finding with its category, Store id and Release Status.
+It records no path outside `<root>/<id>`: a `by-label` link is named by its
+label and its target's Store id, and a lock by its holder.
+
+The report is its own file rather than a channel of the readiness view. The
+view's `built_membership` channel compares a published Store's Analysis IDs
+with admitted membership, and its `missing` there means "no published artifact
+recorded" in the ledger. Presence on disk is a different question, asked on
+one host at one time, and folding it in would change what that channel means.
+
+**When to run it.** On the host that holds the Artifact Root:
+
+- before and after any migration or re-registration that changes Artifact Root
+  paths (a relocation, a move to new ids, re-registering a bundle at a new
+  path), so the run before records what was there and the run after shows
+  nothing was lost;
+- at the finish of a Store epic, so the epic's last commit records the disk it
+  leaves.
+
+Commit the report each time. The release workflow does not run it.
 
 ### Planned and executed argv are different facts
 
