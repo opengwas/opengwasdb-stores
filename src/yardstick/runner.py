@@ -30,7 +30,7 @@ from yardstick import fixture, proc
 from yardstick import result as result_spec
 from yardstick import workload as workload_spec
 
-BUDGET_S = 600.0
+BUDGET_S = 1800.0
 #: Where a run's scratch lives when nothing else says. `/data` is where this
 #: project writes (CONTRIBUTING, Worktrees): a run must never fill the host's `/tmp`.
 SCRATCH_ROOT_ENV = "YARDSTICK_TMPDIR"

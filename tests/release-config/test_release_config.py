@@ -511,8 +511,9 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
         from manifest_generation.release_config import BUILD_POST_KEYS
 
         planner = (REPO_ROOT / "src/ogstores/plan.py").read_text(encoding="utf-8")
-        steps = planner[planner.index("def _post_steps("):]
-        steps = steps[: steps.index("\ndef ", 1)]
+        # `declared_top_hits` (the one reader of `post.top_hits`, also used by the yardstick) precedes `_post_steps`.
+        steps = planner[planner.index("def declared_top_hits("):]
+        steps = steps[: steps.index("\ndef ", steps.index("def _post_steps(") + 1)]
         planned = set(re.findall(r'post\.get\("([a-z_]+)"\)', steps))
         self.assertEqual(set(BUILD_POST_KEYS), planned)
 

@@ -1,18 +1,28 @@
-# The yardstick workload (#390): what is measured, on which Stores, with which
-# queries. Every identifier below was picked once from the Store's own
-# variants.tsv.gz (rows 100,000 and 300,000) and analyses.tsv, and was checked
-# read-only to resolve to a non-empty result in that Store. The runner refuses
-# an empty result, so a Store that stops containing one fails loudly.
+# The yardstick workload (#390, #503): what is measured, on which Stores, with which
+# queries. One Store per GWAS Store Layout (OGS-00009 Dense, OGS-00011 Hybrid,
+# OGS-00027 Ragged). None has a Rho Matrix (`rho: false`), so the rho measures are
+# `not_applicable`. Every input below was picked once, read-only through the engine's
+# facade, by tools/yardstick_inputs.py: `lookup` holds 100 variants and 100 Analyses at
+# evenly spaced rows of the Store's own tables, and `input_rows` is the row count one
+# call per input returned. `workload.check` refuses an entry without a count for a
+# measure it lists, or with a count of 0 (only top_hits may be empty). The runner
+# refuses an empty result, so a Store that stops containing one fails loudly. `rsid`, `alid`, `position`,
+# `analysis_id` and `region` are the #390 identifiers, unchanged.
 #
 # Changing this file changes what every later result means: bump `workload_id`
 # and say why in docs/spec/yardstick.md.
 schema: 1
-workload_id: yardstick-3
+workload_id: yardstick-4
 # Warm repetitions behind each median. `analysis_full` is lower because one
 # full extraction of an OGS-00009 Analysis reads ~9.9 million rows.
 repetitions:
   default: 5
   analysis_full: 3
+  analysis_full_observed_only: 3
+  # Every variant row of OGS-00011 is 47.9 million.
+  variants_table: 1
+  analyses_table: 3
+  resolve: 3
 region_width_bp: 1000000
 # The Dense fixture build (a 2-variant VCF through `opengwasdb build-dense-vcf`,
 # ~6 s) tracks the build path (opengwas/opengwasdb#307). A Ragged fixture
@@ -30,29 +40,14 @@ stores:
     position: {chromosome: "1", position: 79881235}
     analysis_id: ukb-b-10001
     region: {chromosome: "1", start: 79381235, end: 80381235}
-    measures: [open, phewas_rsid, phewas_alid, phewas_position, analysis_full, analysis_hm3, region, bytes_on_disk, peak_rss]
-  - store_id: OGS-00027
-    layout: ragged
-    coverage: cis
-    status: measured
-    note: Ragged, Observed-Only, cis Association Coverage
-    rsid: rs3851271
-    alid: "1:28852669:C:T"
-    position: {chromosome: "1", position: 92126665}
-    analysis_id: ENSG00000000419
-    region: {chromosome: "1", start: 91626665, end: 92626665}
-    measures: [open, phewas_rsid, phewas_alid, phewas_position, analysis_full, region, bytes_on_disk, peak_rss]
-  - store_id: OGS-00006
-    layout: ragged
-    coverage: signals_only
-    status: measured
-    note: Ragged, Reference-Completed inside its recorded regions (regions.tsv, format 0.2.1), signals_only Association Coverage
-    rsid: rs78413525
-    alid: "1:18521248:A:G"
-    position: {chromosome: "1", position: 66546730}
-    analysis_id: GCST90199621
-    region: {chromosome: "1", start: 66046730, end: 67046730}
-    measures: [open, phewas_rsid, phewas_alid, phewas_position, analysis_full, region, bytes_on_disk, peak_rss]
+    region_100kb: {chromosome: '1', end: 79931235, start: 79831235}
+    lookup:
+      variants: ['1:14213053:A:G', '1:44369271:A:G', '1:75007073:C:T', '1:102651001:A:G', '1:160074888:A:G', '1:188495147:A:C', '1:216690513:A:T', '1:242351169:A:G', '2:18240508:A:G', '2:44092594:A:G', '2:70414552:A:G', '2:106594349:A:G', '2:136640679:C:T', '2:166146586:G:T', '2:195197355:A:G', '2:225282784:A:G', '3:6398210:A:T', '3:31019424:C:T', '3:61405425:C:G', '3:88675019:C:G', '3:119558462:C:T', '3:148212565:A:C', '3:176024960:C:T', '4:4307553:C:T', '4:27612841:A:G', '4:55804193:A:G', '4:81366926:C:T', '4:108942214:C:T', '4:135599460:A:G', '4:163763578:C:G', '4:187664234:A:C', '5:21292409:T:TA', '5:51229038:C:T', '5:81100286:C:T', '5:110400753:A:G', '5:135495444:A:G', '5:164011721:C:T', '6:8644435:A:C', '6:31160828:C:T', '6:52848840:C:T', '6:79765825:G:T', '6:107180032:A:G', '6:136493962:C:T', '6:163591264:A:G', '7:13135868:G:T', '7:37549496:C:T', '7:67006353:A:G', '7:96753492:A:C', '7:127468233:C:T', '7:155379969:C:T', '8:13809759:C:T', '8:37040030:A:T', '8:68027405:C:T', '8:96954117:C:T', '8:126786329:C:T', '9:5679748:C:G', '9:27354402:G:T', '9:82684825:G:T', '9:108668538:A:G', '9:135823775:C:G', '10:20014899:C:T', '10:49558408:C:T', '10:75114925:C:T', '10:102859691:A:G', '10:129237646:C:T', '11:19013385:A:G', '11:44454971:C:T', '11:77233837:G:T', '11:102372653:C:G', '11:130241621:A:G', '12:21039120:G:T', '12:48652985:A:T', '12:78410794:A:G', '12:107241560:A:G', '13:19034529:G:T', '13:44289433:C:G', '13:72014580:C:T', '13:98837253:A:T', '14:29295720:A:G', '14:56360177:C:T', '14:84027211:C:T', '15:25557265:C:T', '15:55275391:C:T', '15:84905841:C:T', '16:6464038:A:T', '16:47476820:C:T', '16:76451723:A:C', '17:4445905:A:G', '17:39488022:C:T', '17:72033784:C:G', '18:12844051:C:T', '18:48622736:A:G', '18:73581444:A:G', '19:17191303:A:ACT', '19:45998892:A:G', '20:11426682:A:T', '20:44690357:C:T', '21:18874386:A:T', '21:43693594:A:C', '22:39342601:C:G']
+      analyses: [ukb-b-10093, ukb-b-10263, ukb-b-1046, ukb-b-10712, ukb-b-10848, ukb-b-11025, ukb-b-11262, ukb-b-11412, ukb-b-11567, ukb-b-117, ukb-b-1190, ukb-b-12095, ukb-b-12265, ukb-b-12412, ukb-b-1259, ukb-b-12765, ukb-b-12909, ukb-b-13079, ukb-b-13247, ukb-b-13417, ukb-b-13538, ukb-b-13731, ukb-b-1392, ukb-b-14145, ukb-b-14262, ukb-b-14422, ukb-b-14615, ukb-b-14814, ukb-b-15071, ukb-b-15268, ukb-b-15531, ukb-b-15730, ukb-b-15858, ukb-b-16030, ukb-b-16156, ukb-b-16340, ukb-b-16559, ukb-b-16715, ukb-b-16943, ukb-b-17130, ukb-b-17371, ukb-b-17554, ukb-b-17733, ukb-b-17961, ukb-b-18113, ukb-b-1830, ukb-b-18544, ukb-b-18799, ukb-b-19050, ukb-b-19191, ukb-b-19390, ukb-b-19579, ukb-b-19790, ukb-b-19953, ukb-b-20141, ukb-b-20233, ukb-b-20421, ukb-b-20556, ukb-b-2221, ukb-b-2425, ukb-b-2630, ukb-b-2867, ukb-b-3027, ukb-b-3255, ukb-b-3454, ukb-b-3672, ukb-b-3825, ukb-b-4013, ukb-b-4184, ukb-b-4363, ukb-b-4531, ukb-b-4657, ukb-b-4817, ukb-b-4961, ukb-b-5164, ukb-b-531, ukb-b-5476, ukb-b-5655, ukb-b-5935, ukb-b-6154, ukb-b-6351, ukb-b-6519, ukb-b-6666, ukb-b-686, ukb-b-7085, ukb-b-7289, ukb-b-7435, ukb-b-7603, ukb-b-782, ukb-b-8061, ukb-b-8194, ukb-b-8388, ukb-b-8607, ukb-b-8746, ukb-b-8888, ukb-b-9056, ukb-b-9294, ukb-b-9513, ukb-b-969, ukb-b-9925]
+    top_hits: {analysis_id: ukb-b-10093, path: index, threshold: 5.0e-08}
+    rho: false
+    input_rows: {analysis_full: 9912269, analysis_full_observed_only: 5349214, lookup_100x1: 95, lookup_100x10: 932, lookup_100x100: 9295, lookup_10x100: 999, lookup_1x100: 99, phewas_alid: 350, phewas_position: 2514, phewas_rsid: 2514, region: 11366579, region_100kb: 1073832, resolve: 2514, top_hits: 3752}
+    measures: [open, analyses_table, variants_table, resolve, phewas_rsid, phewas_alid, phewas_position, region_100kb, region, lookup_1x100, lookup_100x1, lookup_10x100, lookup_100x10, lookup_100x100, analysis_full, analysis_full_observed_only, analysis_hm3, top_hits, range_by_analysis, rho, rho_row, rho_matrix, bytes_on_disk, peak_rss]
   - store_id: OGS-00011
     layout: hybrid
     coverage: gwas
@@ -66,4 +61,30 @@ stores:
     position: {chromosome: "1", position: 15852049}
     analysis_id: GCST000998
     region: {chromosome: "1", start: 15352049, end: 16352049}
-    measures: [open, phewas_rsid, phewas_alid, phewas_position, analysis_full, analysis_hm3, region, bytes_on_disk, peak_rss]
+    region_100kb: {chromosome: '1', end: 15902049, start: 15802049}
+    lookup:
+      variants: ['1:12799688:A:C', '1:41737043:A:G', '1:73512950:C:T', '1:104467623:C:T', '1:157631396:C:T', '1:187803113:A:T', '1:217284629:C:CCCACCAAGAG', '1:243093661:C:T', '2:20754500:C:CAAA', '2:48169861:G:T', '2:76914790:C:T', '2:110704869:G:T', '2:139925603:A:C', '2:171578738:A:C', '2:204087394:A:ATTT', '2:233738036:C:T', '3:16708813:C:T', '3:46038379:A:G', '3:75737079:C:T', '3:107639476:A:G', '3:138553212:G:T', '3:168800960:C:T', '3:197344213:A:G', '4:23609392:A:G', '4:53301527:GA:G', '4:80876983:C:T', '4:111650214:A:G', '4:141390580:C:G', '4:171173930:TG:T', '5:6058668:G:T', '5:33932252:C:T', '5:66474165:A:ATTTTTTTTTTTTTTTTTTTTTTTT', '5:99687447:G:T', '5:126717115:C:T', '5:157770130:C:T', '6:4643800:C:T', '6:31342853:A:C', '6:57295787:C:T', '6:85749660:A:G', '6:107645011:C:T', '6:130374413:TTTTTG:T', '6:152119811:AC:A', '7:677374:C:T', '7:23977594:A:G', '7:52964862:C:T', '7:82283934:A:T', '7:112709122:C:T', '7:144261588:A:G', '8:5680137:C:G', '8:27646982:CGCACA:C', '8:59178229:A:G', '8:89987389:A:G', '8:121711985:C:G', '9:3144450:C:G', '9:27283892:C:T', '9:77597361:AATG:A', '9:106882096:A:G', '9:135496074:A:G', '10:21437888:A:G', '10:49317424:C:T', '10:78428173:A:G', '10:108711669:G:T', '11:1950706:G:T', '11:29170944:C:T', '11:59363700:A:G', '11:88669943:TA:T', '11:117783376:C:T', '12:10339191:A:G', '12:39416739:A:ATATATATGTACATATATATGTG', '12:69697581:G:T', '12:100797463:A:G', '12:129573224:A:G', '13:40875641:A:G', '13:71359605:C:T', '13:100913339:C:T', '14:32021304:C:T', '14:61142362:A:G', '14:90508674:C:T', '15:29386723:C:G', '15:59379867:CATTT:C', '15:88968333:TTGTGAGTGTG:T', '16:9819521:G:GA', '16:50253273:G:T', '16:78655720:G:T', '17:9525492:A:G', '17:42451647:A:G', '17:73522378:A:G', '18:15641217:C:T', '18:51707714:C:G', '18:79050340:T:TAATAAATA', '19:22771037:C:G', '19:51584277:C:T', '20:19151003:A:C', '20:50920262:CAA:C', '21:22643955:A:G', '22:16051761:C:T', '22:43083046:T:TAAA', 'X:29413902:A:C', 'X:84287947:A:G', 'X:132153575:A:G']
+      analyses: [GCST003401, GCST004622, GCST005647, GCST006344, GCST006686, GCST006980, GCST009965, GCST011077, GCST012876, GCST90002227, GCST90002391, GCST90006898, GCST90007310, GCST90011994, GCST90012028, GCST90012060, GCST90012111, GCST90013546, GCST90013579, GCST90014437, GCST90016668, GCST90020071, GCST90025974, GCST90026400, GCST90029002, GCST90029035, GCST90061434, GCST90085851, GCST90085883, GCST90093321, GCST90100572, GCST90104004, GCST90129430, GCST90129599, GCST90162553, GCST90179151, GCST90239664, GCST90244154, GCST90267408, GCST90268135, GCST90268479, GCST90269957, GCST90270865, GCST90271713, GCST90274750, GCST90274788, GCST90274820, GCST90275127, GCST90275757, GCST90275790, GCST90281167, GCST90281273, GCST90296643, GCST90301701, GCST90309341, GCST90310295, GCST90319607, GCST90319639, GCST90320269, GCST90399672, GCST90399726, GCST90399865, GCST90429768, GCST90429801, GCST90429833, GCST90435359, GCST90446629, GCST90448784, GCST90448923, GCST90449130, GCST90451718, GCST90451750, GCST90454226, GCST90455592, GCST90472810, GCST90483481, GCST90551838, GCST90559262, GCST90565682, GCST90565841, GCST90566686, GCST90566818, GCST90570665, GCST90570710, GCST90573177, GCST90624182, GCST90624750, GCST90627769, GCST90628022, GCST90652390, GCST90668016, GCST90702456, GCST90726344, GCST90797576, GCST90809399, GCST90809877, GCST90836767, GCST90837192, GCST90840657, GCST90994713]
+    top_hits: {analysis_id: GCST000998, path: scan, threshold: 5.0e-08}
+    rho: false
+    input_rows: {analysis_full: 2420299, analysis_full_observed_only: 2420299, lookup_100x1: 4, lookup_100x10: 202, lookup_100x100: 2134, lookup_10x100: 18, lookup_1x100: 1, phewas_alid: 1673, phewas_position: 32, phewas_rsid: 32, region: 10439447, region_100kb: 1027888, resolve: 32, top_hits: 160}
+    measures: [open, analyses_table, variants_table, resolve, phewas_rsid, phewas_alid, phewas_position, region_100kb, region, lookup_1x100, lookup_100x1, lookup_10x100, lookup_100x10, lookup_100x100, analysis_full, analysis_full_observed_only, analysis_hm3, top_hits, range_by_analysis, rho, rho_row, rho_matrix, bytes_on_disk, peak_rss]
+  - store_id: OGS-00027
+    layout: ragged
+    coverage: cis
+    status: measured
+    note: Ragged, Observed-Only, cis Association Coverage
+    rsid: rs3851271
+    alid: "1:28852669:C:T"
+    position: {chromosome: "1", position: 92126665}
+    analysis_id: ENSG00000000419
+    region: {chromosome: "1", start: 91626665, end: 92626665}
+    region_100kb: {chromosome: '1', end: 92176665, start: 92076665}
+    lookup:
+      variants: ['1:2515521:C:T', '1:20437828:C:T', '1:32224982:C:T', '1:46501245:C:T', '1:85465332:A:G', '1:150082592:A:G', '1:158747406:A:G', '1:180523341:A:G', '1:211538618:A:G', '1:244743456:C:G', '1:246233775:A:G', '2:64062750:A:T', '2:88417622:C:T', '2:121624473:G:T', '2:178849035:A:T', '3:8690145:A:G', '3:10539696:C:T', '3:52194751:C:T', '3:120414305:C:T', '3:150927621:A:G', '3:195186923:A:C', '4:17294740:A:C', '4:79288234:A:T', '4:140383753:G:T', '5:6597994:A:T', '5:69377421:A:G', '5:115934335:A:G', '5:149123942:C:G', '5:179123868:C:T', '6:26970051:A:C', '6:32549634:A:C', '6:32722539:A:C', '6:33599090:C:T', '6:46527295:G:T', '6:111718564:G:T', '6:158506000:A:G', '7:22577739:C:G', '7:55915576:C:T', '7:95943495:A:C', '7:123957067:A:G', '7:145026650:G:T', '8:22548210:A:C', '8:61788832:C:T', '8:120657089:G:T', '9:5822475:A:T', '9:111538922:A:G', '9:129766350:C:T', '10:6732694:A:G', '10:8157028:A:T', '10:88622118:C:T', '10:110668836:A:T', '11:1359469:C:T', '11:2822986:C:G', '11:61718495:C:G', '11:66775459:A:G', '11:93970341:A:T', '11:124150848:A:G', '12:7640207:A:C', '12:9325142:A:G', '12:42501247:A:G', '12:56377259:A:G', '12:93960239:A:C', '12:118927421:A:C', '13:26917558:C:T', '13:87990202:A:G', '14:22707993:A:C', '14:56089450:C:G', '14:77135020:C:T', '14:104622647:G:T', '15:39218573:A:G', '15:59767910:A:T', '15:80252360:A:C', '16:298687:G:T', '16:1598125:A:C', '16:12020272:A:G', '16:56968613:A:C', '16:74633481:C:T', '16:76305357:C:G', '17:3045665:A:G', '17:10986840:C:T', '17:39964351:C:T', '17:48110203:C:T', '17:67816231:C:T', '17:80239964:C:T', '18:22648167:C:G', '19:606360:A:C', '19:5889384:A:C', '19:11936986:C:T', '19:18636795:G:T', '19:36111177:C:T', '19:43190133:C:T', '19:48944320:A:G', '19:53818675:A:G', '19:55525577:C:G', '20:2377217:G:T', '20:56714695:C:G', '21:36474872:A:G', '21:38356645:C:T', '22:30308725:C:T', '22:42171084:C:T']
+      analyses: [ENSG00000157873, ENSG00000127483, ENSG00000160058, ENSG00000132780, ENSG00000122432, ENSG00000231437, ENSG00000163131, ENSG00000163568, ENSG00000135823, ENSG00000143493, ENSG00000162849, ENSG00000119760, ENSG00000237638, ENSG00000254098, ENSG00000115112, ENSG00000079156, ENSG00000199121, ENSG00000163719, ENSG00000225611, ENSG00000213533, ENSG00000065518, ENSG00000243273, ENSG00000184203, ENSG00000118579, ENSG00000250334, ENSG00000153130, ENSG00000145545, ENSG00000215006, ENSG00000248175, ENSG00000247199, ENSG00000050767, ENSG00000124557, ENSG00000242574, ENSG00000112782, ENSG00000112394, ENSG00000078269, ENSG00000105889, ENSG00000178665, ENSG00000004864, ENSG00000106299, ENSG00000244479, ENSG00000158815, ENSG00000254777, ENSG00000136982, ENSG00000254017, ENSG00000226904, ENSG00000059769, ENSG00000148358, ENSG00000198879, ENSG00000204169, ENSG00000204020, ENSG00000108061, ENSG00000130595, ENSG00000149100, ENSG00000185085, ENSG00000110711, ENSG00000134627, ENSG00000154133, ENSG00000111732, ENSG00000015153, ENSG00000123374, ENSG00000257322, ENSG00000135090, ENSG00000132970, ENSG00000165300, ENSG00000172590, ENSG00000259483, ENSG00000151445, ENSG00000179364, ENSG00000104081, ENSG00000128915, ENSG00000140406, ENSG00000103253, ENSG00000262636, ENSG00000167371, ENSG00000125170, ENSG00000166822, ENSG00000205821, ENSG00000133028, ENSG00000167549, ENSG00000234477, ENSG00000230148, ENSG00000171634, ENSG00000173818, ENSG00000134508, ENSG00000172270, ENSG00000125650, ENSG00000171223, ENSG00000267266, ENSG00000197808, ENSG00000105771, ENSG00000196961, ENSG00000189013, ENSG00000232528, ENSG00000126005, ENSG00000218018, ENSG00000157540, ENSG00000184436, ENSG00000100029, ENSG00000226450]
+    top_hits: {analysis_id: ENSG00000000419, path: scan, threshold: 5.0e-08}
+    cis: {chromosome: '20', end: 51446711, start: 50446711}
+    rho: false
+    input_rows: {analysis_full: 7533, lookup_100x1: 1, lookup_100x10: 9, lookup_100x100: 100, lookup_10x100: 10, lookup_1x100: 1, phewas_alid: 23, phewas_position: 16, phewas_rsid: 16, range_by_analysis: 85594, region: 41790, region_100kb: 3347, resolve: 16, top_hits: 83}
+    measures: [open, analyses_table, variants_table, resolve, phewas_rsid, phewas_alid, phewas_position, region_100kb, region, lookup_1x100, lookup_100x1, lookup_10x100, lookup_100x10, lookup_100x100, analysis_full, analysis_hm3, top_hits, range_by_analysis, rho, rho_row, rho_matrix, bytes_on_disk, peak_rss]
