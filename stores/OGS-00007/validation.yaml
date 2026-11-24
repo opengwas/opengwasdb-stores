@@ -22,7 +22,10 @@ observed:
   n_associations: 202803
   association_coverage: cis_and_signals
   reference_assembly: null
-  store_bytes: null
+  store_bytes: 16494381
+  has_hm3: false
+  has_rho: null
+  n_top_hits: null
   build_elapsed_s: 13.223
   validate_status: passed
   completion_state: observed_only

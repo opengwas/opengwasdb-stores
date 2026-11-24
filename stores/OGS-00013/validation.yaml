@@ -15,7 +15,10 @@ observed:
   n_associations: null
   association_coverage: gwas
   reference_assembly: null
-  store_bytes: null
+  store_bytes: 128928377157
+  has_hm3: true
+  has_rho: null
+  n_top_hits: null
   build_elapsed_s: 377208.773
   validate_status: passed
   completion_state: reference_completed

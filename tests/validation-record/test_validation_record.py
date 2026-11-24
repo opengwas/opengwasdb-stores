@@ -166,6 +166,11 @@ FORMAT_VERSION_SHAPE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 # release.yaml. The forced rebuild of 17 Nov 2026 (#232) replaced that Store, so
 # the pin is now `register`'s own record of the run: null is what no step
 # reported, and the format the Store carries is the manifest's 0.2.2.
+# The #502 backfill of 24 Nov 2026 then recorded each Store's facts into its
+# observed block: store_bytes from the Store on disk (format 0.2.x), has_hm3
+# from the Build Recipe, has_rho and n_top_hits null until opengwasdb#488. That
+# is the one other way an accepted record's observed block may change
+# (docs/release-metadata-schema.md, validation.yaml).
 GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # Rebuilt (OGS-00001) and re-completed (OGS-00002) at opengwasdb 0.3.2,
     # 44f25a96, and re-registered on 2 Nov 2026 (#348), so that OGS-00002 reads
@@ -184,7 +189,10 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "n_associations": 86373,
         "association_coverage": "cis",
         "reference_assembly": None,
-        "store_bytes": None,
+        "store_bytes": 8717914,
+        "has_hm3": False,
+        "has_rho": None,
+        "n_top_hits": None,
         "build_elapsed_s": 14.603,
         "validate_status": "passed",
         "completion_state": "observed_only",
@@ -196,7 +204,10 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "n_associations": 123892,
         "association_coverage": "cis",
         "reference_assembly": None,
-        "store_bytes": None,
+        "store_bytes": 11715533,
+        "has_hm3": False,
+        "has_rho": None,
+        "n_top_hits": None,
         "build_elapsed_s": 86.939,
         "validate_status": "passed",
         "completion_state": "reference_completed",
@@ -214,7 +225,10 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "n_associations": None,
         "association_coverage": "gwas",
         "reference_assembly": None,
-        "store_bytes": None,
+        "store_bytes": 2596984787,
+        "has_hm3": True,
+        "has_rho": None,
+        "n_top_hits": None,
         "build_elapsed_s": 964.505,
         "validate_status": "passed",
         "completion_state": "observed_only",
@@ -234,7 +248,10 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "n_associations": None,
         "association_coverage": "gwas",
         "reference_assembly": None,
-        "store_bytes": None,
+        "store_bytes": 4028265229,
+        "has_hm3": True,
+        "has_rho": None,
+        "n_top_hits": None,
         "build_elapsed_s": 2946.643,
         "validate_status": "passed",
         "completion_state": "observed_only",
@@ -259,7 +276,10 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "n_associations": None,
         "association_coverage": "gwas",
         "reference_assembly": None,
-        "store_bytes": None,
+        "store_bytes": 3314973516,
+        "has_hm3": True,
+        "has_rho": None,
+        "n_top_hits": None,
         "build_elapsed_s": 2029.08,
         "validate_status": "passed_with_warnings",
         "completion_state": "observed_only",
@@ -288,7 +308,10 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "n_associations": 59092457,
         "association_coverage": "signals_only",
         "reference_assembly": None,
-        "store_bytes": None,
+        "store_bytes": 1584802717,
+        "has_hm3": False,
+        "has_rho": None,
+        "n_top_hits": None,
         "build_elapsed_s": 3972.747,
         "validate_status": "passed_with_warnings",
         "completion_state": "reference_completed",
@@ -306,7 +329,10 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "n_associations": 202803,
         "association_coverage": "cis_and_signals",
         "reference_assembly": None,
-        "store_bytes": None,
+        "store_bytes": 16494381,
+        "has_hm3": False,
+        "has_rho": None,
+        "n_top_hits": None,
         "build_elapsed_s": 13.223,
         "validate_status": "passed",
         "completion_state": "observed_only",
@@ -421,7 +447,7 @@ class TestCommittedValidationRecords(unittest.TestCase):
                 self.load(store_id)["observed"],
                 expected,
                 f"{store_id}.observed changed; a registered record changes only "
-                "through a Release Erratum or another registration",
+                "through a Release Erratum, another registration or the #502 backfill",
             )
 
     def test_reregistered_records_name_the_release_they_replaced(self) -> None:

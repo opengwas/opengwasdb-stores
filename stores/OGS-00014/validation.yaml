@@ -13,7 +13,10 @@ observed:
   n_analyses: 1053
   n_variants: 30380465
   n_associations: null
-  store_bytes: null
+  store_bytes: 79148773458
+  has_hm3: true
+  has_rho: null
+  n_top_hits: null
   build_elapsed_s: 465461.595
   validate_status: passed
   completion_state: reference_completed
