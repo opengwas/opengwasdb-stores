@@ -1,0 +1,84 @@
+{
+  "check": "artifact-root-check",
+  "checked_at": "2026-11-24T21:51:33Z",
+  "host": "app-dc3-ogws-p0.services.bris.ac.uk",
+  "artifact_root": "/data/opengwasdb/stores",
+  "bundles": 24,
+  "release_directories": 20,
+  "exit_status": 1,
+  "failing_categories": [
+    1,
+    4
+  ],
+  "counts": {
+    "registered_but_missing": 2,
+    "unregistered": 0,
+    "status_disagreement": 2,
+    "broken_by_label_link": 2,
+    "stray_state": 2
+  },
+  "findings": [
+    {
+      "category": 1,
+      "name": "registered_but_missing",
+      "store_id": "OGS-00022",
+      "release_status": "validated",
+      "path": "/data/opengwasdb/stores/OGS-00022/store.opengwasdb",
+      "detail": "Release Status `validated`, but it has no release directory"
+    },
+    {
+      "category": 1,
+      "name": "registered_but_missing",
+      "store_id": "OGS-00023",
+      "release_status": "validated",
+      "path": "/data/opengwasdb/stores/OGS-00023/store.opengwasdb",
+      "detail": "Release Status `validated`, but it has no release directory"
+    },
+    {
+      "category": 3,
+      "name": "status_disagreement",
+      "store_id": "OGS-00008",
+      "release_status": "candidate",
+      "path": "/data/opengwasdb/stores/OGS-00008/store.opengwasdb",
+      "detail": "the Store is present while the Release Status is `candidate`"
+    },
+    {
+      "category": 3,
+      "name": "status_disagreement",
+      "store_id": "OGS-00011",
+      "release_status": "accepted",
+      "path": "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "detail": "the Store is present while the Release Status is `accepted`"
+    },
+    {
+      "category": 4,
+      "name": "broken_by_label_link",
+      "store_id": "OGS-00022",
+      "label": "eur-hybrid-pilot-10-completed",
+      "detail": "label `eur-hybrid-pilot-10-completed`: its target OGS-00022 is missing"
+    },
+    {
+      "category": 4,
+      "name": "broken_by_label_link",
+      "store_id": "OGS-00023",
+      "label": "eur-hybrid-quant-pilot-10-completed",
+      "detail": "label `eur-hybrid-quant-pilot-10-completed`: its target OGS-00023 is missing"
+    },
+    {
+      "category": 5,
+      "name": "stray_state",
+      "store_id": "OGS-00011",
+      "release_status": "accepted",
+      "path": "/data/opengwasdb/stores/OGS-00011/store.opengwasdb.partial",
+      "detail": "store.opengwasdb.partial exists: a Store is staged"
+    },
+    {
+      "category": 5,
+      "name": "stray_state",
+      "store_id": "OGS-00011",
+      "release_status": "accepted",
+      "path": "/data/opengwasdb/stores/OGS-00011/.store.opengwasdb.partial.tmp.2209388.fb7a8d459875",
+      "detail": ".store.opengwasdb.partial.tmp.2209388.fb7a8d459875 exists: a Store is staged"
+    }
+  ]
+}
