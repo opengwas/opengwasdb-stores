@@ -57,12 +57,16 @@ walk the Store (`bytes_on_disk`) is `unavailable` too, never a partial total.
 
 ## Read-only guarantee
 
-`query_store` opens `index.sqlite` read-write, so a missing index would be
-created beside the Store. Before a Store's first worker starts the runner records the
+On a release that ships an `index.sqlite`, `query_store` opens it read-write, so a
+missing index would be created beside the Store. Every 0.2 release ships one; from
+format 0.3.0 it holds only `completion_quality`, so an Observed-Only release, and a
+Hybrid's outer release, ship none and the Store Reader never opens one (opengwasdb
+ADR 0102; `runner.carries_index` is the engine's `ships_index`, held to it by a test).
+Before a Store's first worker starts the runner records the
 Store directory's top-level entries and `index.sqlite`'s size and mtime. A Store
-with no `index.sqlite` is not opened: every measure is `unavailable` ("index.sqlite
-missing; refusing to let the query path create it"). `index.sqlite` must still be present before each worker (the timed one and the
-RSS one); a violation stops that Store's remaining workers, whose measures are
+that ships an `index.sqlite` and has none is not opened: every measure is `unavailable` ("index.sqlite
+missing; refusing to let the query path create it"). Such an `index.sqlite` must still be present before each worker (the timed one and the
+RSS one); one that ships none must still have none afterwards (a new `index.sqlite` is a new top-level entry); a violation stops that Store's remaining workers, whose measures are
 `unavailable`. The comparison runs in a `finally`, so it happens whatever a
 worker does; a worker that exits non-zero, times out or prints malformed JSON
 makes its measures `unavailable` with the error and never aborts the run. After

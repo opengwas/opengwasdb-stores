@@ -79,7 +79,8 @@ than the Store the caller named, and refuses an `--output` inside the Store.
 
 One slice, and deliberately not more: `reconcile` reconciles the **axis**, not
 its causes. It reads the Store Release's own artifact and its own record --
-`manifest.json`, `variants.tsv.gz` and its ALID search index, `data.zarr`'s
+`manifest.json`, `variants.tsv.gz` and its ALID index (the 0.2 series' fixed-width pair or
+format 0.3.0's sidecar), `data.zarr`'s
 `ragged/offsets`, `ragged/variant_index` lengths and `ragged/by_variant/offsets`,
 `dense/dense_to_shared.npy`, `analyses.tsv`, and `records/build.json` beside it
 -- and the construction reference the record names. It never reads a Build
@@ -112,9 +113,10 @@ rather than passing with a blank where a fact should be:
 | `analyses.tsv` undecodable | `analyses_tsv_unavailable` |
 | provenance missing any of `n_variants`, `n_analyses`, `n_panel`, `n_off_panel`, `n_overflow_associations`, `ragged.by_variant.n_axis`, `ragged.by_variant.n_rows` | `recorded_counts_incomplete` |
 | any of those counts disagreeing with the artifact | `recorded_*_disagrees` |
-| an ALID search index whose two arrays differ in length | `alid_index_half_written` |
-| an ALID search index that is not sorted | `alid_index_not_sorted` |
-| an ALID search index whose entry count differs from the table's indexable rows | `alid_index_disagrees_with_table` |
+| a 0.2 ALID search index whose two arrays differ in length | `alid_index_half_written` |
+| a 0.2 ALID search index that is not sorted | `alid_index_not_sorted` |
+| a 0.2 ALID search index whose entry count differs from the table's indexable rows | `alid_index_disagrees_with_table` |
+| a 0.3.0 ALID sidecar the engine finds unsound (unsorted, an ALID twice, a row count that is not the table's) | `alid_sidecar_unsound` |
 | a sampled row whose ALID contradicts its own chromosome, position or allele columns | `alid_sample_mismatch` |
 | a Dense-axis variant carrying Overflow associations (disjoint partition) | `dense_axis_rows_carry_overflow_associations` |
 | a Store directory replaced or removed during the audit | `store_replaced_during_audit`, `store_vanished_during_audit` |
@@ -152,12 +154,12 @@ guards, both recorded in `store.stable_view`:
 | Fact | Read from | Reconciled against |
 |---|---|---|
 | shared-axis length | `VariantAxis` over `variants.tsv.gz` | recorded `provenance.n_variants`, table row count |
-| Dense-axis length | `dense/dense_to_shared.npy`, the Dense Component's own axis | recorded `provenance.hybrid.n_panel` |
+| Dense-axis length | `dense/dense_to_shared.npy`; before 0.3.0 also the Dense Component's own axis, which a 0.3.0 Hybrid does not carry (it shares the root's, opengwasdb#472), so `axis.dense_axis_rows` is `null` there | recorded `provenance.hybrid.n_panel` |
 | off-panel length | axis minus the distinct mapped rows | recorded `provenance.hybrid.n_off_panel` |
 | observed occupancy | `ragged/by_variant/offsets` in bands: `counts = diff(offsets[lo:hi+1])` | the Analysis-major `ragged/offsets`, the recorded `n_overflow_associations` |
 | variant-major index span | `ByVariantReader` (spans the axis, not stale against the component) | recorded `provenance.ragged.by_variant` |
 | Analyses | `ragged/offsets` entries minus one | `analyses.tsv` rows, recorded `n_analyses` |
-| canonical identity | every `variants.tsv.gz` row, plus the sorted ALID search index | the axis: one row per canonical ALID |
+| canonical identity | every `variants.tsv.gz` row, plus the ALID index: the sorted fixed-width pair (0.2) or the sidecar's structural check (0.3.0) | the axis: one row per canonical ALID |
 | construction reference | `read_variant_reference` on the recorded path | the axis, and the Dense Component's row set |
 
 `read_variant_reference` is the engine's reader, so from opengwasdb v0.6.0 it
@@ -175,6 +177,15 @@ a marked insertion and deletion remain distinct, and unmarked SNV-only input
 remains usable. The marker declares producer semantics, not independent
 biological verification. Audit never repairs, marks or swaps reference bytes,
 and `provided`/`extracted` workflow provenance supplies no orientation proof.
+
+From format 0.3.0 the ALID index is a variable-length sidecar that holds every ALID
+and whose writer refuses a repeated one (opengwasdb ADR 0105), so there is no run of
+equal entries to count and no width to leave rows out at. The audit then asks the
+engine whether the sidecar is sound (`alid_index.problems`, through the Variant Axis
+it already opens) and reports `alid_sidecar_unsound` if it is not; duplicates are
+counted only within one position's rows. A release whose index files are missing or
+half written does not open, and the audit stops there. The rest of this section
+describes the 0.2 pair.
 
 Canonical identity is counted twice on purpose. The table streaming pass counts
 duplicates only among rows sharing a position -- the axis is position-ordered --
