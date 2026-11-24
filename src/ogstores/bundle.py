@@ -712,6 +712,17 @@ def _collapse_identifier(
     return f"mixed ({len(distinct)})"
 
 
+def _quantity(column: str, raw: str) -> Decimal:
+    """One value of a quantity column as a finite number, or a ``ValueError`` naming it: the one rule for every reader."""
+    try:
+        number = Decimal(raw)
+    except InvalidOperation as exc:
+        raise ValueError(f"cannot summarise non-numeric {column} value {raw!r}") from exc
+    if not number.is_finite():
+        raise ValueError(f"cannot summarise non-finite {column} value {raw!r}")
+    return number
+
+
 def _collapse_quantity(
     table: opengwasdb_analyses.AnalysesTable, column: str
 ) -> str:
@@ -722,19 +733,7 @@ def _collapse_quantity(
     if len(distinct) == 1:
         return distinct[0]
 
-    parsed: list[tuple[Decimal, str]] = []
-    for raw in distinct:
-        try:
-            number = Decimal(raw)
-        except InvalidOperation as exc:
-            raise ValueError(
-                f"cannot summarise non-numeric {column} value {raw!r}"
-            ) from exc
-        if not number.is_finite():
-            raise ValueError(
-                f"cannot summarise non-finite {column} value {raw!r}"
-            )
-        parsed.append((number, raw))
+    parsed = [(_quantity(column, raw), raw) for raw in distinct]
 
     minimum = min(parsed, key=lambda item: item[0])[1]
     maximum = max(parsed, key=lambda item: item[0])[1]
@@ -839,6 +838,62 @@ def summarise(bundle: Bundle) -> dict[str, str | int]:
     summary["sample_size"] = _collapse_quantity(table, "sample_size")
     summary["source_url"] = _collapse_url(table, "source_url")
     return summary
+
+
+def manifest_summary(bundle: Bundle) -> dict[str, Any]:
+    """What a Release Manifest holds, over its built rows only (og-dev-hub#16).
+
+    Reads ``analyses.tsv`` and no Store, as :func:`summarise` does, and splits it
+    with :func:`partition_membership`, so an ``exclude_from_build`` audit row is in
+    no figure but ``n_excluded``. Returns:
+
+    - ``n_built`` and ``n_excluded``: the row counts;
+    - ``median_sample_size`` over the built rows whose ``sample_size`` is a number
+      (``None`` when no built row has one, or there is no column), with
+      ``n_with_sample_size`` the rows that had one;
+    - ``n_unparseable_sample_size``: built rows with a non-blank value the quantity
+      rule (:func:`_quantity`, the one :func:`summarise` uses) refuses. They are
+      counted, never dropped silently, and never an error;
+    - ``ancestry``: the built rows per ``assigned_ancestry``, an empty value as
+      ``unassigned`` (``None`` when the column is absent).
+
+    A malformed ``exclude_from_build`` raises ``ValueError``, as :func:`summarise` does.
+    """
+    from opengwasdb.model import analyses as opengwasdb_analyses
+
+    table = opengwasdb_analyses.read_analyses(bundle.analyses_path)
+    built, excluded = partition_membership(table)
+    sizes: list[Decimal] = []
+    unparseable = 0
+    for row in built:
+        raw = (row.get("sample_size") or "").strip()
+        if not raw:
+            continue
+        try:
+            sizes.append(_quantity("sample_size", raw))
+        except ValueError:
+            unparseable += 1
+    ancestry: dict[str, int] | None = None
+    if "assigned_ancestry" in table.fieldnames:
+        counts: dict[str, int] = {}
+        for row in built:
+            code = (row.get("assigned_ancestry") or "").strip() or "unassigned"
+            counts[code] = counts.get(code, 0) + 1
+        ancestry = dict(sorted(counts.items()))
+    median = None
+    if sizes:
+        ordered = sorted(sizes)
+        middle = len(ordered) // 2
+        value = ordered[middle] if len(ordered) % 2 else (ordered[middle - 1] + ordered[middle]) / 2
+        median = int(value) if value == value.to_integral_value() else float(value)
+    return {
+        "n_built": len(built),
+        "n_excluded": len(excluded),
+        "median_sample_size": median,
+        "n_with_sample_size": len(sizes),
+        "n_unparseable_sample_size": unparseable,
+        "ancestry": ancestry,
+    }
 
 
 def _read_yaml(path: Path) -> dict[str, Any] | None:
