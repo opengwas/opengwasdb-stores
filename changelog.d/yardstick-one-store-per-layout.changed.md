@@ -1,0 +1,13 @@
+- **The yardstick measures one Store per GWAS Store Layout, across every query type and shape (workload `yardstick-4`).**
+  OGS-00009 (Dense), OGS-00011 (Hybrid) and OGS-00027 (Ragged) replace OGS-00006,
+  and OGS-00022 is added as a rho-only entry, because none of the three has a
+  Rho Matrix. New measures: the metadata queries (`analyses_table`,
+  `variants_table`, `resolve`), a 100 kb region, five `lookup` shapes over 100
+  fixed, scattered variants and Analyses, the full Analysis with
+  `observed_only=True`, `top_hits`, the Ragged cis query, and `rho`, `rho_row`
+  and `rho_matrix`. A query a layout refuses is now recorded `not_applicable`,
+  not `unavailable`. `tools/yardstick_inputs.py` picks the inputs read-only
+  through the facade, and the workload records the rows each returned. The run
+  budget is 1800 s (was 600 s) and the cadence is every opengwasdb release
+  (opengwas/opengwasdb#487) and every ogquery release (#506). The result schema
+  only gains keys. `CONTEXT.md` defines **Yardstick**.

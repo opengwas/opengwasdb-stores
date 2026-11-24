@@ -137,6 +137,10 @@ _Avoid_: validation (a Store Audit reads a built Store; validation is Store Rele
 The storage organisation used for a Store Release, such as dense observed-only, dense reference-completed, ragged observed-only, ragged reference-completed, or hybrid.
 _Avoid_: source format
 
+**Yardstick**:
+The fixed query workload, run against one representative Store of each GWAS Store Layout and each kind of LD Store, once per engine version, to show how query time, peak memory and size change as the engine changes. Not a gate: it records.
+_Avoid_: benchmark (the opengwasdb `benchmarks/` harnesses are one-off), performance test, gate
+
 **Store Composition Rule**:
 A release-level admission rule deciding which Analyses may share one Store's variant axis, applied after every other membership decision. A shared Store admits only Analyses whose rows were MAF-filtered (ADR 0033); an otherwise admissible Analysis it refuses is excluded as `not_maf_filtered` and belongs in a separate Store Release.
 _Avoid_: routing rule, panel policy

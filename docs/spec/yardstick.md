@@ -1,6 +1,6 @@
 # The yardstick
 
-One fixed benchmark, run at the end of every epic, so that a performance trend
+One fixed benchmark, run on every opengwasdb release (opengwas/opengwasdb#487), and on every ogquery release once it exists (#506), so that a performance trend
 compares like with like (#390). opengwasdb's `benchmarks/` holds one-off
 harnesses; the yardstick is the single workload this repository re-runs.
 
@@ -23,9 +23,17 @@ result means, so a change bumps `workload_id`, and this section says why.
 | Store | Layout | Coverage | Status |
 |---|---|---|---|
 | OGS-00009 | Dense | gwas, Reference-Completed, with `hm3` | measured |
-| OGS-00027 | Ragged | cis | measured |
-| OGS-00006 | Ragged | signals_only, Reference-Completed inside its regions | measured |
 | OGS-00011 | Hybrid | gwas, Reference-Completed, with `hm3` | measured |
+| OGS-00027 | Ragged | cis | measured |
+| OGS-00022 | Hybrid | gwas, a 10-Analysis pilot with a Rho Matrix | measured, `rho`, `rho_row` and `rho_matrix` only |
+
+`yardstick-4` is the workload of opengwas/opengwasdb-stores#503: one Store per GWAS Store Layout, every query type the engine's facade exposes, and a fixed set of scattered inputs, so that a trend across engine versions compares like with like. It changes what is measured, so every earlier result describes a different workload:
+
+- OGS-00006 is dropped: OGS-00027 is the Ragged representative.
+- OGS-00022 is added as a **rho-only** entry. None of OGS-00009, OGS-00011 or OGS-00027 has a Rho Matrix (it is opt-in, ADR 0025); only the 10-Analysis Hybrid pilots OGS-00022 and OGS-00023 do. So OGS-00022 is opened and measured only for `rho`, `rho_row` and `rho_matrix`, and carries no other measure. It measures the Rho read path, not a production-size matrix, and its timings are not comparable with the other Stores'.
+- Every new measure below was added, and the full-Analysis queries stay as they were.
+- `BUDGET_S` rises from 600 s to 1800 s, because the new measures add many timed reads; `over_budget` stays.
+- The glossary term is **Yardstick** (CONTEXT.md): it records, it is not a gate.
 
 `yardstick-3` measures OGS-00006 as Reference-Completed. On 2026-11-11 it was rebuilt to record its regions (`regions.tsv`, format 0.2.1) and completed only inside them (opengwas/opengwasdb#430, #224): 12,357,678 variants and 59,092,457 associations, 1,038,186 of them imputed. `yardstick-2` measured the Observed-Only Store. The identifiers are unchanged, so the timings stay comparable Store to Store, but a `yardstick-2` result and a `yardstick-3` one describe different contents. The other three Stores' entries are unchanged.
 
@@ -47,8 +55,27 @@ Measures (a Store lists the ones that apply to it):
 | `analysis_full` | `analysis(analysis_id)`, every variant of one Analysis |
 | `analysis_hm3` | `analysis(analysis_id, indexed_subset="hm3")`, only where the Store has `hm3` (a Dense Store, or a Hybrid's Dense Component); the record shape of opengwasdb's `measure_hm3_extract` |
 | `region` | `range_phewas` over a fixed 1 Mb window |
+| `region_100kb` | `range_phewas` over a 100 kb window with the same centre as `region` |
+| `analyses_table`, `variants_table` | the facade's `analyses_table()` and `variants_table()`: every Analysis row, every variant row (`result_count` is the row count). `opengwasdb info` is a CLI command, not a query, and is not measured |
+| `resolve` | `resolve(phewas(rsid))`, the rows of one PheWAS turned into human-readable form |
+| `lookup_1x100`, `lookup_100x1`, `lookup_10x100`, `lookup_100x10`, `lookup_100x100` | `lookup(variants, analyses)` of V variants by A Analyses (`lookup_VxA`), from the Store's fixed lists (below) |
+| `analysis_full_observed_only` | `analysis(analysis_id, observed_only=True)`, only on a Reference-Completed Store, where the flag changes the answer |
+| `top_hits` | `top_hits(analysis_id=..., threshold=5e-8)` of one Analysis; `not_applicable` where the workload records no top hits for the Store |
+| `range_by_analysis` | the cis query: every association of the Analyses whose trait position lies in a fixed window; Ragged only |
+| `rho`, `rho_row`, `rho_matrix` | the three Rho Matrix reads: five Analyses' pairwise `rho`, one Analysis's row, and the full matrix; only where the Store has a Rho Matrix |
 | `bytes_on_disk` | apparent bytes of every file under `store.opengwasdb`, from one walk (`du -sb`); the walk of the 62 GB OGS-00009 takes under a second, so the manifest figure is never needed |
 | `peak_rss` | one `analysis_full` read in a fresh interpreter, RSS sampled every 5 ms from `/proc/self/statm` (the method of opengwasdb's `benchmarks/_rss.py` at the pinned revision, copied into `yardstick.measure` because that module is not importable) |
+
+**Fixed, scattered inputs.** The workload fixes every input, so every run reads the same variants and Analyses. `tools/yardstick_inputs.py` picks them, read-only, through the facade, and the workload file records the result:
+
+- `lookup.variants` and `lookup.analyses`: 100 of each, at evenly spaced rows of the Store's own variant and Analyses tables, so the variants spread over every chromosome. The smaller shapes are the first 1 and first 10 of each list. On a Ragged Store, which holds an Analysis only inside its own window, variants scattered over the whole variant table meet almost no Analysis (`lookup_1x100` and `lookup_100x1` returned nothing on OGS-00027), so its variants are spread the same way over the variants the 100 picked Analyses hold.
+- `region_100kb` and `region`: 100 kb and 1 Mb windows around the same centre.
+- `top_hits`: one Analysis, threshold 5e-8, and the row count it returned. A count of 0 means the Store has no top hits there, and the measure is `not_applicable`.
+- `cis` (Ragged only): a 1 Mb window around an Analysis's trait position, holding Analyses.
+- `rho`: five Analysis ids and one Analysis id, or `null` for a Store without a Rho Matrix.
+- `input_rows`: the row count one read-only call per input returned when the workload was written. An input that returned nothing is wrong, and `workload.check` refuses any count of 0 except `top_hits`.
+
+**Not applicable.** A query a layout or a Store refuses is recorded `not_applicable` with a `reason`, never `unavailable`: `analysis_hm3` and `range_by_analysis` outside the layouts that have them (an Indexed Variant Subset is Dense or a Hybrid's Dense Component; the cis query is Ragged), `top_hits` where the Store records none, and `rho`, `rho_row` and `rho_matrix` on a layout or a Store without a Rho Matrix. A query that fails for any other reason stays `unavailable` with its error.
 
 A fixed query that returns no rows is refused: a measure on an empty result
 measures nothing, so it is recorded `unavailable` with its error. Every call is
@@ -81,8 +108,7 @@ median and p95 are over the warm reads. The `ogstores` identity carries the comm
 install reports the version it was built from, which is not necessarily the code
 that ran (#386), and `dirty` marks a run on an uncommitted tree as one that
 cannot be reproduced.
-`repetitions.default` is 5 and
-`analysis_full` is 3. A run was flagged `veeam_window: true`, never dropped, if
+`repetitions.default` is 5, `analysis_full` and `analysis_full_observed_only` are 3, and `variants_table` and `analyses_table` are fewer still: reading every variant row of OGS-00011 (47.9 million) is slow. A run was flagged `veeam_window: true`, never dropped, if
 any part of it fell between 00:00 and 11:00 local time, when the nightly Veeam
 snapshot covered `/data` and throttled disk I/O 8–10× (#390). That window is
 history: since 2026-11-02 the backup skips `/data/opengwasdb` (#411), so a run
@@ -90,7 +116,7 @@ records `false` and prints no warning, and the flag marks only a result measured
 before that date. The field stays in schema 1, and a committed result keeps the
 value that was true of it, because a reader must be able to tell a point measured
 under throttled I/O from one that was not. Each worker and the fixture build
-are given the run's remaining 600 s budget as a timeout; one that overruns is
+are given the run's remaining 1800 s budget as a timeout; one that overruns is
 killed with its whole process group (each runs in its own session: SIGTERM, a one-second grace, then SIGKILL, and it is reaped before the run goes on) and its measures are `unavailable` ("timeout after N s"). The result is
 still written, and a run over budget exits 2. "Over budget" is decided on the unrounded elapsed time and carried as `over_budget`; `duration_s` is rounded for display.
 
@@ -109,7 +135,7 @@ a new version.
 | `load_average` | `before` and `after`, each exactly three non-negative numbers: the 1, 5 and 15 minute averages |
 | `started_utc`, `ended_utc` | `YYYY-MM-DDTHH:MM:SSZ` |
 | `duration_s` | wall time of the whole run in seconds, rounded to 0.1, non-negative |
-| `over_budget` | boolean: the unrounded wall time exceeded 600 s (a run over budget exits 2) |
+| `over_budget` | boolean: the unrounded wall time exceeded 1800 s (a run over budget exits 2) |
 | `local_utc_offset_minutes` | the local zone the run started in |
 | `veeam_window` | boolean: the run overlapped the nightly Veeam backup window (00:00–11:00 local) that throttled disk I/O until 2026-11-02; a run since records `false`, and a result measured before then keeps the value true of it |
 | `repetitions` | as in the workload |
@@ -131,7 +157,8 @@ measure name, each with a `status` of `measured`, `unavailable` (with an
   `subset_reference_assembly` and `subset_input_sha256`; the validator requires
   every one of these, with non-negative integer counts;
 - `bytes_on_disk`: `bytes` and `source` (`walk` or `manifest`);
-- `peak_rss`: `baseline_mb`, `peak_mb`, `delta_mb`, `result_count`.
+- `peak_rss`: `baseline_mb`, `peak_mb`, `delta_mb`, `result_count`;
+- `not_applicable`: a `reason` (the validator does not require it; the runner always writes it). New keys are added to the schema, never renamed or removed: og-dev-hub reads it through `yardstick.result`.
 
 No timing, byte or size field is negative.
 

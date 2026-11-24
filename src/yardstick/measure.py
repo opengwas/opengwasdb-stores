@@ -20,6 +20,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from yardstick.workload import LOOKUP_SHAPES
+
 _PAGE_MB = resource.getpagesize() / (1024.0 * 1024.0)
 
 
@@ -97,8 +99,15 @@ def time_calls(
     return record
 
 
+class NotApplicable(Exception):
+    """The Store's layout refuses this query, or the Store lacks what it reads: recorded `not_applicable`."""
+
+
 def _rows(result: dict[str, Any]) -> int:
-    return len(result["z"])
+    """Rows of an Associations result (`z`), or of a Rho result (`rho`, a vector or a matrix)."""
+    if "z" in result:
+        return len(result["z"])
+    return int(result["rho"].size)
 
 
 def bytes_on_disk(store_path: Path) -> dict[str, Any]:
@@ -127,6 +136,8 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
             return
         try:
             out[name] = fn()
+        except NotApplicable as why:
+            out[name] = {"status": "not_applicable", "reason": str(why)}
         except Exception as error:  # a measure the Store cannot answer is recorded, not hidden
             out[name] = {"status": "unavailable", "error": f"{type(error).__name__}: {error}"[:500]}
 
@@ -148,8 +159,11 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
             ),
         )
         attempt("analysis_full", lambda: time_calls(lambda: q.analysis(entry["analysis_id"]), reps_of("analysis_full"), count=_rows))
+        _more_measures(q, entry, reps_of, attempt)
         if "analysis_hm3" in wanted:
             def hm3() -> dict[str, Any]:
+                if entry["layout"] == "ragged":
+                    raise NotApplicable("a Ragged Store has no Indexed Variant Subset")
                 from opengwasdb.layouts.dense.indexed_subsets import open_indexed_subset
 
                 record = time_calls(
@@ -183,6 +197,72 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
         q.close()
     attempt("bytes_on_disk", lambda: bytes_on_disk(store_path))
     return out
+
+
+def _more_measures(q: Any, entry: dict[str, Any], reps_of: Callable[[str], int], attempt: Callable[..., None]) -> None:
+    """The measures added by yardstick-4: metadata, region and lookup shapes, observed-only, top hits, cis, rho."""
+    layout = entry["layout"]
+    attempt("analyses_table", lambda: time_calls(q.analyses_table, reps_of("analyses_table"), count=len))
+    attempt("variants_table", lambda: time_calls(q.variants_table, reps_of("variants_table"), count=len))
+
+    def resolve() -> dict[str, Any]:
+        found = q.phewas(entry["rsid"])
+        return time_calls(lambda: list(q.resolve(found)), reps_of("resolve"), count=len)
+
+    attempt("resolve", resolve)
+    r100 = entry.get("region_100kb")
+    attempt(
+        "region_100kb",
+        lambda: time_calls(
+            lambda: q.range_phewas(r100["chromosome"], r100["start"], r100["end"]), reps_of("region_100kb"), count=_rows
+        ),
+    )
+    lookup = entry.get("lookup")
+    for name, (n_variants, n_analyses) in LOOKUP_SHAPES.items():
+        attempt(
+            name,
+            lambda name=name, nv=n_variants, na=n_analyses: time_calls(
+                lambda: q.lookup(lookup["variants"][:nv], lookup["analyses"][:na]), reps_of(name), count=_rows
+            ),
+        )
+    attempt(
+        "analysis_full_observed_only",
+        lambda: time_calls(
+            lambda: q.analysis(entry["analysis_id"], observed_only=True), reps_of("analysis_full_observed_only"), count=_rows
+        ),
+    )
+
+    def top_hits() -> dict[str, Any]:
+        hits = entry["top_hits"]
+        if hits["rows"] == 0:
+            raise NotApplicable(f"the Store has no top hits at {hits['threshold']:g}")
+        return time_calls(
+            lambda: q.top_hits(analysis_id=hits["analysis_id"], threshold=hits["threshold"]), reps_of("top_hits"), count=_rows
+        )
+
+    attempt("top_hits", top_hits)
+
+    def cis() -> dict[str, Any]:
+        if layout != "ragged" or not hasattr(q, "range_by_analysis"):
+            raise NotApplicable("range_by_analysis is a Ragged query")
+        w = entry["cis"]
+        return time_calls(lambda: q.range_by_analysis(w["chromosome"], w["start"], w["end"]), reps_of("range_by_analysis"), count=_rows)
+
+    attempt("range_by_analysis", cis)
+
+    def rho(name: str, call: Callable[[Any, dict[str, Any]], dict[str, Any]]) -> Callable[[], dict[str, Any]]:
+        def run() -> dict[str, Any]:
+            if not hasattr(q, name):
+                raise NotApplicable("this layout has no Rho Matrix query")
+            if entry["rho"] is None:
+                raise NotApplicable("the Store has no Rho Matrix")
+            return time_calls(lambda: call(q, entry["rho"]), reps_of(name), count=_rows)
+
+        return run
+
+    attempt("rho", rho("rho", lambda q, w: q.rho(*w["ids"])))
+    attempt("rho_row", rho("rho_row", lambda q, w: q.rho_row(w["analysis_id"])))
+    attempt("rho_matrix", rho("rho_matrix", lambda q, w: q.rho_matrix()))
 
 
 def sample_peak(read: Callable[[], dict[str, Any]]) -> dict[str, Any]:
