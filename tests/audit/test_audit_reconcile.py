@@ -508,8 +508,9 @@ class TestReconcileReport(AuditTestCase):
 
         # The variant table: every ALID distinct, one position per row.
         self.assertEqual(report["identities"]["rows_read"], 6)
-        self.assertEqual(report["identities"]["distinct_alids"], 6)
-        self.assertEqual(report["identities"]["duplicate_alid_extra_rows"], 0)
+        # Counted in the 0.2 pair; a 0.3.0 sidecar counts no duplicates, so `null`.
+        self.assertEqual(report["identities"]["distinct_alids"], 6 if self.LAYOUT == "0.2" else None)
+        self.assertEqual(report["identities"]["duplicate_alid_extra_rows"], 0 if self.LAYOUT == "0.2" else None)
         self.assertEqual(report["identities"]["multiallelic_sites"], 0)
         self.assertTrue(report["identities"]["variant_index_in_order"])
         record_check()
@@ -661,6 +662,26 @@ class TestUnobservedAxisEntries(AuditTestCase):
         expected = 2 if has_own_axis else None
         self.assertEqual(report["axis"]["dense_axis_rows"], expected)
 
+    def test_what_the_alid_index_does_not_count_is_null_not_zero(self) -> None:
+        """A 0.3.0 sidecar counts no duplicates and has no second array, so those fields
+        are `null` (not counted); a 0.2 pair counts them, and 0 there means none found."""
+        store, _ = self.default_store()
+        code, report = self.reconcile(store)
+        record_check()
+        self.assertEqual(code, 0, report.get("inconsistencies"))
+        identities, index = report["identities"], report["identities"]["alid_index"]
+        counted = self.LAYOUT == "0.2"
+        for value in (
+            identities["duplicate_alid_groups"],
+            identities["duplicate_alid_extra_rows"],
+            identities["distinct_alids"],
+            index["rows_entries"],
+            index["sorted"],
+            index["agrees_with_table"],
+        ):
+            self.assertEqual(value is not None, counted, identities)
+        self.assertEqual(index["entries"], 6)
+
     def test_an_unsound_alid_sidecar_is_an_inconsistency(self) -> None:
         if self.LAYOUT != "0.3":
             self.skipTest("the ALID sidecar is a 0.3.0 file")
@@ -672,7 +693,7 @@ class TestUnobservedAxisEntries(AuditTestCase):
         self.assertEqual(code, 1)
         kinds = [entry["kind"] for entry in report["inconsistencies"]]
         self.assertIn("alid_sidecar_unsound", kinds)
-        self.assertNotIn("alid_search_index_absent", kinds)
+        self.assertIsNone(report["identities"]["duplicate_alid_groups"], "an unsound sidecar is not a count of zero")
 
     def test_a_missing_alid_index_stops_the_audit_in_either_layout(self) -> None:
         """The engine refuses to open an axis whose index is missing, so the audit stops
@@ -696,7 +717,7 @@ class TestUnobservedAxisEntries(AuditTestCase):
         _, report = self.reconcile(store)
         record_check()
 
-        self.assertEqual(report["identities"]["duplicate_alid_extra_rows"], 0)
+        self.assertEqual(report["identities"]["duplicate_alid_extra_rows"], 0 if self.LAYOUT == "0.2" else None)
         self.assertEqual(report["identities"]["positions_with_multiple_rows"], 2)
         self.assertEqual(report["identities"]["multiallelic_sites"], 1)
         self.assertEqual(report["identities"]["multiallelic_rows"], 2)

@@ -58,6 +58,7 @@ build's Association Admission record (#428).
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import json
 import os
@@ -65,7 +66,7 @@ import resource
 import sys
 import tempfile
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
@@ -616,11 +617,19 @@ def _scan_variant_table(
 
 @dataclass(frozen=True)
 class _AlidIndexScan:
+    """What one release's ALID index says, for either kind.
+
+    A field the kind does not count is `None`, never 0: 0 would read as "counted, none
+    found". The 0.3.0 sidecar counts no duplicates (its writer refuses a repeat), has no
+    second array to be half written and no sort order to report beside `problems`.
+    """
+
     entries: int
-    rows_entries: int
-    sorted_ok: bool
-    duplicate_groups: int
-    duplicate_extra_rows: int
+    rows_entries: int | None
+    sorted_ok: bool | None
+    duplicate_groups: int | None
+    duplicate_extra_rows: int | None
+    problems: tuple[str, ...] = ()
 
 
 def _scan_alid_index(bytes_path: Path, rows_path: Path, *, block: int = DEFAULT_ALID_BLOCK) -> _AlidIndexScan:
@@ -673,44 +682,41 @@ def _scan_alid_index(bytes_path: Path, rows_path: Path, *, block: int = DEFAULT_
     )
 
 
-def _fixed_width_alid_index(path: Path) -> bool:
-    """Whether the release at `path` carries the 0.2 series' fixed-width ALID pair, as its
-    own Variant Axis opens it: the engine's index names its files, so nothing here
-    compares version strings. The 0.3.0 sidecar is the other kind (ADR 0105)."""
-    axis = VariantAxis(path)
-    try:
-        return variant_alid_bytes_path(path).name in axis.alid_index.FILENAMES
-    finally:
-        axis.close()
+def _alid_index_is_fixed_width(axis: VariantAxis) -> bool:
+    """Whether the axis carries the 0.2 series' fixed-width ALID pair: the engine's index
+    names its files, so nothing here compares version strings. The 0.3.0 sidecar is the
+    other kind (ADR 0105)."""
+    return variant_alid_bytes_path(axis.store_path).name in axis.alid_index.FILENAMES
 
 
-def _scan_alid_sidecar(path: Path, table_rows: int) -> tuple[_AlidIndexScan, list[str]]:
+def _scan_alid_sidecar(axis: VariantAxis, table_rows: int) -> _AlidIndexScan:
     """The variable-length ALID sidecar format 0.3.0 carries (ADR 0105), checked by the
-    engine's own structural rules (`AlidIndex.problems`, through the Variant Axis).
+    engine's own structural rules (`AlidIndex.problems`).
 
     The sidecar holds every ALID, however wide, and its writer refuses a repeated one, so
     there is no run of equal entries to count and no width to leave rows out at: what
-    this reports is whether the sidecar is sound. A sidecar that is not -- unsorted, one
-    that names an ALID twice, one whose rows are not the table's -- is a problem, not a
-    count. An axis whose sidecar is missing or half written does not open at all, so the
-    audit stops there, as the engine does.
+    this reports is whether the sidecar is sound, and every count it does not make is
+    `None`. An axis whose sidecar is missing or half written does not open at all, so
+    the audit stops there, as the engine does.
     """
-    axis = VariantAxis(path)
-    try:
-        index = axis.alid_index
-        problems = list(index.problems(table_rows, table_rows))
-        entries = int(axis.n_variants)
-    finally:
-        axis.close()
-    return (
-        _AlidIndexScan(
-            entries=entries,
-            rows_entries=entries,
-            sorted_ok=not problems,
-            duplicate_groups=0,
-            duplicate_extra_rows=0,
-        ),
-        problems,
+    return _AlidIndexScan(
+        entries=int(axis.n_variants),
+        rows_entries=None,
+        sorted_ok=None,
+        duplicate_groups=None,
+        duplicate_extra_rows=None,
+        problems=tuple(axis.alid_index.problems(table_rows, table_rows)),
+    )
+
+
+def _scan_fixed_width_index(path: Path, scan: _IdentityScan) -> _AlidIndexScan:
+    """The 0.2 pair's own scan, with the duplicates among the rows wider than its key,
+    which it leaves out, counted from the table. The engine opens no axis without the pair."""
+    index = _scan_alid_index(variant_alid_bytes_path(path), variant_alid_rows_path(path))
+    return replace(
+        index,
+        duplicate_groups=index.duplicate_groups + sum(1 for n in scan.over_width_alids.values() if n > 1),
+        duplicate_extra_rows=index.duplicate_extra_rows + sum(n - 1 for n in scan.over_width_alids.values()),
     )
 
 
@@ -1030,11 +1036,13 @@ def reconcile(
         )
 
     # -- the axis, and the Dense Component's membership of it ---------------
+    # One axis per reconcile: its ALID index decides the kind this release carries, here
+    # and in the identity scan below. Closed once that scan is done.
     axis_handle = VariantAxis(path)
-    try:
-        n_axis = axis_handle.n_variants
-    finally:
-        axis_handle.close()
+    axis_open = contextlib.ExitStack()
+    axis_open.callback(axis_handle.close)
+    n_axis = axis_handle.n_variants
+    fixed_width_index = _alid_index_is_fixed_width(axis_handle)
     mapping_path = dense_to_shared_path(path)
     if not mapping_path.is_file():
         raise AuditError(f"{path} is a hybrid Store with no {mapping_path.name}")
@@ -1042,14 +1050,9 @@ def reconcile(
     # Before 0.3.0 the Dense Component carries a Variant Axis of its own, whose length
     # must equal the mapping's. From 0.3.0 it carries none (#472): its rows are the
     # shared axis's rows `dense_to_shared.npy` names, so there is no second length to
-    # disagree with the mapping and the engine says so by refusing the open.
-    # Before 0.3.0 the Dense Component carries a Variant Axis of its own, whose length
-    # must equal the mapping's. From 0.3.0 it carries none (#472): its rows are the
-    # shared axis's rows `dense_to_shared.npy` names, so there is no second length to
-    # disagree with the mapping, and the engine refuses to open one. Which kind this
-    # release is, is the root axis's own ALID index (`_fixed_width_alid_index`).
+    # disagree with the mapping, and the engine refuses to open one.
     n_dense_axis: int | None = None
-    if _fixed_width_alid_index(path):
+    if fixed_width_index:
         # A Dense Component is the root's format, whatever manifest it carries.
         dense_handle = VariantAxis(dense_component_path(path), format_version=manifest.format_version)
         try:
@@ -1395,63 +1398,50 @@ def reconcile(
             "n_alids": None,
         }
 
+    if not scan_identities:
+        axis_open.close()
     if scan_identities:
         table = variant_table_path(path)
         if not table.is_file():
             raise AuditError(f"{path} holds no variants.tsv.gz")
-        sidecar_format = not _fixed_width_alid_index(path)
         scan = _scan_variant_table(
             table,
             n_axis=n_axis,
             reference=reference_set,
             indels_reference_first=indels_spelt_reference_first(manifest.format_version),
-            index_width=None if sidecar_format else ALID_INDEX_WIDTH,
+            index_width=ALID_INDEX_WIDTH if fixed_width_index else None,
         )
-        index_scan: _AlidIndexScan | None = None
-        sidecar_problem_list: list[str] = []
-        if sidecar_format:
-            index_scan, sidecar_problem_list = _scan_alid_sidecar(path, scan.rows)
-        else:
-            bytes_path = variant_alid_bytes_path(path)
-            rows_path = variant_alid_rows_path(path)
-            if bytes_path.is_file() and rows_path.is_file():
-                index_scan = _scan_alid_index(bytes_path, rows_path)
-            else:
-                inconsistency(
-                    "alid_search_index_absent",
-                    "the Store holds no ALID search index, so duplicate ALIDs are counted "
-                    "only within one position's rows rather than over the whole axis",
-                )
-        over_width_extra = sum(count - 1 for count in scan.over_width_alids.values())
-        duplicate_extra = (
-            (index_scan.duplicate_extra_rows if index_scan is not None else 0) + over_width_extra
+        index_scan = (
+            _scan_fixed_width_index(path, scan)
+            if fixed_width_index
+            else _scan_alid_sidecar(axis_handle, scan.rows)
         )
-        duplicate_groups = (index_scan.duplicate_groups if index_scan is not None else 0) + sum(
-            1 for count in scan.over_width_alids.values() if count > 1
-        )
+        axis_open.close()
+        duplicate_extra = index_scan.duplicate_extra_rows
+        duplicate_groups = index_scan.duplicate_groups
         identities = {
             "scanned": True,
             "rows_read": scan.rows,
-            "distinct_alids": scan.rows - duplicate_extra,
+            "distinct_alids": None if duplicate_extra is None else scan.rows - duplicate_extra,
             "duplicate_alid_groups": duplicate_groups,
             "duplicate_alid_extra_rows": duplicate_extra,
             "duplicate_alid_source": (
-                "the ALID sidecar, checked by the engine's structural rules: it holds "
-                "every ALID and refuses a repeated one"
-                if sidecar_format
-                else "the Store's sorted ALID search index (exact, no ordering assumption) "
+                "the Store's sorted ALID search index (exact, no ordering assumption) "
                 "plus the rows wider than its fixed width, counted from the table"
+                if fixed_width_index
+                else "not counted: the ALID sidecar holds every ALID and refuses a repeated "
+                "one, so it is checked for soundness (`alid_sidecar_unsound`), not counted"
             ),
             "duplicate_alid_rows_within_a_position": scan.duplicate_extra_rows_in_table,
             "alid_index": {
-                "entries": index_scan.entries if index_scan is not None else None,
-                "rows_entries": index_scan.rows_entries if index_scan is not None else None,
-                "sorted": index_scan.sorted_ok if index_scan is not None else None,
+                "entries": index_scan.entries,
+                "rows_entries": index_scan.rows_entries,
+                "sorted": index_scan.sorted_ok,
                 "table_rows_indexable": scan.indexable_rows,
                 "table_rows_over_index_width": scan.rows - scan.indexable_rows,
                 "over_width_distinct_alids": len(scan.over_width_alids),
                 "agrees_with_table": (
-                    index_scan.entries == scan.indexable_rows if index_scan is not None else None
+                    index_scan.entries == scan.indexable_rows if fixed_width_index else None
                 ),
             },
             "non_canonical_rows": scan.non_canonical_rows,
@@ -1469,14 +1459,14 @@ def reconcile(
                 "mismatches": scan.sample_mismatches,
             },
         }
-        if sidecar_problem_list and index_scan is not None:
+        if index_scan.problems:
             inconsistency(
                 "alid_sidecar_unsound",
                 "the ALID sidecar is not sound, so a lookup can answer with another "
-                "variant's row or none: " + "; ".join(sidecar_problem_list),
-                problems=sidecar_problem_list,
+                "variant's row or none: " + "; ".join(index_scan.problems),
+                problems=list(index_scan.problems),
             )
-        if index_scan is not None and index_scan.rows_entries != index_scan.entries:
+        if fixed_width_index and index_scan.rows_entries != index_scan.entries:
             inconsistency(
                 "alid_index_half_written",
                 f"variant_alid_bytes.npy holds {index_scan.entries} ALIDs but "
@@ -1485,13 +1475,13 @@ def reconcile(
                 entries=index_scan.entries,
                 rows_entries=index_scan.rows_entries,
             )
-        if index_scan is not None and not sidecar_format and not index_scan.sorted_ok:
+        if fixed_width_index and not index_scan.sorted_ok:
             inconsistency(
                 "alid_index_not_sorted",
                 "the ALID search index is not sorted by ALID, so a lookup can answer "
                 "with another variant's row and a duplicate run is not contiguous",
             )
-        if index_scan is not None and not sidecar_format and index_scan.entries != scan.indexable_rows:
+        if fixed_width_index and index_scan.entries != scan.indexable_rows:
             inconsistency(
                 "alid_index_disagrees_with_table",
                 f"the ALID search index holds {index_scan.entries} entries but the "
@@ -1524,7 +1514,7 @@ def reconcile(
                 "position's variant_index",
                 violations=scan.variant_index_violations,
             )
-        if duplicate_extra:
+        if duplicate_extra:  # None (not counted) and 0 both say nothing was found to report
             inconsistency(
                 "duplicate_alid",
                 f"{duplicate_extra} shared-axis rows repeat a canonical identity "
