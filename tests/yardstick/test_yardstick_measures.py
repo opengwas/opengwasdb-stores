@@ -40,7 +40,7 @@ def full_entry(**extra: object) -> dict:
         "rsid": "rs1", "alid": "1:20000:C:T", "position": {"chromosome": "1", "position": 10000},
         "analysis_id": "fx1", "region": {"chromosome": "1", "start": 1, "end": 100000},
         "region_100kb": {"chromosome": "1", "start": 1, "end": 100000},
-        "lookup": lookup_input(), "top_hits": {"analysis_id": "fx1", "threshold": 5e-8, "rows": 0, "path": "scan"},
+        "lookup": lookup_input(), "top_hits": {"analysis_id": "fx1", "threshold": 5e-8, "path": "scan"},
         "rho": False,
         "measures": ["open", "phewas_rsid", *NEW_MEASURES],
         "input_rows": {
@@ -179,6 +179,30 @@ class DeclaredFactsTest(unittest.TestCase):
         self.assertEqual(out["range_by_analysis"]["status"], "unavailable")
         self.assertIn("AttributeError", out["range_by_analysis"]["error"])
 
+    def test_an_input_count_of_zero_records_top_hits_not_applicable(self) -> None:
+        entry = full_entry(measures=["top_hits"])
+        with mock.patch("opengwasdb.query.query_store", return_value=mock.Mock()):
+            out = measure.measure_store(Path("/nonexistent"), entry, {"default": 1})
+        self.assertEqual(out["top_hits"]["status"], "not_applicable")
+        entry["input_rows"]["top_hits"] = 7  # the count alone decides: now it runs, and the empty mock result fails
+        with mock.patch("opengwasdb.query.query_store", return_value=mock.Mock()):
+            out = measure.measure_store(Path("/nonexistent"), entry, {"default": 1})
+        self.assertNotEqual(out["top_hits"]["status"], "not_applicable")
+
+    def test_a_top_hits_path_outside_index_and_scan_is_refused(self) -> None:
+        entry = full_entry()
+        entry["top_hits"]["path"] = "cache"
+        with self.assertRaisesRegex(workload_spec.WorkloadError, "top_hits.path"):
+            workload_spec.check(workload_of(entry))
+
+    def test_a_ragged_entry_never_needs_counts_for_measures_it_cannot_run(self) -> None:
+        ragged = full_entry(layout="ragged", rho={"ids": ["a"], "analysis_id": "a"}, cis={"chromosome": "1", "start": 1, "end": 2})
+        ragged["input_rows"]["range_by_analysis"] = 4
+        workload_spec.check(workload_of(ragged))  # no rho counts, though rho is declared: a Ragged Store has none
+        self.assertFalse(workload_spec.applies("rho", ragged))
+        self.assertFalse(workload_spec.applies("analysis_hm3", ragged))
+        self.assertTrue(workload_spec.applies("range_by_analysis", ragged))
+
     def test_top_hits_records_which_path_answered(self) -> None:
         import numpy as np
 
@@ -190,7 +214,8 @@ class DeclaredFactsTest(unittest.TestCase):
                 pass
 
         entry = {"store_id": "x", "layout": "dense", "coverage": "gwas", "status": "measured",
-                 "top_hits": {"analysis_id": "a", "threshold": 5e-8, "rows": 3, "path": "index"}, "measures": ["top_hits"]}
+                 "top_hits": {"analysis_id": "a", "threshold": 5e-8, "path": "index"}, "input_rows": {"top_hits": 3},
+                 "measures": ["top_hits"]}
         with mock.patch("opengwasdb.query.query_store", return_value=Q()):
             out = measure.measure_store(Path("/nonexistent"), entry, {"default": 1})
         self.assertEqual((out["top_hits"]["status"], out["top_hits"]["path"]), ("measured", "index"))
@@ -234,9 +259,7 @@ class MeasuresOnFixtureStoreTest(unittest.TestCase):
         entry = full_entry(measures=["open", *[m for m in NEW_MEASURES if m != "analysis_hm3"]])
         # The fixture holds 2 variants and one Analysis, so its lookup lists (100 long, as the workload requires)
         # repeat those identifiers; the lookups are measured, the scatter is tested on the committed workload.
-        from opengwasdb.query import query_store
-
-        q = query_store(cls.store)
+        q = measure.open_store(cls.store)
         try:
             alids = [v["alid"] for v in q.variants_table().values()]
             analysis_ids = [a["analysis_id"] for a in q.analyses_table().values()]

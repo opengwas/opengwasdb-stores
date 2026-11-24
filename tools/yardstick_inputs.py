@@ -3,7 +3,7 @@
 
     pixi run -e dev python3 tools/yardstick_inputs.py OGS-00009 [--stores-root DIR]
 
-Everything is read through the engine's facade (`opengwasdb.query.query_store`):
+Everything is read through the engine's facade (`yardstick.measure.open_store`):
 `variants_table()` and `analyses_table()` give the rows, and one call per input
 proves it returns rows. The result is a YAML fragment for the Store's entry in
 `resources/yardstick/workload.yaml`: `lookup`, `region_100kb`, `top_hits`, `cis`
@@ -13,7 +13,7 @@ from the workload and counted too.
 
 Variants and Analyses are picked at evenly spaced rows of the Store's own
 tables, 100 of each, so they spread over every chromosome; a lookup's smaller
-shapes are the first 1 and first 10 of those lists. Nothing is written under
+shapes are the first variant (1) or every tenth variant (10) of that list. Nothing is written under
 the Artifact Root: the Store's top-level entries and `index.sqlite` are compared
 before and after, as the runner does.
 """
@@ -27,7 +27,7 @@ from typing import Any
 
 import yaml
 
-from ogstores import paths
+from ogstores import paths, plan
 from yardstick import runner, workload as workload_spec
 from yardstick.measure import open_store, rows
 from yardstick.workload import LOOKUP_N, LOOKUP_SHAPES, lookup_inputs
@@ -53,7 +53,7 @@ def centred(region: dict[str, Any], width: int) -> dict[str, Any]:
 def top_hits_path(store_id: str) -> str:
     """`index` if the Store's build.yaml says it built the top-hit index (`post.top_hits`), else `scan`."""
     build = yaml.safe_load((workload_spec.REPO_ROOT / "stores" / store_id / "build.yaml").read_text(encoding="utf-8"))
-    return "index" if build["post"]["top_hits"] else "scan"
+    return "index" if plan.declared_top_hits(build.get("post") or {}) else "scan"
 
 
 def pick(q: Any, entry: dict[str, Any]) -> dict[str, Any]:
@@ -93,14 +93,14 @@ def pick(q: Any, entry: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {"lookup": lookup, "region_100kb": small}
 
     candidates = [entry["analysis_id"], *lookup["analyses"]][:TOP_HITS_CANDIDATES]
-    hits = {"analysis_id": entry["analysis_id"], "threshold": THRESHOLD, "rows": 0, "path": top_hits_path(entry["store_id"])}
+    hits = {"analysis_id": entry["analysis_id"], "threshold": THRESHOLD, "path": top_hits_path(entry["store_id"])}
+    counts["top_hits"] = 0
     for analysis_id in candidates:
         n = rows(q.top_hits(analysis_id=analysis_id, threshold=THRESHOLD))
         if n:
-            hits = {**hits, "analysis_id": analysis_id, "rows": n}
+            hits["analysis_id"], counts["top_hits"] = analysis_id, n
             break
     out["top_hits"] = hits
-    counts["top_hits"] = hits["rows"]
 
     if entry["layout"] == "ragged":
         # A cis window around the entry Analysis's own trait position that holds Analyses.

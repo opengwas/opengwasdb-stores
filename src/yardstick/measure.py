@@ -20,7 +20,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from yardstick.workload import LOOKUP_SHAPES, lookup_inputs
+from yardstick.workload import LOOKUP_SHAPES, applies, lookup_inputs
 
 _PAGE_MB = resource.getpagesize() / (1024.0 * 1024.0)
 
@@ -167,7 +167,7 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
         _measure_facade_queries(q, entry, reps_of, attempt)
         if "analysis_hm3" in wanted:
             def hm3() -> dict[str, Any]:
-                if entry["layout"] == "ragged":
+                if not applies("analysis_hm3", entry):
                     raise NotApplicable("a Ragged Store has no Indexed Variant Subset")
                 from opengwasdb.layouts.dense.indexed_subsets import open_indexed_subset
 
@@ -206,7 +206,6 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
 
 def _measure_facade_queries(q: Any, entry: dict[str, Any], reps_of: Callable[[str], int], attempt: Callable[..., None]) -> None:
     """Metadata, the 100 kb region, lookup shapes, observed-only, top hits, cis and rho: each through `attempt`."""
-    layout = entry["layout"]
     attempt("analyses_table", lambda: time_calls(q.analyses_table, reps_of("analyses_table"), count=len))
     attempt("variants_table", lambda: time_calls(q.variants_table, reps_of("variants_table"), count=len))
 
@@ -239,7 +238,7 @@ def _measure_facade_queries(q: Any, entry: dict[str, Any], reps_of: Callable[[st
 
     def top_hits() -> dict[str, Any]:
         hits = entry["top_hits"]
-        if hits["rows"] == 0:
+        if entry["input_rows"]["top_hits"] == 0:
             raise NotApplicable(f"the Store has no top hits at {hits['threshold']:g}")
         record = time_calls(
             lambda: q.top_hits(analysis_id=hits["analysis_id"], threshold=hits["threshold"]), reps_of("top_hits"), count=rows
@@ -250,7 +249,7 @@ def _measure_facade_queries(q: Any, entry: dict[str, Any], reps_of: Callable[[st
     attempt("top_hits", top_hits)
 
     def cis() -> dict[str, Any]:
-        if layout != "ragged":
+        if not applies("range_by_analysis", entry):
             raise NotApplicable("range_by_analysis is a Ragged query")
         w = entry["cis"]
         return time_calls(lambda: q.range_by_analysis(w["chromosome"], w["start"], w["end"]), reps_of("range_by_analysis"), count=rows)
@@ -259,7 +258,7 @@ def _measure_facade_queries(q: Any, entry: dict[str, Any], reps_of: Callable[[st
 
     def rho(name: str, call: Callable[[Any, dict[str, Any]], dict[str, Any]]) -> Callable[[], dict[str, Any]]:
         def run() -> dict[str, Any]:
-            if layout == "ragged" or not entry["rho"]:
+            if not applies(name, entry):
                 raise NotApplicable("the Store has no Rho Matrix")
             return time_calls(lambda: call(q, entry["rho"]), reps_of(name), count=rows)
 

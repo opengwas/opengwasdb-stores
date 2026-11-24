@@ -58,7 +58,7 @@ Measures (a Store lists the ones that apply to it):
 | `analyses_table`, `variants_table` | the facade's `analyses_table()` and `variants_table()`: every Analysis row, every variant row (`result_count` is the row count). `opengwasdb info` is a CLI command, not a query, and is not measured |
 | `resolve` | `resolve(phewas(rsid))`, the rows of one PheWAS turned into human-readable form |
 | `lookup_1x100`, `lookup_100x1`, `lookup_10x100`, `lookup_100x10`, `lookup_100x100` | `lookup(variants, analyses)` of V variants by A Analyses (`lookup_VxA`), from the Store's fixed lists (below) |
-| `analysis_full_observed_only` | `analysis(analysis_id, observed_only=True)`, only on a Reference-Completed Store, where the flag changes the answer |
+| `analysis_full_observed_only` | `analysis(analysis_id, observed_only=True)`, only on a Reference-Completed Store |
 | `top_hits` | `top_hits(analysis_id=..., threshold=5e-8)` of one Analysis; `not_applicable` where the workload records no top hits for the Store |
 | `range_by_analysis` | the cis query: every association of the Analyses whose trait position lies in a fixed window; Ragged only |
 | `rho`, `rho_row`, `rho_matrix` | the three Rho Matrix reads: five Analyses' pairwise `rho`, one Analysis's row, and the full matrix; only where the Store has a Rho Matrix |
@@ -69,7 +69,7 @@ Measures (a Store lists the ones that apply to it):
 
 - `lookup.variants` and `lookup.analyses`: 100 of each, at evenly spaced rows of the Store's own variant and Analyses tables, so the variants spread over every chromosome. The smaller shapes take the first variant (1) or every tenth variant of the list (10), so they stay scattered, and the first 1 or 10 Analyses. On a Ragged Store, which holds an Analysis only inside its own window, variants scattered over the whole variant table meet almost no Analysis (`lookup_1x100` and `lookup_100x1` returned nothing on OGS-00027), so its variants are spread the same way over the variants the 100 picked Analyses hold.
 - `region_100kb` and `region`: 100 kb and 1 Mb windows around the same centre.
-- `top_hits`: one Analysis, threshold 5e-8, the row count it returned, and `path`, `index` or `scan`, from the Store's `build.yaml` `post.top_hits`: a Store without the index is answered by a scan of every cell, so the two timings differ in kind. The measure's result carries the same `path`. A count of 0 means the Store has no top hits there, and the measure is `not_applicable`.
+- `top_hits`: one Analysis, threshold 5e-8, its `path`, `index` or `scan`, from the Store's `build.yaml` `post.top_hits`: a Store without the index is answered by a scan of every cell, so the two timings differ in kind. The measure's result carries the same `path`. The row count the call returned is `input_rows.top_hits`, the only place emptiness is read: a count of 0 means the Store has no top hits there, and the measure is `not_applicable`. `workload.check` accepts `path` only as `index` or `scan`.
 - `cis` (Ragged only): a 1 Mb window around an Analysis's trait position, holding Analyses.
 - `rho`: `false` for a Store without a Rho Matrix, or `{ids, analysis_id}` for one that has it. This declaration, with the layout, is all that decides `not_applicable`; no method is probed for.
 - `input_rows`: for each measure that reads an input, keyed by measure name, the row count one read-only call returned when the workload was written. `workload.check` refuses an entry with no count for a measure it lists, and any count of 0 except `top_hits`: an input that returned nothing is wrong.

@@ -12,7 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_PATH = REPO_ROOT / "resources" / "yardstick" / "workload.yaml"
 
 SCHEMA = 1
-#: Lookup shapes: variants x Analyses, each the first N of the entry's fixed 100.
+#: Lookup shapes: variants x Analyses, each drawn from the entry's fixed 100 (`lookup_inputs`: the first variant, every tenth, or all).
 LOOKUP_N = 100
 LOOKUP_SHAPES = {
     "lookup_1x100": (1, 100), "lookup_100x1": (100, 1), "lookup_10x100": (10, 100),
@@ -50,8 +50,23 @@ class WorkloadError(ValueError):
     pass
 
 
-#: A measure only some layouts answer needs its input only on that layout; elsewhere it is `not_applicable`.
-ONLY_ON_LAYOUT = {"range_by_analysis": "ragged"}
+TOP_HITS_PATHS = ("index", "scan")
+
+
+def applies(name: str, store: dict[str, Any]) -> bool:
+    """Whether a measure can run on this Store, from its declared `layout` and `rho` alone.
+
+    The one owner of the layout rule: a measure that does not apply is recorded `not_applicable` and needs
+    no input or count. `analysis_hm3` is a Dense or Hybrid query, `range_by_analysis` a Ragged one, and
+    the rho reads need a non-Ragged Store whose entry declares a Rho Matrix.
+    """
+    if name == "range_by_analysis":
+        return store["layout"] == "ragged"
+    if name == "analysis_hm3":
+        return store["layout"] != "ragged"
+    if name in ("rho", "rho_row", "rho_matrix"):
+        return store["layout"] != "ragged" and bool(store.get("rho"))
+    return True
 
 
 #: Measures that read an input and so need `input_rows[<measure>]`: the rows one call returned when the
@@ -73,14 +88,6 @@ def lookup_inputs(lookup: dict[str, Any], n_variants: int, n_analyses: int) -> t
     return picked, lookup["analyses"][:n_analyses]
 
 
-def _counted(name: str, store: dict[str, Any]) -> bool:
-    if name == "range_by_analysis":
-        return store["layout"] == "ragged"
-    if name in ("rho", "rho_row", "rho_matrix"):
-        return bool(store.get("rho"))
-    return True
-
-
 def _check_inputs(store_id: str, store: dict[str, Any]) -> None:
     lookup = store.get("lookup")
     if lookup is not None:
@@ -88,9 +95,12 @@ def _check_inputs(store_id: str, store: dict[str, Any]) -> None:
             values = lookup.get(key)
             if not isinstance(values, list) or len(values) != LOOKUP_N or len(set(values)) != LOOKUP_N:
                 raise WorkloadError(f"{store_id}: lookup.{key} must be {LOOKUP_N} distinct identifiers")
+    hits = store.get("top_hits")
+    if hits is not None and hits.get("path") not in TOP_HITS_PATHS:
+        raise WorkloadError(f"{store_id}: top_hits.path must be one of {TOP_HITS_PATHS}, got {hits.get('path')!r}")
     counts = store.get("input_rows") or {}
     for name in store["measures"]:
-        if name not in ROW_COUNTED or not _counted(name, store):
+        if name not in ROW_COUNTED or not applies(name, store):
             continue
         rows = counts.get(name)
         if not isinstance(rows, int) or isinstance(rows, bool) or rows < 0:
@@ -125,7 +135,9 @@ def check(workload: dict[str, Any]) -> None:
             for name in measures:
                 if name not in MEASURES:
                     raise WorkloadError(f"{store_id}: unknown measure {name!r}")
-                if ONLY_ON_LAYOUT.get(name, store["layout"]) != store["layout"]:
+                if name in ("rho", "rho_row", "rho_matrix") and "rho" not in store:
+                    raise WorkloadError(f"{store_id}: measure {name} needs 'rho': false, or the Rho Matrix's ids")
+                if not applies(name, store):
                     continue
                 for key in NEEDS.get(name, ()):
                     if key not in store:
