@@ -27,7 +27,7 @@ from typing import Any
 
 import yaml
 
-from ogstores import paths, plan
+from ogstores import bundle, paths, plan
 from yardstick import runner, workload as workload_spec
 from yardstick.measure import open_store, rows
 from yardstick.workload import LOOKUP_N, LOOKUP_SHAPES, lookup_inputs
@@ -52,7 +52,7 @@ def centred(region: dict[str, Any], width: int) -> dict[str, Any]:
 
 def top_hits_path(store_id: str) -> str:
     """`index` if the Store's build.yaml says it built the top-hit index (`post.top_hits`), else `scan`."""
-    build = yaml.safe_load((workload_spec.REPO_ROOT / "stores" / store_id / "build.yaml").read_text(encoding="utf-8"))
+    build = bundle.load(store_id, registry_root=workload_spec.REPO_ROOT / "stores").build
     return "index" if plan.declared_top_hits(build.get("post") or {}) else "scan"
 
 

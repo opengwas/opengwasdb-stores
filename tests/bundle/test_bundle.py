@@ -3026,6 +3026,15 @@ class TestManifestSummary(unittest.TestCase):
         record_check()
 
 
+class TestPublicNames(unittest.TestCase):
+    def test_the_names_og_dev_hub_imports_are_exported(self) -> None:
+        for name in ("load", "observed_flag", "top_hit_counts_text", "manifest_summary", "partition_membership"):
+            with self.subTest(name=name):
+                self.assertIn(name, bundle.__all__)
+                self.assertTrue(callable(getattr(bundle, name)))
+        record_check()
+
+
 def main() -> None:
     suite = unittest.defaultTestLoader.loadTestsFromModule(sys.modules[__name__])
     result = unittest.TextTestRunner(verbosity=2).run(suite)
