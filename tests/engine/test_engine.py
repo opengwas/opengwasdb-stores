@@ -87,11 +87,11 @@ class LockedCommitTest(unittest.TestCase):
 
 #: Tracked files that record which engine *did* something -- a Release
 #: Bundle's records, the generated Store catalogue, a yardstick result, the
-#: generated release benchmark report, the generated readiness view, an epic
-#: record, a receipt, a changelog fragment, an ADR's history -- and so may name
-#: the locked commit. A report dated in its name is history too.
+#: generated release benchmark report, the generated readiness view, a
+#: receipt, a changelog fragment, an ADR's history -- and so may name the
+#: locked commit. A report dated in its name is history too.
 HISTORICAL = (
-    "stores/", "stores.tsv", "docs/_yardstick/", "docs/_epics/", "docs/data/",
+    "stores/", "stores.tsv", "docs/_yardstick/", "docs/data/",
     "docs/benchmark-output/opengwasdb_hm3_release_benchmark.",
     "docs/store-release-readiness.md", "changelog.d/", "docs/adr/",
 )
