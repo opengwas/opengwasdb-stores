@@ -528,7 +528,7 @@ class RunnerGuardTest(unittest.TestCase):
         cls.store = cls.root / "store.opengwasdb"
         cls.store.mkdir()
         (cls.store / "index.sqlite").write_bytes(b"abc")
-        (cls.store / "manifest.json").write_text("{}")
+        (cls.store / "manifest.json").write_text(manifest_text("0.2.3"))
 
     @classmethod
     def tearDownClass(cls) -> None:
@@ -542,6 +542,41 @@ class RunnerGuardTest(unittest.TestCase):
     def go(self, store: Path, **kwargs: object) -> dict:
         scratch = Path(tempfile.mkdtemp(dir=self.root))
         return runner.run(fixture_workload(), store_paths={"OGS-00099": store}, scratch=scratch, **kwargs)
+
+    def test_a_0_3_0_observed_only_release_has_no_index_and_is_measured(self) -> None:
+        """From 0.3.0 `index.sqlite` ships only where it holds `completion_quality`, so an
+        Observed-Only release without one is as built, not refused (#498)."""
+        store, calls = self.copy(), []
+        (store / "index.sqlite").unlink()
+        (store / "manifest.json").write_text(manifest_text("0.3.0"))
+        with mock.patch.object(runner, "_worker", stub_worker(calls)):
+            result = self.go(store)
+        self.assertEqual(calls, ["timed", "rss"])
+        self.assertEqual(result["guard_violations"], [])
+        self.assertEqual({m["status"] for m in result["stores"][0]["measures"].values()}, {"measured"})
+        result_spec.validate(result, fixture_workload())
+
+    def test_a_0_3_0_release_that_creates_an_index_is_a_violation(self) -> None:
+        store, calls = self.copy(), []
+        (store / "index.sqlite").unlink()
+        (store / "manifest.json").write_text(manifest_text("0.3.0"))
+        with mock.patch.object(runner, "_worker", stub_worker(calls, lambda m, p: (p / "index.sqlite").write_bytes(b"x"))):
+            result = self.go(store)
+        self.assertIn(
+            {"store_id": "OGS-00099", "problem": "new top-level entry: index.sqlite"},
+            result["guard_violations"],
+        )
+
+    def test_a_0_3_0_reference_completed_release_without_its_index_is_refused(self) -> None:
+        store, calls = self.copy(), []
+        (store / "index.sqlite").unlink()
+        (store / "manifest.json").write_text(manifest_text("0.3.0", state="reference_completed"))
+        with mock.patch.object(runner, "_worker", stub_worker(calls)):
+            result = self.go(store)
+        self.assertEqual(calls, [])
+        for record in result["stores"][0]["measures"].values():
+            self.assertEqual(record["status"], "unavailable")
+            self.assertIn("index.sqlite missing", record["error"])
 
     def test_the_result_names_the_engine_that_ran(self) -> None:
         """Version and commit both come from the engine the workers import (#253).
@@ -697,6 +732,11 @@ ENTRY = {
 PENDING = {"store_id": "OGS-00011", "layout": "hybrid", "coverage": "gwas", "status": "pending", "reason": "x"}
 
 
+def manifest_text(version: str, *, layout: str = "dense", state: str = "observed_only") -> str:
+    """The three manifest fields the runner reads to know whether a release ships `index.sqlite`."""
+    return json.dumps({"format_version": version, "primary_layout": layout, "completion_state": state})
+
+
 def fixture_workload(**extra: object) -> dict:
     return {
         "schema": 1,
@@ -730,6 +770,7 @@ class ScratchRootTest(unittest.TestCase):
             store = root / "store.opengwasdb"
             store.mkdir()
             (store / "index.sqlite").write_bytes(b"abc")
+            (store / "manifest.json").write_text(manifest_text("0.2.3"))
             seen: list[Path] = []
 
             def worker(mode, store_path, entry, workload, scratch, **kwargs):

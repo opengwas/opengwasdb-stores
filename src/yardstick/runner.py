@@ -93,6 +93,25 @@ WORKER_MODULE = "yardstick.worker"
 INDEX = "index.sqlite"
 
 
+def carries_index(store_path: Path) -> bool:
+    """Whether the release at `store_path` ships an `index.sqlite` (the engine's `ships_index`).
+
+    Every 0.2 release does. From 0.3.0 the file holds only `completion_quality`, so an
+    Observed-Only release has none and the Store Reader never opens one (ADR 0102): for it
+    a missing index is the Store as built, not a reason to refuse it.
+    """
+    from opengwasdb.store.open import ships_index
+    from opengwasdb.store_reader.enums import CompletionState, PrimaryStorageLayout
+
+    manifest = json.loads((store_path / "manifest.json").read_text(encoding="utf-8"))
+    return ships_index(
+        PrimaryStorageLayout(manifest["primary_layout"]),
+        manifest["format_version"],
+        CompletionState(manifest["completion_state"]),
+        dense_component=False,
+    )
+
+
 def snapshot(store_path: Path) -> dict[str, Any]:
     """The Store directory's top-level entries, and `index.sqlite`'s size and mtime.
 
@@ -155,7 +174,8 @@ def _store(
         return {**head, "status": "pending", "reason": entry["reason"]}, []
     wanted = entry["measures"]
     before = snapshot(store_path)
-    if before["index"] is None:
+    guards_index = carries_index(store_path)
+    if guards_index and before["index"] is None:
         error = f"{INDEX} missing; refusing to let the query path create it"
         measures = {name: {"status": "unavailable", "error": error} for name in wanted}
         return {**head, "status": "measured", "measures": measures}, []
@@ -173,7 +193,7 @@ def _store(
     try:
         for position, (mode, names) in enumerate(steps):
             # Before every worker: a worker never opens a Store that has lost its index, or one already disturbed.
-            if not (store_path / INDEX).is_file():
+            if guards_index and not (store_path / INDEX).is_file():
                 for _, rest in steps[position:]:
                     unavailable(rest, f"{INDEX} missing before the {mode} worker; refusing to let the query path create it")
                 break
