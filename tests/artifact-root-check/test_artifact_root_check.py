@@ -5,10 +5,14 @@
    `built` bundle with no Store, a Store directory with no bundle, a Store whose
    bundle is `accepted`, a `by-label` link whose target is gone, and a pending
    publication beside a staged Store.
-2. The exit status is 1 for a category 1 or 4 finding and 0 otherwise.
+2. The exit status is 1 for a category 1 or 4 finding and 0 otherwise, and 2
+   when it refuses: a missing or empty registry, an `OSError` reading the root,
+   a Release Status vocabulary it does not split, or a report under the root.
 3. It is read-only: no byte, mtime or link under the fixture root changes.
-4. The report records the time, host, Artifact Root and each finding with its
-   category and Store id, and no path outside `<root>/<id>`.
+4. The report records the time, host, Artifact Root, registry revision and
+   each finding with its category and Store id, and no path outside
+   `<root>/<id>`. A root spelled relatively or through a link is normalised
+   before a link's target is compared with it.
 
 Run from the repository root:
     pixi run -e dev python3 tests/artifact-root-check/test_artifact_root_check.py
@@ -24,14 +28,17 @@ import json
 import os
 import re
 import shutil
+import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 from typing import Any
 
 import yaml
 
 from ogstores import artifact_root_check as check
+from ogstores import bundle as bundle_module
 from ogstores import paths
 
 NOW = dt.datetime(2026, 11, 24, 21, 0, 0, tzinfo=dt.timezone.utc)
@@ -105,7 +112,7 @@ def strings(value: Any) -> list[str]:
 
 class Fixture(unittest.TestCase):
     def setUp(self) -> None:
-        self.tmp = Path(tempfile.mkdtemp(prefix="artifact_root_check_"))
+        self.tmp = Path(tempfile.mkdtemp(prefix="artifact_root_check_")).resolve()
         self.registry = self.tmp / "stores"
         self.root = self.tmp / "artifacts"
         self.out = self.tmp / "out"
@@ -121,15 +128,15 @@ class Fixture(unittest.TestCase):
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def run_check(self, *extra: str) -> tuple[int, str]:
-        argv = ["--artifact-root", str(self.root), "--registry-root", str(self.registry), *extra]
+    def run_check(self, *extra: str, root: str | None = None, registry: str | None = None) -> tuple[int, str]:
+        argv = ["--artifact-root", root or str(self.root), "--registry-root", registry or str(self.registry), *extra]
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf), contextlib.redirect_stderr(buf):
             code = check.main(argv, now=NOW)
         return code, buf.getvalue()
 
-    def findings(self) -> list[tuple[int, str | None]]:
-        result = check.check_artifact_root(self.root, registry_root=self.registry)
+    def findings(self, root: Path | str | None = None) -> list[tuple[int, str | None]]:
+        result = check.check_artifact_root(root or self.root, registry_root=self.registry)
         return [(f.category, f.store_id) for f in result.findings]
 
     def one_of_each(self) -> None:
@@ -237,16 +244,84 @@ class ExitStatusTest(Fixture):
         self.assertEqual(self.run_check()[0], 0)
 
     def test_a_root_that_is_not_a_directory_is_refused(self) -> None:
-        code, out = self.run_check("--artifact-root", str(self.tmp / "nowhere"))
+        code, out = self.run_check(root=str(self.tmp / "nowhere"))
         self.assertEqual(code, 2)
         self.assertIn("not a directory", out)
 
+    def test_a_missing_registry_is_refused(self) -> None:
+        write_bundle(self.registry, "OGS-00002", "built")  # would be category 1
+        code, out = self.run_check("--json", str(self.out / "r.json"), registry=str(self.tmp / "no-registry"))
+        self.assertEqual(code, 2, out)
+        self.assertIn(f"the registry {self.tmp / 'no-registry'} is not a directory", out)
+        self.assertFalse((self.out / "r.json").exists())
+
+    def test_an_empty_registry_is_refused(self) -> None:
+        empty = self.tmp / "empty"
+        empty.mkdir()
+        link_label(self.root, "gone", "OGS-00009")  # would be category 4
+        code, out = self.run_check(registry=str(empty))
+        self.assertEqual(code, 2, out)
+        self.assertIn("holds no Release Bundle", out)
+
+    def test_an_oserror_reading_the_root_is_refused(self) -> None:
+        write_bundle(self.registry, "OGS-00002", "built")  # would be category 1
+        with mock.patch.object(check.os, "scandir", side_effect=PermissionError(13, "Permission denied")):
+            code, out = self.run_check()
+        self.assertEqual(code, 2, out)
+        self.assertIn("reading the registry or the Artifact Root failed", out)
+        self.assertIn("Permission denied", out)
+
+    def test_a_status_the_split_does_not_know_is_refused(self) -> None:
+        widened = bundle_module.VALID_STATUSES | {"archived"}
+        with mock.patch.object(bundle_module, "VALID_STATUSES", widened):
+            with self.assertRaises(RuntimeError) as raised:
+                check.check_artifact_root(self.root, registry_root=self.registry)
+            self.assertIn("'archived'", str(raised.exception))
+            code, out = self.run_check()
+        self.assertEqual(code, 2, out)
+        self.assertIn("'archived'", out)
+
     def test_a_report_under_the_artifact_root_is_refused(self) -> None:
+        alias = self.tmp / "alias"
+        alias.symlink_to(self.root)
         before = tree(self.root)
-        code, out = self.run_check("--json", str(self.root / "report.json"))
-        self.assertEqual(code, 2)
-        self.assertIn("read-only", out)
-        self.assertEqual(tree(self.root), before)
+        for option, target in (
+            ("--json", self.root / "report.json"),
+            ("--markdown", self.root / "report.md"),
+            ("--markdown", alias / "OGS-00001" / "report.md"),
+            ("--json", alias / "report.json"),
+        ):
+            with self.subTest(option=option, target=str(target)):
+                code, out = self.run_check(option, str(target))
+                self.assertEqual(code, 2)
+                self.assertIn("read-only", out)
+                self.assertEqual(tree(self.root), before)
+
+
+class RootSpellingTest(Fixture):
+    def test_a_relative_root_with_a_trailing_slash_still_names_the_store(self) -> None:
+        link_label(self.root, "gone", "OGS-00009")
+        cwd = os.getcwd()
+        os.chdir(self.tmp)
+        try:
+            self.assertEqual(self.findings("./artifacts/"), [(4, "OGS-00009")])
+            code, _ = self.run_check("--json", str(self.out / "r.json"), root="./artifacts/")
+        finally:
+            os.chdir(cwd)
+        self.assertEqual(code, 1)
+        doc = json.loads((self.out / "r.json").read_text(encoding="utf-8"))
+        self.assertEqual(doc["artifact_root"], str(self.root))
+        self.assertEqual([f["store_id"] for f in doc["findings"]], ["OGS-00009"])
+
+    def test_an_absolute_link_target_through_another_spelling_names_the_store(self) -> None:
+        alias = self.tmp / "alias"
+        alias.symlink_to(self.root)
+        by_label = paths.by_label_dir(root=self.root)
+        (by_label / "via-alias").symlink_to(alias / "OGS-00009")
+        (by_label / "absolute").symlink_to(self.root / "OGS-00008")
+        expected = [(4, "OGS-00008"), (4, "OGS-00009")]
+        self.assertEqual(sorted(self.findings(self.root)), expected)
+        self.assertEqual(sorted(self.findings(alias)), expected)
 
 
 class ReadOnlyTest(Fixture):
@@ -304,6 +379,23 @@ class ReportTest(Fixture):
         for forbidden in (str(self.registry), str(self.root / "by-label"), str(self.root / ".release-locks"), str(self.out)):
             self.assertNotIn(forbidden, json.dumps(doc))
             self.assertNotIn(forbidden, md)
+
+    def test_the_report_records_the_registry_revision(self) -> None:
+        self.assertEqual(check.report_document(
+            check.check_artifact_root(self.root, registry_root=self.registry), now=NOW, host="h",
+        )["registry_revision"], None)
+        git = ["git", "-C", str(self.registry), "-c", "user.name=t", "-c", "user.email=t@example.invalid"]
+        subprocess.run([*git, "init", "-q"], check=True)
+        subprocess.run([*git, "add", "."], check=True)
+        subprocess.run([*git, "commit", "-q", "-m", "fixture"], check=True)
+        head = subprocess.run([*git, "rev-parse", "HEAD"], check=True, capture_output=True, text=True).stdout.strip()
+        result = check.check_artifact_root(self.root, registry_root=self.registry)
+        self.assertEqual((result.registry_revision, result.registry_dirty), (head, False))
+        (self.registry / "OGS-00001" / "notes.md").write_text("x", encoding="utf-8")
+        result = check.check_artifact_root(self.root, registry_root=self.registry)
+        doc = check.report_document(result, now=NOW, host="h")
+        self.assertEqual((doc["registry_revision"], doc["registry_dirty"]), (head, True))
+        self.assertIn(f"`{head}` (with uncommitted changes)", check.render_markdown(doc))
 
     def test_a_label_pointing_outside_the_root_is_reported_without_its_target(self) -> None:
         link = paths.by_label_dir(root=self.root) / "elsewhere"

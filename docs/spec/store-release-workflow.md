@@ -917,22 +917,31 @@ categories:
 5. **Stray state**: `publication.json`, or a staged Store
    (`store.opengwasdb.partial*`, `.store.opengwasdb.partial*`, the set
    `tools/relocate_store.py` refuses to move), worded as the entry point's
-   refusals and its dry run word them. When a run holds the release's lock
-   (`release.lock_holder`, which only reads), the finding names the holder.
+   refusals and its dry run word them. When a run holds the release's lock,
+   the finding names the holder. The lock is probed as the dry run probes it,
+   with `release.lock_holder`: a non-blocking shared lock, taken and released
+   at once, which creates and writes nothing. A `pixi run release` that tries
+   its exclusive lock in that instant is refused as if a run were in progress.
 
 A Store is present when its path exists, by `lstat`, the test the entry
 point's refusal of a published release makes. A release that completes its own
 Store is published twice under one id (ADR 0037), both times at that path, so
 the test does not change for it.
 
-It exits 1 when it finds category 1 or 4, 0 otherwise, and 2 when it refuses: an
-Artifact Root that is not a directory, or a report path under the Artifact
-Root. It never writes under the Artifact Root and never changes a bundle;
+It exits 1 when it finds category 1 or 4, 0 otherwise, and 2 when it refuses,
+naming the cause and writing no report: an Artifact Root that is not a
+directory, an `OSError` while reading it or the registry, a registry that is
+missing or holds no bundle (every release directory would read as
+unregistered), a Release Status the check's split into built, unbuilt and
+retired does not cover, or a report path under the Artifact Root, through a
+link or not. It never writes under the Artifact Root and never changes a bundle;
 fixing a finding (rebuild, withdraw, finish a publication) is the operator's
 decision. `--json` and `--markdown` write the report, which the run on the
 production host commits as `docs/artifact-root-check.json` and
 `docs/artifact-root-check.md`. The report records the UTC time, the host, the
-Artifact Root and each finding with its category, Store id and Release Status.
+Artifact Root (resolved, so a link's target is compared with one spelling of
+it), the registry's `git rev-parse HEAD` and whether its tree was dirty, and
+each finding with its category, Store id and Release Status.
 It records no path outside `<root>/<id>`: a `by-label` link is named by its
 label and its target's Store id, and a lock by its holder.
 

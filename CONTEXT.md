@@ -178,7 +178,7 @@ The deployment-configured directory under which every Store Release's Release Ar
 _Avoid_: output directory, data root
 
 **Artifact Root check**:
-The read-only comparison of the Store Registry with the Artifact Root on one host, run as `pixi run check-artifact-root` (stores #510). It reports a built or validated bundle with no Store at its path, a release directory with no bundle, a Store whose bundle says it is not built or is retired, a broken `by-label` link, and a pending publication or staged Store. It never changes the registry or the disk, and commits its dated report; the readiness view reads only committed records, so this is the one check that looks at the disk.
+The read-only comparison of the Store Registry with the Artifact Root on one host, run as `pixi run check-artifact-root` (stores #510). It reports a built or validated bundle with no Store at its path, a release directory with no bundle, a Store whose bundle says it is not built or is retired, a broken `by-label` link, and a pending publication or staged Store. It never changes the registry or the disk, and its dated report is committed; the readiness view reads only committed records, so this is the one check that looks at the disk.
 _Avoid_: reconcile (the Store Audit's), audit
 
 **Work Root**:

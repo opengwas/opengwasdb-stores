@@ -16,7 +16,9 @@ Artifact Root on this host. It reports five categories of finding:
 5. **Stray state** -- a pending publication (`publication.json`) or a staged
    Store (`store.opengwasdb.partial*`, `.store.opengwasdb.partial*`), described
    as the release workflow's refusals describe them, and whether a live run
-   holds the release's lock.
+   holds the release's lock. The lock is probed as the entry point's dry run
+   probes it (`release.lock_holder`): a non-blocking shared lock, taken and
+   released at once, which creates and writes nothing.
 
 A Store is present when its path exists (`lstat`), the test the release
 workflow's own refusal of a published release makes
@@ -29,7 +31,10 @@ to write its report under the Artifact Root. The report records the UTC time,
 the host, the Artifact Root and each finding, and no path outside
 `<root>/<id>`: a `by-label` link is named by its label and its target's Store
 id, and a lock by its holder. It exits 1 when it finds category 1 or 4, 0
-otherwise, and 2 when it refuses.
+otherwise, and 2 when it refuses: an Artifact Root that is not a directory or
+cannot be read, a registry that is missing or holds no bundle, a status
+vocabulary it does not know, or a report path under the Artifact Root. The
+report records the registry's git revision and whether its tree was dirty.
 
     pixi run check-artifact-root [--artifact-root PATH] [--registry-root stores] \
         [--json docs/artifact-root-check.json] [--markdown docs/artifact-root-check.md]
@@ -44,51 +49,76 @@ import datetime as dt
 import json
 import os
 import socket
+import subprocess
 import sys
-from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import IntEnum
 from pathlib import Path
 from typing import Any
 
 from ogstores import bundle as bundle_module
 from ogstores import paths, release
-from ogstores.bundle import Bundle
 from ogstores.readiness import discover_bundles
 
-REGISTERED_BUT_MISSING = 1
-UNREGISTERED = 2
-STATUS_DISAGREEMENT = 3
-BROKEN_BY_LABEL_LINK = 4
-STRAY_STATE = 5
+DEFAULT_REGISTRY_ROOT: Path = paths.REPO_ROOT / "stores"
 
-CATEGORY_NAMES: dict[int, str] = {
-    REGISTERED_BUT_MISSING: "registered_but_missing",
-    UNREGISTERED: "unregistered",
-    STATUS_DISAGREEMENT: "status_disagreement",
-    BROKEN_BY_LABEL_LINK: "broken_by_label_link",
-    STRAY_STATE: "stray_state",
-}
-CATEGORY_TITLES: dict[int, str] = {
-    REGISTERED_BUT_MISSING: "registered but missing",
-    UNREGISTERED: "on disk but unregistered",
-    STATUS_DISAGREEMENT: "status disagreement",
-    BROKEN_BY_LABEL_LINK: "broken by-label link",
-    STRAY_STATE: "stray state",
-}
-#: The categories that fail the check. A status disagreement can be normal.
-FAILING_CATEGORIES: frozenset[int] = frozenset({REGISTERED_BUT_MISSING, BROKEN_BY_LABEL_LINK})
+
+class Category(IntEnum):
+    """A finding's category: its number, its report name (`key`) and its title."""
+
+    title: str
+
+    def __new__(cls, number: int, title: str) -> "Category":
+        member = int.__new__(cls, number)
+        member._value_ = number
+        member.title = title
+        return member
+
+    REGISTERED_BUT_MISSING = 1, "registered but missing"
+    UNREGISTERED = 2, "on disk but unregistered"
+    STATUS_DISAGREEMENT = 3, "status disagreement"
+    BROKEN_BY_LABEL_LINK = 4, "broken by-label link"
+    STRAY_STATE = 5, "stray state"
+
+    @property
+    def key(self) -> str:
+        return self.name.lower()
+
+    @property
+    def fails(self) -> bool:
+        """Categories 1 and 4 fail the check; a status disagreement can be normal."""
+        return self in (Category.REGISTERED_BUT_MISSING, Category.BROKEN_BY_LABEL_LINK)
+
+
+class CheckRefused(RuntimeError):
+    """The check cannot give a meaningful answer; it exits 2 and writes no report."""
+
 
 # The bundle module's Release Status vocabulary, split by what each says about
-# the Store. The assertion makes a new status a loud failure here, not a gap.
+# the Store. A status in none of the three would be reported as nothing, so a
+# vocabulary the split does not cover refuses the check (`require_status_split`).
 BUILT_STATUSES: frozenset[str] = frozenset({"built", "validated"})
 UNBUILT_STATUSES: frozenset[str] = frozenset({"candidate", "accepted"})
 RETIRED_STATUSES: frozenset[str] = frozenset({"superseded", "withdrawn"})
-assert BUILT_STATUSES | UNBUILT_STATUSES | RETIRED_STATUSES == bundle_module.VALID_STATUSES
+
+
+def require_status_split() -> None:
+    """Raise unless the three status sets are exactly `bundle.VALID_STATUSES`."""
+    split = BUILT_STATUSES | UNBUILT_STATUSES | RETIRED_STATUSES
+    valid = frozenset(bundle_module.VALID_STATUSES)
+    if split != valid:
+        raise CheckRefused(
+            "the Artifact Root check does not know what these Release Statuses say about a Store: "
+            f"{sorted(valid - split)}; it splits only {sorted(split)}"
+        )
+
+
+require_status_split()
 
 
 @dataclass(frozen=True)
 class Finding:
-    category: int
+    category: Category
     store_id: str | None
     detail: str
     release_status: str | None = None
@@ -96,10 +126,6 @@ class Finding:
     path: str | None = None
     #: A `by-label` link's label (category 4).
     label: str | None = None
-
-    @property
-    def name(self) -> str:
-        return CATEGORY_NAMES[self.category]
 
     def sort_key(self) -> tuple[int, str, str]:
         # Stable: one release's stray state keeps the order it was found in.
@@ -109,13 +135,15 @@ class Finding:
 @dataclass(frozen=True)
 class CheckResult:
     artifact_root: Path
+    registry_revision: str | None
+    registry_dirty: bool | None
     n_bundles: int
     n_release_dirs: int
     findings: tuple[Finding, ...]
 
     @property
     def exit_status(self) -> int:
-        return 1 if any(f.category in FAILING_CATEGORIES for f in self.findings) else 0
+        return 1 if any(f.category.fails for f in self.findings) else 0
 
 
 def _present(path: Path) -> bool:
@@ -140,17 +168,18 @@ def _staged(store_id: str, root: Path) -> list[Path]:
 
 def _stray_state(store_id: str, root: Path, status: str | None) -> list[Finding]:
     holder = release.lock_holder(store_id, root)
-    run_note = f"; a run of {store_id} is in progress ({holder})" if holder is not None else ""
+    live_run = f"a run of {store_id} is in progress ({holder})" if holder is not None else None
     findings = []
     marker = paths.publication_marker(store_id, root=root)
     if _present(marker):
-        if holder is not None:
-            detail = f"a run of {store_id} is in progress ({holder}) and is publishing; it finishes its own publication"
+        if live_run is not None:
+            detail = f"{live_run} and is publishing; it finishes its own publication"
         else:
             detail = f"a publication is pending, and `pixi run release {store_id}` finishes it"
-        findings.append(Finding(STRAY_STATE, store_id, f"{paths.PUBLICATION_MARKER} exists: {detail}", status, str(marker)))
+        findings.append(Finding(Category.STRAY_STATE, store_id, f"{paths.PUBLICATION_MARKER} exists: {detail}", status, str(marker)))
     for staged in _staged(store_id, root):
-        findings.append(Finding(STRAY_STATE, store_id, f"{staged.name} exists: a Store is staged{run_note}", status, str(staged)))
+        note = f"; {live_run}" if live_run is not None else ""
+        findings.append(Finding(Category.STRAY_STATE, store_id, f"{staged.name} exists: a Store is staged{note}", status, str(staged)))
     return findings
 
 
@@ -162,23 +191,71 @@ def _label_findings(root: Path) -> list[Finding]:
     for entry in sorted(by_label.iterdir()):
         if not entry.is_symlink() or entry.exists():
             continue
-        target = Path(os.path.normpath(by_label / os.readlink(entry)))
+        # `root` is resolved; resolve the target's directory too, so a link that
+        # spells the root another way (relative, absolute, through a link) matches.
+        raw = by_label / os.readlink(entry)
+        target = Path(os.path.realpath(raw.parent)) / raw.name
         inside = target.parent == root and paths.is_valid_store_id(target.name)
         store_id = target.name if inside else None
         where = f"its target {store_id} is missing" if inside else "its target, outside the Artifact Root's release directories, is missing"
-        findings.append(Finding(BROKEN_BY_LABEL_LINK, store_id, f"label `{entry.name}`: {where}", label=entry.name))
+        findings.append(Finding(Category.BROKEN_BY_LABEL_LINK, store_id, f"label `{entry.name}`: {where}", label=entry.name))
     return findings
 
 
-def check_artifact_root(
-    root: Path | str,
-    *,
-    registry_root: Path | str | None = None,
-    bundles: Sequence[Bundle] | None = None,
-) -> CheckResult:
-    """Compare the registry's bundles with the Artifact Root; read-only."""
-    root = Path(root)
-    loaded = list(bundles) if bundles is not None else discover_bundles(registry_root)
+def _git(registry: Path, *args: str) -> str | None:
+    try:
+        done = subprocess.run(
+            ["git", "-C", str(registry), *args], capture_output=True, text=True, check=False
+        )
+    except OSError:
+        return None
+    return done.stdout if done.returncode == 0 else None
+
+
+def registry_revision(registry: Path) -> tuple[str | None, bool | None]:
+    """The registry's `git rev-parse HEAD`, and whether its tree differs from it; None outside git."""
+    head = _git(registry, "rev-parse", "HEAD")
+    if head is None:
+        return None, None
+    status = _git(registry, "status", "--porcelain", "--untracked-files=normal", "--", ".")
+    return head.strip(), (None if status is None else bool(status.strip()))
+
+
+def check_artifact_root(root: Path | str, *, registry_root: Path | str | None = None) -> CheckResult:
+    """Compare the registry's bundles with the Artifact Root; read-only.
+
+    Raises `CheckRefused` when the answer would mean nothing: an unknown status
+    vocabulary, a registry that is missing or holds no bundle, or an `OSError`
+    while reading the registry or the root.
+    """
+    require_status_split()
+    registry = Path(registry_root) if registry_root is not None else DEFAULT_REGISTRY_ROOT
+    if not registry.is_dir():
+        raise CheckRefused(f"the registry {registry} is not a directory; nothing was checked")
+    root = Path(root).resolve()
+    try:
+        loaded = discover_bundles(registry)
+        if not loaded:
+            raise CheckRefused(
+                f"the registry {registry} holds no Release Bundle; every release directory "
+                "would read as unregistered, so nothing was checked"
+            )
+        revision, dirty = registry_revision(registry)
+        findings = _findings(root, loaded)
+        n_release_dirs = len(_release_dirs(root))
+    except OSError as exc:
+        raise CheckRefused(f"reading the registry or the Artifact Root failed: {exc}; nothing was reported") from exc
+    return CheckResult(
+        artifact_root=root,
+        registry_revision=revision,
+        registry_dirty=dirty,
+        n_bundles=len(loaded),
+        n_release_dirs=n_release_dirs,
+        findings=tuple(sorted(findings, key=Finding.sort_key)),
+    )
+
+
+def _findings(root: Path, loaded: list) -> list[Finding]:
     by_id = {b.store_id: b for b in loaded}
     on_disk = _release_dirs(root)
     findings: list[Finding] = []
@@ -190,9 +267,9 @@ def check_artifact_root(
         if status in BUILT_STATUSES and not present:
             directory = paths.store_dir(b.store_id, root=root)
             where = "its release directory holds no Store" if _present(directory) else "it has no release directory"
-            findings.append(Finding(REGISTERED_BUT_MISSING, b.store_id, f"Release Status `{status}`, but {where}", status, str(store)))
+            findings.append(Finding(Category.REGISTERED_BUT_MISSING, b.store_id, f"Release Status `{status}`, but {where}", status, str(store)))
         elif present and status in UNBUILT_STATUSES | RETIRED_STATUSES:
-            findings.append(Finding(STATUS_DISAGREEMENT, b.store_id, f"the Store is present while the Release Status is `{status}`", status, str(store)))
+            findings.append(Finding(Category.STATUS_DISAGREEMENT, b.store_id, f"the Store is present while the Release Status is `{status}`", status, str(store)))
 
     for store_id in on_disk:
         if store_id in by_id:
@@ -200,20 +277,14 @@ def check_artifact_root(
         store = paths.store_path(store_id, root=root)
         holds = "holds a Store" if _present(store) else "holds no Store"
         retired = "; the id is retired" if store_id in paths.RETIRED_STORE_IDS else ""
-        findings.append(Finding(UNREGISTERED, store_id, f"no Release Bundle; the directory {holds}{retired}", path=str(paths.store_dir(store_id, root=root))))
+        findings.append(Finding(Category.UNREGISTERED, store_id, f"no Release Bundle; the directory {holds}{retired}", path=str(paths.store_dir(store_id, root=root))))
 
     findings.extend(_label_findings(root))
 
     for store_id in on_disk:
         b = by_id.get(store_id)
         findings.extend(_stray_state(store_id, root, b.status if b else None))
-
-    return CheckResult(
-        artifact_root=root,
-        n_bundles=len(loaded),
-        n_release_dirs=len(on_disk),
-        findings=tuple(sorted(findings, key=Finding.sort_key)),
-    )
+    return findings
 
 
 # --------------------------------------------------------------------------
@@ -226,12 +297,12 @@ def _utc(now: dt.datetime) -> str:
 
 
 def report_document(result: CheckResult, *, now: dt.datetime, host: str) -> dict[str, Any]:
-    counts = {name: 0 for name in CATEGORY_NAMES.values()}
+    counts = {category.key: 0 for category in Category}
     for f in result.findings:
-        counts[f.name] += 1
+        counts[f.category.key] += 1
     findings = []
     for f in result.findings:
-        row: dict[str, Any] = {"category": f.category, "name": f.name, "store_id": f.store_id}
+        row: dict[str, Any] = {"category": int(f.category), "name": f.category.key, "store_id": f.store_id}
         if f.release_status is not None:
             row["release_status"] = f.release_status
         if f.label is not None:
@@ -245,13 +316,22 @@ def report_document(result: CheckResult, *, now: dt.datetime, host: str) -> dict
         "checked_at": _utc(now),
         "host": host,
         "artifact_root": str(result.artifact_root),
+        "registry_revision": result.registry_revision,
+        "registry_dirty": result.registry_dirty,
         "bundles": result.n_bundles,
         "release_directories": result.n_release_dirs,
         "exit_status": result.exit_status,
-        "failing_categories": sorted(FAILING_CATEGORIES),
+        "failing_categories": [int(c) for c in Category if c.fails],
         "counts": counts,
         "findings": findings,
     }
+
+
+def _revision(doc: dict[str, Any]) -> str:
+    if doc["registry_revision"] is None:
+        return "unknown (the registry is not a git checkout)"
+    state = {True: "with uncommitted changes", False: "clean", None: "state unknown"}[doc["registry_dirty"]]
+    return f"`{doc['registry_revision']}` ({state})"
 
 
 def _cell(text: str) -> str:
@@ -271,14 +351,15 @@ def render_markdown(doc: dict[str, Any]) -> str:
         f"- Checked at: {doc['checked_at']}",
         f"- Host: `{doc['host']}`",
         f"- Artifact Root: `{doc['artifact_root']}`",
+        f"- Registry revision: {_revision(doc)}",
         f"- Release Bundles: {doc['bundles']}; release directories: {doc['release_directories']}",
         f"- Result: {verdict}, exit status {doc['exit_status']} (categories 1 and 4 fail the check)",
         "",
         "| # | Category | Findings |",
         "|---:|:---|---:|",
     ]
-    for number, name in CATEGORY_NAMES.items():
-        lines.append(f"| {number} | {CATEGORY_TITLES[number]} | {doc['counts'][name]} |")
+    for category in Category:
+        lines.append(f"| {int(category)} | {category.title} | {doc['counts'][category.key]} |")
     lines += ["", "## Findings", ""]
     if not doc["findings"]:
         lines.append("None.")
@@ -288,7 +369,7 @@ def render_markdown(doc: dict[str, Any]) -> str:
             store = f"`{f['store_id']}`" if f["store_id"] else "-"
             status = f"`{f['release_status']}`" if f.get("release_status") else "-"
             lines.append(
-                f"| {f['category']} | {CATEGORY_TITLES[f['category']]} | {store} | {status} | {_cell(f['detail'])} |"
+                f"| {f['category']} | {Category(f['category']).title} | {store} | {status} | {_cell(f['detail'])} |"
             )
     return "\n".join(lines) + "\n"
 
@@ -311,7 +392,7 @@ def main(argv: list[str] | None = None, *, now: dt.datetime | None = None) -> in
     parser.add_argument("--markdown", type=Path, default=None, help="write the report as Markdown here")
     args = parser.parse_args(argv)
 
-    root = paths.artifact_root(args.artifact_root)
+    root = paths.artifact_root(args.artifact_root).resolve()
     if not root.is_dir():
         print(f"check-artifact-root: the Artifact Root {root} is not a directory; nothing was checked", file=sys.stderr)
         return 2
@@ -324,7 +405,11 @@ def main(argv: list[str] | None = None, *, now: dt.datetime | None = None) -> in
             )
             return 2
 
-    result = check_artifact_root(root, registry_root=args.registry_root)
+    try:
+        result = check_artifact_root(root, registry_root=args.registry_root)
+    except CheckRefused as exc:
+        print(f"check-artifact-root: {exc}", file=sys.stderr)
+        return 2
     doc = report_document(result, now=now or dt.datetime.now(dt.timezone.utc), host=socket.gethostname())
     markdown = render_markdown(doc)
     if args.json is not None:
