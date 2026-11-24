@@ -291,8 +291,8 @@ index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 [feature.reporting.tasks]
 # Render the reports under docs/reports/ and copy each to the docs/ name the
 # project site serves. The site itself (`pixi run site`, `site-data`,
-# `site-publish`, `architecture`) is og-dev-hub's (og-dev-hub#7): it reads this
-# repository's docs/, stores/ and docs/_epics/ from its clone of main.
+# `architecture`) is og-dev-hub's (og-dev-hub#7): it reads this repository's
+# stores/ and docs/_yardstick/ from its clone of main.
 docs = { cmd = "bash tools/build-site.sh" }
 # The full `docs` task needs raw GWAS Catalog source data that is not tracked
 # in this repository (resources/data/*.tsv, "download separately" per
