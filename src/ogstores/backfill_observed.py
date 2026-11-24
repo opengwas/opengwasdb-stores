@@ -9,32 +9,36 @@
 `validation.yaml`, the same way `register` does:
 
 - `store_bytes` from a stat of each file of the published Store,
-  `<artifact-root>/<id>/store.opengwasdb`, and `null` when it is not on disk;
+  `<artifact-root>/<id>/store.opengwasdb`;
 - `has_hm3` and `has_rho` from the publishing phase's plan and its step
-  records under `<artifact-root>/<id>/records/`, and `null` when that phase has
-  no register record, so no record says which steps built the Store;
+  records under `<artifact-root>/<id>/records/` (`register.store_facts`), and
+  `null` when no register record says which steps built the Store;
 - `n_top_hits` as `null`, until opengwas/opengwasdb#488 reports the counts.
+
+A bundle whose Store is not under the Artifact Root is reported by name as
+`missing` and left alone: there is nothing to measure. A record with no
+`observed` block is skipped, since adding one would change a key that is not a
+Store fact.
 
 It writes those keys and nothing else. Each record is edited as text, in
 place: a key already in `observed` has its value replaced, a missing one is
 inserted after the Store fact before it, and every other line keeps its bytes.
-The edited document is parsed and compared with the original before anything
-is written: every key but the four must be equal, or the bundle is refused.
-A record with no `observed` block is skipped, since adding one would change
-a key that is not a Store fact. A second run changes nothing.
+The bundle is refused, and its file left as it was, when a mapping in the
+record holds a key twice, when a line the edit replaces carries a comment
+(which the edit would drop), or when the edited document, parsed, differs from
+the original in any key but the four. A second run changes nothing.
 
 It opens no Store file and writes nothing under the Artifact Root. `--dry-run`
 prints what it would change and writes nothing.
 
 Run it as `python3 -m ogstores.backfill_observed`, which the
-`backfill-observed` task does. It runs once, after opengwas/opengwasdb-stores#498 rewrites every Store to
-format 0.3.0, so it records the Stores as they are served. Recording
-observations into an accepted bundle's Validation Record changes no
-membership, so it is allowed under the Release Bundle contract
-(`docs/release-metadata-schema.md`, "validation.yaml").
+`backfill-observed` task does. It runs once, after
+opengwas/opengwasdb-stores#498 rewrites every Store to format 0.3.0, so it
+records the Stores as they are served. Recording observations into an accepted
+bundle's Validation Record changes no membership, so the Release Bundle
+contract allows it (`docs/release-metadata-schema.md`, "validation.yaml").
 
-Exit status: 0 when every bundle was written, unchanged or skipped; 1 when a
-bundle was refused.
+Exit status: 1 when a bundle was refused, 0 otherwise.
 """
 
 from __future__ import annotations
@@ -53,39 +57,71 @@ import yaml
 
 from ogstores import paths, run
 from ogstores.bundle import Bundle
-from ogstores.plan import BUILD_PHASE, COMPLETION_PHASE, REGISTER_STEPS, plan
+from ogstores.paths import REPO_ROOT
+from ogstores.plan import BUILD_PHASE, REGISTER_STEPS, plan, release_register
 from ogstores.readiness import discover_bundles
 from ogstores.register import STORE_FACT_FIELDS, store_facts
-
-REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 #: The Release Statuses whose bundle describes a built Store.
 BUILT_STATUSES: frozenset[str] = frozenset({"built", "validated"})
 
+#: The outcomes, in the order the summary counts them. `missing` is a bundle
+#: whose Store is not under the Artifact Root, so there is nothing to measure.
+ACTIONS: tuple[str, ...] = ("write", "unchanged", "missing", "skip", "refuse")
+
 ABSENT = "(absent)"
 _OBSERVED_LINE = re.compile(r"observed:[ \t]*(#.*)?\n?")
+# A YAML comment: `#` at the start of a line or after whitespace.
+_COMMENT = re.compile(r"(^|\s)#")
 
 
 class Refused(Exception):
     """A record the tool will not edit, and why."""
 
 
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """A safe loader that refuses a mapping holding a key twice.
+
+    PyYAML keeps the last of two equal keys, so a record that already held a
+    Store fact twice, or an edit that added a second, would compare equal to
+    the intended document and pass unnoticed.
+    """
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        seen: set[Any] = set()
+        for key_node, _ in node.value:
+            key = self.construct_object(key_node, deep=deep)
+            if key in seen:
+                raise Refused(f"validation.yaml holds the key {key!r} twice in one mapping")
+            seen.add(key)
+        return super().construct_mapping(node, deep=deep)
+
+
+def _load(text: str) -> Any:
+    return yaml.load(text, Loader=_UniqueKeyLoader)
+
+
 @dataclass
 class Outcome:
     store_id: str
-    action: str  # "write", "unchanged", "skip" or "refuse"
+    action: str  # one of ACTIONS
     reason: str = ""
     changes: dict[str, tuple[Any, Any]] = field(default_factory=dict)
 
 
-def published_phase(bundle_obj: Bundle, artifact_root: Path) -> str:
-    """The phase whose Store is published: the completion phase once it has registered (ADR 0037)."""
-    completion_register = paths.record_path(
-        bundle_obj.store_id, REGISTER_STEPS[COMPLETION_PHASE], root=artifact_root
-    )
-    if bundle_obj.completes_own_store and completion_register.is_file():
-        return COMPLETION_PHASE
-    return BUILD_PHASE
+def published_phase(bundle_obj: Bundle, artifact_root: Path) -> str | None:
+    """The phase whose register published the Store now served, or None when none has registered.
+
+    `plan.release_register` names the register that finishes the release.
+    Until its record exists, a release that completes its own Store serves the
+    Store its build phase registered (ADR 0037). `register` decides this while
+    it runs; the backfill reads it from the register records left behind.
+    """
+    phases = {register_step: phase for phase, register_step in REGISTER_STEPS.items()}
+    for register_step in dict.fromkeys((release_register(bundle_obj), REGISTER_STEPS[BUILD_PHASE])):
+        if paths.record_path(bundle_obj.store_id, register_step, root=artifact_root).is_file():
+            return phases[register_step]
+    return None
 
 
 def observed_facts(bundle_obj: Bundle, artifact_root: Path) -> dict[str, Any]:
@@ -93,7 +129,7 @@ def observed_facts(bundle_obj: Bundle, artifact_root: Path) -> dict[str, Any]:
     store_id = bundle_obj.store_id
     store_dir = paths.store_path(store_id, root=artifact_root)
     phase = published_phase(bundle_obj, artifact_root)
-    registered = paths.record_path(store_id, REGISTER_STEPS[phase], root=artifact_root).is_file()
+    registered = phase is not None
     phase_steps = (
         [step for step in plan(bundle_obj, artifact_root=artifact_root) if step.phase == phase]
         if registered
@@ -174,16 +210,18 @@ def edit_observed(text: str, facts: dict[str, Any]) -> str:
     for key in STORE_FACT_FIELDS:
         rendered = _render(key, facts[key], indent)
         span = _key_span(lines, head + 1, end, indent, key)
+        if span is not None and any(_COMMENT.search(line) for line in lines[span[0]:span[1]]):
+            raise Refused(f"`observed.{key}` carries a comment, which replacing it would drop")
         start, stop = span if span is not None else ((end, end) if anchor is None else (anchor, anchor))
         lines[start:stop] = rendered
         end += len(rendered) - (stop - start)
         anchor = start + len(rendered)
     edited = "".join(lines)
 
-    original_doc = yaml.safe_load(text)
+    original_doc = _load(text)
     expected = copy.deepcopy(original_doc)
     expected["observed"].update(facts)
-    if yaml.safe_load(edited) != expected:
+    if _load(edited) != expected:
         raise Refused("the edit would change a key other than the Store facts in `observed`")
     # A file without a final newline gains one only along with a real change.
     return text if edited == text + "\n" else edited
@@ -194,11 +232,17 @@ def backfill_bundle(bundle_obj: Bundle, artifact_root: Path, *, dry_run: bool) -
     status = bundle_obj.status or ""
     if status not in BUILT_STATUSES:
         return Outcome(store_id, "skip", f"status {status!r} describes no built Store")
+    store_dir = paths.store_path(store_id, root=artifact_root)
+    if not store_dir.is_dir():
+        return Outcome(store_id, "missing", f"Store missing from the Artifact Root: {store_dir}")
     path = bundle_obj.root / "validation.yaml"
     if not path.is_file():
         return Outcome(store_id, "skip", "no validation.yaml")
     text = path.read_text(encoding="utf-8")
-    document = yaml.safe_load(text)
+    try:
+        document = _load(text)
+    except Refused as exc:
+        return Outcome(store_id, "refuse", str(exc))
     observed = document.get("observed") if isinstance(document, dict) else None
     if not isinstance(observed, dict):
         return Outcome(
@@ -251,10 +295,10 @@ def main(argv: list[str] | None = None) -> int:
             print(f"{outcome.store_id}: unchanged")
         else:
             print(f"{outcome.store_id}: {outcome.action} ({outcome.reason})")
-    counts = {action: sum(o.action == action for o in outcomes) for action in ("write", "unchanged", "skip", "refuse")}
+    counts = {action: sum(o.action == action for o in outcomes) for action in ACTIONS}
     print(
         f"{len(outcomes)} bundles: {counts['write']} {verb}, {counts['unchanged']} unchanged, "
-        f"{counts['skip']} skipped, {counts['refuse']} refused"
+        f"{counts['missing']} with the Store missing, {counts['skip']} skipped, {counts['refuse']} refused"
         + (" (dry run: nothing written)" if args.dry_run else "")
     )
     return 1 if counts["refuse"] else 0

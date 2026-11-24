@@ -703,13 +703,14 @@ class TestStoreFacts(unittest.TestCase):
         self.assertIs(observed["has_hm3"], True)
         self.assertIs(observed["has_rho"], True)
 
-    def test_a_recipe_without_hm3_or_rho_records_false(self) -> None:
+    def test_a_recipe_without_hm3_records_false_and_without_rho_records_null(self) -> None:
+        """A recipe that builds no Rho Matrix says nothing of one built by hand outside it."""
         b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00065")
 
         observed = register_release(b, registry_root=stores_root, artifact_root=artifact_root)["observed"]
 
         self.assertIs(observed["has_hm3"], False)
-        self.assertIs(observed["has_rho"], False)
+        self.assertIsNone(observed["has_rho"])
 
     def test_a_completion_phase_reads_its_own_steps(self) -> None:
         """A release completing its own Store reports what its completion phase built (ADR 0037)."""
@@ -732,7 +733,7 @@ class TestStoreFacts(unittest.TestCase):
         )
 
         self.assertIs(observed["has_hm3"], True)
-        self.assertIs(observed["has_rho"], False)
+        self.assertIsNone(observed["has_rho"])
 
     def test_a_failed_or_missing_step_record_is_not_a_built_index(self) -> None:
         steps = [Step("indexed-subset-hm3", [], [], []), Step("rho", [], [], [])]
@@ -741,16 +742,8 @@ class TestStoreFacts(unittest.TestCase):
         )
         self.assertIs(facts["has_hm3"], False)
         self.assertIsNone(facts["has_rho"], "a planned step with no record is unknown, not absent")
-
-    def test_top_hits_false_records_null_counts(self) -> None:
-        b, stores_root, artifact_root = create_test_bundle_and_records(
-            self.td, "OGS-00067", post={"top_hits": False, "rho": False, "overview": True, "validate": True}
-        )
-
-        observed = register_release(b, registry_root=stores_root, artifact_root=artifact_root)["observed"]
-
-        self.assertIn("n_top_hits", observed)
-        self.assertIsNone(observed["n_top_hits"])
+        failed_rho = register.store_facts(steps, {"rho": {"success": False, "exit_code": 1}}, store_dir=None)
+        self.assertIs(failed_rho["has_rho"], False, "a recipe's Rho step that failed built none")
 
 
 # A Hybrid release's post choices: `build-hybrid` builds the top-hit index inline, so

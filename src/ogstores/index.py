@@ -40,7 +40,6 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 import os
 from pathlib import Path
 from typing import Any
@@ -56,6 +55,9 @@ REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 # The completion states a Store can be published in, the only values the
 # register-written `observed.completion_state` may take (#307, ADR 0037).
 PUBLISHED_COMPLETION_STATES: tuple[str, ...] = ("observed_only", "reference_completed")
+
+# An observed flag's cell: `true`, `false`, or empty when the record does not say (#502).
+FLAG_CELLS: dict[bool | None, str] = {True: "true", False: "false", None: ""}
 
 COLUMNS: tuple[str, ...] = (
     "store_id",
@@ -233,10 +235,9 @@ def render_stores_row(
     # What the recipe built into the published Store (#502): `true`, `false`, or
     # empty when the record does not say. `n_top_hits` is the record's mapping
     # as compact JSON, empty while it is null (opengwas/opengwasdb#488).
-    has_hm3_str = _observed_flag(obs.get("has_hm3"))
-    has_rho_str = _observed_flag(obs.get("has_rho"))
-    n_top_hits = obs.get("n_top_hits")
-    n_top_hits_str = json.dumps(n_top_hits, sort_keys=True, separators=(",", ":")) if n_top_hits is not None else ""
+    has_hm3_str = FLAG_CELLS[bundle.observed_flag(obs, "has_hm3")]
+    has_rho_str = FLAG_CELLS[bundle.observed_flag(obs, "has_rho")]
+    n_top_hits_str = bundle.top_hit_counts_text(obs) or ""
 
     build_elapsed_s = obs.get("build_elapsed_s")
     build_elapsed_s_str = str(build_elapsed_s) if build_elapsed_s != "" and build_elapsed_s is not None else ""
@@ -281,15 +282,6 @@ def render_stores_row(
         "sample_size": str(membership_summary["sample_size"]),
         "source_url": str(membership_summary["source_url"]),
     }
-
-
-def _observed_flag(value: Any) -> str:
-    """A recorded boolean as `true` or `false`, and empty when the record does not say."""
-    if value is None:
-        return ""
-    if not isinstance(value, bool):
-        raise ValueError(f"an observed flag is true, false or null, not {value!r}")
-    return "true" if value else "false"
 
 
 def render_stores_tsv(

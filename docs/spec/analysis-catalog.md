@@ -107,7 +107,7 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   and from `observed`: `n_analyses`,
   `n_variants`, `n_associations`, `store_bytes`, `has_hm3`, `has_rho`,
   `n_top_hits`, `format_version`, `reference_assembly`). `has_hm3` and
-  `has_rho` are `1`, `0`, or `NULL` when the record does not say, and
+  `has_rho` are `1`, `0`, or `NULL` when the record does not say (`CHECK (... IN (0, 1))`, which admits `NULL`), and
   `n_top_hits` is the record's threshold-to-count mapping as compact JSON
   `TEXT`, `NULL` until opengwas/opengwasdb#488 reports the counts (#502). A
   flag that is not a boolean, or counts that are not a mapping, refuse the

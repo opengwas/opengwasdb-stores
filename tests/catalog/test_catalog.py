@@ -30,6 +30,7 @@ import yaml
 
 from analysis_catalog import build as catalog_build
 from analysis_catalog import publish as catalog_publish
+from analysis_catalog.columns import DDL
 from analysis_catalog.policy import POLICY, RULES
 from ogstores import paths
 
@@ -447,12 +448,26 @@ class StoreFactsTest(TempDirCase):
             [("OGS-00001", 987654, 1, 0, '{"5e-06":31,"5e-08":4}'), ("OGS-00002", None, None, None, None)],
         )
 
+    def test_the_flag_columns_hold_only_0_1_or_null(self) -> None:
+        connection = sqlite3.connect(":memory:")
+        try:
+            connection.execute(DDL[0])
+            for n, flag in enumerate((0, 1, None)):
+                connection.execute(
+                    "INSERT INTO stores (store_id, has_hm3, has_rho) VALUES (?, ?, ?)", (f"OGS-0000{n}", flag, flag)
+                )
+            for column in ("has_hm3", "has_rho"):
+                with self.assertRaises(sqlite3.IntegrityError, msg=column):
+                    connection.execute(f"INSERT INTO stores (store_id, {column}) VALUES ('OGS-00009', 2)")
+        finally:
+            connection.close()
+
     def test_a_flag_that_is_not_a_boolean_refuses_the_store(self) -> None:
         write_bundle(self.registry, "OGS-00001", observed_extra={"has_hm3": "yes"})
         self.build()
         self.assertEqual(
             query(self.root, "SELECT decision, reason FROM selection"),
-            [("refused", "Validation Record: has_hm3 'yes' is not true, false or null")],
+            [("refused", "Validation Record: observed.has_hm3 'yes' is not true, false or null")],
         )
 
 

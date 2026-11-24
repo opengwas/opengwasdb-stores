@@ -54,12 +54,11 @@ from typing import Any, Mapping
 import yaml
 
 from ogstores import bundle, engine, paths, run
-from ogstores.bundle import Bundle
-from ogstores.bundle import indexed_subset_step_name
+from ogstores.audit_indexed_subsets import DEFAULT_SUBSET_NAME
+from ogstores.bundle import Bundle, indexed_subset_step_name
 from ogstores.plan import (
     BUILD_PHASE,
     COMPLETION_PHASE,
-    COMPLETION_STEP_PREFIX,
     OBSERVED_VIEW_CHECK_STEP,
     REGISTER_STEPS,
     Step,
@@ -67,6 +66,7 @@ from ogstores.plan import (
     plan,
     planned_before_admission_record,
 )
+from ogstores.store_size import store_size_on_disk
 
 # The Validation Record shape `register` writes. Every record it writes carries
 # every `OBSERVED_FIELDS` and `BUILD_ENVIRONMENT_FIELDS` key, with a measurement
@@ -682,10 +682,8 @@ def require_declared_association_coverage(
         )
 
 
-# The Indexed Variant Subset `has_hm3` reports, by its declared name, and the
-# post step `has_rho` reports (#502). A completion phase's steps carry
-# `COMPLETION_STEP_PREFIX` (ADR 0037).
-HM3_SUBSET_NAME: str = "hm3"
+# The post step `has_rho` reports (#502); `has_hm3` reports the Indexed
+# Variant Subset `audit_indexed_subsets.DEFAULT_SUBSET_NAME`.
 RHO_STEP: str = "rho"
 
 # The `observed` keys #502 added, which `ogstores.backfill_observed` writes into
@@ -693,29 +691,21 @@ RHO_STEP: str = "rho"
 STORE_FACT_FIELDS: tuple[str, ...] = ("store_bytes", "has_hm3", "has_rho", "n_top_hits")
 
 
-def store_size_on_disk(store_dir: Path) -> int:
-    """The bytes of every file under a Store directory, from a stat of each (#502).
-
-    The same measure as `ogstores.audit._store_bytes`. It is repeated here
-    because `audit` imports the engine, and `register` reads a Store only
-    through its command line (ADR 0023): a stat opens no Store file.
-    """
-    return sum(path.stat().st_size for path in store_dir.rglob("*") if path.is_file())
-
-
-def _step_built(planned_steps: list[Step], step_records: Mapping[str, Mapping[str, Any]], name: str) -> bool | None:
+def _step_built(
+    planned_steps: list[Step],
+    step_records: Mapping[str, Mapping[str, Any]],
+    name: str,
+    *,
+    unplanned: bool | None,
+) -> bool | None:
     """Whether the phase ran step `name` (or its completion-phase counterpart) and it succeeded.
 
-    False when the phase plans no such step, so the Build Recipe never built it;
-    None when it plans one and no record says how it ended.
+    `unplanned` when the phase plans no such step; None when it plans one and
+    no record says how it ended.
     """
-    planned = [
-        step.name
-        for step in planned_steps
-        if step.name in (name, f"{COMPLETION_STEP_PREFIX}{name}")
-    ]
+    planned = [step.name for step in planned_steps if step.name in (name, completion_step_name(name))]
     if not planned:
-        return False
+        return unplanned
     record = step_records.get(planned[0])
     if record is None:
         return None
@@ -732,13 +722,19 @@ def store_facts(
     `planned_steps` are the publishing phase's, and `step_records` their
     records. `store_dir` is the published Store, or None when there is none to
     measure.
+
+    A recipe that declares no HM3 subset built none, so `has_hm3` is false. A
+    recipe that runs no `rho` step says nothing about a Rho Matrix built by hand
+    outside it (OGS-00022's), so `has_rho` is then null, never false.
     """
     return {
         "store_bytes": (
             store_size_on_disk(store_dir) if store_dir is not None and store_dir.is_dir() else None
         ),
-        "has_hm3": _step_built(planned_steps, step_records, indexed_subset_step_name(HM3_SUBSET_NAME)),
-        "has_rho": _step_built(planned_steps, step_records, RHO_STEP),
+        "has_hm3": _step_built(
+            planned_steps, step_records, indexed_subset_step_name(DEFAULT_SUBSET_NAME), unplanned=False
+        ),
+        "has_rho": _step_built(planned_steps, step_records, RHO_STEP, unplanned=None),
         # No step prints a top-hit count, so there is nothing to record until
         # opengwas/opengwasdb#488's `info --json` does; a recipe with
         # `post.top_hits: false` builds no Top-Hit Index, so null there is final.
@@ -1622,7 +1618,6 @@ def register_release(
 
 __all__ = [
     "BUILD_ENVIRONMENT_FIELDS",
-    "HM3_SUBSET_NAME",
     "OBSERVED_FIELDS",
     "RHO_STEP",
     "STORE_FACT_FIELDS",
@@ -1645,7 +1640,6 @@ __all__ = [
     "forced_completion",
     "harvest_observed_measurements",
     "store_facts",
-    "store_size_on_disk",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",
     "publication_register_step",

@@ -14,7 +14,12 @@ known file sizes under a temporary Artifact Root, so nothing is built.
    under the Artifact Root, and says what it would write.
 4. A real run writes nothing under the Artifact Root.
 5. A record already holding the facts has them replaced where they stand.
-6. A bundle whose record has no `observed` block, and a candidate, are skipped;
-   a Store with no register record reports `has_hm3` and `has_rho` as `null`.
+6. A bundle whose Store is not under the Artifact Root is reported by name as
+   missing and left alone. A bundle whose record has no `observed` block, and a
+   candidate, are skipped. A Store with no register record reports `has_hm3`
+   and `has_rho` as `null`, and a recipe with no Rho step `has_rho` as `null`.
+7. A record holding a key twice, a Store fact carrying a comment, and an edit
+   that would change another key (a column-0 comment inside `observed`) are
+   refused: exit 1, and the file keeps every byte.
 
     pixi run -e dev python3 tests/backfill-observed/test_backfill_observed.py

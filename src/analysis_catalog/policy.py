@@ -8,7 +8,6 @@ rules apply in the order of `POLICY`, and each decision carries its reason, so
 
 from __future__ import annotations
 
-import json
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
@@ -169,22 +168,14 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
-def _observed_flag(observed: Mapping[str, Any], key: str) -> int | None:
-    value = observed.get(key)
-    if value is None:
-        return None
-    if not isinstance(value, bool):
-        raise RefusedRow(f"Validation Record: {key} {value!r} is not true, false or null")
-    return int(value)
-
-
-def _top_hit_counts(observed: Mapping[str, Any]) -> str | None:
-    value = observed.get("n_top_hits")
-    if value is None:
-        return None
-    if not isinstance(value, Mapping):
-        raise RefusedRow(f"Validation Record: n_top_hits {value!r} is not a mapping from threshold to count")
-    return json.dumps({str(k): v for k, v in value.items()}, sort_keys=True, separators=(",", ":"))
+def _store_facts(observed: Mapping[str, Any]) -> dict[str, Any]:
+    """The #502 flags as 1, 0 or NULL and the top-hit counts as JSON, by the bundle contract's rule."""
+    try:
+        flags = {key: release_bundle.observed_flag(observed, key) for key in ("has_hm3", "has_rho")}
+        counts = release_bundle.top_hit_counts_text(observed)
+    except ValueError as exc:
+        raise RefusedRow(f"Validation Record: {exc}") from exc
+    return {**{key: None if flag is None else int(flag) for key, flag in flags.items()}, "n_top_hits": counts}
 
 
 def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tuple:
@@ -210,9 +201,7 @@ def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tu
         "n_variants": observed.get("n_variants"),
         "n_associations": observed.get("n_associations"),
         "store_bytes": observed.get("store_bytes"),
-        "has_hm3": _observed_flag(observed, "has_hm3"),
-        "has_rho": _observed_flag(observed, "has_rho"),
-        "n_top_hits": _top_hit_counts(observed),
+        **_store_facts(observed),
         "format_version": observed.get("format_version"),
         "opengwasdb_version": environment.get("opengwasdb_version"),
         "source_snapshot_id": release.get("source_snapshot_id"),

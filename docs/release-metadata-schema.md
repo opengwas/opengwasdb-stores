@@ -878,9 +878,9 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `observed.n_associations` | Yes | The association count the producing step (`build` or `complete`) reported, or `null` when it was not recorded. It is the Store's observed association count, never a value `register` derives: until #322 a Dense build that reported none recorded `n_variants × n_analyses`, which counts matrix cells and overstates a Store with empty cells. opengwas/opengwasdb#488's `opengwasdb info --json` makes it complete. |
 | `observed.association_coverage` | No | The Association Coverage the producing step reported, or `null` when it did not: evidence about the build, not the fact the Analysis Catalog serves, which is `release.yaml:association_coverage` (issue #341). The value is what opengwasdb reports, in the same four-value vocabulary as this repository (`gwas`, `cis`, `cis_and_signals`, `signals_only`); a legacy `full` in a Store built before opengwas/opengwasdb#298 reads as `gwas`. `register` records it as reported, checks no vocabulary of its own, and refuses a report that differs from the release's declaration, naming both values (#341): the builder was given the declared value, so a Store at another coverage is not the Store the bundle describes. Read from the step's stdout JSON, never from the Store's `manifest.json` (ADR 0023, #322). A present value that is not a non-empty string is refused, not recorded as `null`. `register` writes the key on every publication from #322 on; records written before it do not carry it and are not migrated. |
 | `observed.reference_assembly` | No | The reference assembly the producing step reported, or `null` when it did not, such as `GRCh37` or `GRCh38`. Read from the step's stdout JSON, never from the Store's `manifest.json` (ADR 0023, #322). A present value that is not a non-empty string is refused, not recorded as `null`. `register` writes the key on every publication from #322 on; records written before it do not carry it and are not migrated. |
-| `observed.store_bytes` | Yes | The published Store's size on disk in bytes: the sum of `st_size` over every file under its directory, measured by `register` at publication from a stat of each file (`register.store_size_on_disk`, the same measure as `ogstores.audit`'s; #502). A stat opens no Store file, so it is no Store read under [ADR 0023](adr/0023-the-registry-store-seam-is-a-command-line.md). `null` when no Store was on disk to measure, and in records written before #502, which no step filled. |
+| `observed.store_bytes` | Yes | The published Store's size on disk in bytes: the sum of `st_size` over every file under its directory, measured by `register` at publication from a stat of each file (`ogstores.store_size.store_size_on_disk`, the one definition of a Store's size on disk; #502). A stat opens no Store file, so it is no Store read under [ADR 0023](adr/0023-the-registry-store-seam-is-a-command-line.md). `null` when no Store was on disk to measure, and in records written before #502 until the backfill below fills them. |
 | `observed.has_hm3` | No | `true` when the Build Recipe declares the HM3 Indexed Variant Subset (`indexed_subsets` entry named `hm3`) and the publishing phase's step that builds it (`indexed-subset-hm3`, or `completion-indexed-subset-hm3`) succeeded; `false` when the recipe declares none, so the phase plans no such step, or the step's record shows it failed; `null` when the phase plans it and no record says how it ended. Read from the recipe and the step records, never from the Store (#502). |
-| `observed.has_rho` | No | The same for the Dense Rho Matrix: `true` when the recipe runs the `rho` step (`post.rho: true`, which plans `build-dense-rho`) and it succeeded, `false` when it runs none or it failed, `null` when no record says. A Rho Matrix built by hand outside the recipe, as OGS-00022's and OGS-00023's were, is not the recipe's, so it is not reported (#502). |
+| `observed.has_rho` | No | Whether the Build Recipe built a Dense Rho Matrix: `true` when the recipe runs the `rho` step (`post.rho: true`, which plans `build-dense-rho`) and it succeeded; `false` when that step's record shows it failed; `null` otherwise. A recipe that runs no `rho` step says nothing about a Rho Matrix built by hand outside it, as OGS-00022's and OGS-00023's were, so such a Store is `null`, never `false`; a hand-built Rho Matrix is not recorded. `null` too when the phase plans the step and no record says how it ended. Read from the recipe and the step records, never from the Store (#502). |
 | `observed.n_top_hits` | No | The Store's top-hit counts, a mapping from threshold to count, or `null`. `null` when `post.top_hits` is false, because the Store has no Top-Hit Index. No step prints the counts today, so every record carries `null` until opengwas/opengwasdb#488's `opengwasdb info --json` reports them; register and the backfill then fill it (#502). |
 | `observed.build_elapsed_s` | Yes | Summed step elapsed seconds, or `null` when it was not recorded. For a release that completes its own Store it is the steps of both phases (ADR 0037). |
 | `observed.validate_status` | Yes | The validate verdict the release-level `status` is derived from. |
@@ -927,17 +927,24 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `acceptance.commit` | Yes, in the block | The commit the candidate record came from, or `null` when the file was untracked or modified since its last commit, so no commit describes it. |
 | `acceptance.<block>` | No | Every other block of the candidate record, verbatim, except `status`, `validated_at`, `validator`, `build_environment`, `observed` and `errors`: its `checks`, `warnings` and `reports`, and any evidence its generator records. A block the candidate did not have is absent. |
 
-**Recording observations into a published bundle (#502).** The Store facts
-`store_bytes`, `has_hm3`, `has_rho` and `n_top_hits` describe the Store as it
-is served, and a record written before `register` measured them lacks them.
-`pixi run -e dev backfill-observed` (`ogstores.backfill_observed`) writes them
-into the Validation Record of every `built` or `validated` bundle, by the same
-rules `register` uses, reading the Artifact Root without writing to it. This
-changes no membership, so it does not breach an accepted bundle's
-immutability; only these observations may change this way. The tool edits
-those four keys and refuses a record whose edit would change any other, skips
-a record with no `observed` block, and is idempotent; `--dry-run` prints what
-it would change. It runs once, after opengwas/opengwasdb-stores#498 rewrites
+**Recording observations into a published bundle (#502).** An accepted Release
+Bundle may change in exactly two ways, and neither changes its membership: an
+Observed-Only bundle may gain a completion block ([ADR 0037](adr/0037-reference-completion-replaces-its-store.md)),
+and observations about its built Store may be recorded into its Validation
+Record's `observed` block. The Store facts `store_bytes`, `has_hm3`, `has_rho`
+and `n_top_hits` describe the Store as it is served, and a record written before
+`register` measured them lacks them. `pixi run -e dev backfill-observed`
+(`ogstores.backfill_observed`) writes them into the Validation Record of every
+`built` or `validated` bundle, by the same rules `register` uses, reading the
+Artifact Root without writing to it. It edits those four keys and nothing
+else, and is idempotent; `--dry-run` prints what it would change. It refuses a
+record that holds a key twice, whose Store-fact line carries a comment the
+edit would drop, or whose edit would change any other key. It skips a record
+with no `observed` block, and it reports by name, as its own outcome, a bundle
+whose Store is missing from the Artifact Root and leaves that bundle as it is.
+After the backfill no `built` or `validated` bundle whose Store is on disk
+carries a `null` `store_bytes`; `has_rho` and `n_top_hits` keep the `null`s
+defined above. It runs once, after opengwas/opengwasdb-stores#498 rewrites
 every Store to format 0.3.0, and again for the counts once
 opengwas/opengwasdb#488 reports them.
 

@@ -8,8 +8,12 @@
 2. A second run changes no byte.
 3. `--dry-run` writes nothing, in the registry or under the Artifact Root.
 4. A real run writes nothing under the Artifact Root.
-5. A record with no `observed` block, and a bundle with no built Store, are
-   skipped; a Store with no register record reports `has_hm3`/`has_rho` as null.
+5. A bundle whose Store is not under the Artifact Root is reported by name as
+   missing and left alone. A record with no `observed` block, and a bundle with
+   no built Store, are skipped. A Store with no register record reports
+   `has_hm3`/`has_rho` as null, and a recipe with no Rho step `has_rho` null.
+6. A record holding a key twice, a Store fact carrying a comment, and an edit
+   that would change another key are refused, and the file keeps every byte.
 
 Run from the repository root:
     pixi run -e dev python3 tests/backfill-observed/test_backfill_observed.py
@@ -174,16 +178,21 @@ class BackfillTest(unittest.TestCase):
             "data.zarr/beta/c/0/0": bytes(range(256)) * 9,
             "variants.tsv.gz": b"v" * 1234,
         })
-        # Neither declared; registered, and its Store no longer on disk.
+        # Neither declared, and registered.
         write_bundle(self.registry, "OGS-00042", status="built")
         write_records(self.artifact_root, "OGS-00042", {"build": True, "register": True})
+        self.bytes_42 = write_store(self.artifact_root, "OGS-00042", {"manifest.json": b"{}" * 50})
         # HM3 declared, but no register record says which steps built the Store.
         write_bundle(self.registry, "OGS-00043", indexed_subsets=[HM3])
         self.bytes_43 = write_store(self.artifact_root, "OGS-00043", {"manifest.json": b"{}"})
         # Skipped: a legacy record with no `observed` block, and a candidate.
         write_bundle(self.registry, "OGS-00044",
                      validation="status: passed\nchecks:\n  schema: passed\nwarnings: []\n")
+        write_store(self.artifact_root, "OGS-00044", {"manifest.json": b"{}"})
         write_bundle(self.registry, "OGS-00045", status="candidate")
+        # Registered, but its Store is gone from the Artifact Root (OGS-00022's case).
+        write_bundle(self.registry, "OGS-00046")
+        write_records(self.artifact_root, "OGS-00046", {"build": True, "register": True})
 
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -203,13 +212,16 @@ class BackfillTest(unittest.TestCase):
         return (self.registry / store_id / "validation.yaml").read_text(encoding="utf-8")
 
     def test_fills_the_store_facts_and_changes_nothing_else(self) -> None:
-        before = {store_id: self.record(store_id) for store_id in ("OGS-00041", "OGS-00042", "OGS-00043", "OGS-00044")}
+        before = {
+            store_id: self.record(store_id)
+            for store_id in ("OGS-00041", "OGS-00042", "OGS-00043", "OGS-00044", "OGS-00046")
+        }
 
-        self.backfill()
+        printed = self.backfill()
 
         expected = {
             "OGS-00041": {"store_bytes": self.bytes_41, "has_hm3": True, "has_rho": True, "n_top_hits": None},
-            "OGS-00042": {"store_bytes": None, "has_hm3": False, "has_rho": False, "n_top_hits": None},
+            "OGS-00042": {"store_bytes": self.bytes_42, "has_hm3": False, "has_rho": None, "n_top_hits": None},
             "OGS-00043": {"store_bytes": self.bytes_43, "has_hm3": None, "has_rho": None, "n_top_hits": None},
         }
         for store_id, facts in expected.items():
@@ -229,6 +241,13 @@ class BackfillTest(unittest.TestCase):
             index = observed_keys.index("store_bytes")
             self.assertEqual(observed_keys[index:index + 4], list(NEW_KEYS))
         self.assertEqual(self.record("OGS-00044"), before["OGS-00044"], "no observed block: skipped")
+        self.assertEqual(self.record("OGS-00046"), before["OGS-00046"], "no Store to measure: left alone")
+        self.assertIn(
+            "OGS-00046: missing (Store missing from the Artifact Root: "
+            f"{paths.store_path('OGS-00046', root=self.artifact_root)})",
+            printed,
+        )
+        self.assertIn("1 with the Store missing, 2 skipped, 0 refused", printed)
         self.assertEqual(self.record("OGS-00045"), VALIDATION_TEMPLATE, "a candidate is skipped")
 
     def test_a_second_run_changes_nothing(self) -> None:
@@ -256,7 +275,7 @@ class BackfillTest(unittest.TestCase):
         self.assertIn(f"OGS-00041: would write store_bytes: null -> {self.bytes_41}", result.stdout)
         self.assertIn("has_hm3: (absent) -> true", result.stdout)
         self.assertIn("3 would write", result.stdout)
-        self.assertIn("2 skipped", result.stdout)
+        self.assertIn("1 with the Store missing, 2 skipped", result.stdout)
 
     def test_writes_nothing_under_the_artifact_root(self) -> None:
         artifacts = tree(self.artifact_root)
@@ -283,6 +302,38 @@ class BackfillTest(unittest.TestCase):
         )
         self.assertEqual(
             without_store_facts(path.read_text(encoding="utf-8")), without_store_facts(VALIDATION_TEMPLATE)
+        )
+
+    def assert_refused(self, record: str, reason: str) -> None:
+        """The tool exits 1, names the reason, and leaves the file byte for byte."""
+        path = self.registry / "OGS-00041" / "validation.yaml"
+        path.write_text(record, encoding="utf-8")
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            status = backfill_observed.main(self.arguments())
+        self.assertEqual(status, 1, printed.getvalue())
+        self.assertIn(f"OGS-00041: refuse ({reason}", printed.getvalue())
+        self.assertEqual(path.read_bytes(), record.encode("utf-8"))
+
+    def test_a_key_held_twice_is_refused(self) -> None:
+        """PyYAML would keep the last of two keys, so the parsed comparison alone would pass it."""
+        self.assert_refused(
+            VALIDATION_TEMPLATE.replace("  store_bytes: null\n", "  store_bytes: null\n  store_bytes: 5\n"),
+            "validation.yaml holds the key 'store_bytes' twice",
+        )
+
+    def test_a_store_fact_carrying_a_comment_is_refused(self) -> None:
+        """Replacing the line would drop the comment, so the record is refused instead."""
+        self.assert_refused(
+            VALIDATION_TEMPLATE.replace("  store_bytes: null\n", "  store_bytes: null  # to be measured\n"),
+            "`observed.store_bytes` carries a comment",
+        )
+
+    def test_an_edit_that_would_change_another_key_is_refused(self) -> None:
+        """A column-0 comment ends the block the edit sees, so `store_bytes` after it would be written twice."""
+        self.assert_refused(
+            VALIDATION_TEMPLATE.replace("  store_bytes: null\n", "# measured below\n  store_bytes: null\n"),
+            "validation.yaml holds the key 'store_bytes' twice",
         )
 
 
