@@ -118,7 +118,7 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
 
     def test_canonical_columns_present_in_order(self) -> None:
         """stores.tsv contains exactly the canonical columns in defined order."""
-        self.assertEqual(len(COLUMNS), 28)
+        self.assertEqual(len(COLUMNS), 31)
         expected = (
             "store_id",
             "label",
@@ -139,6 +139,9 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             "n_variants",
             "n_associations",
             "store_bytes",
+            "has_hm3",
+            "has_rho",
+            "n_top_hits",
             "build_elapsed_s",
             "validate_status",
             "first_author",
@@ -150,6 +153,48 @@ class TestIndexGenerationAndColumns(unittest.TestCase):
             "source_url",
         )
         self.assertEqual(COLUMNS, expected)
+
+    def test_store_facts_render_from_the_validation_record(self) -> None:
+        """The #502 observed fields reach stores.tsv, and an unrecorded one is empty."""
+        recorded = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00031",
+            label="recorded-facts",
+            validation_data={
+                "status": "passed",
+                "observed": {
+                    "store_bytes": 123456,
+                    "has_hm3": True,
+                    "has_rho": False,
+                    "n_top_hits": {"5e-08": 12, "5e-06": 340},
+                },
+            },
+        )
+        unrecorded = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00032",
+            label="unrecorded-facts",
+            validation_data={"status": "passed", "observed": {"store_bytes": None}},
+        )
+        row = render_stores_row(recorded)
+        self.assertEqual(
+            (row["store_bytes"], row["has_hm3"], row["has_rho"], row["n_top_hits"]),
+            ("123456", "true", "false", '{"5e-06":340,"5e-08":12}'),
+        )
+        row = render_stores_row(unrecorded)
+        self.assertEqual(
+            (row["store_bytes"], row["has_hm3"], row["has_rho"], row["n_top_hits"]), ("", "", "", "")
+        )
+
+    def test_a_non_boolean_store_flag_stops_the_master_list(self) -> None:
+        b = create_mock_bundle(
+            self.stores_dir,
+            "OGS-00033",
+            label="bad-flag",
+            validation_data={"status": "passed", "observed": {"has_rho": "yes"}},
+        )
+        with self.assertRaises(ValueError):
+            render_stores_row(b)
 
     def test_build_command_is_rendered_purely_by_plan(self) -> None:
         """build_command is derived from plan(bundle)[0].argv, not stored or hard-maintained."""
@@ -664,7 +709,8 @@ class TestPublishedCompletionState(unittest.TestCase):
         )
         rows = [render_stores_row(b, artifact_root="/art") for b in (parent, child)]
 
-        # Byte-for-byte the rows this repository rendered before #307.
+        # Byte-for-byte the rows this repository rendered before #307, with the
+        # empty Store-fact columns a record written before #502 renders.
         self.assertEqual(
             render_stores_tsv([parent, child], artifact_root="/art"),
             "\n".join(
@@ -680,7 +726,7 @@ class TestPublishedCompletionState(unittest.TestCase):
                     # Rendered from plan(), which names the record since #428.
                     "--admission-record /art/OGS-00042/store.opengwasdb.admission "
                     "--source-assembly hg38\t"
-                    "0.2.0\t1\t1\t0\t100\t180\t4096\t12.5\tpassed\t"
+                    "0.2.0\t1\t1\t0\t100\t180\t4096\t\t\t\t12.5\tpassed\t"
                     "NA\tNA\tNA\tNA\tNA\tNA\tNA",
                     "OGS-00043\tlegacy-child\tdense\treference_completed\tbuilt\t"
                     "OGS-00042\tfalse\t/art/OGS-00043/store.opengwasdb\t"
@@ -688,7 +734,7 @@ class TestPublishedCompletionState(unittest.TestCase):
                     "opengwasdb complete-dense /art/OGS-00042/store.opengwasdb "
                     "/art/OGS-00043/store.opengwasdb --release-id OGS-00043 "
                     "--ancestry EUR\t"
-                    "0.2.0\t1\t1\t0\t100\t180\t4096\t12.5\tpassed\t"
+                    "0.2.0\t1\t1\t0\t100\t180\t4096\t\t\t\t12.5\tpassed\t"
                     "NA\tNA\tNA\tNA\tNA\tNA\tNA",
                     "",
                 ]

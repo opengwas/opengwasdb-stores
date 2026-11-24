@@ -257,6 +257,9 @@ test-r = { cmd = "python3 tests/run_all_tests.py --only r" }
 concordance-run = { cmd = "python3 -m manifest_generation.run_concordance_study" }
 bundle-check = { cmd = "python3 -m manifest_generation.check_bundles" }
 audit-indexed-subsets = { cmd = "python3 -m ogstores.audit_indexed_subsets" }
+# Writes #502's Store facts into the Validation Records registered before them.
+# Run once, after #498 rewrites the Stores; `--dry-run` writes nothing.
+backfill-observed = { cmd = "python3 -m ogstores.backfill_observed" }
 env-check = { cmd = "python3 tools/env_check.py" }
 engine-update = { cmd = "python3 -m ogstores.engine_update" }
 worktree-prune = { cmd = "python3 tools/prune_worktrees.py" }

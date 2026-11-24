@@ -15,6 +15,7 @@ from __future__ import annotations
 import csv
 import functools
 import hashlib
+import json
 import re
 import tomllib
 from collections.abc import Callable, Iterable, Mapping, Sequence
@@ -551,6 +552,32 @@ class Bundle:
 
 class NotBuildableError(ValueError):
     """The release workflow was asked to build a bundle its Release Status does not allow (#247)."""
+
+
+def observed_flag(observed: Mapping[str, Any], key: str) -> bool | None:
+    """A Validation Record's `observed` flag (`has_hm3`, `has_rho`; #502): true, false, or None when null or absent.
+
+    The one rule for every reader of the flags; any other value is refused
+    with ValueError rather than read as true or false.
+    """
+    value = observed.get(key)
+    if value is not None and not isinstance(value, bool):
+        raise ValueError(f"observed.{key} {value!r} is not true, false or null")
+    return value
+
+
+def top_hit_counts_text(observed: Mapping[str, Any]) -> str | None:
+    """`observed.n_top_hits` as compact JSON, keyed by threshold and sorted, or None while null (#502).
+
+    The one encoding the master list and the Analysis Catalog publish. A value
+    that is not a mapping is refused with ValueError.
+    """
+    value = observed.get("n_top_hits")
+    if value is None:
+        return None
+    if not isinstance(value, Mapping):
+        raise ValueError(f"observed.n_top_hits {value!r} is not a mapping from threshold to count")
+    return json.dumps({str(k): v for k, v in value.items()}, sort_keys=True, separators=(",", ":"))
 
 
 def is_completion_pending(bundle: Bundle, published: str | None) -> bool:
@@ -2103,6 +2130,8 @@ def check(
 
 
 __all__ = [
+    "observed_flag",
+    "top_hit_counts_text",
     "ASSOCIATION_COVERAGES",
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",

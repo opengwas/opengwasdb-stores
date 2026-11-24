@@ -35,4 +35,6 @@ build and its validation reuse one declared execution setting:
 
 This makes the seam a single pure function, `plan(bundle) -> list[Step]`, mapping a Release Bundle to a sequence of argv lists. That function is the entire adapter layer, and it is testable by comparing argv against golden values with no fixture stores. The master list is rendered from it, so the published build command is derived rather than maintained; what actually ran is a separate fact, recorded per step at execution time and compared against the planned argv before a release is registered.
 
+Measuring a published Store's size on disk, a stat of each of its files, is not a Store read: `register` records `observed.store_bytes` that way without opening any Store file (#502).
+
 Validation splits along the same line. This repository validates bundle structure, required files, path existence, checksums, release identity, and lineage — facts about the registry. Source formats, store contents, layout behaviour, query results, and scientific invariants are validated once, in `opengwasdb`, and this repository records the verdict rather than reproducing the check.
