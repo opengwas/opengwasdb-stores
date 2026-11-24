@@ -5,9 +5,10 @@ the committed Release Bundles and the Artifact Root on the host below. Do not
 edit by hand; the same run writes `docs/artifact-root-check.json`. It is read-only:
 fixing a finding (rebuild, withdraw, finish a publication) is the operator's decision.
 
-- Checked at: 2026-11-24T21:51:33Z
+- Checked at: 2026-11-24T22:00:08Z
 - Host: `app-dc3-ogws-p0.services.bris.ac.uk`
 - Artifact Root: `/data/opengwasdb/stores`
+- Registry revision: `b30eb21c42055c75cd5cb96c345bac87d463a777` (clean)
 - Release Bundles: 24; release directories: 20
 - Result: fails, exit status 1 (categories 1 and 4 fail the check)
 
