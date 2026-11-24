@@ -95,7 +95,7 @@ components:
     container: gwas_orchestration
     stages: [cross]
     summary: One fixed benchmark, recorded at the end of every epic.
-    paths: [src/yardstick/]
+    paths: [src/yardstick/, tools/yardstick_inputs.py]
   - id: dev_tools
     name: Developer tools
     container: gwas_orchestration
