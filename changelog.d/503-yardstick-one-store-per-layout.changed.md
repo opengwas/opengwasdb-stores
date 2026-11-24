@@ -8,6 +8,7 @@
   and `rho_matrix`. A query a layout refuses is now recorded `not_applicable`,
   not `unavailable`. `tools/yardstick_inputs.py` picks the inputs read-only
   through the facade, and the workload records the rows each returned. The run
-  budget is 1800 s (was 600 s) and the cadence is every opengwasdb release
-  (opengwas/opengwasdb#487) and every ogquery release (#506). The result schema
+  budget is 1800 s (was 600 s) and the cadence is the finish of every epic
+  that changes opengwasdb, or ogquery once it exists (opengwas/opengwasdb#487,
+  #506). The result schema
   only gains keys. `CONTEXT.md` defines **Yardstick**.

@@ -2185,8 +2185,6 @@ def check(
 
 
 __all__ = [
-    "observed_flag",
-    "top_hit_counts_text",
     "ASSOCIATION_COVERAGES",
     "BUILDABLE_STATUSES",
     "BUILD_REQUIRED_KEYS",
@@ -2228,12 +2226,15 @@ __all__ = [
     "is_trait_ontology_curie",
     "is_valid_column_map_file",
     "load",
+    "manifest_summary",
     "membership_ids",
+    "observed_flag",
     "partition_buildable",
     "partition_membership",
     "refuse_unbuildable",
     "reserved_options",
     "summarise",
+    "top_hit_counts_text",
     "trait_ontology_id_terms",
     "unrenderable_options",
     "validate_status_transition",
