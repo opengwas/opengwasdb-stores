@@ -94,22 +94,23 @@ INDEX = "index.sqlite"
 
 
 def carries_index(store_path: Path) -> bool:
-    """Whether the release at `store_path` ships an `index.sqlite` (the engine's `ships_index`).
+    """Whether the release at `store_path` ships an `index.sqlite`.
 
     Every 0.2 release does. From 0.3.0 the file holds only `completion_quality`, so an
-    Observed-Only release has none and the Store Reader never opens one (ADR 0102): for it
-    a missing index is the Store as built, not a reason to refuse it.
-    """
-    from opengwasdb.store.open import ships_index
-    from opengwasdb.store_reader.enums import CompletionState, PrimaryStorageLayout
+    Observed-Only release has none, and neither has a Hybrid's outer release (its Dense
+    Component holds it); the Store Reader never opens one (opengwasdb ADR 0102). For such a
+    release a missing index is the Store as built, not a reason to refuse it.
 
+    This is the engine's `ships_index` (`opengwasdb.store.open`), read from the manifest's
+    three fields. It is written out rather than imported because
+    docs/architecture/engine-imports-baseline.yaml admits no new engine import; the test
+    `CarriesIndexAgreesWithTheEngineTest` holds the two together.
+    """
     manifest = json.loads((store_path / "manifest.json").read_text(encoding="utf-8"))
-    return ships_index(
-        PrimaryStorageLayout(manifest["primary_layout"]),
-        manifest["format_version"],
-        CompletionState(manifest["completion_state"]),
-        dense_component=False,
-    )
+    major, minor = (int(part) for part in str(manifest["format_version"]).split(".")[:2])
+    if (major, minor) < (0, 3):
+        return True
+    return manifest["completion_state"] == "reference_completed" and manifest["primary_layout"] != "hybrid"
 
 
 def snapshot(store_path: Path) -> dict[str, Any]:

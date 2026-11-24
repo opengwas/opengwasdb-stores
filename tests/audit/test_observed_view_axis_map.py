@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import layouts  # noqa: E402
 
+from opengwasdb.model.manifest import StoreManifest  # noqa: E402
 from opengwasdb.variants.normalise import CanonicalVariant  # noqa: E402
 
 TOOL = Path(__file__).resolve().parents[2] / "tools" / "benchmarks" / "observed-view-check.py"
@@ -37,7 +38,26 @@ class AxisMapTest(unittest.TestCase):
     def release(self, root: Path, name: str, variants: list[CanonicalVariant]) -> Path:
         path = root / name
         path.mkdir()
-        (path / "manifest.json").write_text(json.dumps({"format_version": layouts.FORMAT_VERSION[self.LAYOUT]}))
+        manifest = StoreManifest.from_dict(
+            {
+                "store_id": name,
+                "release_id": name,
+                "format_version": layouts.FORMAT_VERSION[self.LAYOUT],
+                "primary_layout": "ragged",
+                "association_coverage": "full",
+                "completion_state": "observed_only",
+                "reference_assembly": "GRCh38",
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "encoding": {
+                    "version": 3,
+                    "z": {"kind": "int16_fixed", "scale": 1024},
+                    "se": {"kind": "float16"},
+                    "eaf": {"kind": "absent"},
+                },
+                "provenance": {},
+            }
+        )
+        (path / "manifest.json").write_text(json.dumps(manifest.to_dict()))
         layouts.write_axis(path, variants, {}, self.LAYOUT)
         return path
 

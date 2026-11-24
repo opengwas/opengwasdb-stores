@@ -77,9 +77,6 @@ from opengwasdb.layouts.ragged.by_variant import ByVariantReader
 from opengwasdb.model.analyses import read_analysis_records
 from opengwasdb.store.arrays import array_length
 from opengwasdb.store.open import open_store
-from opengwasdb.store_reader.alid_sidecar import AlidSidecar, sidecar_problems
-from opengwasdb.store_reader.format import carries_alid_sidecar
-from opengwasdb.store_reader.hybrid import DenseComponentSharesAxis
 from opengwasdb.variants import iter_variant_records, read_variant_reference
 from opengwasdb.variants.axis import (
     VariantAxis,
@@ -676,29 +673,39 @@ def _scan_alid_index(bytes_path: Path, rows_path: Path, *, block: int = DEFAULT_
     )
 
 
-def _scan_alid_sidecar(path: Path, table_rows: int) -> tuple[_AlidIndexScan | None, list[str]]:
+def _fixed_width_alid_index(path: Path) -> bool:
+    """Whether the release at `path` carries the 0.2 series' fixed-width ALID pair, as its
+    own Variant Axis opens it: the engine's index names its files, so nothing here
+    compares version strings. The 0.3.0 sidecar is the other kind (ADR 0105)."""
+    axis = VariantAxis(path)
+    try:
+        return variant_alid_bytes_path(path).name in axis.alid_index.FILENAMES
+    finally:
+        axis.close()
+
+
+def _scan_alid_sidecar(path: Path, table_rows: int) -> tuple[_AlidIndexScan, list[str]]:
     """The variable-length ALID sidecar format 0.3.0 carries (ADR 0105), checked by the
-    engine's own structural rules (`sidecar_problems`) and against the table's row count.
+    engine's own structural rules (`AlidIndex.problems`, through the Variant Axis).
 
     The sidecar holds every ALID, however wide, and its writer refuses a repeated one, so
     there is no run of equal entries to count and no width to leave rows out at: what
-    this reports is whether the sidecar is sound. A sidecar that is not -- half written,
-    unsorted, one that names an ALID twice -- is a problem, not a count.
-    Returns the scan (None when the files cannot be opened) and the problems found.
+    this reports is whether the sidecar is sound. A sidecar that is not -- unsorted, one
+    that names an ALID twice, one whose rows are not the table's -- is a problem, not a
+    count. An axis whose sidecar is missing or half written does not open at all, so the
+    audit stops there, as the engine does.
     """
+    axis = VariantAxis(path)
     try:
-        sidecar = AlidSidecar.open(path)
-    except ValueError as exc:
-        return None, [str(exc)]
-    if sidecar is None:
-        return None, ["the Store holds no ALID sidecar"]
-    problems = list(sidecar_problems(sidecar))
-    if not problems and sidecar.n_rows != table_rows:
-        problems.append(f"the ALID sidecar names {sidecar.n_rows} rows but variants.tsv.gz has {table_rows}")
+        index = axis.alid_index
+        problems = list(index.problems(table_rows, table_rows))
+        entries = int(axis.n_variants)
+    finally:
+        axis.close()
     return (
         _AlidIndexScan(
-            entries=sidecar.n_rows,
-            rows_entries=sidecar.n_rows,
+            entries=entries,
+            rows_entries=entries,
             sorted_ok=not problems,
             duplicate_groups=0,
             duplicate_extra_rows=0,
@@ -1036,13 +1043,15 @@ def reconcile(
     # must equal the mapping's. From 0.3.0 it carries none (#472): its rows are the
     # shared axis's rows `dense_to_shared.npy` names, so there is no second length to
     # disagree with the mapping and the engine says so by refusing the open.
-    n_dense_axis: int | None
-    try:
+    # Before 0.3.0 the Dense Component carries a Variant Axis of its own, whose length
+    # must equal the mapping's. From 0.3.0 it carries none (#472): its rows are the
+    # shared axis's rows `dense_to_shared.npy` names, so there is no second length to
+    # disagree with the mapping, and the engine refuses to open one. Which kind this
+    # release is, is the root axis's own ALID index (`_fixed_width_alid_index`).
+    n_dense_axis: int | None = None
+    if _fixed_width_alid_index(path):
         # A Dense Component is the root's format, whatever manifest it carries.
         dense_handle = VariantAxis(dense_component_path(path), format_version=manifest.format_version)
-    except DenseComponentSharesAxis:
-        n_dense_axis = None
-    else:
         try:
             n_dense_axis = dense_handle.n_variants
         finally:
@@ -1390,7 +1399,7 @@ def reconcile(
         table = variant_table_path(path)
         if not table.is_file():
             raise AuditError(f"{path} holds no variants.tsv.gz")
-        sidecar_format = carries_alid_sidecar(manifest.format_version)
+        sidecar_format = not _fixed_width_alid_index(path)
         scan = _scan_variant_table(
             table,
             n_axis=n_axis,
@@ -1402,13 +1411,6 @@ def reconcile(
         sidecar_problem_list: list[str] = []
         if sidecar_format:
             index_scan, sidecar_problem_list = _scan_alid_sidecar(path, scan.rows)
-            if index_scan is None:
-                inconsistency(
-                    "alid_search_index_absent",
-                    "the Store holds no readable ALID sidecar, so duplicate ALIDs are "
-                    "counted only within one position's rows rather than over the whole "
-                    "axis: " + "; ".join(sidecar_problem_list),
-                )
         else:
             bytes_path = variant_alid_bytes_path(path)
             rows_path = variant_alid_rows_path(path)

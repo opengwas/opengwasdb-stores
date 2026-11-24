@@ -30,7 +30,6 @@ import numpy as np
 
 from opengwasdb.encoding import DenseEafPlane, DenseSePlane, DenseZPlane
 from opengwasdb.store.open import open_store
-from opengwasdb.variants.axis import VariantAxis
 
 ROOT = Path("/data/opengwasdb/stores")
 CHUNK_ROWS = 1000
@@ -56,7 +55,8 @@ def axis_map(parent: Path, child: Path) -> tuple[np.ndarray, np.ndarray, dict]:
     release's format carries: the 0.2 fixed-width pair or the 0.3.0 sidecar), never the
     index files themselves. A row the parent's index leaves out (an ALID wider than 32
     bytes, 0.2 only) is unmapped, as it always was."""
-    parent_axis, child_axis = VariantAxis(parent), VariantAxis(child)
+    parent_axis = open_store(parent).variant_axis(aliases=False)
+    child_axis = open_store(child).variant_axis(aliases=False)
     try:
         n_parent, n_child = parent_axis.n_variants, child_axis.n_variants
         alids = parent_axis.alid_index.alids(np.arange(n_parent))

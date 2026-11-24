@@ -518,6 +518,26 @@ class ProcessGroupTest(unittest.TestCase):
                 self.fail("the worker's child survived the timeout")
 
 
+class CarriesIndexAgreesWithTheEngineTest(unittest.TestCase):
+    """`runner.carries_index` is a copy of the engine's `ships_index`, so it is checked against it."""
+
+    def test_every_version_layout_and_state(self) -> None:
+        from opengwasdb.store.open import ships_index
+        from opengwasdb.store_reader.enums import CompletionState, PrimaryStorageLayout
+
+        with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as tmp:
+            store = Path(tmp)
+            for version in ("0.1.0", "0.2.0", "0.2.3", "0.2.10", "0.3.0", "0.3.1", "0.10.0"):
+                for layout in PrimaryStorageLayout:
+                    for state in CompletionState:
+                        (store / "manifest.json").write_text(manifest_text(version, layout=layout.value, state=state.value))
+                        self.assertEqual(
+                            runner.carries_index(store),
+                            ships_index(layout, version, state, dense_component=False),
+                            (version, layout, state),
+                        )
+
+
 class RunnerGuardTest(unittest.TestCase):
     """The guard and the budget, at the seam, with no query run."""
 
