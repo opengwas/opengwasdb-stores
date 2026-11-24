@@ -52,8 +52,33 @@ class WorkloadError(ValueError):
 
 #: A measure only some layouts answer needs its input only on that layout; elsewhere it is `not_applicable`.
 ONLY_ON_LAYOUT = {"range_by_analysis": "ragged"}
-#: Inputs that may return no rows by design, and so record `not_applicable`.
-MAY_BE_EMPTY = ("top_hits",)
+
+
+#: Measures that read an input and so need `input_rows[<measure>]`: the rows one call returned when the
+#: workload was written. `range_by_analysis` only on a Ragged entry, rho only where `rho` declares a Rho Matrix.
+ROW_COUNTED = (
+    "phewas_rsid", "phewas_alid", "phewas_position", "resolve", "region_100kb", "region",
+    *LOOKUP_SHAPES, "analysis_full", "analysis_full_observed_only", "top_hits", "range_by_analysis",
+    "rho", "rho_row", "rho_matrix",
+)
+
+
+def lookup_inputs(lookup: dict[str, Any], n_variants: int, n_analyses: int) -> tuple[list[str], list[str]]:
+    """A lookup shape's variants and Analyses from the entry's fixed lists of 100.
+
+    One variant is the first; ten are every tenth, so they stay scattered; 100 are all. Analyses are the first N.
+    """
+    variants = lookup["variants"]
+    picked = variants[:1] if n_variants == 1 else variants[:: LOOKUP_N // n_variants]
+    return picked, lookup["analyses"][:n_analyses]
+
+
+def _counted(name: str, store: dict[str, Any]) -> bool:
+    if name == "range_by_analysis":
+        return store["layout"] == "ragged"
+    if name in ("rho", "rho_row", "rho_matrix"):
+        return bool(store.get("rho"))
+    return True
 
 
 def _check_inputs(store_id: str, store: dict[str, Any]) -> None:
@@ -63,12 +88,16 @@ def _check_inputs(store_id: str, store: dict[str, Any]) -> None:
             values = lookup.get(key)
             if not isinstance(values, list) or len(values) != LOOKUP_N or len(set(values)) != LOOKUP_N:
                 raise WorkloadError(f"{store_id}: lookup.{key} must be {LOOKUP_N} distinct identifiers")
-    # One read-only call per input was made when the workload was written; an input that returned nothing is wrong.
-    for name, rows in (store.get("input_rows") or {}).items():
+    counts = store.get("input_rows") or {}
+    for name in store["measures"]:
+        if name not in ROW_COUNTED or not _counted(name, store):
+            continue
+        rows = counts.get(name)
         if not isinstance(rows, int) or isinstance(rows, bool) or rows < 0:
-            raise WorkloadError(f"{store_id}: input_rows.{name} must be a count")
-        if rows == 0 and name not in MAY_BE_EMPTY:
-            raise WorkloadError(f"{store_id}: input {name} returned no rows when it was checked")
+            raise WorkloadError(f"{store_id}: input_rows lacks a row count for {name}")
+        # `top_hits` may be empty by design: the Store has none, and the measure is `not_applicable`.
+        if rows == 0 and name != "top_hits":
+            raise WorkloadError(f"{store_id}: input for {name} returned no rows when it was checked")
 
 
 def check(workload: dict[str, Any]) -> None:

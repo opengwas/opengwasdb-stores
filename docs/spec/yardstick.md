@@ -1,6 +1,6 @@
 # The yardstick
 
-One fixed benchmark, run on every opengwasdb release (opengwas/opengwasdb#487), and on every ogquery release once it exists (#506), so that a performance trend
+One fixed query workload, run on every opengwasdb release (opengwas/opengwasdb#487), and on every ogquery release once it exists (#506), so that a performance trend
 compares like with like (#390). opengwasdb's `benchmarks/` holds one-off
 harnesses; the yardstick is the single workload this repository re-runs.
 
@@ -25,12 +25,11 @@ result means, so a change bumps `workload_id`, and this section says why.
 | OGS-00009 | Dense | gwas, Reference-Completed, with `hm3` | measured |
 | OGS-00011 | Hybrid | gwas, Reference-Completed, with `hm3` | measured |
 | OGS-00027 | Ragged | cis | measured |
-| OGS-00022 | Hybrid | gwas, a 10-Analysis pilot with a Rho Matrix | measured, `rho`, `rho_row` and `rho_matrix` only |
 
 `yardstick-4` is the workload of opengwas/opengwasdb-stores#503: one Store per GWAS Store Layout, every query type the engine's facade exposes, and a fixed set of scattered inputs, so that a trend across engine versions compares like with like. It changes what is measured, so every earlier result describes a different workload:
 
 - OGS-00006 is dropped: OGS-00027 is the Ragged representative.
-- OGS-00022 is added as a **rho-only** entry. None of OGS-00009, OGS-00011 or OGS-00027 has a Rho Matrix (it is opt-in, ADR 0025); only the 10-Analysis Hybrid pilots OGS-00022 and OGS-00023 do. So OGS-00022 is opened and measured only for `rho`, `rho_row` and `rho_matrix`, and carries no other measure. It measures the Rho read path, not a production-size matrix, and its timings are not comparable with the other Stores'.
+- No Rho Matrix is measured today, because no served Store holds one (it is opt-in, ADR 0025; the 10-Analysis Hybrid pilots OGS-00022 and OGS-00023 had one, and their directories are gone). `rho`, `rho_row` and `rho_matrix` stay in the code and are listed on every Store, so each records `not_applicable`; a Store that has a Rho Matrix joins the workload when one exists, with `rho` set to its ids.
 - Every new measure below was added, and the full-Analysis queries stay as they were.
 - `BUDGET_S` rises from 600 s to 1800 s, because the new measures add many timed reads; `over_budget` stays.
 - The glossary term is **Yardstick** (CONTEXT.md): it records, it is not a gate.
@@ -68,12 +67,12 @@ Measures (a Store lists the ones that apply to it):
 
 **Fixed, scattered inputs.** The workload fixes every input, so every run reads the same variants and Analyses. `tools/yardstick_inputs.py` picks them, read-only, through the facade, and the workload file records the result:
 
-- `lookup.variants` and `lookup.analyses`: 100 of each, at evenly spaced rows of the Store's own variant and Analyses tables, so the variants spread over every chromosome. The smaller shapes are the first 1 and first 10 of each list. On a Ragged Store, which holds an Analysis only inside its own window, variants scattered over the whole variant table meet almost no Analysis (`lookup_1x100` and `lookup_100x1` returned nothing on OGS-00027), so its variants are spread the same way over the variants the 100 picked Analyses hold.
+- `lookup.variants` and `lookup.analyses`: 100 of each, at evenly spaced rows of the Store's own variant and Analyses tables, so the variants spread over every chromosome. The smaller shapes take the first variant (1) or every tenth variant of the list (10), so they stay scattered, and the first 1 or 10 Analyses. On a Ragged Store, which holds an Analysis only inside its own window, variants scattered over the whole variant table meet almost no Analysis (`lookup_1x100` and `lookup_100x1` returned nothing on OGS-00027), so its variants are spread the same way over the variants the 100 picked Analyses hold.
 - `region_100kb` and `region`: 100 kb and 1 Mb windows around the same centre.
-- `top_hits`: one Analysis, threshold 5e-8, and the row count it returned. A count of 0 means the Store has no top hits there, and the measure is `not_applicable`.
+- `top_hits`: one Analysis, threshold 5e-8, the row count it returned, and `path`, `index` or `scan`, from the Store's `build.yaml` `post.top_hits`: a Store without the index is answered by a scan of every cell, so the two timings differ in kind. The measure's result carries the same `path`. A count of 0 means the Store has no top hits there, and the measure is `not_applicable`.
 - `cis` (Ragged only): a 1 Mb window around an Analysis's trait position, holding Analyses.
-- `rho`: five Analysis ids and one Analysis id, or `null` for a Store without a Rho Matrix.
-- `input_rows`: the row count one read-only call per input returned when the workload was written. An input that returned nothing is wrong, and `workload.check` refuses any count of 0 except `top_hits`.
+- `rho`: `false` for a Store without a Rho Matrix, or `{ids, analysis_id}` for one that has it. This declaration, with the layout, is all that decides `not_applicable`; no method is probed for.
+- `input_rows`: for each measure that reads an input, keyed by measure name, the row count one read-only call returned when the workload was written. `workload.check` refuses an entry with no count for a measure it lists, and any count of 0 except `top_hits`: an input that returned nothing is wrong.
 
 **Not applicable.** A query a layout or a Store refuses is recorded `not_applicable` with a `reason`, never `unavailable`: `analysis_hm3` and `range_by_analysis` outside the layouts that have them (an Indexed Variant Subset is Dense or a Hybrid's Dense Component; the cis query is Ragged), `top_hits` where the Store records none, and `rho`, `rho_row` and `rho_matrix` on a layout or a Store without a Rho Matrix. A query that fails for any other reason stays `unavailable` with its error.
 
@@ -108,7 +107,7 @@ median and p95 are over the warm reads. The `ogstores` identity carries the comm
 install reports the version it was built from, which is not necessarily the code
 that ran (#386), and `dirty` marks a run on an uncommitted tree as one that
 cannot be reproduced.
-`repetitions.default` is 5, `analysis_full` and `analysis_full_observed_only` are 3, and `variants_table` and `analyses_table` are fewer still: reading every variant row of OGS-00011 (47.9 million) is slow. A run was flagged `veeam_window: true`, never dropped, if
+`repetitions.default` is 5, `analysis_full` and `analysis_full_observed_only` are 3, `analyses_table` and `resolve` are 3, and `variants_table` is 1 (every variant row of OGS-00011, 47.9 million, is slow to read). A run was flagged `veeam_window: true`, never dropped, if
 any part of it fell between 00:00 and 11:00 local time, when the nightly Veeam
 snapshot covered `/data` and throttled disk I/O 8–10× (#390). That window is
 history: since 2026-11-02 the backup skips `/data/opengwasdb` (#411), so a run

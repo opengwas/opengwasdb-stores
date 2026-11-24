@@ -94,7 +94,7 @@ components:
     name: Yardstick
     container: gwas_orchestration
     stages: [cross]
-    summary: One fixed benchmark, recorded at the end of every epic.
+    summary: One fixed query workload, run on every opengwasdb release and every ogquery release.
     paths: [src/yardstick/, tools/yardstick_inputs.py]
   - id: dev_tools
     name: Developer tools

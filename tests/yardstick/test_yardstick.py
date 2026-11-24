@@ -109,16 +109,14 @@ class WorkloadFileTest(unittest.TestCase):
                 ("OGS-00009", "dense", "measured"),
                 ("OGS-00011", "hybrid", "measured"),
                 ("OGS-00027", "ragged", "measured"),
-                ("OGS-00022", "hybrid", "measured"),
             ],
         )
 
-    def test_hm3_is_listed_on_every_layout_but_the_rho_only_entry(self) -> None:
+    def test_hm3_is_listed_on_every_layout(self) -> None:
         # A Ragged Store lists it and records `not_applicable` (tests/yardstick/test_yardstick_measures.py).
         by_id = {s["store_id"]: s for s in workload_spec.load()["stores"]}
         for store_id in ("OGS-00009", "OGS-00011", "OGS-00027"):
             self.assertIn("analysis_hm3", by_id[store_id]["measures"])
-        self.assertNotIn("analysis_hm3", by_id["OGS-00022"]["measures"])
 
     def test_unknown_measure_is_refused(self) -> None:
         bad = copy.deepcopy(workload_spec.load())

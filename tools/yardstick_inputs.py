@@ -29,11 +29,11 @@ import yaml
 
 from ogstores import paths
 from yardstick import runner, workload as workload_spec
-from yardstick.workload import LOOKUP_N, LOOKUP_SHAPES
+from yardstick.measure import open_store, rows
+from yardstick.workload import LOOKUP_N, LOOKUP_SHAPES, lookup_inputs
 
 THRESHOLD = 5e-8
 CIS_HALF_WIDTH_BP = 500_000
-RHO_IDS = 5
 #: Analyses tried, in order, for `top_hits` before the Store is recorded as having none there.
 TOP_HITS_CANDIDATES = 5
 
@@ -50,8 +50,10 @@ def centred(region: dict[str, Any], width: int) -> dict[str, Any]:
     return {"chromosome": region["chromosome"], "start": max(1, middle - width // 2), "end": middle + width // 2}
 
 
-def rows(result: dict[str, Any]) -> int:
-    return len(result["z"]) if "z" in result else int(result["rho"].size)
+def top_hits_path(store_id: str) -> str:
+    """`index` if the Store's build.yaml says it built the top-hit index (`post.top_hits`), else `scan`."""
+    build = yaml.safe_load((workload_spec.REPO_ROOT / "stores" / store_id / "build.yaml").read_text(encoding="utf-8"))
+    return "index" if build["post"]["top_hits"] else "scan"
 
 
 def pick(q: Any, entry: dict[str, Any]) -> dict[str, Any]:
@@ -73,26 +75,29 @@ def pick(q: Any, entry: dict[str, Any]) -> dict[str, Any]:
     }
     del variants
     counts: dict[str, int] = {}
-    counts["rsid"] = rows(q.phewas(entry["rsid"]))
-    counts["alid"] = rows(q.phewas(entry["alid"]))
+    counts["phewas_rsid"] = rows(q.phewas(entry["rsid"]))
+    counts["phewas_alid"] = rows(q.phewas(entry["alid"]))
     pos = entry["position"]
-    counts["position"] = rows(q.range_phewas(pos["chromosome"], pos["position"], pos["position"]))
+    counts["phewas_position"] = rows(q.range_phewas(pos["chromosome"], pos["position"], pos["position"]))
     counts["analysis_full"] = rows(q.analysis(entry["analysis_id"]))
+    if entry["measures"].count("analysis_full_observed_only"):
+        counts["analysis_full_observed_only"] = rows(q.analysis(entry["analysis_id"], observed_only=True))
     region = entry["region"]
     counts["region"] = rows(q.range_phewas(region["chromosome"], region["start"], region["end"]))
     small = centred(region, 100_000)
     counts["region_100kb"] = rows(q.range_phewas(small["chromosome"], small["start"], small["end"]))
-    counts["resolve"] = counts["rsid"]
+    # `resolve` is timed on the rows of `phewas(rsid)`: its own call resolves them and counts what it yields.
+    counts["resolve"] = len(list(q.resolve(q.phewas(entry["rsid"]))))
     for name, (nv, na) in LOOKUP_SHAPES.items():
-        counts[name] = rows(q.lookup(lookup["variants"][:nv], lookup["analyses"][:na]))
+        counts[name] = rows(q.lookup(*lookup_inputs(lookup, nv, na)))
     out: dict[str, Any] = {"lookup": lookup, "region_100kb": small}
 
     candidates = [entry["analysis_id"], *lookup["analyses"]][:TOP_HITS_CANDIDATES]
-    hits = {"analysis_id": entry["analysis_id"], "threshold": THRESHOLD, "rows": 0}
+    hits = {"analysis_id": entry["analysis_id"], "threshold": THRESHOLD, "rows": 0, "path": top_hits_path(entry["store_id"])}
     for analysis_id in candidates:
         n = rows(q.top_hits(analysis_id=analysis_id, threshold=THRESHOLD))
         if n:
-            hits = {"analysis_id": analysis_id, "threshold": THRESHOLD, "rows": n}
+            hits = {**hits, "analysis_id": analysis_id, "rows": n}
             break
     out["top_hits"] = hits
     counts["top_hits"] = hits["rows"]
@@ -105,14 +110,14 @@ def pick(q: Any, entry: dict[str, Any]) -> dict[str, Any]:
         out["cis"] = window
         counts["range_by_analysis"] = rows(q.range_by_analysis(window["chromosome"], window["start"], window["end"]))
 
-    out["rho"] = None
-    if hasattr(q, "rho_matrix"):
-        ids = [analyses[i]["analysis_id"] for i in sorted(analyses)][:RHO_IDS]
-        if rows(q.rho_matrix(ids)):
-            out["rho"] = {"ids": ids, "analysis_id": ids[0]}
-            counts["rho"] = rows(q.rho(*ids))
-            counts["rho_row"] = rows(q.rho_row(ids[0]))
-            counts["rho_matrix"] = rows(q.rho_matrix())
+    # Whether the Store has a Rho Matrix is declared by the entry (`rho: false`, or the ids), never probed.
+    out["rho"] = False
+    if entry["rho"]:
+        ids = entry["rho"]["ids"]
+        out["rho"] = entry["rho"]
+        counts["rho"] = rows(q.rho(*ids))
+        counts["rho_row"] = rows(q.rho_row(entry["rho"]["analysis_id"]))
+        counts["rho_matrix"] = rows(q.rho_matrix())
     out["input_rows"] = counts
     return out
 
@@ -130,10 +135,8 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {args.store_id} is not in {args.workload}", file=sys.stderr)
         return 1
     store_path = paths.store_dir(args.store_id, args.stores_root) / "store.opengwasdb"
-    from opengwasdb.query import query_store
-
     before = runner.snapshot(store_path)
-    q = query_store(store_path)
+    q = open_store(store_path)
     try:
         picked = pick(q, entry)
     finally:

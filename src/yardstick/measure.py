@@ -20,7 +20,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from yardstick.workload import LOOKUP_SHAPES
+from yardstick.workload import LOOKUP_SHAPES, lookup_inputs
 
 _PAGE_MB = resource.getpagesize() / (1024.0 * 1024.0)
 
@@ -103,7 +103,14 @@ class NotApplicable(Exception):
     """The Store's layout refuses this query, or the Store lacks what it reads: recorded `not_applicable`."""
 
 
-def _rows(result: dict[str, Any]) -> int:
+def open_store(store_path: Path) -> Any:
+    """The engine's query handle for a Store. The one place yardstick opens a Store, so tools reuse it."""
+    from opengwasdb.query import query_store
+
+    return query_store(store_path)
+
+
+def rows(result: dict[str, Any]) -> int:
     """Rows of an Associations result (`z`), or of a Rho result (`rho`, a vector or a matrix)."""
     if "z" in result:
         return len(result["z"])
@@ -124,8 +131,6 @@ def bytes_on_disk(store_path: Path) -> dict[str, Any]:
 
 def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str, int], region_width_bp: int | None = None) -> dict[str, Any]:
     """Every timed measure the workload lists for this Store, plus bytes on disk."""
-    from opengwasdb.query import query_store
-
     default = repetitions["default"]
     reps_of = lambda name: repetitions.get(name, default)  # noqa: E731
     wanted = entry["measures"]
@@ -142,24 +147,24 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
             out[name] = {"status": "unavailable", "error": f"{type(error).__name__}: {error}"[:500]}
 
     def open_and_close() -> None:
-        handle = query_store(store_path)
+        handle = open_store(store_path)
         handle.close()
 
     attempt("open", lambda: time_calls(open_and_close, reps_of("open")))
-    q = query_store(store_path)
+    q = open_store(store_path)
     try:
-        attempt("phewas_rsid", lambda: time_calls(lambda: q.phewas(entry["rsid"]), reps_of("phewas_rsid"), count=_rows))
-        attempt("phewas_alid", lambda: time_calls(lambda: q.phewas(entry["alid"]), reps_of("phewas_alid"), count=_rows))
+        attempt("phewas_rsid", lambda: time_calls(lambda: q.phewas(entry["rsid"]), reps_of("phewas_rsid"), count=rows))
+        attempt("phewas_alid", lambda: time_calls(lambda: q.phewas(entry["alid"]), reps_of("phewas_alid"), count=rows))
         pos = entry.get("position")
         attempt(
             "phewas_position",
             lambda: time_calls(
                 lambda: q.range_phewas(pos["chromosome"], pos["position"], pos["position"]),
-                reps_of("phewas_position"), count=_rows,
+                reps_of("phewas_position"), count=rows,
             ),
         )
-        attempt("analysis_full", lambda: time_calls(lambda: q.analysis(entry["analysis_id"]), reps_of("analysis_full"), count=_rows))
-        _more_measures(q, entry, reps_of, attempt)
+        attempt("analysis_full", lambda: time_calls(lambda: q.analysis(entry["analysis_id"]), reps_of("analysis_full"), count=rows))
+        _measure_facade_queries(q, entry, reps_of, attempt)
         if "analysis_hm3" in wanted:
             def hm3() -> dict[str, Any]:
                 if entry["layout"] == "ragged":
@@ -168,7 +173,7 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
 
                 record = time_calls(
                     lambda: q.analysis(entry["analysis_id"], indexed_subset="hm3"),
-                    reps_of("analysis_hm3"), count=_rows, first_count_key="warm_result_count",
+                    reps_of("analysis_hm3"), count=rows, first_count_key="warm_result_count",
                 )
                 subset = open_indexed_subset(store_path, "hm3")
                 return {
@@ -190,7 +195,7 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
             "region",
             lambda: time_calls(
                 lambda: q.range_phewas(region["chromosome"], region["start"], region["end"]),
-                reps_of("region"), count=_rows,
+                reps_of("region"), count=rows,
             ),
         )
     finally:
@@ -199,8 +204,8 @@ def measure_store(store_path: Path, entry: dict[str, Any], repetitions: dict[str
     return out
 
 
-def _more_measures(q: Any, entry: dict[str, Any], reps_of: Callable[[str], int], attempt: Callable[..., None]) -> None:
-    """The measures added by yardstick-4: metadata, region and lookup shapes, observed-only, top hits, cis, rho."""
+def _measure_facade_queries(q: Any, entry: dict[str, Any], reps_of: Callable[[str], int], attempt: Callable[..., None]) -> None:
+    """Metadata, the 100 kb region, lookup shapes, observed-only, top hits, cis and rho: each through `attempt`."""
     layout = entry["layout"]
     attempt("analyses_table", lambda: time_calls(q.analyses_table, reps_of("analyses_table"), count=len))
     attempt("variants_table", lambda: time_calls(q.variants_table, reps_of("variants_table"), count=len))
@@ -214,7 +219,7 @@ def _more_measures(q: Any, entry: dict[str, Any], reps_of: Callable[[str], int],
     attempt(
         "region_100kb",
         lambda: time_calls(
-            lambda: q.range_phewas(r100["chromosome"], r100["start"], r100["end"]), reps_of("region_100kb"), count=_rows
+            lambda: q.range_phewas(r100["chromosome"], r100["start"], r100["end"]), reps_of("region_100kb"), count=rows
         ),
     )
     lookup = entry.get("lookup")
@@ -222,13 +227,13 @@ def _more_measures(q: Any, entry: dict[str, Any], reps_of: Callable[[str], int],
         attempt(
             name,
             lambda name=name, nv=n_variants, na=n_analyses: time_calls(
-                lambda: q.lookup(lookup["variants"][:nv], lookup["analyses"][:na]), reps_of(name), count=_rows
+                lambda: q.lookup(*lookup_inputs(lookup, nv, na)), reps_of(name), count=rows
             ),
         )
     attempt(
         "analysis_full_observed_only",
         lambda: time_calls(
-            lambda: q.analysis(entry["analysis_id"], observed_only=True), reps_of("analysis_full_observed_only"), count=_rows
+            lambda: q.analysis(entry["analysis_id"], observed_only=True), reps_of("analysis_full_observed_only"), count=rows
         ),
     )
 
@@ -236,27 +241,27 @@ def _more_measures(q: Any, entry: dict[str, Any], reps_of: Callable[[str], int],
         hits = entry["top_hits"]
         if hits["rows"] == 0:
             raise NotApplicable(f"the Store has no top hits at {hits['threshold']:g}")
-        return time_calls(
-            lambda: q.top_hits(analysis_id=hits["analysis_id"], threshold=hits["threshold"]), reps_of("top_hits"), count=_rows
+        record = time_calls(
+            lambda: q.top_hits(analysis_id=hits["analysis_id"], threshold=hits["threshold"]), reps_of("top_hits"), count=rows
         )
+        # Which path answered, from the Store's build.yaml `post.top_hits`: the index, or a scan of every cell.
+        return {**record, "path": hits["path"]}
 
     attempt("top_hits", top_hits)
 
     def cis() -> dict[str, Any]:
-        if layout != "ragged" or not hasattr(q, "range_by_analysis"):
+        if layout != "ragged":
             raise NotApplicable("range_by_analysis is a Ragged query")
         w = entry["cis"]
-        return time_calls(lambda: q.range_by_analysis(w["chromosome"], w["start"], w["end"]), reps_of("range_by_analysis"), count=_rows)
+        return time_calls(lambda: q.range_by_analysis(w["chromosome"], w["start"], w["end"]), reps_of("range_by_analysis"), count=rows)
 
     attempt("range_by_analysis", cis)
 
     def rho(name: str, call: Callable[[Any, dict[str, Any]], dict[str, Any]]) -> Callable[[], dict[str, Any]]:
         def run() -> dict[str, Any]:
-            if not hasattr(q, name):
-                raise NotApplicable("this layout has no Rho Matrix query")
-            if entry["rho"] is None:
+            if layout == "ragged" or not entry["rho"]:
                 raise NotApplicable("the Store has no Rho Matrix")
-            return time_calls(lambda: call(q, entry["rho"]), reps_of(name), count=_rows)
+            return time_calls(lambda: call(q, entry["rho"]), reps_of(name), count=rows)
 
         return run
 
@@ -271,21 +276,19 @@ def sample_peak(read: Callable[[], dict[str, Any]]) -> dict[str, Any]:
     with RssSampler() as sampler:
         result = read()
     peak = max(sampler.peak_mb, rss_mb())
-    rows = _rows(result)
-    if rows == 0:
+    n_rows = rows(result)
+    if n_rows == 0:
         raise RuntimeError("the fixed query returned no rows")
     return {
         "status": "measured",
         "baseline_mb": round(baseline, 1),
         "peak_mb": round(peak, 1),
         "delta_mb": round(peak - baseline, 1),
-        "result_count": rows,
+        "result_count": n_rows,
     }
 
 
 def measure_peak_rss(store_path: Path, entry: dict[str, Any]) -> dict[str, Any]:
     """Open the Store and run one full Analysis extraction, sampling RSS. Run in a fresh interpreter."""
-    from opengwasdb.query import query_store
-
-    q = query_store(store_path)
+    q = open_store(store_path)
     return sample_peak(lambda: q.analysis(entry["analysis_id"]))

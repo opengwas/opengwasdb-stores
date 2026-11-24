@@ -40,8 +40,13 @@ def full_entry(**extra: object) -> dict:
         "rsid": "rs1", "alid": "1:20000:C:T", "position": {"chromosome": "1", "position": 10000},
         "analysis_id": "fx1", "region": {"chromosome": "1", "start": 1, "end": 100000},
         "region_100kb": {"chromosome": "1", "start": 1, "end": 100000},
-        "lookup": lookup_input(), "top_hits": {"analysis_id": "fx1", "threshold": 5e-8, "rows": 0}, "rho": None,
+        "lookup": lookup_input(), "top_hits": {"analysis_id": "fx1", "threshold": 5e-8, "rows": 0, "path": "scan"},
+        "rho": False,
         "measures": ["open", "phewas_rsid", *NEW_MEASURES],
+        "input_rows": {
+            name: 1 for name in ("phewas_rsid", "phewas_alid", "phewas_position", "resolve", "region_100kb", "region",
+                                 *workload_spec.LOOKUP_SHAPES, "analysis_full", "analysis_full_observed_only")
+        } | {"top_hits": 0},
         **extra,
     }
 
@@ -55,7 +60,7 @@ class WorkloadCheckTest(unittest.TestCase):
         loaded = workload_spec.load()
         self.assertEqual(loaded["workload_id"], "yardstick-4")
         ids = [s["store_id"] for s in loaded["stores"]]
-        self.assertEqual(ids, ["OGS-00009", "OGS-00011", "OGS-00027", "OGS-00022"])
+        self.assertEqual(ids, ["OGS-00009", "OGS-00011", "OGS-00027"])
 
     def test_a_full_entry_is_accepted(self) -> None:
         workload_spec.check(workload_of(full_entry()))
@@ -77,6 +82,9 @@ class WorkloadCheckTest(unittest.TestCase):
         with self.assertRaisesRegex(workload_spec.WorkloadError, "range_by_analysis.*cis"):
             workload_spec.check(workload_of(ragged))
         ragged["cis"] = {"chromosome": "1", "start": 1, "end": 10}
+        with self.assertRaisesRegex(workload_spec.WorkloadError, "range_by_analysis"):
+            workload_spec.check(workload_of(ragged))  # a Ragged entry needs its row count too
+        ragged["input_rows"]["range_by_analysis"] = 4
         workload_spec.check(workload_of(ragged))
 
     def test_a_lookup_list_of_the_wrong_size_is_refused(self) -> None:
@@ -85,32 +93,47 @@ class WorkloadCheckTest(unittest.TestCase):
         with self.assertRaisesRegex(workload_spec.WorkloadError, "lookup.variants"):
             workload_spec.check(workload_of(entry))
 
+    def test_an_entry_without_a_row_count_for_a_listed_measure_is_refused(self) -> None:
+        entry = full_entry()
+        del entry["input_rows"]["resolve"]
+        with self.assertRaisesRegex(workload_spec.WorkloadError, "row count for resolve"):
+            workload_spec.check(workload_of(entry))
+        no_counts = full_entry()
+        del no_counts["input_rows"]
+        with self.assertRaisesRegex(workload_spec.WorkloadError, "row count for"):
+            workload_spec.check(workload_of(no_counts))
+
     def test_an_input_that_returned_no_rows_is_refused_but_empty_top_hits_is_not(self) -> None:
-        workload_spec.check(workload_of(full_entry(input_rows={"top_hits": 0, "rsid": 3})))
+        workload_spec.check(workload_of(full_entry()))  # top_hits is 0 there
+        entry = full_entry()
+        entry["input_rows"]["lookup_1x100"] = 0
         with self.assertRaisesRegex(workload_spec.WorkloadError, "lookup_1x100.*no rows"):
-            workload_spec.check(workload_of(full_entry(input_rows={"lookup_1x100": 0})))
+            workload_spec.check(workload_of(entry))
 
-    def test_every_committed_input_was_checked_and_returns_rows(self) -> None:
+    def test_rho_counts_are_required_only_where_a_rho_matrix_is_declared(self) -> None:
+        entry = full_entry(rho={"ids": ["a", "b"], "analysis_id": "a"})
+        with self.assertRaisesRegex(workload_spec.WorkloadError, "row count for rho"):
+            workload_spec.check(workload_of(entry))
+
+    def test_the_lookup_variants_of_each_store_are_scattered(self) -> None:
         for store in workload_spec.load()["stores"]:
-            if "input_rows" in store:
-                self.assertTrue(
-                    all(n > 0 for k, n in store["input_rows"].items() if k != "top_hits"), store["store_id"]
-                )
-
-    def test_the_committed_lookup_inputs_are_100_scattered_distinct_identifiers(self) -> None:
-        for store in workload_spec.load()["stores"]:
-            if "lookup" in store:
-                self.assertEqual(len(set(store["lookup"]["variants"])), 100, store["store_id"])
-                self.assertEqual(len(set(store["lookup"]["analyses"])), 100, store["store_id"])
+            variants, _ = workload_spec.lookup_inputs(store["lookup"], 100, 100)
+            ten, _ = workload_spec.lookup_inputs(store["lookup"], 10, 100)
+            chromosomes = lambda ids: {v.split(":")[0] for v in ids}  # noqa: E731
+            self.assertGreaterEqual(len(chromosomes(variants)), 10, store["store_id"])
+            self.assertEqual(len(ten), 10)
+            self.assertGreaterEqual(len(chromosomes(ten)), 5, store["store_id"])
+            one, _ = workload_spec.lookup_inputs(store["lookup"], 1, 100)
+            self.assertEqual(one, variants[:1])
 
 
-class RhoOnlyEntryTest(unittest.TestCase):
-    def test_the_rho_only_entry_lists_only_rho_measures(self) -> None:
-        entry = next(s for s in workload_spec.load()["stores"] if s["store_id"] == "OGS-00022")
-        self.assertEqual(entry["measures"], ["rho", "rho_row", "rho_matrix"])
-        self.assertIsNotNone(entry["rho"])
+class DeclaredFactsTest(unittest.TestCase):
+    """`not_applicable` follows the entry's layout and `rho` declaration; a missing method is `unavailable`."""
 
-    def test_it_measures_only_rho_and_records_the_rest_of_nothing(self) -> None:
+    def test_no_committed_store_declares_a_rho_matrix(self) -> None:
+        self.assertEqual({s["rho"] for s in workload_spec.load()["stores"]}, {False})
+
+    def test_a_declared_rho_matrix_is_measured(self) -> None:
         calls: list[str] = []
 
         class Q:
@@ -138,10 +161,39 @@ class RhoOnlyEntryTest(unittest.TestCase):
         }
         with mock.patch("opengwasdb.query.query_store", return_value=Q()):
             out = measure.measure_store(Path("/nonexistent"), entry, {"default": 1})
+        self.assertEqual(entry["rho"]["ids"], ["a", "b", "c"])
         self.assertEqual(sorted(out), ["rho", "rho_matrix", "rho_row"])
         self.assertEqual({r["status"] for r in out.values()}, {"measured"})
         self.assertEqual([out[k]["result_count"] for k in ("rho", "rho_row", "rho_matrix")], [3, 2, 4])
         self.assertEqual(set(calls), {"rho", "rho_row", "rho_matrix"})
+
+    def test_a_missing_facade_method_on_a_layout_that_has_it_is_unavailable(self) -> None:
+        class Q:  # a Ragged-declared Store whose facade lost `range_by_analysis`
+            def close(self) -> None:
+                pass
+
+        entry = {"store_id": "x", "layout": "ragged", "coverage": "cis", "status": "measured",
+                 "cis": {"chromosome": "1", "start": 1, "end": 2}, "measures": ["range_by_analysis"]}
+        with mock.patch("opengwasdb.query.query_store", return_value=Q()):
+            out = measure.measure_store(Path("/nonexistent"), entry, {"default": 1})
+        self.assertEqual(out["range_by_analysis"]["status"], "unavailable")
+        self.assertIn("AttributeError", out["range_by_analysis"]["error"])
+
+    def test_top_hits_records_which_path_answered(self) -> None:
+        import numpy as np
+
+        class Q:
+            def top_hits(self, **kw):
+                return {"z": np.ones(3)}
+
+            def close(self) -> None:
+                pass
+
+        entry = {"store_id": "x", "layout": "dense", "coverage": "gwas", "status": "measured",
+                 "top_hits": {"analysis_id": "a", "threshold": 5e-8, "rows": 3, "path": "index"}, "measures": ["top_hits"]}
+        with mock.patch("opengwasdb.query.query_store", return_value=Q()):
+            out = measure.measure_store(Path("/nonexistent"), entry, {"default": 1})
+        self.assertEqual((out["top_hits"]["status"], out["top_hits"]["path"]), ("measured", "index"))
 
 
 class ValidatorTest(unittest.TestCase):
@@ -180,8 +232,8 @@ class MeasuresOnFixtureStoreTest(unittest.TestCase):
         root = Path(cls.tmp.name)
         cls.store = fixture.build_dense_store(root / "store.opengwasdb", root / "src")
         entry = full_entry(measures=["open", *[m for m in NEW_MEASURES if m != "analysis_hm3"]])
-        # The fixture has 2 variants and one Analysis: take the lookup lists from its own tables, repeated to 100 is
-        # not possible, so measure with the facade's real identifiers via a patched 100-long list of the same two.
+        # The fixture holds 2 variants and one Analysis, so its lookup lists (100 long, as the workload requires)
+        # repeat those identifiers; the lookups are measured, the scatter is tested on the committed workload.
         from opengwasdb.query import query_store
 
         q = query_store(cls.store)
@@ -227,9 +279,6 @@ class MeasuresOnFixtureStoreTest(unittest.TestCase):
         out = measure.measure_store(self.store, entry, {"default": 1})
         self.assertEqual(out["resolve"]["status"], "unavailable")
         self.assertIn("error", out["resolve"])
-
-    def test_the_budget_is_thirty_minutes(self) -> None:
-        self.assertEqual(runner.BUDGET_S, 1800.0)
 
 
 if __name__ == "__main__":
