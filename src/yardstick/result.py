@@ -11,7 +11,13 @@ import re
 from typing import Any
 
 SCHEMA_VERSION = 1
-TIMED = ("open", "phewas_rsid", "phewas_alid", "phewas_position", "analysis_full", "analysis_hm3", "region")
+TIMED = (
+    "open", "analyses_table", "variants_table", "resolve",
+    "phewas_rsid", "phewas_alid", "phewas_position", "region_100kb", "region",
+    "lookup_1x100", "lookup_100x1", "lookup_10x100", "lookup_100x10", "lookup_100x100",
+    "analysis_full", "analysis_full_observed_only", "analysis_hm3",
+    "top_hits", "range_by_analysis", "rho", "rho_row", "rho_matrix",
+)
 STATUSES = ("measured", "unavailable", "not_applicable")
 TOP_LEVEL = (
     "schema", "workload_id", "workload_sha256", "opengwasdb", "ogstores", "host", "load_average",

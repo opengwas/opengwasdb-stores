@@ -536,6 +536,14 @@ def declared_worker_count(bundle: Bundle, *blocks: str) -> int | None:
     return None
 
 
+def declared_top_hits(post: dict[str, Any]) -> bool:
+    """Whether a build recipe's `post` block declares the Top-Hit Index (`top_hits`, or the `top-hits` alias)."""
+    declared = post.get("top_hits") if "top_hits" in post else post.get("top-hits", False)
+    if not isinstance(declared, bool):
+        raise ValueError(f"post.top_hits is {declared!r}; it is true or false")
+    return declared
+
+
 def _post_steps(
     store_p: Path, post: dict[str, Any], spec: CommandSpec, n_workers: int | None = None
 ) -> list[Step]:
@@ -550,16 +558,14 @@ def _post_steps(
     post = {**POST_DEFAULTS, **(post or {})}
     steps: list[Step] = []
 
-    declared_top_hits = post.get("top_hits") if "top_hits" in post else post.get("top-hits", False)
-    if not isinstance(declared_top_hits, bool):
-        raise ValueError(f"post.top_hits is {declared_top_hits!r}; it is true or false")
-    if declared_top_hits:
+    top_hits_declared = declared_top_hits(post)
+    if top_hits_declared:
         if spec.top_hits_cmd is None:
             raise ValueError(
                 f"top_hits post-processing is not supported or built inline "
                 f"for {spec.name} layout"
             )
-    if declared_top_hits and not spec.top_hits_inline:
+    if top_hits_declared and not spec.top_hits_inline:
         steps.append(
             Step(
                 name="top-hits",

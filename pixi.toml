@@ -257,6 +257,9 @@ test-r = { cmd = "python3 tests/run_all_tests.py --only r" }
 concordance-run = { cmd = "python3 -m manifest_generation.run_concordance_study" }
 bundle-check = { cmd = "python3 -m manifest_generation.check_bundles" }
 audit-indexed-subsets = { cmd = "python3 -m ogstores.audit_indexed_subsets" }
+# Writes #502's Store facts into the Validation Records registered before them.
+# Run once, after #498 rewrites the Stores; `--dry-run` writes nothing.
+backfill-observed = { cmd = "python3 -m ogstores.backfill_observed" }
 env-check = { cmd = "python3 tools/env_check.py" }
 engine-update = { cmd = "python3 -m ogstores.engine_update" }
 worktree-prune = { cmd = "python3 tools/prune_worktrees.py" }
@@ -291,8 +294,8 @@ index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 [feature.reporting.tasks]
 # Render the reports under docs/reports/ and copy each to the docs/ name the
 # project site serves. The site itself (`pixi run site`, `site-data`,
-# `site-publish`, `architecture`) is og-dev-hub's (og-dev-hub#7): it reads this
-# repository's docs/, stores/ and docs/_epics/ from its clone of main.
+# `architecture`) is og-dev-hub's (og-dev-hub#7): it reads this repository's
+# stores/ and docs/_yardstick/ from its clone of main.
 docs = { cmd = "bash tools/build-site.sh" }
 # The full `docs` task needs raw GWAS Catalog source data that is not tracked
 # in this repository (resources/data/*.tsv, "download separately" per

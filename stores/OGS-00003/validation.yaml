@@ -23,7 +23,10 @@ observed:
   n_associations: null
   association_coverage: gwas
   reference_assembly: null
-  store_bytes: null
+  store_bytes: 2596984787
+  has_hm3: true
+  has_rho: null
+  n_top_hits: null
   build_elapsed_s: 964.505
   validate_status: passed
   completion_state: observed_only

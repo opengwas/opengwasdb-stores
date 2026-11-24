@@ -168,6 +168,16 @@ def _mapping(value: Any) -> Mapping[str, Any]:
     return value if isinstance(value, Mapping) else {}
 
 
+def _store_facts(observed: Mapping[str, Any]) -> dict[str, Any]:
+    """The #502 flags as 1, 0 or NULL and the top-hit counts as JSON, by the bundle contract's rule."""
+    try:
+        flags = {key: release_bundle.observed_flag(observed, key) for key in ("has_hm3", "has_rho")}
+        counts = release_bundle.top_hit_counts_text(observed)
+    except ValueError as exc:
+        raise RefusedRow(f"Validation Record: {exc}") from exc
+    return {**{key: None if flag is None else int(flag) for key, flag in flags.items()}, "n_top_hits": counts}
+
+
 def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tuple:
     release, validation = bundle.release, bundle.validation or {}
     environment = _mapping(validation.get("build_environment"))
@@ -191,6 +201,7 @@ def _store_row(bundle: release_bundle.Bundle, observed: Mapping[str, Any]) -> tu
         "n_variants": observed.get("n_variants"),
         "n_associations": observed.get("n_associations"),
         "store_bytes": observed.get("store_bytes"),
+        **_store_facts(observed),
         "format_version": observed.get("format_version"),
         "opengwasdb_version": environment.get("opengwasdb_version"),
         "source_snapshot_id": release.get("source_snapshot_id"),
