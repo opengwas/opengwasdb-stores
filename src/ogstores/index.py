@@ -40,6 +40,7 @@ from __future__ import annotations
 
 import csv
 import io
+import json
 import os
 from pathlib import Path
 from typing import Any
@@ -76,6 +77,9 @@ COLUMNS: tuple[str, ...] = (
     "n_variants",
     "n_associations",
     "store_bytes",
+    "has_hm3",
+    "has_rho",
+    "n_top_hits",
     "build_elapsed_s",
     "validate_status",
     "first_author",
@@ -226,6 +230,14 @@ def render_stores_row(
     store_bytes = obs.get("store_bytes")
     store_bytes_str = str(store_bytes) if store_bytes != "" and store_bytes is not None else ""
 
+    # What the recipe built into the published Store (#502): `true`, `false`, or
+    # empty when the record does not say. `n_top_hits` is the record's mapping
+    # as compact JSON, empty while it is null (opengwas/opengwasdb#488).
+    has_hm3_str = _observed_flag(obs.get("has_hm3"))
+    has_rho_str = _observed_flag(obs.get("has_rho"))
+    n_top_hits = obs.get("n_top_hits")
+    n_top_hits_str = json.dumps(n_top_hits, sort_keys=True, separators=(",", ":")) if n_top_hits is not None else ""
+
     build_elapsed_s = obs.get("build_elapsed_s")
     build_elapsed_s_str = str(build_elapsed_s) if build_elapsed_s != "" and build_elapsed_s is not None else ""
 
@@ -256,6 +268,9 @@ def render_stores_row(
         "n_variants": n_variants_str,
         "n_associations": n_associations_str,
         "store_bytes": store_bytes_str,
+        "has_hm3": has_hm3_str,
+        "has_rho": has_rho_str,
+        "n_top_hits": n_top_hits_str,
         "build_elapsed_s": build_elapsed_s_str,
         "validate_status": validate_status_str,
         "first_author": str(membership_summary["first_author"]),
@@ -266,6 +281,15 @@ def render_stores_row(
         "sample_size": str(membership_summary["sample_size"]),
         "source_url": str(membership_summary["source_url"]),
     }
+
+
+def _observed_flag(value: Any) -> str:
+    """A recorded boolean as `true` or `false`, and empty when the record does not say."""
+    if value is None:
+        return ""
+    if not isinstance(value, bool):
+        raise ValueError(f"an observed flag is true, false or null, not {value!r}")
+    return "true" if value else "false"
 
 
 def render_stores_tsv(

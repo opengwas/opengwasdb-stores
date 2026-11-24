@@ -9,7 +9,7 @@ Test suite for `ogstores.register` (Issue #117), governed by [ADR 0022](../../do
    - Any step failure or preflight error aborts registration and leaves pre-existing `validation.yaml` completely untouched.
 
 2. **Observed measurements**:
-   - Harvests observed facts (`format_version`, `n_variants`, `n_analyses`, `n_associations`, `association_coverage`, `reference_assembly`, `store_bytes`, `build_elapsed_s`, `completion_state`, and `validate_status`) directly from step records, recording an unreported key as `null` rather than deriving it.
+   - Harvests observed facts (`format_version`, `n_variants`, `n_analyses`, `n_associations`, `association_coverage`, `reference_assembly`, `store_bytes`, `has_hm3`, `has_rho`, `n_top_hits`, `build_elapsed_s`, `completion_state`, and `validate_status`) directly from step records, recording an unreported key as `null` rather than deriving it. `store_bytes` is the staged or published fixture Store's file sizes, summed independently in the test from a stat that opens no file; `has_hm3` and `has_rho` follow the recipe's planned steps and their records, and `top_hits: false` gives `n_top_hits: null` (#502).
 
 3. **Planned vs executed argv drift check**:
    - Compares executed argv in `records/<step>.json` against planned argv derived from `ogstores.plan.plan(bundle)`.

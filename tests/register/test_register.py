@@ -76,6 +76,7 @@ def create_test_bundle_and_records(
     build_command: str = "build-dense-vcf",
     build_options: dict[str, Any] | None = None,
     coverage: str = "gwas",
+    indexed_subsets: list[dict[str, Any]] | None = None,
 ) -> tuple[Bundle, Path, Path]:
     """Helper to create a test bundle with staged artifact directories and valid execution records."""
     stores_root = temp_dir / "stores"
@@ -124,6 +125,8 @@ def create_test_bundle_and_records(
     if variant_reference is not None:
         block_key = "complete" if completion_state == "reference_completed" else "build"
         bld_dict[block_key]["variant_reference"] = variant_reference
+    if indexed_subsets is not None:
+        bld_dict["indexed_subsets"] = indexed_subsets
 
     with open(store_bundle_dir / "release.yaml", "w", encoding="utf-8") as f:
         yaml.safe_dump(rel_dict, f)
@@ -313,7 +316,6 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
             "a Dense build that reports no association count records null, never "
             "n_variants x n_analyses: matrix cells are not associations (#322)",
         )
-        self.assertIsNone(obs["store_bytes"], "no step reports a Store size")
         self.assertEqual(obs["validate_status"], "passed")
         self.assertGreater(obs["build_elapsed_s"], 10.0)
 
@@ -618,6 +620,137 @@ class TestRegisterExecutionAndSafety(unittest.TestCase):
         self.assertEqual(set(written["observed"]), set(register.OBSERVED_FIELDS))
         self.assertEqual(set(written["build_environment"]), set(register.BUILD_ENVIRONMENT_FIELDS))
         self.assertEqual(written["validator"]["name"], register.VALIDATOR_NAME)
+
+
+HM3_DECLARATION: dict[str, Any] = {
+    "name": "hm3",
+    "resource_id": "hapmap3-hg38",
+    "variant_list": "/refs/hm3.grch38.alid.txt",
+    "reference_assembly": "GRCh38",
+}
+
+
+def write_store_files(store_dir: Path, files: dict[str, bytes]) -> int:
+    """Write a fixture Store's files and return their size, summed from the bytes written."""
+    for relative, content in files.items():
+        target = store_dir / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content)
+    return sum(len(content) for content in files.values())
+
+
+class TestStoreFacts(unittest.TestCase):
+    """`register` records the published Store's size and what its recipe built (#502)."""
+
+    def setUp(self) -> None:
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.td = Path(self.temp_dir.name)
+
+    def tearDown(self) -> None:
+        self.temp_dir.cleanup()
+
+    def test_store_bytes_is_the_size_of_the_staged_store_it_publishes(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00061")
+        expected = write_store_files(
+            paths.partial_store_path("OGS-00061", root=artifact_root),
+            {
+                "manifest.json": b'{"store_id": "OGS-00061"}',
+                "analyses.tsv": b"analysis_id\nana1\nana2\n",
+                "data.zarr/beta/c/0/0": bytes(range(256)) * 7,
+                "data.zarr/zarr.json": b"{}",
+            },
+        )
+
+        val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertEqual(val_data["observed"]["store_bytes"], expected)
+        written = yaml.safe_load((b.root / "validation.yaml").read_text(encoding="utf-8"))
+        self.assertEqual(written["observed"]["store_bytes"], expected)
+        self.assertTrue(paths.store_path("OGS-00061", root=artifact_root).is_dir())
+
+    def test_store_bytes_of_an_already_published_store(self) -> None:
+        """Re-registering with nothing staged measures the Store in place."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00062")
+        paths.partial_store_path("OGS-00062", root=artifact_root).rmdir()
+        expected = write_store_files(
+            paths.store_path("OGS-00062", root=artifact_root),
+            {"manifest.json": b"{}", "variants.tsv.gz": b"x" * 4097},
+        )
+
+        val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        self.assertEqual(val_data["observed"]["store_bytes"], expected)
+
+    def test_no_store_on_disk_records_null(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00063")
+        paths.partial_store_path("OGS-00063", root=artifact_root).rmdir()
+
+        val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        self.assertIsNone(val_data["observed"]["store_bytes"])
+
+    def test_a_recipe_with_hm3_and_rho_records_both(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            "OGS-00064",
+            post={"top_hits": True, "rho": True, "overview": True, "validate": True},
+            indexed_subsets=[HM3_DECLARATION],
+        )
+        self.assertIn("rho", [step.name for step in plan(b, artifact_root=artifact_root)])
+
+        observed = register_release(b, registry_root=stores_root, artifact_root=artifact_root)["observed"]
+
+        self.assertIs(observed["has_hm3"], True)
+        self.assertIs(observed["has_rho"], True)
+
+    def test_a_recipe_without_hm3_or_rho_records_false(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00065")
+
+        observed = register_release(b, registry_root=stores_root, artifact_root=artifact_root)["observed"]
+
+        self.assertIs(observed["has_hm3"], False)
+        self.assertIs(observed["has_rho"], False)
+
+    def test_a_completion_phase_reads_its_own_steps(self) -> None:
+        """A release completing its own Store reports what its completion phase built (ADR 0037)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            "OGS-00066",
+            completion_state="reference_completed",
+            command="complete-dense",
+            indexed_subsets=[HM3_DECLARATION],
+        )
+        planned = plan(b, artifact_root=artifact_root)
+        completion = [step for step in planned if step.phase == "completion"]
+        self.assertIn("completion-indexed-subset-hm3", [step.name for step in completion])
+
+        observed = register.harvest_observed_measurements(
+            completion,
+            {step.name: run.load_record("OGS-00066", step.name, root=artifact_root) for step in completion},
+            b,
+            store_dir=None,
+        )
+
+        self.assertIs(observed["has_hm3"], True)
+        self.assertIs(observed["has_rho"], False)
+
+    def test_a_failed_or_missing_step_record_is_not_a_built_index(self) -> None:
+        steps = [Step("indexed-subset-hm3", [], [], []), Step("rho", [], [], [])]
+        facts = register.store_facts(
+            steps, {"indexed-subset-hm3": {"success": False, "exit_code": 1}}, store_dir=None
+        )
+        self.assertIs(facts["has_hm3"], False)
+        self.assertIsNone(facts["has_rho"], "a planned step with no record is unknown, not absent")
+
+    def test_top_hits_false_records_null_counts(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td, "OGS-00067", post={"top_hits": False, "rho": False, "overview": True, "validate": True}
+        )
+
+        observed = register_release(b, registry_root=stores_root, artifact_root=artifact_root)["observed"]
+
+        self.assertIn("n_top_hits", observed)
+        self.assertIsNone(observed["n_top_hits"])
 
 
 # A Hybrid release's post choices: `build-hybrid` builds the top-hit index inline, so

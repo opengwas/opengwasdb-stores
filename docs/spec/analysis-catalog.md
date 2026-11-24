@@ -105,8 +105,13 @@ The columns and their types are `src/analysis_catalog/columns.py`.
   `completion_state`) and `validation.yaml` (`validated_at`,
   `build_environment.opengwasdb_version`, the engine that wrote the Store,
   and from `observed`: `n_analyses`,
-  `n_variants`, `n_associations`, `store_bytes`, `format_version`,
-  `reference_assembly`). `reference_assembly` is opengwasdb's value stored as
+  `n_variants`, `n_associations`, `store_bytes`, `has_hm3`, `has_rho`,
+  `n_top_hits`, `format_version`, `reference_assembly`). `has_hm3` and
+  `has_rho` are `1`, `0`, or `NULL` when the record does not say, and
+  `n_top_hits` is the record's threshold-to-count mapping as compact JSON
+  `TEXT`, `NULL` until opengwas/opengwasdb#488 reports the counts (#502). A
+  flag that is not a boolean, or counts that are not a mapping, refuse the
+  Store. `reference_assembly` is opengwasdb's value stored as
   reported, and `NULL` while a record lacks it (opengwasdb#294).
   `format_version` is the Store's own stamp, so a Store built from opengwasdb
   0.2.3 on (format `0.2.3`, opengwasdb#338, ADR 0068) is one whose

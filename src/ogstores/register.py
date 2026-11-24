@@ -12,7 +12,9 @@ Responsibilities:
      is accepted and recorded as `resumed: true` in `validation.yaml`.
 3. Harvests observed measurements from step records:
    `format_version`, `n_variants`, `n_analyses`, `n_associations`,
-   `association_coverage`, `reference_assembly`, `store_bytes`,
+   `association_coverage`, `reference_assembly`, `store_bytes` (a stat of the
+   published Store's files, #502), `has_hm3` and `has_rho` (the publishing
+   phase's steps that ran), `n_top_hits` (null until opengwasdb#488),
    `build_elapsed_s`, `completion_state`, and `validate_status`, plus the
    `rsid_conflicts` counts a Hybrid build reports (#225) when it reports them,
    which a completion phase carries from the build phase that reported them.
@@ -53,9 +55,11 @@ import yaml
 
 from ogstores import bundle, engine, paths, run
 from ogstores.bundle import Bundle
+from ogstores.bundle import indexed_subset_step_name
 from ogstores.plan import (
     BUILD_PHASE,
     COMPLETION_PHASE,
+    COMPLETION_STEP_PREFIX,
     OBSERVED_VIEW_CHECK_STEP,
     REGISTER_STEPS,
     Step,
@@ -83,7 +87,16 @@ OBSERVED_FIELDS: tuple[str, ...] = (
     # report, never read from the Store or its `manifest.json` (ADR 0023, #322).
     "association_coverage",
     "reference_assembly",
+    # The published Store's size on disk, summed from a filesystem stat of its
+    # files at registration: a stat is not a Store read (ADR 0023, #502).
     "store_bytes",
+    # What the Build Recipe built into the published Store, from the steps of
+    # the publishing phase that ran and succeeded, never from the Store (#502).
+    "has_hm3",
+    "has_rho",
+    # Top-hit counts keyed by threshold: null when `post.top_hits` is false, and
+    # null until opengwas/opengwasdb#488 reports them, since no step prints them.
+    "n_top_hits",
     "build_elapsed_s",
     "validate_status",
     # The completion state of the Store this publication published (#307,
@@ -669,6 +682,70 @@ def require_declared_association_coverage(
         )
 
 
+# The Indexed Variant Subset `has_hm3` reports, by its declared name, and the
+# post step `has_rho` reports (#502). A completion phase's steps carry
+# `COMPLETION_STEP_PREFIX` (ADR 0037).
+HM3_SUBSET_NAME: str = "hm3"
+RHO_STEP: str = "rho"
+
+# The `observed` keys #502 added, which `tools/backfill_observed.py` writes into
+# records registered before them.
+STORE_FACT_FIELDS: tuple[str, ...] = ("store_bytes", "has_hm3", "has_rho", "n_top_hits")
+
+
+def store_size_on_disk(store_dir: Path) -> int:
+    """The bytes of every file under a Store directory, from a stat of each (#502).
+
+    The same measure as `ogstores.audit._store_bytes`. It is repeated here
+    because `audit` imports the engine, and `register` reads a Store only
+    through its command line (ADR 0023): a stat opens no Store file.
+    """
+    return sum(path.stat().st_size for path in store_dir.rglob("*") if path.is_file())
+
+
+def _step_built(planned_steps: list[Step], step_records: Mapping[str, Mapping[str, Any]], name: str) -> bool | None:
+    """Whether the phase ran step `name` (or its completion-phase counterpart) and it succeeded.
+
+    False when the phase plans no such step, so the Build Recipe never built it;
+    None when it plans one and no record says how it ended.
+    """
+    planned = [
+        step.name
+        for step in planned_steps
+        if step.name in (name, f"{COMPLETION_STEP_PREFIX}{name}")
+    ]
+    if not planned:
+        return False
+    record = step_records.get(planned[0])
+    if record is None:
+        return None
+    return record.get("success") is True and record.get("exit_code") == 0
+
+
+def store_facts(
+    planned_steps: list[Step],
+    step_records: Mapping[str, Mapping[str, Any]],
+    store_dir: Path | None,
+) -> dict[str, Any]:
+    """The `STORE_FACT_FIELDS` of the Store a phase published, read without opening it (#502).
+
+    `planned_steps` are the publishing phase's, and `step_records` their
+    records. `store_dir` is the published Store, or None when there is none to
+    measure.
+    """
+    return {
+        "store_bytes": (
+            store_size_on_disk(store_dir) if store_dir is not None and store_dir.is_dir() else None
+        ),
+        "has_hm3": _step_built(planned_steps, step_records, indexed_subset_step_name(HM3_SUBSET_NAME)),
+        "has_rho": _step_built(planned_steps, step_records, RHO_STEP),
+        # No step prints a top-hit count, so there is nothing to record until
+        # opengwas/opengwasdb#488's `info --json` does; a recipe with
+        # `post.top_hits: false` builds no Top-Hit Index, so null there is final.
+        "n_top_hits": None,
+    }
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
@@ -677,8 +754,12 @@ def harvest_observed_measurements(
     is_resumed: bool = False,
     manifest_path: Path | None = None,
     earlier_records: Mapping[str, dict[str, Any]] | None = None,
+    store_dir: Path | None = None,
 ) -> dict[str, Any]:
     """Harvest observed measurements from step records without opening any Store (ADR 0023).
+
+    `store_dir` is the Store this phase publishes, whose size is a stat of its
+    files (`store_facts`, #502).
 
     `earlier_records` are the records of the release's phases before this
     one: a completion phase's build phase (ADR 0037). The elapsed total counts
@@ -703,7 +784,6 @@ def harvest_observed_measurements(
     n_associations: int | None = None
     association_coverage: str | None = None
     reference_assembly: str | None = None
-    store_bytes: int | None = None
     rsid_conflicts: dict[str, Any] | None = None
     validate_status, _, _ = validate_verdict(step_records.get(_validate_step(planned_steps)))
 
@@ -777,7 +857,7 @@ def harvest_observed_measurements(
         "n_associations": n_associations,
         "association_coverage": association_coverage,
         "reference_assembly": reference_assembly,
-        "store_bytes": store_bytes,
+        **store_facts(planned_steps, step_records, store_dir),
         "build_elapsed_s": round(total_elapsed, 3),
         "validate_status": validate_status,
         "completion_state": published_completion_state(bundle_obj, phase),
@@ -1368,6 +1448,11 @@ def register_release(
     validate_step = _validate_step(planned_steps)
     val_status, val_warnings, val_errors = validate_verdict(step_records.get(validate_step))
     acceptance = acceptance_evidence(b.validation, commit=acceptance_commit)
+    # The Store this run publishes: the staged one, which publication renames
+    # into place unchanged, or the one already published (#502).
+    partial_p = paths.partial_store_path(store_id, root=resolved_root)
+    target_p = paths.store_path(store_id, root=resolved_root)
+    staged = publish and partial_p.is_dir()
     observed = harvest_observed_measurements(
         planned_steps,
         step_records,
@@ -1375,6 +1460,7 @@ def register_release(
         is_resumed=any_resumed,
         manifest_path=paths.build_manifest_path(store_id, root=resolved_root),
         earlier_records=earlier_records,
+        store_dir=partial_p if staged else target_p,
     )
 
     # 3. Assemble validation.yaml dictionary
@@ -1428,9 +1514,6 @@ def register_release(
     # the published release as it was.
     val_yaml_path = b.root / "validation.yaml"
     reg_rec_p = paths.record_path(store_id, register_step, root=resolved_root)
-    partial_p = paths.partial_store_path(store_id, root=resolved_root)
-    target_p = paths.store_path(store_id, root=resolved_root)
-    staged = publish and partial_p.is_dir()
     replacing = staged and _exists(target_p)
     # The completion phase exists to replace the Store its build phase
     # published, so that replacement is no rebuild and takes no `force`.
@@ -1539,7 +1622,10 @@ def register_release(
 
 __all__ = [
     "BUILD_ENVIRONMENT_FIELDS",
+    "HM3_SUBSET_NAME",
     "OBSERVED_FIELDS",
+    "RHO_STEP",
+    "STORE_FACT_FIELDS",
     "RSID_CONFLICT_FIELDS",
     "VALIDATOR_NAME",
     "ArgvDriftError",
@@ -1558,6 +1644,8 @@ __all__ = [
     "finish_build_phase_publication",
     "forced_completion",
     "harvest_observed_measurements",
+    "store_facts",
+    "store_size_on_disk",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",
     "publication_register_step",

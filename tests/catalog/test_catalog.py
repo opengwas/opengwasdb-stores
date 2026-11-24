@@ -430,6 +430,32 @@ class DeclaredAssociationCoverageTest(TempDirCase):
         )
 
 
+class StoreFactsTest(TempDirCase):
+    """The catalog carries what Store Release Build observed about each Store (#502)."""
+
+    def test_the_store_facts_reach_the_stores_table(self) -> None:
+        write_bundle(
+            self.registry, "OGS-00001",
+            observed_extra={"store_bytes": 987654, "has_hm3": True, "has_rho": False,
+                            "n_top_hits": {"5e-08": 4, "5e-06": 31}},
+        )
+        write_bundle(self.registry, "OGS-00002")
+        self.build()
+        self.assertEqual(
+            query(self.root, "SELECT store_id, store_bytes, has_hm3, has_rho, n_top_hits FROM stores "
+                             "ORDER BY store_id"),
+            [("OGS-00001", 987654, 1, 0, '{"5e-06":31,"5e-08":4}'), ("OGS-00002", None, None, None, None)],
+        )
+
+    def test_a_flag_that_is_not_a_boolean_refuses_the_store(self) -> None:
+        write_bundle(self.registry, "OGS-00001", observed_extra={"has_hm3": "yes"})
+        self.build()
+        self.assertEqual(
+            query(self.root, "SELECT decision, reason FROM selection"),
+            [("refused", "Validation Record: has_hm3 'yes' is not true, false or null")],
+        )
+
+
 class AnalysesTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:

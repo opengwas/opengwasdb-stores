@@ -23,6 +23,13 @@ STORE_COLUMNS: dict[str, str] = {
     "n_variants": "INTEGER",
     "n_associations": "INTEGER",
     "store_bytes": "INTEGER",
+    # What the Build Recipe built into the Store (#502): 1, 0, or NULL when the
+    # Validation Record does not say.
+    "has_hm3": "INTEGER",
+    "has_rho": "INTEGER",
+    # Top-hit counts keyed by threshold, as compact JSON; NULL until
+    # opengwas/opengwasdb#488 reports them, and for a Store with no top hits.
+    "n_top_hits": "TEXT",
     "format_version": "TEXT",
     "opengwasdb_version": "TEXT",
     "source_snapshot_id": "TEXT",

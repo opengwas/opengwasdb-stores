@@ -816,8 +816,12 @@ derived   store_id  label  layout  completion_state  status  derived_from  trial
           n_analyses  n_manifest  n_excluded  first_author  publication_pmid
           tissue  context  assigned_ancestry  sample_size  source_url
 observed  format_version  n_variants  n_associations  store_bytes
-          build_elapsed_s  validate_status
+          has_hm3  has_rho  n_top_hits  build_elapsed_s  validate_status
 ```
+
+`has_hm3` and `has_rho` are `true`, `false`, or empty when the Validation Record
+does not say; `n_top_hits` is the recorded mapping as compact JSON, empty while
+it is `null` (#502).
 
 `n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
 excluded manifest rows visible (issue #217).
@@ -925,6 +929,8 @@ The field-by-field format is defined once in
 this section records only how the workflow produces it.
 
 Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `n_associations`, `association_coverage` and `reference_assembly` come from that JSON under exactly those keys, with the same precedence `n_variants` and `n_analyses` use; a key opengwasdb does not print is `null`, never a derived value or one read from the Store (#322). A key present with a malformed value fails registration: `n_associations` must be a non-negative integer and the other two non-empty strings, so "opengwasdb reported something else" is never recorded as "opengwasdb reported nothing". A reported `association_coverage` must also equal the release's declaration: the builder was given that value (`--association-coverage`), so a Store at another coverage is not the Store the bundle describes, and `register` refuses it with `AssociationCoverageMismatchError`, naming the reported value and the declared one, before anything is written (#341). A record written before opengwasdb printed the key keeps its `null`: an absent key is an older runtime's output, not a mismatch.
+
+`register` also records four facts about the Store it publishes, none of them read from the Store (#502). `store_bytes` is the size on disk of the Store being published, the staged one that publication renames into place unchanged or the one already there, summed from a stat of each file; a stat opens no Store file, so it is no Store read under ADR 0023. `has_hm3` and `has_rho` come from the publishing phase's plan and its step records: `true` when the Build Recipe plans the HM3 Indexed Variant Subset step or the `rho` step and it succeeded. `n_top_hits` is `null`, since no step prints a top-hit count, until opengwas/opengwasdb#488's `opengwasdb info --json` reports the counts; `n_variants` and `n_associations` become complete from the same command. The schema defines each field and its `null`.
 
 The verdict is read from `opengwasdb validate --format json`, which the planned validate step requests (opengwasdb#175). It prints one object, `{"ok", "errors", "warnings"}`, to which opengwasdb v0.6.0 adds `findings` (opengwas/opengwasdb#378): one `{"rule", "severity", "target", "message"}` per record of the run, each error, warning and skipped rule, from which `errors` and `warnings` are projected. The record follows from `ok`, `errors` and `warnings` exactly:
 - `status` and `checks.store` are `failed` when `ok` is false, `passed_with_warnings` when `warnings` is non-empty, and `passed` otherwise;
