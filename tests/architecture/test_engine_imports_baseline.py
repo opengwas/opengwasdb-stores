@@ -30,6 +30,7 @@ from project_site.collect import architecture_graph as graph
 from project_site.collect import architecture_model as model
 
 REPO = Path(__file__).resolve().parents[2]
+NAME = "opengwasdb-stores"
 BASELINE = "docs/architecture/engine-imports-baseline.yaml"
 
 
@@ -58,10 +59,15 @@ class WorkingTree:
 
 
 def this_repository() -> list[dict]:
-    """What this checkout imports from the engine, measured the way the collector measures it."""
+    """What this checkout imports from the engine, measured the way the collector measures it.
+
+    The trees and claims are keyed by this repository's name, which is how the
+    collector keys every repository and how `engine_imports` finds the seam's
+    importing side (og-dev-hub#9).
+    """
     loaded = model.load_model((REPO / "docs/architecture/components.yaml").read_text(encoding="utf-8"))
-    claims = {"registry": model.claims_of(loaded["components"])}
-    return graph.imports_of({"registry": WorkingTree(REPO)}, claims)
+    claims = {NAME: model.claims_of(loaded["components"])}
+    return graph.imports_of({NAME: WorkingTree(REPO)}, claims)
 
 
 class ThisRepositoryTests(unittest.TestCase):
