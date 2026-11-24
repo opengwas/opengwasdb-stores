@@ -308,8 +308,9 @@ match on the text you already know:
 
 ```bash
 ogdb query-top-hits "$STORE" --threshold 5e-8 \
+  | cols analysis_id,analysis_label,chromosome,position,alid,effect_allele,other_allele,z,se,p,association_status \
   | awk -F'\t' 'NR==1 || $1=="ENSG00000136997::whole_blood"' \
-  | cols analysis_id,analysis_label,chromosome,position,alid,effect_allele,other_allele,z,se,p,association_status | head -6 | column -t -s$'\t'
+  | head -6 | column -t -s$'\t'
 ```
 
 ```
@@ -411,15 +412,13 @@ metabolite's single strongest variant (largest `|z|`), then take the top 6 —
 `--variant-info` here to get rsids alongside:
 
 ```bash
-{ printf 'analysis_id\tanalysis_label\trsid\talid\tz\tp\n'
-  ogdb query-range-phewas "$STORE" 11 61750000 61900000 --variant-info \
-    | awk -F'\t' 'NR == 1 { for (i = 1; i <= NF; i++) c[$i] = i; next }
-        { a = $c["analysis_id"]; z = $c["z"]; az = z < 0 ? -z : z
-          if (az > maxz[a]) { maxz[a] = az
-            row[a] = a "\t" $c["analysis_label"] "\t" $c["rsid"] "\t" $c["alid"] "\t" z "\t" $c["p"] } }
-        END { for (a in row) print maxz[a] "\t" row[a] }' \
-    | sort -t$'\t' -k1,1gr | head -6 | cut -f2-
-} | column -t -s$'\t'
+ogdb query-range-phewas "$STORE" 11 61750000 61900000 --variant-info \
+  | cols analysis_id,analysis_label,rsid,alid,z,p \
+  | awk -F'\t' 'NR == 1 { print "1e9\t" $0; next }   # the header sorts first
+      { z = $5; az = z < 0 ? -z : z
+        if (az > maxz[$1]) { maxz[$1] = az; row[$1] = $0 } }
+      END { for (a in row) print maxz[a] "\t" row[a] }' \
+  | sort -t$'\t' -k1,1gr | head -7 | cut -f2- | column -t -s$'\t'
 ```
 
 ```

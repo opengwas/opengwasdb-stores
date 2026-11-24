@@ -4,9 +4,13 @@
 variable-length ALID sidecar, the position and `source_alid` sidecars, and for a Hybrid no
 Variant Axis of the Dense Component's own. Hosted releases are 0.2.x until the rebuild
 (opengwas/opengwasdb-stores#498), so the audit has to read both, and a fixture of the 0.2
-shape is made here from the same writer. `write_fixed_width_alid_index` and
-`write_variant_offsets` are the engine's own test helpers (`tests/format_0_2_3.py` at
-opengwasdb 7446e750), which write what `write_variant_axis` wrote before #467.
+shape is made here from the same writer. `write_fixed_width_alid_index` and `write_variant_offsets` below are copied from the
+engine's own test helpers of the same names in opengwasdb's `tests/format_0_2_3.py`, at
+commit 7446e750 (the pin), which write what `write_variant_axis` wrote before #467.
+Nothing compares the copy with the engine's file: the guard is that the engine's reader
+accepts what it writes (the audit suites read these fixtures through it). Re-copy on a pin
+move if the engine's file changed. A fixture "0.2" Variant Table is the 0.3.0 writer's, so
+it is a true 0.2 shape only while `variants.tsv.gz` is unchanged across the two formats.
 """
 from __future__ import annotations
 
@@ -82,13 +86,22 @@ def write_axis(
     if layout == "0.3":
         write_variant_axis(directory, variants, rsids)
         return
+    alids = [variant.alid for variant in variants]
     try:
         write_variant_axis(directory, variants, rsids)
     except DuplicateAlidError:
-        pass
+        # Swallowed only for a list that does repeat an ALID, and only because of the
+        # writer's order at 7446e750: `write_variant_axis` writes the `source_alid` sidecar,
+        # then the Variant Table, then the ALID sidecar, which is what refuses the repeat.
+        # So the table is already complete when this is raised, and a 0.2 fixture needs
+        # nothing the writer would have written after it (position sidecar, rsid index).
+        # If the engine reorders those, the fixture's table is not written and the audit
+        # tests fail loudly on a missing `variants.tsv.gz`.
+        if len(set(alids)) == len(alids):
+            raise
     for name in (*ALID_SIDECAR_FILENAMES, *POSITION_SIDECAR_FILENAMES, *SOURCE_ALID_SIDECAR_FILENAMES):
         (directory / name).unlink(missing_ok=True)
-    write_fixed_width_alid_index(directory, [variant.alid for variant in variants])
+    write_fixed_width_alid_index(directory, alids)
     write_variant_offsets(directory)
 
 

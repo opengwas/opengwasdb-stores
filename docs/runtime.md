@@ -42,6 +42,14 @@ not an update. That baseline is `0.2.3` since opengwasdb#338 (ADR 0068; it was
 `0.2.2` from opengwasdb#381, ADR 0079): an engine that writes `0.2.0`, `0.2.1` or
 `0.2.2` is refused. `pixi run engine-update --check` checks without moving anything.
 
+**Format 0.3.0 (opengwas/opengwasdb-stores#498).** While the pin names opengwasdb's
+format-0.3.0 epic branch (`orch/450-ogquery-store-reader`), the engine writes `0.3.0` and
+`REQUIRED_FORMAT_VERSION` is still `0.2.3`, so `engine-update` would refuse it and the
+`runtime` suite fails on the branch name. That is expected: `REQUIRED_FORMAT_VERSION`
+moves to `0.3.0` in the same commit that returns the pin to `main`, once opengwasdb#480
+merges, and the rebuild of the hosted releases follows. Until then the code here reads
+both formats and hosted releases stay `0.2.x`.
+
 ### Engines within a phase
 
 Only a step that continues another engine's output is held to that engine. An
