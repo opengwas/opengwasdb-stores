@@ -578,7 +578,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/noarch/yte-1.9.4-pyhd8ed1ab_0.conda
       - conda: https://conda.anaconda.org/conda-forge/noarch/zarr-3.4.1-pyhc364b38_0.conda
       - pypi: ./
-      - pypi: git+https://github.com/opengwas/og-dev-hub?rev=7f999e68c9cd92a714565b8093d8f5c285cad698#7f999e68c9cd92a714565b8093d8f5c285cad698
+      - pypi: git+https://github.com/opengwas/og-dev-hub?rev=029ceede941f38ba6b6c5153773974027063e82c#029ceede941f38ba6b6c5153773974027063e82c
       - pypi: git+https://github.com/opengwas/opengwasdb?branch=main#1230629a2c0958851f8ed5e1bcc8db9472b7516a
       - pypi: https://files.pythonhosted.org/packages/55/0f/e7f1ff3a1cabc6c4486a7ee1b0506aedf2f5f8329760ac1f4e8032feef2b/pysam-0.24.0-cp312-cp312-manylinux_2_27_x86_64.manylinux_2_28_x86_64.whl
       - pypi: https://files.pythonhosted.org/packages/ab/ac/8f96ba9b4cfe3e4ea201f23f4f97165862395e9331a424ed325ae37024a8/setuptools_scm-8.3.1-py3-none-any.whl
@@ -6622,7 +6622,7 @@ packages:
 - pypi: ./
   name: ogstores
   requires_python: '>=3.12'
-- pypi: git+https://github.com/opengwas/og-dev-hub?rev=7f999e68c9cd92a714565b8093d8f5c285cad698#7f999e68c9cd92a714565b8093d8f5c285cad698
+- pypi: git+https://github.com/opengwas/og-dev-hub?rev=029ceede941f38ba6b6c5153773974027063e82c#029ceede941f38ba6b6c5153773974027063e82c
   name: og-dev-hub
   version: 0.1.0
   requires_python: '>=3.12'

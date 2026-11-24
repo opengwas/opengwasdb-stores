@@ -113,7 +113,7 @@ setuptools-scm = ">=8,<9"
 # (tests/architecture/): they hold this repository's components.yaml and engine
 # imports to the same rules the site draws them by. Its `dependencies` are
 # empty, so it brings nothing else in.
-og-dev-hub = { git = "https://github.com/opengwas/og-dev-hub", rev = "7f999e68c9cd92a714565b8093d8f5c285cad698" }
+og-dev-hub = { git = "https://github.com/opengwas/og-dev-hub", rev = "029ceede941f38ba6b6c5153773974027063e82c" }
 
 [feature.workflow.dependencies]
 # Phase A orchestration. The DAG only wires dependencies and resource requests;
