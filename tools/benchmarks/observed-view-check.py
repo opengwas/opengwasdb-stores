@@ -30,6 +30,7 @@ import numpy as np
 
 from opengwasdb.encoding import DenseEafPlane, DenseSePlane, DenseZPlane
 from opengwasdb.store.open import open_store
+from opengwasdb.variants.axis import VariantAxis
 
 ROOT = Path("/data/opengwasdb/stores")
 CHUNK_ROWS = 1000
@@ -51,23 +52,29 @@ def planes(path: Path):
 
 
 def axis_map(parent: Path, child: Path) -> tuple[np.ndarray, np.ndarray, dict]:
-    pb = np.load(parent / "variant_alid_bytes.npy")
-    pr = np.load(parent / "variant_alid_rows.npy")
-    cb = np.load(child / "variant_alid_bytes.npy")
-    cr = np.load(child / "variant_alid_rows.npy")
-    n_parent = len(pr)
-    idx = np.searchsorted(cb, pb)
-    idx_c = np.minimum(idx, len(cb) - 1)
-    found = cb[idx_c] == pb
-    p2c = np.full(n_parent, -1, dtype=np.int64)
-    p2c[pr[found]] = cr[idx_c[found]]
-    chrom = np.empty(n_parent, dtype=object)
-    chrom[pr] = np.char.partition(pb, b":")[:, 0].astype(str)
+    """Each parent row's child row, through the engine's ALID index (whichever kind the
+    release's format carries: the 0.2 fixed-width pair or the 0.3.0 sidecar), never the
+    index files themselves. A row the parent's index leaves out (an ALID wider than 32
+    bytes, 0.2 only) is unmapped, as it always was."""
+    parent_axis, child_axis = VariantAxis(parent), VariantAxis(child)
+    try:
+        n_parent, n_child = parent_axis.n_variants, child_axis.n_variants
+        alids = parent_axis.alid_index.alids(np.arange(n_parent))
+        held = np.fromiter((alid is not None for alid in alids), dtype=bool, count=n_parent)
+        p2c = np.full(n_parent, -1, dtype=np.int64)
+        found_rows = np.asarray(child_axis.alid_index.search(list(alids[held])), dtype=np.int64)
+        found = found_rows >= 0
+        p2c[np.flatnonzero(held)[found]] = found_rows[found]
+        child_indexed = n_child - len(child_axis.alid_index.unindexed_rows(n_child))
+    finally:
+        parent_axis.close()
+        child_axis.close()
+    chrom = np.array([alid.split(":")[0] if alid is not None else "" for alid in alids], dtype=object)
     mapped = p2c >= 0
     stats = {
-        "parent_rows_indexed": int(len(pr)),
+        "parent_rows_indexed": int(held.sum()),
         "parent_rows_unmapped": int((~mapped).sum()),
-        "child_rows_indexed": int(len(cr)),
+        "child_rows_indexed": int(child_indexed),
         "order_preserved": bool(np.all(np.diff(p2c[mapped]) > 0)),
     }
     return p2c, chrom, stats
