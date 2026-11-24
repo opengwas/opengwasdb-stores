@@ -1,4 +1,4 @@
-# `tools/backfill_observed.py` on a fixture registry
+# `ogstores.backfill_observed` on a fixture registry
 
 Tests for #502's backfill, which writes the Store facts (`store_bytes`,
 `has_hm3`, `has_rho`, `n_top_hits`) into the Validation Records registered

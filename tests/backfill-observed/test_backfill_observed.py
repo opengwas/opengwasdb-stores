@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""`tools/backfill_observed.py` on a fixture registry and Artifact Root (#502).
+"""`ogstores.backfill_observed` on a fixture registry and Artifact Root (#502).
 
 1. It fills `store_bytes`, `has_hm3`, `has_rho` and `n_top_hits` in each
    `built` or `validated` record, and changes no other line of the file: the
@@ -18,7 +18,6 @@ Run from the repository root:
 from __future__ import annotations
 
 import contextlib
-import importlib.util
 import io
 import shutil
 import subprocess
@@ -30,17 +29,10 @@ from typing import Any
 
 import yaml
 
-from ogstores import paths, run
+from ogstores import backfill_observed, paths, run
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-TOOL: Path = REPO_ROOT / "tools" / "backfill_observed.py"
 NEW_KEYS: tuple[str, ...] = ("store_bytes", "has_hm3", "has_rho", "n_top_hits")
-
-_spec = importlib.util.spec_from_file_location("backfill_observed", TOOL)
-assert _spec is not None and _spec.loader is not None
-backfill_observed = importlib.util.module_from_spec(_spec)
-sys.modules[_spec.name] = backfill_observed  # its dataclass resolves annotations through it
-_spec.loader.exec_module(backfill_observed)
 
 HM3 = {
     "name": "hm3",
@@ -253,7 +245,7 @@ class BackfillTest(unittest.TestCase):
         registry, artifacts = tree(self.registry), tree(self.artifact_root)
 
         result = subprocess.run(
-            [sys.executable, str(TOOL), *self.arguments("--dry-run")],
+            [sys.executable, "-m", "ogstores.backfill_observed", *self.arguments("--dry-run")],
             capture_output=True, text=True, cwd=REPO_ROOT,
         )
 

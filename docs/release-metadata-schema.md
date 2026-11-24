@@ -930,7 +930,7 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 **Recording observations into a published bundle (#502).** The Store facts
 `store_bytes`, `has_hm3`, `has_rho` and `n_top_hits` describe the Store as it
 is served, and a record written before `register` measured them lacks them.
-`pixi run -e dev backfill-observed` (`tools/backfill_observed.py`) writes them
+`pixi run -e dev backfill-observed` (`ogstores.backfill_observed`) writes them
 into the Validation Record of every `built` or `validated` bundle, by the same
 rules `register` uses, reading the Artifact Root without writing to it. This
 changes no membership, so it does not breach an accepted bundle's

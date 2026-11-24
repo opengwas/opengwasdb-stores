@@ -135,7 +135,7 @@ CONDITIONAL_OBSERVED_MAPPINGS: dict[str, tuple[str, ...]] = {
 # assembly from a re-registered record. So a committed record may lack any of
 # these and still be the register shape (issues #307, #322). The Store facts of
 # #502 are written into the committed records once, by
-# `tools/backfill_observed.py`, after #498 rewrites the Stores.
+# `ogstores.backfill_observed`, after #498 rewrites the Stores.
 COMPLETION_STATE_FIELD = "completion_state"
 POSTDATED_OBSERVED_FIELDS: frozenset[str] = frozenset(
     {COMPLETION_STATE_FIELD, "association_coverage", "reference_assembly", "has_hm3", "has_rho", "n_top_hits"}

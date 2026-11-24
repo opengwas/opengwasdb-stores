@@ -688,7 +688,7 @@ def require_declared_association_coverage(
 HM3_SUBSET_NAME: str = "hm3"
 RHO_STEP: str = "rho"
 
-# The `observed` keys #502 added, which `tools/backfill_observed.py` writes into
+# The `observed` keys #502 added, which `ogstores.backfill_observed` writes into
 # records registered before them.
 STORE_FACT_FIELDS: tuple[str, ...] = ("store_bytes", "has_hm3", "has_rho", "n_top_hits")
 

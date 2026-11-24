@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Write #502's Store facts into the Validation Records registered before them.
 
     pixi run -e dev backfill-observed [--dry-run] [--registry-root stores] [--artifact-root /data/opengwasdb/stores]
@@ -27,7 +26,8 @@ a key that is not a Store fact. A second run changes nothing.
 It opens no Store file and writes nothing under the Artifact Root. `--dry-run`
 prints what it would change and writes nothing.
 
-It runs once, after opengwas/opengwasdb-stores#498 rewrites every Store to
+Run it as `python3 -m ogstores.backfill_observed`, which the
+`backfill-observed` task does. It runs once, after opengwas/opengwasdb-stores#498 rewrites every Store to
 format 0.3.0, so it records the Stores as they are served. Recording
 observations into an accepted bundle's Validation Record changes no
 membership, so it is allowed under the Release Bundle contract
@@ -57,7 +57,7 @@ from ogstores.plan import BUILD_PHASE, COMPLETION_PHASE, REGISTER_STEPS, plan
 from ogstores.readiness import discover_bundles
 from ogstores.register import STORE_FACT_FIELDS, store_facts
 
-REPO_ROOT: Path = Path(__file__).resolve().parents[1]
+REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 
 #: The Release Statuses whose bundle describes a built Store.
 BUILT_STATUSES: frozenset[str] = frozenset({"built", "validated"})
