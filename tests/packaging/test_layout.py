@@ -70,10 +70,11 @@ TEMP_FACTORIES = frozenset({
     "TemporaryDirectory", "mkdtemp", "mkstemp", "NamedTemporaryFile", "TemporaryFile", "SpooledTemporaryFile",
 })
 
-#: Where the scratch rule is enforced: the site's and the yardstick's code, and
-#: the scripts beside them (#390 review, item 4). A test may use `tempfile`
-#: freely -- the runner sets the suite's own `$TMPDIR`.
-SCRATCH_TREES = ("src/project_site/", "src/yardstick/", "tools/")
+#: Where the scratch rule is enforced: the yardstick's code, and the scripts
+#: beside it (#390 review, item 4). The site's code, which it also covered, moved
+#: to og-dev-hub (og-dev-hub#7). A test may use `tempfile` freely -- the runner
+#: sets the suite's own `$TMPDIR`.
+SCRATCH_TREES = ("src/yardstick/", "tools/")
 
 
 def _temp_factory(func: ast.expr) -> str | None:

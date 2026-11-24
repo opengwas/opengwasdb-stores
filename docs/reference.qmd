@@ -38,4 +38,5 @@ Every page here comes from a file under `docs/` and keeps its path. A link from 
 page to a file outside `docs/` — a module under `src/`, a table under
 `resources/`, `CONTRIBUTING.md` — is rewritten at render time to the GitHub blob
 URL of the commit being rendered, so it works on the site and still points at the
-same file. See [the site page](site.md) for how to preview and publish.
+same file. See [the site page](https://github.com/opengwas/og-dev-hub/blob/main/docs/site.md),
+in og-dev-hub, for how to preview and publish.

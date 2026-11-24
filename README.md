@@ -29,7 +29,7 @@ pixi run test-python    # Python suites only
 pixi run test-r         # R suites only
 pixi run materialise-gwas-ssf-ragged OGS-00006 \
   --qc-panel=resources/reference-resources/qc-panel-hg38/qc_panel.tsv
-pixi run --environment docs docs   # render and assemble the docs/ site
+pixi run --environment docs docs   # render the reports the site serves
 pixi run --environment ld-panel ld-acquire -- --help
 pixi run --environment ld-panel ld-materialize -- --help
 ```
@@ -92,11 +92,12 @@ resources/               inputs only
   inventories/             frozen Source Inventories
   generators/              release configs, reviewed tables, generation receipts
 tools/                   repository tooling: ld-panel/, benchmarks/,
-                         reference-resources/, the env check, the site build,
+                         reference-resources/, the env check, the report build,
                          the release and the changelog check, spikes
 tests/                   the suites, and run_all_tests.py behind `pixi run test`
 docs/                    adr/ decisions, spec/ specifications, reports/ report
-                         sources, and the rendered site
+                         sources, and the pages og-dev-hub's project site
+                         renders (https://blog.opengwas.io/og-dev-hub/)
 changelog.d/             one fragment per change: the next version's notes
 .github/workflows/       CI: the suites, bundle-check, the index, the docs smoke
                          test and the changelog check; the release of every merge

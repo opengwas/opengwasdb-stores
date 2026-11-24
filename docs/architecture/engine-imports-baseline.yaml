@@ -4,7 +4,7 @@
 # directly, 91 imports in all, and each is a coupling nobody decided on that an
 # engine refactor can break.
 #
-# tests/project-site-architecture/test_engine_imports_baseline.py measures them
+# tests/architecture/test_engine_imports_baseline.py measures them
 # with the import graph the site's architecture collector uses, and fails on an
 # import this file does not list and on a listed import that has gone. The site's
 # "Structure and health" page states this file's size next to the seam between
