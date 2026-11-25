@@ -48,13 +48,14 @@ differed only in which name they looked up. The chain's shape lives in
 
 from __future__ import annotations
 
+import functools
 import os
 from pathlib import Path
 
 from snakemake.exceptions import WorkflowError
 
 # `ogstores` is installed editable into the pixi environment (#257).
-from ogstores import amendment, bundle, index, manifest, paths, register, resources, run, runtime
+from ogstores import amendment, bundle, index, manifest, paths, post_additions, register, resources, run, runtime
 from ogstores.plan import (
     BUILD_PHASE,
     COMPLETION_PHASE,
@@ -114,19 +115,56 @@ def record(store_id: str, step: str, root: Path | str | None = None) -> str:
     return str(paths.record_path(store_id, step, root=root or get_artifact_root()))
 
 
-def step_input(wildcards) -> list[str]:
+@functools.cache
+def additions_current(store_id: str, root: str) -> bool:
+    """Whether the release's in-place additions are published and its evidence current (ADR 0043)."""
+    return post_additions.current(get_bundle(store_id), root)
+
+
+def forced(store_id: str, root: str) -> bool:
+    """Whether this run forces anything of the release: `--forceall`, `--forcetargets`, or a `--forcerun` under it or of a rule."""
+    settings = workflow.dag_settings
+    if settings is None:
+        return False
+    if settings.forceall or settings.forcetargets:
+        return True
+    release_dir = f"{paths.store_dir(store_id, root=root)}/"
+    return any("/" not in str(item) or str(item).startswith(release_dir) for item in settings.forcerun)
+
+
+def settled(wildcards, record_p: str):
+    """A post step's predecessor record, `ancient` when the release's in-place additions are current.
+
+    An addition leaves a later post step's record (an Indexed Variant Subset,
+    an Observed-View Check) older than the added record now before it, so by
+    mtime Snakemake would reschedule it, and the published-Store guard would
+    refuse the run (ADR 0043). Only the edges between post steps, and into the
+    register, are settled: a build's or a manifest's inputs never, and nothing
+    under a run that forces the release, so a newer manifest and `force=1`
+    schedule what they always did.
+    """
+    if additions_current(wildcards.store_id, wildcards.root) and not forced(wildcards.store_id, wildcards.root):
+        return ancient(record_p)
+    return record_p
+
+
+def step_input(wildcards) -> list:
     """Predecessor of a step: the prior record, a register record, or raw sources.
 
     The first planned step of a derived release takes its parent's `register`
     record, which is what sequences a lineage without a hand-written batch order.
     The first step of a completion phase takes its own build phase's `register`
     record, because it completes the Store that phase published (ADR 0037).
+    A post step's record predecessor that is itself a post step's is `settled`.
     """
     steps = get_steps(wildcards.store_id, wildcards.root)
     names = [s.name for s in steps]
     idx = names.index(wildcards.step)
     if idx > 0 and steps[idx - 1].phase == steps[idx].phase:
-        return [record(wildcards.store_id, names[idx - 1], wildcards.root)]
+        previous = record(wildcards.store_id, names[idx - 1], wildcards.root)
+        if names[idx - 1] in amendment.STORE_WRITING_STEPS:
+            return [previous]
+        return [settled(wildcards, previous)]
     if idx > 0:
         return [record(wildcards.store_id, REGISTER_STEPS[steps[idx - 1].phase], wildcards.root)]
 
@@ -168,12 +206,12 @@ def check_staged_column_map(store_id: str, root: str, inputs) -> None:
         raise WorkflowError(str(exc))
 
 
-def last_step_record(wildcards, phase: str) -> str:
+def last_step_record(wildcards, phase: str) -> list:
     """The record a phase's register consumes: the phase's last planned step's."""
     names = [s.name for s in get_steps(wildcards.store_id, wildcards.root) if s.phase == phase]
     if not names:
         raise WorkflowError(f"{wildcards.store_id} has no {phase} phase to register")
-    return record(wildcards.store_id, names[-1], wildcards.root)
+    return [settled(wildcards, record(wildcards.store_id, names[-1], wildcards.root))]
 
 
 wildcard_constraints:

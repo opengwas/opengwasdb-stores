@@ -31,6 +31,15 @@ Snakemake option can switch off:
    that leaves the marker, so the next run's recovery repeats the step. Then a
    failed run's snapshots are restored and a successful run's are archived.
 
+A named, unforced release whose Store is published and whose recipe now
+declares post steps (`top-hits`, `rho`, `clump`) its records lack is not
+handed to Snakemake: they are added to the published Store in place, on a
+reflink copy, then validated, published and registered, with no rebuild and
+no `force` (`ogstores.post_additions`, ADR 0043). Every unforced release a
+run touches, `all`'s too, is refused when the mode finds its records no longer
+describe the Store its bundle plans; a release the mode published with nothing
+missing is left to Snakemake, which settles the edges between its post steps.
+
 `--resolve-snapshot restore|delete` carries out an operator's resolution of
 a leftover snapshot, and clears Snakemake's incomplete marks for that release.
 
@@ -50,6 +59,7 @@ Snakefile's own `onstart` refusal.
 
 from __future__ import annotations
 
+import dataclasses
 import fcntl
 import os
 import re
@@ -62,7 +72,18 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable
 
-from ogstores import amendment, bundle, manifest, paths, register, resources, run, runtime
+from ogstores import (
+    amendment,
+    bundle,
+    manifest,
+    paths,
+    post_additions,
+    register,
+    resources,
+    run,
+    runtime,
+    staged_publication,
+)
 from ogstores.plan import plan as plan_steps
 
 SNAKEFILE: Path = paths.REPO_ROOT / "workflow" / "Snakefile"
@@ -456,35 +477,23 @@ def resolve_targets(inv: Invocation, registry_root: Path) -> tuple[list[str], li
 
 
 def _cleanup_metadata(inv: Invocation, files: Iterable[Path], *, root: Path) -> None:
-    """Clear Snakemake's marks that a killed job left these outputs incomplete.
+    """Clear Snakemake's metadata, and its marks that a killed job left them incomplete, for these outputs.
 
-    Snakemake's own `--cleanup-metadata` is the supported way to do it. When
-    the killed job never wrote metadata, Snakemake removes the incomplete mark
-    and still exits 1 saying the metadata "was not present". That one outcome
-    is expected; any other failure is raised.
+    Snakemake's own `--cleanup-metadata` is the supported way to do it, in one
+    call for all of them: it clears each file it can, then exits 1 naming the
+    ones whose metadata "was not present", such as a killed job that never
+    wrote any. That one outcome is expected; any other failure is raised.
     """
-    for path in files:
-        argv = [
-            sys.executable, "-m", "snakemake", "--snakefile", str(SNAKEFILE),
-            "--cleanup-metadata", str(path),
-        ]
-        if inv.config:
-            argv += ["--config", *(f"{key}={value}" for key, value in inv.config.items())]
-        result = subprocess.run(
-            argv, cwd=snakemake_directory(), env=snakemake_env(root), capture_output=True, text=True
-        )
-        output = result.stdout + result.stderr
-        if result.returncode != 0 and "because the metadata was not present" not in output:
-            raise RuntimeError(f"Could not clear Snakemake's metadata for {path}:\n{output}")
-
-
-def _cleanup_register_metadata(inv: Invocation, store_id: str, root: Path, register_step: str) -> None:
-    """`complete_publication` has just written the phase's register record, so it is complete.
-
-    That is `records/register.json`, or `records/completion-register.json` for
-    the completion phase of a release that completes its own Store (ADR 0037).
-    """
-    _cleanup_metadata(inv, [paths.record_path(store_id, register_step, root=root)], root=root)
+    files = [str(path) for path in files]
+    if not files:
+        return
+    argv = [sys.executable, "-m", "snakemake", "--snakefile", str(SNAKEFILE), "--cleanup-metadata", *files]
+    if inv.config:
+        argv += ["--config", *(f"{key}={value}" for key, value in inv.config.items())]
+    result = subprocess.run(argv, cwd=snakemake_directory(), env=snakemake_env(root), capture_output=True, text=True)
+    output = result.stdout + result.stderr
+    if result.returncode != 0 and "because the metadata was not present" not in output:
+        raise RuntimeError(f"Could not clear Snakemake's metadata for {', '.join(files)}:\n{output}")
 
 
 def resolve_snapshot(inv: Invocation, store_id: str, root: Path, action: str) -> str:
@@ -520,21 +529,38 @@ def resolve_snapshot(inv: Invocation, store_id: str, root: Path, action: str) ->
     )
 
 
+def publication_outputs(marker: dict, store_id: str, root: Path) -> list[Path]:
+    """The records whose Snakemake metadata a publication's finish clears.
+
+    The register record it writes, whose incomplete mark a killed register job
+    leaves (#195). For an addition of post steps in place, every record its
+    register lists too (ADR 0043): a step now follows an added one, so its
+    recorded inputs changed, and Snakemake's `input` trigger would reschedule
+    it.
+    """
+    register_step = register.publication_register_step(marker)
+    outputs = [paths.record_path(store_id, register_step, root=root)]
+    record = marker.get("register_record") or {}
+    if post_additions.BLOCK in record:
+        outputs += [Path(str(p)) for p in record.get("inputs") or []]
+    return outputs
+
+
 def finish_publication(inv: Invocation, store_id: str, root: Path | str) -> bool:
     """Finish a release's pending publication, removing its marker last (#195).
 
     `complete_publication` brings the Store and archive into line and rewrites
     the two records the marker holds (identical, after a register job that ran
-    to the end). Then Snakemake's incomplete mark on the register record the
-    marker names, which a killed job leaves, is cleared, and only then is
+    to the end). Then Snakemake's metadata for the records the publication
+    names is cleared (`publication_outputs`), and only then is
     `publication.json` removed. A crash anywhere in here leaves the marker, so
-    the next run repeats this function. Returns whether a publication was
-    pending.
+    the next run repeats this function, cleanup included. Returns whether a
+    publication was pending.
     """
     marker = register.complete_publication(store_id, root, finalize=False)
     if marker is None:
         return False
-    _cleanup_register_metadata(inv, store_id, Path(root), register.publication_register_step(marker))
+    _cleanup_metadata(inv, publication_outputs(marker, store_id, Path(root)), root=Path(root))
     run.fault_boundary("metadata-cleaned")
     register.remove_publication_marker(store_id, root)
     return True
@@ -828,6 +854,19 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     except bundle.NotBuildableError as exc:
         print(f"release-dry: the real run would refuse:\n{exc}")
         return 0
+    try:
+        additions = post_additions_of(inv, requested, registry_root, root, force)
+    except post_additions.PostAdditionRefused as exc:
+        print(f"release-dry: the real run would refuse:\n{exc}")
+        return 0
+    for store_id, assessment in additions:
+        print(_dry_run_addition(assessment, registry_root))
+    if additions:
+        added = dict(additions)
+        inv = dataclasses.replace(inv, targets=[t for t in inv.targets if t not in added])
+        requested = [store_id for store_id in requested if store_id not in added]
+        if not inv.targets:
+            return 0
     result = subprocess.run(
         snakemake_argv(
             inv,
@@ -929,8 +968,76 @@ def _dry_run(inv: Invocation, registry_root: Path, root: Path, force: bool) -> i
     return result.returncode
 
 
+def post_additions_of(
+    inv: Invocation, requested: Iterable[str], registry_root: Path, root: Path, force: bool
+) -> list[tuple[str, post_additions.Assessment]]:
+    """The named, unforced releases whose post steps this run adds in place (ADR 0043).
+
+    Every unforced release the run requests is assessed, `all`'s too, so one
+    the mode takes whose records no longer describe the Store its bundle plans
+    is refused (`post_additions.PostAdditionRefused`), whatever Snakemake's
+    mtimes would schedule. Only a named one gains steps: `all` never adds, and
+    one with nothing to run is left to Snakemake, which settles the edges
+    between its post steps and finds nothing to do.
+    """
+    forced = run.forced_releases(force, inv.targets)
+    named = set(inv.targets) - {"all"}
+    unforced = [store_id for store_id in dict.fromkeys(requested) if store_id not in forced]
+    return [
+        (store_id, assessment)
+        for store_id, assessment in post_additions.iter_assessments(unforced, registry_root, root)
+        if store_id in named and not assessment.up_to_date
+    ]
+
+
+def _dry_run_addition(assessment: post_additions.Assessment, registry_root: Path) -> str:
+    """What the real run would do for a release `post_additions` takes."""
+    try:
+        post_additions.preflight(assessment, registry_root=registry_root, probe=False)
+    except post_additions.PostAdditionRefused as exc:
+        return f"release-dry: the real run would refuse:\n{exc}"
+    return "\n".join([
+        f"release-dry: {assessment.store_id} is published; the real run adds its missing post steps in place, "
+        "on a reflink copy, with no rebuild (ADR 0043):",
+        *assessment.plan_lines(),
+    ])
+
+
+def _add_post_steps(
+    inv: Invocation, additions: list[tuple[str, post_additions.Assessment]], registry_root: Path, root: Path
+) -> int | None:
+    """Add each release's missing post steps in place; an exit code when interrupted, else None.
+
+    The publication finishes as the entry point finishes every publication
+    (`finish_publication`): Snakemake's metadata for the release's records is
+    cleared before the marker is removed, and recovery repeats both.
+    """
+    for store_id, assessment in additions:
+        names = ", ".join(step.name for step in assessment.steps)
+        print(f"release: running {names} on a reflink copy of {store_id}'s published Store (ADR 0043)")
+        try:
+            record = post_additions.add_post_steps(
+                assessment,
+                registry_root=registry_root,
+                finish=lambda store_id=store_id: finish_publication(inv, store_id, root),
+            )
+        except staged_publication.Interrupted as exc:
+            print(f"release: interrupted; {exc.describe()}", file=sys.stderr)
+            return 130
+        except KeyboardInterrupt:
+            print(f"release: interrupted before {store_id}'s records were snapshotted; nothing was written", file=sys.stderr)
+            return 130
+        assert record is not None
+        print(
+            f"release: published {store_id} after {names}, validation {record['status']}; "
+            f"the replaced Store is archived at {record['replaced']['archive']}"
+        )
+    return None
+
+
 GUARD_ERRORS: tuple[type[BaseException], ...] = (
     bundle.NotBuildableError,
+    post_additions.PostAdditionRefused,
     amendment.AmendmentError,
     ReleaseInProgressError,
     run.StoreExistsError,
@@ -979,6 +1086,20 @@ def _run(inv: Invocation, registry_root: Path, root: Path, force: bool, locks: R
     # A leftover snapshot is refused before the dry run, so an operator sees the
     # refusal and its resolutions, not the IncompleteFilesException it causes.
     run.refuse_pending_force_snapshots([(root, store_id) for store_id in requested])
+
+    # A published release whose recipe declares post steps its records lack
+    # gains them in place, with no rebuild; Snakemake never sees it. One whose
+    # records no longer describe its bundle's Store is refused here (ADR 0043).
+    additions = post_additions_of(inv, requested, registry_root, root, force)
+    if additions:
+        interrupted = _add_post_steps(inv, additions, registry_root, root)
+        if interrupted is not None:
+            return interrupted
+        added = dict(additions)
+        inv = dataclasses.replace(inv, targets=[t for t in inv.targets if t not in added])
+        requested = [store_id for store_id in requested if store_id not in added]
+        if not inv.targets:
+            return 0
 
     force_run = force_run_files(inv, force, requested, registry_root, root)
     plan = subprocess.run(
@@ -1129,6 +1250,7 @@ __all__ = [
     "lock_holder",
     "main",
     "parse_invocation",
+    "post_additions_of",
     "recover_releases",
     "registered_ids",
     "release_outputs",
