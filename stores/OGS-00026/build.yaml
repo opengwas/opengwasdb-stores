@@ -1,9 +1,18 @@
 store_id: OGS-00026
 layout: ragged
-completion_state: observed_only
+completion_state: reference_completed
 build:
   command: build-ragged-ssf
   options: {}
 post:
   top_hits: true
   overview: false
+  clumps: true
+  ld_stores:
+    SAS: /data/opengwasdb/ld-stores/hgdp1kgp-v2-SAS/hgdp1kgp-v2-SAS-k10.store
+complete:
+  command: complete-ragged
+  options:
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+    ancestry: SAS
+    n-workers: 32

@@ -41,13 +41,31 @@
     ]
   },
   {
+    "name": "clump",
+    "argv": [
+      "opengwasdb",
+      "clump",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "--ld-store",
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ]
+  },
+  {
     "name": "validate",
     "argv": [
       "opengwasdb",
       "validate",
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
       "--format",
-      "json"
+      "json",
+      "--ld-store",
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
@@ -56,8 +74,6 @@
   },
   {
     "name": "complete",
-    "phase": "completion",
-    "published_store_arg": 2,
     "argv": [
       "opengwasdb",
       "complete-ragged",
@@ -77,11 +93,29 @@
     ],
     "outputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
-    ]
+    ],
+    "phase": "completion",
+    "published_store_arg": 2
+  },
+  {
+    "name": "completion-clump",
+    "argv": [
+      "opengwasdb",
+      "clump",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "--ld-store",
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ],
+    "phase": "completion"
   },
   {
     "name": "completion-validate",
-    "phase": "completion",
     "argv": [
       "opengwasdb",
       "validate",
@@ -89,17 +123,18 @@
       "--format",
       "json",
       "--n-workers",
-      "32"
+      "32",
+      "--ld-store",
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ],
-    "outputs": []
+    "outputs": [],
+    "phase": "completion"
   },
   {
     "name": "completion-observed-view-check",
-    "phase": "completion",
-    "published_store_arg": 2,
     "argv": [
       "opengwasdb",
       "check-observed-view",
@@ -119,6 +154,8 @@
     "inputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
     ],
-    "outputs": []
+    "outputs": [],
+    "phase": "completion",
+    "published_store_arg": 2
   }
 ]

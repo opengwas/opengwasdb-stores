@@ -112,3 +112,5 @@ notes: |
   the one `register` wrote. The 0.2.1 Store it replaced is archived under
   /data/opengwasdb/stores/OGS-00026/replaced/20261125T151320Z/, kept because the run was forced
   (#309); deleting it is the owner's call. The Release Status is unchanged at validated.
+
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00024 and OGS-00025 (no completed SAS Store exists): the same study (Chen 2023), the same `hgdp1kgp-hg38/panel`, and that panel's `SAS/` population; the panel choice is the orchestrator's (recorded on #520). It also adds `post.clumps` with `post.ld_stores` (SAS: the `hgdp1kgp-v2-SAS-k10.store` LD Store). These amendments are the owner's, accepted on #522.

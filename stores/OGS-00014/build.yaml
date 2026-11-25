@@ -4,6 +4,10 @@ completion_state: reference_completed
 post:
   top_hits: true
   overview: true
+  rho: true
+  clumps: true
+  ld_stores:
+    AMR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AMR/hgdp1kgp-v2-AMR-k10.store
 build:
   command: build-dense-vcf
   options:

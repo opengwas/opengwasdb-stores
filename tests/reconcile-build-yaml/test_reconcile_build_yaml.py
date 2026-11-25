@@ -104,6 +104,8 @@ def derive_post_command(layout: str, step_name: str) -> str:
         if layout not in ("dense", "hybrid"):
             raise ValueError(f"rho post-processing is valid only for dense and hybrid layouts, not {layout!r}")
         return "build-dense-rho"
+    if step_name == "clumps":
+        return "clump"
     if step_name == "overview":
         return "regenerate-overview"
     if step_name == "validate":
@@ -225,7 +227,8 @@ def test_reconcile_stores() -> None:
         post = build_cfg.get("post", {})
         post_valid = True
         for step_name, enabled in post.items():
-            if enabled:
+            # `ld_stores` is the clumps step's input mapping, not a step (#526).
+            if enabled is True:
                 post_cmd = derive_post_command(layout, step_name)
                 post_cmd_valid = post_cmd in active_cli
                 check(post_cmd_valid, f"{store_id} post command {post_cmd!r} is registered in active opengwasdb CLI")

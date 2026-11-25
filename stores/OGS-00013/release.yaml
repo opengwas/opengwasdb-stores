@@ -46,6 +46,8 @@ notes: |-
 
   Cost. The 1,580-block imputation took 21.5 h where OGS-00015's 1,120 blocks took 1 h 55 m at the same runtime, and the size difference accounts for it. The two complete-dense records differ 5.7x in Analyses, 1.6x in panel variants, 1.4x in blocks, 3.5x in union-axis variants and 8.2x in imputed cells, at twice the workers. Measured against the cells completion streams and encodes, union-axis variants times Analyses, they differ 19.6x; halving that for twice the workers predicts 9.8x the time and the run took 11.2x, so the per-worker rate is 22,200 axis cells a second here against 25,300 for OGS-00015 and 24,500 for OGS-00014. The remaining 12% falls on a host shared with other builds and validations through that night, at a load of about 14 to 28. Validate has the same shape: 16x OGS-00015's time against the same 19.6x.
 
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (AFR: the `hgdp1kgp-v2-AFR-k10.store` LD Store). These amendments are the owner's, accepted on #522.
+
 accepted_at: '2026-10-14T08:39:12Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z

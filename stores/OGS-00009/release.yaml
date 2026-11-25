@@ -112,4 +112,6 @@ notes: 'Membership is the frozen Source Inventory ukb-b-restored-2026-10-11: 2,5
   #322), and complete-dense printed no n_associations. The product counts the imputed cells and the
   2,764,792,625 off-panel cells completion left missing, so it is not the number of observed
   associations. The value is null until opengwasdb reports an observed count
-  (opengwas/opengwasdb#294). No Store was rebuilt or rewritten by this registry metadata correction.'
+  (opengwas/opengwasdb#294). No Store was rebuilt or rewritten by this registry metadata correction.
+
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.'

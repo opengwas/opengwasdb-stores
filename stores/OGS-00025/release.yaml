@@ -105,3 +105,5 @@ notes: |
   replaced is archived under /data/opengwasdb/stores/OGS-00025/replaced/20261125T151300Z/, kept
   because the run was forced (#309); deleting it is the owner's call. The Release Status is unchanged
   at validated.
+
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00015 (EAS), the Dense Store on the same panel and ancestry. It also adds `post.clumps` with `post.ld_stores` (EAS: the `hgdp1kgp-v2-EAS-k10.store` LD Store). These amendments are the owner's, accepted on #522.

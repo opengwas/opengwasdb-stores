@@ -160,8 +160,8 @@ post:
   overview: true                   # Dense/Hybrid only; Ragged's envelope excludes overview.html
   clumps: true                     # opengwasdb clump, every layout, 0.3.0 only (#526)
   ld_stores:                       # required with clumps; never defaulted
-    AFR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR
-    EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR
+    AFR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR/hgdp1kgp-v2-AFR-k10.store
+    EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store
 ```
 
 `post` carries only the choices a Release makes differently from the defaults:
@@ -189,7 +189,9 @@ is: the bundle then names exactly the LD Stores a Store's Clumps were made again
 with `post.clumps: true` and no mapping is refused at planning, and by the bundle check,
 naming `post.ld_stores`. The pairs are rendered sorted by ancestry. The LD Stores are
 `hgdp1kgp-v2-AFR`, `-AMR`, `-EAS`, `-EUR` and `-SAS` and `panukb-EUR-k15` under
-`/data/opengwasdb/ld-stores/`. An Analysis whose ancestry has no LD Store is not filtered
+`/data/opengwasdb/ld-stores/`; each path in the mapping names the LD Store itself
+(`hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store`), not the directory that holds it, which
+`opengwasdb.ld.query.ldstore.open` cannot open. An Analysis whose ancestry has no LD Store is not filtered
 here: the engine counts it unclumped and reports it under `not_clumped.no_ld_store`.
 
 The planned `validate` carries the same `--ld-store` pairs when `post.clumps` is declared,

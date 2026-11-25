@@ -122,4 +122,6 @@ notes: 'Every probe of the genome-wide BESD file set, one Analysis each. The Sto
   named in store.opengwasdb.admission/trait_positions_unlifted.tsv. validate reports no errors and no
   warnings. The Validation Record is the one `register` wrote. The 0.2.0 Store it replaced is archived
   under /data/opengwasdb/stores/OGS-00027/replaced/20261125T151658Z/, kept because the run was forced
-  (#309); deleting it is the owner''s call. The Release Status is unchanged at validated.'
+  (#309); deleting it is the owner''s call. The Release Status is unchanged at validated.
+
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00006 (the EUR Ragged Store), whose `ld-panel` and `ancestry` it takes. It also adds `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.'

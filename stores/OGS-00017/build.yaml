@@ -16,6 +16,10 @@ complete:
 post:
   top_hits: yes
   overview: yes
+  rho: true
+  clumps: true
+  ld_stores:
+    EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store
 indexed_subsets:
   - name: hm3
     resource_id: hapmap3-hg38

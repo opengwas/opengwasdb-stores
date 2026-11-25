@@ -4,6 +4,10 @@ completion_state: reference_completed
 post:
   top_hits: true
   overview: true
+  rho: true
+  clumps: true
+  ld_stores:
+    EAS: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS/hgdp1kgp-v2-EAS-k10.store
 build:
   command: build-dense-vcf
   options:

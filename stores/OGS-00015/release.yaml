@@ -158,6 +158,8 @@ notes: |
   describes the published Store. Human scientific acceptance remains pending.
   Release Status stays validated.
 
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (EAS: the `hgdp1kgp-v2-EAS-k10.store` LD Store). These amendments are the owner's, accepted on #522.
+
 accepted_at: '2026-10-14T01:27:47Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
