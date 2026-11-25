@@ -522,7 +522,9 @@ The supported operator entry point, run by `pixi run release` and
 `pixi run release-dry` through `workflow/release.py` (#195). It allowlists
 options, and around one Snakemake run it does four things: it completes
 pending publications, refuses unsafe runs, snapshots what a forced run may
-replace, and settles the run. See Safety.
+replace, and settles the run. A named, unforced, published release whose
+recipe declares post steps its records lack is handed to `post_additions.py`
+instead of Snakemake. See Safety.
 
 ### `publish_rewrite.py`
 
@@ -532,12 +534,35 @@ the operator's run of the rewrite as a step, runs the planned `validate` step on
 the staged release, and publishes it through `register.complete_publication`.
 See Safety, *Publishing a rewritten release*.
 
+### `post_additions.py`
+
+Adds the post steps a published Store's recipe declares and its records lack
+(`top-hits`, `rho`, `clump`, and the declared `overview` with them) to that
+Store in place, with no rebuild (#528, ADR 0043), for `pixi run release <ID>`.
+It stages a reflink copy, runs the steps and `validate` there, and publishes it
+through `staged_publication`. Its `current()` is the one check, shared with the
+Snakefile, that a release it published is up to date. See Safety, *Adding
+missing post steps to a published Store*.
+
+### `staged_publication.py`
+
+The publication lifecycle `publish_rewrite.py` and `post_additions.py` share
+(#533, #528): snapshot `records/`, stage the candidate at `.partial`, run the
+mode's work, write `publication.json`, finish it. Its rollback undoes the
+staging, keeps the mode's evidence in `work/` and restores `records/`, shielded
+from Ctrl-C and SIGTERM. `Interrupted` names the state an interruption left.
+`republication()` is the shared record envelope: the Validation Record, the
+register record and the marker, from `register`'s builders. Each mode keeps its
+own staging and verdict policy.
+
 ### `amendment.py`
 
 The one amendment an accepted Release Bundle allows (ADR 0037, #305).
 `refuse_changed_bundles()` refuses a run of a bundle that completes its own
 Store when it no longer plans the Store its release published, and names what
-changed. See Safety, *The one amendment an accepted bundle allows*.
+changed. `published_store_changes()` is the one walk of the published phases
+both use; `bundle_changes()` applies it to a bundle that completes its own
+Store, and `post_additions.py` to every bundle. See Safety, *The one amendment an accepted bundle allows*.
 
 ### `resources.py` and `runtime.py`
 
@@ -654,9 +679,40 @@ pixi run publish-rewrite OGS-00015 \
    - a runtime that `runtime.verify_runtime_for_releases` refuses for the validate step, as `pixi run release` would;
 3. copies `records/` to a forced run's snapshot (`run.snapshot_records`, the copy alone; a copy that fails removes its hidden `.records.before-force-<UTC>.copying` and leaves nothing to resolve), renames the staged release to `store.opengwasdb.partial`, writes `records/rewrite-release.json` from the evidence, and runs the Build Recipe's planned validate step for the publishing phase (`validate`, or `completion-validate` for a release that completed its own Store) through `run.execute_step`. `rewrite-release.json` is a `run.StepResult`. Its `argv` is the command, and `opengwasdb_rev` and `opengwasdb_version` come from that executable's install. Its `stdout` is the log. It adds `peak_rss_kb`, `budget_seconds`, `log_path` and `evidence`, the paths of the six files;
 4. refuses a validate step that did not exit 0, naming its errors, and any warning that is not a recorded deviation: only a `--convert-legacy` rewrite's warnings under `variant_table.indel_order`, `variant_table.source_alid` or `side_tables.se_exceptions_rounded` are accepted, and a 0.2.3 rewrite accepts none. The rules are read from `findings`. Each is an error on a 0.3.0 release unless the release records it, so a warning under one is the record's. The registry does not read `provenance.converted_from` (ADR 0023). Any failure before the marker exists (a refusal, an error, Ctrl-C, SIGTERM) moves the staged release back, copies this call's validate record byte for byte to `work/publish-rewrite-refused-<UTC>-validate.json` when there is one (any failure to copy it is only noted), and, whatever that raised, restores `records/` from the snapshot. The published Store and `validation.yaml` are not touched;
-5. writes `publication.json` with `replaced_store: archive` and the snapshot (`register.begin_publication`, from the builders `register_release` uses), and calls `complete_publication`. From the marker on, nothing is undone: a failure leaves it for the next call to finish. Its seven steps above archive the old Store, its records and its Validation Record under `replaced/<UTC>/`.
+5. writes `publication.json` with `replaced_store: archive` and the snapshot (`register.begin_publication`, through `staged_publication.republication`, from the builders `register_release` uses), and calls `complete_publication`. Steps 3 to 5, and the rollback in step 4, are `staged_publication.publish`, which `post_additions.py` shares. From the marker on, nothing is undone: a failure leaves it for the next call to finish. Its seven steps above archive the old Store, its records and its Validation Record under `replaced/<UTC>/`.
 
 The register record written is the publishing phase's: `completion-register` when `records/completion-register.json` exists, `register` otherwise. Its `inputs` are the replaced record's with `records/rewrite-release.json` added, so the amendment check above still finds the Store-writing steps that made the data. It carries the Validation Record's `rewrite` block. A killed run (SIGKILL, host crash) before the marker leaves the snapshot and the `.partial` release; the next call refuses and names the remedy, `--resolve-snapshot restore` and moving `.partial` back to the staged path.
+
+**Adding missing post steps to a published Store** (#528, [ADR 0043](../adr/0043-missing-post-steps-are-added-to-a-published-store-in-place.md)). A recipe that gains `post.rho`, `post.clumps` (with `post.ld_stores`) or a standalone `post.top_hits` after its Store was published gains them with one command, with no `--config force=1` and no rebuild:
+
+```sh
+pixi run release-dry OGS-00015   # the plan: the missing steps, overview, validate, register
+pixi run release OGS-00015
+```
+
+A Dense build and every completion build the Top-Hit Index inline and plan no `top-hits` step, so none is added there; a Ragged build phase's is.
+
+Before Snakemake, and after recovery and the leftover-snapshot refusal, the entry point asks `post_additions.assess` about each release it is named, unforced (`all` names none). A step's evidence is *current* when its record succeeded and, for an addable step (`top-hits`, `rho`, `clump`) or `validate`, planned it as the recipe plans it now, at the root it was written under: a `clump` record from another LD Store mapping is not current. A release is the mode's when its last phase has published (`records/register.json`, or `records/completion-register.json`) and its Store path exists, and that phase lacks current evidence for an addable step or `overview` (or, once the mode has published it, for those or `validate`), and for nothing else. A release that completes its own Store and has not yet published its completion phase is not: completion comes first, and the post steps run in its completion phase. The plan is the lacking addable steps in plan order, the declared `overview` (`completion-overview`) when anything is added or its record is missing, then `validate` and the register. A later step with current evidence (an Indexed Variant Subset) is not rerun. Snakemake is not run for a release the mode takes. Under that release's lock, `post_additions.add_post_steps`:
+
+1. refuses, writing nothing:
+   - a bundle that no longer plans the Store it published: `amendment.published_store_changes`, ADR 0037's baseline (Store-writing argv, with #341's and #428's exceptions, and membership), the one walk `bundle_changes` uses too;
+   - a leftover `publication.json`, `.partial`, `.backup`, completion checkpoint, `work/complete.started.json` or records snapshot, naming the remedy;
+   - a release directory, Store, `.partial` or `.backup` that is a symlink (`run`'s no-follow guard), before anything is copied;
+   - a published Store whose `opengwasdb info` format is not `REQUIRED_FORMAT_VERSION` (0.3.0), before staging;
+   - a `validation.yaml` that `register` did not write;
+   - a runtime `runtime.verify_runtime_for_releases` refuses for the steps to run;
+   - a filesystem on which a probe file beside the Store cannot be copied by `cp --reflink=always`, naming it (`stat -f -c %T`). There is no fallback to a full copy;
+2. through `staged_publication.publish`: copies `records/` to a forced run's snapshot, removes the records of the steps it reruns (they are in the snapshot), and stages the published Store at `store.opengwasdb.partial` with `cp -a --reflink=always`;
+3. runs the planned steps, then the phase's `validate` (with its `--ld-store` pairs), through `run.execute_step`. A step that does not succeed is refused, a failed `validate` naming its errors, and each record is held to its planned argv (`register.check_argv_drift`). A Store `publish_rewrite` published (a `rewrite` block in its register record) is held to ADR 0042's deviation rule (`publish_rewrite.judge_findings`): a native warning refuses it;
+4. writes `publication.json` with `replaced_store: archive` and the snapshot, through `staged_publication.republication`, and calls `complete_publication`: the old Store, its records and its Validation Record go under `replaced/<UTC>/`.
+
+Any failure before the marker (a refusal, a failed step, a validation error, Ctrl-C, SIGTERM) removes the staged copy (unlinking, never following, a symlink), copies the failed step's record to `work/post-additions-refused-<UTC>-<step>.json`, and restores `records/` from the snapshot, whose path is known before it is copied; Ctrl-C and SIGTERM are ignored while it runs. The entry point exits 1 for a refusal. For an interruption it exits 130 and names the state left: rolled back before the marker, pending while the marker stands (the next `pixi run release <ID>` finishes it), or published once the marker is removed. The published Store and `validation.yaml` are untouched before the marker.
+
+The Validation Record is the published one with what this run measured: `status`, `checks.store`, `warnings` and `errors` from this `validate` (plus `register`'s resolver-engine warning), `validator`, `observed.format_version`, `store_bytes` and `validate_status`, `has_rho` when `rho` was added, `has_clumps`, `n_loci_5e8` and `n_unclumped_5e8` when `clump` was, and `build_elapsed_s` with this run's step times in place of the rerun steps'. `build_environment` keeps the engine that wrote the Store; its `engines` drop the rerun steps and add this run's. `acceptance`, a rewrite's `rewrite` block and every other block are carried, and a `post_additions` list gains an entry: `added_at`, `steps` (the steps added or regenerated), `records` (every record this run wrote), `release_id` and `replaced_archive`. The phase's register record keeps the published `inputs` but those this run reran, then adds this run's records, and carries `rewrite` and `post_additions`.
+
+The publication finishes through `release.finish_publication`, as every entry-point publication does: `complete_publication`, then Snakemake's metadata for every record the addition's register lists, in one `--cleanup-metadata` call (`release.publication_outputs`), then the marker, last. A step now follows an added one, so its recorded inputs changed and Snakemake's `input` rerun trigger would otherwise fire. Recovery runs the same function, so an interrupted cleanup keeps the marker and is replayed by the next run.
+
+Every unforced release a run requests is assessed, `all`'s included. Once a release is the mode's (it lacks an addable step, or the mode published it: `post_additions` in its register record), a changed Store-writing argv or membership, or a register record that did not succeed, is refused, naming it, whatever Snakemake would schedule. `post_additions.current` holds when the mode published the release, every step of its phase has current evidence, and the bundle still plans its Store. For such a release the Snakefile makes `ancient` only the edges between post steps and into the register (`settled`), so `pixi run release all` and a direct `snakemake` do not reschedule a later step whose record is now older than the added record before it (an Indexed Variant Subset, a completed Store's Observed-View Check). A build's, a completion's or a manifest's inputs are never settled, so a newer build manifest still schedules the build, which an unforced run refuses. Nothing is settled under a run that forces the release (`--forceall`, `--forcetargets`, a rule, or a `--forcerun` path under it, as `--config force=1` passes), so a forced run schedules the whole chain. A named release the mode published with nothing missing is handed to Snakemake, which finds nothing to do. A release the mode never published is decided by mtimes, as before.
 
 **Before the marker, a crash leaves the old release in place.** The Store and `validation.yaml` are untouched, and the leftover snapshot makes the next run of that release refuse to start, forced or not (decided in review on 7 Oct 2026). The refusal names the snapshot and the two resolutions, which an operator chooses and the entry point carries out:
 - `pixi run release <ID> --resolve-snapshot restore` replaces `records/` with the snapshot, when the killed run had already rewritten records;

@@ -62,7 +62,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from ogstores import bundle, engine, paths, register, run, runtime
+from ogstores import bundle, engine, paths, register, run, runtime, staged_publication
 from ogstores.plan import BUILD_PHASE, COMPLETION_PHASE, REGISTER_STEPS, Step, plan
 from ogstores.runtime import REQUIRED_FORMAT_VERSION
 from ogstores.store_info import store_info
@@ -584,7 +584,6 @@ def _assemble(
     """The new Validation Record and `publication.json`, through `register`'s builders."""
     store_id, root = p.bundle.store_id, p.root
     now = run.utc_timestamp()
-    archive = paths.replaced_dir(store_id, p.stamp, root=root)
     rewrite_p = paths.record_path(store_id, REWRITE_STEP, root=root)
     rewrite_record = run.read_record(rewrite_p) or {}
     previous = p.bundle.validation if isinstance(p.bundle.validation, Mapping) else {}
@@ -599,15 +598,21 @@ def _assemble(
         "source_format_version": p.published["format_version"],
         "deviations": list(deviations),
     }
-    validation = register.build_validation_record(
+    inputs = [str(path) for path in p.replaced_register["inputs"]]
+    if str(rewrite_p) not in inputs:
+        inputs.append(str(rewrite_p))
+    return staged_publication.republication(
+        b=p.bundle,
+        root=root,
+        phase=p.phase,
+        stamp=p.stamp,
+        snapshot=snapshot,
+        now=now,
         status=status,
-        checks_store=status,
-        validated_at=now,
+        warnings=list(warnings),
         validator=register.recorded_engine(validate_record),
         wrote_store=p.identity,
-        engines=register.engines_of(
-            [(REWRITE_STEP, rewrite_record), (p.validate_step.name, validate_record)]
-        ),
+        engines=register.engines_of([(REWRITE_STEP, rewrite_record), (p.validate_step.name, validate_record)]),
         observed=_observed(
             previous.get("observed"),
             format_version=p.candidate["format_version"],
@@ -616,41 +621,9 @@ def _assemble(
             convert_legacy=p.evidence.convert_legacy,
             elapsed=[p.evidence.elapsed_seconds, float(validate_record.get("elapsed_seconds") or 0.0)],
         ),
-        warnings=list(warnings),
-        errors=[],
-        acceptance=register.acceptance_evidence(previous),
-        replaced={"archive": str(archive), "replaced_at": now},
-    )
-    validation["rewrite"] = rewrite
-    register_step = REGISTER_STEPS[p.phase]
-    inputs = [str(path) for path in p.replaced_register["inputs"]]
-    if str(rewrite_p) not in inputs:
-        inputs.append(str(rewrite_p))
-    register_record = register.build_register_record(
-        step=register_step,
-        store_id=store_id,
-        at=now,
         inputs=inputs,
-        outputs=[str(p.bundle.root / "validation.yaml")],
-        wrote_store=p.identity,
-        record_path=paths.record_path(store_id, register_step, root=root),
-        published_store=str(paths.store_path(store_id, root=root)),
-        replaced_archive=str(archive),
+        blocks={"rewrite": rewrite},
     )
-    register_record["rewrite"] = rewrite
-    val_yaml = p.bundle.root / "validation.yaml"
-    marker = register.build_publication_marker(
-        store_id=store_id,
-        archive=archive,
-        snapshot=snapshot,
-        replaced_store=register.ARCHIVE_REPLACED_STORE,
-        validation_yaml=val_yaml,
-        previous_validation=val_yaml.read_text(encoding="utf-8") if val_yaml.is_file() else None,
-        validation_record=validation,
-        register_record=register_record,
-        written_at=now,
-    )
-    return validation, marker
 
 
 def _prepare(
@@ -698,38 +671,6 @@ def _prepare(
     )
 
 
-def _roll_back(p: _Publication, snapshot: Path | None) -> str:
-    """Put `records/` and the staged release back; return what the refusal should add.
-
-    The staged release goes back first. The refused verdict is then copied, byte
-    for byte, before `records/` is restored over it: it is evidence, not part of
-    the release, so any failure to keep it is only noted, and the restores run
-    whatever it raised.
-    """
-    store_id, root = p.bundle.store_id, p.root
-    notes: list[str] = []
-    partial = paths.partial_store_path(store_id, root=root)
-    try:
-        if os.path.lexists(partial) and not os.path.lexists(p.staged):
-            partial.rename(p.staged)
-            run.fsync_dir(p.staged.parent)
-    finally:
-        try:
-            validate_p = paths.record_path(store_id, p.validate_step.name, root=root)
-            if snapshot is not None and validate_p.is_file():
-                kept = paths.work_dir(store_id, root=root) / f"publish-rewrite-refused-{p.stamp}-validate.json"
-                try:
-                    kept.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(validate_p, kept)
-                    notes.append(f" The validate record is kept at {kept}.")
-                except Exception as exc:  # evidence only: never a reason to stop the rollback
-                    notes.append(f" The validate record could not be kept ({exc!r}).")
-        finally:
-            if snapshot is not None and snapshot.exists():
-                run.restore_force_snapshot(snapshot)
-    return "".join(notes)
-
-
 def publish_rewrite(
     store_id: str,
     staged: Path | str,
@@ -758,42 +699,57 @@ def publish_rewrite(
         return None
     p = _prepare(b, staged, evidence_prefix, root, lock)
 
-    marker_p = paths.publication_marker(store_id, root=root)
     partial = paths.partial_store_path(store_id, root=root)
-    snapshot: Path | None = None
-    try:
-        snapshot = run.snapshot_records(store_id, root, p.stamp)
-        run.fault_boundary("rewrite-snapshot-taken")
-        # The replaced release's verdict is in the snapshot: any validate record
-        # from here on is this call's, and a refusal keeps only that one.
-        paths.record_path(store_id, p.validate_step.name, root=root).unlink(missing_ok=True)
+    validate_p = paths.record_path(store_id, p.validate_step.name, root=root)
+    published: dict[str, Any] = {}
+
+    def stage() -> None:
         staged.rename(partial)
         run.fsync_dir(partial.parent)
-        run.fault_boundary("rewrite-staged")
+
+    def unstage() -> None:
+        if os.path.lexists(partial) and not os.path.lexists(staged):
+            partial.rename(staged)
+            run.fsync_dir(staged.parent)
+
+    def work(snapshot: Path) -> Mapping[str, Any]:
         run.write_record_atomically(
             _rewrite_record(store_id, root, p.evidence, p.identity, staged),
             paths.record_path(store_id, REWRITE_STEP, root=root),
         )
         run.execute_step(p.validate_step, store_id, artifact_root=root, check=False)
         validate_record = run.load_record(store_id, p.validate_step.name, root=root)
-        status, warnings, deviations = _judge_validation(
-            validate_record, convert_legacy=p.evidence.convert_legacy
-        )
+        status, warnings, deviations = _judge_validation(validate_record, convert_legacy=p.evidence.convert_legacy)
         validation, marker = _assemble(p, validate_record or {}, status, warnings, deviations, snapshot)
-        register.begin_publication(marker, root)
-    except BaseException as exc:
-        if os.path.lexists(marker_p):
-            raise  # committed: `complete_publication` recovers it from the marker
-        notes = _roll_back(p, snapshot)
-        if isinstance(exc, register.RegisterError):
-            raise RewritePublicationRefused(
-                f"Refused to publish {staged} over {store_id}: {exc}\nNothing was published: the "
-                "published Store, records/ and validation.yaml are as they were, and the staged "
-                f"release is back at its path.{notes}"
-            ) from exc
-        raise
-    register.complete_publication(store_id, root)
-    return validation
+        published["validation"] = validation
+        return marker
+
+    def refuse(exc: register.RegisterError, notes: str) -> RewritePublicationRefused:
+        return RewritePublicationRefused(
+            f"Refused to publish {staged} over {store_id}: {exc}\nNothing was published: the "
+            "published Store, records/ and validation.yaml are as they were, and the staged "
+            f"release is back at its path.{notes}"
+        )
+
+    # The replaced release's verdict is in the snapshot: any validate record
+    # from here on is this call's, and a refusal keeps only that one.
+    staged_publication.publish(staged_publication.Staging(
+        store_id=store_id,
+        root=root,
+        stamp=p.stamp,
+        stage=stage,
+        unstage=unstage,
+        work=work,
+        refuse=refuse,
+        evidence=lambda: [staged_publication.Evidence(
+            validate_p,
+            paths.work_dir(store_id, root=root) / f"publish-rewrite-refused-{p.stamp}-validate.json",
+            "validate record",
+        )],
+        clear=(validate_p,),
+        boundaries=("rewrite-snapshot-taken", "rewrite-staged"),
+    ))
+    return published["validation"]
 
 
 def _terminate(signum: int, _frame: object) -> None:
