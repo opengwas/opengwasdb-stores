@@ -69,10 +69,16 @@ MD_COLUMNS: tuple[tuple[str, str], ...] = (
 NUMERIC_MD_COLUMNS = frozenset({"n", "k", "n_variants", "store_bytes"})
 
 
+#: A Genotype Store's `representation`: its pgen files and the sidecar beside them.
+GENOTYPE_REPRESENTATION = "pgen + sidecar, r computed per query"
+
+
 def representation(kind: Any, provenance: Mapping[str, Any]) -> str | None:
     """What a Store holds, by its kind first: an LD Store holds pairwise r in its
     Near Band and Far Pairs, and in Partner Rows when it records a `t_partner`.
-    A Genotype Store's is #539's to say."""
+    A Genotype Store holds genotypes, and r is computed per query (#539)."""
+    if kind == "genotype_store":
+        return GENOTYPE_REPRESENTATION
     if kind != "ld_store":
         return None
     parts = ["Near Band", "Far Pairs"] + (["Partner Rows"] if provenance.get("t_partner") is not None else [])
@@ -118,7 +124,7 @@ def ld_values(record: Mapping[str, Any]) -> dict[str, Value]:
         "n_variants": provenance.get("n_variants"),
         "n_blocks": None,  # an LD panel's, from its declaration (`ld_registry.panels`, #540)
         "store_bytes": measured.get("store_bytes"),
-        "genotype_bytes": None,  # a Genotype Store's (#539)
+        "genotype_bytes": measured.get("genotype_bytes"),  # a Genotype Store's pins (#539)
         "r_scale": provenance.get("r_scale"),
         "near_bp": provenance.get("near_bp"),
         "far_bp": provenance.get("far_bp"),

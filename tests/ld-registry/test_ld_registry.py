@@ -397,7 +397,172 @@ class TestRows(unittest.TestCase):
         document["provenance"]["t_partner"] = 0.01
         self.assertEqual(rows.ld_values(document)["representation"], "pairwise r (Near Band, Far Pairs, Partner Rows)")
         document["kind"] = "genotype_store"
-        self.assertIsNone(rows.ld_values(document)["representation"], "a Genotype Store's is #539's")
+        self.assertEqual(rows.ld_values(document)["representation"], "pgen + sidecar, r computed per query")
+
+
+GENOTYPE_INFO = FIXTURES / "ld-info-amr-genotype-store.json"
+
+
+def genotype_info() -> dict[str, Any]:
+    """The AMR Genotype Store's `ld info` (OGL-00009), trimmed to two filesets."""
+    return json.loads(GENOTYPE_INFO.read_text(encoding="utf-8"))
+
+
+class TestGenotypeStores(RegistryCase):
+    """#539: the kind from `filesets`, `genotype_bytes` from the pins, and the representation."""
+
+    def sidecar(self, sizes: dict[str, int] | None = None, pins: dict[str, int] | None = None) -> tuple[Path, dict[str, Any]]:
+        """A temporary sidecar `<tmp>/s/x.store` with stub pins beside it, and an `ld info` that pins them."""
+        sizes = sizes or {"chr1.pgen": 7, "chr1.psam": 3, "chr1.pvar": 11}
+        location = self.tmp / "s" / "x.store"
+        location.mkdir(parents=True, exist_ok=True)
+        (location / "arrays.bin").write_bytes(b"x" * 5)
+        (self.tmp / "s" / "pgen").mkdir(exist_ok=True)
+        for name, size in sizes.items():
+            (self.tmp / "s" / "pgen" / name).write_bytes(b"x" * size)
+        pins = pins or {"chr1.pgen": 7, "chr1.psam": 3, "chr1.pvar": 11}
+        info = genotype_info()
+        info["filesets"] = [{
+            kind: {"path": f"../pgen/chr1.{kind}", "size": pins[f"chr1.{kind}"], "sha256": "0" * 64, "mtime_ns": 1}
+            for kind in ("pgen", "psam", "pvar")
+        }]
+        return location, info
+
+    def write_genotype(self, location: Path, info: dict[str, Any]):
+        self.person_record()
+        return writer.write_record(self.ld_root, "OGL-00001", location, runner=stub_runner(info))
+
+    def test_the_fixture_is_the_amr_genotype_store(self) -> None:
+        info = genotype_info()
+        self.assertEqual(info["panel"]["id"], "hgdp1kgp-v2-AMR")
+        self.assertEqual(info["panel"]["n"], 341)
+        self.assertEqual(info["n_variants"], 7561067)
+        self.assertIn("filesets", info)
+        self.assertEqual(info["software"]["ogld"], "0.5.0")
+
+    def test_filesets_with_inputs_and_arrays_is_a_genotype_store(self) -> None:
+        self.assertEqual(writer.infer_kind(genotype_info()), "genotype_store")
+
+    def test_no_filesets_is_an_ld_store(self) -> None:
+        self.assertEqual(writer.infer_kind(recorded_ld_info()), "ld_store")
+
+    def test_filesets_without_arrays_is_refused_as_neither_kind(self) -> None:
+        info = genotype_info()
+        del info["arrays"]
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            writer.infer_kind(info)
+        self.assertIn("arrays", str(caught.exception))
+        del info["inputs"]
+        info["arrays"] = {}
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            writer.infer_kind(info)
+        self.assertIn("inputs", str(caught.exception))
+
+    def test_any_one_marker_without_the_other_two_is_neither_kind(self) -> None:
+        markers = ("filesets", "inputs", "arrays")
+        for present in markers:
+            with self.subTest(only=present):
+                info = recorded_ld_info()
+                info[present] = genotype_info()[present]
+                with self.assertRaises(writer.WriterRefusal) as caught:
+                    writer.infer_kind(info)
+                self.assertIn(present, str(caught.exception))
+        for absent in markers:
+            with self.subTest(without=absent):
+                info = genotype_info()
+                del info[absent]
+                with self.assertRaises(writer.WriterRefusal) as caught:
+                    writer.infer_kind(info)
+                self.assertIn(absent, str(caught.exception))
+
+    def test_a_malformed_pin_is_a_named_refusal(self) -> None:
+        cases = {
+            "a missing psam": (lambda i: i["filesets"][0].pop("psam"), "psam"),
+            "a pin without size": (lambda i: i["filesets"][0]["pgen"].pop("size"), "size"),
+            "a pin without path": (lambda i: i["filesets"][0]["pvar"].pop("path"), "path"),
+            "filesets that is a mapping": (lambda i: i.update(filesets={"a": 1}), "filesets"),
+            "a fileset that is not a mapping": (lambda i: i.update(filesets=[7]), "fileset"),
+            "a pin that is not a mapping": (lambda i: i["filesets"][0].update(pgen="x"), "pgen"),
+        }
+        for name, (damage, mentioned) in cases.items():
+            with self.subTest(name):
+                location, info = self.sidecar()
+                damage(info)
+                with self.assertRaises(writer.WriterRefusal) as caught:
+                    writer.genotype_bytes(location, info)
+                self.assertIn(mentioned, str(caught.exception))
+
+    def test_an_absolute_pin_is_refused(self) -> None:
+        location, info = self.sidecar()
+        info["filesets"][0]["pgen"]["path"] = str(self.tmp / "s" / "pgen" / "chr1.pgen")
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            writer.genotype_bytes(location, info)
+        self.assertIn("relative", str(caught.exception))
+
+    def test_a_genotype_store_record_requires_genotype_bytes(self) -> None:
+        document = literal_record()
+        document["kind"] = "genotype_store"
+        errors = record.validate(document, self.path)
+        self.assertEqual([e.field for e in errors], ["measured.genotype_bytes"])
+        self.assertIn("is required", str(errors[0]))
+        document["measured"]["genotype_bytes"] = 5
+        self.assertEqual(record.validate(document, self.path), [])
+
+    def test_an_ld_store_record_refuses_genotype_bytes(self) -> None:
+        document = literal_record()
+        document["measured"]["genotype_bytes"] = 5
+        errors = record.validate(document, self.path)
+        self.assertEqual([e.field for e in errors], ["measured.genotype_bytes"])
+        self.assertIn(str(self.path), str(errors[0]))
+
+    def test_a_refused_kind_writes_nothing(self) -> None:
+        location, info = self.sidecar()
+        del info["arrays"]
+        self.person_record()
+        before = self.path.read_bytes()
+        with self.assertRaises(writer.WriterRefusal):
+            writer.write_record(self.ld_root, "OGL-00001", location, runner=stub_runner(info))
+        self.assertEqual(self.path.read_bytes(), before)
+
+    def test_genotype_bytes_is_the_sum_of_the_pinned_files_and_store_bytes_the_sidecar_alone(self) -> None:
+        location, info = self.sidecar()
+        self.write_genotype(location, info)
+        written = self.read()
+        self.assertEqual(written["kind"], "genotype_store")
+        self.assertEqual(written["measured"], {"store_bytes": 5, "genotype_bytes": 7 + 3 + 11})
+        self.assertEqual(record.load_record(self.path)[1], [], "the field is declared")
+
+    def test_a_missing_pin_is_refused(self) -> None:
+        location, info = self.sidecar()
+        (self.tmp / "s" / "pgen" / "chr1.psam").unlink()
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            self.write_genotype(location, info)
+        self.assertIn("chr1.psam", str(caught.exception))
+        self.assertFalse(self.path.exists() and "genotype_bytes" in self.read().get("measured", {}))
+
+    def test_a_pin_whose_size_disagrees_is_refused(self) -> None:
+        location, info = self.sidecar(sizes={"chr1.pgen": 8, "chr1.psam": 3, "chr1.pvar": 11})
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            self.write_genotype(location, info)
+        self.assertIn("chr1.pgen", str(caught.exception))
+        self.assertIn("8", str(caught.exception))
+        self.assertIn("7", str(caught.exception))
+
+    def test_an_ld_store_has_no_genotype_bytes(self) -> None:
+        self.person_record()
+        self.write()
+        self.assertEqual(self.read()["measured"], {"store_bytes": 79279262640})
+
+    def test_the_values_give_the_literal_representation_and_genotype_bytes(self) -> None:
+        document = literal_record()
+        document["kind"] = "genotype_store"
+        document["measured"] = {"store_bytes": 1297730705, "genotype_bytes": 3551447413}
+        values = rows.ld_values(document)
+        self.assertEqual(values["representation"], "pgen + sidecar, r computed per query")
+        self.assertEqual(values["genotype_bytes"], 3551447413)
+        self.assertEqual(values["store_bytes"], 1297730705, "the sidecar's alone")
+        self.assertEqual(rows.ld_row(document)["genotype_bytes"], "3551447413")
+        self.assertIsNone(rows.ld_values(literal_record())["genotype_bytes"])
 
 
 class TestTheIndex(RegistryCase):

@@ -41,7 +41,7 @@ the writer owns.
 | field | written by | required | value |
 |---|---|---|---|
 | `ld_id` | person | yes | the record's id, equal to its directory's name |
-| `kind` | writer | yes | `ld_store`, for a Store read by `opengwasdb ld info`. A Genotype Store (`genotype_store`) comes with #539 |
+| `kind` | writer | yes | `ld_store` or `genotype_store`, inferred from the provenance; below |
 | `label` | person | yes | a display name; nothing resolves a record by it |
 | `status` | person | yes | one of the statuses below |
 | `licence` | person | yes | the data's licence, never empty. `to confirm` is valid, and is shown as written, while a licence is undecided |
@@ -52,13 +52,34 @@ the writer owns.
 | `location` | writer | yes | the Store's absolute path, as the writer was given it |
 | `provenance` | writer | yes | the Store's own provenance; below |
 | `provenance_sha256` | writer | yes | the sha256, in lower-case hex, of the provenance as `opengwasdb ld info` prints it, in canonical form: `json.dumps(info, sort_keys=True, separators=(",", ":"))`, encoded as UTF-8 |
-| `measured.store_bytes` | writer | yes | the bytes of every file under `location`, from a stat of each (`ogstores.store_size.store_size_on_disk`) |
+| `measured.store_bytes` | writer | yes | the bytes of every file under `location`, from a stat of each (`ogstores.store_size.store_size_on_disk`). A Genotype Store's is its sidecar alone |
+| `measured.genotype_bytes` | writer | a Genotype Store | the bytes of the pgen, psam and pvar files its provenance pins, from a stat of each; below. An LD Store has none |
 
 Any other key is an error, so a misspelt field is refused rather than ignored.
 
 **Checksums.** The record carries the digest of the Store's provenance, not of
 its files (owner, 25 November 2026, in the review of #536). The integrity of
 the Store's files is `opengwasdb ld validate`'s job.
+
+### `kind` and a Genotype Store
+
+`opengwasdb ld info` prints no kind, so the writer infers it from the
+provenance (genotype-store.md, "Container and shared data"): a Genotype
+Store's provenance carries `filesets`, `inputs` and `arrays`, and no LD Store's
+carries any of the three. A provenance with all three is a `genotype_store`,
+one with none is an `ld_store`, and one with any but not all is neither kind,
+and the writer refuses it.
+
+A Genotype Store's `location` is its sidecar; the genotypes live in the pgen,
+psam and pvar files that `filesets` pins, each with a path relative to the
+sidecar and a recorded size. The writer stats each one, resolved against
+`location`, and `measured.genotype_bytes` is their sum. A pin that is
+malformed (a missing pgen, psam or pvar, or a pin without `path` or `size`), is
+absolute, does not resolve, or whose size is not the pin's, is refused, naming
+the fileset and pin.
+
+The index requires `measured.genotype_bytes` of a `genotype_store` record, and
+refuses it on any other kind, naming the record and the field.
 
 ### `rebuild`
 
@@ -72,7 +93,7 @@ Build Recipe.
 |---|---|
 | `repository` | the repository the commands run in, such as `opengwas/ogld` |
 | `version` | the version of that repository they run at |
-| `script` | the script the commands run, relative to the repository |
+| `script` | the script the commands run, relative to the repository; for a build run through the engine's command line, the subcommand, such as `ogld build --genotypes` |
 | `commands` | the commands, in order, as run from the repository's root |
 
 All four are required.
@@ -177,10 +198,10 @@ Each column is the record field of the same name, except:
 |---|---|
 | `provenance` | `provenance.source_kind` |
 | `ancestry`, `source_panel`, `n`, `k`, `reference_assembly`, `format_version`, `n_variants`, `r_scale`, `near_bp`, `far_bp`, `t_far`, `t_partner`, `created_at` | `provenance.<column>` |
-| `representation` | by `kind` first. For an `ld_store`, `pairwise r (Near Band, Far Pairs)`, with `, Partner Rows` when the record has `provenance.t_partner`. Another kind's is its ticket's (#539) |
+| `representation` | by `kind` first. For an `ld_store`, `pairwise r (Near Band, Far Pairs)`, with `, Partner Rows` when the record has `provenance.t_partner`. For a `genotype_store`, `pgen + sidecar, r computed per query` |
 | `n_blocks` | empty for a record: an LD panel's (below) |
 | `store_bytes` | `measured.store_bytes` |
-| `genotype_bytes` | empty: a Genotype Store's (#539) |
+| `genotype_bytes` | `measured.genotype_bytes`; empty for an LD Store |
 | `build_wall_s` | `provenance.wall_seconds`, rounded to a whole second |
 | `built_with` | `ogld <provenance.software.ogld> (<rebuild.script>)` |
 | `source` | `provenance.source_description` |

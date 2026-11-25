@@ -56,6 +56,63 @@ def _differences(existing: dict[str, Any], computed: dict[str, Any]) -> list[str
     return differ
 
 
+def infer_kind(info: dict[str, Any]) -> str:
+    """The Store's kind, from its provenance: `ld info` prints no kind.
+
+    A Genotype Store's provenance carries `filesets`, `inputs` and `arrays`; an
+    LD Store's carries none of them (genotype-store.md, "Container and shared
+    data"). Any of the three without all three is neither kind, and refused.
+    """
+    markers = ("filesets", "inputs", "arrays")
+    present = [key for key in markers if key in info]
+    if not present:
+        return "ld_store"
+    missing = [key for key in markers if key not in info]
+    if missing:
+        raise WriterRefusal(
+            f"the provenance has {' and '.join(present)} but no {' or '.join(missing)}: it is neither a "
+            "Genotype Store (filesets, inputs and arrays) nor an LD Store (none of them)"
+        )
+    return "genotype_store"
+
+
+def genotype_bytes(location: Path, info: dict[str, Any]) -> int:
+    """The bytes of the pgen, psam and pvar files `filesets` pins, by a stat of each.
+
+    A pin's path is relative to the sidecar root, `location`. A malformed
+    fileset or pin, an absolute path, a pin that does not resolve, or one whose
+    size is not the pin's, is refused, naming the fileset and pin.
+    """
+    filesets = info["filesets"]
+    if not isinstance(filesets, list):
+        raise WriterRefusal(f"filesets must be a list, got {type(filesets).__name__}")
+    total = 0
+    for number, fileset in enumerate(filesets):
+        if not isinstance(fileset, dict):
+            raise WriterRefusal(f"filesets[{number}] must be a mapping, got {type(fileset).__name__}")
+        for kind in ("pgen", "psam", "pvar"):
+            where = f"filesets[{number}].{kind}"
+            pin = fileset.get(kind)
+            if not isinstance(pin, dict):
+                raise WriterRefusal(f"{where} is missing or not a mapping: a fileset pins a pgen, psam and pvar")
+            for key in ("path", "size"):
+                if key not in pin:
+                    raise WriterRefusal(f"{where} has no {key}")
+            if not isinstance(pin["path"], str) or isinstance(pin["size"], bool) or not isinstance(pin["size"], int):
+                raise WriterRefusal(f"{where}: path must be text and size a whole number")
+            if Path(pin["path"]).is_absolute():
+                raise WriterRefusal(f"{where} ({pin['path']}) is absolute: a pin's path is relative to the sidecar root")
+            path = location / pin["path"]
+            try:
+                size = path.stat().st_size
+            except OSError as exc:
+                raise WriterRefusal(f"{where} ({path}) does not resolve: {exc.strerror}") from exc
+            if size != pin["size"]:
+                raise WriterRefusal(f"{where} ({path}) is {size} bytes, but the pin says {pin['size']}")
+            total += size
+    return total
+
+
 def write_record(
     ld_root: Path | str,
     ld_id: str,
@@ -77,12 +134,16 @@ def write_record(
 
     location = Path(location).absolute()
     info = ld_info(location, runner=runner)
+    kind = infer_kind(info)
+    measured: dict[str, Any] = {"store_bytes": size(location)}
+    if kind == "genotype_store":
+        measured["genotype_bytes"] = genotype_bytes(location, info)
     computed: dict[str, Any] = {
-        "kind": "ld_store",
+        "kind": kind,
         "location": str(location),
         "provenance": record_provenance(info),
         "provenance_sha256": provenance_sha256(info),
-        "measured": {"store_bytes": size(location)},
+        "measured": measured,
     }
     differ = _differences(existing, computed)
     if differ:
