@@ -1,10 +1,11 @@
 """The LD Store Registry's command line (docs/spec/ld-store-registry.md).
 
-    python3 -m ld_registry write OGL-00001 /path/to/the.store [--ld-root stores/ld]
+    python3 -m ld_registry write OGL-00001 /path/to/the.store [--ld-root stores/ld] [--rebuild rebuild.yaml]
 
 `write` writes or refreshes the record from the Store at the location, then
 checks it: it exits 1, naming each field, while a field a person must write is
-still missing. `pixi run index` regenerates `ld-resources.tsv` from the records.
+still missing. `--rebuild` gives the record its `rebuild` section, a YAML
+mapping, as the build that made the Store writes it (#541). `pixi run index` regenerates `ld-resources.tsv` from the records.
 """
 
 from __future__ import annotations
@@ -13,10 +14,11 @@ import argparse
 import sys
 from pathlib import Path
 
+import yaml
+
+from ld_registry import REPO_ROOT
 from ld_registry.record import load_record
 from ld_registry.writer import write_record
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -26,10 +28,14 @@ def main(argv: list[str] | None = None) -> int:
     write.add_argument("ld_id", help="the record's id, OGL-NNNNN")
     write.add_argument("location", type=Path, help="the LD Store's directory")
     write.add_argument("--ld-root", type=Path, default=REPO_ROOT / "stores" / "ld")
+    write.add_argument("--rebuild", type=Path, help="a YAML file holding the build's `rebuild` mapping")
     args = parser.parse_args(argv)
 
     try:
-        written = write_record(args.ld_root, args.ld_id, args.location)
+        rebuild = yaml.safe_load(args.rebuild.read_text(encoding="utf-8")) if args.rebuild else None
+        if args.rebuild and not isinstance(rebuild, dict):
+            raise ValueError(f"{args.rebuild}: a rebuild is a mapping, got {type(rebuild).__name__}")
+        written = write_record(args.ld_root, args.ld_id, args.location, rebuild=rebuild)
     except ValueError as exc:  # a WriterRefusal, or `ld info` failing
         print(f"refused: {exc}", file=sys.stderr)
         return 1

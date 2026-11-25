@@ -126,7 +126,7 @@ The registry of LD Stores, the LD Store records under `stores/ld/`, and the `ld-
 _Avoid_: LD catalogue, ld-stores list
 
 **LD Store record**:
-One LD Store's `stores/ld/<ld_id>/record.yaml`: what a person writes (label, status, licence, use, and how to rebuild it) and what the record writer reads from the Store's own provenance through `opengwasdb ld info`, with that provenance's digest. Its rebuild section is not a Build Recipe.
+One LD Store's `stores/ld/<ld_id>/record.yaml`: what a person writes (label, status, licence, use), how to rebuild it (written by the build that made it, or by a person for a Store built before the registry), and what the record writer reads from the Store's own provenance through `opengwasdb ld info`, with that provenance's digest. Its rebuild section is not a Build Recipe.
 _Avoid_: LD manifest, LD Release Bundle
 
 **Reference Resource**:

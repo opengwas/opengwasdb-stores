@@ -28,9 +28,11 @@ numbers the draft gave the others.
 can't know"). The record writer, `python3 -m ld_registry write`, fills the
 Store's kind, its provenance and the provenance's digest from
 `opengwasdb ld info`, its location and its size on disk. A person writes the
-label, status, licence, use, notes and issue, and the `rebuild` section until
-the build writes it (#541). That section is not a Release Bundle's Build
-Recipe, so it does not take that name. The writer keeps what a person wrote.
+label, status, licence, use, notes and issue. The build that made a Store
+writes its `rebuild` section through the writer (#541); a person writes it
+only for a Store built before the registry. That section is not a Release
+Bundle's Build Recipe, so it does not take that name. The writer keeps what a
+person wrote, and never changes a `rebuild` silently.
 
 **A record is written only from an existing Store's provenance**, so a Store
 still building has no record and `building` is no status. A published Store
@@ -73,3 +75,21 @@ imports `ld_registry`.
   index; they do not change OGL-00001's record.
 - Pan-UKB EUR (the draft's OGL-00012) is published, so its record will say
   `built`.
+- The HGDP+1kGP build recipe lives here (#541). The owner, Gibran Hemani
+  (`explodecomputer`), ruled its scope on 25 November 2026, in a comment on
+  opengwas/opengwasdb-stores#541 (issuecomment-7172100831): `tools/ld-stores/`
+  builds an LD Store or a Genotype Store from the converted inputs through
+  `opengwasdb ld build` and `validate`, and writes the record with its
+  `rebuild`. It rebuilds a recorded Store from that section into a new
+  directory, and accepts it on what `opengwasdb ld validate` and
+  `opengwasdb ld info` show. The plink2 conversion and the checks that need
+  the engine's internals stay in opengwasdb.
+- The acceptance compares `ld info` exactly, but for the build's own fields
+  and five diagnostic statistics of the PC Check's scan (`ratio`,
+  `rest_null_q99`, `rest_share`, `window_null_q99`, `window_share`), held to
+  a relative tolerance of 1e-9 (the owner, 25 November 2026, ruling on #541's
+  acceptance run). Their last digits depend on the numerical library: the
+  rebuilds of OGL-00009 at opengwasdb 0.20.0 differ from it at about 1e-15.
+  The PCs used, the scan's `pc` and `window`, `pc_check.dropped` and every
+  value the Store holds are compared exactly, and a difference within the
+  tolerance is still reported.

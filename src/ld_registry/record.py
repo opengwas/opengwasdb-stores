@@ -44,6 +44,9 @@ IMPORTED_MATRIX = "ld_matrix"
 
 PERSON = "person"
 WRITER = "writer"
+#: The `rebuild` section's writer: the build that made the Store, through the
+#: writer's `rebuild` option (#541), or a person for a Store built before the registry.
+BUILD_OR_PERSON = "build or person"
 
 Check = Callable[[Any], "str | None"]
 
@@ -164,13 +167,13 @@ FIELDS: tuple[Field, ...] = (
     Field("notes", PERSON, False, _text),
     # Targets of the Store's links that no record describes, each with why (#538).
     Field("unrecorded_targets", PERSON, False, _unrecorded_targets),
-    # Written by the build that made the Store, or by a person for a Store
-    # built before the registry; #541 adds the writer's option for it.
-    Field("rebuild", PERSON, True, _mapping),
-    Field("rebuild.repository", PERSON, True, _text),
-    Field("rebuild.version", PERSON, True, _text),
-    Field("rebuild.script", PERSON, True, _text),
-    Field("rebuild.commands", PERSON, True, _commands),
+    # Written by the build that made the Store (the writer's `rebuild` option,
+    # #541), or by a person for a Store built before the registry.
+    Field("rebuild", BUILD_OR_PERSON, True, _mapping),
+    Field("rebuild.repository", BUILD_OR_PERSON, True, _text),
+    Field("rebuild.version", BUILD_OR_PERSON, True, _text),
+    Field("rebuild.script", BUILD_OR_PERSON, True, _text),
+    Field("rebuild.commands", BUILD_OR_PERSON, True, _commands),
     Field("location", WRITER, True, _absolute_path),
     Field("provenance", WRITER, True, _mapping),
     Field("provenance.source_kind", WRITER, True, _text),
