@@ -82,21 +82,21 @@ class EngineUpdateTest(unittest.TestCase):
 
     def test_an_engine_writing_another_format_is_refused_and_the_lock_restored(self) -> None:
         with self.assertRaises(self.tool.EngineUpdateError) as ctx:
-            self.tool.update(self.lock, self.manifest, run=self._runner(written="0.3.0"))
-        self.assertIn("0.3.0", str(ctx.exception))
+            self.tool.update(self.lock, self.manifest, run=self._runner(written="0.2.3"))
+        self.assertIn("0.2.3", str(ctx.exception))
         self.assertIn(runtime.REQUIRED_FORMAT_VERSION, str(ctx.exception))
         self.assertEqual(self.lock.read_text(encoding="utf-8"), self.before)
 
-    def test_an_engine_writing_0_2_3_is_accepted_and_one_writing_0_2_2_is_refused(self) -> None:
-        """The guard's format is what the pinned engine writes: 0.2.3 (opengwasdb#338)."""
-        self.assertEqual(runtime.REQUIRED_FORMAT_VERSION, "0.2.3")
+    def test_an_engine_writing_0_3_0_is_accepted_and_one_writing_0_2_3_is_refused(self) -> None:
+        """The guard's format is what the pinned engine writes: 0.3.0 (opengwas/opengwasdb#480)."""
+        self.assertEqual(runtime.REQUIRED_FORMAT_VERSION, "0.3.0")
         self.assertEqual(
-            self.tool.update(self.lock, self.manifest, run=self._runner(written="0.2.3")),
+            self.tool.update(self.lock, self.manifest, run=self._runner(written="0.3.0")),
             (OLD, "0.3.2", NEW, "0.3.9"),
         )
         self.lock.write_text(self.before, encoding="utf-8")
         with self.assertRaises(self.tool.EngineUpdateError):
-            self.tool.update(self.lock, self.manifest, run=self._runner(written="0.2.2"))
+            self.tool.update(self.lock, self.manifest, run=self._runner(written="0.2.3"))
         self.assertEqual(self.lock.read_text(encoding="utf-8"), self.before)
 
     def test_the_message_names_the_branch_pixi_toml_follows_not_main(self) -> None:
