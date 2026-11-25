@@ -1,37 +1,34 @@
 status: passed_with_warnings
-validated_at: '2026-11-25T03:58:41.601464Z'
+validated_at: '2026-11-25T22:27:58.949969Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@1230629a2c0958851f8ed5e1bcc8db9472b7516a
+  version: opengwasdb@931ac16690de9538be203f9cdbb2eb46caa895f4
 build_environment:
-  opengwasdb_version: 0.14.1
-  opengwasdb_commit: 1230629a2c0958851f8ed5e1bcc8db9472b7516a
+  opengwasdb_version: 0.21.0
+  opengwasdb_commit: 931ac16690de9538be203f9cdbb2eb46caa895f4
   python_version: 3.12.15
   platform: Linux-4.18.0-553.177.1.el8_10.x86_64-x86_64-with-glibc2.28
   engines:
-  - opengwasdb_commit: 1230629a2c0958851f8ed5e1bcc8db9472b7516a
-    opengwasdb_version: 0.14.1
+  - opengwasdb_commit: 931ac16690de9538be203f9cdbb2eb46caa895f4
+    opengwasdb_version: 0.21.0
     steps:
-    - complete
-    - completion-indexed-subset-hm3
-    - completion-overview
+    - rewrite-release
     - completion-validate
-  - opengwasdb_commit: 40446bb0ed47f1420f08d53edd55296bd96ec6aa
-    opengwasdb_version: 0.16.2.dev1+g40446bb0e
-    steps:
-    - completion-observed-view-check
 observed:
-  format_version: 0.2.3
+  format_version: 0.3.0
   n_analyses: 3245
   n_variants: 47920732
   n_associations: null
   association_coverage: gwas
   reference_assembly: null
-  store_bytes: 167840022356
+  store_bytes: 165420689705
   has_hm3: true
   has_rho: null
+  has_clumps: null
+  n_loci_5e8: null
+  n_unclumped_5e8: null
   n_top_hits: null
-  build_elapsed_s: 165968.176
+  build_elapsed_s: 177408.635
   validate_status: passed_with_warnings
   completion_state: reference_completed
   rsid_conflicts:
@@ -1148,5 +1145,24 @@ acceptance:
   - 149 Analysis/Analyses had no MAF floor applied and were excluded from this shared
     Store as not_maf_filtered (#203); see sidecars/exclusions.tsv
 replaced:
-  archive: /data/opengwasdb/stores/OGS-00011/replaced/20261125T035841Z
-  replaced_at: '2026-11-25T03:58:41.601464Z'
+  archive: /data/opengwasdb/stores/OGS-00011/replaced/20261125T215224Z
+  replaced_at: '2026-11-25T22:27:58.949969Z'
+rewrite:
+  record: /data/opengwasdb/stores/OGS-00011/records/rewrite-release.json
+  staged: /data/opengwasdb/stores/OGS-00011/store.opengwasdb.0.3.0
+  command:
+  - /data/opengwasdb/work/orchestrate/opengwasdb-stores-520/worktrees/499/.pixi/envs/workflow/bin/opengwasdb
+  - rewrite-release
+  - /data/opengwasdb/stores/OGS-00011/store.opengwasdb
+  - /data/opengwasdb/stores/OGS-00011/store.opengwasdb.0.3.0
+  - --n-workers
+  - '16'
+  convert_legacy: false
+  release_id: 1459d7e2-48de-486a-ad7a-e6dc8d26f935
+  format_version: 0.3.0
+  source_release_id: OGS-00011-completed
+  source_format_version: 0.2.3
+  deviations: []
+  carried_warnings:
+  - 'analysis ''GCST90271757'' stores EAF whose orientation is unverified: only 345
+    variants overlap the reference, fewer than 500'
