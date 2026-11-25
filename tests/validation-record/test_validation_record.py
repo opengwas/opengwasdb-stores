@@ -317,24 +317,25 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "validate_status": "passed_with_warnings",
         "completion_state": "reference_completed",
     },
-    # Rebuilt by a forced run on 11 Nov 2026 at opengwasdb ea81c4a (0.9.0) so
-    # that the Store records its bundle's region table (#224, opengwas#430,
-    # stores#459): `register` wrote this record, and the counts are the ones the
-    # migrated record left null -- 10 Analyses, 171,006 variants and 202,803
-    # associations, the same build the August record described. No step
-    # reported the format; it is what `opengwasdb info` read (#512's backfill).
+    # Rebuilt by a forced run on 25 Nov 2026 at opengwasdb 69c2945 (0.17.0), the
+    # first forced 0.3.0 release of any Store (#514): `register` wrote this
+    # record. The counts fall from the 0.2.1 build's 171,006 variants and
+    # 202,803 associations because the engine's indel rule (opengwasdb ADR 0079
+    # section 7, `admission/14` `indel_ssf_unharmonised`, opengwasdb#381)
+    # refuses 13,355 indel source rows, the only rows of 11,190 variants; the
+    # 10 Analyses and the regions are unchanged.
     "OGS-00007": {
-        "format_version": "0.2.1",
+        "format_version": "0.3.0",
         "n_analyses": 10,
-        "n_variants": 171006,
-        "n_associations": 202803,
+        "n_variants": 159816,
+        "n_associations": 189448,
         "association_coverage": "cis_and_signals",
         "reference_assembly": None,
-        "store_bytes": 16494381,
+        "store_bytes": 17407695,
         "has_hm3": False,
         "has_rho": None,
         "n_top_hits": None,
-        "build_elapsed_s": 13.223,
+        "build_elapsed_s": 11.419,
         "validate_status": "passed",
         "completion_state": "observed_only",
     },
