@@ -41,6 +41,31 @@ notes: |-
   #322); this Store was registered before that change reached this branch. The product counts matrix cells, which here include the imputed cells and the off-panel cells completion left missing, so it is not the number of observed associations.
   The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
   was rebuilt or rewritten by this registry metadata correction.
+
+  Converted to format 0.3.0 (issues #520 and #525, 2026-11-25). The owner approved converting the
+  priority Stores in place, and publishing them, provided validation shows only the recorded deviation
+  warnings (opengwas/opengwasdb-stores#520). This Reference-Completed Store was converted from 0.2.0 by
+  `opengwasdb rewrite-release --convert-legacy --not-lifted --n-workers 16` at engine 0.20.0 (c8ebe4ca),
+  from 18:53:18 to 22:02:35 UTC, exit 0, in 3 h 9 min 16 s wall (peak RSS 74,976,288 kB). The converter
+  read 20,548,967 rows x 1,669 Analyses, 411,060 of them rows no cell is observed in (the panel rows
+  completion added), asked the source 144 questions (9 ALID probes, 22 range probes, 16 Indexed Variant
+  Subset questions, 3 rsID misses, and a range PheWAS narrowed to 1,497 of 366,778 variants on
+  chromosome 1) and asked the staged release the same ones: every answer matches. It was published
+  through `pixi run publish-rewrite OGS-00012` (#533), which validated the staged release (the
+  completion validation ran at engine 0.21.0, 931ac166) and moved it into place at 22:18:47 UTC
+  (15 min 5 s wall); the 0.2.0 Store is archived, kept, at replaced/20261125T220347Z (82 GB).
+  Validation passed with warnings: no errors, no carried warnings, and one warning, the accepted
+  deviation `side_tables.se_exceptions_rounded` (all 26,142,011 se exceptions are exactly what a
+  float16 plane stores, issue #355; a rebuild from source fixes it). The manifest also records
+  `variant_table.indel_order`, which validate does not report. Counts are unchanged: 1,669 Analyses,
+  20,548,967 variants; store_bytes 81,569,548,182 to 80,436,209,996. build_elapsed_s 565,520.738 is
+  the 0.2.0 record's 553,263.649 plus 12,257.089 s for the conversion (11,356 s) and the staged
+  release's validation. The Store reads without pysam and carries no variant_offsets.npy; it keeps
+  index.sqlite for completion_quality (ADR 0102). Reads of an Analysis (19,720,142 observed and
+  411,099 imputed cells), an rsID lookup and PheWAS (observed cells), a chr1:60,879-150,000 range
+  PheWAS (4,888 observed cells) and an imputed panel variant's PheWAS (1,669 imputed cells) return the
+  same z, se, eaf and status as the 0.2.0 archive. Its Reference-Completed state and its Release
+  Status, validated, are unchanged.
 accepted_at: '2026-10-14T08:39:04Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
