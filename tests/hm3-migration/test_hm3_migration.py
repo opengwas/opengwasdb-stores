@@ -103,12 +103,16 @@ HAPMAP3_DECLARATION: dict[str, Any] = {
 # such ALIDs, so the subset cannot be built on the default policy. The EUR Hybrid
 # pilots OGS-00004 and OGS-00005 take the same option once their Dense Component
 # is built on the same gnomAD v4.1 common axis (epic #232): against it, 16,369
-# HM3 ALIDs reach only OGS-00004's shared axis.
+# HM3 ALIDs reach only OGS-00004's shared axis. The EAS and AFR Hybrids OGS-00032
+# and OGS-00033 take it too (#524, 2026-11-25): their forced releases refused at
+# indexed-subset-hm3 for 111,003 and 18,778 such ALIDs.
 HAPMAP3_OVERFLOW_ONLY_OPTIONS: dict[str, Any] = {"overflow-only": "skip"}
 DECLARATION_OPTIONS: dict[str, dict[str, Any]] = {
     "OGS-00004": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
     "OGS-00005": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
     "OGS-00011": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
+    "OGS-00032": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
+    "OGS-00033": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
 }
 
 # The pre-#211 Build Recipe values, frozen so a future edit that quietly changes
