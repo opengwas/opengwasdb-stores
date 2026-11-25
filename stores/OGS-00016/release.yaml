@@ -37,6 +37,29 @@ notes: |-
   #322); this Store was registered before that change reached this branch. The product counts matrix cells, and this Store is observed-only, so many of those cells are empty; it is not the number of observed associations.
   The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
   was rebuilt or rewritten by this registry metadata correction.
+
+  Converted to format 0.3.0 (issues #520 and #525, 2026-11-25). The owner approved converting the
+  priority Stores in place, and publishing them, provided validation shows only the recorded deviation
+  warnings (opengwas/opengwasdb-stores#520). This Store was converted from 0.2.0 by
+  `opengwasdb rewrite-release --convert-legacy --not-lifted --n-workers 16` at engine 0.20.0 (c8ebe4ca),
+  from 15:00:14 to 18:52:49 UTC, exit 0, in 3 h 52 min 35 s wall (peak RSS 73,726,856 kB). The converter
+  asked the source 144 questions (9 ALID probes, 22 range probes, 16 Indexed Variant Subset questions, 3
+  rsID misses, and a range PheWAS narrowed to 1,478 of 499,400 variants on chromosome 1) and asked the
+  staged release the same ones: every answer matches. It was published through the registry route,
+  `pixi run publish-rewrite OGS-00016` (#533), which validated the staged release and moved it into
+  place at 19:13:07 UTC (19 min 6 s wall); the 0.2.0 Store is archived, kept, at
+  replaced/20261125T185408Z (117 GB). Validation passed with warnings: no errors, and one warning, the
+  accepted deviation `side_tables.se_exceptions_rounded` (all 21,671 se exceptions are exactly what a
+  float16 plane stores, issue #355; a rebuild from source fixes it). The manifest also records
+  `variant_table.indel_order` as a deviation, which validate does not report on an Observed-Only
+  Store. Counts are unchanged: 1,691 Analyses, 27,929,380 variants; store_bytes 125,595,771,482 to
+  125,171,758,813. build_elapsed_s 575,509.077 is the 0.2.0 build's 560,415.087 plus 15,093.99 s for the
+  conversion (13,955 s) and the staged release's validation. The Store reads without pysam, carries
+  no variant_offsets.npy and no index.sqlite, and answers an Analysis, rsID, range and PheWAS read
+  with the same z, se and eaf as the 0.2.0 archive. The owner ruled on 25 Nov 2026 that this Store
+  stays Observed-Only for now: completing a converted Store under the `indel_order` deviation can
+  duplicate deletions, so it is completed only after a rebuild from source. The Release Status is
+  unchanged at validated.
 accepted_at: '2026-10-14T08:39:26Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
