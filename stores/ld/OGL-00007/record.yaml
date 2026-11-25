@@ -34,6 +34,12 @@ provenance:
   n_variants: 8586889
   counts:
     alids_left_out: 40080
+  variants_dropped:
+    duplicate_reversed_indel: 79022
+    filter: 0
+    info: 0
+    mac: 67747610
+    zero_variance: 0
   software:
     numpy: 2.4.6
     ogld: 0.5.0
