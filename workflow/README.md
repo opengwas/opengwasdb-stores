@@ -33,7 +33,7 @@ pixi run index                                             # regenerate master l
 A release target must be an ID currently registered under `stores/`; use
 `stores.tsv` to find valid IDs. IDs shown in commands are real targets, not
 placeholders. Post-steps follow the selected command's Store-format support:
-`rho` is Dense-only, `overview` is Dense/Hybrid-only because Ragged's
+`rho` is planned for Dense and Hybrid Stores (a Hybrid's Rho Matrix is built in its Dense Component) and refused for Ragged, `overview` is Dense/Hybrid-only because Ragged's
 closed Store envelope excludes `overview.html`, and `clump` (`post.clumps: true`)
 is planned for every layout, after `rho`, at format 0.3.0. It needs an explicit
 `post.ld_stores` mapping (`ANCESTRY: /data/opengwasdb/ld-stores/<name>`), which
