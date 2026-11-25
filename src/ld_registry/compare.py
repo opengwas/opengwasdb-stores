@@ -12,8 +12,11 @@ of exactly, and a difference within it is reported as such.
 
 The rebuilt Store's provenance must also hold what an HGDP+1kGP Store records
 (`provenance_problems`), the checks of opengwasdb's `test_hgdp1kgp_stores.py`
-that the command line shows. The Store is validated by its own build's
-commands, never again here.
+that the command line shows; an imported matrix's comparison stands alone. The
+Store is validated by its own build's commands, never again here.
+
+`plan_differences` compares an import's plan with a reference plan the same
+way, field by field, every difference reported (#542).
 """
 
 from __future__ import annotations
@@ -142,8 +145,44 @@ def accept(
             f"{original}: its provenance's sha256 is {provenance_sha256(before)}, not the record's {recorded_sha256}"
         )
     after = ld_info(rebuilt, runner=info_runner)
-    problems += [f"{rebuilt}: {problem}" for problem in provenance_problems(after, keep_count(keep) if keep else None)]
+    # What an HGDP+1kGP Store must record is not an imported matrix's (#542): its comparison stands alone.
+    if (after.get("source") or {}).get("kind") != record.IMPORTED_MATRIX:
+        problems += [f"{rebuilt}: {problem}" for problem in provenance_problems(after, keep_count(keep) if keep else None)]
     return differences(before, after), problems
+
+
+#: The plan identity's field a re-plan differs in by design: the output path it pins.
+PLAN_RUN_OWN = frozenset({"identity.out"})
+
+
+def plan_differences(plan: dict[str, Any], reference: dict[str, Any]) -> list[Difference]:
+    """Every field in which an import's plan differs from a reference plan, sorted (#542).
+
+    Both are `WORK/plan.json` as `opengwasdb ld import` writes it. Every field is
+    compared exactly: each chromosome's entry (`parts`, `losses`, `far_bp`,
+    `source_variants`), a chromosome one plan lacks, the Store's `far_bp`, and the
+    identity, its inputs' digests included. `identity.out` is the run's own
+    (`PLAN_RUN_OWN`): reported, never failing. `original` is the reference's value.
+    """
+    return differences(reference, plan)
+
+
+def plan_failures(found: list[Difference]) -> list[Difference]:
+    """The plan differences that fail: all but the run's own output path."""
+    return [difference for difference in found if difference.field not in PLAN_RUN_OWN]
+
+
+def _shown(value: Any) -> str:
+    """A value as a plan difference shows it: a long list (a chromosome's parts) by its length."""
+    return f"[{len(value)} items]" if isinstance(value, list) and len(value) > 8 else repr(value)
+
+
+def render_plan(found: list[Difference]) -> str:
+    """One line per plan difference, as reference -> plan, the run's own marked."""
+    def mark(d: Difference) -> str:
+        return " (the run's own)" if d.field in PLAN_RUN_OWN else ""
+
+    return "\n".join(f"{d.field}: {_shown(d.original)} -> {_shown(d.rebuilt)}{mark(d)}" for d in found)
 
 
 def keep_count(keep: Path) -> int:

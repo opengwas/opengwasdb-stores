@@ -44,8 +44,7 @@ def run_engine_json(
     tests.
     """
     argv = list(argv)
-    run = runner or _default_runner
-    result = run(argv)
+    result = run_engine(argv, runner=runner)
     if result.returncode != 0:
         raise ValueError(
             f"`{' '.join(argv)}` failed: {result.stderr.strip() or result.stdout.strip()}"
@@ -59,8 +58,22 @@ def run_engine_json(
     return payload
 
 
+def run_engine(
+    argv: Sequence[str],
+    runner: Runner | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """Run an engine command line and return its completed process, output captured as text.
+
+    The one runner behind every engine command line this repository runs to
+    read its answer (ADR 0023): ``run_engine_json`` parses its JSON, and the
+    LD recipe reads its exit and error (``ld_registry.recipe.require_plan_only``).
+    Nothing here judges the exit; ``runner`` replaces the subprocess in tests.
+    """
+    return (runner or _default_runner)(list(argv))
+
+
 def _default_runner(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
     return subprocess.run(list(argv), capture_output=True, text=True, check=False)
 
 
-__all__ = ["Runner", "run_engine_json", "store_info"]
+__all__ = ["Runner", "run_engine", "run_engine_json", "store_info"]

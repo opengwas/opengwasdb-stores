@@ -109,6 +109,18 @@ def _commands(value: Any) -> str | None:
     return None
 
 
+def _inputs(value: Any) -> str | None:
+    problem = ("must be a mapping of each input's name to its {path, sha256}, each path absolute and each "
+               "sha256 lower-case hex")
+    if not isinstance(value, Mapping) or not value:
+        return problem
+    for entry in value.values():
+        if (not isinstance(entry, Mapping) or set(entry) != {"path", "sha256"}
+                or _absolute_path(entry["path"]) or _sha256(entry["sha256"])):
+            return problem
+    return None
+
+
 def _text_or_mapping(value: Any) -> str | None:
     return None if isinstance(value, Mapping) else _text(value)
 
@@ -174,6 +186,9 @@ FIELDS: tuple[Field, ...] = (
     Field("rebuild.version", BUILD_OR_PERSON, True, _text),
     Field("rebuild.script", BUILD_OR_PERSON, True, _text),
     Field("rebuild.commands", BUILD_OR_PERSON, True, _commands),
+    # The files the commands read, each its path and the digest the Store's `source.sha256`
+    # holds of it, so a rebuild names its inputs as the Store pinned them (#542).
+    Field("rebuild.inputs", BUILD_OR_PERSON, False, _inputs),
     Field("location", WRITER, True, _absolute_path),
     Field("provenance", WRITER, True, _mapping),
     Field("provenance.source_kind", WRITER, True, _text),
@@ -224,6 +239,7 @@ OPEN_MAPPINGS = frozenset({
     "provenance.source_description.far_bp_by_chromosome",
     "provenance.source_description.displaced_by_chromosome",
     "measured.links",
+    "rebuild.inputs",
 })
 
 #: The top-level fields the record writer writes; a person writes the rest.

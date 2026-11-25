@@ -174,7 +174,7 @@ class TestTheRecipesCommandLines(unittest.TestCase):
 
     def test_the_rebuild_it_records_is_its_own_commands(self) -> None:
         plan = recipe.plan_build("genotype_store", "AMR", Path(AMR_DIR), HOST)
-        section = recipe.rebuild_section(plan, version="v0.47.0", environment="dev")
+        section = recipe.rebuild_section(plan.commands, version="v0.47.0", environment="dev", script=plan.script)
         self.assertEqual(section["repository"], "opengwas/opengwasdb-stores")
         self.assertEqual(section["version"], "v0.47.0")
         self.assertEqual(section["script"], "opengwasdb ld build --genotypes")
@@ -183,8 +183,8 @@ class TestTheRecipesCommandLines(unittest.TestCase):
             [recorded_command("OGL-00009").replace("ogld build", "opengwasdb ld build"),
              f"pixi run -e dev opengwasdb ld validate --threads 8 {AMR_GENOTYPE_STORE}"],
         )
-        ld = recipe.rebuild_section(recipe.plan_build("ld_store", "AMR", Path("/o"), HOST), "v0.47.0", "dev")
-        self.assertEqual(ld["script"], "opengwasdb ld build")
+        self.assertNotIn("inputs", section, "a build names no inputs")
+        self.assertEqual(recipe.plan_build("ld_store", "AMR", Path("/o"), HOST).script, "opengwasdb ld build")
 
 
 class TempCase(unittest.TestCase):
@@ -258,7 +258,7 @@ class TestTheRecipeBuilds(TempCase):
             [list(plan.build), list(plan.validate), ["opengwasdb", "ld", "info", str(plan.store)]],
         )
         written = yaml.safe_load(record.record_path(self.ld_root, "OGL-00099").read_text(encoding="utf-8"))
-        self.assertEqual(written["rebuild"], recipe.rebuild_section(plan, "v0.47.0", "dev"))
+        self.assertEqual(written["rebuild"], recipe.rebuild_section(plan.commands, "v0.47.0", "dev", plan.script))
         self.assertEqual(written["location"], str(plan.store))
 
     def test_it_sets_build92s_environment_with_a_tmpdir_beside_the_store(self) -> None:
@@ -488,7 +488,7 @@ class TestRebuildingFromARecord(TempCase):
 
     def test_a_record_the_recipe_wrote_rebuilds_the_same_way(self) -> None:
         plan = recipe.plan_build("ld_store", "AMR", Path("/data/opengwasdb/work/ogld/stores"), HOST)
-        section = recipe.rebuild_section(plan, "v0.47.0", "dev")
+        section = recipe.rebuild_section(plan.commands, "v0.47.0", "dev", plan.script)
         self.records({"ld_id": "OGL-00003", "kind": "ld_store", "rebuild": section, "location": str(plan.store)})
         out = self.tmp / "amr-ld"
         commands, copies = Commands(), Copies()
@@ -855,9 +855,9 @@ class TestWhatTheProvenanceMustRecord(unittest.TestCase):
 
 
 class TestTheCommittedRecords(unittest.TestCase):
-    """Which recorded Stores a rebuild can run: the Genotype Stores' `ogld build` alone."""
+    """Which recorded Stores a rebuild can run: the Genotype Stores' `ogld build`, and OGL-00012's import (#542)."""
 
-    def test_only_ogl_00007_to_00011_are_runnable(self) -> None:
+    def test_only_ogl_00007_to_00012_are_runnable(self) -> None:
         ld_root = REPO_ROOT / record.LD_ROOT
         runnable = []
         for path in sorted(ld_root.glob("OGL-*/record.yaml")):
@@ -868,8 +868,11 @@ class TestTheCommittedRecords(unittest.TestCase):
                 self.assertIn("no runnable rebuild", str(refusal))
                 continue
             runnable.append(document["ld_id"])
-            self.assertEqual(len(plan.copies), 22 * 3 + 2, "each chromosome's fileset, the keep and PC files")
-        self.assertEqual(runnable, ["OGL-00007", "OGL-00008", "OGL-00009", "OGL-00010", "OGL-00011"])
+            if document["kind"] == "genotype_store":
+                self.assertEqual(len(plan.copies), 22 * 3 + 2, "each chromosome's fileset, the keep and PC files")
+            else:
+                self.assertEqual(plan.copies, (), "an import reads its inputs where they are")
+        self.assertEqual(runnable, ["OGL-00007", "OGL-00008", "OGL-00009", "OGL-00010", "OGL-00011", "OGL-00012"])
 
 
 class TestTheRealLdStoresChecksums(unittest.TestCase):
