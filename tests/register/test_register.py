@@ -169,6 +169,11 @@ def create_test_bundle_and_records(
             stdout_payload = ""
             if step.name in ("build", "complete"):
                 stdout_payload = json.dumps({"n_variants": 1000, "n_analyses": 2, "format_version": "1.0"}) + "\n"
+            elif step.name in ("clump", "completion-clump"):
+                # What `opengwasdb clump` prints (#526): the counts `register` records.
+                stdout_payload = json.dumps(
+                    {"analyses": 2, "clumped": 2, "n_loci_5e8": 16, "n_unclumped_5e8": 3}
+                ) + "\n"
             elif step.name in ("validate", "completion-validate"):
                 # The shape `opengwasdb validate --format json` prints (#195).
                 stdout_payload = json.dumps({"errors": [], "ok": True, "warnings": []}) + "\n"
@@ -711,6 +716,53 @@ class TestStoreFacts(unittest.TestCase):
 
         self.assertIs(observed["has_hm3"], False)
         self.assertIsNone(observed["has_rho"])
+
+    def test_a_recipe_with_clumps_records_has_clumps_and_the_engines_counts(self) -> None:
+        """`has_clumps` and the engine's own `n_loci_5e8`/`n_unclumped_5e8` are recorded; none is computed here (#526)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            "OGS-00068",
+            post={
+                "top_hits": True, "rho": True, "clumps": True,
+                "ld_stores": {"EUR": "/ld/EUR"}, "overview": True, "validate": True,
+            },
+        )
+        self.assertIn("clump", [step.name for step in plan(b, artifact_root=artifact_root)])
+
+        observed = register_release(b, registry_root=stores_root, artifact_root=artifact_root)["observed"]
+
+        self.assertIs(observed["has_clumps"], True)
+        self.assertEqual((observed["n_loci_5e8"], observed["n_unclumped_5e8"]), (16, 3))
+
+    def test_a_recipe_without_clumps_records_null_not_false(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00069")
+
+        observed = register_release(b, registry_root=stores_root, artifact_root=artifact_root)["observed"]
+
+        self.assertEqual(
+            (observed["has_clumps"], observed["n_loci_5e8"], observed["n_unclumped_5e8"]), (None, None, None)
+        )
+
+    def test_clump_facts_failed_missing_and_malformed(self) -> None:
+        steps = [Step("clump", [], [], [])]
+        self.assertEqual(
+            register.clump_facts(steps, {"clump": {"success": False, "exit_code": 1}}),
+            {"has_clumps": False, "n_loci_5e8": None, "n_unclumped_5e8": None},
+        )
+        self.assertIsNone(register.clump_facts(steps, {})["has_clumps"], "a planned step with no record is unknown")
+        ok = {"success": True, "exit_code": 0}
+        self.assertEqual(
+            register.clump_facts(steps, {"clump": {**ok, "stdout": "{}"}}),
+            {"has_clumps": True, "n_loci_5e8": None, "n_unclumped_5e8": None},
+        )
+        self.assertEqual(
+            register.clump_facts(steps, {"clump": {**ok, "stdout": '{"n_loci_5e8": null, "n_unclumped_5e8": 7}'}}),
+            {"has_clumps": True, "n_loci_5e8": None, "n_unclumped_5e8": 7},
+            "the engine prints null loci when it clumped nothing",
+        )
+        for bad in ('{"n_loci_5e8": "16"}', '{"n_unclumped_5e8": -1}', '{"n_loci_5e8": true}'):
+            with self.assertRaises(register.ObservedMeasurementError):
+                register.clump_facts(steps, {"clump": {**ok, "stdout": bad}})
 
     def test_a_completion_phase_reads_its_own_steps(self) -> None:
         """A release completing its own Store reports what its completion phase built (ADR 0037)."""

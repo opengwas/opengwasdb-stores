@@ -177,6 +177,7 @@ class RuntimeGuardTestCase(unittest.TestCase):
         derived_from: str | None = None,
         indexed_subset: bool = False,
         single_id: bool = False,
+        clumps: bool = False,
     ) -> None:
         bundle_root = self.registry / store_id
         bundle_root.mkdir(parents=True, exist_ok=True)
@@ -195,6 +196,8 @@ class RuntimeGuardTestCase(unittest.TestCase):
             "completion_state": "reference_completed" if completion else "observed_only",
             "post": {"top_hits": not completion, "rho": False, "overview": True},
         }
+        if clumps:
+            build["post"].update(clumps=True, ld_stores={"EUR": "/ld/EUR"})
         if completion or single_id:
             build["complete"] = {
                 "command": "complete-dense",
@@ -420,6 +423,29 @@ class RuntimeGuardTestCase(unittest.TestCase):
         )
         record_check()
         self.assertEqual(identity.revision, LOCKED)
+
+    def test_a_scheduled_clump_step_is_probed_and_refused_without_it(self) -> None:
+        """A plan that includes `post.clumps` needs the engine's `clump` command (#526); one that does not, does not."""
+        self._write_bundle("OGS-00090", clumps=True)
+        without = self._runnable("without-clump", commands={"validate"})
+        with self.assertRaises(runtime.RuntimeCapabilityError) as ctx:
+            runtime.verify_runtime_for_releases(
+                [self._job("OGS-00090", "clump"), self._job("OGS-00090", "validate")],
+                registry_root=self.registry,
+                executable=str(without.executable),
+            )
+        record_check()
+        self.assertIn("clump", str(ctx.exception))
+        with_clump = self._runnable("with-clump", commands={"clump", "validate"})
+        runtime.verify_runtime_for_releases(
+            [self._job("OGS-00090", "clump"), self._job("OGS-00090", "validate")],
+            registry_root=self.registry,
+            executable=str(with_clump.executable),
+        )
+        record_check()
+        self._write_bundle("OGS-00091")
+        self.assertNotIn("clump", runtime.required_commands_for_release("OGS-00091", registry_root=self.registry))
+        self.assertIn("clump", runtime.required_commands_for_release("OGS-00090", registry_root=self.registry))
 
     def test_missing_scheduled_capability_is_refused(self) -> None:
         self._write_bundle("OGS-00090")
