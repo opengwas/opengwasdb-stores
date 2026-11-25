@@ -70,3 +70,16 @@ The seven Trial Store Releases ADR 0022's one-time migration produced are:
 `summary.yaml`, `stores.tsv`, and `STORES.md` are generated from these bundles
 by `pixi run index`. A summary preserves absent or empty Analysis metadata as
 `NA`; it is a review view, not another declared source of metadata.
+
+## LD Stores: `ld/`
+
+`ld/OGL-NNNNN/record.yaml` is one LD Store record, under its own flat, opaque
+`OGL-` id (ADR 0042); `ld/` holds nothing else. An LD Store is not a Store
+Release: it has no Release Bundle, and nothing that walks the bundles reads
+`ld/`. The writer, `pixi run -e dev python3 -m ld_registry write <ld_id>
+<location>`, fills a record from the Store's own provenance
+(`opengwasdb ld info`), with its digest, and its size on disk; a person writes
+its label, status, licence, use, notes, issue and how to rebuild it.
+`pixi run index` generates `ld-resources.tsv` and STORES.md's LD section from
+the records. The fields are in
+[docs/spec/ld-store-registry.md](../docs/spec/ld-store-registry.md).

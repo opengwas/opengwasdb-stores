@@ -38,6 +38,7 @@ from ogstores.index import (
     render_stores_tsv,
 )
 from ogstores.plan import plan
+from ld_registry.index import generate_ld_index
 
 
 def create_mock_bundle(
@@ -877,6 +878,8 @@ class TestRepoIndexCleanTree(unittest.TestCase):
             gen_tsv, gen_md = generate_index(
                 registry_root=REPO_ROOT / "stores",
                 repo_root=temp_repo,
+                # STORES.md carries the LD Store Registry's section (#536).
+                ld_section=generate_ld_index(REPO_ROOT / "stores" / "ld", temp_repo),
             )
             # Compare contents
             self.assertEqual(
