@@ -2,9 +2,10 @@ store_id: OGS-00033
 label: afr-hybrid-full
 association_coverage: gwas
 access_posture: public
-status: candidate
+status: validated
 derived_from: null
 created_at: '2026-11-05T18:09:33Z'
+accepted_at: '2026-11-25T15:05:36Z'
 source_snapshot_id: gwas-catalog-ssf-afr-hybrid-2026-11-05
 source_snapshot:
   inventory_snapshot_id: gwas-catalog-ssf-afr-hybrid-2026-11-05
@@ -73,5 +74,32 @@ notes: 'The candidate pool is 550 Analyses across 96 publications. EBI publishes
 
   Review: 4 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
   (#203); see sidecars/exclusions.tsv
+
+  2026-11-25: build recipe gains on-rsid-conflict: drop (issues #520, #524). The first forced run of
+  this bundle (release OGS-00033 at 4c1cdf88, opengwasdb 0.20.0, slot 524b) refused in build after 24
+  minutes: "Hybrid single-pass build: two source variants case-fold to one routing key
+  ''1:46934387:G:A'' with different rsids: (''1'', 46934387, ''G'', ''A'') names ''rs9333012'' but
+  (''1'', 46934387, ''g'', ''a'') names ''rs71500102''". Six included Analyses, GCST90014293 to
+  GCST90014298 (PMID 34187551), spell every allele in lower case (about 12.99 million rows each); the
+  engine upper-cases alleles for identity, so their data route correctly, but the rsID harvest
+  compares the names two spellings of one key carry. A scan of all 194 sources found 280 candidate keys,
+  all across files (the six lower-case Analyses against 16 others) and none within one file (the build
+  later measured 93, below); evidence
+  in scratch/524-casefold/ (conflicts.tsv). The owner decided on 25 Nov 2026, in the #520
+  orchestration, to blank those rsIDs and keep all 194 Analyses, as OGS-00011''s recipe does. The
+  build therefore passes --on-rsid-conflict drop: every stored variant whose key the build finds disputed is
+  stored with no rsID (also when the other allele order names it) and is still found by ALID and by
+  position; the build reports them in its rsid_conflicts record. Membership and every Analysis column
+  are unchanged.
+
+  Its hm3 declaration gains overflow-only: skip (2026-11-25), as OGS-00011''s did on the owner
+  decision of 2026-10-23 and OGS-00004''s and OGS-00005''s on 2026-11-18 (opengwas/opengwasdb#271):
+  HapMap3 variants that reach only the shared/overflow axis cannot be indexed by the Dense Component, so
+  the subset leaves them out and records how many. The forced release of 2026-11-25 (#524) built the
+  Hybrid Store, then its indexed-subset-hm3 Step refused for 18,778 such variants (exit 1 at 18:45:02 UTC after 1 h 41 min); the
+  build had succeeded. Those variants stay in the Store and are found by ALID and by position; only
+  the hm3 subset omits them.
+
+  Built at format 0.3.0 (#520, #524; 2026-11-25). On the owner''s approval of 2026-11-25, this Store''s first publication is a forced release from source at opengwasdb 0.20.0 (c8ebe4ca), as a Hybrid Observed-Only Store. It ran as two invocations, because the hm3 subset refused the first time (above): the build ran from 2026-11-25 17:03:53 to 18:44:35 UTC (6,041.5 s) in the forced release that exited 1 at the subset Step, and its staged Store was kept; the second run, `pixi run -e workflow release OGS-00033` without force from worktree 524, resumed at indexed-subset-hm3 and ran 19:07:10 to 19:15:49 UTC (whole invocation 19:06:57 to 19:15:53 UTC, exit 0, 8 min 56 s wall, peak RSS 6.2 GB, load 137 to 21), exit 0. Step timings: build 6,041.5 s; indexed-subset-hm3 121.6 s; overview 1.2 s; validate 382.5 s; build_elapsed_s in the Validation Record, 6,546.8 s, sums the four Steps and counts the build once. It holds 34,465,821 shared variants (20,600,947 on the Dense panel, 13,864,874 off-panel) and 340,067,052 Ragged Overflow associations, 20.0 GB. Admission: 3,446,034,568 source rows examined, 2,841,753,851 admitted; dropped 601,730,776 below the MAF floor, 791,583 unharmonised GWAS-SSF indels (indel_ssf_hm_columns), 586,186 collapsed and 76,084 conflicting duplicates, 735,877 with no MAF, 360,151 below the info threshold, 58 indels by hm_code and 2 with unusable SE. hm3 subset: requested 1,206,903, resolved 1,185,327, absent 2,798, overflow-only skipped 18,778. Under on-rsid-conflict drop the build blanked 93 stored variants whose admitted rows name them differently (rsid_conflicts: 93 keys, 93 variants); 93 keys blanked. Of the 280 keys the pre-build scan found (scratch/524-casefold/), all are stored and found by ALID and by position: 93 with no rsID and 187 carrying one source''s rsID (logs/524/OGS-00033/rsid-280-split.out, rsid-280-split2.out). The owner accepted the build as built on 2026-11-25: names only, no statistic affected. The earlier scan over-counted: six sources have CRLF headers, so its `rsid` column was never found and it read `variant_id` instead. A rescan with that fixed (2026-11-25, scratch/524-casefold/, logs/524/OGS-00033/rsid-93-confirmed.out) finds 97 disputed keys: the build''s 93 blanked variants and 4 it named (rsid-93-confirmed-diff.out), names only. validate reports no errors and one warning (the Analyses were resolved with opengwasdb 0.3.3), status passed_with_warnings; `audit-store reconcile` exits 0 with no errors. Nothing was replaced: there was no earlier Store to archive. The Release Status was accepted when `register` finished and is moved to built, then validated, by hand on 2026-11-25, the owner''s ruling in the #520 orchestration (the lifecycle graph passes through built).
 
   2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), taking `ld-panel` and `ancestry` from its completed sibling OGS-00013 (AFR) for the panel and ancestry; OGS-00011 for n-workers, `post.rho`, `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522.'

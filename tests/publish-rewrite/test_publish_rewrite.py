@@ -410,6 +410,25 @@ class TestPublishing(PublishRewriteCase):
             "the schema's sum of step times: the replaced release's, the rewrite's and this validation's",
         )
 
+    def replaced_completion_state(self, state: str | None) -> None:
+        record = yaml.safe_load(self.fx.validation_yaml.read_text())
+        if state is None:
+            record["observed"].pop("completion_state")
+        else:
+            record["observed"]["completion_state"] = state
+        self.fx.validation_yaml.write_text(yaml.safe_dump(record, sort_keys=False))
+
+    def test_a_replaced_record_with_no_completion_state_publishes_the_measured_one(self) -> None:
+        """OGS-00016's 0.2.0 record predates #307 (#525): the state is measured, not carried."""
+        fx = self.fx
+        self.replaced_completion_state(None)
+        fx.stage(INDEL_WARNING)
+        fx.write_info(fx.staged, {**info(NEW_RELEASE, "0.3.0"), "completion_state": "observed_only"})
+
+        observed = (fx.publish() or {})["observed"]
+
+        self.assertEqual(observed["completion_state"], "observed_only")
+
     def test_a_lifted_conversion_records_its_source_alid_deviation(self) -> None:
         fx = self.fx
         fx.stage(INDEL_WARNING, LIFTED_WARNING, flags=("--convert-legacy", "--lifted"))
@@ -447,6 +466,13 @@ class TestRefusals(PublishRewriteCase):
         self.assertFalse((fx.store_dir / "replaced").exists())
         self.assertEqual(list(fx.store_dir.glob(f"*{paths.FORCE_SNAPSHOT_PREFIX}*")), [])
 
+    def test_a_completion_state_that_differs_from_the_replaced_record_is_refused(self) -> None:
+        fx = self.fx
+        fx.stage(INDEL_WARNING)
+        fx.write_info(fx.staged, {**info(NEW_RELEASE, "0.3.0"), "completion_state": "observed_only"})
+
+        self.assertRefusedUnchanged("'reference_completed'", "'observed_only'")
+
     def test_a_staged_release_that_is_not_0_3_0_is_refused(self) -> None:
         self.fx.stage(format_version="0.2.3")
         self.assertRefusedUnchanged("0.2.3", "0.3.0")
@@ -458,6 +484,59 @@ class TestRefusals(PublishRewriteCase):
     def test_a_warning_the_conversion_did_not_record_is_refused(self) -> None:
         self.fx.stage(INDEL_WARNING, UNRECORDED_WARNING)
         self.assertRefusedUnchanged("eaf_orientation.unverified", "not a deviation")
+
+    def carry(self, *messages: str) -> None:
+        """The replaced Validation Record carries these warnings."""
+        record = yaml.safe_load(self.fx.validation_yaml.read_text())
+        record["warnings"] = list(messages)
+        self.fx.validation_yaml.write_text(yaml.safe_dump(record, sort_keys=False))
+
+    def test_a_warning_the_replaced_record_carried_unchanged_publishes_and_is_named(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        self.fx.stage(UNRECORDED_WARNING, flags=())
+        record = self.fx.publish()
+        assert record is not None
+        self.assertEqual(record["rewrite"]["carried_warnings"], [UNRECORDED_WARNING["message"]])
+        self.assertEqual(record["rewrite"]["deviations"], [])
+        self.assertEqual(record["warnings"], [UNRECORDED_WARNING["message"]])
+
+    def test_judge_findings_table(self) -> None:
+        w = UNRECORDED_WARNING["message"]
+        warn = lambda rule, message: finding(rule, "warning", message)  # noqa: E731
+        base = warn("eaf_orientation.unverified", w)
+        cases = {
+            "carried": ([base], dict(replaced_warnings=[w]), [w], 0),
+            "changed count": ([warn(base["rule"], w + "; only 12 variants")], dict(replaced_warnings=[w]), [], 1),
+            "changed subject": ([warn(base["rule"], w.replace("'a'", "'b'"))], dict(replaced_warnings=[w]), [], 1),
+            "fired twice": ([base, base], dict(replaced_warnings=[w]), [w], 1),
+            "new": ([base], dict(replaced_warnings=["another"]), [], 1),
+            "empty record": ([base], dict(replaced_warnings=[]), [], 1),
+            "null record": ([base], dict(replaced_warnings=None), [], 1),
+            "non-list record": ([base], dict(replaced_warnings=w), [], 1),
+            "deviation rule, recorded text, plain rewrite": (
+                [INDEL_WARNING], dict(replaced_warnings=[INDEL_WARNING["message"]]), [], 1),
+        }
+        for name, (findings, kwargs, carried, unrecorded) in cases.items():
+            with self.subTest(name):
+                deviations, got, refused = publish_rewrite.judge_findings(findings, convert_legacy=False, **kwargs)
+                self.assertEqual((deviations, got, len(refused)), ([], carried, unrecorded))
+        deviations, got, refused = publish_rewrite.judge_findings(
+            [INDEL_WARNING], convert_legacy=True, replaced_warnings=[INDEL_WARNING["message"]])
+        self.assertEqual((deviations, got, refused), (["variant_table.indel_order"], [], []))
+
+    def test_a_new_warning_the_replaced_record_lacks_is_refused(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        new = finding("rho.unverified", "warning", "a new warning V")
+        self.fx.stage(UNRECORDED_WARNING, new, flags=())
+        self.assertRefusedUnchanged("rho.unverified", "a new warning V")
+
+    def test_a_conversion_names_its_deviations_and_its_carried_warning(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        self.fx.stage(INDEL_WARNING, UNRECORDED_WARNING)
+        record = self.fx.publish()
+        assert record is not None
+        self.assertEqual(record["rewrite"]["deviations"], ["variant_table.indel_order"])
+        self.assertEqual(record["rewrite"]["carried_warnings"], [UNRECORDED_WARNING["message"]])
 
     def test_a_plain_rewrite_accepts_no_deviation(self) -> None:
         """#499's 0.2.3 rewrite records none, so every warning refuses it."""
@@ -826,8 +905,9 @@ class TestRealEngine(unittest.TestCase):
             validation_yaml = bundle_dir / "validation.yaml"
             validation_yaml.write_text(yaml.safe_dump({
                 "status": "passed", "validator": {"name": "opengwasdb validate", "version": "x"},
-                "observed": dict(PREVIOUS_OBSERVED), "checks": {"store": "passed"},
-                "warnings": [], "errors": [],
+                # The fixture tarball is an Observed-Only Store, as `info` reports it.
+                "observed": {**PREVIOUS_OBSERVED, "completion_state": "observed_only"},
+                "checks": {"store": "passed"}, "warnings": [], "errors": [],
             }, sort_keys=False))
             store_dir = paths.store_dir(STORE_ID, root=root)
             store_dir.mkdir(parents=True)

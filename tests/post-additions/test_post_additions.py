@@ -551,7 +551,7 @@ class TestRewrittenStores(PostAdditionsCase):
     def test_a_native_warning_refuses_a_converted_store(self) -> None:
         self.rewritten(convert_legacy=True)
         self.fx.write_verdict(verdict(NATIVE_WARNING))
-        self.assert_refused("eaf_orientation.unverified", "not a deviation its rewrite records")
+        self.assert_refused("eaf_orientation.unverified", "neither a deviation its rewrite records")
 
     def test_a_recorded_deviation_is_accepted_and_the_rewrite_kept(self) -> None:
         self.rewritten(convert_legacy=True)
@@ -564,6 +564,20 @@ class TestRewrittenStores(PostAdditionsCase):
         register_record = run.read_record(paths.record_path(STORE_ID, "register", root=self.fx.root))
         self.assertIn("rewrite", register_record)
         self.assertIn(run.REWRITE_RELEASE_STEP, [Path(p).stem for p in register_record["inputs"]])
+
+    def test_a_carried_warning_is_accepted_and_a_new_one_refused(self) -> None:
+        self.rewritten(convert_legacy=False)
+        self.fx.edit_register(
+            lambda r: r["rewrite"].update({"carried_warnings": [NATIVE_WARNING["message"]]})
+        )
+        new = finding("eaf_orientation.unverified", "warning", "analysis 'b' stores EAF whose orientation is unverified")
+
+        self.fx.write_verdict(verdict(NATIVE_WARNING, new))
+        self.assert_refused("analysis 'b'")
+        self.fx.write_verdict(verdict(NATIVE_WARNING))
+        written = self.add()
+
+        self.assertEqual(written["status"], "passed_with_warnings")
 
     def test_a_rewrite_record_of_another_store_is_refused(self) -> None:
         """#527's rewrite identity check (`amendment._rewrite_changes`) is the shared walk's."""
