@@ -32,7 +32,9 @@ This suite asserts the container migration:
      forced runs of 17 and 18 Nov 2026 (issue #232, #197, #344), which replaced
      the format-0.1.0 Store each of them described, so their pins carry the null
      `format_version` `register` records when no step reports one. OGS-00004
-     left the migrated group with that run.
+     left the migrated group with that run. OGS-00003 was rebuilt again by
+     #514's forced 0.3.0 run of 25 Nov 2026, so its pin carries format 0.3.0
+     and `has_rho` true.
   4. No migrated record remains: OGS-00004 was the last one, and the forced
      rebuild of 18 Nov 2026 (issue #232) replaced it with `register`'s own
      output. A migrated record recorded every measurement it does not have as
@@ -98,12 +100,12 @@ from ogstores.register import (
 )
 
 STORES: tuple[str, ...] = tuple(f"OGS-{i:05d}" for i in range(1, 8))
-ALREADY_REGISTERED: tuple[str, ...] = ("OGS-00003",)
 # Rebuilt and re-registered through the release workflow's force path (#195,
-# #332, #348, #224, #232); their record is `register`'s own output and names the
+# #332, #348, #224, #232, #514); their record is `register`'s own output and names the
 # archived release.
 REREGISTERED: tuple[str, ...] = (
-    "OGS-00001", "OGS-00002", "OGS-00004", "OGS-00005", "OGS-00006", "OGS-00007"
+    "OGS-00001", "OGS-00002", "OGS-00003", "OGS-00004", "OGS-00005", "OGS-00006",
+    "OGS-00007",
 )
 # Empty since the forced rebuild of 18 Nov 2026 replaced OGS-00004's migrated
 # record with `register`'s own output (#232).
@@ -163,14 +165,15 @@ FORMAT_VERSION_SHAPE = re.compile(r"[0-9]+\.[0-9]+\.[0-9]+")
 # `format_version` was issue #195's correction of `register`'s own "1.0"
 # default: the Store's manifest.json declared "0.1.0", the only format the
 # opengwasdb revision that wrote it stamped. Both are Release Errata in its
-# release.yaml. The forced rebuild of 17 Nov 2026 (#232) replaced that Store, so
-# the pin is now `register`'s own record of the run: null is what no step
-# reported, and the format the Store carries is the manifest's 0.2.2.
-# The #502 backfill of 24 Nov 2026 then recorded each Store's facts into its
-# observed block: store_bytes from the Store on disk (format 0.2.x), has_hm3
-# from the Build Recipe, has_rho and n_top_hits null until opengwasdb#488. That
-# is the one other way an accepted record's observed block may change
-# (docs/release-metadata-schema.md, validation.yaml).
+# release.yaml. The forced rebuild of 17 Nov 2026 (#232) replaced that Store with
+# one at format 0.2.2, and the #502 backfill of 24 Nov 2026 then recorded each
+# Store's facts into its observed block: store_bytes from the Store on disk,
+# has_hm3 from the Build Recipe, has_rho and n_top_hits null until
+# opengwasdb#488. That is the one other way an accepted record's observed block
+# may change (docs/release-metadata-schema.md, validation.yaml). The forced 0.3.0
+# rebuild of 25 Nov 2026 (#514) replaced that Store in turn, so the pin is now
+# `register`'s own record of that run: format 0.3.0, has_rho true, and n_top_hits
+# still null, which `register` hard-codes until opengwasdb#488.
 GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # Rebuilt (OGS-00001) and re-completed (OGS-00002) at opengwasdb 0.3.2,
     # 44f25a96, and re-registered on 2 Nov 2026 (#348), so that OGS-00002 reads
@@ -228,18 +231,23 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # it published holds 21,327,043 variants where the 0.1.0 Store it replaced
     # held 21,230,615. No step reported the format; it is the 0.2.2 that
     # `opengwasdb info` read from the Store (#512's backfill).
+    # Rebuilt again by the owner-approved forced run of 25 Nov 2026 at opengwasdb
+    # 69c2945 (0.17.0), the first Dense Store at format 0.3.0 and the first to carry
+    # a Rho Matrix (#514): 10 Analyses and 21,327,043 variants as before, build 1007.9 s,
+    # rho 84.7 s, indexed-subset-hm3 14.1 s, overview 1.2 s and validate 95.7 s
+    # (1203.573 s across the steps), 2,822,806,708 bytes on disk.
     "OGS-00003": {
-        "format_version": "0.2.2",
+        "format_version": "0.3.0",
         "n_analyses": 10,
         "n_variants": 21327043,
         "n_associations": None,
         "association_coverage": "gwas",
         "reference_assembly": None,
-        "store_bytes": 2596984787,
+        "store_bytes": 2822806708,
         "has_hm3": True,
-        "has_rho": None,
+        "has_rho": True,
         "n_top_hits": None,
-        "build_elapsed_s": 964.505,
+        "build_elapsed_s": 1203.573,
         "validate_status": "passed",
         "completion_state": "observed_only",
     },
@@ -448,12 +456,12 @@ class TestCommittedValidationRecords(unittest.TestCase):
     def test_already_registered_records_keep_their_observed_measurements(self) -> None:
         """Every record registered through the workflow keeps its observed block, exactly pinned.
 
-        OGS-00003 is pinned as the #232 forced rebuild recorded it, OGS-00001
+        OGS-00003 is pinned as #514's forced 0.3.0 rebuild recorded it, OGS-00001
         as #514's forced 0.3.0 self-completion recorded it, OGS-00002 as the
         #348 and #460 re-registrations recorded them, and
         OGS-00004 and OGS-00005 as the #232 forced rebuilds recorded them.
         """
-        self.assertEqual(set(GOLDEN_OBSERVED), set(ALREADY_REGISTERED) | set(REREGISTERED))
+        self.assertEqual(set(GOLDEN_OBSERVED), set(REREGISTERED))
         for store_id, expected in GOLDEN_OBSERVED.items():
             self.assertEqual(
                 self.load(store_id)["observed"],
