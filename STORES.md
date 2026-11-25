@@ -80,3 +80,8 @@ Generated from the LD Store Registry's records in `stores/ld/` (docs/spec/ld-sto
 | LD ID | Label | Kind | Status | Ancestry | n | k | Format | Variants | Bytes | Licence |
 |:---|:---|:---|:---|:---|---:|---:|:---|---:|---:|:---|
 | `OGL-00001` | hgdp1kgp-v2-EUR-k10 | ld_store | served | EUR | 665 | 10 | 0.1.0 | 8,586,889 | 79,278,843,340 | to confirm |
+| `OGL-00007` | hgdp1kgp-v2-EUR-k10 | genotype_store | built | EUR | 665 | 10 | 0.1.0 | 8,586,889 | 1,474,533,909 | to confirm |
+| `OGL-00008` | hgdp1kgp-v2-AFR-k10 | genotype_store | built | AFR | 608 | 10 | 0.1.0 | 14,374,341 | 2,457,647,129 | to confirm |
+| `OGL-00009` | hgdp1kgp-v2-AMR-k10 | genotype_store | built | AMR | 341 | 10 | 0.1.0 | 7,561,067 | 1,297,724,976 | to confirm |
+| `OGL-00010` | hgdp1kgp-v2-EAS-k10 | genotype_store | built | EAS | 724 | 10 | 0.1.0 | 7,837,854 | 1,346,250,670 | to confirm |
+| `OGL-00011` | hgdp1kgp-v2-SAS-k10 | genotype_store | built | SAS | 672 | 10 | 0.1.0 | 8,879,035 | 1,521,230,360 | to confirm |
