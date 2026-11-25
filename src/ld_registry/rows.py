@@ -12,9 +12,10 @@ from __future__ import annotations
 import csv
 import io
 from collections.abc import Iterable, Mapping
+from pathlib import PurePosixPath
 from typing import Any
 
-from ld_registry.record import LD_ROOT, record_path
+from ld_registry.record import IMPORTED_MATRIX, LD_ROOT, record_path
 
 Value = int | float | str | None
 
@@ -85,6 +86,17 @@ def representation(kind: Any, provenance: Mapping[str, Any]) -> str | None:
     return f"pairwise r ({', '.join(parts)})"
 
 
+def source(provenance: Mapping[str, Any]) -> str | None:
+    """Where the Store's data came from. An imported matrix's (`ld_matrix`) is
+    rendered from its description's documented fields, never as raw JSON:
+    the matrix's URL and transformation, the liftover chain and the QC."""
+    description = provenance.get("source_description")
+    if provenance.get("source_kind") == IMPORTED_MATRIX and isinstance(description, Mapping):
+        chain = PurePosixPath(description["liftover_chain"]).name
+        return f"{description['url']} ({description['transformation']}), lifted over by {chain}; {description['qc']}"
+    return description
+
+
 def panel_representation(ld: Mapping[str, Any]) -> str | None:
     """What an LD panel holds, from its declaration's `ld` mapping (#540): per-block eigendecompositions."""
     if ld.get("representation") != "eigendecomposition":
@@ -133,7 +145,7 @@ def ld_values(record: Mapping[str, Any]) -> dict[str, Value]:
         "created_at": provenance.get("created_at"),
         "build_wall_s": None if wall is None else round(wall),
         "built_with": f"ogld {provenance['software']['ogld']} ({rebuild.get('script')})",
-        "source": provenance.get("source_description"),
+        "source": source(provenance),
         "licence": record.get("licence"),
         "location": record.get("location"),
         "record": record_path(LD_ROOT, str(record.get("ld_id"))).as_posix(),

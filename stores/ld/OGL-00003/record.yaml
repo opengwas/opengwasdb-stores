@@ -1,0 +1,56 @@
+# LD Store record (docs/spec/ld-store-registry.md, ADR 0042).
+# kind, location, provenance, provenance_sha256 and measured are written by
+# `python3 -m ld_registry write`; a person writes every other field, and the
+# writer keeps it as written.
+ld_id: OGL-00003
+kind: ld_store
+label: hgdp1kgp-v2-AMR-k10
+status: retiring
+licence: to confirm
+used_for: 'Data API LD: matrix, region, proxies, clump'
+issue: ogld#7
+notes: served by ogdb-api until ogdb-api#180 ships; retirement needs ogdb-api#180 and the owner's confirmation
+rebuild:
+  repository: opengwas/ogld
+  version: 0.0.1.dev292+g25af8039f
+  script: scripts/build_hgdp1kgp.py
+  commands:
+  - pixi run -e dev python scripts/build_hgdp1kgp.py convert --panel AMR
+  - pixi run -e dev python scripts/build_hgdp1kgp.py build --panel AMR
+location: /data/opengwasdb/work/ogld/stores/hgdp1kgp-v2-AMR-k10.store
+provenance:
+  source_kind: genotypes
+  source_description: HGDP+1kGP phased v2 (Koenig et al. 2024), AMR, converted by build-inputs §3
+  source_panel: hgdp1kgp-v2-AMR
+  ancestry: AMR
+  n: 341
+  k: 10
+  reference_assembly: GRCh38
+  format_version: 0.1.0
+  r_scale: 511
+  near_bp: 3000000
+  far_bp: 10000000
+  t_far: 0.06315151515151515
+  n_variants: 7561067
+  counts:
+    near_pairs: 65192230001
+    far_candidates: 137080377140
+    far_pairs: 88467989
+    index_entries: 3337986118
+    alids_left_out: 31605
+  variants_dropped:
+    filter: 0
+    mac: 68793716
+    info: 0
+    zero_variance: 0
+    duplicate_reversed_indel: 58738
+  software:
+    ogld: 0.0.1.dev292+g25af8039f
+    numpy: 2.4.6
+    zarr: 3.4.2
+    pgenlib: 0.95.1
+  created_at: '2026-11-13T06:10:50Z'
+  wall_seconds: 1501.2336244339822
+provenance_sha256: f474294e1c3ba09121c5e44b5c1ad3d814df345c1743fa984eda3a61793aa850
+measured:
+  store_bytes: 64344553227

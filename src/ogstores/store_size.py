@@ -7,16 +7,31 @@ opengwas/opengwasdb-stores#498 has landed its changes to `audit.py`.
 
 from __future__ import annotations
 
+import os
+import stat
 from pathlib import Path
 
 
-def store_size_on_disk(store_dir: Path) -> int:
-    """The bytes of every file under a Store directory, summed from a stat of each.
+def _raise(error: OSError) -> None:
+    """`os.walk`'s `onerror`: an unreadable directory is an error, never skipped."""
+    raise error
 
-    A stat opens no Store file, so this is no Store read under ADR 0023. A
-    symlinked directory is not descended into.
+
+def store_size_on_disk(store_dir: Path) -> int:
+    """The bytes of every regular file under a Store directory, summed from an lstat of each.
+
+    A stat opens no Store file, so this is no Store read under ADR 0023. No
+    symbolic link is followed, to a file or to a directory, so an overlay's
+    size is its own files alone (#538). An unreadable directory raises rather
+    than being skipped.
     """
-    return sum(path.stat().st_size for path in store_dir.rglob("*") if path.is_file())
+    total = 0
+    for root, _, files in os.walk(store_dir, onerror=_raise):  # never descends a linked directory
+        for name in files:
+            status = os.lstat(os.path.join(root, name))
+            if stat.S_ISREG(status.st_mode):
+                total += status.st_size
+    return total
 
 
 __all__ = ["store_size_on_disk"]

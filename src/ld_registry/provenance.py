@@ -12,10 +12,12 @@ import json
 from pathlib import Path
 from typing import Any
 
+from ld_registry.record import IMPORTED_MATRIX
 from ogstores.store_info import Runner, run_engine_json
 
 #: Each provenance field of a record, and where `opengwasdb ld info` keeps it.
-#: `t_partner` and `counts` are recorded when the Store records them.
+#: `t_partner`, `counts` and `variants_dropped` are recorded when the Store
+#: records them.
 PROVENANCE_PATHS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("source_kind", ("source", "kind")),
     ("source_description", ("source", "description")),
@@ -32,11 +34,12 @@ PROVENANCE_PATHS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("t_partner", ("t_partner",)),
     ("n_variants", ("n_variants",)),
     ("counts", ("counts",)),
+    ("variants_dropped", ("variants_dropped",)),
     ("software", ("software",)),
     ("created_at", ("build", "created_at")),
     ("wall_seconds", ("build", "wall_seconds")),
 )
-OPTIONAL = frozenset({"t_partner", "counts"})
+OPTIONAL = frozenset({"t_partner", "counts", "variants_dropped"})
 
 
 def ld_info(location: Path | str, runner: Runner | None = None) -> dict[str, Any]:
@@ -62,4 +65,20 @@ def record_provenance(info: dict[str, Any]) -> dict[str, Any]:
                 continue
             raise ValueError(f"`opengwasdb ld info` records no {'.'.join(keys)} (the record's provenance.{field})")
         provenance[field] = value
+    if provenance["source_kind"] == IMPORTED_MATRIX:
+        provenance["source_description"] = _description_object(provenance["source_description"])
     return provenance
+
+
+def _description_object(description: Any) -> dict[str, Any]:
+    """An imported matrix's description, which `ld info` prints as JSON text, as the object it is."""
+    try:
+        parsed = json.loads(description) if isinstance(description, str) else None
+    except json.JSONDecodeError:
+        parsed = None
+    if not isinstance(parsed, dict):
+        raise ValueError(
+            f"`opengwasdb ld info`'s source.description is not a JSON object, as an {IMPORTED_MATRIX} source's is "
+            "(ogld build-inputs.md §12)"
+        )
+    return parsed
