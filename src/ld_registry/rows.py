@@ -51,7 +51,63 @@ COLUMNS: tuple[str, ...] = (
     "record",
     "issue",
     "notes",
+    "default",
 )
+
+#: Each column's type, written out: `text`, `integer` or `real`. The Analysis Catalog's table follows it
+#: (#537). A column added to `COLUMNS` needs a line here, and `checked_types` refuses it at import without
+#: one, as it refuses a line for a column that does not exist.
+TYPES = ("text", "integer", "real")
+
+
+def checked_types(columns: tuple[str, ...], types: Mapping[str, str]) -> dict[str, str]:
+    """`types` in `columns` order, or `ValueError` naming each column without a type, each type without a
+    column, and each type that is not one of `TYPES`."""
+    untyped = [c for c in columns if c not in types]
+    unknown = [c for c in types if c not in columns]
+    invalid = [f"{c}: {t!r}" for c, t in types.items() if t not in TYPES]
+    if untyped or unknown or invalid:
+        raise ValueError(
+            f"ld_registry.rows: columns without a type: {untyped}; types without a column: {unknown}; "
+            f"types that are not one of {', '.join(TYPES)}: {invalid}"
+        )
+    return {column: types[column] for column in columns}
+
+
+COLUMN_TYPES: dict[str, str] = checked_types(COLUMNS, {
+    "ld_id": "text",
+    "label": "text",
+    "kind": "text",
+    "provenance": "text",
+    "status": "text",
+    "used_for": "text",
+    "ancestry": "text",
+    "source_panel": "text",
+    "n": "integer",
+    "k": "integer",
+    "reference_assembly": "text",
+    "format_version": "text",
+    "representation": "text",
+    "n_variants": "integer",
+    "n_blocks": "integer",
+    "store_bytes": "integer",
+    "genotype_bytes": "integer",
+    "r_scale": "integer",
+    "near_bp": "integer",
+    "far_bp": "integer",
+    "t_far": "real",
+    "t_partner": "real",
+    "created_at": "text",
+    "build_wall_s": "integer",
+    "built_with": "text",
+    "source": "text",
+    "licence": "text",
+    "location": "text",
+    "record": "text",
+    "issue": "text",
+    "notes": "text",
+    "default": "integer",
+})
 
 #: STORES.md's LD section: (heading, column), a subset of `COLUMNS`.
 MD_COLUMNS: tuple[tuple[str, str], ...] = (
@@ -151,6 +207,8 @@ def ld_values(record: Mapping[str, Any]) -> dict[str, Value]:
         "record": record_path(LD_ROOT, str(record.get("ld_id"))).as_posix(),
         "issue": record.get("issue"),
         "notes": record.get("notes"),
+        # 1 for the record that declares itself its ancestry's default, NULL otherwise (#537).
+        "default": 1 if record.get("default") is True else None,
     }
     return {column: values[column] for column in COLUMNS}
 

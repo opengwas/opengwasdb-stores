@@ -16,6 +16,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
+import yaml
 from ogstores.resources import ReferenceResourceError, load_resource_declaration
 
 from ld_registry.ids import is_valid_ld_id
@@ -85,10 +86,15 @@ def _rows(where: Path, document: Mapping[str, Any]) -> list[dict[str, Value]]:
             return {}
         if isinstance(value, Mapping):
             _check_keys(where, name, value, ancestries)
-            return value
-        if several:
+            counts = value
+        elif several:
             raise PanelError(f"{where}: {name} is one value for {len(ancestries)} ancestries; declare it per ancestry")
-        return {ancestries[0]: value}
+        else:
+            counts = {ancestries[0]: value}
+        for ancestry, count in counts.items():
+            if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+                raise PanelError(f"{where}: {name} {ancestry}: {count!r} is not a whole number")
+        return counts
 
     n_individuals = declared(source, "n_individuals")
     n_variants, n_blocks, size = declared(ld, "n_variants"), declared(ld, "n_blocks"), declared(ld, "bytes")
@@ -121,6 +127,27 @@ def _rows(where: Path, document: Mapping[str, Any]) -> list[dict[str, Value]]:
     ]
 
 
+def declaration_files(resources_root: Path | str) -> list[Path]:
+    """The `resource.yaml` of every `ld_panel` under `resources_root`, in directory order.
+
+    The one place that says which declarations are panels: `panel_rows` reads them, and the Analysis
+    Catalog's version hashes them (#537).
+    """
+    directory = Path(resources_root)
+    found = []
+    for entry in sorted(directory.iterdir()) if directory.is_dir() else []:
+        where = entry / DECLARATION
+        if not where.is_file():
+            continue
+        try:
+            document = yaml.safe_load(where.read_text(encoding="utf-8"))
+        except (yaml.YAMLError, OSError, UnicodeError) as exc:
+            raise PanelError(f"{where}: could not be read: {exc}") from exc
+        if isinstance(document, dict) and document.get("kind") == PANEL_KIND:
+            found.append(where)
+    return found
+
+
 def panel_rows(resources_root: Path | str) -> list[dict[str, Value]]:
     """Every `ld_panel` declaration's rows under `resources_root` (`<repo>/resources/reference-resources`), in id order.
 
@@ -132,16 +159,11 @@ def panel_rows(resources_root: Path | str) -> list[dict[str, Value]]:
     repo_root = directory.parents[1]
     found: list[dict[str, Value]] = []
     where_by_id: dict[str, Path] = {}
-    for entry in sorted(directory.iterdir()) if directory.is_dir() else []:
-        where = entry / DECLARATION
-        if not where.is_file():
-            continue
+    for where in declaration_files(directory):
         try:
-            document = load_resource_declaration(entry.name, repo_root)
+            document = load_resource_declaration(where.parent.name, repo_root)
         except ReferenceResourceError as exc:
             raise PanelError(str(exc)) from exc
-        if document.get("kind") != PANEL_KIND:
-            continue
         for row in _rows(where, document):
             ld_id = str(row["ld_id"])
             if ld_id in where_by_id:

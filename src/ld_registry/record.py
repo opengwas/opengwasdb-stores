@@ -14,9 +14,9 @@ never raises for record content. Each error names the record and the field.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple
 
 import yaml
@@ -34,6 +34,9 @@ KINDS: tuple[str, ...] = ("ld_store", "genotype_store")
 #: An LD Store's status. A record is written from an existing Store's
 #: provenance, so a Store still building has none.
 STATUSES: tuple[str, ...] = ("served", "built", "retiring", "reference", "retired")
+
+#: The status of a Store the Data API serves, the only one that may be a `default`.
+SERVED = "served"
 
 #: The source kind of an imported matrix (`ogld import`), whose description
 #: is a JSON object of documented fields (ogld build-inputs.md §12).
@@ -83,6 +86,10 @@ def _number(value: Any) -> str | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return f"{value!r} is not a number"
     return None
+
+
+def _true(value: Any) -> str | None:
+    return None if value is True else f"{value!r} is not true: say `default: true`, or leave the field out"
 
 
 def _absolute_path(value: Any) -> str | None:
@@ -150,6 +157,8 @@ FIELDS: tuple[Field, ...] = (
     Field("label", PERSON, True, _text),
     Field("status", PERSON, True, _one_of(STATUSES)),
     Field("licence", PERSON, True, _text),
+    # The Store a consumer takes for its ancestry (#537, ogdb-api#195).
+    Field("default", PERSON, False, _true),
     Field("used_for", PERSON, True, _text),
     Field("issue", PERSON, False, _text),
     Field("notes", PERSON, False, _text),
@@ -292,6 +301,8 @@ def validate(document: Mapping[str, Any], path: Path) -> list[RecordError]:
     for key in document:
         if key not in declared:
             errors.append(RecordError(path, str(key), "is not a record field"))
+    if document.get("default") is True and document.get("status") in STATUSES and document["status"] != SERVED:
+        errors.append(RecordError(path, "default", f"only a {SERVED} record may be the default, not {document['status']!r}"))
     if is_valid_ld_id(document.get("ld_id")) and document["ld_id"] != path.parent.name:
         errors.append(RecordError(path, "ld_id", f"{document['ld_id']!r} is not its directory, {path.parent.name!r}"))
     return errors
@@ -328,6 +339,31 @@ def load_record(path: Path) -> tuple[dict[str, Any] | None, list[RecordError]]:
     return document, validate(document, Path(path))
 
 
+class InvalidRecords(ValueError):
+    """The registry holds a record that breaks the spec."""
+
+    def __init__(self, errors: list[RecordError]) -> None:
+        self.errors = errors
+        super().__init__("the LD Store Registry has invalid records:\n" + "\n".join(f"  {e}" for e in errors))
+
+
+def default_errors(records: list[dict[str, Any]], ld_root: Path) -> list[RecordError]:
+    """An error on each `default: true` after the first for one ancestry, naming the record it duplicates."""
+    declared: dict[Any, str] = {}
+    errors: list[RecordError] = []
+    for document in records:
+        if document.get("default") is not True or document.get("status") != SERVED:
+            continue
+        ancestry = (document.get("provenance") or {}).get("ancestry")
+        first = declared.setdefault(ancestry, str(document["ld_id"]))
+        if first != document["ld_id"]:
+            errors.append(RecordError(
+                record_path(ld_root, str(document["ld_id"])), "default",
+                f"{first} is already the default for ancestry {ancestry}; at most one served record may be",
+            ))
+    return errors
+
+
 def load_records(ld_root: Path) -> tuple[list[dict[str, Any]], list[RecordError]]:
     """Every record under `ld_root`, in id order, and every error among them.
 
@@ -346,4 +382,47 @@ def load_records(ld_root: Path) -> tuple[list[dict[str, Any]], list[RecordError]
         errors.extend(found)
         if document is not None and not found:
             records.append(document)
+    errors.extend(default_errors(records, Path(ld_root)))
     return records, errors
+
+
+def _under(target: str, directory: str) -> bool:
+    target_path, directory_path = PurePosixPath(target), PurePosixPath(directory)
+    return target_path == directory_path or directory_path in target_path.parents
+
+
+def link_errors(ld_root: Path, records: Sequence[Mapping[str, Any]]) -> list[RecordError]:
+    """Each link (`measured.links`) whose target lies under no record's location,
+    or under a `retired` one's, unless the record lists it in `unrecorded_targets`."""
+    errors: list[RecordError] = []
+    for document in records:
+        measured = document.get("measured") or {}
+        declared = [entry["path"] for entry in document.get("unrecorded_targets") or []]
+        for name, target in sorted((measured.get("links") or {}).items()):
+            if any(_under(target, path) for path in declared):
+                continue
+            holders = [other for other in records
+                       if other is not document and _under(target, other["location"])]
+            live = [other for other in holders if other["status"] != "retired"]
+            if live:
+                continue
+            if holders:
+                problem = f"its target {target} lies under {', '.join(h['ld_id'] for h in holders)}, which is retired"
+            else:
+                problem = (f"its target {target} lies under no record's location: record that Store, "
+                           "or list the target in unrecorded_targets with its reason")
+            errors.append(RecordError(record_path(ld_root, document["ld_id"]), f"measured.links.{name}", problem))
+    return errors
+
+
+def valid_records(ld_root: Path | str) -> list[dict[str, Any]]:
+    """Every record under `ld_root`, or `InvalidRecords` naming each error: the one loader that refuses.
+
+    A link whose target no live record holds is an error too, checked against the valid records alone.
+    The index and the Analysis Catalog's build both read the registry through it.
+    """
+    records, errors = load_records(Path(ld_root))
+    errors += link_errors(Path(ld_root), records)
+    if errors:
+        raise InvalidRecords(errors)
+    return records

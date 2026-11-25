@@ -31,6 +31,7 @@ import yaml
 from analysis_catalog import build as catalog_build
 from analysis_catalog import publish as catalog_publish
 from analysis_catalog.columns import DDL
+from analysis_catalog.errors import CatalogError
 from analysis_catalog.policy import POLICY, RULES
 from ogstores import paths
 
@@ -1475,6 +1476,216 @@ SORTABLE_COLUMNS = (
     "id", "store_id", "analysis_label", "trait_ontology_label", "assigned_ancestry", "tissue",
     "stored_effect_scale", "sample_size", "ancestry_category", "outcome_type", "trait_class",
 )
+
+
+class LdResourcesTest(TempDirCase):
+    """The `ld_resources` table: the LD Store Registry's records, typed (#537, ADR 0042)."""
+
+    RECORD = paths.REPO_ROOT / "tests" / "ld-registry" / "fixtures" / "record-ogl-00001.yaml"
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        """One build of OGL-00001 and two panels, for the tests that only read the table."""
+        cls.tmp_shared = Path(tempfile.mkdtemp(prefix="analysis_catalog_ld_"))
+        registry = cls.tmp_shared / "stores"
+        document = yaml.safe_load(cls.RECORD.read_text(encoding="utf-8"))
+        (registry / "ld" / "OGL-00001").mkdir(parents=True)
+        (registry / "ld" / "OGL-00001" / "record.yaml").write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        source = paths.REPO_ROOT / "resources" / "reference-resources"
+        for resource_id in ("ukb-hg38-eur-ld", "hgdp1kgp-hg38-ld"):
+            shutil.copytree(source / resource_id, cls.tmp_shared / "resources" / "reference-resources" / resource_id)
+        cls.shared_root = cls.tmp_shared / "artifact-root"
+        cls.shared_root.mkdir()
+        build_catalog(registry, cls.shared_root)
+
+    @classmethod
+    def tearDownClass(cls) -> None:
+        shutil.rmtree(cls.tmp_shared, ignore_errors=True)
+
+    def shared(self, sql: str) -> list[tuple]:
+        return query(self.shared_root, sql)
+
+    def shared_row(self) -> dict[str, Any]:
+        connection = sqlite3.connect(self.shared_root / "catalog" / "current" / "catalog.sqlite")
+        connection.row_factory = sqlite3.Row
+        try:
+            return dict(connection.execute("SELECT * FROM ld_resources WHERE ld_id = 'OGL-00001'").fetchone())
+        finally:
+            connection.close()
+
+    def put_record(self, ld_id: str = "OGL-00001", **changes: Any) -> Path:
+        document = yaml.safe_load(self.RECORD.read_text(encoding="utf-8"))
+        document.update(changes)
+        document["ld_id"] = ld_id
+        path = self.registry / "ld" / ld_id / "record.yaml"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(document, sort_keys=False), encoding="utf-8")
+        return path
+
+    def row(self, ld_id: str = "OGL-00001") -> dict[str, Any]:
+        connection = sqlite3.connect(self.root / "catalog" / "current" / "catalog.sqlite")
+        connection.row_factory = sqlite3.Row
+        try:
+            return dict(connection.execute("SELECT * FROM ld_resources WHERE ld_id = ?", (ld_id,)).fetchone())
+        finally:
+            connection.close()
+
+    def test_the_table_mirrors_the_registrys_columns_in_order(self) -> None:
+        from ld_registry import rows as ld_rows
+
+        names = [r[1] for r in self.shared("PRAGMA table_info(ld_resources)")]
+        self.assertEqual(names, list(ld_rows.COLUMNS))
+        self.assertEqual(names[-1], "default")
+
+    def test_values_are_typed_and_a_missing_value_is_null(self) -> None:
+        row = self.shared_row()
+        self.assertEqual(
+            (row["ld_id"], row["label"], row["n"], row["k"], row["n_variants"], row["t_far"], row["status"]),
+            ("OGL-00001", "hgdp1kgp-v2-EUR-k10", 665, 10, 8586889, 0.03186544342507645, "served"),
+        )
+        self.assertEqual(row["store_bytes"], 79279262640)
+        self.assertEqual(row["build_wall_s"], 2029)
+        for missing in ("t_partner", "n_blocks", "genotype_bytes", "default"):
+            self.assertIsNone(row[missing], missing)
+        types = {
+            name: self.shared(f"SELECT typeof({name}) FROM ld_resources")[0][0]
+            for name in ("n", "k", "n_variants", "store_bytes", "build_wall_s", "r_scale", "t_far", "t_partner", "label")
+        }
+        self.assertEqual(types, {
+            "n": "integer", "k": "integer", "n_variants": "integer", "store_bytes": "integer",
+            "build_wall_s": "integer", "r_scale": "integer", "t_far": "real", "t_partner": "null", "label": "text",
+        })
+
+    def put_panels(self, *resource_ids: str) -> Path:
+        """Copy the committed `ld_panel` declarations into the registry's repository."""
+        source = paths.REPO_ROOT / "resources" / "reference-resources"
+        target = self.tmp / "resources" / "reference-resources"
+        for resource_id in resource_ids:
+            shutil.copytree(source / resource_id, target / resource_id)
+        return target / "ukb-hg38-eur-ld" / "resource.yaml"
+
+    def test_a_panel_is_a_row_with_typed_counts_and_null_for_unknown_ones(self) -> None:
+        connection = sqlite3.connect(self.shared_root / "catalog" / "current" / "catalog.sqlite")
+        connection.row_factory = sqlite3.Row
+        try:
+            rows = {r["ld_id"]: dict(r) for r in connection.execute("SELECT * FROM ld_resources WHERE kind = 'ld_panel'")}
+        finally:
+            connection.close()
+        self.assertEqual(sorted(rows), ["OGL-00013", "OGL-00014", "OGL-00015", "OGL-00016"])
+        afr = rows["OGL-00014"]
+        self.assertEqual((afr["ancestry"], afr["n_variants"], afr["n_blocks"], afr["store_bytes"]), ("AFR", 14136388, 1580, 61615133621))
+        ukb = rows["OGL-00013"]
+        self.assertEqual(ukb["n_blocks"], 1357)
+        for unknown in ("n_variants", "store_bytes"):
+            self.assertIsNone(ukb[unknown], unknown)
+        self.assertEqual(
+            self.shared("SELECT typeof(n_variants), typeof(n_blocks), typeof(store_bytes) FROM ld_resources WHERE ld_id = 'OGL-00014'"),
+            [("integer", "integer", "integer")],
+        )
+
+    def test_the_table_has_the_rows_the_index_writes(self) -> None:
+        from ld_registry import index as ld_index
+
+        ld_index.generate_ld_index(
+            self.tmp_shared / "stores" / "ld", self.tmp_shared, self.tmp_shared / "resources" / "reference-resources"
+        )
+        with open(self.tmp_shared / "ld-resources.tsv", encoding="utf-8", newline="") as handle:
+            tsv_ids = [r["ld_id"] for r in csv.DictReader(handle, delimiter="\t")]
+        self.assertEqual([r[0] for r in self.shared("SELECT ld_id FROM ld_resources ORDER BY ld_id")], tsv_ids)
+        self.assertEqual(len(tsv_ids), 5)
+
+    def test_a_panel_declaration_change_gives_a_new_version(self) -> None:
+        declaration = self.put_panels("ukb-hg38-eur-ld")
+        first = catalog_publish.compute_version(self.registry, [])
+        declaration.write_text(declaration.read_text(encoding="utf-8") + "\n# a change\n", encoding="utf-8")
+        self.assertNotEqual(catalog_publish.compute_version(self.registry, []), first)
+
+    def test_a_declaration_that_is_not_a_panel_is_not_hashed(self) -> None:
+        self.put_panels("ukb-hg38-eur-ld")
+        other = self.tmp / "resources" / "reference-resources" / "other" / "resource.yaml"
+        other.parent.mkdir()
+        other.write_text("kind: something_else\n", encoding="utf-8")
+        first = catalog_publish.compute_version(self.registry, [])
+        other.write_text("kind: something_else\nnote: changed\n", encoding="utf-8")
+        self.assertEqual(catalog_publish.compute_version(self.registry, []), first)
+
+    def test_a_panel_declaration_error_refuses_the_build(self) -> None:
+        declaration = self.put_panels("ukb-hg38-eur-ld")
+        declaration.write_text(declaration.read_text(encoding="utf-8").replace("ld_ids", "ld_idz"), encoding="utf-8")
+        with self.assertRaises(CatalogError):
+            self.build()
+
+    def test_a_declared_default_is_one(self) -> None:
+        self.put_record(default=True)
+        self.put_record("OGL-00002", status="reference")
+        self.build()
+        self.assertEqual(self.row()["default"], 1)
+        self.assertIsNone(self.row("OGL-00002")["default"])
+
+    def test_a_registry_without_records_has_an_empty_table(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        self.build()
+        self.assertEqual(query(self.root, "SELECT COUNT(*) FROM ld_resources"), [(0,)])
+
+    def test_a_record_error_refuses_the_build_naming_the_record(self) -> None:
+        path = self.put_record(status="live")
+        with self.assertRaises(CatalogError) as caught:
+            self.build()
+        self.assertIn(str(path), str(caught.exception))
+        self.assertIn("status", str(caught.exception))
+        self.assertFalse((self.root / "catalog" / "versions").exists() and self.versions())
+        self.assertIsNone(catalog_publish.current_target(self.root))
+
+    def test_two_defaults_for_one_ancestry_refuse_the_build(self) -> None:
+        self.put_record(default=True)
+        second = self.put_record("OGL-00002", default=True)
+        with self.assertRaises(CatalogError) as caught:
+            self.build()
+        self.assertIn(str(second), str(caught.exception))
+
+    def test_a_record_change_gives_a_new_version(self) -> None:
+        path = self.put_record()
+        first = catalog_publish.compute_version(self.registry, [])
+        path.write_text(path.read_text(encoding="utf-8").replace("licence: to confirm", "licence: CC-BY-4.0"), encoding="utf-8")
+        self.assertNotEqual(catalog_publish.compute_version(self.registry, []), first)
+
+    def test_a_change_to_the_ld_registry_source_gives_a_new_version(self) -> None:
+        import ld_registry
+
+        copy = self.tmp / "ld_registry"
+        shutil.copytree(Path(ld_registry.__file__).parent, copy, ignore=shutil.ignore_patterns("__pycache__"))
+        self.put_record()
+        with mock.patch.object(catalog_publish, "LD_REGISTRY_DIR", copy):
+            first = catalog_publish.compute_version(self.registry, [])
+            with open(copy / "rows.py", "a", encoding="utf-8") as handle:
+                handle.write("\n# a change to a column\n")
+            second = catalog_publish.compute_version(self.registry, [])
+        self.assertNotEqual(second, first)
+
+    def test_the_table_is_laid_out_for_range_reads(self) -> None:
+        """ADR 0041: rows are clustered by id in the table's own b-tree, with no separate key index."""
+        (sql,) = self.shared("SELECT sql FROM sqlite_master WHERE name = 'ld_resources'")[0]
+        self.assertIn("WITHOUT ROWID", sql)
+        self.assertEqual(self.shared("PRAGMA page_size"), [(32768,)])
+
+    def test_the_stores_files_are_hashed_under_their_own_labels(self) -> None:
+        """The Stores' hashing is unchanged by the shared tree walk: `<store_id>/<relative path>`."""
+        write_bundle(self.registry, "OGS-00001")
+        labels: list[str] = []
+        real = catalog_publish._feed_file
+        with mock.patch.object(catalog_publish, "_feed_file", lambda d, label, path: (labels.append(label), real(d, label, path))):
+            catalog_publish.compute_version(self.registry, ["OGS-00001"])
+        self.assertEqual(
+            [l for l in labels if l.startswith("OGS-00001/")],
+            sorted(f"OGS-00001/{p.name}" for p in (self.registry / "OGS-00001").iterdir()),
+        )
+        self.assertFalse([l for l in labels if l.startswith("ld/")])
+
+    def test_a_registry_without_ld_has_the_version_of_an_empty_ld_directory(self) -> None:
+        write_bundle(self.registry, "OGS-00001")
+        bare = catalog_publish.compute_version(self.registry, ["OGS-00001"])
+        (self.registry / "ld").mkdir()
+        self.assertEqual(catalog_publish.compute_version(self.registry, ["OGS-00001"]), bare)
 
 
 class RunbookInstructionTest(unittest.TestCase):
