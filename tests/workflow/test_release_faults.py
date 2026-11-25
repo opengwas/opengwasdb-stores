@@ -283,6 +283,34 @@ class TestEveryBoundaryThroughTheEntryPoint(PublishedReleaseFixture):
         self.assertIn("nothing to be done", again.stdout)
 
 
+    def test_a_published_0_3_0_store_completes_with_no_build_and_no_force(self) -> None:
+        """A rebuilt 0.3.0 Observed-Only Store gains a `complete` block and the scheduler runs only the completion (#527).
+
+        The template is built by the pinned engine, so it is a 0.3.0 Store.
+        Unforced, the amendment check passes and the dry run schedules no
+        `build`, `validate` or `register` of the build phase, only the
+        completion phase's jobs.
+        """
+        sid = STORE_ID
+        stores, artifacts = self.published_copy(aged=False)
+        info = subprocess.run(
+            ["opengwasdb", "info", str(paths.store_path(sid, root=artifacts)), "--format", "json"],
+            capture_output=True, text=True, check=True,
+        )
+        self.assertEqual(json.loads(info.stdout)["format_version"], "0.3.0")
+        test_workflow.amend_to_complete_own_store(
+            stores, sid, ld_panel=test_workflow.create_signal_ld_panel(stores.parent / "ld-panel")
+        )
+
+        dry = run_release([sid, "--dry-run"], registry_root=stores, artifact_root=artifacts)
+
+        self.assertEqual(dry.returncode, 0, dry.stdout + dry.stderr)
+        scheduled = test_workflow.scheduled_targets(dry.stdout)
+        self.assertIn("complete", scheduled, dry.stdout)
+        self.assertNotIn("build", scheduled, dry.stdout)
+        self.assertNotIn("analyses.exclusions", scheduled, dry.stdout)
+        self.assertNotIn("would refuse", dry.stdout)
+
     def test_a_single_id_completion_killed_mid_deletion_is_finished_by_the_next_run(self) -> None:
         """A whole-stack SIGKILL with the replaced Observed-Only Store half deleted; the next run finishes (#309).
 
