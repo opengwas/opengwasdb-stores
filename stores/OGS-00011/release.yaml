@@ -2,7 +2,7 @@ store_id: OGS-00011
 label: eur-hybrid-full
 association_coverage: gwas
 access_posture: public
-status: built
+status: validated
 derived_from: null
 created_at: '2026-11-22T07:44:52Z'
 accepted_at: '2026-11-22T17:50:13Z'
@@ -76,7 +76,8 @@ notes: 'The candidate pool is 6,219 Analyses (GWAS Catalog release 2026-11-19). 
   on any, and compares the rest with no mismatch (opengwasdb#490). In the completed Dense Component''s
   own variant table, 844,992 of 14,564,257 rows carry no rsid where the shared table has one (opengwasdb#481):
   a lookup by rsid over Dense Analyses misses those variants, and a lookup by ALID or position finds
-  them. No statistic is affected.
+  them. No statistic is affected. The owner approved marking it validated on 2026-11-25, after its
+  benchmark on the published Store (opengwasdb docs/benchmark-output/opengwasdb_ogs00011_hybrid_benchmark.html).
 
 
   Candidate status: human review required before acceptance (issue #153). 3245 included, 1641 excluded
