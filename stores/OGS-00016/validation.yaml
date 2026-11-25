@@ -30,7 +30,7 @@ observed:
   n_top_hits: null
   build_elapsed_s: 575509.077
   validate_status: passed_with_warnings
-  completion_state: null
+  completion_state: observed_only
 checks:
   store: passed_with_warnings
 warnings:

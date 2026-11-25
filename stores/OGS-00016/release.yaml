@@ -59,7 +59,8 @@ notes: |-
   with the same z, se and eaf as the 0.2.0 archive. The owner ruled on 25 Nov 2026 that this Store
   stays Observed-Only for now: completing a converted Store under the `indel_order` deviation can
   duplicate deletions, so it is completed only after a rebuild from source. The Release Status is
-  unchanged at validated.
+  unchanged at validated. The record's `completion_state` (observed_only) was filled by
+  `backfill-observed` after the publication (#525, 533c), because the 0.2.0 record predates #307.
 accepted_at: '2026-10-14T08:39:26Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
