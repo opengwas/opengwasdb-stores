@@ -81,6 +81,7 @@ COLUMNS: tuple[str, ...] = (
     "store_bytes",
     "has_hm3",
     "has_rho",
+    "has_clumps",
     "n_top_hits",
     "build_elapsed_s",
     "validate_status",
@@ -237,6 +238,7 @@ def render_stores_row(
     # as compact JSON, empty while it is null (opengwas/opengwasdb#488).
     has_hm3_str = FLAG_CELLS[bundle.observed_flag(obs, "has_hm3")]
     has_rho_str = FLAG_CELLS[bundle.observed_flag(obs, "has_rho")]
+    has_clumps_str = FLAG_CELLS[bundle.observed_flag(obs, "has_clumps")]
     n_top_hits_str = bundle.top_hit_counts_text(obs) or ""
 
     build_elapsed_s = obs.get("build_elapsed_s")
@@ -271,6 +273,7 @@ def render_stores_row(
         "store_bytes": store_bytes_str,
         "has_hm3": has_hm3_str,
         "has_rho": has_rho_str,
+        "has_clumps": has_clumps_str,
         "n_top_hits": n_top_hits_str,
         "build_elapsed_s": build_elapsed_s_str,
         "validate_status": validate_status_str,
@@ -344,8 +347,8 @@ def render_stores_md(
         "",
         "> Generated from Release Bundles in `stores/`. Do not edit by hand; regenerate with `pixi run index`.",
         "",
-        "| Store ID | Label | Trial | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Validated |",
-        "|:---|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|",
+        "| Store ID | Label | Trial | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Clumps | Validated |",
+        "|:---|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|:---|",
     ]
 
     for row in rows:
@@ -366,9 +369,10 @@ def render_stores_md(
         n_exc = _format_cell(row["n_excluded"])
         n_var = _format_cell(row["n_variants"])
         n_assoc = _format_cell(row["n_associations"])
+        clumps = row["has_clumps"] or "-"
         val_st = row["validate_status"] or "-"
 
-        lines.append(f"| {sid} | {lbl} | {trial} | {lay} | {comp} | {st} | {fmt} | {n_ana} | {n_exc} | {n_var} | {n_assoc} | {val_st} |")
+        lines.append(f"| {sid} | {lbl} | {trial} | {lay} | {comp} | {st} | {fmt} | {n_ana} | {n_exc} | {n_var} | {n_assoc} | {clumps} | {val_st} |")
 
     lines.extend([
         "",

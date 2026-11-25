@@ -497,6 +497,9 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
             ),
             "sample_size_scope": lambda d: d["defaults"].update(sample_size_scope="everywhere"),
             "post value": lambda d: d["build"]["post"].update(overview="yes"),
+            "post clumps": lambda d: d["build"]["post"].update(clumps="yes"),
+            "post ld_stores": lambda d: d["build"]["post"].update(ld_stores={"EUR": ""}),
+            "post ld_stores shape": lambda d: d["build"]["post"].update(ld_stores=True),
             "source_collection_id": lambda d: d["source_collection"].update(
                 source_collection_id="a/b"
             ),
@@ -504,6 +507,13 @@ class ReleaseConfigLoadingTests(unittest.TestCase):
         for field, edit in cases.items():
             with self.subTest(field=field):
                 self.assertRefused(edit, field.split()[0])
+
+    def test_post_clumps_and_its_ld_store_mapping_are_carried_to_the_recipe(self) -> None:
+        """`post.clumps` is on or off and `post.ld_stores` maps ancestry to path; both reach the recipe (#526)."""
+        mapping = {"EUR": "/ld/hgdp1kgp-v2-EUR", "AFR": "/ld/hgdp1kgp-v2-AFR"}
+        config = self.load(lambda d: d["build"]["post"].update(clumps=True, ld_stores=mapping))
+        self.assertIs(config.build.post["clumps"], True)
+        self.assertEqual(config.build.post["ld_stores"], mapping)
 
     def test_the_post_keys_are_the_ones_store_release_build_plans(self) -> None:
         import re

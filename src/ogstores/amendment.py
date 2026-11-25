@@ -21,7 +21,7 @@ and only what made that Store:
 - once the completion phase has published (`records/completion-register.json`),
   the same for its `complete`.
 
-Post steps (`top-hits`, `rho`, `indexed-subset-*`, `overview`, `validate`) are
+Post steps (`top-hits`, `rho`, `clump`, `indexed-subset-*`, `overview`, `validate`) are
 re-runnable in-place additions (ADR 0034, opengwasdb ADR 0061), so a new
 declaration, or a planner that has moved on since, is not a change to the
 Store. Observed-only and two-id releases are not checked here, as before #305,

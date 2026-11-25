@@ -853,6 +853,33 @@ class TestBundleContract(unittest.TestCase):
         self.assertTrue(any("build.yaml must contain a mapping" in error for error in errors))
         self.assertTrue(any("validator exploded" in error for error in errors))
 
+    def test_clumps_declaration_needs_an_explicit_ld_store_mapping(self) -> None:
+        """`post.clumps: true` with no `post.ld_stores` mapping is a build-check error, and a malformed one is too (#526)."""
+        checked = self.make_bundle()
+        post = dict(checked.build.get("post") or {})
+        cases = (
+            ({"clumps": True}, "names no LD Store"),
+            ({"clumps": True, "ld_stores": {}}, "names no LD Store"),
+            ({"clumps": "yes", "ld_stores": {"EUR": "/ld/EUR"}}, "true or false"),
+            ({"clumps": True, "ld_stores": {"EUR": ""}}, "non-empty strings"),
+            ({"clumps": True, "ld_stores": ["EUR=/ld"]}, "maps an ancestry"),
+            ({"clumps": None, "ld_stores": {"EUR": "/ld/EUR"}}, "true or false"),
+            ({"clumps": None}, "true or false"),
+        )
+        for extra, fragment in cases:
+            errors = bundle.check(
+                replace(checked, build={**checked.build, "post": {**post, **extra}}),
+                registry_root=self.tmp_dir,
+            )
+            record_check()
+            self.assertTrue(any(fragment in e for e in errors), (extra, errors))
+        ok = bundle.check(
+            replace(checked, build={**checked.build, "post": {**post, "clumps": True, "ld_stores": {"EUR": "/ld/EUR"}}}),
+            registry_root=self.tmp_dir,
+        )
+        record_check()
+        self.assertFalse(any("clumps" in e or "ld_stores" in e for e in ok), ok)
+
     def test_required_identity_and_provenance_keys(self) -> None:
         checked = self.make_bundle()
         release = dict(checked.release)
