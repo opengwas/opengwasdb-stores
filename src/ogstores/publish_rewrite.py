@@ -515,6 +515,7 @@ def _observed(
     previous: Mapping[str, Any] | None,
     *,
     format_version: str,
+    completion_state: str,
     store_bytes: int,
     status: str,
     convert_legacy: bool,
@@ -524,8 +525,10 @@ def _observed(
 
     The rewrite answers every question its source does (the engine's digest
     proof refuses it otherwise), so what the build reported about the data is
-    carried from the replaced Validation Record. Measured anew: the format
-    (`info`), the size on disk (a stat) and the verdict. `build_elapsed_s` is
+    carried from the replaced Validation Record. Measured anew: the format and
+    the completion state (`info`), the size on disk (a stat) and the verdict.
+    A carried `completion_state` that disagrees with the measured one is
+    refused; a record written before #307 carries none (#525). `build_elapsed_s` is
     the schema's sum of step times: the replaced release's, the rewrite's and
     this validation's, or null when the replaced one is unknown. A conversion
     masks every association whose SE is above 65,504, so the counts the build
@@ -535,6 +538,14 @@ def _observed(
     observed: dict[str, Any] = {field: carried.get(field) for field in register.OBSERVED_FIELDS}
     observed.update({key: value for key, value in carried.items() if key not in observed})
     observed["format_version"] = format_version
+    carried_state = carried.get("completion_state")
+    if carried_state is not None and carried_state != completion_state:
+        raise RewritePublicationRefused(
+            f"the replaced Validation Record carries observed.completion_state {carried_state!r} but "
+            f"`opengwasdb info` reports {completion_state!r} for the staged release; a rewrite "
+            "keeps its source's state"
+        )
+    observed["completion_state"] = completion_state
     observed["store_bytes"] = store_bytes
     observed["validate_status"] = status
     before = carried.get("build_elapsed_s")
@@ -641,6 +652,7 @@ def _assemble(
         observed=_observed(
             previous.get("observed"),
             format_version=p.candidate["format_version"],
+            completion_state=_field(p.candidate, "completion_state", "staged release"),
             store_bytes=store_size_on_disk(paths.partial_store_path(store_id, root=root)),
             status=status,
             convert_legacy=p.evidence.convert_legacy,
