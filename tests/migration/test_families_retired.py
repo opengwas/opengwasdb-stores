@@ -95,7 +95,7 @@ MIGRATED_BUNDLES: tuple[tuple[str, str, str | None, str, str, str, int], ...] = 
     ("OGS-00023", "eur-hybrid-quant-pilot-10-completed", "OGS-00005", "validated", "hybrid", "reference_completed", 10),
     ("OGS-00024", "2023-chen-full-african", None, "validated", "ragged", "reference_completed", 1034),
     ("OGS-00025", "2023-chen-full-east-asian", None, "validated", "ragged", "reference_completed", 1038),
-    ("OGS-00026", "2023-chen-full-south-asian", None, "validated", "ragged", "observed_only", 971),
+    ("OGS-00026", "2023-chen-full-south-asian", None, "validated", "ragged", "reference_completed", 971),
 )
 
 

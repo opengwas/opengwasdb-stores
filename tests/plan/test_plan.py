@@ -2135,7 +2135,7 @@ class TestPlanPriorityCompletions(unittest.TestCase):
 
     def test_the_priority_recipes_declare_their_siblings_panels(self) -> None:
         panel = "/data/opengwasdb/reference/hgdp1kgp-hg38/panel"
-        expected = {"OGS-00024": ("AFR", 32), "OGS-00025": ("EAS", 32), "OGS-00032": ("EAS", 24), "OGS-00033": ("AFR", 24)}
+        expected = {"OGS-00024": ("AFR", 32), "OGS-00025": ("EAS", 32), "OGS-00026": ("SAS", 32), "OGS-00032": ("EAS", 24), "OGS-00033": ("AFR", 24)}
         for store_id, (ancestry, workers) in expected.items():
             with self.subTest(store_id):
                 bundle = load(store_id)

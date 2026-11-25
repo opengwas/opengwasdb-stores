@@ -89,4 +89,4 @@ notes: |
   replaced/20261111T235044Z/ were deleted. The archive keeps its records/ and validation.yaml, as
   ADR 0037 keeps on an unforced replacement, so the change stays dated and evidenced.
 
-  2026-11-25: recipe amended (#530, epic #520) to add `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522. Completion is not added: no completed SAS sibling exists (#530 reports this to the owner).
+  2026-11-25: recipe amended (#530, epic #520) to add `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522. Completion (`complete` block, `completion_state: reference_completed`, `complete-ragged`, `ancestry: SAS`, `n-workers: 32`) was added in round 2 on the owner's acceptance on #522. No completed SAS Store exists, so its siblings are OGS-00024 and OGS-00025: the same study (Chen 2023), the same `hgdp1kgp-hg38/panel`, and that panel's `SAS/` population. The panel choice is the orchestrator's (recorded on #520).
