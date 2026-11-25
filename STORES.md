@@ -12,7 +12,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00004` | eur-hybrid-pilot-10 | true | hybrid | observed_only | built | 0.2.2 | 9 | 1 | 23,726,262 | - | passed |
 | `OGS-00005` | eur-hybrid-quant-pilot-10 | true | hybrid | observed_only | validated | 0.2.2 | 10 | 0 | 18,483,436 | - | passed_with_warnings |
 | `OGS-00006` | 2023-chen-full-european | false | ragged | reference_completed | validated | 0.2.1 | 1,400 | 0 | 12,357,678 | 59,092,457 | passed_with_warnings |
-| `OGS-00007` | 2018-sun-pilot-10 | true | ragged | observed_only | built | 0.2.1 | 10 | 0 | 171,006 | 202,803 | passed |
+| `OGS-00007` | 2018-sun-pilot-10 | true | ragged | observed_only | built | 0.3.0 | 10 | 0 | 159,816 | 189,448 | passed |
 | `OGS-00008` | ukb-b-pilot-10 | true | dense | observed_only | candidate | - | 10 | 0 | - | - | - |
 | `OGS-00009` | ukb-b-full | false | dense | reference_completed | validated | 0.2.0 | 2,514 | 0 | 11,191,070 | - | passed |
 | `OGS-00011` | eur-hybrid-full | false | hybrid | reference_completed | built | 0.2.3 | 3,245 | 1,641 | 47,920,732 | - | passed_with_warnings |
