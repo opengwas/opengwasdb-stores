@@ -188,6 +188,13 @@ therefore be built on CI, a laptop, or the production host without editing it.
   pixi run release OGS-00001 OGS-00002 OGS-00003 OGS-00004 OGS-00005 OGS-00006 OGS-00007
   ```
   This command is recorded for production operations but **must not be run** until configured source and reference inputs exist on the host filesystem.
+- **Publishing a rewritten release** (#533, ADR 0042): a 0.3.0 release that `opengwasdb rewrite-release` staged beside a published 0.2.x one is published with one command. This is how OGS-00011 (#499) and the converted Dense Stores (#525) replace their 0.2.x releases. Run the rewrite under `/usr/bin/time -v`, keeping its command, log, time report, UTC start and end, and exit code as `<prefix>.cmd`, `.log`, `.time`, `.start`, `.end` and `.exit`, then:
+  ```sh
+  pixi run publish-rewrite OGS-00015 \
+      --staged /data/opengwasdb/stores/OGS-00015/store.opengwasdb.0.3.0 \
+      --evidence <prefix>
+  ```
+  The command validates the staged release and refuses an error, and any warning other than a deviation the conversion records. Otherwise it archives the 0.2.x release under `replaced/<UTC>/` and writes `validation.yaml`. A second run does nothing. Then run `pixi run index` and commit the bundle's `validation.yaml`.
 
 ## Worked example
 

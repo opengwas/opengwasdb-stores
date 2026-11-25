@@ -104,17 +104,9 @@ def _read_record(path: Path) -> dict[str, Any] | None:
     A record that exists but is not a readable JSON object is not a missing
     one: read as missing, a register record would make its published phase
     look unpublished and leave it unchecked (#305), as `register.forced_completion`
-    refuses to read it as unforced (#309).
+    refuses to read it as unforced (#309). `run.read_record` is the reader.
     """
-    try:
-        record = json.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        return None
-    except (OSError, ValueError) as exc:
-        raise ValueError(f"the record {path} cannot be read: {exc}") from exc
-    if not isinstance(record, dict):
-        raise ValueError(f"the record {path} is not a JSON object")
-    return record
+    return run.read_record(path)
 
 
 def _record_root(record: dict[str, Any], store_id: str, default: Path) -> Path:

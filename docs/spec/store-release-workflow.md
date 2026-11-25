@@ -524,6 +524,14 @@ options, and around one Snakemake run it does four things: it completes
 pending publications, refuses unsafe runs, snapshots what a forced run may
 replace, and settles the run. See Safety.
 
+### `publish_rewrite.py`
+
+Publishes a Store Release that `opengwasdb rewrite-release` staged beside the
+published one (#533, ADR 0042), run by `pixi run publish-rewrite`. It records
+the operator's run of the rewrite as a step, runs the planned `validate` step on
+the staged release, and publishes it through `register.complete_publication`.
+See Safety, *Publishing a rewritten release*.
+
 ### `amendment.py`
 
 The one amendment an accepted Release Bundle allows (ADR 0037, #305).
@@ -620,6 +628,33 @@ A crash between any two steps, up to and including the marker's removal, therefo
 - it deletes the Store it replaces once the completed Store is published, rather than archiving it (ADR 0037, Decision 3, #309): the completed Store holds everything the replaced one held, so steady state keeps one copy, 33 GB less for UKB-B. So it publishes only over a passing Observed-View Check. Before it writes the marker, `register` reads `records/completion-observed-view-check.json` and takes the first JSON object on its stdout as the verdict (a step's output may be captured twice). No record, a stdout that holds no verdict, and any `passed` but `true` are each refused, naming the record, and nothing is changed. This is beside the rule that every planned step's record shows success. A forced run's completion phase archives the Store it replaces, as every forced replacement does. Its build phase's publication has already moved the run's snapshot into `replaced/<release_run>/`, so `register.forced_completion` reads the build phase's `records/register.json`: the run forced the release when that record's `replaced_archive` names this run's archive, and did not when it is null or another run's. Nor did it when the record has no `replaced_archive`: `register` has written the field since #195, so such a record predates #195, and a forced run would have rewritten it. Every Store published before #195 has one, and completing it under its own id (#305) meets it. A record that exists but is not a readable JSON object, and a `replaced_archive` that is neither a path nor null, are refused, naming the record, and nothing is changed: read as unforced, either would delete a Store a forced run archives.
 
 Both phases run in one entry-point run, so the completion phase starts while the build phase's marker still stands: the entry point removes it only after Snakemake's last job. The completion phase's first step, `complete`, therefore finishes that publication itself, marker last, before it stages anything (`register.finish_build_phase_publication`, called from `run.execute_step` for a step that reads the published Store). A staged Store beside a pending first publication is a state `complete_publication` refuses, so it must never arise. This is safe at that point: `complete` consumes `records/register.json`, so Snakemake has already recorded the build phase's register job complete, and no mark that it is incomplete is outstanding. A crash before the marker is removed leaves it, with nothing staged, and the next run's recovery finishes it as any other. A pending publication of the completion phase itself is refused there, as everywhere.
+
+**Publishing a rewritten release** (#533, [ADR 0042](../adr/0042-a-rewritten-release-is-published-through-the-registry.md)). `opengwasdb rewrite-release` derives a 0.3.0 release from a published 0.2.x one and stages it beside it, outside any run of this workflow; with `--convert-legacy` it converts a 0.2.0-0.2.2 Dense release and records what it cannot fix as deviations, by validator rule name. One command publishes it:
+
+```sh
+pixi run publish-rewrite OGS-00015 \
+    --staged /data/opengwasdb/stores/OGS-00015/store.opengwasdb.0.3.0 \
+    --evidence <run>/logs/convert/OGS-00015
+```
+
+`--evidence` names the operator's record of the rewrite, six files beside one another: `<prefix>.cmd` (the command, optionally followed by ` (budget <N>s)`), `.log` (its stdout and stderr), `.time` (its `/usr/bin/time -v` report), `.start` and `.end` (UTC times), and `.exit` (its exit code). Under the release's run lock (`ReleaseLocks`), `ogstores.publish_rewrite`:
+
+1. finishes a pending publication of a rewrite (`complete_publication`), refusing another run's marker, which `pixi run release <ID>` finishes because it also clears Snakemake's incomplete marks; and does nothing when the staged path is gone and the publishing phase's register record names it as the rewrite of the Store now published (the same `release_id`, by `opengwasdb info`);
+2. refuses, writing nothing:
+   - a staged path that is missing, is not a directory of its own beside the published Store, or is one of the transaction's names (`.partial`, `.backup`);
+   - a leftover records snapshot, named first with its remedy (`pixi run release <ID> --resolve-snapshot restore`, then moving a `.partial` release back to the staged path), so a `.partial` beside it cannot hide it; then a leftover `.partial` or `.backup`, an unfinished completion's checkpoint (`.store.opengwasdb.partial.checkpoint`) or `work/complete.started.json`, which a forced run's preflight would discard;
+   - no published Store;
+   - evidence that is not UTF-8, is not one shell command, does not show `rewrite-release` reading this published Store and writing this staged path, exited other than 0, or whose timed command or exit status disagrees with `.cmd` and `.exit`;
+   - a published Store directory or publishing-phase register record modified after the evidence's `.start`: the release at the source path may not be the one the rewrite read;
+   - an engine executable whose install names no exact commit, or whose `direct_url.json` was written after `.start` (`engine.executable_install_record`): `info` names no writer, so the install must be the one that ran;
+   - a staged or published release whose `store_id`, as `opengwasdb info --format json` reports it, is not the bundle's; a staged release that is not `REQUIRED_FORMAT_VERSION` (0.3.0); a published one not of the 0.2 series; the same `release_id`; and any of those fields absent;
+   - a publishing-phase register record that cannot be read or names no `inputs`;
+   - a runtime that `runtime.verify_runtime_for_releases` refuses for the validate step, as `pixi run release` would;
+3. copies `records/` to a forced run's snapshot (`run.snapshot_records`, the copy alone; a copy that fails removes its hidden `.records.before-force-<UTC>.copying` and leaves nothing to resolve), renames the staged release to `store.opengwasdb.partial`, writes `records/rewrite-release.json` from the evidence, and runs the Build Recipe's planned validate step for the publishing phase (`validate`, or `completion-validate` for a release that completed its own Store) through `run.execute_step`. `rewrite-release.json` is a `run.StepResult`. Its `argv` is the command, and `opengwasdb_rev` and `opengwasdb_version` come from that executable's install. Its `stdout` is the log. It adds `peak_rss_kb`, `budget_seconds`, `log_path` and `evidence`, the paths of the six files;
+4. refuses a validate step that did not exit 0, naming its errors, and any warning that is not a recorded deviation: only a `--convert-legacy` rewrite's warnings under `variant_table.indel_order`, `variant_table.source_alid` or `side_tables.se_exceptions_rounded` are accepted, and a 0.2.3 rewrite accepts none. The rules are read from `findings`. Each is an error on a 0.3.0 release unless the release records it, so a warning under one is the record's. The registry does not read `provenance.converted_from` (ADR 0023). Any failure before the marker exists (a refusal, an error, Ctrl-C, SIGTERM) moves the staged release back, copies this call's validate record byte for byte to `work/publish-rewrite-refused-<UTC>-validate.json` when there is one (any failure to copy it is only noted), and, whatever that raised, restores `records/` from the snapshot. The published Store and `validation.yaml` are not touched;
+5. writes `publication.json` with `replaced_store: archive` and the snapshot (`register.begin_publication`, from the builders `register_release` uses), and calls `complete_publication`. From the marker on, nothing is undone: a failure leaves it for the next call to finish. Its seven steps above archive the old Store, its records and its Validation Record under `replaced/<UTC>/`.
+
+The register record written is the publishing phase's: `completion-register` when `records/completion-register.json` exists, `register` otherwise. Its `inputs` are the replaced record's with `records/rewrite-release.json` added, so the amendment check above still finds the Store-writing steps that made the data. It carries the Validation Record's `rewrite` block. A killed run (SIGKILL, host crash) before the marker leaves the snapshot and the `.partial` release; the next call refuses and names the remedy, `--resolve-snapshot restore` and moving `.partial` back to the staged path.
 
 **Before the marker, a crash leaves the old release in place.** The Store and `validation.yaml` are untouched, and the leftover snapshot makes the next run of that release refuse to start, forced or not (decided in review on 7 Oct 2026). The refusal names the snapshot and the two resolutions, which an operator chooses and the entry point carries out:
 - `pixi run release <ID> --resolve-snapshot restore` replaces `records/` with the snapshot, when the killed run had already rewritten records;
@@ -1064,6 +1099,13 @@ Nothing in the block feeds `status`, `checks.store`, `warnings` or `errors`, wit
 `register` also compares each record's executed argv against `plan()`'s planned argv and fails on drift, per "Planned and executed argv are different facts" above. It records; it does not otherwise judge. This repository does not decide whether a store is scientifically sound — it captures what `opengwasdb` reported and who accepted it. The one judgement it now makes about that report is the coverage mismatch above, and it is a comparison of two of the registry's own facts — what the release declares and what the builder says it wrote — not a verdict on the science.
 
 The record's top-level `status` is the release-level verdict, and the generated master list publishes that value and no other. A per-check entry in `checks` describes one check and cannot override the record: a record reads `status: failed` precisely when a check failed, and publishing the passing check in its place is the "wrong answer that looks like a right answer" CONTRIBUTING names as the worst outcome. A release with no Validation Record publishes an empty verdict.
+
+**A rewritten release's record** (#533, [ADR 0042](../adr/0042-a-rewritten-release-is-published-through-the-registry.md)) is written by `ogstores.publish_rewrite`, not `register`, in the same shape:
+- **Verdict.** `status`, `checks.store`, `warnings` and `errors` are this run's `validate --format json`, read as above. A published record never holds an error, and holds only recorded deviations as warnings (Safety, *Publishing a rewritten release*).
+- **Engines.** `validator.version` names the engine that ran `validate`, and `build_environment` the one that ran the rewrite, with both in `engines`.
+- **`observed`.** It is the replaced record's, carried, because the rewrite answers every question its source does: the engine's digest proof refuses it otherwise. `format_version` is read from `opengwasdb info`, `store_bytes` is measured from the staged release, and `validate_status` is this run's. `build_elapsed_s` is the sum the schema defines: the replaced record's, plus the rewrite's and this validation's elapsed seconds, or `null` when the replaced record's is. For a `--convert-legacy` conversion, `n_associations` and `n_top_hits` are `null`: it masks every association whose SE is above 65,504, so the build's counts no longer describe it, and nothing reports the new ones.
+- **Kept and added.** `acceptance` is passed on, and `replaced` names the archive. A `rewrite` block names the command, the new and source `release_id` and `format_version`, `convert_legacy`, and the `deviations`: the recorded rules the validator reported as warnings.
+- **Release Status.** It is left as it is.
 
 ## Tests
 

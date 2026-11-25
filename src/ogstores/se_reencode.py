@@ -29,7 +29,6 @@ read-only: it takes no lock, creates no directory, and writes nothing.
 from __future__ import annotations
 
 import argparse
-import datetime
 import json
 import os
 import sys
@@ -64,8 +63,8 @@ class ReencodeRefusal(RuntimeError):
 
 
 def _utc_now() -> str:
-    """The UTC timestamp form the repository's Step records use."""
-    return datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+    """The UTC timestamp form the repository's Step records use (`run.utc_timestamp`)."""
+    return run.utc_timestamp()
 
 
 def _workers(value: str) -> int:
