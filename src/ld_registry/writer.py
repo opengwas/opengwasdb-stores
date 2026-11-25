@@ -5,9 +5,12 @@ other field exactly as a person wrote it. A published Store is immutable, so
 once a record holds a Store's provenance, a rewrite must find the same Store:
 the same `kind`, `location`, provenance and provenance digest. Anything else is
 another Store, and is refused, naming each field that differs, with the record
-left as it was. Only `measured.store_bytes` may change, and the writer reports
-the change. A writer value that breaks the spec, such as a `created_at` that is
-not a UTC time, is refused the same way, before anything is written.
+left as it was. A changed link (`measured.links`) is refused the same way.
+Only `measured.store_bytes` may change, and the writer reports the change. A
+field the spec has added since the record was written is
+filled in when the digest shows the same Store. A writer value that breaks the
+spec, such as a `created_at` that is not a UTC time, is refused the same way,
+before anything is written.
 """
 
 from __future__ import annotations
@@ -47,13 +50,49 @@ class Written(NamedTuple):
 
 
 def _differences(existing: dict[str, Any], computed: dict[str, Any]) -> list[str]:
-    """The fields of `computed` that contradict what `existing` already records."""
+    """The fields of `computed` that contradict what `existing` already records.
+
+    Under the same digest the provenance is the same, so a field the record
+    lacks, a provenance field or `measured.links`, is one the spec added since
+    it was written, not a contradiction.
+    """
     differ = [f for f in UNCHANGING if f in existing and existing[f] != computed[f]]
+    same_store = existing.get("provenance_sha256") == computed["provenance_sha256"]
     recorded = existing.get("provenance")
     if isinstance(recorded, dict):
         new = computed["provenance"]
-        differ += [f"provenance.{key}" for key in sorted(set(recorded) | set(new)) if recorded.get(key) != new.get(key)]
+        keys = set(recorded) if same_store else set(recorded) | set(new)
+        differ += [f"provenance.{key}" for key in sorted(keys) if recorded.get(key) != new.get(key)]
+    measured = existing.get("measured")
+    # A record written before links were measured gains them under the same digest.
+    if isinstance(measured, dict) and not (same_store and "links" not in measured):
+        old, new = measured.get("links") or {}, computed["measured"].get("links") or {}
+        differ += [f"measured.links.{name}" for name in sorted(set(old) | set(new)) if old.get(name) != new.get(name)]
     return differ
+
+
+def _raise(error: OSError) -> None:
+    raise error
+
+
+def links(location: Path) -> dict[str, str]:
+    """Every link under the Store, by its path in the Store, and its target with
+    every link resolved. The walk follows no link; a dangling link is refused,
+    and an unreadable directory raises rather than being skipped."""
+    found: dict[str, str] = {}
+    for root, directories, files in os.walk(location, onerror=_raise):  # never descends a linked directory
+        for name in directories + files:
+            entry = Path(root) / name
+            if not entry.is_symlink():
+                continue
+            inside = entry.relative_to(location).as_posix()
+            try:
+                found[inside] = str(entry.resolve(strict=True))
+            except (OSError, RuntimeError) as exc:
+                raise WriterRefusal(
+                    f"{location}: the link {inside} -> {os.readlink(entry)} does not resolve: {exc}"
+                ) from exc
+    return dict(sorted(found.items()))
 
 
 def infer_kind(info: dict[str, Any]) -> str:
@@ -119,6 +158,7 @@ def write_record(
     location: Path | str,
     runner: Runner | None = None,
     size: Callable[[Path], int] = store_size_on_disk,
+    measure_links: Callable[[Path], dict[str, str]] = links,
 ) -> Written:
     """Write `<ld_root>/<ld_id>/record.yaml` from the LD Store at `location`."""
     require_valid_ld_id(ld_id)
@@ -135,15 +175,17 @@ def write_record(
     location = Path(location).absolute()
     info = ld_info(location, runner=runner)
     kind = infer_kind(info)
-    measured: dict[str, Any] = {"store_bytes": size(location)}
-    if kind == "genotype_store":
-        measured["genotype_bytes"] = genotype_bytes(location, info)
+    linked = measure_links(location)
     computed: dict[str, Any] = {
         "kind": kind,
         "location": str(location),
         "provenance": record_provenance(info),
         "provenance_sha256": provenance_sha256(info),
-        "measured": measured,
+        "measured": {
+            "store_bytes": size(location),
+            **({"genotype_bytes": genotype_bytes(location, info)} if kind == "genotype_store" else {}),
+            **({"links": linked} if linked else {}),
+        },
     }
     differ = _differences(existing, computed)
     if differ:

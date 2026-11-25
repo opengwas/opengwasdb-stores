@@ -38,6 +38,12 @@ provenance:
     far_pairs: 132924736
     index_entries: 5287398542
     alids_left_out: 40080
+  variants_dropped:
+    filter: 0
+    mac: 67747610
+    info: 0
+    zero_variance: 0
+    duplicate_reversed_indel: 79022
   software:
     ogld: 0.0.1.dev292+g25af8039f
     numpy: 2.4.6

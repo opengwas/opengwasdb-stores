@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import shutil
 import subprocess
 import tempfile
@@ -97,6 +98,7 @@ class RegistryCase(unittest.TestCase):
     def write(self, info: dict[str, Any] | None = None, location: str = LOCATION, size: int = 79279262640):
         return writer.write_record(
             self.ld_root, "OGL-00001", location, runner=stub_runner(info or recorded_ld_info()), size=lambda _: size,
+            measure_links=lambda _: {},
         )
 
     def read(self) -> dict[str, Any]:
@@ -222,7 +224,8 @@ class TestTheWriter(RegistryCase):
     def test_it_runs_opengwasdb_ld_info_on_the_location(self) -> None:
         self.person_record()
         seen: list[list[str]] = []
-        writer.write_record(self.ld_root, "OGL-00001", LOCATION, runner=stub_runner(recorded_ld_info(), seen), size=lambda _: 1)
+        writer.write_record(self.ld_root, "OGL-00001", LOCATION, runner=stub_runner(recorded_ld_info(), seen), size=lambda _: 1,
+                            measure_links=lambda _: {})
         self.assertEqual(seen, [["opengwasdb", "ld", "info", LOCATION]])
 
     def test_it_writes_the_draft_rows_values(self) -> None:
@@ -632,6 +635,449 @@ class TestTheIndex(RegistryCase):
                 with self.assertRaises(ld_index.InvalidRecords) as caught:
                     ld_index.generate_ld_index(ld_root, self.tmp, self.tmp / "resources" / "reference-resources")
                 self.assertIn(str(target), str(caught.exception))
+
+
+# --- #538: the overlay's links, the index's links check, and an imported Store ---
+
+PANUKB_INFO = FIXTURES / "ld-info-panukb-eur.json"
+OVERLAY_INFO = FIXTURES / "ld-info-81-eur.json"
+PANUKB_LOCATION = "/data/opengwasdb/ld-stores/panukb-EUR-k15/panukb-EUR-k15.store"
+SCRATCH_69 = "/data/opengwasdb/work/ogld/scratch/64/69-eur"
+# sha256 of each fixture's canonical JSON, by
+# `jq -c -S -a . fixtures/<fixture> | tr -d '\n' | sha256sum`.
+PANUKB_SHA256 = "4d46cf35752b3c9310390d4a25174eee46192962f0e85b490962d06874b60083"
+OVERLAY_SHA256 = "781c8dfd6a7569bb724779bbb0450c1da5a6cf7efbc3807d95b2fbbd6071c5c0"
+PANUKB_URL = "https://pan-ukb-us-east-1.s3.us-east-1.amazonaws.com/ld_release/UKBB.EUR.ldadj.bm"
+PANUKB_SOURCE = (
+    f"{PANUKB_URL} (r_ij = C_ij / sqrt(C_ii * C_jj); oriented to engine A1), lifted over by "
+    "hg19ToHg38.over.chain.gz; Pan-UKB published QC: MAC >= 20, INFO > 0.8; not reapplied"
+)
+PANUKB_DROPPED = {
+    "allele_mismatch": 16470, "duplicate_reversed_indel": 0, "invalid_frequency": 6, "liftover_allele_span": 153,
+    "liftover_chromosome_or_strand": 3025, "liftover_displaced": 12380, "liftover_identity_collision": 594,
+    "liftover_missing_or_ambiguous": 7744, "nonfinite_diagonal": 0, "nonpositive_diagonal": 0, "zero_variance": 0,
+}
+PANUKB_PERSON = {
+    "ld_id": "OGL-00012",
+    "label": "panukb-EUR-k15",
+    "status": "built",
+    "licence": "CC BY 4.0",
+    "used_for": "Data API LD (large-panel EUR)",
+    "issue": "ogld#10",
+    "rebuild": {
+        "repository": "opengwas/ogld",
+        "version": "0.8.0 (chr1-14), then 0.8.1 (chr15-22 and the join)",
+        "script": "ogld import",
+        "commands": ["pixi run -e dev ogld import OUT --work WORK"],
+    },
+}
+
+
+def load_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+class TestTheFixturesArePanUkbAndTheOverlay(unittest.TestCase):
+    def test_the_panukb_provenance_is_an_imported_matrix(self) -> None:
+        info = load_json(PANUKB_INFO)
+        self.assertEqual((info["panel"]["id"], info["panel"]["n"], info["adjustment"]["k"]), ("Pan-UKB-EUR", 420542, 15))
+        self.assertEqual(info["source"]["kind"], "ld_matrix")
+        self.assertIsInstance(info["source"]["description"], str, "ld info prints the description as JSON text")
+        description = json.loads(info["source"]["description"])
+        self.assertEqual((description["url"], description["licence"]), (PANUKB_URL, "CC BY 4.0"))
+        self.assertEqual(info["variants_dropped"], PANUKB_DROPPED)
+        self.assertEqual(info["software"]["ogld"], "0.8.1", "the provenance names one engine version")
+
+    def test_the_overlay_provenance_is_the_eur_panel_with_partner_rows(self) -> None:
+        info = load_json(OVERLAY_INFO)
+        self.assertEqual((info["panel"]["id"], info["panel"]["n"], info["adjustment"]["k"]), ("hgdp1kgp-v2-EUR", 665, 10))
+        self.assertEqual((info["format_version"], info["t_partner"]), ("0.2.0", 0.01))
+
+
+def make_overlay(root: Path) -> dict[str, Path]:
+    """A miniature of `scratch/64/81-eur`: links into a served Store and into a scratch overlay."""
+    served = root / "stores" / "eur.store"
+    scratch = root / "scratch" / "69-eur"
+    overlay = root / "scratch" / "81-eur"
+    for directory, name, size in ((served / "near", "a", 10), (served / "far", "b", 20), (served / "index", "c", 30),
+                                  (scratch / "partners", "p", 40), (overlay / "variants", "v", 5)):
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / name).write_bytes(b"x" * size)
+    (overlay / "zarr.json").write_bytes(b"{}" + b" " * 5)
+    (scratch / "index").symlink_to(served / "index")
+    (overlay / "near").symlink_to(served / "near")
+    (overlay / "far").symlink_to(served / "far")
+    (overlay / "partners").symlink_to(scratch / "partners")
+    (overlay / "index").symlink_to(scratch / "index")  # a chain: resolves into the served Store
+    (overlay / "top.bin").symlink_to(served / "index" / "c")  # a top-level file link
+    (overlay / "variants" / "linked").symlink_to(served / "far" / "b")  # a nested link: recorded, never followed
+    return {"served": served, "scratch": scratch, "overlay": overlay}
+
+
+class TestTheWriterMeasuresLinks(RegistryCase):
+    """Seam 1: every link in a Store is measured, by its path in the Store, and never followed for its size."""
+
+    def test_an_overlays_links_and_their_resolved_targets_are_recorded(self) -> None:
+        paths = make_overlay(self.tmp)
+        served, scratch = paths["served"].resolve(), paths["scratch"].resolve()
+        self.person_record()
+        writer.write_record(self.ld_root, "OGL-00001", paths["overlay"], runner=stub_runner(load_json(OVERLAY_INFO)))
+        written = self.read()
+        self.assertEqual(record.load_record(self.path)[1], [])
+        self.assertEqual(written["measured"]["links"], {
+            "far": str(served / "far"),
+            "index": str(served / "index"),
+            "near": str(served / "near"),
+            "partners": str(scratch / "partners"),
+            "top.bin": str(served / "index" / "c"),
+            "variants/linked": str(served / "far" / "b"),
+        })
+        self.assertEqual(written["measured"]["store_bytes"], 7 + 5, "zarr.json and variants/v alone: no link is followed")
+        self.assertEqual(written["provenance_sha256"], OVERLAY_SHA256)
+
+    def test_a_store_without_links_records_none(self) -> None:
+        store = self.tmp / "plain.store"
+        (store / "near").mkdir(parents=True)
+        (store / "near" / "a").write_bytes(b"x" * 11)
+        (store / "zarr.json").write_bytes(b"{}")
+        self.person_record()
+        writer.write_record(self.ld_root, "OGL-00001", store, runner=stub_runner(recorded_ld_info()))
+        written = self.read()
+        self.assertNotIn("links", written["measured"])
+        self.assertEqual(written["measured"]["store_bytes"], 13)
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root reads a chmod 000 directory")
+    def test_an_unreadable_directory_raises_rather_than_being_skipped(self) -> None:
+        paths = make_overlay(self.tmp)
+        locked = paths["overlay"] / "variants"
+        locked.chmod(0)
+        try:
+            with self.assertRaises(PermissionError):
+                writer.links(paths["overlay"])
+        finally:
+            locked.chmod(0o755)
+
+    def test_a_dangling_link_is_refused(self) -> None:
+        paths = make_overlay(self.tmp)
+        (paths["overlay"] / "gone").symlink_to(self.tmp / "nowhere")
+        self.person_record()
+        text = self.path.read_text(encoding="utf-8")
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            writer.write_record(self.ld_root, "OGL-00001", paths["overlay"], runner=stub_runner(load_json(OVERLAY_INFO)))
+        self.assertIn("gone", str(caught.exception))
+        self.assertIn(str(self.tmp / "nowhere"), str(caught.exception))
+        self.assertEqual(self.path.read_text(encoding="utf-8"), text, "a refused write changes nothing")
+
+    def test_a_rewrite_whose_links_differ_is_refused_naming_each_link(self) -> None:
+        paths = make_overlay(self.tmp)
+        self.person_record()
+        write = lambda: writer.write_record(  # noqa: E731
+            self.ld_root, "OGL-00001", paths["overlay"], runner=stub_runner(load_json(OVERLAY_INFO)))
+        write()
+        text = self.path.read_text(encoding="utf-8")
+        (paths["overlay"] / "near").unlink()
+        (paths["overlay"] / "near").symlink_to(paths["served"] / "far")  # retargeted
+        (paths["overlay"] / "top.bin").unlink()  # removed
+        (paths["overlay"] / "extra").symlink_to(paths["served"] / "index")  # added
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            write()
+        message = str(caught.exception)
+        for link in ("measured.links.near", "measured.links.top.bin", "measured.links.extra"):
+            with self.subTest(link=link):
+                self.assertIn(link, message)
+        self.assertNotIn("measured.links.far", message)
+        self.assertEqual(self.path.read_text(encoding="utf-8"), text, "a refused write changes nothing")
+
+    def test_a_malformed_links_mapping_is_refused(self) -> None:
+        for links in ({"far": "relative/far"}, ["far"], {"far": ""}):
+            with self.subTest(links=links):
+                document = literal_record()
+                document["measured"]["links"] = links
+                self.path = write_yaml(self.ld_root / "OGL-00001" / "record.yaml", document)
+                self.assertIn("measured.links", [e.field for e in record.load_record(self.path)[1]])
+
+
+def overlay_record(**changes: Any) -> dict[str, Any]:
+    """The draft's OGL-00006, as its record would read: links into OGL-00001 and scratch/64/69-eur."""
+    document = literal_record()
+    document.update(ld_id="OGL-00006", label="hgdp1kgp-v2-EUR-k10 (Partner Rows)", status="reference",
+                    location="/data/opengwasdb/work/ogld/scratch/64/81-eur")
+    document["measured"]["links"] = {
+        "far": f"{LOCATION}/far",
+        "near": f"{LOCATION}/near",
+        "partners": f"{SCRATCH_69}/partners",
+    }
+    document.update(changes)
+    return document
+
+
+class TestTheIndexChecksLinks(RegistryCase):
+    """Seam 2: a link's target lies under a record that is not retired, or is declared unrecorded."""
+
+    UNRECORDED = [{"path": SCRATCH_69, "reason": "ogld#69's scratch Partner Rows; not a Store of its own"}]
+
+    def registry(self, *documents: dict[str, Any]) -> Path:
+        for document in documents:
+            write_yaml(self.ld_root / document["ld_id"] / "record.yaml", document)
+        return self.ld_root
+
+    def refusals(self, *documents: dict[str, Any]) -> str:
+        with self.assertRaises(ld_index.InvalidRecords) as caught:
+            ld_index.generate_ld_index(self.registry(*documents), self.tmp, self.tmp / "resources" / "reference-resources")
+        self.assertFalse((self.tmp / "ld-resources.tsv").exists(), "nothing is written")
+        return str(caught.exception)
+
+    def test_a_target_declared_unrecorded_passes(self) -> None:
+        ld_index.generate_ld_index(self.registry(literal_record(), overlay_record(unrecorded_targets=self.UNRECORDED)), self.tmp,
+                                   self.tmp / "resources" / "reference-resources")
+        tsv = (self.tmp / "ld-resources.tsv").read_text(encoding="utf-8")
+        self.assertEqual([row["ld_id"] for row in csv.DictReader(tsv.splitlines(), delimiter="\t")], ["OGL-00001", "OGL-00006"])
+
+    def test_a_target_under_no_record_fails_naming_the_record_the_link_and_the_target(self) -> None:
+        message = self.refusals(literal_record(), overlay_record())
+        self.assertIn(str(self.ld_root / "OGL-00006" / "record.yaml"), message)
+        self.assertIn("measured.links.partners", message)
+        self.assertIn(f"{SCRATCH_69}/partners", message)
+        self.assertNotIn("measured.links.near", message, "near/ lies under OGL-00001")
+
+    def test_a_missing_target_store_fails(self) -> None:
+        message = self.refusals(overlay_record(unrecorded_targets=self.UNRECORDED))
+        for link in ("near", "far"):
+            with self.subTest(link=link):
+                self.assertIn(f"measured.links.{link}", message)
+                self.assertIn(f"{LOCATION}/{link}", message)
+
+    def test_a_target_under_a_retired_record_fails(self) -> None:
+        retired = literal_record()
+        retired["status"] = "retired"
+        message = self.refusals(retired, overlay_record(unrecorded_targets=self.UNRECORDED))
+        self.assertIn("measured.links.near", message)
+        self.assertIn("OGL-00001", message)
+        self.assertIn("retired", message)
+
+    def test_a_location_is_a_whole_path_not_a_prefix(self) -> None:
+        document = overlay_record(unrecorded_targets=self.UNRECORDED)
+        document["measured"]["links"]["far"] = f"{LOCATION}-old/far"
+        message = self.refusals(literal_record(), document)
+        self.assertIn("measured.links.far", message)
+
+    def test_link_errors_are_reported_beside_record_errors(self) -> None:
+        broken = literal_record()
+        broken["label"] = ""
+        message = self.refusals(broken, overlay_record())
+        self.assertIn(str(self.ld_root / "OGL-00001" / "record.yaml"), message)
+        self.assertIn("label", message)
+        self.assertIn("measured.links.partners", message)
+
+    def test_a_malformed_unrecorded_target_is_refused(self) -> None:
+        for targets in ([{"path": "scratch/64/69-eur", "reason": "relative"}], [{"path": SCRATCH_69}],
+                        [{"path": SCRATCH_69, "reason": "r", "extra": 1}], {"path": SCRATCH_69}, []):
+            with self.subTest(targets=targets):
+                path = write_yaml(self.ld_root / "OGL-00006" / "record.yaml", overlay_record(unrecorded_targets=targets))
+                self.assertIn("unrecorded_targets", [e.field for e in record.load_record(path)[1]])
+
+
+class TestAnImportedStore(RegistryCase):
+    """Seam 3: Pan-UKB's provenance: its description object, its losses, and its `source` cell."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.path = write_yaml(self.ld_root / "OGL-00012" / "record.yaml", PANUKB_PERSON)
+
+    def write_panukb(self, info: dict[str, Any] | None = None):
+        return writer.write_record(self.ld_root, "OGL-00012", PANUKB_LOCATION,
+                                   runner=stub_runner(info or load_json(PANUKB_INFO)), size=lambda _: 675237677004,
+                                   measure_links=lambda _: {})
+
+    def test_the_description_object_and_the_losses_are_recorded(self) -> None:
+        self.write_panukb()
+        written = self.read()
+        self.assertEqual(record.load_record(self.path)[1], [])
+        provenance = written["provenance"]
+        self.assertEqual(provenance["source_kind"], "ld_matrix")
+        description = provenance["source_description"]
+        self.assertEqual(description["url"], PANUKB_URL)
+        self.assertEqual(description["licence"], "CC BY 4.0")
+        self.assertEqual(description["producer_commit"], "ca9a04cd4c95ebcd6eb92b2096281508b8becf86")
+        self.assertEqual(description["transformation"], "r_ij = C_ij / sqrt(C_ii * C_jj); oriented to engine A1")
+        self.assertEqual(description["liftover_chain"], "/data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz")
+        self.assertEqual(description["qc"], "Pan-UKB published QC: MAC >= 20, INFO > 0.8; not reapplied")
+        self.assertEqual(description["far_target_bp"], 8000000)
+        self.assertEqual(description["displaced_cap"], 10000)
+        self.assertEqual(description["far_bp_by_chromosome"]["9"], 8032456)
+        self.assertEqual(description["displaced_by_chromosome"]["6"], 5503)
+        self.assertEqual(provenance["variants_dropped"], PANUKB_DROPPED)
+        self.assertEqual(provenance["counts"]["far_pairs"], 5479773560)
+        self.assertEqual(provenance["counts"]["partner_entries"], 72801425594)
+        self.assertEqual(written["provenance_sha256"], PANUKB_SHA256)
+
+    def test_its_row_renders_source_from_the_documented_fields(self) -> None:
+        self.write_panukb()
+        row = rows.ld_row(self.read())
+        for column, value in {
+            "ld_id": "OGL-00012",
+            "label": "panukb-EUR-k15",
+            "provenance": "ld_matrix",
+            "status": "built",
+            "ancestry": "EUR",
+            "source_panel": "Pan-UKB-EUR",
+            "n": "420542",
+            "k": "15",
+            "reference_assembly": "GRCh38",
+            "format_version": "0.2.0",
+            "representation": "pairwise r (Near Band, Far Pairs, Partner Rows)",
+            "n_variants": "23128732",
+            "store_bytes": "675237677004",
+            "r_scale": "2047",
+            "near_bp": "3000000",
+            "far_bp": "8032456",
+            "t_far": "0.001",
+            "t_partner": "0.001",
+            "created_at": "2026-11-25T01:02:27.639100+00:00",
+            "build_wall_s": "30259",
+            "built_with": "ogld 0.8.1 (ogld import)",
+            "source": PANUKB_SOURCE,
+            "licence": "CC BY 4.0",
+            "location": PANUKB_LOCATION,
+            "issue": "ogld#10",
+        }.items():
+            with self.subTest(column=column):
+                self.assertEqual(row[column], value)
+        self.assertNotIn("{", row["source"], "never raw JSON")
+
+    def test_an_imports_description_must_be_the_object_and_its_licence_still_checked(self) -> None:
+        """The reviewer's case: OGL-00012 with its description as JSON text and any licence."""
+        self.write_panukb()
+        document = self.read()
+        document["provenance"]["source_description"] = '{"url": "x", "licence": "CC0"}'
+        document["licence"] = "anything"
+        write_yaml(self.path, document)
+        errors = record.load_record(self.path)[1]
+        self.assertIn("provenance.source_description", [e.field for e in errors], errors)
+
+    def test_a_description_object_on_another_kind_is_refused(self) -> None:
+        document = literal_record()
+        document["provenance"]["source_description"] = {"url": "x"}
+        path = write_yaml(self.ld_root / "OGL-00001" / "record.yaml", document)
+        errors = record.load_record(path)[1]
+        self.assertIn("provenance.source_description", [e.field for e in errors], errors)
+
+    def test_an_imports_licence_must_be_its_descriptions(self) -> None:
+        self.write_panukb()
+        document = self.read()
+        document["licence"] = "to confirm"
+        write_yaml(self.path, document)
+        errors = record.load_record(self.path)[1]
+        self.assertEqual([e.field for e in errors], ["licence"], errors)
+        self.assertIn("'to confirm'", str(errors[0]))
+        self.assertIn("'CC BY 4.0'", str(errors[0]))
+        self.assertIn(str(self.path), str(errors[0]))
+
+    def test_a_licence_is_not_compared_for_a_store_built_from_genotypes(self) -> None:
+        document = literal_record()
+        self.assertEqual((document["provenance"]["source_kind"], document["licence"]), ("genotypes", "to confirm"))
+        path = write_yaml(self.ld_root / "OGL-00001" / "record.yaml", document)
+        self.assertEqual(record.load_record(path)[1], [])
+
+    def test_an_ld_matrix_description_that_is_not_a_json_object_is_refused(self) -> None:
+        for description in ("Pan-UKB UKBB.EUR.ldadj.bm", "[1, 2]"):
+            with self.subTest(description=description):
+                info = load_json(PANUKB_INFO)
+                info["source"]["description"] = description
+                with self.assertRaises(ValueError) as caught:
+                    self.write_panukb(info)
+                self.assertIn("source.description", str(caught.exception))
+                self.assertEqual(self.read(), PANUKB_PERSON, "nothing is written")
+
+    def test_an_undocumented_description_field_is_refused(self) -> None:
+        info = load_json(PANUKB_INFO)
+        description = json.loads(info["source"]["description"])
+        description["mirror"] = "elsewhere"
+        info["source"]["description"] = json.dumps(description)
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            self.write_panukb(info)
+        self.assertIn("provenance.source_description.mirror", str(caught.exception))
+
+
+class TestAFieldNewToTheContract(RegistryCase):
+    def test_a_record_written_before_variants_dropped_was_recorded_is_refreshed(self) -> None:
+        """The same Store (the same digest) gains a field the record did not yet hold; nothing else changes."""
+        self.person_record()
+        self.write()
+        document = self.read()
+        del document["provenance"]["variants_dropped"]
+        write_yaml(self.path, document)
+        self.write()
+        self.assertEqual(self.read()["provenance"]["variants_dropped"],
+                         {"filter": 0, "mac": 67747610, "info": 0, "zero_variance": 0, "duplicate_reversed_indel": 79022})
+
+
+    def test_a_record_written_before_links_were_measured_gains_them(self) -> None:
+        """The same Store (the same digest) gains `measured.links`, as it gains any field new to the spec."""
+        paths = make_overlay(self.tmp)
+        self.person_record()
+        write = lambda: writer.write_record(  # noqa: E731
+            self.ld_root, "OGL-00001", paths["overlay"], runner=stub_runner(load_json(OVERLAY_INFO)))
+        write()
+        document = self.read()
+        links = document["measured"].pop("links")
+        write_yaml(self.path, document)
+        write()
+        self.assertEqual(self.read()["measured"]["links"], links)
+
+    def test_links_under_another_digest_are_compared(self) -> None:
+        """A record of another digest is refused anyway; its links are named beside the provenance."""
+        paths = make_overlay(self.tmp)
+        self.person_record()
+        self.write(info=load_json(OVERLAY_INFO))  # no links measured, the overlay's digest
+        info = load_json(OVERLAY_INFO)
+        info["build"]["created_at"] = "2026-11-26T00:00:00Z"
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            writer.write_record(self.ld_root, "OGL-00001", paths["overlay"], runner=stub_runner(info))
+        self.assertIn("provenance_sha256", str(caught.exception))
+        self.assertIn("measured.links.near", str(caught.exception))
+
+
+class TestTheCommittedRecords(unittest.TestCase):
+    """Seam 4: the six records #538 adds, against #496's draft rows."""
+
+    DRAFT = {
+        "OGL-00002": ("hgdp1kgp-v2-AFR-k10", "retiring", "AFR", "608", "10", "14374341", "to confirm", "ogld#7"),
+        "OGL-00003": ("hgdp1kgp-v2-AMR-k10", "retiring", "AMR", "341", "10", "7561067", "to confirm", "ogld#7"),
+        "OGL-00004": ("hgdp1kgp-v2-EAS-k10", "retiring", "EAS", "724", "10", "7837854", "to confirm", "ogld#7"),
+        "OGL-00005": ("hgdp1kgp-v2-SAS-k10", "retiring", "SAS", "672", "10", "8879035", "to confirm", "ogld#7"),
+        "OGL-00006": ("hgdp1kgp-v2-EUR-k10 (Partner Rows)", "reference", "EUR", "665", "10", "8586889", "to confirm",
+                      "ogld#69, ogld#81"),
+        "OGL-00012": ("panukb-EUR-k15", "built", "EUR", "420542", "15", "23128732", "CC BY 4.0", "ogld#10"),
+    }
+
+    def test_each_record_is_in_the_committed_tsv_with_the_draft_values(self) -> None:
+        committed = (REPO_ROOT / "ld-resources.tsv").read_text(encoding="utf-8")
+        found = {row["ld_id"]: row for row in csv.DictReader(committed.splitlines(), delimiter="\t")}
+        for ld_id, values in self.DRAFT.items():
+            with self.subTest(ld_id=ld_id):
+                row = found[ld_id]
+                self.assertEqual(
+                    (row["label"], row["status"], row["ancestry"], row["n"], row["k"], row["n_variants"], row["licence"],
+                     row["issue"]),
+                    values,
+                )
+
+    def test_the_retiring_stores_name_what_their_retirement_waits_on(self) -> None:
+        for ld_id in ("OGL-00002", "OGL-00003", "OGL-00004", "OGL-00005"):
+            with self.subTest(ld_id=ld_id):
+                notes = record.load_record(REPO_ROOT / "stores" / "ld" / ld_id / "record.yaml")[0]["notes"]
+                self.assertIn("ogdb-api#180", notes)
+                self.assertIn("owner", notes)
+
+    def test_the_overlay_names_its_links_and_its_unrecorded_target(self) -> None:
+        document = record.load_record(REPO_ROOT / "stores" / "ld" / "OGL-00006" / "record.yaml")[0]
+        self.assertEqual(document["measured"]["links"], {
+            "far": f"{LOCATION}/far",
+            "near": f"{LOCATION}/near",
+            "partners": f"{SCRATCH_69}/partners",
+        })
+        self.assertEqual([target["path"] for target in document["unrecorded_targets"]], [SCRATCH_69])
 
 
 if __name__ == "__main__":
