@@ -2,7 +2,7 @@ store_id: OGS-00011
 label: eur-hybrid-full
 association_coverage: gwas
 access_posture: public
-status: accepted
+status: built
 derived_from: null
 created_at: '2026-11-22T07:44:52Z'
 accepted_at: '2026-11-22T17:50:13Z'
@@ -68,10 +68,15 @@ notes: 'The candidate pool is 6,219 Analyses (GWAS Catalog release 2026-11-19). 
   in its beta/se. Through the map it resolves at 0.14.1 but fails the ancestry gate (residual 0.219 against
   0.06), so it is excluded either way.
 
-  Until the rebuild publishes, the Store served as OGS-00011 is the 3,169-Analysis build of 2026-10-26/27,
-  completed and validated on 2026-11-01, from the bundle committed at 373f9a0f, whose notes carry its
-  errata (#225, #401, #403, #412). In that Store the statistics of GCST002047, GCST004461 and GCST90165257,
-  and every cell Reference Completion imputed from them, are wrong and must not be used.
+  The rebuild was published on 2026-11-25, completed under its id: format 0.2.3, 3,245 Analyses,
+  47,920,732 variants. It replaces the 3,169-Analysis Store of 2026-10-26/27, completed on 2026-11-01
+  from the bundle committed at 373f9a0f, whose notes carry its errata (#225, #401, #403, #412); that
+  Store is archived under replaced/20261122T224238Z. Reference Completion left out 668 shared-axis
+  variants on which no Analysis has an association; the Observed-View Check lists them, finds no association
+  on any, and compares the rest with no mismatch (opengwasdb#490). In the completed Dense Component''s
+  own variant table, 844,992 of 14,564,257 rows carry no rsid where the shared table has one (opengwasdb#481):
+  a lookup by rsid over Dense Analyses misses those variants, and a lookup by ALID or position finds
+  them. No statistic is affected.
 
 
   Candidate status: human review required before acceptance (issue #153). 3245 included, 1641 excluded
