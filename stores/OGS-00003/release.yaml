@@ -75,4 +75,24 @@ notes: 'Quantitative endpoints are ordered by phenocode. For each binary categor
   that follows plans opengwasdb build-dense-rho after the build and register records has_rho. Membership
   and every build option are unchanged. The owner accepted this amendment by #514. Release Status is
   unchanged at built.
+
+  Rebuilt in format 0.3.0 with a Rho Matrix (issue #514, 2026-11-25). On the owner''s approval of 25 Nov
+  2026 for this id, a forced `pixi run -e workflow release OGS-00003 --config force=1` at f4420164,
+  opengwasdb 0.17.0 (69c2945229070ede4ccf8ced0520b281a87a0d68), ran from 09:42:11 to 10:02:55 UTC on
+  2026-11-25, exit 0, 1,244 s wall: build 1,007.9 s, rho 84.7 s (opengwasdb build-dense-rho),
+  indexed-subset-hm3 14.1 s, overview 1.2 s and validate 95.7 s (build_elapsed_s 1203.573). The build argv is
+  identical to the one the 17 Nov record planned. The Store is format_version 0.3.0 and holds 10 Analyses and
+  21,327,043 variants, the same counts as the 0.2.2 build; the hm3 Indexed Variant Subset resolved 1,195,570 of
+  1,206,903 requested variants (11,333 absent) and the record has has_hm3 and has_rho true. validate reports no
+  errors and no warnings. The Store is 2,822,806,708 bytes (2,596,984,787 at 0.2.2); it carries the 0.3.0
+  sidecars and no variant_offsets.npy or index.sqlite. The admission record dropped nothing (for
+  finngen-r13-BMI_IRN 21,324,894 rows examined and admitted, as the Store holds). Reads through the Store Reader
+  without pysam were compared on 9 cells (3 variants, 3 Analyses) with the replaced 0.2.2 Store, identical in z,
+  se and eaf, and on 24 cells (8 variants on chromosomes 1 to 18, 3 of them indels, across 3 Analyses) with both
+  the 0.2.2 Store and the FinnGen R13 source files in /data/opengwasdb/raw/finngen-r13-10/: all identical or
+  within the codec''s precision. The rho Matrix is symmetric with diagonal 1. records/ still holds top-hits.json
+  from when the standalone top-hits step was planned; Dense no longer plans it. `audit-store reconcile` exits 2 because it reconciles
+  Hybrid Stores only; it does not apply to this Dense Store. The Store it replaced (0.2.2) is archived, and
+  kept because the run was forced, under /data/opengwasdb/stores/OGS-00003/replaced/20261125T094217Z/;
+  deleting it is the owner''s call. Release Status is as register left it: built.
   '
