@@ -6,28 +6,28 @@ Generated master list of Store Releases in this registry.
 
 | Store ID | Label | Trial | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Validated |
 |:---|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|
-| `OGS-00001` | pilot-10 | true | ragged | observed_only | built | - | 10 | 0 | 86,376 | 86,373 | passed |
-| `OGS-00002` | pilot-10-completed | true | ragged | reference_completed | validated | - | 10 | 0 | 123,895 | 123,892 | passed |
-| `OGS-00003` | r13-pilot-20 | true | dense | observed_only | built | - | 10 | 0 | 21,327,043 | - | passed |
-| `OGS-00004` | eur-hybrid-pilot-10 | true | hybrid | observed_only | built | - | 9 | 1 | 23,726,262 | - | passed |
-| `OGS-00005` | eur-hybrid-quant-pilot-10 | true | hybrid | observed_only | validated | - | 10 | 0 | 18,483,436 | - | passed_with_warnings |
-| `OGS-00006` | 2023-chen-full-european | false | ragged | reference_completed | validated | - | 1,400 | 0 | 12,357,678 | 59,092,457 | passed_with_warnings |
-| `OGS-00007` | 2018-sun-pilot-10 | true | ragged | observed_only | built | - | 10 | 0 | 171,006 | 202,803 | passed |
+| `OGS-00001` | pilot-10 | true | ragged | observed_only | built | 0.2.0 | 10 | 0 | 86,376 | 86,373 | passed |
+| `OGS-00002` | pilot-10-completed | true | ragged | reference_completed | validated | 0.2.0 | 10 | 0 | 123,895 | 123,892 | passed |
+| `OGS-00003` | r13-pilot-20 | true | dense | observed_only | built | 0.2.2 | 10 | 0 | 21,327,043 | - | passed |
+| `OGS-00004` | eur-hybrid-pilot-10 | true | hybrid | observed_only | built | 0.2.2 | 9 | 1 | 23,726,262 | - | passed |
+| `OGS-00005` | eur-hybrid-quant-pilot-10 | true | hybrid | observed_only | validated | 0.2.2 | 10 | 0 | 18,483,436 | - | passed_with_warnings |
+| `OGS-00006` | 2023-chen-full-european | false | ragged | reference_completed | validated | 0.2.1 | 1,400 | 0 | 12,357,678 | 59,092,457 | passed_with_warnings |
+| `OGS-00007` | 2018-sun-pilot-10 | true | ragged | observed_only | built | 0.2.1 | 10 | 0 | 171,006 | 202,803 | passed |
 | `OGS-00008` | ukb-b-pilot-10 | true | dense | observed_only | candidate | - | 10 | 0 | - | - | - |
-| `OGS-00009` | ukb-b-full | false | dense | reference_completed | validated | - | 2,514 | 0 | 11,191,070 | - | passed |
+| `OGS-00009` | ukb-b-full | false | dense | reference_completed | validated | 0.2.0 | 2,514 | 0 | 11,191,070 | - | passed |
 | `OGS-00011` | eur-hybrid-full | false | hybrid | observed_only (completion pending) | accepted | - | 3,245 | 1,641 | - | - | passed_with_warnings |
-| `OGS-00012` | mvp-phs002453-eur | false | dense | reference_completed | validated | - | 1,669 | 0 | 20,548,967 | - | passed |
-| `OGS-00013` | mvp-phs002453-afr | false | dense | reference_completed | validated | - | 1,368 | 0 | 40,200,979 | - | passed |
-| `OGS-00014` | mvp-phs002453-amr | false | dense | reference_completed | validated | - | 1,053 | 0 | 30,380,465 | - | passed |
-| `OGS-00015` | mvp-phs002453-eas | false | dense | reference_completed | validated | - | 241 | 0 | 11,650,615 | - | passed |
-| `OGS-00016` | mvp-phs002453-meta-observed-only | false | dense | observed_only | validated | - | 1,691 | 0 | 27,929,380 | - | passed |
-| `OGS-00017` | r13-full | false | dense | reference_completed | validated | - | 2,754 | 0 | 21,549,493 | - | passed |
+| `OGS-00012` | mvp-phs002453-eur | false | dense | reference_completed | validated | 0.2.0 | 1,669 | 0 | 20,548,967 | - | passed |
+| `OGS-00013` | mvp-phs002453-afr | false | dense | reference_completed | validated | 0.2.0 | 1,368 | 0 | 40,200,979 | - | passed |
+| `OGS-00014` | mvp-phs002453-amr | false | dense | reference_completed | validated | 0.2.0 | 1,053 | 0 | 30,380,465 | - | passed |
+| `OGS-00015` | mvp-phs002453-eas | false | dense | reference_completed | validated | 0.2.0 | 241 | 0 | 11,650,615 | - | passed |
+| `OGS-00016` | mvp-phs002453-meta-observed-only | false | dense | observed_only | validated | 0.2.0 | 1,691 | 0 | 27,929,380 | - | passed |
+| `OGS-00017` | r13-full | false | dense | reference_completed | validated | 0.2.0 | 2,754 | 0 | 21,549,493 | - | passed |
 | `OGS-00022` | eur-hybrid-pilot-10-completed | true | hybrid | reference_completed | validated | - | 9 | 1 | - | - | passed |
 | `OGS-00023` | eur-hybrid-quant-pilot-10-completed | true | hybrid | reference_completed | validated | - | 10 | 0 | - | - | passed |
-| `OGS-00024` | 2023-chen-full-african | false | ragged | observed_only | validated | - | 1,034 | 0 | 7,067,555 | 31,986,793 | passed_with_warnings |
-| `OGS-00025` | 2023-chen-full-east-asian | false | ragged | observed_only | validated | - | 1,038 | 0 | 1,176,410 | 7,380,542 | passed_with_warnings |
-| `OGS-00026` | 2023-chen-full-south-asian | false | ragged | observed_only | validated | - | 971 | 0 | 1,336,174 | 6,653,533 | passed_with_warnings |
-| `OGS-00027` | eqtlgen-full | false | ragged | observed_only | validated | - | 19,250 | 0 | 8,927,061 | 127,112,772 | passed |
+| `OGS-00024` | 2023-chen-full-african | false | ragged | observed_only | validated | 0.2.1 | 1,034 | 0 | 7,067,555 | 31,986,793 | passed_with_warnings |
+| `OGS-00025` | 2023-chen-full-east-asian | false | ragged | observed_only | validated | 0.2.1 | 1,038 | 0 | 1,176,410 | 7,380,542 | passed_with_warnings |
+| `OGS-00026` | 2023-chen-full-south-asian | false | ragged | observed_only | validated | 0.2.1 | 971 | 0 | 1,336,174 | 6,653,533 | passed_with_warnings |
+| `OGS-00027` | eqtlgen-full | false | ragged | observed_only | validated | 0.2.0 | 19,250 | 0 | 8,927,061 | 127,112,772 | passed |
 | `OGS-00032` | eas-hybrid-full | false | hybrid | observed_only | candidate | - | 379 | 330 | - | - | passed_with_warnings |
 | `OGS-00033` | afr-hybrid-full | false | hybrid | observed_only | candidate | - | 194 | 164 | - | - | passed_with_warnings |
 

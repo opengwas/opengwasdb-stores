@@ -15,7 +15,7 @@ build_environment:
     - build
     - validate
 observed:
-  format_version: null
+  format_version: 0.2.0
   n_analyses: 10
   n_variants: 86376
   n_associations: 86373
