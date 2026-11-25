@@ -10,6 +10,7 @@ build:
 post:
   top_hits: true
   overview: true
+  rho: true
 indexed_subsets:
   - name: hm3
     resource_id: hapmap3-hg38

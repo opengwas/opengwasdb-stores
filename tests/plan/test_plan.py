@@ -49,6 +49,7 @@ import importlib.resources
 import json
 import os
 import sys
+import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
@@ -180,6 +181,14 @@ def validate_step_argv_against_cli(test_case: unittest.TestCase, step: Step) -> 
             f"Argv: {step.argv}\n"
             f"Error: {exc}"
         )
+
+
+# The completion phase OGS-00001 plans since #514: it completes its own Store
+# (ADR 0037) rather than leaving OGS-00002 to complete it.
+COMPLETION_STEPS_00001 = ("complete", "completion-validate", "completion-observed-view-check")
+# Committed bundles that declare `post.rho: true`. OGS-00003's Dense Store
+# gets a Rho Matrix since #514; no other committed bundle declares one.
+RHO_BUNDLES = frozenset({"OGS-00003"})
 
 
 class TestPlanDense(unittest.TestCase):
@@ -834,7 +843,9 @@ class TestPlanRagged(unittest.TestCase):
             )
             steps = plan(bundle_val_only)
             record_check()
-            self.assertEqual([s.name for s in steps], ["build", "validate"])
+            # OGS-00001 completes its own Store since #514, so its plan carries the completion phase.
+            expected = ["build", "validate"] + (list(COMPLETION_STEPS_00001) if bundle.store_id == "OGS-00001" else [])
+            self.assertEqual([s.name for s in steps], expected)
 
     def test_ragged_override_artifact_root(self) -> None:
         """Passing explicit artifact_root to plan() overrides the built-in default for ragged."""
@@ -941,7 +952,9 @@ class TestPlanRagged(unittest.TestCase):
         # 1. Step counts: Ragged's documented Store envelope excludes
         # overview.html, while SSF still has its separate top-hits step.
         record_check()
-        self.assertEqual([s.name for s in steps_besd], ["build", "validate"])
+        self.assertEqual(
+            [s.name for s in steps_besd], ["build", "validate", *COMPLETION_STEPS_00001]
+        )
         self.assertEqual([s.name for s in steps_ssf], ["build", "top-hits", "validate"])
 
         # 2. Build positional arguments: BESD takes prefix and output; SSF takes manifest, source_dir, and output
@@ -1861,12 +1874,16 @@ class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
 
     def completed(self, layout: str = "dense", **build: object) -> Bundle:
         observed = load("OGS-00003")
+        # The fixture plans no Rho Matrix, as the golden pins: OGS-00003 itself
+        # declares `post.rho` since #514, and these tests are about completion.
+        observed_post = {k: v for k, v in observed.build["post"].items() if k != "rho"}
         return Bundle(
             store_id=observed.store_id,
             root=observed.root,
             release=observed.release,
             build={
                 **observed.build,
+                "post": observed_post,
                 "layout": layout,
                 "completion_state": "reference_completed",
                 "complete": self.COMPLETE_BLOCK,
@@ -1915,13 +1932,17 @@ class TestPlanSingleIdReferenceCompleted(unittest.TestCase):
             validate_step_argv_against_cli(self, step)
 
     def test_the_build_phase_is_the_observed_only_plan(self) -> None:
-        """The build phase is OGS-00003's own golden plan, step for step (ADR 0037, #305)."""
+        """The build phase is OGS-00003's own golden plan without its rho step, step for step (ADR 0037, #305)."""
         steps = plan(self.completed())
-        assert_steps_match_golden(
-            self,
-            [s for s in steps if s.phase == "build"],
-            REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00003.json",
-        )
+        # The golden carries OGS-00003's rho step since #514; this fixture
+        # declares none, so the comparison drops that one step.
+        with open(REPO_ROOT / "tests" / "plan" / "golden" / "OGS-00003.json", encoding="utf-8") as f:
+            golden = [item for item in json.load(f) if item["name"] != "rho"]
+        with tempfile.TemporaryDirectory() as tmp:
+            filtered = Path(tmp) / "OGS-00003-without-rho.json"
+            filtered.write_text(json.dumps(golden), encoding="utf-8")
+            record_check()
+            assert_steps_match_golden(self, [s for s in steps if s.phase == "build"], filtered)
 
     def test_rho_is_planned_in_both_phases(self) -> None:
         """A declared Rho Matrix is built on the Observed-Only Store and again on the completed one."""
@@ -2301,7 +2322,7 @@ class TestDenseBuildMeetsTopHits(unittest.TestCase):
         record_check()
         self.assertEqual(
             [step.name for step in plan(load("OGS-00003"))],
-            ["build", "indexed-subset-hm3", "overview", "validate"],
+            ["build", "rho", "indexed-subset-hm3", "overview", "validate"],
         )
 
     def test_a_single_id_dense_completion_plans_no_standalone_step_in_either_phase(self) -> None:
@@ -2710,9 +2731,14 @@ class TestPostDefaults(unittest.TestCase):
         for sid in EARLY_REGISTERED:
             post = load(sid).build.get("post") or {}
             record_check()
-            self.assertEqual(set(post), {"top_hits", "overview"}, f"{sid} post keys")
+            # OGS-00003 is the one committed bundle that declares rho (#514):
+            # its Dense Store carries a Rho Matrix; every other recipe leaves
+            # it to the default.
+            expected_keys = {"top_hits", "overview"} | ({"rho"} if sid in RHO_BUNDLES else set())
+            self.assertEqual(set(post), expected_keys, f"{sid} post keys")
             record_check()
-            self.assertNotIn("rho", post)
+            if sid not in RHO_BUNDLES:
+                self.assertNotIn("rho", post)
             record_check()
             self.assertNotIn("validate", post)
 
@@ -2723,7 +2749,10 @@ class TestPostDefaults(unittest.TestCase):
             record_check()
             self.assertIn("validate", names, f"{sid} still plans validate")
             record_check()
-            self.assertNotIn("rho", names, f"{sid} plans no rho")
+            if sid in RHO_BUNDLES:
+                self.assertIn("rho", names, f"{sid} declares rho, so plans it")
+            else:
+                self.assertNotIn("rho", names, f"{sid} plans no rho")
 
     def test_ragged_releases_keep_overview_explicit_and_unplanned(self) -> None:
         """The four Ragged releases keep overview: false and plan no overview step."""

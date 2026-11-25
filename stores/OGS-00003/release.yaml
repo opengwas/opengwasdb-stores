@@ -71,4 +71,8 @@ notes: 'Quantitative endpoints are ordered by phenocode. For each binary categor
   records/ and validation.yaml, as ADR 0037 keeps on an unforced replacement, so the change stays dated
   and evidenced.
 
+  Bundle amendment (2026-11-25, #514): post.rho becomes true in the Build Recipe, so the forced rebuild
+  that follows plans opengwasdb build-dense-rho after the build and register records has_rho. Membership
+  and every build option are unchanged. The owner accepted this amendment by #514. Release Status is
+  unchanged at built.
   '
