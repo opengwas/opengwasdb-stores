@@ -297,6 +297,25 @@ class BackfillTest(unittest.TestCase):
         self.assertIn("'0.1.0'", printed.getvalue())
         self.assertIn("'0.2.3'", printed.getvalue())
 
+    def test_completion_state_is_filled_from_info_and_a_disagreeing_one_refused(self) -> None:
+        """A record written before #307 has none (OGS-00016, #525)."""
+        recorded = VALIDATION_TEMPLATE.replace("  validate_status: passed\n", "  validate_status: passed\n  completion_state: reference_completed\n")
+        (self.registry / "OGS-00042" / "validation.yaml").write_text(recorded, encoding="utf-8")
+
+        def info(argv: Any) -> subprocess.CompletedProcess[str]:
+            payload = {"format_version": "0.2.3", "completion_state": "observed_only"}
+            return subprocess.CompletedProcess(argv, 0, json.dumps(payload), "")
+
+        printed = io.StringIO()
+        with patch.object(store_info_module, "_default_runner", info), contextlib.redirect_stdout(printed):
+            status = backfill_observed.main(self.arguments())
+
+        self.assertEqual(status, 1)
+        self.assertEqual(yaml.safe_load(self.record("OGS-00041"))["observed"]["completion_state"], "observed_only")
+        self.assertEqual(self.record("OGS-00042"), recorded, "never overwritten")
+        self.assertIn("OGS-00042: refuse", printed.getvalue())
+        self.assertIn("'reference_completed'", printed.getvalue())
+
     def test_a_second_run_changes_nothing(self) -> None:
         self.backfill()
         first = tree(self.registry)

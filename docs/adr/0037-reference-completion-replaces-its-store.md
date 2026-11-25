@@ -316,3 +316,51 @@ Neither revision can name the flag the pinned runtime requires. A test-only
 `opengwasdb` on `PATH` adds it to the builder's argv, as one already added
 #341's coverage. The records are still that revision's own, naming neither
 token.
+
+## Amendment (stores#527): a published 0.3.0 release completes under its own id
+
+Two routes leave a 0.3.0 Observed-Only Store published under its id: a rebuild
+with this engine (OGS-00024 to -27, -32, -33), and a conversion published by
+`publish-rewrite` (ADR 0042; OGS-00016). Both may gain a `complete` block and
+complete under their own id, unforced, as this ADR already allows. The
+engine's completion reads a `0.3.0` source of either route, and
+`runtime.WRITABLE_FORMAT_VERSIONS` now includes `0.3.0`. A parent at `0.2.1` or
+older is refused as before.
+
+**A rebuilt release** is unchanged: its `build` record is this repository's
+own, and the check compares it as it always did.
+
+**A converted release.** The conversion did not run this repository's `build`,
+so its recorded `build` argv is the one that wrote the `0.2.0` Store. That
+record is still the Store's data lineage, and `publish-rewrite` keeps it in the
+publishing phase's `inputs` beside the new `rewrite-release` record. So the
+amendment check keeps holding `variant-reference` and `build` to the records of
+the release the conversion converted, and the membership to the manifest it
+was built from. It adds one requirement: when the phase's register record
+lists the `rewrite-release` record or carries a `rewrite` block, that record
+must exist, be readable, be the `rewrite-release` step, and name this Store.
+A record that lists one without the other, or fails any of these, is refused.
+No new record is written; the check reads what ADR 0042's route already
+leaves. Decided on the owner's 25 Nov 2026 ruling on
+[#520](https://github.com/opengwas/opengwasdb-stores/issues/520#issuecomment-7163972259)
+(stream D: OGS-00016 is completed after conversion).
+
+**A conversion that records `variant_table.indel_order` is refused**
+(owner's decision, 25 Nov 2026: OGS-00016 stays Observed-Only after conversion
+and is completed only after a rebuild from source). Such a Store may spell
+indels sorted, the engine's completion reads it regardless of
+`converted_from`, and it adds panel indels spelt reference first beside them,
+so an overlapping deletion can appear under two ALIDs. The registry learns the
+deviation from the register record `publish_rewrite` wrote
+(`rewrite.deviations`, the rules the validator reported as the conversion's
+recorded deviations), never from `manifest.json` (ADR 0023). The check refuses
+before anything is written, names the deviation and the remedy, and stops once
+the completion phase has published. A converted release with no such deviation
+completes as above. Both references to the rewrite, `rewrite.record` and the
+`inputs` entry, must identify this Store's own `rewrite-release` record (a
+relocated artifact root is allowed): `rewrite: null`, a block without
+`record`, or an input naming another Store's record is refused.
+
+**Limit of this check.** A release whose register record carries neither
+marker is treated as an ordinary release. A register refresh that loses the
+lineage is the registry's to prevent (#528).

@@ -33,7 +33,7 @@ pixi run index                                             # regenerate master l
 A release target must be an ID currently registered under `stores/`; use
 `stores.tsv` to find valid IDs. IDs shown in commands are real targets, not
 placeholders. Post-steps follow the selected command's Store-format support:
-`rho` is Dense-only, `overview` is Dense/Hybrid-only because Ragged's
+`rho` is planned for Dense and Hybrid Stores (a Hybrid's Rho Matrix is built in its Dense Component) and refused for Ragged, `overview` is Dense/Hybrid-only because Ragged's
 closed Store envelope excludes `overview.html`, and `clump` (`post.clumps: true`)
 is planned for every layout, after `rho`, at format 0.3.0. It needs an explicit
 `post.ld_stores` mapping (`ANCESTRY: /data/opengwasdb/ld-stores/<name>`), which
@@ -178,14 +178,72 @@ plans the Store it published:
 
 A post step is a re-runnable in-place addition, so a new post-step
 declaration passes this check, and so does a post step the planner now plans
-differently. A new declaration's job is still a build-phase job over a
-published Store, though, so the #195 guard refuses it unless the run is
-forced. Observed-only and two-id releases are not checked. A direct
+differently. A new `top-hits`, `rho` or `clump` declaration is added to the
+published Store in place (next section); any other new post step's job is
+still a job over a published Store, so the #195 guard refuses it unless the
+run is forced. Observed-only and two-id releases are not checked here. A direct
 `snakemake` run refuses a changed bundle only when it schedules a job
 (`onstart`): one with nothing to schedule writes nothing, and has none of the
 entry point's recovery or settlement either. `release.yaml`'s prose and
 provenance are left to review. `--config force=1` still rebuilds a named
 release from its bundle as it now stands.
+
+### Adding missing post steps to a published Store
+
+A recipe that gains `post.rho`, `post.clumps` (with its `post.ld_stores`
+mapping) or a standalone `post.top_hits` after its Store was published gains
+them in place, with no rebuild and no `--config force=1` (#528, ADR 0043):
+
+```sh
+pixi run release-dry OGS-00015   # shows the plan; writes nothing
+pixi run release OGS-00015       # adds them, validates, publishes, registers
+```
+
+The plan is the missing steps (`rho`, `clump`, or `completion-rho`,
+`completion-clump` for a Store completed under its own id), the declared
+`overview` regenerated after them (its record missing is enough on its own),
+the phase's `validate` and its register. A Dense build and every completion
+build the Top-Hit Index inline, so no `top-hits` step is added there; a Ragged
+build phase's is. A later step such as an Indexed Variant Subset is not rerun.
+A `clump` record from another LD Store mapping, or a missing or failed
+`validate` record, is not current, and is planned again. The run:
+
+- refuses, writing nothing, a bundle whose Store-writing steps or membership
+  no longer match the published Store's records, a Store path that is a
+  symlink, a published Store that is not format 0.3.0, a killed run's
+  leftovers, a runtime that is not the locked engine, and a filesystem that
+  cannot copy by reflink (named; there is no full copy);
+- copies `records/` to a snapshot and stages the Store at
+  `<ID>/store.opengwasdb.partial` with `cp -a --reflink=always`, so the copy
+  shares the Store's blocks;
+- runs the steps and `validate` (with its `--ld-store` pairs) there. A Store
+  `pixi run publish-rewrite` published is refused for a warning that is not a
+  deviation its conversion records (ADR 0042);
+- publishes the copy through the usual transaction: the old Store, its records
+  and its `validation.yaml` move to `replaced/<UTC>/`.
+
+Any failure before publication (a failed step, a validation error, Ctrl-C,
+SIGTERM) removes the copy and restores `records/`: the published Store and
+`validation.yaml` are as they were, and the failed step's record is kept as
+`<ID>/work/post-additions-refused-<UTC>-<step>.json`. An interruption exits 130
+and says whether it was rolled back, the publication had begun, or it had
+finished; a begun one is finished by the next `pixi run release <ID>`, which
+also finishes clearing Snakemake's metadata for the release's records. The new `validation.yaml` is
+the published one with what the run measured (`has_rho`, `has_clumps`,
+`n_loci_5e8`, the verdict, size and format) and a `post_additions` entry; its
+lineage, `acceptance` and a rewrite's `rewrite` block are kept.
+
+Afterwards the release stays settled: a second `pixi run release <ID>`,
+`pixi run release all` and a direct `snakemake` find nothing to do, though a
+later step's record is now older than the added one before it. A newer build
+manifest still schedules the build, and `--config force=1` still rebuilds the
+whole release. A changed Store-writing step or membership, or a register
+record that did not succeed, is refused by name, named or under `all`, never
+reported as up to date. Name each release to add to it: `all` never adds. A
+release that completes its own Store and has not yet published its completion
+is completed first, with the post steps in its completion phase. A run on a
+hosted Store replaces a published Store, so it needs the owner's approval of
+command, host and budget.
 
 ### Variant References declare indel semantics
 

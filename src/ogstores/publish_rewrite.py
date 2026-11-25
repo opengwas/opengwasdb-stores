@@ -29,11 +29,13 @@ One call, under the release's run lock:
    as the `rewrite-release` step from the operator's evidence, and runs the
    recipe's planned `validate` step on it (`run.execute_step`). The rewrite
    validated its release too, but prints only errors and keeps no verdict;
-4. refuses any validation error, and any warning that is not a deviation the
-   conversion records: a warning is accepted only from a `--convert-legacy`
-   rewrite and only under one of the three rules a conversion records. On a
-   0.3.0 release each is an error unless the release records it
-   (opengwasdb's `Rule.finding`), so a warning under one is the record's;
+4. refuses any validation error, and any warning that is neither a deviation
+   the conversion records nor one the replaced Validation Record carried
+   unchanged (its exact message, once per recorded copy). A deviation is
+   accepted only from a `--convert-legacy` rewrite and only under one of the
+   three rules a conversion records; a deviation rule is never carried. On a
+   0.3.0 release each is an error unless the release records it (opengwasdb's
+   `Rule.finding`), so a warning under one is the record's;
 5. writes `publication.json` (`register.begin_publication`) and hands it to
    `register.complete_publication`, so the old Store is archived under
    `replaced/<UTC>/` with its records and Validation Record.
@@ -62,7 +64,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
 
-from ogstores import bundle, engine, paths, register, run, runtime
+from ogstores import bundle, engine, paths, register, run, runtime, staged_publication
 from ogstores.plan import BUILD_PHASE, COMPLETION_PHASE, REGISTER_STEPS, Step, plan
 from ogstores.runtime import REQUIRED_FORMAT_VERSION
 from ogstores.store_info import store_info
@@ -411,23 +413,39 @@ def _validate_step(b: bundle.Bundle, phase: str, root: Path) -> Step:
 
 
 def judge_findings(
-    findings: list[Mapping[str, str]], *, convert_legacy: bool
-) -> tuple[list[str], list[Mapping[str, str]]]:
-    """The deviations the warnings are, and the warnings that are none.
+    findings: list[Mapping[str, str]],
+    *,
+    convert_legacy: bool,
+    replaced_warnings: Any = None,
+) -> tuple[list[str], list[str], list[Mapping[str, str]]]:
+    """The deviations the warnings are, the warnings carried, and the warnings that are neither.
 
     A warning is a recorded deviation only on a `--convert-legacy` rewrite and
-    only under one of `DEVIATION_RULES`; a 0.2.3 rewrite records none (#499).
+    only under one of `DEVIATION_RULES`. A warning under any other rule is
+    carried when the replaced Validation Record holds it unchanged: its
+    `message` is exact text equal to one of the record's `warnings` (a 0.2.x
+    record keeps no rule or target, only that text). A deviation rule is never
+    carried, so a 0.2.3 rewrite refuses one even if its text was recorded. Each
+    recorded warning carries one finding, so a warning that fired twice where
+    the record has it once is not carried (#533, the owner's 25 Nov 2026
+    ruling). `replaced_warnings` is the record's raw `warnings` value: a list
+    of strings is used as it is, anything else is empty.
     """
-    accepted: set[str] = set()
+    deviations: set[str] = set()
+    carried: list[str] = []
     unrecorded: list[Mapping[str, str]] = []
+    available = [w for w in replaced_warnings if isinstance(w, str)] if isinstance(replaced_warnings, list) else []
     for item in findings:
         if item["severity"] != "warning":
             continue
         if convert_legacy and item["rule"] in DEVIATION_RULES:
-            accepted.add(item["rule"])
+            deviations.add(item["rule"])
+        elif item["rule"] not in DEVIATION_RULES and item["message"] in available:
+            available.remove(item["message"])
+            carried.append(item["message"])
         else:
             unrecorded.append(item)
-    return sorted(accepted), unrecorded
+    return sorted(deviations), carried, unrecorded
 
 
 def _listed(items: list[str]) -> str:
@@ -466,8 +484,10 @@ def _refuse_failed_validation(record: Mapping[str, Any] | None) -> None:
     )
 
 
-def _judge_validation(record: Mapping[str, Any] | None, *, convert_legacy: bool) -> tuple[str, list[str], list[str]]:
-    """This run's verdict and warnings, and the deviations they are; refuses anything else."""
+def _judge_validation(
+    record: Mapping[str, Any] | None, *, convert_legacy: bool, replaced_warnings: list[str]
+) -> tuple[str, list[str], list[str], list[str]]:
+    """This run's verdict and warnings, the deviations and carried warnings they are; refuses anything else."""
     _refuse_failed_validation(record)
     status, warnings, _errors = register.validate_verdict(dict(record or {}))
     findings = json.loads(str((record or {}).get("stdout"))).get(register.VALIDATE_FINDINGS_KEY)
@@ -476,22 +496,26 @@ def _judge_validation(record: Mapping[str, Any] | None, *, convert_legacy: bool)
             "the validator printed warnings without `findings`, so no warning can be told to "
             "be a recorded deviation"
         )
-    deviations, unrecorded = judge_findings(findings or [], convert_legacy=convert_legacy)
+    deviations, carried, unrecorded = judge_findings(
+        findings or [], convert_legacy=convert_legacy, replaced_warnings=replaced_warnings
+    )
     if unrecorded:
         accepts = ", ".join(sorted(DEVIATION_RULES)) if convert_legacy else "none"
         what = "a --convert-legacy conversion's" if convert_legacy else "a 0.2.3 rewrite's"
         raise RewritePublicationRefused(
             f"the staged release has {len(unrecorded)} warning(s) that are not a deviation "
-            f"{what} record accepts ({accepts}):"
+            f"{what} record accepts ({accepts}) and that the replaced Validation Record does not "
+            "carry unchanged:"
             + _listed([f"{f['rule']}: {f['message']}" for f in unrecorded])
         )
-    return status, warnings, deviations
+    return status, warnings, deviations, carried
 
 
 def _observed(
     previous: Mapping[str, Any] | None,
     *,
     format_version: str,
+    completion_state: str,
     store_bytes: int,
     status: str,
     convert_legacy: bool,
@@ -501,8 +525,10 @@ def _observed(
 
     The rewrite answers every question its source does (the engine's digest
     proof refuses it otherwise), so what the build reported about the data is
-    carried from the replaced Validation Record. Measured anew: the format
-    (`info`), the size on disk (a stat) and the verdict. `build_elapsed_s` is
+    carried from the replaced Validation Record. Measured anew: the format and
+    the completion state (`info`), the size on disk (a stat) and the verdict.
+    A carried `completion_state` that disagrees with the measured one is
+    refused; a record written before #307 carries none (#525). `build_elapsed_s` is
     the schema's sum of step times: the replaced release's, the rewrite's and
     this validation's, or null when the replaced one is unknown. A conversion
     masks every association whose SE is above 65,504, so the counts the build
@@ -512,6 +538,14 @@ def _observed(
     observed: dict[str, Any] = {field: carried.get(field) for field in register.OBSERVED_FIELDS}
     observed.update({key: value for key, value in carried.items() if key not in observed})
     observed["format_version"] = format_version
+    carried_state = carried.get("completion_state")
+    if carried_state is not None and carried_state != completion_state:
+        raise RewritePublicationRefused(
+            f"the replaced Validation Record carries observed.completion_state {carried_state!r} but "
+            f"`opengwasdb info` reports {completion_state!r} for the staged release; a rewrite "
+            "keeps its source's state"
+        )
+    observed["completion_state"] = completion_state
     observed["store_bytes"] = store_bytes
     observed["validate_status"] = status
     before = carried.get("build_elapsed_s")
@@ -579,12 +613,12 @@ def _assemble(
     status: str,
     warnings: list[str],
     deviations: list[str],
+    carried: list[str],
     snapshot: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """The new Validation Record and `publication.json`, through `register`'s builders."""
     store_id, root = p.bundle.store_id, p.root
     now = run.utc_timestamp()
-    archive = paths.replaced_dir(store_id, p.stamp, root=root)
     rewrite_p = paths.record_path(store_id, REWRITE_STEP, root=root)
     rewrite_record = run.read_record(rewrite_p) or {}
     previous = p.bundle.validation if isinstance(p.bundle.validation, Mapping) else {}
@@ -598,59 +632,35 @@ def _assemble(
         "source_release_id": p.published["release_id"],
         "source_format_version": p.published["format_version"],
         "deviations": list(deviations),
+        "carried_warnings": list(carried),
     }
-    validation = register.build_validation_record(
+    inputs = [str(path) for path in p.replaced_register["inputs"]]
+    if str(rewrite_p) not in inputs:
+        inputs.append(str(rewrite_p))
+    return staged_publication.republication(
+        b=p.bundle,
+        root=root,
+        phase=p.phase,
+        stamp=p.stamp,
+        snapshot=snapshot,
+        now=now,
         status=status,
-        checks_store=status,
-        validated_at=now,
+        warnings=list(warnings),
         validator=register.recorded_engine(validate_record),
         wrote_store=p.identity,
-        engines=register.engines_of(
-            [(REWRITE_STEP, rewrite_record), (p.validate_step.name, validate_record)]
-        ),
+        engines=register.engines_of([(REWRITE_STEP, rewrite_record), (p.validate_step.name, validate_record)]),
         observed=_observed(
             previous.get("observed"),
             format_version=p.candidate["format_version"],
+            completion_state=_field(p.candidate, "completion_state", "staged release"),
             store_bytes=store_size_on_disk(paths.partial_store_path(store_id, root=root)),
             status=status,
             convert_legacy=p.evidence.convert_legacy,
             elapsed=[p.evidence.elapsed_seconds, float(validate_record.get("elapsed_seconds") or 0.0)],
         ),
-        warnings=list(warnings),
-        errors=[],
-        acceptance=register.acceptance_evidence(previous),
-        replaced={"archive": str(archive), "replaced_at": now},
-    )
-    validation["rewrite"] = rewrite
-    register_step = REGISTER_STEPS[p.phase]
-    inputs = [str(path) for path in p.replaced_register["inputs"]]
-    if str(rewrite_p) not in inputs:
-        inputs.append(str(rewrite_p))
-    register_record = register.build_register_record(
-        step=register_step,
-        store_id=store_id,
-        at=now,
         inputs=inputs,
-        outputs=[str(p.bundle.root / "validation.yaml")],
-        wrote_store=p.identity,
-        record_path=paths.record_path(store_id, register_step, root=root),
-        published_store=str(paths.store_path(store_id, root=root)),
-        replaced_archive=str(archive),
+        blocks={"rewrite": rewrite},
     )
-    register_record["rewrite"] = rewrite
-    val_yaml = p.bundle.root / "validation.yaml"
-    marker = register.build_publication_marker(
-        store_id=store_id,
-        archive=archive,
-        snapshot=snapshot,
-        replaced_store=register.ARCHIVE_REPLACED_STORE,
-        validation_yaml=val_yaml,
-        previous_validation=val_yaml.read_text(encoding="utf-8") if val_yaml.is_file() else None,
-        validation_record=validation,
-        register_record=register_record,
-        written_at=now,
-    )
-    return validation, marker
 
 
 def _prepare(
@@ -698,38 +708,6 @@ def _prepare(
     )
 
 
-def _roll_back(p: _Publication, snapshot: Path | None) -> str:
-    """Put `records/` and the staged release back; return what the refusal should add.
-
-    The staged release goes back first. The refused verdict is then copied, byte
-    for byte, before `records/` is restored over it: it is evidence, not part of
-    the release, so any failure to keep it is only noted, and the restores run
-    whatever it raised.
-    """
-    store_id, root = p.bundle.store_id, p.root
-    notes: list[str] = []
-    partial = paths.partial_store_path(store_id, root=root)
-    try:
-        if os.path.lexists(partial) and not os.path.lexists(p.staged):
-            partial.rename(p.staged)
-            run.fsync_dir(p.staged.parent)
-    finally:
-        try:
-            validate_p = paths.record_path(store_id, p.validate_step.name, root=root)
-            if snapshot is not None and validate_p.is_file():
-                kept = paths.work_dir(store_id, root=root) / f"publish-rewrite-refused-{p.stamp}-validate.json"
-                try:
-                    kept.parent.mkdir(parents=True, exist_ok=True)
-                    shutil.copyfile(validate_p, kept)
-                    notes.append(f" The validate record is kept at {kept}.")
-                except Exception as exc:  # evidence only: never a reason to stop the rollback
-                    notes.append(f" The validate record could not be kept ({exc!r}).")
-        finally:
-            if snapshot is not None and snapshot.exists():
-                run.restore_force_snapshot(snapshot)
-    return "".join(notes)
-
-
 def publish_rewrite(
     store_id: str,
     staged: Path | str,
@@ -758,42 +736,62 @@ def publish_rewrite(
         return None
     p = _prepare(b, staged, evidence_prefix, root, lock)
 
-    marker_p = paths.publication_marker(store_id, root=root)
     partial = paths.partial_store_path(store_id, root=root)
-    snapshot: Path | None = None
-    try:
-        snapshot = run.snapshot_records(store_id, root, p.stamp)
-        run.fault_boundary("rewrite-snapshot-taken")
-        # The replaced release's verdict is in the snapshot: any validate record
-        # from here on is this call's, and a refusal keeps only that one.
-        paths.record_path(store_id, p.validate_step.name, root=root).unlink(missing_ok=True)
+    validate_p = paths.record_path(store_id, p.validate_step.name, root=root)
+    published: dict[str, Any] = {}
+
+    def stage() -> None:
         staged.rename(partial)
         run.fsync_dir(partial.parent)
-        run.fault_boundary("rewrite-staged")
+
+    def unstage() -> None:
+        if os.path.lexists(partial) and not os.path.lexists(staged):
+            partial.rename(staged)
+            run.fsync_dir(staged.parent)
+
+    def work(snapshot: Path) -> Mapping[str, Any]:
         run.write_record_atomically(
             _rewrite_record(store_id, root, p.evidence, p.identity, staged),
             paths.record_path(store_id, REWRITE_STEP, root=root),
         )
         run.execute_step(p.validate_step, store_id, artifact_root=root, check=False)
         validate_record = run.load_record(store_id, p.validate_step.name, root=root)
-        status, warnings, deviations = _judge_validation(
-            validate_record, convert_legacy=p.evidence.convert_legacy
+        replaced = p.bundle.validation.get("warnings") if isinstance(p.bundle.validation, Mapping) else None
+        status, warnings, deviations, carried = _judge_validation(
+            validate_record,
+            convert_legacy=p.evidence.convert_legacy,
+            replaced_warnings=replaced,
         )
-        validation, marker = _assemble(p, validate_record or {}, status, warnings, deviations, snapshot)
-        register.begin_publication(marker, root)
-    except BaseException as exc:
-        if os.path.lexists(marker_p):
-            raise  # committed: `complete_publication` recovers it from the marker
-        notes = _roll_back(p, snapshot)
-        if isinstance(exc, register.RegisterError):
-            raise RewritePublicationRefused(
-                f"Refused to publish {staged} over {store_id}: {exc}\nNothing was published: the "
-                "published Store, records/ and validation.yaml are as they were, and the staged "
-                f"release is back at its path.{notes}"
-            ) from exc
-        raise
-    register.complete_publication(store_id, root)
-    return validation
+        validation, marker = _assemble(p, validate_record or {}, status, warnings, deviations, carried, snapshot)
+        published["validation"] = validation
+        return marker
+
+    def refuse(exc: register.RegisterError, notes: str) -> RewritePublicationRefused:
+        return RewritePublicationRefused(
+            f"Refused to publish {staged} over {store_id}: {exc}\nNothing was published: the "
+            "published Store, records/ and validation.yaml are as they were, and the staged "
+            f"release is back at its path.{notes}"
+        )
+
+    # The replaced release's verdict is in the snapshot: any validate record
+    # from here on is this call's, and a refusal keeps only that one.
+    staged_publication.publish(staged_publication.Staging(
+        store_id=store_id,
+        root=root,
+        stamp=p.stamp,
+        stage=stage,
+        unstage=unstage,
+        work=work,
+        refuse=refuse,
+        evidence=lambda: [staged_publication.Evidence(
+            validate_p,
+            paths.work_dir(store_id, root=root) / f"publish-rewrite-refused-{p.stamp}-validate.json",
+            "validate record",
+        )],
+        clear=(validate_p,),
+        boundaries=("rewrite-snapshot-taken", "rewrite-staged"),
+    ))
+    return published["validation"]
 
 
 def _terminate(signum: int, _frame: object) -> None:
@@ -842,7 +840,8 @@ def main(argv: list[str] | None = None) -> int:
         f"publish-rewrite: published {rewrite['release_id']} (format {rewrite['format_version']}) as "
         f"{args.store_id}, replacing {rewrite['source_release_id']} (format "
         f"{rewrite['source_format_version']}), archived at {record['replaced']['archive']}; "
-        f"validation {record['status']}, deviations {rewrite['deviations'] or 'none'}"
+        f"validation {record['status']}, deviations {rewrite['deviations'] or 'none'}, "
+        f"carried warnings {len(rewrite['carried_warnings']) or 'none'}"
     )
     return 0
 

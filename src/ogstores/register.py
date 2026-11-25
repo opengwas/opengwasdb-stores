@@ -821,6 +821,23 @@ def read_format_version(store_dir: Path) -> str:
     return version
 
 
+def read_completion_state(store_dir: Path) -> str | None:
+    """The `completion_state` `opengwasdb info` reports for the Store at `store_dir`, or None when it reports none.
+
+    The one reader is `store_info` (ADR 0023). A Store rewritten to 0.3.0 is
+    measured here because a replaced 0.2.x record may predate #307 and carry
+    none (#525); an ordinary build reads it from the plan
+    (`published_completion_state`). Raises ValueError as `read_format_version`
+    does when `info` cannot be read.
+    """
+    try:
+        info = store_info(store_dir)
+    except OSError as exc:
+        raise ValueError(f"`opengwasdb info` could not run: {exc}") from exc
+    state = info.get("completion_state")
+    return state if isinstance(state, str) and state else None
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
