@@ -66,6 +66,7 @@ from ogstores.plan import (
     plan,
     planned_before_admission_record,
 )
+from ogstores.store_info import store_info
 from ogstores.store_size import store_size_on_disk
 
 # The Validation Record shape `register` writes. Every record it writes carries
@@ -742,6 +743,23 @@ def store_facts(
     }
 
 
+def read_format_version(store_dir: Path) -> str:
+    """The `format_version` of the Store at `store_dir`, read by `ogstores.store_info.store_info` (#512).
+
+    `opengwasdb info --format json` is the only reader (ADR 0023). Raises
+    ValueError, naming why, when the command fails, prints no JSON, or reports
+    no format version; the callers decide what a failure means.
+    """
+    try:
+        info = store_info(store_dir)
+    except OSError as exc:
+        raise ValueError(f"`opengwasdb info` could not run: {exc}") from exc
+    version = info.get("format_version")
+    if not isinstance(version, str) or not version:
+        raise ValueError(f"`opengwasdb info` reported no format_version for {store_dir}")
+    return version
+
+
 def harvest_observed_measurements(
     planned_steps: list[Step],
     step_records: dict[str, dict[str, Any]],
@@ -751,11 +769,14 @@ def harvest_observed_measurements(
     manifest_path: Path | None = None,
     earlier_records: Mapping[str, dict[str, Any]] | None = None,
     store_dir: Path | None = None,
+    unread: list[str] | None = None,
 ) -> dict[str, Any]:
     """Harvest observed measurements from step records without opening any Store (ADR 0023).
 
     `store_dir` is the Store this phase publishes, whose size is a stat of its
-    files (`store_facts`, #502).
+    files (`store_facts`, #502). When no step reported `format_version`, it is
+    read from that Store with `opengwasdb info --format json` (#512); a failed
+    read leaves it `None` and appends the reason to `unread`.
 
     `earlier_records` are the records of the release's phases before this
     one: a completion phase's build phase (ADR 0037). The elapsed total counts
@@ -815,6 +836,17 @@ def harvest_observed_measurements(
             m_ana = re.search(r"(\d+)\s+analyses", stdout_text)
             if m_ana:
                 n_analyses = int(m_ana.group(1))
+
+    # A step's report wins; otherwise the engine's own `info` names the format
+    # (#512). A failure is recorded by the caller, never defaulted.
+    if format_version is None:
+        try:
+            if store_dir is None or not store_dir.is_dir():
+                raise ValueError(f"no Store directory to read the format from: {store_dir}")
+            format_version = read_format_version(store_dir)
+        except ValueError as exc:
+            if unread is not None:
+                unread.append(str(exc))
 
     # 2. The validate record carries only its verdict: its JSON has exactly the
     # keys `validate_verdict` accepts, so it reports no measurement (#195).
@@ -1449,6 +1481,7 @@ def register_release(
     partial_p = paths.partial_store_path(store_id, root=resolved_root)
     target_p = paths.store_path(store_id, root=resolved_root)
     staged = publish and partial_p.is_dir()
+    format_version_unread: list[str] = []
     observed = harvest_observed_measurements(
         planned_steps,
         step_records,
@@ -1457,6 +1490,7 @@ def register_release(
         manifest_path=paths.build_manifest_path(store_id, root=resolved_root),
         earlier_records=earlier_records,
         store_dir=partial_p if staged else target_p,
+        unread=format_version_unread,
     )
 
     # 3. Assemble validation.yaml dictionary
@@ -1582,6 +1616,10 @@ def register_release(
         "published_store": published_p_str,
         "replaced_archive": str(archive) if archive else None,
     }
+    if format_version_unread:
+        # `info` could not name the Store's format, so `observed.format_version`
+        # is null; the reason is kept here (#512).
+        register_result["format_version_unread"] = format_version_unread[0]
 
     if staged:
         run._preflight_paths(store_id, resolved_root)
@@ -1639,6 +1677,7 @@ __all__ = [
     "finish_build_phase_publication",
     "forced_completion",
     "harvest_observed_measurements",
+    "read_format_version",
     "store_facts",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",

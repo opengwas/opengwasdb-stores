@@ -16,7 +16,7 @@ build_environment:
     - top-hits
     - validate
 observed:
-  format_version: null
+  format_version: 0.2.1
   n_analyses: 10
   n_variants: 171006
   n_associations: 202803

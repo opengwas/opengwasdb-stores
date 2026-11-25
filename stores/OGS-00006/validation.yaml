@@ -16,7 +16,7 @@ build_environment:
     - completion-validate
     - completion-observed-view-check
 observed:
-  format_version: null
+  format_version: 0.2.1
   n_analyses: 1400
   n_variants: 12357678
   n_associations: 59092457

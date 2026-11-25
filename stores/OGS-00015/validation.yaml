@@ -9,7 +9,7 @@ build_environment:
   python_version: 3.12.15
   platform: Linux-4.18.0-553.164.1.el8_10.x86_64-x86_64-with-glibc2.28
 observed:
-  format_version: null
+  format_version: 0.2.0
   n_analyses: 241
   n_variants: 11650615
   n_associations: null

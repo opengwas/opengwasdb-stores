@@ -179,11 +179,12 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # eQTLGen Trait positions into GRCh38 (#460, opengwasdb#433): OGS-00001
     # rebuilt in 9 s and validating in 5 s, OGS-00002 re-completed in 82 s and
     # validating in 4.5 s, `build_elapsed_s` summing each run's steps. Both are
-    # format 0.2.0 Stores; null is what no step reported, as for OGS-00005.
+    # format 0.2.0 Stores. No step reported the format, so it is what `opengwasdb info`
+    # read from each Store on 25 Nov 2026 (#512's backfill).
     # OGS-00001's counts match the earlier records it replaces, and OGS-00002's
     # are its re-completion's: imputation inside its 23 cis regions only.
     "OGS-00001": {
-        "format_version": None,
+        "format_version": "0.2.0",
         "n_analyses": 10,
         "n_variants": 86376,
         "n_associations": 86373,
@@ -198,7 +199,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "completion_state": "observed_only",
     },
     "OGS-00002": {
-        "format_version": None,
+        "format_version": "0.2.0",
         "n_analyses": 10,
         "n_variants": 123895,
         "n_associations": 123892,
@@ -216,10 +217,10 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # #344) at opengwasdb 0.10.0: `register` wrote this record, the build took
     # 855 s and validate 89 s (964.505 s across the run's steps), and the Store
     # it published holds 21,327,043 variants where the 0.1.0 Store it replaced
-    # held 21,230,615. Null is again what no step reported; the Store's
-    # manifest declares format 0.2.2.
+    # held 21,230,615. No step reported the format; it is the 0.2.2 that
+    # `opengwasdb info` read from the Store (#512's backfill).
     "OGS-00003": {
-        "format_version": None,
+        "format_version": "0.2.2",
         "n_analyses": 10,
         "n_variants": 21327043,
         "n_associations": None,
@@ -242,7 +243,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # are the documented conditional keys a Hybrid build records, and the Store
     # is format 0.2.2.
     "OGS-00004": {
-        "format_version": None,
+        "format_version": "0.2.2",
         "n_analyses": 9,
         "n_variants": 23726262,
         "n_associations": None,
@@ -264,13 +265,13 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # Store held 14,763,864, a build of 1,844 s and a validate of 153 s
     # (2,029.08 s across the run's steps). Still `passed_with_warnings` on
     # GCST003898's EAF orientation, now with 99 overlapping variants where it
-    # read 120. Null is what no step reported: the build and validate records
-    # carry no format_version, association count or store size, and `register`
+    # read 120. The build and validate records carry no format_version (it is
+    # what `opengwasdb info` read, #512's backfill), association count or store size, and `register`
     # no longer invents any of them. `variant_reference: provided` and
     # `rsid_conflicts` are the documented conditional keys for a Hybrid build
     # over a recipe naming an existing panel, and the Store is format 0.2.2.
     "OGS-00005": {
-        "format_version": None,
+        "format_version": "0.2.2",
         "n_analyses": 10,
         "n_variants": 18483436,
         "n_associations": None,
@@ -302,7 +303,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # `build_elapsed_s` sums the run's steps (build 1,194 + top hits 10 +
     # validate 52 + complete 2,371 + validate 55 + Observed-View Check 290 s).
     "OGS-00006": {
-        "format_version": None,
+        "format_version": "0.2.1",
         "n_analyses": 1400,
         "n_variants": 12357678,
         "n_associations": 59092457,
@@ -320,10 +321,10 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # that the Store records its bundle's region table (#224, opengwas#430,
     # stores#459): `register` wrote this record, and the counts are the ones the
     # migrated record left null -- 10 Analyses, 171,006 variants and 202,803
-    # associations, the same build the August record described. Null is what no
-    # step reported.
+    # associations, the same build the August record described. No step
+    # reported the format; it is what `opengwasdb info` read (#512's backfill).
     "OGS-00007": {
-        "format_version": None,
+        "format_version": "0.2.1",
         "n_analyses": 10,
         "n_variants": 171006,
         "n_associations": 202803,
