@@ -45,15 +45,17 @@ the writer owns.
 | `label` | person | yes | a display name; nothing resolves a record by it |
 | `status` | person | yes | one of the statuses below |
 | `default` | person | no | `true` on the one `served` record that is its ancestry's default; absent otherwise. Only `true` is valid, `served` is the only status that may carry it, and at most one `served` record per `provenance.ancestry` may (#537; it feeds ogdb-api#195) |
-| `licence` | person | yes | the data's licence, never empty. `to confirm` is valid, and is shown as written, while a licence is undecided |
+| `licence` | person | yes | the data's licence, never empty. `to confirm` is valid, and is shown as written, while a licence is undecided. An imported matrix's must be its description's (below) |
 | `used_for` | person | yes | what the Store is used for |
 | `issue` | person | no | the issue that built it, such as `ogld#7` |
 | `notes` | person | no | anything else a reader needs |
+| `unrecorded_targets` | person | no | targets of the Store's links that no record describes, each a `path` (absolute) and its `reason`; see the index's links check |
 | `rebuild` | person | yes | how the Store is rebuilt; below |
 | `location` | writer | yes | the Store's absolute path, as the writer was given it |
 | `provenance` | writer | yes | the Store's own provenance; below |
 | `provenance_sha256` | writer | yes | the sha256, in lower-case hex, of the provenance as `opengwasdb ld info` prints it, in canonical form: `json.dumps(info, sort_keys=True, separators=(",", ":"))`, encoded as UTF-8 |
-| `measured.store_bytes` | writer | yes | the bytes of every file under `location`, from a stat of each (`ogstores.store_size.store_size_on_disk`). A Genotype Store's is its sidecar alone |
+| `measured.store_bytes` | writer | yes | the bytes of every regular file under `location`, from an `lstat` of each (`ogstores.store_size.store_size_on_disk`). No link is followed, to a file or a directory, so an overlay's bytes are its own files alone; an unreadable directory is an error, never skipped. A Genotype Store's is its sidecar alone |
+| `measured.links` | writer | no | every symbolic link under `location`, by its path in the Store (such as `near` or `variants/x`), and its target with every link resolved (an absolute path). The walk follows no link; a dangling link is refused, and an unreadable directory is an error, never skipped. Written when the Store has any; such a Store is an overlay |
 | `measured.genotype_bytes` | writer | a Genotype Store | the bytes of the pgen, psam and pvar files its provenance pins, from a stat of each; below. An LD Store has none |
 
 Any other key is an error, so a misspelt field is refused rather than ignored.
@@ -97,7 +99,9 @@ Build Recipe.
 | `script` | the script the commands run, relative to the repository; for a build run through the engine's command line, the subcommand, such as `ogld build --genotypes` |
 | `commands` | the commands, in order, as run from the repository's root |
 
-All four are required.
+All four are required. `commands` holds only commands that can be run; a step
+known only as prose, such as one reconstructed for a Store built before the
+registry, goes in the record's `notes`, naming its source.
 
 ### `provenance`
 
@@ -108,7 +112,7 @@ checksums, the variant filters and the PC checks stay in the Store.
 | field | from `ld info` |
 |---|---|
 | `source_kind` | `source.kind` |
-| `source_description` | `source.description` |
+| `source_description` | `source.description`; for an imported matrix, the object below |
 | `source_panel` | `panel.id` |
 | `ancestry` | `panel.ancestry` |
 | `n` | `panel.n` |
@@ -120,12 +124,40 @@ checksums, the variant filters and the PC checks stay in the Store.
 | `t_partner` | `t_partner`, when the Store records one |
 | `n_variants` | `n_variants` |
 | `counts` | `counts`, as the engine records it (optional) |
+| `variants_dropped` | `variants_dropped`: the variants dropped, per loss class, as the engine records it (optional) |
 | `software` | `software`, as the engine records it; `software.ogld` is required |
 | `created_at` | `build.created_at`, an ISO 8601 date and time in UTC, such as `2026-11-13T04:27:31Z` |
 | `wall_seconds` | `build.wall_seconds` |
 
-Every field but `t_partner` and `counts` is required. A required one `ld info`
-does not print is refused by the writer, never written as empty.
+Every field but `t_partner`, `counts` and `variants_dropped` is required. A
+required one `ld info` does not print is refused by the writer, never written
+as empty.
+
+**An imported matrix** (`source_kind: ld_matrix`, `ogld import`) prints its
+`source.description` as a JSON object in text (ogld's build-inputs.md §12,
+"Published LD import inputs"). The writer records it as that object; one that
+is not a JSON object is refused. The kind fixes the shape: an `ld_matrix`
+record's `source_description` must be this object, and any other kind's must
+be text; a record of the wrong shape is refused, naming the field. Its fields:
+
+| field | required | value |
+|---|---|---|
+| `url` | yes | the published matrix |
+| `licence` | yes | the source's licence |
+| `producer_commit` | yes | the producer's commit |
+| `transformation` | yes | how covariance became r |
+| `liftover_chain` | yes | the chain that lifted it to `reference_assembly` |
+| `qc` | yes | the published QC, which the import does not reapply |
+| `far_bp_by_chromosome` | yes | each chromosome's radius after liftover; `far_bp` is their minimum |
+| `far_target_bp`, `displaced_cap` | no | the import's radius target and displaced-segment cap |
+| `displaced_by_chromosome` | no | the variants each chromosome's displaced segments lost |
+
+Any other field is refused, naming it, so the spec grows with the engine's
+description rather than letting a field pass unread.
+
+**An import's licence is its source's.** For `source_kind: ld_matrix`, the
+record's `licence` must equal `provenance.source_description.licence`;
+otherwise the record is refused, naming both values.
 
 ### Status
 
@@ -159,8 +191,20 @@ pixi run -e dev python3 -m ld_registry write <ld_id> <location> [--ld-root store
   `ld info`, such as a `created_at` that is not a UTC time, leaves no record,
   or leaves the existing one byte for byte as it was. The Store's provenance
   never changes, so no rewrite could mend it.
+- **A Store's links never change either.** A rewrite whose `measured.links`
+  differ from the record's, a link added, removed or retargeted, is refused,
+  naming each `measured.links.<path>`.
 - `measured.store_bytes` may change on a rewrite; the writer prints the old and
-  new values when it does.
+  new values when they differ.
+- **A field the spec has added since a record was written** is filled in on a
+  rewrite when the record's `provenance_sha256` is the Store's: the same
+  digest is the same provenance, so the new field is no contradiction. Under
+  another digest it is one, and the rewrite is refused as above. The same
+  holds for `measured.links`: a record written before links were measured,
+  one whose `measured` has no `links`, gains them on a refresh under the same
+  digest. Because a record without links holds no `links` either, a link that
+  appears in such a Store is recorded on a refresh, not refused; once a
+  record holds `links`, a changed link is refused.
 - It then checks the record and exits 1, naming each field, while the record
   breaks the spec: a new record does so until a person has written its fields.
 
@@ -175,6 +219,14 @@ STORES.md with that section after the Store Releases. Each file has one writer.
 - A second `default: true` for one ancestry among `served` records is an error naming the later record and the one it duplicates; `default` on a record that is not `served` is an error too.
 - A record that breaks the spec, or anything else under `stores/ld/`, stops it
   before anything is written, and the error names the record and the field.
+- **Links.** Each of a record's `measured.links` must point under another
+  record's `location`, as a whole path, and that record must not be
+  `retired`, unless the target lies under a path in the record's
+  `unrecorded_targets`. Otherwise the index stops, naming the record, the link
+  (`measured.links.<path>`) and the target. So retiring or dropping a Store an
+  overlay depends on fails the index instead of breaking the overlay silently.
+  Link errors are reported beside the records' own errors, checked against
+  the records that are valid.
 - CI's `index-ci` runs the same rule and fails on a dirty tree, so a hand edit
   to either file, or a record committed without regenerating them, fails CI.
 
@@ -206,7 +258,7 @@ Each column is the record field of the same name, except:
 | `genotype_bytes` | `measured.genotype_bytes`; empty for an LD Store |
 | `build_wall_s` | `provenance.wall_seconds`, rounded to a whole second |
 | `built_with` | `ogld <provenance.software.ogld> (<rebuild.script>)` |
-| `source` | `provenance.source_description` |
+| `source` | `provenance.source_description`. For `source_kind` `ld_matrix`, rendered from its fields, never as JSON: `<url> (<transformation>), lifted over by <file name of liftover_chain>; <qc>` |
 | `record` | `stores/ld/<ld_id>/record.yaml` |
 | `default` | `1` for a record that declares `default: true`, empty otherwise. The one column after the draft's 31 (#537) |
 

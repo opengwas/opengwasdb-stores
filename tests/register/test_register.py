@@ -2508,5 +2508,44 @@ class TestVariantReferenceRegistration(unittest.TestCase):
         self.assertNotIn("variant_reference", val["observed"])
 
 
+class TestStoreSizeOnDisk(unittest.TestCase):
+    """`ogstores.store_size.store_size_on_disk`, the one byte counter (#502; #538's ruling 1):
+    regular files only, and no symbolic link followed, to a file or to a directory."""
+
+    def test_it_counts_regular_files_and_follows_no_link(self) -> None:
+        from ogstores.store_size import store_size_on_disk
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            elsewhere = root / "elsewhere"
+            (elsewhere / "dir").mkdir(parents=True)
+            (elsewhere / "file").write_bytes(b"x" * 1000)
+            (elsewhere / "dir" / "inner").write_bytes(b"x" * 500)
+            store = root / "store"
+            (store / "sub").mkdir(parents=True)
+            (store / "zarr.json").write_bytes(b"x" * 7)
+            (store / "sub" / "chunk").write_bytes(b"x" * 5)
+            self.assertEqual(store_size_on_disk(store), 12, "a symlink-free tree: every regular file")
+            (store / "file-link").symlink_to(elsewhere / "file")
+            (store / "sub" / "nested-link").symlink_to(elsewhere / "file")
+            (store / "dir-link").symlink_to(elsewhere / "dir")
+            self.assertEqual(store_size_on_disk(store), 12, "no link is followed")
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root reads a chmod 000 directory")
+    def test_an_unreadable_directory_raises_rather_than_being_skipped(self) -> None:
+        from ogstores.store_size import store_size_on_disk
+
+        with tempfile.TemporaryDirectory() as tmp:
+            store = Path(tmp) / "store"
+            (store / "locked").mkdir(parents=True)
+            (store / "locked" / "chunk").write_bytes(b"x" * 5)
+            (store / "locked").chmod(0)
+            try:
+                with self.assertRaises(PermissionError):
+                    store_size_on_disk(store)
+            finally:
+                (store / "locked").chmod(0o755)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -14,9 +14,9 @@ never raises for record content. Each error names the record and the field.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timedelta
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any, NamedTuple
 
 import yaml
@@ -37,6 +37,10 @@ STATUSES: tuple[str, ...] = ("served", "built", "retiring", "reference", "retire
 
 #: The status of a Store the Data API serves, the only one that may be a `default`.
 SERVED = "served"
+
+#: The source kind of an imported matrix (`ogld import`), whose description
+#: is a JSON object of documented fields (ogld build-inputs.md §12).
+IMPORTED_MATRIX = "ld_matrix"
 
 PERSON = "person"
 WRITER = "writer"
@@ -102,6 +106,28 @@ def _commands(value: Any) -> str | None:
     return None
 
 
+def _text_or_mapping(value: Any) -> str | None:
+    return None if isinstance(value, Mapping) else _text(value)
+
+
+def _links(value: Any) -> str | None:
+    if not isinstance(value, Mapping) or not value:
+        return "must be a mapping of every link in the Store, by its path in the Store, to its resolved target"
+    bad = [str(name) for name, target in value.items() if _absolute_path(target)]
+    return f"{', '.join(bad)}: each target must be an absolute path" if bad else None
+
+
+def _unrecorded_targets(value: Any) -> str | None:
+    problem = "must be a list of one or more {path, reason}, each path absolute and each reason non-empty text"
+    if not isinstance(value, list) or not value:
+        return problem
+    for entry in value:
+        if (not isinstance(entry, Mapping) or set(entry) != {"path", "reason"}
+                or _absolute_path(entry["path"]) or _text(entry["reason"])):
+            return problem
+    return None
+
+
 def _ld_id(value: Any) -> str | None:
     return None if is_valid_ld_id(value) else f"{value!r} does not match 'OGL-\\d{{5}}' (ADR 0042)"
 
@@ -136,6 +162,8 @@ FIELDS: tuple[Field, ...] = (
     Field("used_for", PERSON, True, _text),
     Field("issue", PERSON, False, _text),
     Field("notes", PERSON, False, _text),
+    # Targets of the Store's links that no record describes, each with why (#538).
+    Field("unrecorded_targets", PERSON, False, _unrecorded_targets),
     # Written by the build that made the Store, or by a person for a Store
     # built before the registry; #541 adds the writer's option for it.
     Field("rebuild", PERSON, True, _mapping),
@@ -146,7 +174,20 @@ FIELDS: tuple[Field, ...] = (
     Field("location", WRITER, True, _absolute_path),
     Field("provenance", WRITER, True, _mapping),
     Field("provenance.source_kind", WRITER, True, _text),
-    Field("provenance.source_description", WRITER, True, _text),
+    Field("provenance.source_description", WRITER, True, _text_or_mapping),
+    # An imported matrix's (`IMPORTED_MATRIX`) description is a JSON object,
+    # recorded as a mapping of these fields (ogld build-inputs.md §12); any
+    # other kind's is text (`_import_errors`).
+    Field("provenance.source_description.url", WRITER, True, _text),
+    Field("provenance.source_description.licence", WRITER, True, _text),
+    Field("provenance.source_description.producer_commit", WRITER, True, _text),
+    Field("provenance.source_description.transformation", WRITER, True, _text),
+    Field("provenance.source_description.liftover_chain", WRITER, True, _text),
+    Field("provenance.source_description.qc", WRITER, True, _text),
+    Field("provenance.source_description.far_bp_by_chromosome", WRITER, True, _mapping),
+    Field("provenance.source_description.far_target_bp", WRITER, False, _whole),
+    Field("provenance.source_description.displaced_cap", WRITER, False, _whole),
+    Field("provenance.source_description.displaced_by_chromosome", WRITER, False, _mapping),
     Field("provenance.source_panel", WRITER, True, _text),
     Field("provenance.ancestry", WRITER, True, _text),
     Field("provenance.n", WRITER, True, _whole),
@@ -160,6 +201,7 @@ FIELDS: tuple[Field, ...] = (
     Field("provenance.t_partner", WRITER, False, _number),
     Field("provenance.n_variants", WRITER, True, _whole),
     Field("provenance.counts", WRITER, False, _mapping),
+    Field("provenance.variants_dropped", WRITER, False, _mapping),
     Field("provenance.software", WRITER, True, _mapping),
     Field("provenance.software.ogld", WRITER, True, _text),
     Field("provenance.created_at", WRITER, True, _utc_time),
@@ -167,11 +209,19 @@ FIELDS: tuple[Field, ...] = (
     Field("provenance_sha256", WRITER, True, _sha256),
     Field("measured", WRITER, True, _mapping),
     Field("measured.store_bytes", WRITER, True, _whole),
+    Field("measured.links", WRITER, False, _links),
     Field("measured.genotype_bytes", WRITER, False, _whole),
 )
 
 #: Mappings whose keys are the engine's, copied as it records them.
-OPEN_MAPPINGS = frozenset({"provenance.counts", "provenance.software"})
+OPEN_MAPPINGS = frozenset({
+    "provenance.counts",
+    "provenance.variants_dropped",
+    "provenance.software",
+    "provenance.source_description.far_bp_by_chromosome",
+    "provenance.source_description.displaced_by_chromosome",
+    "measured.links",
+})
 
 #: The top-level fields the record writer writes; a person writes the rest.
 WRITER_FIELDS: tuple[str, ...] = tuple(f.name for f in FIELDS if f.written_by == WRITER and "." not in f.name)
@@ -203,6 +253,29 @@ def _genotype_bytes_errors(document: Mapping[str, Any], path: Path) -> list[Reco
     return []
 
 
+def _import_errors(document: Mapping[str, Any], path: Path) -> list[RecordError]:
+    """An imported matrix's description is its object, and its licence is the record's;
+    any other kind's description is text (#538)."""
+    provenance = document.get("provenance")
+    if not isinstance(provenance, Mapping) or "source_description" not in provenance:
+        return []  # their own errors say it
+    description = provenance["source_description"]
+    if provenance.get("source_kind") != IMPORTED_MATRIX:
+        if isinstance(description, Mapping):
+            return [RecordError(path, "provenance.source_description",
+                                f"is an object, but only an {IMPORTED_MATRIX} source's description is one; "
+                                f"a {provenance.get('source_kind')!r} source's is text")]
+        return []
+    if not isinstance(description, Mapping):
+        return [RecordError(path, "provenance.source_description",
+                            f"must be the {IMPORTED_MATRIX} source's description object, not text")]
+    if "licence" in description and document.get("licence") != description["licence"]:
+        return [RecordError(path, "licence", (
+            f"{document.get('licence')!r} is not the imported matrix's own licence, "
+            f"provenance.source_description.licence {description['licence']!r}"))]
+    return []
+
+
 def validate(document: Mapping[str, Any], path: Path) -> list[RecordError]:
     """Every way `document`, read from `path`, breaks the spec; empty when it is valid."""
     errors: list[RecordError] = []
@@ -224,6 +297,7 @@ def validate(document: Mapping[str, Any], path: Path) -> list[RecordError]:
                 if f"{field.name}.{key}" not in declared:
                     errors.append(RecordError(path, f"{field.name}.{key}", "is not a record field"))
     errors.extend(_genotype_bytes_errors(document, path))
+    errors.extend(_import_errors(document, path))
     for key in document:
         if key not in declared:
             errors.append(RecordError(path, str(key), "is not a record field"))
@@ -312,12 +386,43 @@ def load_records(ld_root: Path) -> tuple[list[dict[str, Any]], list[RecordError]
     return records, errors
 
 
+def _under(target: str, directory: str) -> bool:
+    target_path, directory_path = PurePosixPath(target), PurePosixPath(directory)
+    return target_path == directory_path or directory_path in target_path.parents
+
+
+def link_errors(ld_root: Path, records: Sequence[Mapping[str, Any]]) -> list[RecordError]:
+    """Each link (`measured.links`) whose target lies under no record's location,
+    or under a `retired` one's, unless the record lists it in `unrecorded_targets`."""
+    errors: list[RecordError] = []
+    for document in records:
+        measured = document.get("measured") or {}
+        declared = [entry["path"] for entry in document.get("unrecorded_targets") or []]
+        for name, target in sorted((measured.get("links") or {}).items()):
+            if any(_under(target, path) for path in declared):
+                continue
+            holders = [other for other in records
+                       if other is not document and _under(target, other["location"])]
+            live = [other for other in holders if other["status"] != "retired"]
+            if live:
+                continue
+            if holders:
+                problem = f"its target {target} lies under {', '.join(h['ld_id'] for h in holders)}, which is retired"
+            else:
+                problem = (f"its target {target} lies under no record's location: record that Store, "
+                           "or list the target in unrecorded_targets with its reason")
+            errors.append(RecordError(record_path(ld_root, document["ld_id"]), f"measured.links.{name}", problem))
+    return errors
+
+
 def valid_records(ld_root: Path | str) -> list[dict[str, Any]]:
     """Every record under `ld_root`, or `InvalidRecords` naming each error: the one loader that refuses.
 
+    A link whose target no live record holds is an error too, checked against the valid records alone.
     The index and the Analysis Catalog's build both read the registry through it.
     """
     records, errors = load_records(Path(ld_root))
+    errors += link_errors(Path(ld_root), records)
     if errors:
         raise InvalidRecords(errors)
     return records

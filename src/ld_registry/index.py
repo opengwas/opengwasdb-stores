@@ -1,7 +1,9 @@
 """Generate `ld-resources.tsv` from the LD Store Registry's records, and STORES.md's LD section.
 
 The index reads the records alone, never a Store. A record that breaks the
-spec stops it before anything is written, naming the record and the field.
+spec stops it before anything is written, naming the record and the field; so
+does a link whose target no live record holds (`link_errors`), reported beside
+any record's errors. A link is checked against the valid records alone.
 `workflow/Snakefile`'s `index` rule calls `generate_ld_index`, then hands the
 section it returns to `ogstores.index.generate_index`, which writes `STORES.md`:
 each file has one writer.
@@ -14,7 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from ld_registry.panels import RESOURCES, PanelError, declaration_files, panel_rows  # noqa: F401  (re-exported)
-from ld_registry.record import InvalidRecords, valid_records  # noqa: F401  (InvalidRecords is re-exported)
+from ld_registry.record import InvalidRecords, link_errors, valid_records  # noqa: F401  (re-exported)
 from ld_registry.rows import Value, merged_values, render_md_section, render_tsv
 
 TSV_FILENAME = "ld-resources.tsv"
