@@ -11,6 +11,11 @@ field the spec has added since the record was written is
 filled in when the digest shows the same Store. A writer value that breaks the
 spec, such as a `created_at` that is not a UTC time, is refused the same way,
 before anything is written.
+
+The build that made a Store also writes its `rebuild` (#541), when given one:
+as given, validated, and never changed silently. A record that already holds a
+`rebuild`, whether a person or a build wrote it, keeps it: a different one is
+refused, naming each field that differs.
 """
 
 from __future__ import annotations
@@ -152,6 +157,13 @@ def genotype_bytes(location: Path, info: dict[str, Any]) -> int:
     return total
 
 
+def _rebuild_differences(existing: Any, given: dict[str, Any]) -> list[str]:
+    """The `rebuild` fields in which `given` contradicts the record's own."""
+    if not isinstance(existing, dict):
+        return [] if existing is None else ["rebuild"]
+    return [f"rebuild.{key}" for key in sorted(set(existing) | set(given)) if existing.get(key) != given.get(key)]
+
+
 def write_record(
     ld_root: Path | str,
     ld_id: str,
@@ -159,8 +171,9 @@ def write_record(
     runner: Runner | None = None,
     size: Callable[[Path], int] = store_size_on_disk,
     measure_links: Callable[[Path], dict[str, str]] = links,
+    rebuild: dict[str, Any] | None = None,
 ) -> Written:
-    """Write `<ld_root>/<ld_id>/record.yaml` from the LD Store at `location`."""
+    """Write `<ld_root>/<ld_id>/record.yaml` from the LD Store at `location`, and `rebuild` when the build gives it."""
     require_valid_ld_id(ld_id)
     path = record.record_path(Path(ld_root), ld_id)
     existing: dict[str, Any] = {}
@@ -188,6 +201,8 @@ def write_record(
         },
     }
     differ = _differences(existing, computed)
+    if rebuild is not None:
+        differ += _rebuild_differences(existing.get("rebuild"), rebuild)
     if differ:
         raise WriterRefusal(
             f"{path}: {', '.join(differ)}: the Store at {location} is not the Store this record describes; "
@@ -195,6 +210,8 @@ def write_record(
         )
 
     written = {**existing, "ld_id": ld_id, **{name: computed[name] for name in record.WRITER_FIELDS}}
+    if rebuild is not None:
+        written["rebuild"] = rebuild
     order = [f.name for f in record.FIELDS if "." not in f.name]
     document = {key: written[key] for key in order if key in written}
     document.update((key, value) for key, value in written.items() if key not in document)
@@ -202,7 +219,8 @@ def write_record(
     # A writer value that breaks the spec came from the Store, and a published
     # Store never changes, so no rewrite could mend it: refuse before writing.
     # A field a person has still to write is the CLI's to report afterwards.
-    malformed = [e for e in record.validate(document, path) if e.field.split(".")[0] in record.WRITER_FIELDS]
+    ours = set(record.WRITER_FIELDS) | ({"rebuild"} if rebuild is not None else set())
+    malformed = [e for e in record.validate(document, path) if e.field.split(".")[0] in ours]
     if malformed:
         raise WriterRefusal("; ".join(str(error) for error in malformed))
 

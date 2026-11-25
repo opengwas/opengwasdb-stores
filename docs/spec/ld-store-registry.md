@@ -50,7 +50,7 @@ the writer owns.
 | `issue` | person | no | the issue that built it, such as `ogld#7` |
 | `notes` | person | no | anything else a reader needs |
 | `unrecorded_targets` | person | no | targets of the Store's links that no record describes, each a `path` (absolute) and its `reason`; see the index's links check |
-| `rebuild` | person | yes | how the Store is rebuilt; below |
+| `rebuild` | the build (through the writer's `--rebuild`), or a person for a Store built before the registry | yes | how the Store is rebuilt; below |
 | `location` | writer | yes | the Store's absolute path, as the writer was given it |
 | `provenance` | writer | yes | the Store's own provenance; below |
 | `provenance_sha256` | writer | yes | the sha256, in lower-case hex, of the provenance as `opengwasdb ld info` prints it, in canonical form: `json.dumps(info, sort_keys=True, separators=(",", ":"))`, encoded as UTF-8 |
@@ -86,22 +86,38 @@ refuses it on any other kind, naming the record and the field.
 
 ### `rebuild`
 
-What rebuilds the Store, so a later ticket (#541) can rebuild from the record.
-It is written by the build that made the Store, or, for a Store built before
-the registry, by a person from what actually built it. #541 adds the writer's
-option for it; until then a person writes it. It is not a Release Bundle's
-Build Recipe.
+What rebuilds the Store, so it can be rebuilt from the record (#541). It is
+written by the build that made the Store, through the writer's `--rebuild`
+option, or, for a Store built before the registry, by a person from what
+actually built it. It is not a Release Bundle's Build Recipe.
 
 | field | value |
 |---|---|
 | `repository` | the repository the commands run in, such as `opengwas/ogld` |
-| `version` | the version of that repository they run at |
+| `version` | the version of that repository they run at. One the recipe writes names a commit, as `git describe` does: it refuses a checkout with uncommitted changes or untracked files |
 | `script` | the script the commands run, relative to the repository; for a build run through the engine's command line, the subcommand, such as `ogld build --genotypes` |
 | `commands` | the commands, in order, as run from the repository's root |
 
 All four are required. `commands` holds only commands that can be run; a step
 known only as prose, such as one reconstructed for a Store built before the
 registry, goes in the record's `notes`, naming its source.
+
+**A runnable `rebuild`** is one whose every command is the engine's:
+`opengwasdb ld build` or `opengwasdb ld validate`, after an optional
+`pixi run -e <environment>`, with exactly one build, of the record's
+`location`. `ogld <subcommand>`, the engine's former name, is read as
+`opengwasdb ld <subcommand>` and runs at the engine the lock pins. A command
+holds no shell syntax (`&&`, `;`, `|`, a redirection): each runs as one argv.
+OGL-00006's `rebuild` runs `ogld derive-partners` and OGL-00012's
+`ogld import`, so each is a record of what built the Store, and not runnable.
+OGL-00001 to OGL-00005's runs `scripts/build_hgdp1kgp.py`, and is not runnable
+either; but the obstacle to rebuilding them is the engine. They were built at
+ogld 0.0.1.dev292 without Partner Rows (their provenance has no `t_partner`),
+and the engine the lock pins requires `--t-partner`, so no build today makes
+an LD Store equal to them; their records' `notes` say so. OGL-00007 to
+OGL-00011's `rebuild` is runnable. A Genotype Store's rebuild copies its staged
+inputs from the original's directory, so it needs that directory to exist;
+their `notes` say so too.
 
 ### `provenance`
 
@@ -205,8 +221,133 @@ pixi run -e dev python3 -m ld_registry write <ld_id> <location> [--ld-root store
   digest. Because a record without links holds no `links` either, a link that
   appears in such a Store is recorded on a refresh, not refused; once a
   record holds `links`, a changed link is refused.
+- **`--rebuild <file>`** gives the record its `rebuild`, a YAML mapping, as
+  the build that made the Store writes it. It is validated with the writer's
+  fields, and refused the same way, naming each `rebuild.*` field, when one is
+  missing or malformed. A record that already holds a `rebuild` keeps it: a
+  different one is refused, naming each field that differs, so a rewrite
+  never changes it silently. Without the option, a `rebuild` a person wrote is
+  kept.
 - It then checks the record and exits 1, naming each field, while the record
   breaks the spec: a new record does so until a person has written its fields.
+
+## The recipe
+
+`tools/ld-stores/ld_stores.py` (`pixi run ld-stores`) builds the HGDP+1kGP
+LD Stores and Genotype Stores, through the engine's command line alone
+(ADR 0023), and writes their records. It moved here from opengwasdb's
+`scripts/ld/build_hgdp1kgp.py build` and ogld#92's `build92.sh` (#541). The
+plink2 conversion that makes its inputs stays in opengwasdb
+(`build_hgdp1kgp.py convert`, build-inputs §3).
+
+```text
+pixi run ld-stores build --kind ld_store|genotype_store --panel AMR --out <dir> --ld-id OGL-NNNNN
+```
+
+- **Its inputs** are a panel's pgen fileset per chromosome
+  (`$OPENGWASDB_LD_PGEN_V2/<PANEL>/chr<N>.{pgen,psam,pvar}`), its keep file
+  (`$OPENGWASDB_LD_KEEP/<PANEL>.keep`) and its PC File
+  (`$OPENGWASDB_LD_PCS/<PANEL>.eigenvec`), each overridable by a flag.
+- **Its flags are the Genotype Stores'** (OGL-00007 to OGL-00011), from their
+  provenance and `build92.sh`: `--k 10 --k-min 5 --r-scale 511 --t-partner
+  0.01 --mac-min 20 --info-min none`, the panel id `hgdp1kgp-v2-<PANEL>`, and
+  the source and PC source texts their provenance records. The LD Stores
+  OGL-00001 to OGL-00005 share every flag but `--t-partner`: they were built
+  without Partner Rows, which the engine now requires, so an LD Store this
+  recipe builds carries Partner Rows at `t_partner` 0.01, unlike them.
+  Threads are 16 for an LD Store and 8 for a Genotype Store, as their
+  provenance's `build.threads` records.
+- **A Genotype Store's inputs are staged** first, as `build92.sh` did:
+  read-only copies, modification times kept, in `<dir>/pgen/` and
+  `<dir>/inputs/`, because its sidecar pins them by a path relative to itself.
+  Each copy must have the sha256 the panel's published LD Store
+  (`$OPENGWASDB_LD_STORES/hgdp1kgp-v2-<PANEL>-k10.store`, or
+  `--ld-stores-root`) records of it, read through `opengwasdb ld info`: the
+  pgen, psam and pvar files and the keep file in `source.sha256`, as
+  `build92.sh` checked them, and the PC File in `adjustment.pc_file.sha256`,
+  because an LD Store's `source.sha256` does not hold it. A copy that differs,
+  one the LD Store did not read, or a provenance without either field, refuses
+  the build before the engine runs. A refusal, or a failed copy, removes
+  everything staging made, a partial copy and its directories included, and
+  nothing else.
+- It runs `opengwasdb ld build <dir>/hgdp1kgp-v2-<PANEL>-k10.store`, then
+  `opengwasdb ld validate`, each in `build92.sh`'s environment
+  (`OPENBLAS_NUM_THREADS`, `OMP_NUM_THREADS` and `MKL_NUM_THREADS` 1,
+  `PYTHONNOUSERSITE` 1, and `TMPDIR` `<dir>/.<store>.tmp`, removed once both
+  succeed), then the writer, with `rebuild` set to this repository, the
+  commit `git describe` names, and those two commands. A person then writes
+  the record's label, status, licence and use.
+- It refuses, before running anything, a Store or staged input that exists, a
+  missing input, an id whose record already holds a Store, and a checkout
+  with uncommitted changes or untracked files.
+
+## Rebuilding from a record
+
+```text
+pixi run ld-stores rebuild OGL-NNNNN --out <dir>
+```
+
+It runs the record's runnable `rebuild` with only the output changed: every
+argument under the Store's directory (the parent of its `location`) moves to
+`<dir>`. The inputs the commands read from inside that directory, a Genotype
+Store's staged copies, are copied first, modification times kept, so the new
+sidecar pins them as the original does; a `--pgen` brings its psam and pvar.
+A record whose commands validate nothing, such as OGL-00007 to OGL-00011's, is
+validated once after its build, at the build's threads; one whose commands
+validate is not validated again. The commands run in the recipe's environment.
+
+It refuses an output that exists, an output inside any recorded Store's
+`location` or inside a Genotype Store's directory, each compared once every
+symbolic link is followed, and a record without a runnable `rebuild`. It writes
+no record: the rebuilt Store is a new Store, and the record and the original
+Store are only read.
+
+### The acceptance run
+
+After the rebuild, whose own commands validated it, it compares
+`opengwasdb ld info` of the original with that of the rebuilt, field by field
+(`ld_registry.compare`). It looks at nothing the command line does not show
+(ADR 0023). It fails, exiting 1:
+
+- on a difference in any field but the build's own, a closed list:
+  `build.created_at`, `build.wall_seconds`, `build.peak_memory_bytes` (it
+  depends on the machine; owner, 25 November 2026), and each
+  `software.<key>` version, each only when both sides hold it. A field one
+  side lacks fails, whichever it is;
+- on a difference beyond a relative tolerance of 1e-9 in the PC Check's
+  diagnostic statistics, a closed list (`TOLERATED_SCAN_STATISTICS`): each
+  `adjustment.pc_check.scan[*]`'s `ratio`, `rest_null_q99`, `rest_share`,
+  `window_null_q99` and `window_share`. They are diagnostics, and their last
+  digits depend on the numerical library: OGL-00009, built by ogld 0.5.0, and
+  its rebuilds by opengwasdb 0.20.0 differ in 77 of them at about 1e-15
+  relative (owner, 25 November 2026, after #541's acceptance run). A
+  difference within the tolerance is reported as `(within tolerance)`, never
+  dropped. Every other field is compared exactly: the scan's `pc` and
+  `window`, `pc_check.dropped`, the PCs kept, and every value the Store
+  holds;
+- when the original's provenance is no longer the one its record's
+  `provenance_sha256` names;
+- when the rebuilt Store's provenance lacks what an HGDP+1kGP Store records
+  (`ld_registry.compare.provenance_problems`, the checks of `ld info` that
+  moved here from opengwasdb's `test_hgdp1kgp_stores.py`): `panel.id`
+  `hgdp1kgp-v2-<ancestry>`, `panel.n` equal to its keep file's samples,
+  `encoding.r_scale` 511, `n_variants` and `t_far` in range, the build's
+  `created_at` (a UTC time), wall time, peak memory and `software.ogld`,
+  `adjustment.k_target` 10, `k_min` 5, a `k` between them with as many
+  covariates, and the PC Check's `dropped` list; an LD Store also its
+  `counts.near_pairs` and its PC Diagnostic. The checks that need the engine's
+  internals (every validation rule by name, the autosomes held, the direct
+  decoder against zarr) stay in opengwasdb's `ld-acceptance-stores`, which
+  takes any LD Store path.
+
+Every difference, the build's own included, is printed. `pixi run ld-stores
+compare <original> <rebuilt> [--keep <file>]` is the same acceptance of two
+Stores already built, without a record: the comparison and the provenance
+checks, with `panel.n` held to the keep file when one is given.
+`tests/ld-stores-acceptance/` validates a Store already rebuilt, apart from its
+rebuild, and runs the same checks, skipped wherever `OPENGWASDB_LD_REBUILT_ID`
+and `OPENGWASDB_LD_REBUILT_STORE` are not set. A rebuild of a real Store needs
+the owner's approval of its command, host and budget.
 
 ## The index
 

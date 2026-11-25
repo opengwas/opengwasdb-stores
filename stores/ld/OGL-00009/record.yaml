@@ -9,7 +9,7 @@ status: built
 licence: to confirm
 used_for: Data API LD once ogdb-api#180 ships
 issue: ogld#92
-notes: 'ogld validate ok 2026-11-21; read-only; the commands alone do not recreate pgen/ or inputs/ or the build environment: staging the pgen, keep and eigenvec files (sha256 checked) and the per-build environment is done by scripts/build92.sh in /data/opengwasdb/work/orchestrate/ogld-18, outside ogld (#541 makes the rebuild complete)'
+notes: 'ogld validate ok 2026-11-21; read-only; the commands alone do not recreate pgen/ or inputs/ or the build environment: staging the pgen, keep and eigenvec files (sha256 checked) and the per-build environment is done by scripts/build92.sh in /data/opengwasdb/work/orchestrate/ogld-18, outside ogld; pixi run ld-stores rebuild (#541) replays these commands with the staged pgen, keep and eigenvec files copied from this Store''s directory, in that environment, so a rebuild needs this directory to exist'
 rebuild:
   repository: opengwas/ogld
   version: 0.5.0

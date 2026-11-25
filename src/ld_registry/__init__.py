@@ -6,3 +6,8 @@ docs/spec/ld-store-registry.md, the decision ADR 0042 (#536, epic #496).
 
 This package may import from `ogstores`; `ogstores` never imports it.
 """
+
+from pathlib import Path
+
+#: The repository's root: `stores/ld/` and the tools are found from it.
+REPO_ROOT = Path(__file__).resolve().parents[2]

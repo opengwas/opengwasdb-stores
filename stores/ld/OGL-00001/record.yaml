@@ -9,7 +9,7 @@ status: served
 licence: to confirm
 used_for: 'Data API LD: matrix, region, proxies, clump'
 issue: ogld#7
-notes: served by ogdb-api (OGDB_LD_STORES); stays as the reference answers are checked against
+notes: served by ogdb-api (OGDB_LD_STORES); stays as the reference answers are checked against; it cannot be rebuilt equal, because it was built without Partner Rows and the engine the lock pins requires --t-partner, so a build now adds them (#541)
 rebuild:
   repository: opengwas/ogld
   version: 0.0.1.dev292+g25af8039f

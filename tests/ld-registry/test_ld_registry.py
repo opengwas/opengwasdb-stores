@@ -361,6 +361,104 @@ class TestTheWriter(RegistryCase):
         self.assertEqual(self.path.read_text(encoding="utf-8"), text, "an existing record is untouched")
 
 
+#: A `rebuild` the build writes (#541): this repository's recipe's own commands.
+BUILT_REBUILD = {
+    "repository": "opengwas/opengwasdb-stores",
+    "version": "v0.47.0",
+    "script": "opengwasdb ld build",
+    "commands": [
+        "pixi run -e dev opengwasdb ld build /x/hgdp1kgp-v2-EUR-k10.store --pgen /p/EUR/chr1.pgen --keep /k/EUR.keep",
+        "pixi run -e dev opengwasdb ld validate --threads 16 /x/hgdp1kgp-v2-EUR-k10.store",
+    ],
+}
+
+
+class TestTheWritersRebuildOption(RegistryCase):
+    """#541: the build records its own `rebuild`, as given, validated, and never changed silently."""
+
+    def write_rebuild(self, rebuild: dict[str, Any]):
+        return writer.write_record(
+            self.ld_root, "OGL-00001", LOCATION, runner=stub_runner(recorded_ld_info()), size=lambda _: 1,
+            measure_links=lambda _: {}, rebuild=rebuild,
+        )
+
+    def person_record_without_rebuild(self) -> None:
+        document = literal_record()
+        write_yaml(self.path, {"ld_id": "OGL-00001", **{f: document[f] for f in PERSON_FIELDS if f != "rebuild"}})
+
+    def test_it_is_written_as_given(self) -> None:
+        self.person_record_without_rebuild()
+        self.write_rebuild(BUILT_REBUILD)
+        self.assertEqual(self.read()["rebuild"], BUILT_REBUILD)
+        self.assertEqual(record.load_record(self.path)[1], [])
+
+    def test_a_new_record_takes_it_before_a_person_has_written_anything(self) -> None:
+        self.write_rebuild(BUILT_REBUILD)
+        written = self.read()
+        self.assertEqual(written["rebuild"], BUILT_REBUILD)
+        missing = {error.field for error in record.load_record(self.path)[1]}
+        self.assertEqual(missing, {"label", "status", "licence", "used_for"}, "only what a person writes is left")
+
+    def test_each_missing_field_is_refused_and_nothing_is_written(self) -> None:
+        for field in ("repository", "version", "script", "commands"):
+            with self.subTest(field=field):
+                self.person_record_without_rebuild()
+                text = self.path.read_text(encoding="utf-8")
+                partial = {key: value for key, value in BUILT_REBUILD.items() if key != field}
+                with self.assertRaises(writer.WriterRefusal) as caught:
+                    self.write_rebuild(partial)
+                self.assertIn(f"rebuild.{field}", str(caught.exception))
+                self.assertIn(str(self.path), str(caught.exception))
+                self.assertEqual(self.path.read_text(encoding="utf-8"), text)
+
+    def test_a_malformed_one_is_refused(self) -> None:
+        for field, value in (("commands", []), ("commands", "one string"), ("version", ""), ("extra", "x")):
+            with self.subTest(field=field, value=value):
+                with self.assertRaises(writer.WriterRefusal) as caught:
+                    self.write_rebuild({**BUILT_REBUILD, field: value})
+                self.assertIn(f"rebuild.{field}", str(caught.exception))
+                self.assertFalse(self.path.exists())
+
+    def test_a_rewrite_with_the_same_one_is_accepted(self) -> None:
+        self.write_rebuild(BUILT_REBUILD)
+        self.write_rebuild(dict(BUILT_REBUILD))
+        self.assertEqual(self.read()["rebuild"], BUILT_REBUILD)
+
+    def test_a_rewrite_never_changes_it_silently(self) -> None:
+        self.person_record()  # a person wrote the ogld rebuild
+        text = self.path.read_text(encoding="utf-8")
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            self.write_rebuild(BUILT_REBUILD)
+        message = str(caught.exception)
+        for field in ("rebuild.repository", "rebuild.version", "rebuild.script", "rebuild.commands"):
+            with self.subTest(field=field):
+                self.assertIn(field, message)
+        self.assertEqual(self.path.read_text(encoding="utf-8"), text)
+
+    def test_without_the_option_a_person_written_rebuild_is_kept(self) -> None:
+        self.person_record()
+        self.write()
+        self.assertEqual(self.read()["rebuild"], literal_record()["rebuild"])
+
+    def test_the_command_line_reads_it_from_a_yaml_file(self) -> None:
+        from ld_registry.__main__ import main
+
+        self.person_record_without_rebuild()
+        given = write_yaml(self.tmp / "rebuild.yaml", BUILT_REBUILD)
+        import ld_registry.provenance as provenance_module
+
+        original = provenance_module.run_engine_json
+        provenance_module.run_engine_json = lambda argv, runner=None: recorded_ld_info()
+        location = self.tmp / "x.store"
+        location.mkdir()
+        try:
+            status = main(["write", "OGL-00001", str(location), "--ld-root", str(self.ld_root), "--rebuild", str(given)])
+        finally:
+            provenance_module.run_engine_json = original
+        self.assertEqual(status, 0)
+        self.assertEqual(self.read()["rebuild"], BUILT_REBUILD)
+
+
 class TestRows(unittest.TestCase):
     """Seam 3: typed values in the spec's columns, then their rendering."""
 
