@@ -82,6 +82,8 @@ EXEMPT_TESTS: dict[str, str] = {
         "the workflow suite's Dense fixture bundle writer, which is a sibling test module, not a package",
     "tests/post-additions/test_post_additions.py":
         "the workflow suite's Dense fixture bundle writer (#528), which is a sibling test module, not a package",
+    "tests/hybrid-rho-pipeline/test_hybrid_rho_pipeline.py":
+        "the workflow suite's Dense fixture bundle writer, which is a sibling test module, not a package",
     "tests/audit/test_audit_reconcile.py":
         "the audit suites' layouts.py, which builds a fixture Store in format 0.2.x and 0.3.0; the directory is not a package",
     "tests/audit/test_audit_attribute.py":

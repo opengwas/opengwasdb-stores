@@ -205,13 +205,15 @@ COMMANDS: dict[str, CommandSpec] = {
         rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
     ),
-    # Hybrid builds top-hit indexes inline during build-hybrid; rho is dense-only.
+    # Hybrid builds top-hit indexes inline during build-hybrid; its Rho Matrix is built in
+    # the Dense Component by `build-dense-rho <hybrid release>` (#529, opengwasdb#496).
     "build-hybrid": CommandSpec(
         phase="build",
         name="hybrid",
         positionals=("analyses", "store"),
         inputs=("analyses",),
         column_map=True,
+        rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
     ),
     RAGGED_SSF_COMMAND: CommandSpec(
@@ -249,6 +251,7 @@ COMMANDS: dict[str, CommandSpec] = {
         positionals=("parent_store", "store"),
         inputs=("parent_store",),
         identity=False,
+        rho_cmd="build-dense-rho",
         overview_cmd="regenerate-overview",
     ),
     # The Ragged Observed-View Check rebuilds the regions completion retained
@@ -614,7 +617,7 @@ def _post_steps(
     if post.get("rho"):
         if spec.rho_cmd is None:
             raise ValueError(
-                f"rho post-processing is valid only for dense layout, not {spec.name!r}"
+                f"rho post-processing is valid only for dense and hybrid layouts, not the ragged layout ({spec.name!r})"
             )
         steps.append(
             Step(

@@ -651,27 +651,23 @@ class TestPlanHybrid(unittest.TestCase):
         record_check()
         self.assertIn("top_hits post-processing is not supported or built inline for hybrid layout", str(ctx.exception))
 
-    def test_hybrid_rho_rejected(self) -> None:
-        """Configuring rho: true on a Hybrid layout raises ValueError (rho is Dense only)."""
-        bundle_invalid_rho = Bundle(
+    def test_hybrid_rho_planned(self) -> None:
+        """rho: true on a Hybrid plans build-dense-rho on the Store, after build (#529)."""
+        bundle_rho = Bundle(
             store_id="OGS-00004",
             root=Path("stores/OGS-00004"),
             release=self.bundle_00004.release,
             build={
-                **self.bundle_00004.build,
-                "post": {
-                    "top_hits": False,
-                    "rho": True,
-                    "overview": True,
-                    "validate": True,
-                },
+                **without_indexed_subsets(self.bundle_00004.build),
+                "post": {"top_hits": False, "rho": True, "overview": False, "validate": True},
             },
             analyses_path=self.bundle_00004.analyses_path,
         )
-        with self.assertRaises(ValueError) as ctx:
-            plan(bundle_invalid_rho)
+        steps = plan(bundle_rho)
         record_check()
-        self.assertIn("rho post-processing is valid only for dense layout, not 'hybrid'", str(ctx.exception))
+        self.assertEqual([s.name for s in steps], ["build", "rho", "validate"])
+        self.assertEqual(steps[1].argv[:2], ["opengwasdb", "build-dense-rho"])
+        self.assertEqual(steps[1].argv[2], str(steps[0].outputs[0]))
 
     def test_hybrid_post_flags_selective_toggle(self) -> None:
         """Individual post flags toggle corresponding steps for hybrid layout."""
@@ -851,7 +847,7 @@ class TestPlanRagged(unittest.TestCase):
                 plan(bundle_invalid_rho)
             record_check()
             self.assertIn(
-                f"rho post-processing is valid only for dense layout, not '{expected_layout_name}'",
+                f"rho post-processing is valid only for dense and hybrid layouts, not the ragged layout ('{expected_layout_name}')",
                 str(ctx.exception),
             )
 
@@ -1769,10 +1765,30 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 str(ctx.exception),
             )
 
-    def test_reference_completed_rho_dense_only(self) -> None:
-        """rho: true is rejected on hybrid-completed and ragged-completed, but allowed on dense-completed."""
+    def test_hybrid_completed_rho_planned(self) -> None:
+        """rho: true on a Hybrid completion plans build-dense-rho on the completed Store (#529)."""
+        bundle_rho = Bundle(
+            store_id="OGS-00060",
+            root=Path("stores/OGS-00060"),
+            release={"store_id": "OGS-00060", "family": "test-family", "derived_from": "OGS-00001", "status": "accepted"},
+            build={
+                "store_id": "OGS-00060",
+                "layout": "hybrid",
+                "completion_state": "reference_completed",
+                "complete": {"command": "complete-hybrid", "options": {}},
+                "post": {"top_hits": False, "rho": True, "overview": False, "validate": True},
+            },
+            analyses_path=Path("stores/OGS-00060/analyses.tsv"),
+        )
+        steps = plan(bundle_rho)
+        record_check()
+        rho = [s for s in steps if s.name == "rho"]
+        self.assertEqual(len(rho), 1)
+        self.assertEqual(rho[0].argv[:2], ["opengwasdb", "build-dense-rho"])
+
+    def test_reference_completed_rho_ragged_only_refused(self) -> None:
+        """rho: true is rejected on ragged-completed, but allowed on dense- and hybrid-completed."""
         for layout, cmd, expected_layout_name in [
-            ("hybrid", "complete-hybrid", "hybrid-completed"),
             ("ragged", "complete-ragged", "ragged-completed"),
         ]:
             bundle_invalid_rho = Bundle(
@@ -1802,7 +1818,7 @@ class TestPlanReferenceCompleted(unittest.TestCase):
                 plan(bundle_invalid_rho)
             record_check()
             self.assertIn(
-                f"rho post-processing is valid only for dense layout, not '{expected_layout_name}'",
+                f"rho post-processing is valid only for dense and hybrid layouts, not the ragged layout ('{expected_layout_name}')",
                 str(ctx.exception),
             )
 

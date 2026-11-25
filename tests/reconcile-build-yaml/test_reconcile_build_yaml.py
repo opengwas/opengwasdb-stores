@@ -101,8 +101,8 @@ def derive_post_command(layout: str, step_name: str) -> str:
         else:
             raise ValueError(f"top_hits post-processing is not a post step for {layout!r} layout (built inline)")
     if step_name == "rho":
-        if layout != "dense":
-            raise ValueError(f"rho post-processing is valid only for dense layout, not {layout!r}")
+        if layout not in ("dense", "hybrid"):
+            raise ValueError(f"rho post-processing is valid only for dense and hybrid layouts, not {layout!r}")
         return "build-dense-rho"
     if step_name == "overview":
         return "regenerate-overview"
