@@ -56,7 +56,10 @@ threadpoolctl = ">=3.0"
 # dependency on it collides (conda + PyPI wheel installing the same compiled
 # extension into the same environment) if pysam is also pinned via conda, so it
 # is left for pip/uv to resolve as a transitive PyPI dependency of opengwasdb.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "main" }
+# OGS-00011's 0.2.3 completion resumes at completion-observed-view-check on
+# 0.16.1 plus the dropped-row rule (opengwas/opengwasdb#490), the commit its
+# real-data verdict passed on; main writes 0.3.0 from 0.17.0 (stores#478).
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", rev = "40446bb0ed47f1420f08d53edd55296bd96ec6aa" }
 
 [feature.r.dependencies]
 r-base = ">=4.3"
