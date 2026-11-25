@@ -38,7 +38,7 @@ from typing import Any, Callable
 import yaml
 
 
-from ogstores import bundle, manifest, paths, register, run
+from ogstores import bundle, manifest, paths, register, store_info as store_info_module, run
 from ogstores.bundle import Bundle
 from ogstores.plan import OBSERVED_VIEW_CHECK_STEP, Step, plan
 from ogstores.register import (
@@ -734,6 +734,69 @@ class TestStoreFacts(unittest.TestCase):
 
         self.assertIs(observed["has_hm3"], True)
         self.assertIsNone(observed["has_rho"])
+
+    def test_format_version_comes_from_info_when_no_step_reported_it(self) -> None:
+        """`register` reads `opengwasdb info --format json` on the Store, through readiness's reader (#512)."""
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00067")
+        write_store_files(paths.partial_store_path("OGS-00067", root=artifact_root), {"manifest.json": b"{}"})
+        set_build_stdout("OGS-00067", artifact_root, {"n_analyses": 2})
+        calls: list[list[str]] = []
+
+        def info(argv: Any) -> subprocess.CompletedProcess[str]:
+            calls.append(list(argv))
+            return subprocess.CompletedProcess(argv, 0, '{"format_version": "0.2.3"}', "")
+
+        with patch.object(store_info_module, "_default_runner", info):
+            val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertEqual(val_data["observed"]["format_version"], "0.2.3")
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0][:2], ["opengwasdb", "info"])
+        self.assertEqual(calls[0][-2:], ["--format", "json"])
+
+    def test_a_step_reported_format_version_wins(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00068")
+        write_store_files(paths.partial_store_path("OGS-00068", root=artifact_root), {"manifest.json": b"{}"})
+        set_build_stdout("OGS-00068", artifact_root, {"format_version": "0.2.0"})
+
+        def info(argv: Any) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(argv, 0, '{"format_version": "0.2.3"}', "")
+
+        with patch.object(store_info_module, "_default_runner", info):
+            val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertEqual(val_data["observed"]["format_version"], "0.2.0")
+
+    def test_a_failing_info_leaves_null_and_records_why(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00069")
+        write_store_files(paths.partial_store_path("OGS-00069", root=artifact_root), {"manifest.json": b"{}"})
+        set_build_stdout("OGS-00069", artifact_root, {"n_analyses": 2})
+
+        def info(argv: Any) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(argv, 2, "", "no such store")
+
+        with patch.object(store_info_module, "_default_runner", info):
+            val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root)
+
+        self.assertIsNone(val_data["observed"]["format_version"])
+        record = run.load_record("OGS-00069", "register", root=artifact_root)
+        self.assertIn("no such store", record["format_version_unread"])
+
+    def test_a_failed_read_is_not_a_default(self) -> None:
+        b, _, _ = create_test_bundle_and_records(self.td, "OGS-00070")
+        steps = [Step("build", [], [], [])]
+        unread: list[str] = []
+
+        def info(argv: Any) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(argv, 0, "not json", "")
+
+        with patch.object(store_info_module, "_default_runner", info):
+            observed = register.harvest_observed_measurements(
+                steps, {}, b, store_dir=self.td, unread=unread
+            )
+
+        self.assertIsNone(observed["format_version"])
+        self.assertEqual(len(unread), 1)
 
     def test_a_failed_or_missing_step_record_is_not_a_built_index(self) -> None:
         steps = [Step("indexed-subset-hm3", [], [], []), Step("rho", [], [], [])]

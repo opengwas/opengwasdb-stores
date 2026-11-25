@@ -179,11 +179,12 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # eQTLGen Trait positions into GRCh38 (#460, opengwasdb#433): OGS-00001
     # rebuilt in 9 s and validating in 5 s, OGS-00002 re-completed in 82 s and
     # validating in 4.5 s, `build_elapsed_s` summing each run's steps. Both are
-    # format 0.2.0 Stores; null is what no step reported, as for OGS-00005.
+    # format 0.2.0 Stores. No step reported the format, so it is what `opengwasdb info`
+    # read from each Store on 25 Nov 2026 (#512's backfill).
     # OGS-00001's counts match the earlier records it replaces, and OGS-00002's
     # are its re-completion's: imputation inside its 23 cis regions only.
     "OGS-00001": {
-        "format_version": None,
+        "format_version": "0.2.0",
         "n_analyses": 10,
         "n_variants": 86376,
         "n_associations": 86373,
@@ -198,7 +199,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "completion_state": "observed_only",
     },
     "OGS-00002": {
-        "format_version": None,
+        "format_version": "0.2.0",
         "n_analyses": 10,
         "n_variants": 123895,
         "n_associations": 123892,
@@ -219,7 +220,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # held 21,230,615. Null is again what no step reported; the Store's
     # manifest declares format 0.2.2.
     "OGS-00003": {
-        "format_version": None,
+        "format_version": "0.2.2",
         "n_analyses": 10,
         "n_variants": 21327043,
         "n_associations": None,
@@ -242,7 +243,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # are the documented conditional keys a Hybrid build records, and the Store
     # is format 0.2.2.
     "OGS-00004": {
-        "format_version": None,
+        "format_version": "0.2.2",
         "n_analyses": 9,
         "n_variants": 23726262,
         "n_associations": None,
@@ -270,7 +271,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # `rsid_conflicts` are the documented conditional keys for a Hybrid build
     # over a recipe naming an existing panel, and the Store is format 0.2.2.
     "OGS-00005": {
-        "format_version": None,
+        "format_version": "0.2.2",
         "n_analyses": 10,
         "n_variants": 18483436,
         "n_associations": None,
@@ -302,7 +303,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # `build_elapsed_s` sums the run's steps (build 1,194 + top hits 10 +
     # validate 52 + complete 2,371 + validate 55 + Observed-View Check 290 s).
     "OGS-00006": {
-        "format_version": None,
+        "format_version": "0.2.1",
         "n_analyses": 1400,
         "n_variants": 12357678,
         "n_associations": 59092457,
@@ -323,7 +324,7 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # associations, the same build the August record described. Null is what no
     # step reported.
     "OGS-00007": {
-        "format_version": None,
+        "format_version": "0.2.1",
         "n_analyses": 10,
         "n_variants": 171006,
         "n_associations": 202803,

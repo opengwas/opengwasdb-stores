@@ -43,6 +43,7 @@ from opengwasdb.model import analyses as opengwasdb_analyses
 from ogstores import bundle as bundle_module
 from ogstores import engine, paths
 from ogstores.bundle import Bundle
+from ogstores.store_info import store_info
 from ogstores.manifest import EXCLUDE_COLUMN, classify_exclusion
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
@@ -769,36 +770,6 @@ def _built_membership_channel(
 # --------------------------------------------------------------------------
 # Supported OpenGWASDB reporting interface
 # --------------------------------------------------------------------------
-
-
-def store_info(
-    store_path: Path | str,
-    runner: Callable[[Sequence[str]], subprocess.CompletedProcess[str]] | None = None,
-) -> dict[str, Any]:
-    """Read manifest-level facts through ``opengwasdb info --format json``.
-
-    This is the one sanctioned way the registry looks at a published Store
-    (ADR 0023): the core command owns opening the Store, and this function
-    only parses its JSON. It reads no Store file or directory itself.
-    """
-    argv = ["opengwasdb", "info", str(store_path), "--format", "json"]
-    run = runner or _default_runner
-    result = run(argv)
-    if result.returncode != 0:
-        raise ValueError(
-            f"`{' '.join(argv)}` failed: {result.stderr.strip() or result.stdout.strip()}"
-        )
-    try:
-        payload = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise ValueError(f"`{' '.join(argv)}` did not print JSON: {exc}") from exc
-    if not isinstance(payload, dict):
-        raise ValueError(f"`{' '.join(argv)}` printed {type(payload).__name__}, not an object")
-    return payload
-
-
-def _default_runner(argv: Sequence[str]) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(list(argv), capture_output=True, text=True, check=False)
 
 
 def core_runtime_identity() -> str:

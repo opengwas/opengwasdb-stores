@@ -23,6 +23,8 @@ from __future__ import annotations
 
 import contextlib
 import io
+import os
+import json
 import shutil
 import subprocess
 import sys
@@ -33,10 +35,12 @@ from typing import Any
 
 import yaml
 
-from ogstores import backfill_observed, paths, run
+from unittest.mock import patch
+
+from ogstores import backfill_observed, paths, run, store_info as store_info_module
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-NEW_KEYS: tuple[str, ...] = ("store_bytes", "has_hm3", "has_rho", "n_top_hits")
+NEW_KEYS: tuple[str, ...] = ("format_version", "store_bytes", "has_hm3", "has_rho", "n_top_hits")
 
 HM3 = {
     "name": "hm3",
@@ -62,7 +66,7 @@ build_environment:
     - build
     - validate
 observed:
-  format_version: 0.2.0
+  format_version: null
   n_analyses: 2
   n_variants: 1000
   n_associations: null
@@ -194,6 +198,15 @@ class BackfillTest(unittest.TestCase):
         write_bundle(self.registry, "OGS-00046")
         write_records(self.artifact_root, "OGS-00046", {"build": True, "register": True})
 
+        # `opengwasdb info`, stubbed: every Store is format 0.2.3 but OGS-00043's.
+        def info(argv: Any) -> subprocess.CompletedProcess[str]:
+            version = "0.2.0" if "OGS-00043" in argv[2] else "0.2.3"
+            return subprocess.CompletedProcess(argv, 0, json.dumps({"format_version": version}), "")
+
+        patcher = patch.object(store_info_module, "_default_runner", info)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def tearDown(self) -> None:
         shutil.rmtree(self.tmp, ignore_errors=True)
 
@@ -220,9 +233,9 @@ class BackfillTest(unittest.TestCase):
         printed = self.backfill()
 
         expected = {
-            "OGS-00041": {"store_bytes": self.bytes_41, "has_hm3": True, "has_rho": True, "n_top_hits": None},
-            "OGS-00042": {"store_bytes": self.bytes_42, "has_hm3": False, "has_rho": None, "n_top_hits": None},
-            "OGS-00043": {"store_bytes": self.bytes_43, "has_hm3": None, "has_rho": None, "n_top_hits": None},
+            "OGS-00041": {"format_version": "0.2.3", "store_bytes": self.bytes_41, "has_hm3": True, "has_rho": True, "n_top_hits": None},
+            "OGS-00042": {"format_version": "0.2.3", "store_bytes": self.bytes_42, "has_hm3": False, "has_rho": None, "n_top_hits": None},
+            "OGS-00043": {"format_version": "0.2.0", "store_bytes": self.bytes_43, "has_hm3": None, "has_rho": None, "n_top_hits": None},
         }
         for store_id, facts in expected.items():
             after_text = self.record(store_id)
@@ -236,10 +249,10 @@ class BackfillTest(unittest.TestCase):
                 without_store_facts(after_text), without_store_facts(before[store_id]),
                 f"{store_id}: a line other than the Store facts changed",
             )
-            # The keys keep register's order, after `store_bytes`.
+            # The Store facts keep register's order, after `store_bytes`.
             observed_keys = list(yaml.safe_load(after_text)["observed"])
             index = observed_keys.index("store_bytes")
-            self.assertEqual(observed_keys[index:index + 4], list(NEW_KEYS))
+            self.assertEqual(observed_keys[index:index + 4], list(NEW_KEYS[1:]))
         self.assertEqual(self.record("OGS-00044"), before["OGS-00044"], "no observed block: skipped")
         self.assertEqual(self.record("OGS-00046"), before["OGS-00046"], "no Store to measure: left alone")
         self.assertIn(
@@ -249,6 +262,21 @@ class BackfillTest(unittest.TestCase):
         )
         self.assertIn("1 with the Store missing, 2 skipped, 0 refused", printed)
         self.assertEqual(self.record("OGS-00045"), VALIDATION_TEMPLATE, "a candidate is skipped")
+
+    def test_a_failing_info_refuses_the_bundle_and_leaves_it(self) -> None:
+        before = self.record("OGS-00042")
+
+        def failing(argv: Any) -> subprocess.CompletedProcess[str]:
+            return subprocess.CompletedProcess(argv, 1, "", "cannot open")
+
+        with patch.object(store_info_module, "_default_runner", failing):
+            printed = io.StringIO()
+            with contextlib.redirect_stdout(printed):
+                status = backfill_observed.main(self.arguments())
+
+        self.assertEqual(status, 1)
+        self.assertIn("cannot open", printed.getvalue())
+        self.assertEqual(self.record("OGS-00042"), before)
 
     def test_a_second_run_changes_nothing(self) -> None:
         self.backfill()
@@ -263,16 +291,22 @@ class BackfillTest(unittest.TestCase):
         """Run as the recorded command runs it, from the command line."""
         registry, artifacts = tree(self.registry), tree(self.artifact_root)
 
+        # The command shells out to `opengwasdb info`: put a stub of it first on PATH.
+        stub = self.tmp / "bin" / "opengwasdb"
+        stub.parent.mkdir()
+        stub.write_text('#!/bin/sh\necho \'{"format_version": "0.2.3"}\'\n', encoding="utf-8")
+        stub.chmod(0o755)
         result = subprocess.run(
             [sys.executable, "-m", "ogstores.backfill_observed", *self.arguments("--dry-run")],
             capture_output=True, text=True, cwd=REPO_ROOT,
+            env={**os.environ, "PATH": f"{stub.parent}{os.pathsep}{os.environ['PATH']}"},
         )
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
         self.assertEqual(tree(self.registry), registry)
         self.assertEqual(tree(self.artifact_root), artifacts)
-        self.assertIn(f"OGS-00041: would write store_bytes: null -> {self.bytes_41}", result.stdout)
+        self.assertIn(f"OGS-00041: would write format_version: null -> \"0.2.3\"; store_bytes: null -> {self.bytes_41}", result.stdout)
         self.assertIn("has_hm3: (absent) -> true", result.stdout)
         self.assertIn("3 would write", result.stdout)
         self.assertIn("1 with the Store missing, 2 skipped", result.stdout)
@@ -298,7 +332,8 @@ class BackfillTest(unittest.TestCase):
         observed = yaml.safe_load(path.read_text(encoding="utf-8"))["observed"]
         self.assertEqual(
             {key: observed[key] for key in NEW_KEYS},
-            {"store_bytes": self.bytes_41, "has_hm3": True, "has_rho": True, "n_top_hits": None},
+            {"format_version": "0.2.3", "store_bytes": self.bytes_41, "has_hm3": True,
+             "has_rho": True, "n_top_hits": None},
         )
         self.assertEqual(
             without_store_facts(path.read_text(encoding="utf-8")), without_store_facts(VALIDATION_TEMPLATE)

@@ -1,11 +1,12 @@
-"""Write #502's Store facts into the Validation Records registered before them.
+"""Write #502's Store facts and #512's format version into the Validation Records registered before them.
 
     pixi run -e dev backfill-observed [--dry-run] [--registry-root stores] [--artifact-root /data/opengwasdb/stores]
 
-`register` records `observed.store_bytes`, `has_hm3`, `has_rho` and
+`register` records `observed.format_version` (#512, from `opengwasdb info
+--format json` when no step reported it) and `observed.store_bytes`, `has_hm3`, `has_rho` and
 `n_top_hits` at publication (#502). A record written before that carries
-`store_bytes: null` and none of the other three. This tool fills the four keys
-(`register.STORE_FACT_FIELDS`) of every `built` or `validated` bundle's
+`store_bytes: null` and none of the other three. This tool fills those five keys
+(`BACKFILL_FIELDS`) of every `built` or `validated` bundle's
 `validation.yaml`, the same way `register` does:
 
 - `store_bytes` from a stat of each file of the published Store,
@@ -13,6 +14,9 @@
 - `has_hm3` and `has_rho` from the publishing phase's plan and its step
   records under `<artifact-root>/<id>/records/` (`register.store_facts`), and
   `null` when no register record says which steps built the Store;
+- `format_version` from `opengwasdb info --format json` on the Store, through
+  `ogstores.store_info.store_info`, which `readiness` re-exports (the one reader, ADR 0023): the command's report
+  replaces what the record holds. A Store whose `info` fails is refused;
 - `n_top_hits` as `null`, until opengwas/opengwasdb#488 reports the counts.
 
 A bundle whose Store is not under the Artifact Root is reported by name as
@@ -26,9 +30,9 @@ inserted after the Store fact before it, and every other line keeps its bytes.
 The bundle is refused, and its file left as it was, when a mapping in the
 record holds a key twice, when a line the edit replaces carries a comment
 (which the edit would drop), or when the edited document, parsed, differs from
-the original in any key but the four. A second run changes nothing.
+the original in any key but those five. A second run changes nothing.
 
-It opens no Store file and writes nothing under the Artifact Root. `--dry-run`
+It opens no Store file itself (`info` does) and writes nothing under the Artifact Root. `--dry-run`
 prints what it would change and writes nothing.
 
 Run it as `python3 -m ogstores.backfill_observed`, which the
@@ -60,10 +64,14 @@ from ogstores.bundle import Bundle
 from ogstores.paths import REPO_ROOT
 from ogstores.plan import BUILD_PHASE, REGISTER_STEPS, plan, release_register
 from ogstores.readiness import discover_bundles
-from ogstores.register import STORE_FACT_FIELDS, store_facts
+from ogstores.register import STORE_FACT_FIELDS, read_format_version, store_facts
 
 #: The Release Statuses whose bundle describes a built Store.
 BUILT_STATUSES: frozenset[str] = frozenset({"built", "validated"})
+
+#: The `observed` keys the backfill may write: `format_version` (#512), then
+#: the Store facts `register` records at publication (#502).
+BACKFILL_FIELDS: tuple[str, ...] = ("format_version", *STORE_FACT_FIELDS)
 
 #: The outcomes, in the order the summary counts them. `missing` is a bundle
 #: whose Store is not under the Artifact Root, so there is nothing to measure.
@@ -140,7 +148,7 @@ def observed_facts(bundle_obj: Bundle, artifact_root: Path) -> dict[str, Any]:
         record = run.load_record(store_id, step.name, root=artifact_root)
         if record is not None:
             records[step.name] = record
-    facts = store_facts(phase_steps, records, store_dir)
+    facts = {"format_version": read_format_version(store_dir), **store_facts(phase_steps, records, store_dir)}
     if not registered:
         # No register record says which steps built this Store, so whether it
         # holds them is not known: null, never false.
@@ -207,7 +215,7 @@ def edit_observed(text: str, facts: dict[str, Any]) -> str:
     # Each key goes where it is, or after the Store fact before it, so the keys
     # keep register's order; a first key that is missing ends the block.
     anchor: int | None = None
-    for key in STORE_FACT_FIELDS:
+    for key in BACKFILL_FIELDS:
         rendered = _render(key, facts[key], indent)
         span = _key_span(lines, head + 1, end, indent, key)
         if span is not None and any(_COMMENT.search(line) for line in lines[span[0]:span[1]]):
@@ -257,7 +265,7 @@ def backfill_bundle(bundle_obj: Bundle, artifact_root: Path, *, dry_run: bool) -
 
     changes = {
         key: (observed.get(key, ABSENT), facts[key])
-        for key in STORE_FACT_FIELDS
+        for key in BACKFILL_FIELDS
         if key not in observed or observed[key] != facts[key]
     }
     if edited == text:
