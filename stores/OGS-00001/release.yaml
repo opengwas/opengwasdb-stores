@@ -79,4 +79,12 @@ notes: 'Probes chosen for well-characterised cis-eQTL signal and biological fami
   an unforced replacement, and the change stays dated and evidenced. One statement above no longer
   describes the published Store -- the #195 erratum''s "987aec1, the revision that rebuilt the published
   Store": the Store published now was rebuilt at 9c98a52. Release Status is unchanged at built.
+
+  Bundle amendment (2026-11-25, #514): the Build Recipe gains completion_state: reference_completed and a
+  complete block (complete-ragged, ld-panel /data/opengwasdb/reference/hgdp1kgp-hg38/panel, ancestry EUR,
+  copied from OGS-00002), so this release completes its own Store (ADR 0037 section 1) and OGS-00002 is
+  withdrawn. The build phase is unchanged: it plans the same argv the published Store''s records/build.json
+  records as planned_argv, and membership (analyses.tsv, source_snapshot) is untouched. Under force=1 the
+  amendment check does not run, so #514''s forced run rebuilds from the bundle as it stands. The owner
+  accepted this amendment by #514. Release Status is unchanged at built.
   '

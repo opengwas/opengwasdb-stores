@@ -122,7 +122,8 @@ EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
             "source-assembly": "hg38",
             "n-workers": 10,
         },
-        "post": {"top_hits": True, "overview": True},
+        # rho: #514 gives OGS-00003 a Rho Matrix.
+        "post": {"top_hits": True, "overview": True, "rho": True},
     },
     "OGS-00004": {
         "phase": "build",
