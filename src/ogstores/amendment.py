@@ -385,11 +385,30 @@ def bundle_changes(b: Bundle, artifact_root: Path | str) -> list[str]:
     if not b.completes_own_store:
         return []
     root = Path(artifact_root)
-    changes: list[str] = []
+    changes = published_store_changes(b, root)
+    # Completing a converted Store is refused for its indel spelling (#527):
+    # a rule of completion, so it is this caller's, not the shared walk's.
     try:
-        completion_published = _read_record(paths.record_path(b.store_id, REGISTER_STEPS[COMPLETION_PHASE], root=root)) is not None
+        completion = _read_record(paths.record_path(b.store_id, REGISTER_STEPS[COMPLETION_PHASE], root=root))
+        build = _read_record(paths.record_path(b.store_id, REGISTER_STEPS[BUILD_PHASE], root=root))
     except ValueError:
-        completion_published = True  # it exists; its own comparison below reports why it cannot be read
+        return changes  # the walk has reported why it cannot be read
+    if build is not None and completion is None:
+        changes += _indel_order_changes(b, build)
+    return changes
+
+
+def published_store_changes(b: Bundle, artifact_root: Path | str) -> list[str]:
+    """How any bundle no longer plans the Store its release published: the one phase walk (#305, #528).
+
+    The published phases' Store-writing steps and, for a rewritten release,
+    its `rewrite-release` record (#527), and the build phase's membership,
+    against their records. `bundle_changes` holds a bundle that
+    completes its own Store to it; adding post steps in place (ADR 0043) holds
+    every release to it. The scope is the caller's.
+    """
+    root = Path(artifact_root)
+    changes: list[str] = []
     for phase, register_step in REGISTER_STEPS.items():
         try:
             register = _read_record(paths.record_path(b.store_id, register_step, root=root))
@@ -402,8 +421,6 @@ def bundle_changes(b: Bundle, artifact_root: Path | str) -> list[str]:
             inputs = _registered_inputs(register)
             changes += _rewrite_changes(b, phase, register, inputs, root)
             changes += _phase_changes(b, phase, register, inputs, root)
-            if phase == BUILD_PHASE and not completion_published:
-                changes += _indel_order_changes(b, register)
         if phase == BUILD_PHASE:
             changes += _membership_changes(b, root)
     return changes
@@ -465,5 +482,6 @@ def refuse_changed_bundles(
 __all__ = [
     "AmendmentError",
     "bundle_changes",
+    "published_store_changes",
     "refuse_changed_bundles",
 ]
