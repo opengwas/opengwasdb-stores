@@ -372,7 +372,9 @@ class TestBundleContract(unittest.TestCase):
         # deviation (side_tables.se_exceptions_rounded).
         "OGS-00016": "c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4",
         "OGS-00012": "d405de0a7e1be29b1fc1d2e0dfb1090f607ba08c",
-        "OGS-00013": "44f25a96fb43044a983e300a038a54ab1930e782",
+        # OGS-00013's record is `publish-rewrite`'s (#525): converted to format
+        # 0.3.0 at engine 0.20.0, its completion validated at 0.21.0 (931ac166).
+        "OGS-00013": "931ac16690de9538be203f9cdbb2eb46caa895f4",
         "OGS-00014": "496bfe9cc9bbc85c60718d62aa4c6d43d83af810",
         "OGS-00015": "44f25a96fb43044a983e300a038a54ab1930e782",
     }
@@ -390,7 +392,7 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertEqual(
             validation["status"],
-            "passed_with_warnings" if store_id == "OGS-00016" else "passed",
+            "passed_with_warnings" if store_id in {"OGS-00013", "OGS-00016"} else "passed",
             store_id,
         )
         record_check()
