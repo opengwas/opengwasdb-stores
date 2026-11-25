@@ -56,7 +56,10 @@ threadpoolctl = ">=3.0"
 # dependency on it collides (conda + PyPI wheel installing the same compiled
 # extension into the same environment) if pysam is also pinned via conda, so it
 # is left for pip/uv to resolve as a transitive PyPI dependency of opengwasdb.
-opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "main" }
+# The `ld-build` extra is pgenlib, which `opengwasdb clump` needs to read the
+# HGDP+1kGP Genotype Stores the Clumps step maps ancestries to (stores#522;
+# without it the step refuses each one as "reading a pgen needs pgenlib").
+opengwasdb = { git = "https://github.com/opengwas/opengwasdb", branch = "main", extras = ["ld-build"] }
 
 [feature.r.dependencies]
 r-base = ">=4.3"

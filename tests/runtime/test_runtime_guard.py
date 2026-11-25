@@ -226,10 +226,16 @@ class RuntimeGuardTestCase(unittest.TestCase):
     # --- pin & identity ---------------------------------------------------
 
     def test_pixi_toml_follows_main(self) -> None:
-        """`pixi.toml` names opengwasdb's `main`; the lock alone holds the commit (#253)."""
+        """`pixi.toml` names opengwasdb's `main`; the lock alone holds the commit (#253).
+
+        It also installs the `ld-build` extra, pgenlib, which `opengwasdb clump`
+        needs to read a Genotype Store LD Store (#522).
+        """
         spec = _pin_spec_from_pixi_toml(REPO_ROOT / "pixi.toml")
         record_check()
-        self.assertEqual(spec, {"git": runtime.OPENGWASDB_GIT_URL, "branch": "main"})
+        self.assertEqual(
+            spec, {"git": runtime.OPENGWASDB_GIT_URL, "branch": "main", "extras": ["ld-build"]}
+        )
 
     def test_every_store_build_environment_resolves_the_locked_commit(self) -> None:
         """One stale lock entry selects another runtime, so every one must be the locked commit.
