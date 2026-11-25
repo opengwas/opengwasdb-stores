@@ -25,6 +25,12 @@ pixi run -e dev python <stores>/tools/benchmarks/release-benchmark-report.py \
   --report docs/benchmark-output/opengwasdb_hm3_release_benchmark.md
 ```
 
+While `--all` aborts on OGS-00004 (#518), a rebuilt Store is benchmarked with
+`--store <id>` into a report dated in its name, never into the aggregate's
+paths, for example `opengwasdb_514_canaries_benchmark_2026-11-25.{json,md}` for
+#514's three 0.3.0 canaries. The aggregate stays stale for those Stores until
+#518 is fixed and `--all` is run again.
+
 HM3 benchmark absence (`missing`, `not_applicable`, `unsupported`) is operational
 evidence, not a Store validation failure; see
 [`docs/spec/store-release-workflow.md`](../spec/store-release-workflow.md).

@@ -77,4 +77,27 @@ notes: 'Deliberately not a replacement for 2018-sun-pilot-100 -- same source, sa
   Archive deleted (2026-11-12). On the owner''s decision, the arrays of the Store archived under
   replaced/20261111T233505Z/ were deleted. The archive keeps its records/ and validation.yaml, as
   ADR 0037 keeps on an unforced replacement, so the change stays dated and evidenced.
+
+  Forced 0.3.0 rebuild (issue #514, 2026-11-25). The first forced release of any Store under format 0.3.0, run
+  on the owner''s approval of 25 Nov 2026 so that the Store is written in the current format. `pixi run -e
+  workflow release OGS-00007 --config force=1` at e4f6abf7, opengwasdb 0.17.0
+  (69c2945229070ede4ccf8ced0520b281a87a0d68), ran from 09:18:39 to 09:19:18 UTC on 2026-11-25, exit 0, 39 s
+  wall (build 7.3 s, top-hits 1.0 s, validate 3.2 s, register under 1 s). The Store is now format_version
+  0.3.0. The counts differ from the 0.2.1 build: 10 Analyses (unchanged), 159,816 variants (was 171,006) and
+  189,448 associations (was 202,803). The cause is the indel rule the engine gained after that build, not a
+  change to the sources: opengwasdb ADR 0079 section 7 (the owner''s rulings of 4 and 7 Nov 2026), the
+  `indel_ssf_unharmonised` reason in ADR 0072''s rule table (`admission/14`), opengwasdb #381 and its
+  `381-indel-alid-reference-first.breaking.md` fragment (format 0.2.2). Every indel in a GWAS-SSF file with no
+  harmoniser column is dropped, because the file declares no reference allele and so no ALID can spell the
+  indel reference first. The admission record (store.opengwasdb.admission/admission.json) examined 202,803
+  rows, admitted 189,448 and dropped 13,355, all for that one reason (1,036 of them PDK1''s 14,894). They are
+  carried by 11,190 distinct variants: the variants in the 0.2.1 Store and not in this one are exactly those
+  11,190, all indels, the set of source keys in the admission record''s dropped/ logs is the same set, and the
+  0.2.1 Store held 13,355 associations on them. No variant was added and no SNP was lost. The regions are
+  unchanged at 10 cis, 10 significant_trans and 347 suggestive_trans rows. validate reports no errors and no
+  warnings. No audit applies to a Ragged Observed-Only Store: `audit-store reconcile` and `attribute` refuse a
+  Store that is not Hybrid (both exit 2). The Store it replaced (0.2.1) is archived under
+  /data/opengwasdb/stores/OGS-00007/replaced/20261125T091843Z/, kept because the run was forced (#309);
+  deleting it is the owner''s call. The Store stays observed_only, and the Release Status is as register left
+  it: built.
   '

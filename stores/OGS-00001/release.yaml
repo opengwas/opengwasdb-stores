@@ -83,8 +83,33 @@ notes: 'Probes chosen for well-characterised cis-eQTL signal and biological fami
   Bundle amendment (2026-11-25, #514): the Build Recipe gains completion_state: reference_completed and a
   complete block (complete-ragged, ld-panel /data/opengwasdb/reference/hgdp1kgp-hg38/panel, ancestry EUR,
   copied from OGS-00002), so this release completes its own Store (ADR 0037 section 1) and OGS-00002 is
-  withdrawn. The build phase is unchanged: it plans the same argv the published Store''s records/build.json
+  superseded. The build phase is unchanged: it plans the same argv the published Store''s records/build.json
   records as planned_argv, and membership (analyses.tsv, source_snapshot) is untouched. Under force=1 the
   amendment check does not run, so #514''s forced run rebuilds from the bundle as it stands. The owner
   accepted this amendment by #514. Release Status is unchanged at built.
+
+  Rebuilt and self-completed in format 0.3.0 (issue #514, 2026-11-25). On the owner''s approval of 25 Nov 2026
+  for this id, a forced `pixi run -e workflow release OGS-00001 --config force=1` at e4f6abf7, opengwasdb
+  0.17.0 (69c2945229070ede4ccf8ced0520b281a87a0d68), ran from 09:29:44 to 09:33:52 UTC on 2026-11-25, exit 0,
+  in 249 s: build 7.1 s, validate 3.9 s, complete 162.1 s (complete-ragged, ld-panel
+  /data/opengwasdb/reference/hgdp1kgp-hg38/panel, ancestry EUR), completion-validate 3.3 s and the
+  Observed-View Check 27.8 s. This is the first Ragged self-completion (ADR 0037 section 1). The Observed-Only
+  build reproduced 10 Analyses, 86,376 variants and 86,373 associations, and every one of the 86,376 observed
+  rows carries its hg19 source_alid. The completed Store has 118,103 variants and 118,100 associations: 31,727
+  imputed, none missing, all inside the 23 cis regions of the 10 Analyses, format 0.3.0, completion_state
+  reference_completed. OGS-00002''s last completion (123,895 variants, 123,892 associations, 37,502 imputed,
+  17 missing) used the same panel, ancestry and Analyses; only those counts are on record for it. This Store
+  holds 16,102 indels and so 102,001 variants whose two alleles are single bases. A comparison run before
+  OGS-00002''s Store was deleted, whose script and output were not kept, counted 21,894 indels there and so the
+  same 102,001 single-base variants, which puts the difference in indels, as opengwasdb ADR 0079 predicts:
+  indel ALIDs spell the reference allele first, and a panel indel with no reference is left unplaced (29,565
+  of 40,627 panel indels placed, 11,062 with no reference). That comparison cannot be re-run, because the
+  0.2.0 completed Store is deleted. The owner accepted these counts on 25 Nov 2026. The Observed-View Check
+  passed, reproducing all 86,373 observed associations exactly with every failing counter zero. validate
+  reports no errors and no warnings. `audit-store reconcile` exits 2 because it reconciles Hybrid Stores only;
+  it does not apply to this Ragged Store. The Stores it replaced are archived, and kept because the run was
+  forced, under /data/opengwasdb/stores/OGS-00001/replaced/20261125T092950Z/ (the published 0.2.0 Store) and
+  /data/opengwasdb/stores/OGS-00001/replaced/20261125T093347Z/ (the 0.3.0 Observed-Only build the completion
+  replaced). Deleting these two replaced archives is the owner''s call. Release Status is as register left it:
+  built.
   '

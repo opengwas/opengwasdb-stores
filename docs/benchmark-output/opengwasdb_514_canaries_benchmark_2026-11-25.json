@@ -1,0 +1,86 @@
+{
+  "artifact_root": "/data/opengwasdb/stores",
+  "core": {
+    "checkout": "/data/opengwasdb/work/orchestrate/opengwasdb-stores-514/worktrees/opengwasdb-69c2945",
+    "opengwasdb_fingerprint": "196a36855243b9dde31d536a3f504c0218c8330e9b6a1cdd5a68fd5dc524db9f",
+    "opengwasdb_path": "/data/opengwasdb/work/orchestrate/opengwasdb-stores-514/worktrees/opengwasdb-69c2945/opengwasdb",
+    "revision": "69c2945229070ede4ccf8ced0520b281a87a0d68"
+  },
+  "epic": "opengwas/opengwasdb-stores#214",
+  "harness": "release_benchmark_report",
+  "hm3_only": false,
+  "hm3_source": "benchmarks._query_shapes.measure_hm3_extract",
+  "issue": "opengwas/opengwasdb-stores#212",
+  "measured_at": "2026-11-25T12:13:57.156853+00:00",
+  "reps": 5,
+  "shape_errors": [],
+  "shapes_source": "benchmarks.benchmark_store_comparison (one Store per run)",
+  "stores": [
+    {
+      "analysis_id": "ENSG00000175445::whole_blood",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00001/store.opengwasdb",
+      "dense_component": false,
+      "hm3_extract": {
+        "detail": "Ragged layout carries no Dense Component; an Indexed Variant Subset is Dense-only (ADR 0061)",
+        "status": "not_applicable",
+        "subset": "hm3"
+      },
+      "layout": "ragged",
+      "shapes": {
+        "detail": "Ragged-only Store: no Dense query shapes",
+        "status": "not_applicable"
+      },
+      "store_id": "OGS-00001"
+    },
+    {
+      "analysis_id": "finngen-r13-BMI_IRN",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00003/store.opengwasdb",
+      "dense_component": true,
+      "hm3_extract": {
+        "analysis_id": "finngen-r13-BMI_IRN",
+        "detail": "",
+        "first_read_ms": 379.734,
+        "median_ms": 385.27,
+        "p95_ms": 394.366,
+        "reps": 5,
+        "result_count": 1195570,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 11333,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 10,
+        "subset_n_variants": 1195570,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1195570,
+        "warm_result_count": 1195570
+      },
+      "layout": "dense",
+      "shapes": {
+        "detail": "OGS-00003 holds 10 Analyses, fewer than the core harness's RANDOM_AXIS_SIZE of 100; its random-Axis shapes draw that many without replacement",
+        "status": "not_applicable"
+      },
+      "store_id": "OGS-00003"
+    },
+    {
+      "analysis_id": "GCST005806",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00007/store.opengwasdb",
+      "dense_component": false,
+      "hm3_extract": {
+        "detail": "Ragged layout carries no Dense Component; an Indexed Variant Subset is Dense-only (ADR 0061)",
+        "status": "not_applicable",
+        "subset": "hm3"
+      },
+      "layout": "ragged",
+      "shapes": {
+        "detail": "Ragged-only Store: no Dense query shapes",
+        "status": "not_applicable"
+      },
+      "store_id": "OGS-00007"
+    }
+  ],
+  "summary": {
+    "measured": 1,
+    "not_applicable": 2
+  }
+}
