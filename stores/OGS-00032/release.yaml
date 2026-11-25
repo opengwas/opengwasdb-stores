@@ -69,4 +69,6 @@ notes: 'The candidate pool is 852 Analyses across 139 publications. EBI publishe
 
 
   Review: 132 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
-  (#203); see sidecars/exclusions.tsv'
+  (#203); see sidecars/exclusions.tsv
+
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), taking `ld-panel` and `ancestry` from its completed sibling OGS-00015 (EAS) for the panel and ancestry; OGS-00011 for n-workers, `post.rho`, `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522.'

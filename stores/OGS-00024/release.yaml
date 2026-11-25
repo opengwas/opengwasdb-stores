@@ -86,3 +86,5 @@ notes: |
   Archive deleted (2026-11-12). On the owner's decision, the arrays of the Store archived under
   replaced/20261111T233555Z/ were deleted. The archive keeps its records/ and validation.yaml, as
   ADR 0037 keeps on an unforced replacement, so the change stays dated and evidenced.
+
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), taking `ld-panel` and `ancestry` from its completed sibling OGS-00013 (AFR), `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522.

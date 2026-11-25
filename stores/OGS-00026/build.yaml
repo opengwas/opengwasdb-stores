@@ -7,3 +7,7 @@ build:
 post:
   top_hits: true
   overview: false
+  clumps: true
+  ld_stores:
+    SAS: /data/opengwasdb/ld-stores/hgdp1kgp-v2-SAS
+

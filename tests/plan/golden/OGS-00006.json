@@ -41,13 +41,31 @@
     ]
   },
   {
+    "name": "clump",
+    "argv": [
+      "opengwasdb",
+      "clump",
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
+      "--ld-store",
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+    ],
+    "inputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ],
+    "outputs": [
+      "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
+    ]
+  },
+  {
     "name": "validate",
     "argv": [
       "opengwasdb",
       "validate",
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
       "--format",
-      "json"
+      "json",
+      "--ld-store",
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"

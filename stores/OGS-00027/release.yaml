@@ -98,4 +98,6 @@ notes: 'Every probe of the genome-wide BESD file set, one Analysis each. The Sto
   /data/opengwasdb/stores/OGS-00027/replaced/20261112T234803Z/; on the owner''s decision of 2026-11-12
   its arrays were deleted, so the archive keeps its records/ and validation.yaml, as ADR 0037 keeps on an
   unforced replacement, and the change stays dated and evidenced. The Store stays observed_only and the
-  Release Status is unchanged at validated.'
+  Release Status is unchanged at validated.
+
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), taking `ld-panel` and `ancestry` from its completed sibling OGS-00006 (EUR, Ragged), `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522.'

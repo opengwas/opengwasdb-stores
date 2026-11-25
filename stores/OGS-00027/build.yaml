@@ -1,6 +1,6 @@
 store_id: OGS-00027
 layout: ragged
-completion_state: observed_only
+completion_state: reference_completed
 build:
   command: build-ragged-besd
   options:
@@ -11,3 +11,12 @@ build:
 post:
   top_hits: false
   overview: false
+  clumps: true
+  ld_stores:
+    EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR
+complete:
+  command: complete-ragged
+  options:
+    ld-panel: /data/opengwasdb/reference/ld
+    ancestry: EUR
+    n-workers: 32

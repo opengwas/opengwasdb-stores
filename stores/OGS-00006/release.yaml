@@ -160,4 +160,6 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   records/ and validation.yaml, as ADR 0037 keeps on an unforced replacement, so the change stays
   dated and evidenced.
 
-  '
+  
+
+  2026-11-25: recipe amended (#530, epic #520) to add `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522.'

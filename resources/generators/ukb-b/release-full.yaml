@@ -90,6 +90,10 @@ build:
   post:
     top_hits: true
     overview: true
+    rho: true
+    clumps: true
+    ld_stores:
+      EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR
 
 # The maintained hm3 Indexed Variant Subset, exactly as OGS-00009 declares it.
 # The values are the maintained Reference Resource's, never a copy of them

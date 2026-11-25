@@ -85,6 +85,8 @@ notes: |-
   {"errors": [], "ok": true, "warnings": []}. It is not a new Validation Record: validation.yaml is
   unchanged and still describes the pre-flip Store. This breaks the rule that a published Store is
   never rewritten; it is a one-off for a wrong value, not a precedent.
+
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho`, `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522.
 accepted_at: '2026-10-14T08:39:20Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z

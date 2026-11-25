@@ -1,6 +1,6 @@
 store_id: OGS-00033
 layout: hybrid
-completion_state: observed_only
+completion_state: reference_completed
 build:
   command: build-hybrid
   options:
@@ -12,6 +12,18 @@ build:
 post:
   top_hits: false
   overview: true
+  rho: true
+  clumps: true
+  ld_stores:
+    AFR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR
+    AMR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AMR
+    EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR
+complete:
+  command: complete-hybrid
+  options:
+    ld-panel: /data/opengwasdb/reference/hgdp1kgp-hg38/panel
+    ancestry: AFR
+    n-workers: 24
 indexed_subsets:
 - name: hm3
   resource_id: hapmap3-hg38

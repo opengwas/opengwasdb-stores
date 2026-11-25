@@ -4,6 +4,14 @@ completion_state: observed_only
 post:
   top_hits: true
   overview: true
+  rho: true
+  clumps: true
+  ld_stores:
+    AFR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR
+    AMR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AMR
+    EAS: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS
+    EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR
+    SAS: /data/opengwasdb/ld-stores/hgdp1kgp-v2-SAS
 build:
   command: build-dense-vcf
   options:
@@ -16,3 +24,4 @@ indexed_subsets:
   variant_list: /data/opengwasdb/reference/hapmap3-hg38/hm3.grch38.alid.txt
   reference_assembly: GRCh38
   checksum: 4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398
+

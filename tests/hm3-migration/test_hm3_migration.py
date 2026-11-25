@@ -113,6 +113,23 @@ DECLARATION_OPTIONS: dict[str, dict[str, Any]] = {
 
 # The pre-#211 Build Recipe values, frozen so a future edit that quietly changes
 # a builder option or a post choice fails here as well as in the plan goldens.
+# What #530 added to the priority Stores' `post` (epic #520, accepted on #522): Rho for the
+# Dense and Hybrid Stores, and Clumps with its LD Store mapping for all of them.
+_LD = "/data/opengwasdb/ld-stores/hgdp1kgp-v2-"
+POST_530: dict[str, dict[str, Any]] = {
+    store_id: {**({"rho": True} if rho else {}), "clumps": True, "ld_stores": {a: _LD + a for a in ancestries}}
+    for store_id, rho, ancestries in (
+        ("OGS-00009", True, ("EUR",)),
+        ("OGS-00011", True, ("AFR", "EAS", "EUR")),
+        ("OGS-00012", True, ("EUR",)),
+        ("OGS-00013", True, ("AFR",)),
+        ("OGS-00014", True, ("AMR",)),
+        ("OGS-00015", True, ("EAS",)),
+        ("OGS-00016", True, ("AFR", "AMR", "EAS", "EUR", "SAS")),
+        ("OGS-00017", True, ("EUR",)),
+    )
+}
+
 EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
     "OGS-00003": {
         "phase": "build",
@@ -408,7 +425,7 @@ class TestRegistryMigration(unittest.TestCase):
             record_check()
             self.assertEqual(build[phase]["options"], expected["options"], store_id)
             record_check()
-            self.assertEqual(build["post"], expected["post"], store_id)
+            self.assertEqual(build["post"], {**expected["post"], **POST_530.get(store_id, {})}, store_id)
 
     def test_plan_builds_hm3_before_overview_and_validation(self) -> None:
         for store_id in EXPECTED_IN_SCOPE:
