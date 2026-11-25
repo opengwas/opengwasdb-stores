@@ -1,0 +1,48 @@
+# A valid LD Store record, written by hand for the validation tests: OGL-00001
+# from the trimmed `ld info` beside it, with #496's draft values.
+ld_id: OGL-00001
+kind: ld_store
+label: hgdp1kgp-v2-EUR-k10
+status: served
+licence: to confirm
+used_for: 'Data API LD: matrix, region, proxies, clump'
+issue: ogld#7
+notes: served by ogdb-api (OGDB_LD_STORES); stays as the reference answers are checked against
+rebuild:
+  repository: opengwas/ogld
+  version: 0.0.1.dev292+g25af8039f
+  script: scripts/build_hgdp1kgp.py
+  commands:
+  - pixi run -e dev python scripts/build_hgdp1kgp.py convert --panel EUR
+  - pixi run -e dev python scripts/build_hgdp1kgp.py build --panel EUR
+location: /data/opengwasdb/work/ogld/stores/hgdp1kgp-v2-EUR-k10.store
+provenance:
+  source_kind: genotypes
+  source_description: HGDP+1kGP phased v2 (Koenig et al. 2024), EUR, converted by build-inputs §3
+  source_panel: hgdp1kgp-v2-EUR
+  ancestry: EUR
+  n: 665
+  k: 10
+  reference_assembly: GRCh38
+  format_version: 0.1.0
+  r_scale: 511
+  near_bp: 3000000
+  far_bp: 10000000
+  t_far: 0.03186544342507645
+  n_variants: 8586889
+  counts:
+    near_pairs: 83623618163
+    far_candidates: 176740490597
+    far_pairs: 132924736
+    index_entries: 5287398542
+    alids_left_out: 40080
+  software:
+    ogld: 0.0.1.dev292+g25af8039f
+    numpy: 2.4.6
+    zarr: 3.4.2
+    pgenlib: 0.95.1
+  created_at: '2026-11-13T04:27:31Z'
+  wall_seconds: 2028.7554622279713
+provenance_sha256: facaa4629a943cec0b1b0d35b6161755c470cc367e9db73d7ba2d046c2e855c4
+measured:
+  store_bytes: 79279262640

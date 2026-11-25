@@ -59,7 +59,7 @@ git_describe_command = ["git", "describe", "--dirty", "--tags", "--long", "--abb
 # `python3 -m manifest_generation...` and so rely on that editable install.
 # tests/packaging/test_packages.py keeps this list equal to the package's
 # directories.
-package-dir = { "ogstores" = "src/ogstores", "manifest_generation" = "src/manifest_generation", "analysis_catalog" = "src/analysis_catalog", "curation" = "src/curation", "yardstick" = "src/yardstick" }
+package-dir = { "ogstores" = "src/ogstores", "manifest_generation" = "src/manifest_generation", "analysis_catalog" = "src/analysis_catalog", "curation" = "src/curation", "yardstick" = "src/yardstick", "ld_registry" = "src/ld_registry" }
 packages = [
     "ogstores",
     "manifest_generation",
@@ -74,4 +74,5 @@ packages = [
     "analysis_catalog",
     "curation",
     "yardstick",
+    "ld_registry",
 ]

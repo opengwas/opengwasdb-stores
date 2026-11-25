@@ -382,5 +382,23 @@ class AnalysisCatalogBoundaryTest(unittest.TestCase):
         self.assertEqual(offenders, [], "\n".join(offenders))
 
 
+class LdStoreRegistryBoundaryTest(unittest.TestCase):
+    """`ld_registry` may import `ogstores`; `ogstores` never imports it (#536, ADR 0042).
+
+    The Snakefile's `index` rule calls both, so it is not checked here.
+    """
+
+    def test_ogstores_never_imports_the_ld_store_registry(self) -> None:
+        offenders = []
+        for path in sorted((REPO_ROOT / "src" / "ogstores").rglob("*.py")):
+            relative = path.relative_to(REPO_ROOT)
+            offenders += [
+                f"{relative}: imports {m}"
+                for m in imported_modules(path.read_text(encoding="utf-8"))
+                if m.split(".")[0] == "ld_registry"
+            ]
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+
 if __name__ == "__main__":
     unittest.main()

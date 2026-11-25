@@ -1,0 +1,82 @@
+{
+ "format_version": "0.1.0",
+ "encoding": {
+  "r_dtype": "int16",
+  "r_scale": 511,
+  "r_reserved_code": -32768,
+  "rounding": "half_to_even"
+ },
+ "source": {
+  "kind": "genotypes",
+  "description": "HGDP+1kGP phased v2 (Koenig et al. 2024), EUR, converted by build-inputs §3"
+ },
+ "panel": {
+  "id": "hgdp1kgp-v2-EUR",
+  "ancestry": "EUR",
+  "n": 665,
+  "samples_sha256": "ae0491d925840e9d85e23602a715d96a2ae28ce4995f9c3518c17e0ad89b9792"
+ },
+ "reference_assembly": "GRCh38",
+ "variant_filters": {
+  "filter": [
+   "PASS",
+   "."
+  ],
+  "mac_min": 20,
+  "info_min": null,
+  "autosomes_only": true
+ },
+ "variants_dropped": {
+  "filter": 0,
+  "mac": 67747610,
+  "info": 0,
+  "zero_variance": 0,
+  "duplicate_reversed_indel": 79022
+ },
+ "n_variants": 8586889,
+ "near_bp": 3000000,
+ "far_bp": 10000000,
+ "adjustment": {
+  "covariates": [
+   "PC1",
+   "PC2",
+   "PC3",
+   "PC4",
+   "PC5",
+   "PC6",
+   "PC7",
+   "PC8",
+   "PC9",
+   "PC10"
+  ],
+  "k": 10,
+  "k_target": 10,
+  "k_min": 5,
+  "pc_file": {
+   "sha256": "8ea02cdc208b334278d348b0d53e46cb6c6d322ea69b89c8e26d72ad52915e79",
+   "source": "ogld scripts/make_pcs.py on HGDP+1kGP v2 EUR (ADR 0002)"
+  }
+ },
+ "t_far": 0.03186544342507645,
+ "t_far_q": 20.84,
+ "far_code_floor": 92,
+ "counts": {
+  "near_pairs": 83623618163,
+  "far_candidates": 176740490597,
+  "far_pairs": 132924736,
+  "index_entries": 5287398542,
+  "alids_left_out": 40080
+ },
+ "software": {
+  "ogld": "0.0.1.dev292+g25af8039f",
+  "numpy": "2.4.6",
+  "zarr": "3.4.2",
+  "pgenlib": "0.95.1"
+ },
+ "build": {
+  "created_at": "2026-11-13T04:27:31Z",
+  "wall_seconds": 2028.7554622279713,
+  "peak_memory_bytes": 11138314240,
+  "threads": 16
+ }
+}

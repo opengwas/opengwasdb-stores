@@ -1,0 +1,469 @@
+#!/usr/bin/env python3
+"""The LD Store Registry (#536, epic #496; docs/spec/ld-store-registry.md, ADR 0042).
+
+Four seams, and only these:
+
+1. a record is validated, and each refusal names the record and the field;
+2. the writer fills a record from a Store's provenance, read through
+   `opengwasdb ld info` (ADR 0023), keeping every field a person wrote and
+   refusing a Store that is not the one the record describes;
+3. a record's typed values, in the spec's columns, and their rendering: a
+   missing value is `None`, then an empty cell;
+4. the index regenerates the committed `ld-resources.tsv`.
+
+No test opens a Store. The writer's input is a recorded `opengwasdb ld info`
+of the served EUR LD Store (`fixtures/ld-info-eur.json`), trimmed of its
+source checksums, its PC scan and its PC diagnostic. The validation tests start
+from a record written by hand (`fixtures/record-ogl-00001.yaml`), not from the
+writer. Expected values are literals from #496's draft row for OGL-00001 and
+from that provenance; the digest was computed with
+`jq -c -S -a . fixtures/ld-info-eur.json | tr -d '\n' | sha256sum`, not by
+this package.
+
+Run from the repository root:
+    python3 tests/ld-registry/test_ld_registry.py
+"""
+
+from __future__ import annotations
+
+import csv
+import json
+import shutil
+import subprocess
+import tempfile
+import unittest
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+from ld_registry import index as ld_index
+from ld_registry import record, rows, writer
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+FIXTURES = Path(__file__).resolve().parent / "fixtures"
+LD_INFO = FIXTURES / "ld-info-eur.json"
+RECORD = FIXTURES / "record-ogl-00001.yaml"
+SPEC = REPO_ROOT / "docs" / "spec" / "ld-store-registry.md"
+LOCATION = "/data/opengwasdb/work/ogld/stores/hgdp1kgp-v2-EUR-k10.store"
+# The draft's OGL-00006: the same panel, ancestry, n and k, but another Store.
+TWIN_LOCATION = "/data/opengwasdb/work/ogld/scratch/64/81-eur"
+# sha256 of the fixture's canonical JSON, by
+# `jq -c -S -a . fixtures/ld-info-eur.json | tr -d '\n' | sha256sum`.
+FIXTURE_SHA256 = "facaa4629a943cec0b1b0d35b6161755c470cc367e9db73d7ba2d046c2e855c4"
+
+PERSON_FIELDS = ("label", "status", "licence", "used_for", "issue", "notes", "rebuild")
+
+
+def recorded_ld_info() -> dict[str, Any]:
+    return json.loads(LD_INFO.read_text(encoding="utf-8"))
+
+
+def literal_record() -> dict[str, Any]:
+    return yaml.safe_load(RECORD.read_text(encoding="utf-8"))
+
+
+def stub_runner(payload: dict[str, Any], seen: list[list[str]] | None = None):
+    def run(argv):
+        if seen is not None:
+            seen.append(list(argv))
+        return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(payload), stderr="")
+
+    return run
+
+
+def write_yaml(path: Path, document: Any) -> Path:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(document, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    return path
+
+
+class RegistryCase(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory()
+        self.tmp = Path(self._tmp.name)
+        self.ld_root = self.tmp / "stores" / "ld"
+        self.path = self.ld_root / "OGL-00001" / "record.yaml"
+
+    def tearDown(self) -> None:
+        self._tmp.cleanup()
+
+    def person_record(self) -> Path:
+        """OGL-00001 as a person writes it, before the writer has run."""
+        document = literal_record()
+        return write_yaml(self.path, {"ld_id": "OGL-00001", **{f: document[f] for f in PERSON_FIELDS}})
+
+    def write(self, info: dict[str, Any] | None = None, location: str = LOCATION, size: int = 79279262640):
+        return writer.write_record(
+            self.ld_root, "OGL-00001", location, runner=stub_runner(info or recorded_ld_info()), size=lambda _: size,
+        )
+
+    def read(self) -> dict[str, Any]:
+        return yaml.safe_load(self.path.read_text(encoding="utf-8"))
+
+
+class TestTheFixturesAreTheServedEurLdStore(unittest.TestCase):
+    def test_the_recorded_provenance_is_the_eur_panel_of_665(self) -> None:
+        info = recorded_ld_info()
+        self.assertEqual(info["panel"]["id"], "hgdp1kgp-v2-EUR")
+        self.assertEqual(info["panel"]["ancestry"], "EUR")
+        self.assertEqual(info["panel"]["n"], 665)
+        self.assertEqual(info["adjustment"]["k"], 10)
+        self.assertEqual(info["format_version"], "0.1.0")
+        self.assertNotIn("t_partner", info, "this Store records no Partner Rows threshold")
+
+    def test_the_literal_record_describes_the_same_store(self) -> None:
+        document = literal_record()
+        self.assertEqual(document["ld_id"], "OGL-00001")
+        self.assertEqual(document["provenance"]["source_panel"], "hgdp1kgp-v2-EUR")
+        self.assertEqual(document["provenance"]["n"], 665)
+        self.assertEqual(document["provenance_sha256"], FIXTURE_SHA256)
+
+
+class TestRecordValidation(RegistryCase):
+    """Seam 1: every refusal names the record and the field."""
+
+    def check(self, document: dict[str, Any], ld_id: str = "OGL-00001") -> list[record.RecordError]:
+        self.path = write_yaml(self.ld_root / ld_id / "record.yaml", document)
+        return record.load_record(self.path)[1]
+
+    def assert_refused(self, errors: list[record.RecordError], field: str) -> None:
+        self.assertIn(field, [error.field for error in errors], errors)
+        message = next(str(error) for error in errors if error.field == field)
+        self.assertIn(str(self.path), message)
+        self.assertIn(field, message)
+
+    def test_the_literal_record_is_valid(self) -> None:
+        self.assertEqual(self.check(literal_record()), [])
+
+    def test_a_licence_to_confirm_is_valid_and_kept_as_written(self) -> None:
+        document = literal_record()
+        self.assertEqual(document["licence"], "to confirm")
+        self.assertEqual(self.check(document), [])
+        self.assertEqual(record.load_record(self.path)[0]["licence"], "to confirm")
+
+    def test_each_missing_required_field_is_refused_by_name(self) -> None:
+        for field in ("label", "status", "licence", "used_for", "rebuild", "location", "provenance_sha256"):
+            with self.subTest(field=field):
+                document = literal_record()
+                del document[field]
+                self.assert_refused(self.check(document), field)
+        for section, field in (
+            ("provenance", "n"), ("provenance", "t_far"), ("provenance", "created_at"),
+            ("provenance", "source_description"), ("rebuild", "commands"), ("measured", "store_bytes"),
+        ):
+            with self.subTest(field=f"{section}.{field}"):
+                document = literal_record()
+                del document[section][field]
+                self.assert_refused(self.check(document), f"{section}.{field}")
+
+    def test_a_malformed_ld_id_is_refused(self) -> None:
+        document = literal_record()
+        document["ld_id"] = "OGL-1"
+        self.assert_refused(self.check(document, ld_id="OGL-1"), "ld_id")
+
+    def test_an_ld_id_that_is_not_its_directory_is_refused(self) -> None:
+        document = literal_record()
+        document["ld_id"] = "OGL-00002"
+        self.assert_refused(self.check(document), "ld_id")
+
+    def test_an_unknown_status_is_refused(self) -> None:
+        for status in ("live", "building"):
+            with self.subTest(status=status):
+                document = literal_record()
+                document["status"] = status
+                self.assert_refused(self.check(document), "status")
+
+    def test_an_empty_licence_is_refused(self) -> None:
+        for empty in ("", "  ", None):
+            with self.subTest(licence=empty):
+                document = literal_record()
+                document["licence"] = empty
+                self.assert_refused(self.check(document), "licence")
+
+    def test_a_count_that_is_not_a_whole_number_is_refused(self) -> None:
+        document = literal_record()
+        document["provenance"]["n"] = "665"
+        self.assert_refused(self.check(document), "provenance.n")
+
+    def test_created_at_must_be_an_iso_8601_utc_time(self) -> None:
+        for value in ("yesterday", "2026-11-13", "2026-11-13T04:27:31", "2026-11-13T05:27:31+01:00"):
+            with self.subTest(created_at=value):
+                document = literal_record()
+                document["provenance"]["created_at"] = value
+                self.assert_refused(self.check(document), "provenance.created_at")
+        document = literal_record()
+        document["provenance"]["created_at"] = "2026-11-13T04:27:31+00:00"
+        self.assertEqual(self.check(document), [])
+
+    def test_a_provenance_digest_that_is_not_a_sha256_is_refused(self) -> None:
+        document = literal_record()
+        document["provenance_sha256"] = "abc"
+        self.assert_refused(self.check(document), "provenance_sha256")
+
+    def test_a_key_the_spec_does_not_define_is_refused(self) -> None:
+        document = literal_record()
+        document["recipe"] = document.pop("rebuild")
+        errors = self.check(document)
+        self.assert_refused(errors, "recipe")
+        self.assert_refused(errors, "rebuild")
+
+    def test_a_symlinked_record_is_refused(self) -> None:
+        real = write_yaml(self.tmp / "elsewhere.yaml", literal_record())
+        self.path.parent.mkdir(parents=True)
+        self.path.symlink_to(real)
+        self.assert_refused(record.load_record(self.path)[1], "record.yaml")
+
+
+class TestTheWriter(RegistryCase):
+    """Seam 2: the writer fills a record from the Store's provenance."""
+
+    def test_it_runs_opengwasdb_ld_info_on_the_location(self) -> None:
+        self.person_record()
+        seen: list[list[str]] = []
+        writer.write_record(self.ld_root, "OGL-00001", LOCATION, runner=stub_runner(recorded_ld_info(), seen), size=lambda _: 1)
+        self.assertEqual(seen, [["opengwasdb", "ld", "info", LOCATION]])
+
+    def test_it_writes_the_draft_rows_values(self) -> None:
+        self.person_record()
+        self.write()
+        written = self.read()
+        self.assertEqual(record.load_record(self.path)[1], [])
+        provenance = written["provenance"]
+        self.assertEqual(written["kind"], "ld_store")
+        self.assertEqual(provenance["source_panel"], "hgdp1kgp-v2-EUR")
+        self.assertEqual(provenance["ancestry"], "EUR")
+        self.assertEqual(provenance["n"], 665)
+        self.assertEqual(provenance["k"], 10)
+        self.assertEqual(provenance["n_variants"], 8586889)
+        self.assertEqual(provenance["near_bp"], 3000000)
+        self.assertEqual(provenance["far_bp"], 10000000)
+        self.assertEqual(provenance["t_far"], 0.03186544342507645)
+        self.assertEqual(provenance["r_scale"], 511)
+        self.assertEqual(provenance["format_version"], "0.1.0")
+        self.assertEqual(provenance["created_at"], "2026-11-13T04:27:31Z")
+        self.assertEqual(provenance["software"]["ogld"], "0.0.1.dev292+g25af8039f")
+        self.assertEqual(
+            provenance["source_description"],
+            "HGDP+1kGP phased v2 (Koenig et al. 2024), EUR, converted by build-inputs §3",
+        )
+        self.assertNotIn("t_partner", provenance)
+        self.assertEqual(written["provenance_sha256"], FIXTURE_SHA256)
+        self.assertEqual(written["measured"]["store_bytes"], 79279262640)
+        self.assertEqual(written["location"], LOCATION)
+
+        row = rows.ld_row(written)
+        for column, value in {
+            "ld_id": "OGL-00001",
+            "label": "hgdp1kgp-v2-EUR-k10",
+            "kind": "ld_store",
+            "provenance": "genotypes",
+            "status": "served",
+            "ancestry": "EUR",
+            "source_panel": "hgdp1kgp-v2-EUR",
+            "n": "665",
+            "k": "10",
+            "reference_assembly": "GRCh38",
+            "format_version": "0.1.0",
+            "representation": "pairwise r (Near Band, Far Pairs)",
+            "n_variants": "8586889",
+            "store_bytes": "79279262640",
+            "r_scale": "511",
+            "near_bp": "3000000",
+            "far_bp": "10000000",
+            "t_far": "0.03186544342507645",
+            "t_partner": "",
+            "created_at": "2026-11-13T04:27:31Z",
+            "build_wall_s": "2029",
+            "built_with": "ogld 0.0.1.dev292+g25af8039f (scripts/build_hgdp1kgp.py)",
+            "source": "HGDP+1kGP phased v2 (Koenig et al. 2024), EUR, converted by build-inputs §3",
+            "licence": "to confirm",
+            "location": LOCATION,
+            "record": "stores/ld/OGL-00001/record.yaml",
+            "issue": "ogld#7",
+        }.items():
+            with self.subTest(column=column):
+                self.assertEqual(row[column], value)
+
+    def test_the_fields_a_person_wrote_survive_a_rewrite(self) -> None:
+        self.person_record()
+        document = self.read()
+        document["notes"] = "a note only a person could write"
+        document["status"] = "retiring"
+        write_yaml(self.path, document)
+        self.write()
+        self.write()
+        written = self.read()
+        for field in PERSON_FIELDS:
+            with self.subTest(field=field):
+                self.assertEqual(written[field], document[field])
+
+    def test_a_rewrite_reports_a_changed_size_on_disk(self) -> None:
+        self.person_record()
+        first = self.write(size=100)
+        self.assertIsNone(first.previous_store_bytes)
+        again = self.write(size=101)
+        self.assertEqual((again.previous_store_bytes, again.store_bytes), (100, 101))
+        self.assertEqual(self.read()["measured"]["store_bytes"], 101)
+
+    def test_another_store_with_the_same_panel_is_refused(self) -> None:
+        """The draft's OGL-00006 shares OGL-00001's panel, ancestry, n and k."""
+        self.person_record()
+        self.write()
+        text = self.path.read_text(encoding="utf-8")
+        twin = recorded_ld_info()
+        twin["format_version"] = "0.2.0"
+        twin["t_partner"] = 0.01
+        self.assertEqual(
+            (twin["panel"]["id"], twin["panel"]["ancestry"], twin["panel"]["n"], twin["adjustment"]["k"]),
+            ("hgdp1kgp-v2-EUR", "EUR", 665, 10),
+        )
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            self.write(twin, location=TWIN_LOCATION)
+        message = str(caught.exception)
+        for field in ("location", "provenance.format_version", "provenance.t_partner", "provenance_sha256"):
+            with self.subTest(field=field):
+                self.assertIn(field, message)
+        self.assertIn(str(self.path), message)
+        self.assertEqual(self.path.read_text(encoding="utf-8"), text, "a refused write changes nothing")
+
+    def test_a_changed_provenance_at_the_same_location_is_refused(self) -> None:
+        self.person_record()
+        self.write()
+        text = self.path.read_text(encoding="utf-8")
+        rebuilt = recorded_ld_info()
+        rebuilt["build"]["created_at"] = "2026-11-26T00:00:00Z"
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            self.write(rebuilt)
+        self.assertIn("provenance.created_at", str(caught.exception))
+        self.assertIn("provenance_sha256", str(caught.exception))
+        self.assertNotIn("location", str(caught.exception))
+        self.assertEqual(self.path.read_text(encoding="utf-8"), text)
+
+    def test_a_malformed_value_from_ld_info_is_refused_and_writes_nothing(self) -> None:
+        malformed = recorded_ld_info()
+        malformed["build"]["created_at"] = "yesterday"
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            self.write(malformed)
+        self.assertIn("provenance.created_at", str(caught.exception))
+        self.assertFalse(self.path.exists(), "no record is created")
+        self.assertFalse(list(self.ld_root.rglob("*.tmp")), "no staged file is left")
+
+        self.person_record()
+        text = self.path.read_text(encoding="utf-8")
+        with self.assertRaises(writer.WriterRefusal) as caught:
+            self.write(malformed)
+        self.assertIn("provenance.created_at", str(caught.exception))
+        self.assertEqual(self.path.read_text(encoding="utf-8"), text, "an existing record is untouched")
+
+
+class TestRows(unittest.TestCase):
+    """Seam 3: typed values in the spec's columns, then their rendering."""
+
+    def spec_columns(self) -> list[str]:
+        text = SPEC.read_text(encoding="utf-8")
+        block = text.split("```tsv\n", 1)[1].split("```", 1)[0]
+        return block.strip().split("\t")
+
+    def test_the_columns_are_the_specs_in_its_order(self) -> None:
+        self.assertEqual(len(self.spec_columns()), 31, "the draft's 31 columns")
+        self.assertEqual(list(rows.COLUMNS), self.spec_columns())
+        self.assertEqual(list(rows.ld_values(literal_record())), self.spec_columns())
+        self.assertEqual(list(rows.ld_row(literal_record())), self.spec_columns())
+
+    def test_values_are_typed_and_a_missing_value_is_none(self) -> None:
+        values = rows.ld_values(literal_record())
+        for column in ("t_partner", "n_blocks", "genotype_bytes"):
+            with self.subTest(column=column):
+                self.assertIsNone(values[column])
+        self.assertEqual(values["n"], 665)
+        self.assertIsInstance(values["n"], int)
+        self.assertEqual(values["t_far"], 0.03186544342507645)
+        self.assertEqual(values["build_wall_s"], 2029)
+        self.assertIsInstance(values["build_wall_s"], int)
+        self.assertEqual(values["store_bytes"], 79279262640)
+
+    def test_a_missing_value_is_an_empty_cell_never_zero(self) -> None:
+        rendered = rows.render_tsv([literal_record()])
+        (row,) = csv.DictReader(rendered.splitlines(), delimiter="\t")
+        for column in ("t_partner", "n_blocks", "genotype_bytes"):
+            with self.subTest(column=column):
+                self.assertEqual(row[column], "")
+        self.assertEqual(rendered.splitlines()[0].split("\t"), self.spec_columns())
+
+    def test_representation_is_keyed_on_kind_before_partner_rows(self) -> None:
+        document = literal_record()
+        document["provenance"]["t_partner"] = 0.01
+        self.assertEqual(rows.ld_values(document)["representation"], "pairwise r (Near Band, Far Pairs, Partner Rows)")
+        document["kind"] = "genotype_store"
+        self.assertIsNone(rows.ld_values(document)["representation"], "a Genotype Store's is #539's")
+
+
+class TestTheIndex(RegistryCase):
+    """Seam 4: the committed records regenerate the committed `ld-resources.tsv`.
+
+    STORES.md's clean-tree check, with the LD section, is tests/index's.
+    """
+
+    def valid_registry(self, ld_root: Path) -> None:
+        (ld_root / "OGL-00001").mkdir(parents=True)
+        shutil.copy(RECORD, ld_root / "OGL-00001" / "record.yaml")
+
+    def test_the_committed_records_regenerate_the_committed_tsv(self) -> None:
+        ld_index.generate_ld_index(REPO_ROOT / "stores" / "ld", self.tmp)
+        committed = (REPO_ROOT / "ld-resources.tsv").read_text(encoding="utf-8")
+        self.assertEqual(
+            (self.tmp / "ld-resources.tsv").read_text(encoding="utf-8"), committed,
+            "ld-resources.tsv is stale. Run 'pixi run index' to regenerate.",
+        )
+        (row,) = (r for r in csv.DictReader(committed.splitlines(), delimiter="\t") if r["ld_id"] == "OGL-00001")
+        self.assertEqual(
+            (row["label"], row["status"], row["n"], row["k"], row["licence"]),
+            ("hgdp1kgp-v2-EUR-k10", "served", "665", "10", "to confirm"),
+        )
+
+    def test_a_hand_edit_leaves_a_dirty_tree_after_regeneration(self) -> None:
+        repo = self.tmp / "repo"
+        shutil.copytree(REPO_ROOT / "stores" / "ld", repo / "stores" / "ld")
+        ld_index.generate_ld_index(repo / "stores" / "ld", repo)
+        git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t"]
+        subprocess.run([*git, "init", "-q"], check=True)
+        subprocess.run([*git, "add", "."], check=True)
+        subprocess.run([*git, "commit", "-qm", "generated"], check=True)
+        tsv = repo / "ld-resources.tsv"
+        tsv.write_text(tsv.read_text(encoding="utf-8").replace("\tserved\t", "\tretired\t"), encoding="utf-8")
+        subprocess.run([*git, "commit", "-qam", "a hand edit"], check=True)
+        ld_index.generate_ld_index(repo / "stores" / "ld", repo)
+        status = subprocess.run([*git, "status", "--porcelain"], capture_output=True, text=True, check=True).stdout
+        self.assertEqual(status.strip(), "M ld-resources.tsv")
+
+    def test_a_record_that_breaks_the_spec_fails_the_index(self) -> None:
+        document = literal_record()
+        document["status"] = "live"
+        write_yaml(self.path, document)
+        with self.assertRaises(ld_index.InvalidRecords) as caught:
+            ld_index.generate_ld_index(self.ld_root, self.tmp)
+        self.assertIn(str(self.path), str(caught.exception))
+        self.assertIn("status", str(caught.exception))
+        self.assertFalse((self.tmp / "ld-resources.tsv").exists(), "nothing is written from a broken registry")
+
+    def test_anything_but_an_ld_id_directory_fails_the_index(self) -> None:
+        for stray in ("OGL-2/", "notes/", "OGL-00002.yaml", "README.md", "OGL-00002@"):
+            with self.subTest(stray=stray):
+                # A registry of its own per case, so one failure cannot leak into the next.
+                ld_root = Path(tempfile.mkdtemp(dir=self.tmp)) / "stores" / "ld"
+                self.valid_registry(ld_root)
+                target = ld_root / stray.rstrip("/@")
+                if stray.endswith("/"):
+                    target.mkdir()
+                elif stray.endswith("@"):
+                    target.symlink_to(ld_root / "OGL-00001")
+                else:
+                    target.write_text("x\n", encoding="utf-8")
+                with self.assertRaises(ld_index.InvalidRecords) as caught:
+                    ld_index.generate_ld_index(ld_root, self.tmp)
+                self.assertIn(str(target), str(caught.exception))
+
+
+if __name__ == "__main__":
+    unittest.main()

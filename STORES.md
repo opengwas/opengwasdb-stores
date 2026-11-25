@@ -72,3 +72,11 @@ These bundles pass the Release Bundle gate only because a named exemption tolera
 | `OGS-00001` | 70 blank required Analysis values (tolerated under #134) |
 | `OGS-00002` | 10 analysis_id values containing ':' (tolerated under #319) |
 | `OGS-00002` | 70 blank required Analysis values (tolerated under #134) |
+
+## LD resources
+
+Generated from the LD Store Registry's records in `stores/ld/` (docs/spec/ld-store-registry.md). Every column is in `ld-resources.tsv`. Do not edit by hand; regenerate with `pixi run index`.
+
+| LD ID | Label | Kind | Status | Ancestry | n | k | Format | Variants | Bytes | Licence |
+|:---|:---|:---|:---|:---|---:|---:|:---|---:|---:|:---|
+| `OGL-00001` | hgdp1kgp-v2-EUR-k10 | ld_store | served | EUR | 665 | 10 | 0.1.0 | 8,586,889 | 79,278,843,340 | to confirm |
