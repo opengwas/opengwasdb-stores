@@ -1,0 +1,4 @@
+- **OGS-00011 is rebuilt and completed under its id (#478), and marked `built`.** It is format 0.2.3, with 3,245 Analyses (3,169 before) and 47,920,732 variants. It no longer holds statistics from the mislabelled effect columns of GCST002047, GCST004461 and GCST90165257 (#403, #412). The 1 Nov Store is archived under `replaced/20261122T224238Z`.
+  - **Dropped variants.** Completion left out 668 shared-axis variants that carry no association. The Observed-View Check lists them, and it ran on opengwasdb 0.16.1 plus opengwas/opengwasdb#490.
+  - **Missing rsids.** 844,992 Dense variant rows carry no rsid where the shared table has one (opengwas/opengwasdb#481).
+  - **Not yet `validated`.** Marking it `validated` is a reviewed edit that awaits the owner.

@@ -2,7 +2,8 @@ store_id: OGS-00002
 label: pilot-10-completed
 association_coverage: cis
 access_posture: public
-status: validated
+status: superseded
+superseded_by: OGS-00001
 trial: true
 derived_from: OGS-00001
 created_at: '2026-08-18T16:48:16Z'
@@ -98,4 +99,15 @@ notes: 'Completion adds no new Analyses -- analyses.tsv here is unchanged from p
   an unforced replacement, and the change stays dated and evidenced. The #195 erratum''s "987aec1, the
   revision that rebuilt the published Store" no longer describes the published Store, which was
   re-completed at 9c98a52, and the Release Status is unchanged at validated.
+
+  Superseded (2026-11-25, #514): OGS-00001 now completes its own Store (ADR 0037 section 1), against the
+  same panel and ancestry and with the same Analyses, so it succeeds this separate Reference-Completed
+  sibling. Owner decision of 25 Nov 2026 in #514. Release Status moves from validated to superseded, with
+  superseded_by OGS-00001. The bundle stays in the registry as a record, because an id is never reused
+  (ADR 0022); the catalog excludes it as a Trial release (ADR 0039), whatever its status. Plan, on the
+  owner''s decision of 25 Nov 2026: once OGS-00001''s completed Store is published and checked, this
+  Store''s records/ and validation.yaml are archived under
+  /data/opengwasdb/stores/OGS-00002/replaced/<UTC>/ and its arrays are deleted, as earlier archives were.
+  The forced OGS-00001 run does not do this; #514''s OGS-00001 operator does it as a separate step, and
+  records when it happened.
   '
