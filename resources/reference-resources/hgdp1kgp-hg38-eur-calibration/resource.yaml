@@ -16,6 +16,12 @@ ld:
   block_file: ld_regions_hg38.tsv
   components_retained: variance_driven
   components_cumvar_target: 0.99
+  n_variants:
+    EUR: 9783946
+  n_blocks:
+    EUR: 1357
+  bytes:
+    EUR: 37123596583
 source:
   cohort: HGDP + 1kGP harmonised callset
   n_individuals: 771
@@ -23,6 +29,11 @@ source:
     MAC >= 50; of the records sharing an ALID, the one with the higher MAF,
     then the higher call rate, then the earlier input record
   generator: tools/ld-panel/run_panels.py
+ld_ids:
+  EUR: OGL-00018
+used_for: "calibration control; not used for completion"
+licence: to confirm
+index_notes: "calibration control for the AFR/EAS/SAS release gate; MAC >= 50"
 status: available
 description: >
   Non-production EUR control built genome-wide (1,357 blocks) using exactly the

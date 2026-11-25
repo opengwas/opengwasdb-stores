@@ -122,7 +122,7 @@ A declarative description of the release shape to produce from an accepted Relea
 _Avoid_: pipeline, script, release manifest
 
 **LD Store Registry**:
-The registry of LD Stores, the LD Store records under `stores/ld/`, and the `ld-resources.tsv` index generated from them (ADR 0042). An LD Store is not a Store Release: it has an `OGL-` id, not an `OGS-` one, and no Release Bundle.
+The registry of LD Stores, the LD Store records under `stores/ld/`, and the `ld-resources.tsv` index generated from the records and from the `ld_panel` Reference Resource declarations, which list the LD panels beside them (ADR 0042). An LD Store is not a Store Release: it has an `OGL-` id, not an `OGS-` one, and no Release Bundle.
 _Avoid_: LD catalogue, ld-stores list
 
 **LD Store record**:

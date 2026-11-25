@@ -22,6 +22,7 @@ STORES.md                         generated: its "LD resources" section
 - **An id** is `OGL-` and five digits, assigned once, in order, and never
   reused (ADR 0022's rule for `OGS-`). It is the record's directory name.
   OGL-00001 to OGL-00018 are taken by #496's draft, which later tickets keep.
+  OGL-00013 to OGL-00018 are the LD panels' (below).
 - **`stores/ld/` holds only `OGL-NNNNN/` directories**, each holding its
   `record.yaml`. Anything else there, a file, a symbolic link or a directory
   not named by an id, is an error that names it.
@@ -165,7 +166,7 @@ pixi run -e dev python3 -m ld_registry write <ld_id> <location> [--ld-root store
 ## The index
 
 `pixi run index` (the Snakefile's `index` rule) runs
-`ld_registry.index.generate_ld_index`, which writes `ld-resources.tsv` and
+`ld_registry.index.generate_ld_index(ld_root, repo_root, resources_root)`, which writes `ld-resources.tsv` and
 renders STORES.md's section, then `ogstores.index.generate_index`, which writes
 STORES.md with that section after the Store Releases. Each file has one writer.
 
@@ -184,7 +185,7 @@ not hold. The TSV and STORES.md render them; the Analysis Catalog's table
 
 ### `ld-resources.tsv`
 
-One row per record, in id order, under this header:
+One row per record and one per LD panel (below), in id order, under this header:
 
 ```tsv
 ld_id	label	kind	provenance	status	used_for	ancestry	source_panel	n	k	reference_assembly	format_version	representation	n_variants	n_blocks	store_bytes	genotype_bytes	r_scale	near_bp	far_bp	t_far	t_partner	created_at	build_wall_s	built_with	source	licence	location	record	issue	notes
@@ -198,7 +199,7 @@ Each column is the record field of the same name, except:
 | `provenance` | `provenance.source_kind` |
 | `ancestry`, `source_panel`, `n`, `k`, `reference_assembly`, `format_version`, `n_variants`, `r_scale`, `near_bp`, `far_bp`, `t_far`, `t_partner`, `created_at` | `provenance.<column>` |
 | `representation` | by `kind` first. For an `ld_store`, `pairwise r (Near Band, Far Pairs)`, with `, Partner Rows` when the record has `provenance.t_partner`. For a `genotype_store`, `pgen + sidecar, r computed per query` |
-| `n_blocks` | empty: an LD panel's (#540) |
+| `n_blocks` | empty for a record: an LD panel's (below) |
 | `store_bytes` | `measured.store_bytes` |
 | `genotype_bytes` | `measured.genotype_bytes`; empty for an LD Store |
 | `build_wall_s` | `provenance.wall_seconds`, rounded to a whole second |
@@ -208,6 +209,48 @@ Each column is the record field of the same name, except:
 
 A number is written as Python writes it: `t_far` keeps every digit the Store
 recorded.
+
+### LD panels
+
+An LD panel (a `kind: ld_panel` Reference Resource, ADR 0011) is listed beside
+the records but is not one: no Store holds its provenance, and its row is read
+from `resources/reference-resources/<resource_id>/resource.yaml` by
+`ld_registry.panels.panel_rows(resources_root)`, which calls
+`ogstores.resources.load_resource_declaration`. The declaration is the
+panel's one writer, so its row cannot drift from it. `ld_registry.rows.ld_values`
+is not involved.
+
+One declaration gives one row **per ancestry** in its `ancestry`, with:
+
+| declaration field | column |
+|---|---|
+| `ld_ids.<ancestry>` | `ld_id`. Required for every declared ancestry, and for no other: a missing entry is refused, naming the file and the ancestry. An id is assigned once, so a repeated one is refused too |
+| `ancestry`, `resource_id`, `used_for`, `licence` | required: a declaration without one is refused, naming the file and the field. `ancestry` has at least one entry |
+| `resource_id`, with ` (<ancestry>)` when the declaration has several | `label` |
+| `kind` | `ld_panel`; `provenance` is `genotypes` |
+| `status` | `status`, as declared. A panel's role is not its status: the calibration control is `available`, and its `used_for` says it is not used for completion |
+| `used_for`, `licence`, `index_notes` | `used_for`, `licence`, `notes` |
+| `ancestry` | `ancestry` |
+| `source.cohort` | `source_panel` and `source` |
+| `source.n_individuals` | `n` (one value, or one per ancestry) |
+| `genome_build` | `reference_assembly` |
+| `ld.representation`, `ld.components_cumvar_target` | `representation`: `per-block eigendecomposition (.ldeig.npz)`, then `, <target> cumulative variance` when the declaration holds a target |
+| `ld.n_variants`, `ld.n_blocks`, `ld.bytes` | `n_variants`, `n_blocks`, `store_bytes`. Per ancestry for a multi-ancestry panel (a scalar there is refused); a single-ancestry panel may declare a scalar. An absent count is an empty cell; a per-ancestry map (and `source.n_individuals`) that lacks a declared ancestry, or names another, is refused, naming the file, the field and the ancestry. A value kept as declared stays as declared |
+| `location`, `ancestry_dir`, `physical_directory` | `location`: `<location>/<ancestry>` for a multi-ancestry panel; `<location>/<ancestry_dir> (-> <physical_directory>)` for an alias; else `location` |
+| the file's path | `record` |
+
+Every other column is empty. **A count the declaration does not hold is `None`,
+an empty cell, never `0`:** the UKB EUR panel's variants and bytes stay empty,
+because no session reads its directory.
+
+The counts are measured on the host from each panel directory, by
+`tools/ld-panel/measure_panel.py`: `n_blocks` is the `.ldeig.npz` files,
+`n_variants` the rows of every block's `.tsv`, `bytes` the size of every file
+under the directory (`ogstores.store_size.store_size_on_disk`, a stat of each, so no directory entries).
+
+**An LD panel's id must not be a record's.** The index refuses a collision,
+naming the id and the panel, before it writes anything
+(`ld_registry.index.IdCollision`).
 
 ### STORES.md
 

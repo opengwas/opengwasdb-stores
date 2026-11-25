@@ -24,7 +24,6 @@ from typing import Any
 import yaml
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
-
 from ogstores import bundle, index, paths
 from ogstores.bundle import Bundle
 from ogstores.index import (
@@ -875,11 +874,13 @@ class TestRepoIndexCleanTree(unittest.TestCase):
         # Generate index in a temp location from repo's actual stores/
         with tempfile.TemporaryDirectory() as td:
             temp_repo = Path(td)
+            # The LD panels' rows (#540) are read from the declarations in place; nothing is written there.
+            resources = REPO_ROOT / "resources" / "reference-resources"
             gen_tsv, gen_md = generate_index(
                 registry_root=REPO_ROOT / "stores",
                 repo_root=temp_repo,
                 # STORES.md carries the LD Store Registry's section (#536).
-                ld_section=generate_ld_index(REPO_ROOT / "stores" / "ld", temp_repo),
+                ld_section=generate_ld_index(REPO_ROOT / "stores" / "ld", temp_repo, resources),
             )
             # Compare contents
             self.assertEqual(
