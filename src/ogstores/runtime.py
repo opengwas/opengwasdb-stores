@@ -60,7 +60,7 @@ OPENGWASDB_GIT_URL: str = engine.OPENGWASDB_GIT_URL
 #: (opengwas/opengwasdb#338, ADR 0068). Every build writes `0.2.3`, with or
 #: without a Ragged release's `regions.tsv`. It lives in the core, not here;
 #: this is the value the guard reports.
-REQUIRED_FORMAT_VERSION: str = "0.2.3"
+REQUIRED_FORMAT_VERSION: str = "0.3.0"
 
 #: Every format Reference Completion may consume: `0.2.2` and `0.2.3`. A `0.2.2`
 #: source completes to `0.2.3`, because every completion records

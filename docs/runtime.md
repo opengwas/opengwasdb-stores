@@ -11,7 +11,7 @@ provides, and what upgrading it does **not** do.
 | Repository | `https://github.com/opengwas/opengwasdb` |
 | Branch followed | `main`, in `pixi.toml`'s `[feature.store-build.pypi-dependencies]` |
 | Commit, and the package version | `pixi.lock`, and nowhere else (#253). `pixi run env-check` prints both, beside the installed engine's |
-| Writers' Store `format_version` | `0.2.3` from every builder and every completion (`ogstores.runtime.REQUIRED_FORMAT_VERSION`). `WRITABLE_FORMAT_VERSIONS` is the set completion may consume, `0.2.2` and `0.2.3`: a `0.2.2` source completes to `0.2.3`. The converter writes `0.2.0` |
+| Writers' Store `format_version` | `0.3.0` from every builder and every completion (`ogstores.runtime.REQUIRED_FORMAT_VERSION`). `WRITABLE_FORMAT_VERSIONS` is the set completion may consume, `0.2.2` and `0.2.3`: a `0.2.2` source completes to `0.2.3`. The converter writes `0.2.0` |
 | Python floor | 3.12 |
 | Zarr / numcodecs | `zarr>=3.4,<4`, `numcodecs>=0.17` (Zarr v3 with the sharding codec) |
 
@@ -42,12 +42,10 @@ not an update. That baseline is `0.2.3` since opengwasdb#338 (ADR 0068; it was
 `0.2.2` from opengwasdb#381, ADR 0079): an engine that writes `0.2.0`, `0.2.1` or
 `0.2.2` is refused. `pixi run engine-update --check` checks without moving anything.
 
-**Format 0.3.0 (opengwas/opengwasdb-stores#498).** While the pin names opengwasdb's
-format-0.3.0 epic branch (`orch/450-ogquery-store-reader`), the engine writes `0.3.0` and
-`REQUIRED_FORMAT_VERSION` is still `0.2.3`, so `engine-update` would refuse it and the
-`runtime` suite fails on the branch name. That is expected: `REQUIRED_FORMAT_VERSION`
-moves to `0.3.0` in the same commit that returns the pin to `main`, once opengwasdb#480
-merges, and the rebuild of the hosted releases follows. Until then the code here reads
+**Format 0.3.0 (opengwas/opengwasdb-stores#498).** opengwasdb#480 merged the format-0.3.0
+epic into `main` as `69c29452`, so the engine writes `0.3.0` and `REQUIRED_FORMAT_VERSION`
+moved to `0.3.0` in the same commit that returned the pin to `main` and moved the lock to
+that commit. The rebuild of the hosted releases follows; until then the code here reads
 both formats and hosted releases stay `0.2.x`.
 
 ### Engines within a phase
