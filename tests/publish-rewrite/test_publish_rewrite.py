@@ -410,6 +410,25 @@ class TestPublishing(PublishRewriteCase):
             "the schema's sum of step times: the replaced release's, the rewrite's and this validation's",
         )
 
+    def replaced_completion_state(self, state: str | None) -> None:
+        record = yaml.safe_load(self.fx.validation_yaml.read_text())
+        if state is None:
+            record["observed"].pop("completion_state")
+        else:
+            record["observed"]["completion_state"] = state
+        self.fx.validation_yaml.write_text(yaml.safe_dump(record, sort_keys=False))
+
+    def test_a_replaced_record_with_no_completion_state_publishes_the_measured_one(self) -> None:
+        """OGS-00016's 0.2.0 record predates #307 (#525): the state is measured, not carried."""
+        fx = self.fx
+        self.replaced_completion_state(None)
+        fx.stage(INDEL_WARNING)
+        fx.write_info(fx.staged, {**info(NEW_RELEASE, "0.3.0"), "completion_state": "observed_only"})
+
+        observed = (fx.publish() or {})["observed"]
+
+        self.assertEqual(observed["completion_state"], "observed_only")
+
     def test_a_lifted_conversion_records_its_source_alid_deviation(self) -> None:
         fx = self.fx
         fx.stage(INDEL_WARNING, LIFTED_WARNING, flags=("--convert-legacy", "--lifted"))
@@ -446,6 +465,13 @@ class TestRefusals(PublishRewriteCase):
         self.assertFalse(paths.publication_marker(STORE_ID, root=fx.root).exists())
         self.assertFalse((fx.store_dir / "replaced").exists())
         self.assertEqual(list(fx.store_dir.glob(f"*{paths.FORCE_SNAPSHOT_PREFIX}*")), [])
+
+    def test_a_completion_state_that_differs_from_the_replaced_record_is_refused(self) -> None:
+        fx = self.fx
+        fx.stage(INDEL_WARNING)
+        fx.write_info(fx.staged, {**info(NEW_RELEASE, "0.3.0"), "completion_state": "observed_only"})
+
+        self.assertRefusedUnchanged("'reference_completed'", "'observed_only'")
 
     def test_a_staged_release_that_is_not_0_3_0_is_refused(self) -> None:
         self.fx.stage(format_version="0.2.3")
@@ -879,8 +905,9 @@ class TestRealEngine(unittest.TestCase):
             validation_yaml = bundle_dir / "validation.yaml"
             validation_yaml.write_text(yaml.safe_dump({
                 "status": "passed", "validator": {"name": "opengwasdb validate", "version": "x"},
-                "observed": dict(PREVIOUS_OBSERVED), "checks": {"store": "passed"},
-                "warnings": [], "errors": [],
+                # The fixture tarball is an Observed-Only Store, as `info` reports it.
+                "observed": {**PREVIOUS_OBSERVED, "completion_state": "observed_only"},
+                "checks": {"store": "passed"}, "warnings": [], "errors": [],
             }, sort_keys=False))
             store_dir = paths.store_dir(STORE_ID, root=root)
             store_dir.mkdir(parents=True)
