@@ -50,9 +50,7 @@
       "clump",
       "/data/opengwasdb/stores/OGS-00032/store.opengwasdb",
       "--ld-store",
-      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS",
-      "--ld-store",
-      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS/hgdp1kgp-v2-EAS-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00032/store.opengwasdb"
@@ -108,9 +106,7 @@
       "--n-workers",
       "24",
       "--ld-store",
-      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS",
-      "--ld-store",
-      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS/hgdp1kgp-v2-EAS-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00032/store.opengwasdb"
@@ -164,9 +160,7 @@
       "clump",
       "/data/opengwasdb/stores/OGS-00032/store.opengwasdb",
       "--ld-store",
-      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS",
-      "--ld-store",
-      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS/hgdp1kgp-v2-EAS-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00032/store.opengwasdb"
@@ -225,9 +219,7 @@
       "--n-workers",
       "24",
       "--ld-store",
-      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS",
-      "--ld-store",
-      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS/hgdp1kgp-v2-EAS-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00032/store.opengwasdb"

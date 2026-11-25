@@ -38,7 +38,7 @@ notes: |-
   The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
   was rebuilt or rewritten by this registry metadata correction.
 
-  2026-11-25: recipe amended (#530, epic #520) to add `post.rho`, `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522. Not completed: the owner ruled on 2026-11-25 that it stays Observed-Only until a rebuild from source, as completing a converted Store under the indel_order deviation can duplicate deletions.
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner's, accepted on #522. It stays Observed-Only (owner, 2026-11-25): completing a converted Store under the indel_order deviation can duplicate deletions, so it is completed after a rebuild from source. Every Analysis is unassigned, so the declaration yields no Clumps (`not_clumped.no_assigned_ancestry`) until the Analyses carry an Assigned Ancestry; EUR is mapped only because a mapping is required.
 accepted_at: '2026-10-14T08:39:26Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z

@@ -124,4 +124,4 @@ notes: 'Every probe of the genome-wide BESD file set, one Analysis each. The Sto
   under /data/opengwasdb/stores/OGS-00027/replaced/20261125T151658Z/, kept because the run was forced
   (#309); deleting it is the owner''s call. The Release Status is unchanged at validated.
 
-  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), taking `ld-panel` and `ancestry` from its completed sibling OGS-00006 (EUR, Ragged), `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522.'
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00006 (the EUR Ragged Store), whose `ld-panel` and `ancestry` it takes. It also adds `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.'

@@ -115,25 +115,25 @@ DECLARATION_OPTIONS: dict[str, dict[str, Any]] = {
     "OGS-00033": HAPMAP3_OVERFLOW_ONLY_OPTIONS,
 }
 
-# The pre-#211 Build Recipe values, frozen so a future edit that quietly changes
-# a builder option or a post choice fails here as well as in the plan goldens.
 # What #530 added to the priority Stores' `post` (epic #520, accepted on #522): Rho for the
 # Dense and Hybrid Stores, and Clumps with its LD Store mapping for all of them.
-_LD = "/data/opengwasdb/ld-stores/hgdp1kgp-v2-"
+_LD = "/data/opengwasdb/ld-stores/hgdp1kgp-v2-{0}/hgdp1kgp-v2-{0}-k10.store"
 POST_530: dict[str, dict[str, Any]] = {
-    store_id: {**({"rho": True} if rho else {}), "clumps": True, "ld_stores": {a: _LD + a for a in ancestries}}
+    store_id: {**({"rho": True} if rho else {}), "clumps": True, "ld_stores": {a: _LD.format(a) for a in ancestries}}
     for store_id, rho, ancestries in (
         ("OGS-00009", True, ("EUR",)),
-        ("OGS-00011", True, ("AFR", "EAS", "EUR")),
+        ("OGS-00011", True, ("EUR",)),
         ("OGS-00012", True, ("EUR",)),
         ("OGS-00013", True, ("AFR",)),
         ("OGS-00014", True, ("AMR",)),
         ("OGS-00015", True, ("EAS",)),
-        ("OGS-00016", True, ("AFR", "AMR", "EAS", "EUR", "SAS")),
+        ("OGS-00016", True, ("EUR",)),
         ("OGS-00017", True, ("EUR",)),
     )
 }
 
+# The pre-#211 Build Recipe values, frozen so a future edit that quietly changes
+# a builder option or a post choice fails here as well as in the plan goldens.
 EXPECTED_UNRELATED: dict[str, dict[str, Any]] = {
     "OGS-00003": {
         "phase": "build",

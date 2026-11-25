@@ -47,7 +47,7 @@
       "clump",
       "/data/opengwasdb/stores/OGS-00013/store.opengwasdb",
       "--ld-store",
-      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR"
+      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR/hgdp1kgp-v2-AFR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00013/store.opengwasdb"
@@ -101,7 +101,7 @@
       "--n-workers",
       "16",
       "--ld-store",
-      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR"
+      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR/hgdp1kgp-v2-AFR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00013/store.opengwasdb"
@@ -155,7 +155,7 @@
       "clump",
       "/data/opengwasdb/stores/OGS-00013/store.opengwasdb",
       "--ld-store",
-      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR"
+      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR/hgdp1kgp-v2-AFR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00013/store.opengwasdb"
@@ -212,7 +212,7 @@
       "--n-workers",
       "32",
       "--ld-store",
-      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR"
+      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR/hgdp1kgp-v2-AFR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00013/store.opengwasdb"

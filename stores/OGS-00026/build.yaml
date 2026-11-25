@@ -9,7 +9,7 @@ post:
   overview: false
   clumps: true
   ld_stores:
-    SAS: /data/opengwasdb/ld-stores/hgdp1kgp-v2-SAS
+    SAS: /data/opengwasdb/ld-stores/hgdp1kgp-v2-SAS/hgdp1kgp-v2-SAS-k10.store
 complete:
   command: complete-ragged
   options:

@@ -93,7 +93,7 @@ build:
     rho: true
     clumps: true
     ld_stores:
-      EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR
+      EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store
 
 # The maintained hm3 Indexed Variant Subset, exactly as OGS-00009 declares it.
 # The values are the maintained Reference Resource's, never a copy of them

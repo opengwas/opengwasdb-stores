@@ -186,8 +186,8 @@ def validate_step_argv_against_cli(test_case: unittest.TestCase, step: Step) -> 
 # The completion phase OGS-00001 plans since #514: it completes its own Store
 # (ADR 0037) rather than leaving OGS-00002 to complete it.
 COMPLETION_STEPS_00001 = ("complete", "completion-validate", "completion-observed-view-check")
-# Committed bundles that declare `post.rho: true`. OGS-00003's Dense Store
-# gets a Rho Matrix since #514; no other committed bundle declares one.
+# Early-registered bundles that declare `post.rho: true`: OGS-00003's Dense Store
+# since #514, and OGS-00009's since #530 (the other priority Stores are not early-registered).
 RHO_BUNDLES = frozenset({"OGS-00003", "OGS-00009"})
 # Of the early-registered bundles, those that declare `post.clumps: true` with
 # `post.ld_stores` since #530 (the priority Stores of epic #520).
@@ -2870,9 +2870,9 @@ class TestPostDefaults(unittest.TestCase):
         for sid in EARLY_REGISTERED:
             post = load(sid).build.get("post") or {}
             record_check()
-            # OGS-00003 is the one committed bundle that declares rho (#514):
-            # its Dense Store carries a Rho Matrix; every other recipe leaves
-            # it to the default.
+            # OGS-00003 (#514) and OGS-00009 (#530) declare rho, and OGS-00006
+            # and OGS-00009 declare clumps with their LD Stores (#530); every
+            # other recipe leaves them to the defaults.
             expected_keys = (
                 {"top_hits", "overview"}
                 | ({"rho"} if sid in RHO_BUNDLES else set())

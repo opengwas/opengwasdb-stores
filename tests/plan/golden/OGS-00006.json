@@ -47,7 +47,7 @@
       "clump",
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb",
       "--ld-store",
-      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"
@@ -65,7 +65,7 @@
       "--format",
       "json",
       "--ld-store",
-      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00006/store.opengwasdb"

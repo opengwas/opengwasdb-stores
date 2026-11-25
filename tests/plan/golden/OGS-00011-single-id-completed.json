@@ -52,11 +52,7 @@
       "clump",
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
       "--ld-store",
-      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR",
-      "--ld-store",
-      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS",
-      "--ld-store",
-      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
@@ -112,11 +108,7 @@
       "--n-workers",
       "10",
       "--ld-store",
-      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR",
-      "--ld-store",
-      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS",
-      "--ld-store",
-      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
@@ -170,11 +162,7 @@
       "clump",
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
       "--ld-store",
-      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR",
-      "--ld-store",
-      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS",
-      "--ld-store",
-      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"
@@ -233,11 +221,7 @@
       "--n-workers",
       "24",
       "--ld-store",
-      "AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR",
-      "--ld-store",
-      "EAS=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EAS",
-      "--ld-store",
-      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR"
+      "EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store"
     ],
     "inputs": [
       "/data/opengwasdb/stores/OGS-00011/store.opengwasdb"

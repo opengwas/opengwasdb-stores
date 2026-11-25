@@ -9,7 +9,7 @@ post:
   overview: false
   clumps: true
   ld_stores:
-    AFR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR
+    AFR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR/hgdp1kgp-v2-AFR-k10.store
 complete:
   command: complete-ragged
   options:

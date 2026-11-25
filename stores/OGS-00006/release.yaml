@@ -192,8 +192,8 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
   EAF-orientation notes as before (no resolver note). The Validation Record is the one `register`
   wrote at completion. Both archives are kept because the run was forced (#309); deleting them is the
   owner''s call. The Store is reference_completed and the Release Status is unchanged at validated.
-  
 
-  
 
-  2026-11-25: recipe amended (#530, epic #520) to add `post.clumps` with its `post.ld_stores` mapping (hgdp1kgp-v2 LD Stores). Accepted by the owner on #522.'
+
+
+  2026-11-25: recipe amended (#530, epic #520) to add `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.'
