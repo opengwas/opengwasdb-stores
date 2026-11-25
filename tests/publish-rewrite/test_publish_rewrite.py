@@ -459,6 +459,59 @@ class TestRefusals(PublishRewriteCase):
         self.fx.stage(INDEL_WARNING, UNRECORDED_WARNING)
         self.assertRefusedUnchanged("eaf_orientation.unverified", "not a deviation")
 
+    def carry(self, *messages: str) -> None:
+        """The replaced Validation Record carries these warnings."""
+        record = yaml.safe_load(self.fx.validation_yaml.read_text())
+        record["warnings"] = list(messages)
+        self.fx.validation_yaml.write_text(yaml.safe_dump(record, sort_keys=False))
+
+    def test_a_warning_the_replaced_record_carried_unchanged_publishes_and_is_named(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        self.fx.stage(UNRECORDED_WARNING, flags=())
+        record = self.fx.publish()
+        assert record is not None
+        self.assertEqual(record["rewrite"]["carried_warnings"], [UNRECORDED_WARNING["message"]])
+        self.assertEqual(record["rewrite"]["deviations"], [])
+        self.assertEqual(record["warnings"], [UNRECORDED_WARNING["message"]])
+
+    def test_judge_findings_table(self) -> None:
+        w = UNRECORDED_WARNING["message"]
+        warn = lambda rule, message: finding(rule, "warning", message)  # noqa: E731
+        base = warn("eaf_orientation.unverified", w)
+        cases = {
+            "carried": ([base], dict(replaced_warnings=[w]), [w], 0),
+            "changed count": ([warn(base["rule"], w + "; only 12 variants")], dict(replaced_warnings=[w]), [], 1),
+            "changed subject": ([warn(base["rule"], w.replace("'a'", "'b'"))], dict(replaced_warnings=[w]), [], 1),
+            "fired twice": ([base, base], dict(replaced_warnings=[w]), [w], 1),
+            "new": ([base], dict(replaced_warnings=["another"]), [], 1),
+            "empty record": ([base], dict(replaced_warnings=[]), [], 1),
+            "null record": ([base], dict(replaced_warnings=None), [], 1),
+            "non-list record": ([base], dict(replaced_warnings=w), [], 1),
+            "deviation rule, recorded text, plain rewrite": (
+                [INDEL_WARNING], dict(replaced_warnings=[INDEL_WARNING["message"]]), [], 1),
+        }
+        for name, (findings, kwargs, carried, unrecorded) in cases.items():
+            with self.subTest(name):
+                deviations, got, refused = publish_rewrite.judge_findings(findings, convert_legacy=False, **kwargs)
+                self.assertEqual((deviations, got, len(refused)), ([], carried, unrecorded))
+        deviations, got, refused = publish_rewrite.judge_findings(
+            [INDEL_WARNING], convert_legacy=True, replaced_warnings=[INDEL_WARNING["message"]])
+        self.assertEqual((deviations, got, refused), (["variant_table.indel_order"], [], []))
+
+    def test_a_new_warning_the_replaced_record_lacks_is_refused(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        new = finding("rho.unverified", "warning", "a new warning V")
+        self.fx.stage(UNRECORDED_WARNING, new, flags=())
+        self.assertRefusedUnchanged("rho.unverified", "a new warning V")
+
+    def test_a_conversion_names_its_deviations_and_its_carried_warning(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        self.fx.stage(INDEL_WARNING, UNRECORDED_WARNING)
+        record = self.fx.publish()
+        assert record is not None
+        self.assertEqual(record["rewrite"]["deviations"], ["variant_table.indel_order"])
+        self.assertEqual(record["rewrite"]["carried_warnings"], [UNRECORDED_WARNING["message"]])
+
     def test_a_plain_rewrite_accepts_no_deviation(self) -> None:
         """#499's 0.2.3 rewrite records none, so every warning refuses it."""
         self.fx.stage(INDEL_WARNING, flags=())
