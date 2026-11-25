@@ -12,12 +12,12 @@ import gzip
 import io
 import json
 import sqlite3
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 
 from analysis_catalog import BUILDER_VERSION
 from analysis_catalog.columns import (
-    ANALYSIS_COLUMNS, COUNT_DIMENSIONS, DDL, INDEXES, SEARCH, STORE_COLUMNS,
+    ANALYSIS_COLUMNS, COUNT_DIMENSIONS, DDL, INDEXES, LD_RESOURCES_COLUMNS, SEARCH, STORE_COLUMNS, quoted,
 )
 from analysis_catalog.policy import LISTED, PLACEHOLDER, POLICY, REFUSED, Decision, RefusedRow
 
@@ -36,6 +36,7 @@ def write_database(
     version: str,
     built_at: str,
     registry_commit: str | None,
+    ld_rows: Iterable[Mapping],
 ) -> tuple[Decision, ...]:
     """Write the database, taking `decisions` one at a time, and return the final ones.
 
@@ -54,6 +55,10 @@ def write_database(
         final: list[Decision] = []
         for decision in decisions:
             final.append(_write_store(connection, decision))
+        # The rows of `ld-resources.tsv`, from the one owner (`ld_registry.index.resource_rows`): the
+        # caller refuses the build on an invalid record. Each value is the registry's own typed value,
+        # `None` as NULL (#537).
+        _insert(connection, "ld_resources", LD_RESOURCES_COLUMNS, [tuple(row[column] for column in LD_RESOURCES_COLUMNS) for row in ld_rows])
         _derive(connection)
         connection.executemany(
             "INSERT INTO selection (store_id, decision, reason) VALUES (?, ?, ?)",
@@ -111,7 +116,7 @@ def _derive(connection: sqlite3.Connection) -> None:
 def _insert(
     connection: sqlite3.Connection, table: str, columns: dict[str, str], rows: Iterable[tuple]
 ) -> None:
-    names = ", ".join(columns)
+    names = ", ".join(quoted(name) for name in columns)
     marks = ", ".join("?" for _ in columns)
     connection.executemany(f"INSERT INTO {table} ({names}) VALUES ({marks})", rows)
 

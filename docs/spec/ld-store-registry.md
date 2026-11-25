@@ -44,6 +44,7 @@ the writer owns.
 | `kind` | writer | yes | `ld_store` or `genotype_store`, inferred from the provenance; below |
 | `label` | person | yes | a display name; nothing resolves a record by it |
 | `status` | person | yes | one of the statuses below |
+| `default` | person | no | `true` on the one `served` record that is its ancestry's default; absent otherwise. Only `true` is valid, `served` is the only status that may carry it, and at most one `served` record per `provenance.ancestry` may (#537; it feeds ogdb-api#195) |
 | `licence` | person | yes | the data's licence, never empty. `to confirm` is valid, and is shown as written, while a licence is undecided |
 | `used_for` | person | yes | what the Store is used for |
 | `issue` | person | no | the issue that built it, such as `ogld#7` |
@@ -171,6 +172,7 @@ renders STORES.md's section, then `ogstores.index.generate_index`, which writes
 STORES.md with that section after the Store Releases. Each file has one writer.
 
 - It reads the records alone, never a Store.
+- A second `default: true` for one ancestry among `served` records is an error naming the later record and the one it duplicates; `default` on a record that is not `served` is an error too.
 - A record that breaks the spec, or anything else under `stores/ld/`, stops it
   before anything is written, and the error names the record and the field.
 - CI's `index-ci` runs the same rule and fails on a dirty tree, so a hand edit
@@ -188,7 +190,7 @@ not hold. The TSV and STORES.md render them; the Analysis Catalog's table
 One row per record and one per LD panel (below), in id order, under this header:
 
 ```tsv
-ld_id	label	kind	provenance	status	used_for	ancestry	source_panel	n	k	reference_assembly	format_version	representation	n_variants	n_blocks	store_bytes	genotype_bytes	r_scale	near_bp	far_bp	t_far	t_partner	created_at	build_wall_s	built_with	source	licence	location	record	issue	notes
+ld_id	label	kind	provenance	status	used_for	ancestry	source_panel	n	k	reference_assembly	format_version	representation	n_variants	n_blocks	store_bytes	genotype_bytes	r_scale	near_bp	far_bp	t_far	t_partner	created_at	build_wall_s	built_with	source	licence	location	record	issue	notes	default
 ```
 
 **A value the record does not hold is an empty cell, never `0` and never `-`.**
@@ -206,6 +208,7 @@ Each column is the record field of the same name, except:
 | `built_with` | `ogld <provenance.software.ogld> (<rebuild.script>)` |
 | `source` | `provenance.source_description` |
 | `record` | `stores/ld/<ld_id>/record.yaml` |
+| `default` | `1` for a record that declares `default: true`, empty otherwise. The one column after the draft's 31 (#537) |
 
 A number is written as Python writes it: `t_far` keeps every digit the Store
 recorded.

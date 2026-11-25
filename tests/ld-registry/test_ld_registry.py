@@ -367,14 +367,14 @@ class TestRows(unittest.TestCase):
         return block.strip().split("\t")
 
     def test_the_columns_are_the_specs_in_its_order(self) -> None:
-        self.assertEqual(len(self.spec_columns()), 31, "the draft's 31 columns")
+        self.assertEqual(len(self.spec_columns()), 32, "the draft's 31 columns, and #537's `default`")
         self.assertEqual(list(rows.COLUMNS), self.spec_columns())
         self.assertEqual(list(rows.ld_values(literal_record())), self.spec_columns())
         self.assertEqual(list(rows.ld_row(literal_record())), self.spec_columns())
 
     def test_values_are_typed_and_a_missing_value_is_none(self) -> None:
         values = rows.ld_values(literal_record())
-        for column in ("t_partner", "n_blocks", "genotype_bytes"):
+        for column in ("t_partner", "n_blocks", "genotype_bytes", "default"):
             with self.subTest(column=column):
                 self.assertIsNone(values[column])
         self.assertEqual(values["n"], 665)
@@ -387,7 +387,7 @@ class TestRows(unittest.TestCase):
     def test_a_missing_value_is_an_empty_cell_never_zero(self) -> None:
         rendered = rows.render_tsv([literal_record()])
         (row,) = csv.DictReader(rendered.splitlines(), delimiter="\t")
-        for column in ("t_partner", "n_blocks", "genotype_bytes"):
+        for column in ("t_partner", "n_blocks", "genotype_bytes", "default"):
             with self.subTest(column=column):
                 self.assertEqual(row[column], "")
         self.assertEqual(rendered.splitlines()[0].split("\t"), self.spec_columns())
@@ -563,6 +563,131 @@ class TestGenotypeStores(RegistryCase):
         self.assertEqual(values["store_bytes"], 1297730705, "the sidecar's alone")
         self.assertEqual(rows.ld_row(document)["genotype_bytes"], "3551447413")
         self.assertIsNone(rows.ld_values(literal_record())["genotype_bytes"])
+
+
+class TestColumnTypes(unittest.TestCase):
+    """Every column declares its type; a column without one, or a type without a column, is refused."""
+
+    def test_every_column_has_a_declared_type_and_no_other_does(self) -> None:
+        self.assertEqual(list(rows.COLUMN_TYPES), list(rows.COLUMNS))
+        self.assertEqual(set(rows.COLUMN_TYPES.values()), {"text", "integer", "real"})
+        self.assertEqual(rows.COLUMN_TYPES["n"], "integer")
+        self.assertEqual(rows.COLUMN_TYPES["t_far"], "real")
+        self.assertEqual(rows.COLUMN_TYPES["default"], "integer")
+
+    def test_a_new_column_without_a_type_is_refused_not_defaulted_to_text(self) -> None:
+        with self.assertRaisesRegex(ValueError, "brand_new"):
+            rows.checked_types((*rows.COLUMNS, "brand_new"), rows.COLUMN_TYPES)
+
+    def test_a_misspelt_entry_is_refused(self) -> None:
+        with self.assertRaisesRegex(ValueError, "n_variant"):
+            rows.checked_types(rows.COLUMNS, {**rows.COLUMN_TYPES, "n_variant": "integer"})
+
+    def test_an_unknown_type_is_refused(self) -> None:
+        with self.assertRaisesRegex(ValueError, "number"):
+            rows.checked_types(("ld_id",), {"ld_id": "number"})
+
+    def test_a_column_without_a_type_is_refused(self) -> None:
+        with self.assertRaisesRegex(ValueError, "no_type"):
+            rows.checked_types(("ld_id", "no_type"), {"ld_id": "text"})
+
+    def test_a_type_for_a_missing_column_is_refused(self) -> None:
+        with self.assertRaisesRegex(ValueError, "ghost"):
+            rows.checked_types(("ld_id",), {"ld_id": "text", "ghost": "integer"})
+
+
+class TestValidRecords(RegistryCase):
+    def test_it_returns_the_records_or_raises_invalid_records_naming_the_record(self) -> None:
+        write_yaml(self.path, literal_record())
+        self.assertEqual([r["ld_id"] for r in record.valid_records(self.ld_root)], ["OGL-00001"])
+        document = literal_record()
+        document["status"] = "live"
+        write_yaml(self.path, document)
+        with self.assertRaises(record.InvalidRecords) as caught:
+            record.valid_records(self.ld_root)
+        self.assertIn(str(self.path), str(caught.exception))
+        self.assertIs(ld_index.InvalidRecords, record.InvalidRecords)
+
+
+class TestTheDefault(RegistryCase):
+    """Seam 4 of #537: a person-written `default: true`, on at most one served Store per ancestry."""
+
+    def records(self, *declared: tuple[str, str, bool | None]) -> list[Path]:
+        """One record per (ld_id, status, default), all of the EUR ancestry; `None` omits `default`."""
+        paths = []
+        for ld_id, status, default in declared:
+            document = literal_record()
+            document.update(ld_id=ld_id, status=status)
+            if default is not None:
+                document["default"] = default
+            paths.append(write_yaml(self.ld_root / ld_id / "record.yaml", document))
+        return paths
+
+    def test_a_declared_default_is_one_in_the_column_and_the_rest_are_null(self) -> None:
+        document = literal_record()
+        self.assertIsNone(rows.ld_values(document)["default"])
+        document["default"] = True
+        self.assertEqual(rows.ld_values(document)["default"], 1)
+        self.assertIsInstance(rows.ld_values(document)["default"], int)
+        self.assertEqual(list(rows.ld_values(document))[-1], "default")
+        (row,) = csv.DictReader(rows.render_tsv([document]).splitlines(), delimiter="\t")
+        self.assertEqual(row["default"], "1")
+
+    def test_a_served_record_may_declare_the_default(self) -> None:
+        (path,) = self.records(("OGL-00001", "served", True))
+        document, errors = record.load_record(path)
+        self.assertEqual(errors, [])
+        self.assertIs(document["default"], True)
+
+    def test_a_default_that_is_not_true_is_refused(self) -> None:
+        for value in (False, 1, "yes"):
+            with self.subTest(value=value):
+                (path,) = self.records(("OGL-00001", "served", value))
+                self.assertEqual([e.field for e in record.load_record(path)[1]], ["default"])
+
+    def test_default_on_a_record_that_is_not_served_is_refused(self) -> None:
+        for status in ("built", "retiring", "reference", "retired"):
+            with self.subTest(status=status):
+                (path,) = self.records(("OGL-00001", status, True))
+                (error,) = record.load_record(path)[1]
+                self.assertEqual((error.path, error.field), (path, "default"))
+                self.assertIn("served", error.message)
+
+    def test_two_defaults_for_one_ancestry_fail_the_index(self) -> None:
+        a, b = self.records(("OGL-00001", "served", True), ("OGL-00002", "served", True))
+        with self.assertRaises(ld_index.InvalidRecords) as caught:
+            ld_index.generate_ld_index(self.ld_root, self.tmp, self.tmp / "resources" / "reference-resources")
+        self.assertIn("default", str(caught.exception))
+        self.assertIn(str(b), str(caught.exception))
+        self.assertIn("OGL-00001", str(caught.exception))
+        self.assertFalse((self.tmp / "ld-resources.tsv").exists())
+
+    def test_one_default_per_ancestry_is_valid(self) -> None:
+        self.records(("OGL-00001", "served", True), ("OGL-00002", "served", None), ("OGL-00003", "served", True))
+        other = yaml.safe_load((self.ld_root / "OGL-00003" / "record.yaml").read_text(encoding="utf-8"))
+        other["provenance"]["ancestry"] = "AFR"
+        write_yaml(self.ld_root / "OGL-00003" / "record.yaml", other)
+        _, errors = record.load_records(self.ld_root)
+        self.assertEqual(errors, [])
+
+
+class TestResourceRows(RegistryCase):
+    def test_it_is_the_tsvs_rows_in_columns_order_records_and_panels_together(self) -> None:
+        resources = REPO_ROOT / "resources" / "reference-resources"
+        listed = ld_index.resource_rows(REPO_ROOT / "stores" / "ld", resources)
+        with open(REPO_ROOT / "ld-resources.tsv", encoding="utf-8", newline="") as handle:
+            tsv = list(csv.DictReader(handle, delimiter="\t"))
+        self.assertEqual([row["ld_id"] for row in listed], [row["ld_id"] for row in tsv])
+        self.assertTrue(all(list(row) == list(rows.COLUMNS) for row in listed))
+        self.assertIn("ld_panel", {row["kind"] for row in listed})
+        self.assertIn("ld_store", {row["kind"] for row in listed})
+
+    def test_it_refuses_an_invalid_record(self) -> None:
+        document = literal_record()
+        document["status"] = "live"
+        write_yaml(self.path, document)
+        with self.assertRaises(record.InvalidRecords):
+            ld_index.resource_rows(self.ld_root, self.tmp / "resources" / "reference-resources")
 
 
 class TestTheIndex(RegistryCase):

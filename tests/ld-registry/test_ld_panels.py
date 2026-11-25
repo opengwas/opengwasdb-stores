@@ -235,6 +235,48 @@ class TestReadingAPanel(PanelCase):
         self.assertEqual(panels.panel_rows(self.resources), [])
 
 
+class TestTypedCounts(PanelCase):
+    """A declared count is a whole number: a text or fractional one would land as TEXT in an INTEGER column."""
+
+    FIELDS = (("ld", "n_variants"), ("ld", "n_blocks"), ("ld", "bytes"), ("source", "n_individuals"))
+
+    def test_a_count_that_is_not_a_whole_number_is_refused_naming_file_field_and_ancestry(self) -> None:
+        for section, field in self.FIELDS:
+            for bad in ("about 1580", "1,580", 12.5, -3, True):
+                with self.subTest(field=f"{section}.{field}", value=bad):
+                    document = multi_declaration()
+                    document[section][field]["EAS"] = bad
+                    path = write_resource(self.repo, document)
+                    with self.assertRaises(panels.PanelError) as caught:
+                        panels.panel_rows(self.resources)
+                    for needle in (str(path), f"{section}.{field}", "EAS", repr(bad)):
+                        self.assertIn(needle, str(caught.exception))
+
+    def test_a_single_ancestry_scalar_count_is_checked_too(self) -> None:
+        document = single_declaration()
+        document["ld"]["n_blocks"] = "1357"
+        path = write_resource(self.repo, document)
+        with self.assertRaises(panels.PanelError) as caught:
+            panels.panel_rows(self.resources)
+        self.assertIn(str(path), str(caught.exception))
+        self.assertIn("ld.n_blocks", str(caught.exception))
+        self.assertIn("EUR", str(caught.exception))
+
+    def test_the_committed_declarations_pass(self) -> None:
+        self.assertEqual(len(panels.panel_rows(REPO_ROOT / "resources" / "reference-resources")), 6)
+
+
+class TestDeclarationFiles(PanelCase):
+    def test_it_lists_the_panels_declarations_and_no_other_kind(self) -> None:
+        a = write_resource(self.repo, multi_declaration())
+        b = write_resource(self.repo, single_declaration())
+        other = self.resources / "other" / "resource.yaml"
+        other.parent.mkdir()
+        other.write_text("kind: something_else\n", encoding="utf-8")
+        self.assertEqual(panels.declaration_files(self.resources), [a, b])
+        self.assertEqual(panels.declaration_files(self.repo / "absent"), [])
+
+
 class TestMissingCounts(PanelCase):
     """Seam 2."""
 

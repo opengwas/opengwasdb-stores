@@ -9,38 +9,48 @@ each file has one writer.
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
+from typing import Any
 
-from ld_registry.panels import panel_rows
-from ld_registry.record import RecordError, load_records
-from ld_registry.rows import render_md_section, render_tsv
+from ld_registry.panels import RESOURCES, PanelError, declaration_files, panel_rows  # noqa: F401  (re-exported)
+from ld_registry.record import InvalidRecords, valid_records  # noqa: F401  (InvalidRecords is re-exported)
+from ld_registry.rows import Value, merged_values, render_md_section, render_tsv
 
 TSV_FILENAME = "ld-resources.tsv"
-
-
-class InvalidRecords(ValueError):
-    """The registry holds a record that breaks the spec."""
-
-    def __init__(self, errors: list[RecordError]) -> None:
-        self.errors = errors
-        super().__init__("the LD Store Registry has invalid records:\n" + "\n".join(f"  {e}" for e in errors))
 
 
 class IdCollision(ValueError):
     """An LD panel's id is a record's: an id is assigned once (ADR 0022, ADR 0042)."""
 
 
-def generate_ld_index(ld_root: Path | str, repo_root: Path | str, resources_root: Path | str) -> str:
-    """Write `<repo_root>/ld-resources.tsv` from the records under `ld_root` and the LD panels declared
-    under `resources_root` (a `resources/reference-resources` directory); return the STORES.md section."""
-    records, errors = load_records(Path(ld_root))
-    if errors:
-        raise InvalidRecords(errors)
+def resources_root_of(ld_root: Path | str) -> Path:
+    """The `resources/reference-resources` directory of the repository whose records are under `ld_root`."""
+    return Path(ld_root).parent.parent / RESOURCES
+
+
+def _sources(ld_root: Path | str, resources_root: Path | str) -> tuple[list[dict[str, Any]], list[dict[str, Value]]]:
+    """The valid records and the LD panels' rows; an invalid record, or an id both claim, is refused."""
+    records = valid_records(ld_root)
     panels = panel_rows(resources_root)
     record_ids = {record["ld_id"] for record in records}
     clashes = [f"{row['ld_id']} is a record's and the panel {row['label']}'s" for row in panels if row["ld_id"] in record_ids]
     if clashes:
         raise IdCollision("an LD id is assigned once:\n" + "\n".join(f"  {c}" for c in clashes))
+    return records, panels
+
+
+def resource_rows(ld_root: Path | str, resources_root: Path | str) -> list[Mapping[str, Value]]:
+    """Every row of `ld-resources.tsv`, typed and in `COLUMNS` order, in id order: the records' and the LD panels'.
+
+    The one list the TSV and the Analysis Catalog's `ld_resources` table both take.
+    """
+    return merged_values(*_sources(ld_root, resources_root))
+
+
+def generate_ld_index(ld_root: Path | str, repo_root: Path | str, resources_root: Path | str) -> str:
+    """Write `<repo_root>/ld-resources.tsv` from the records under `ld_root` and the LD panels declared
+    under `resources_root` (a `resources/reference-resources` directory); return the STORES.md section."""
+    records, panels = _sources(ld_root, resources_root)
     (Path(repo_root) / TSV_FILENAME).write_text(render_tsv(records, panels), encoding="utf-8")
     return render_md_section(records, panels)
-
