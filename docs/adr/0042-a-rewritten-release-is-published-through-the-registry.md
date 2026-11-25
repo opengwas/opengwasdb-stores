@@ -166,3 +166,16 @@ It leaves the Release Status as it is, as `register` does.
 - OGS-00011's rewrite (#499) carries a native `eaf_orientation.unverified`
   warning, which the rewrite preserves, so this route refuses it. Whether to
   publish it is the owner's call when #499 reaches publication.
+
+## Amendment, 25 Nov 2026: a carried warning is accepted
+
+The owner ruled on 25 Nov 2026 (in the orchestrating session, for #499) that
+the route also accepts a warning the replaced Validation Record carried
+unchanged, and still refuses every new or changed warning. "Unchanged" is the
+warning's exact `message`, equal to one of the replaced record's `warnings`: a
+0.2.x record keeps no rule or target, but the message names the finding, the
+Analysis and the count. A recorded copy accepts one finding. Deviations keep
+their rule. The verdict names the accepted warnings in the `rewrite` block's
+`carried_warnings`, beside `deviations`. This replaces the Consequences bullet
+that refuses a 0.2.3 rewrite's native warnings: OGS-00011's
+`eaf_orientation.unverified` on GCST90271757 is carried, so #499 publishes.

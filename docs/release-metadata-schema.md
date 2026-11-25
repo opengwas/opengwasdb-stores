@@ -933,6 +933,7 @@ workflow specification's "The Release Status a Validation Record gives"). A `can
 | `rewrite.release_id`, `rewrite.format_version` | Yes, in the block | The published release's, as `opengwasdb info --format json` reports them. |
 | `rewrite.source_release_id`, `rewrite.source_format_version` | Yes, in the block | The replaced release's, as `opengwasdb info --format json` reported them before it was replaced. |
 | `rewrite.deviations` | Yes, in the block | The deviations the conversion records that `validate` reported, as rule names: the rules of its warnings. Empty for a 0.2.3 rewrite, which records none. A rebuild from source clears them. |
+| `rewrite.carried_warnings` | Yes, in the block | The messages of warnings the replaced Validation Record carried unchanged and the staged release still reports, apart from the deviations. Empty when it carried none. |
 | `acceptance` | No | The accepted bundle's Phase B acceptance evidence, kept apart from this run's findings (#195). See above for when `register` writes it. Absent when there is none to keep. |
 | `acceptance.recorded_at` | Yes, in the block | The candidate record's own `validated_at`. |
 | `acceptance.commit` | Yes, in the block | The commit the candidate record came from, or `null` when the file was untracked or modified since its last commit, so no commit describes it. |

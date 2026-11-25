@@ -442,7 +442,7 @@ def _judge_rewrite_warnings(a: Assessment, validate_record: Mapping[str, Any]) -
         raise PostAdditionRefused(
             "the validator printed warnings without `findings`, so none can be told to be a recorded deviation"
         )
-    _deviations, unrecorded = publish_rewrite.judge_findings(
+    _deviations, _carried, unrecorded = publish_rewrite.judge_findings(
         findings or [], convert_legacy=bool(rewrite.get("convert_legacy"))
     )
     if unrecorded:

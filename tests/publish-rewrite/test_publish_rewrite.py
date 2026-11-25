@@ -459,6 +459,55 @@ class TestRefusals(PublishRewriteCase):
         self.fx.stage(INDEL_WARNING, UNRECORDED_WARNING)
         self.assertRefusedUnchanged("eaf_orientation.unverified", "not a deviation")
 
+    def carry(self, *messages: str) -> None:
+        """The replaced Validation Record carries these warnings."""
+        record = yaml.safe_load(self.fx.validation_yaml.read_text())
+        record["warnings"] = list(messages)
+        self.fx.validation_yaml.write_text(yaml.safe_dump(record, sort_keys=False))
+
+    def test_a_warning_the_replaced_record_carried_unchanged_publishes_and_is_named(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        self.fx.stage(UNRECORDED_WARNING, flags=())
+        record = self.fx.publish()
+        assert record is not None
+        self.assertEqual(record["rewrite"]["carried_warnings"], [UNRECORDED_WARNING["message"]])
+        self.assertEqual(record["rewrite"]["deviations"], [])
+        self.assertEqual(record["warnings"], [UNRECORDED_WARNING["message"]])
+
+    def test_a_carried_warning_with_another_count_or_subject_is_refused(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        for changed in (
+            UNRECORDED_WARNING["message"].replace("general Dense", "only 12 variants overlap; general Dense"),
+            UNRECORDED_WARNING["message"].replace("analysis 'a'", "analysis 'b'"),
+        ):
+            with self.subTest(changed=changed):
+                fx = Fixture(Path(tempfile.mkdtemp(dir=os.environ.get("TMPDIR"))))
+                self.addCleanup(shutil.rmtree, fx.tmp, True)
+                fx.validation_yaml.write_text(self.fx.validation_yaml.read_text())
+                fx.stage(finding(UNRECORDED_WARNING["rule"], "warning", changed), flags=())
+                with self.assertRaises(RewritePublicationRefused) as caught:
+                    fx.publish()
+                self.assertIn(changed, str(caught.exception))
+
+    def test_a_carried_warning_fired_twice_is_refused_once_over(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        self.fx.stage(UNRECORDED_WARNING, UNRECORDED_WARNING, flags=())
+        self.assertRefusedUnchanged("1 warning(s)", UNRECORDED_WARNING["message"])
+
+    def test_a_new_warning_the_replaced_record_lacks_is_refused(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        new = finding("rho.unverified", "warning", "a new warning V")
+        self.fx.stage(UNRECORDED_WARNING, new, flags=())
+        self.assertRefusedUnchanged("rho.unverified", "a new warning V")
+
+    def test_a_conversion_names_its_deviations_and_its_carried_warning(self) -> None:
+        self.carry(UNRECORDED_WARNING["message"])
+        self.fx.stage(INDEL_WARNING, UNRECORDED_WARNING)
+        record = self.fx.publish()
+        assert record is not None
+        self.assertEqual(record["rewrite"]["deviations"], ["variant_table.indel_order"])
+        self.assertEqual(record["rewrite"]["carried_warnings"], [UNRECORDED_WARNING["message"]])
+
     def test_a_plain_rewrite_accepts_no_deviation(self) -> None:
         """#499's 0.2.3 rewrite records none, so every warning refuses it."""
         self.fx.stage(INDEL_WARNING, flags=())

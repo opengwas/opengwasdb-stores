@@ -29,9 +29,11 @@ One call, under the release's run lock:
    as the `rewrite-release` step from the operator's evidence, and runs the
    recipe's planned `validate` step on it (`run.execute_step`). The rewrite
    validated its release too, but prints only errors and keeps no verdict;
-4. refuses any validation error, and any warning that is not a deviation the
-   conversion records: a warning is accepted only from a `--convert-legacy`
-   rewrite and only under one of the three rules a conversion records. On a
+4. refuses any validation error, and any warning that is neither a deviation
+   the conversion records nor one the replaced Validation Record carried
+   unchanged (its exact message, once per recorded copy): a deviation is
+   accepted only from a `--convert-legacy` rewrite and only under one of the
+   three rules a conversion records. On a
    0.3.0 release each is an error unless the release records it
    (opengwasdb's `Rule.finding`), so a warning under one is the record's;
 5. writes `publication.json` (`register.begin_publication`) and hands it to
@@ -411,23 +413,36 @@ def _validate_step(b: bundle.Bundle, phase: str, root: Path) -> Step:
 
 
 def judge_findings(
-    findings: list[Mapping[str, str]], *, convert_legacy: bool
-) -> tuple[list[str], list[Mapping[str, str]]]:
-    """The deviations the warnings are, and the warnings that are none.
+    findings: list[Mapping[str, str]],
+    *,
+    convert_legacy: bool,
+    replaced_warnings: list[str] | None = None,
+) -> tuple[list[str], list[str], list[Mapping[str, str]]]:
+    """The deviations the warnings are, the warnings carried, and the warnings that are neither.
 
     A warning is a recorded deviation only on a `--convert-legacy` rewrite and
-    only under one of `DEVIATION_RULES`; a 0.2.3 rewrite records none (#499).
+    only under one of `DEVIATION_RULES`. It is carried when the replaced
+    Validation Record holds it unchanged: its `message`, which names the rule's
+    finding, the Analysis and the count, equal to one of the record's
+    `warnings` (a 0.2.x record keeps no rule or target, only that text). Each
+    recorded warning carries one finding, so a warning that fired twice where
+    the record has it once is not carried (#533, the owner's 25 Nov 2026 ruling).
     """
-    accepted: set[str] = set()
+    deviations: set[str] = set()
+    carried: list[str] = []
     unrecorded: list[Mapping[str, str]] = []
+    available = list(replaced_warnings or [])
     for item in findings:
         if item["severity"] != "warning":
             continue
         if convert_legacy and item["rule"] in DEVIATION_RULES:
-            accepted.add(item["rule"])
+            deviations.add(item["rule"])
+        elif item["message"] in available:
+            available.remove(item["message"])
+            carried.append(item["message"])
         else:
             unrecorded.append(item)
-    return sorted(accepted), unrecorded
+    return sorted(deviations), carried, unrecorded
 
 
 def _listed(items: list[str]) -> str:
@@ -466,8 +481,10 @@ def _refuse_failed_validation(record: Mapping[str, Any] | None) -> None:
     )
 
 
-def _judge_validation(record: Mapping[str, Any] | None, *, convert_legacy: bool) -> tuple[str, list[str], list[str]]:
-    """This run's verdict and warnings, and the deviations they are; refuses anything else."""
+def _judge_validation(
+    record: Mapping[str, Any] | None, *, convert_legacy: bool, replaced_warnings: list[str]
+) -> tuple[str, list[str], list[str], list[str]]:
+    """This run's verdict and warnings, the deviations and carried warnings they are; refuses anything else."""
     _refuse_failed_validation(record)
     status, warnings, _errors = register.validate_verdict(dict(record or {}))
     findings = json.loads(str((record or {}).get("stdout"))).get(register.VALIDATE_FINDINGS_KEY)
@@ -476,16 +493,19 @@ def _judge_validation(record: Mapping[str, Any] | None, *, convert_legacy: bool)
             "the validator printed warnings without `findings`, so no warning can be told to "
             "be a recorded deviation"
         )
-    deviations, unrecorded = judge_findings(findings or [], convert_legacy=convert_legacy)
+    deviations, carried, unrecorded = judge_findings(
+        findings or [], convert_legacy=convert_legacy, replaced_warnings=replaced_warnings
+    )
     if unrecorded:
         accepts = ", ".join(sorted(DEVIATION_RULES)) if convert_legacy else "none"
         what = "a --convert-legacy conversion's" if convert_legacy else "a 0.2.3 rewrite's"
         raise RewritePublicationRefused(
             f"the staged release has {len(unrecorded)} warning(s) that are not a deviation "
-            f"{what} record accepts ({accepts}):"
+            f"{what} record accepts ({accepts}) and that the replaced Validation Record does not "
+            "carry unchanged:"
             + _listed([f"{f['rule']}: {f['message']}" for f in unrecorded])
         )
-    return status, warnings, deviations
+    return status, warnings, deviations, carried
 
 
 def _observed(
@@ -579,6 +599,7 @@ def _assemble(
     status: str,
     warnings: list[str],
     deviations: list[str],
+    carried: list[str],
     snapshot: Path,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """The new Validation Record and `publication.json`, through `register`'s builders."""
@@ -597,6 +618,7 @@ def _assemble(
         "source_release_id": p.published["release_id"],
         "source_format_version": p.published["format_version"],
         "deviations": list(deviations),
+        "carried_warnings": list(carried),
     }
     inputs = [str(path) for path in p.replaced_register["inputs"]]
     if str(rewrite_p) not in inputs:
@@ -719,8 +741,13 @@ def publish_rewrite(
         )
         run.execute_step(p.validate_step, store_id, artifact_root=root, check=False)
         validate_record = run.load_record(store_id, p.validate_step.name, root=root)
-        status, warnings, deviations = _judge_validation(validate_record, convert_legacy=p.evidence.convert_legacy)
-        validation, marker = _assemble(p, validate_record or {}, status, warnings, deviations, snapshot)
+        replaced = p.bundle.validation.get("warnings") if isinstance(p.bundle.validation, Mapping) else None
+        status, warnings, deviations, carried = _judge_validation(
+            validate_record,
+            convert_legacy=p.evidence.convert_legacy,
+            replaced_warnings=[w for w in replaced if isinstance(w, str)] if isinstance(replaced, list) else [],
+        )
+        validation, marker = _assemble(p, validate_record or {}, status, warnings, deviations, carried, snapshot)
         published["validation"] = validation
         return marker
 
@@ -798,7 +825,8 @@ def main(argv: list[str] | None = None) -> int:
         f"publish-rewrite: published {rewrite['release_id']} (format {rewrite['format_version']}) as "
         f"{args.store_id}, replacing {rewrite['source_release_id']} (format "
         f"{rewrite['source_format_version']}), archived at {record['replaced']['archive']}; "
-        f"validation {record['status']}, deviations {rewrite['deviations'] or 'none'}"
+        f"validation {record['status']}, deviations {rewrite['deviations'] or 'none'}, "
+        f"carried warnings {len(rewrite['carried_warnings']) or 'none'}"
     )
     return 0
 
