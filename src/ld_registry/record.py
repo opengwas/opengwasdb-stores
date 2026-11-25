@@ -27,9 +27,9 @@ RECORD_FILENAME = "record.yaml"
 #: The registry's records, relative to the repository root.
 LD_ROOT = Path("stores", "ld")
 
-#: What a record describes. `genotype_store` comes with #539; the LD panels
-#: (#540) are rows from their own `resource.yaml`, not records here.
-KINDS: tuple[str, ...] = ("ld_store",)
+#: What a record describes: an LD Store, or a Genotype Store (#539). The LD
+#: panels (#540) are rows from their own `resource.yaml`, not records here.
+KINDS: tuple[str, ...] = ("ld_store", "genotype_store")
 
 #: An LD Store's status. A record is written from an existing Store's
 #: provenance, so a Store still building has none.
@@ -158,6 +158,7 @@ FIELDS: tuple[Field, ...] = (
     Field("provenance_sha256", WRITER, True, _sha256),
     Field("measured", WRITER, True, _mapping),
     Field("measured.store_bytes", WRITER, True, _whole),
+    Field("measured.genotype_bytes", WRITER, False, _whole),
 )
 
 #: Mappings whose keys are the engine's, copied as it records them.
@@ -180,6 +181,19 @@ def _lookup(document: Mapping[str, Any], dotted: str) -> tuple[bool, Any]:
     return True, value
 
 
+def _genotype_bytes_errors(document: Mapping[str, Any], path: Path) -> list[RecordError]:
+    """`measured.genotype_bytes` belongs to a Genotype Store, and to no other kind."""
+    measured = document.get("measured")
+    if not isinstance(measured, Mapping) or document.get("kind") not in KINDS:
+        return []  # their own errors say it
+    held = measured.get("genotype_bytes") is not None
+    if document["kind"] == "genotype_store" and not held:
+        return [RecordError(path, "measured.genotype_bytes", "is required for a genotype_store")]
+    if document["kind"] != "genotype_store" and held:
+        return [RecordError(path, "measured.genotype_bytes", f"is a Genotype Store's; a {document['kind']} has none")]
+    return []
+
+
 def validate(document: Mapping[str, Any], path: Path) -> list[RecordError]:
     """Every way `document`, read from `path`, breaks the spec; empty when it is valid."""
     errors: list[RecordError] = []
@@ -200,6 +214,7 @@ def validate(document: Mapping[str, Any], path: Path) -> list[RecordError]:
             for key in value:
                 if f"{field.name}.{key}" not in declared:
                     errors.append(RecordError(path, f"{field.name}.{key}", "is not a record field"))
+    errors.extend(_genotype_bytes_errors(document, path))
     for key in document:
         if key not in declared:
             errors.append(RecordError(path, str(key), "is not a record field"))
