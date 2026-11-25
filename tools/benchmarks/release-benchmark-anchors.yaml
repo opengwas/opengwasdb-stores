@@ -20,6 +20,8 @@
 # matching the report's HM3 anchor. Change one only with a measurement reason.
 
 stores:
+  OGS-00001:
+    exposure: ENSG00000175445::whole_blood
   OGS-00003:
     exposure: finngen-r13-BMI_IRN
   OGS-00004:
@@ -32,6 +34,8 @@ stores:
   OGS-00006:
     # first row; it holds 5 significant regions, so the harness derives the PheWAS variant from them
     exposure: GCST90199621
+  OGS-00007:
+    exposure: GCST005806
   OGS-00008:
     exposure: ukb-b-19953
   OGS-00009:
