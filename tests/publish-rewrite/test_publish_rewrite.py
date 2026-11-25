@@ -16,6 +16,8 @@ to the issue's acceptance criteria:
 3. A second call after success does nothing.
 4. An interrupted publication recovers through the existing marker path
    (`register.complete_publication`).
+5. A published 0.3.0 Observed-Only release, rebuilt or converted, completes under
+   its own id (#527, ADR 0037 amended): `TestRebuiltParent`, `TestConvertedParent`.
 
 The Stores are directories of files, as in `tests/register`, and `opengwasdb`
 is a stub on PATH that answers `info` and `validate --format json` in the
@@ -45,7 +47,7 @@ from unittest.mock import patch
 
 import yaml
 
-from ogstores import paths, publish_rewrite, run
+from ogstores import amendment, bundle, manifest, paths, plan, publish_rewrite, run
 from ogstores.publish_rewrite import RewritePublicationRefused, publish_rewrite as publish
 
 STORE_ID = "OGS-00042"
@@ -887,6 +889,195 @@ class TestEvidence(unittest.TestCase):
             time_p.write_text(time_p.read_text().replace("--n-workers 16", "--n-workers 8"))
             with self.assertRaisesRegex(RewritePublicationRefused, "Command being timed"):
                 publish_rewrite.read_evidence(fx.evidence)
+
+
+def amend_to_complete(fx: Fixture) -> None:
+    """ADR 0037's one amendment: the accepted bundle gains a `complete` block."""
+    build_yaml = fx.registry / STORE_ID / "build.yaml"
+    document = yaml.safe_load(build_yaml.read_text())
+    document["completion_state"] = "reference_completed"
+    document["complete"] = {
+        "command": "complete-dense",
+        "options": {"ld-panel": str(fx.tmp / "ld-panel"), "ancestry": "EUR", "min-cor": 0.0},
+    }
+    build_yaml.write_text(yaml.safe_dump(document))
+
+
+def record_build_as_run(fx: Fixture) -> None:
+    """Make the published release's `build` record and manifest what a registry run of the bundle wrote."""
+    loaded = bundle.load(STORE_ID, registry_root=fx.registry)
+    build = next(s for s in plan.plan(loaded, artifact_root=fx.root) if s.name == "build")
+    records = paths.records_dir(STORE_ID, root=fx.root)
+    run.write_record_atomically(
+        {
+            "step": "build", "store_id": STORE_ID, "exit_code": 0, "success": True,
+            "argv": build.argv, "planned_argv": build.argv,
+            "record_path": str(records / "build.json"),
+        },
+        records / "build.json",
+    )
+    manifest_p = paths.build_manifest_path(STORE_ID, root=fx.root)
+    manifest_p.parent.mkdir(parents=True, exist_ok=True)
+    manifest.materialise_build_manifest(
+        loaded.analyses_path, manifest_p, paths.build_manifest_sidecar_path(STORE_ID, root=fx.root)
+    )
+
+
+class OwnIdCompletionCase(unittest.TestCase):
+    def setUp(self) -> None:
+        self._tmp = tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR"))
+        self.addCleanup(self._tmp.cleanup)
+        self.fx = Fixture(Path(self._tmp.name))
+        record_build_as_run(self.fx)
+
+    def changes(self) -> list[str]:
+        loaded = bundle.load(STORE_ID, registry_root=self.fx.registry)
+        return amendment.bundle_changes(loaded, self.fx.root)
+
+    def refuse(self) -> None:
+        amendment.refuse_changed_bundles([STORE_ID], registry_root=self.fx.registry, artifact_root=self.fx.root)
+
+    def convert(self, *findings: dict[str, str]) -> None:
+        self.fx.stage(*(findings or (LIFTED_WARNING, SKIP)))
+        self.assertIsNotNone(self.fx.publish())
+
+    def rewrite_record_path(self) -> Path:
+        return paths.record_path(STORE_ID, "rewrite-release", root=self.fx.root)
+
+
+class TestConvertedParent(OwnIdCompletionCase):
+    """The amendment check on a release `publish_rewrite` published (#527).
+
+    These prove the check's acceptance and refusals; the scheduler's skip of
+    the build phase is proved for a published Store in `test_release_faults`
+    (`test_a_published_0_3_0_store_completes_with_no_build_and_no_force`).
+    """
+
+    def test_a_converted_release_with_no_indel_deviation_passes_the_amendment_check_unforced(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+
+        self.assertEqual(self.changes(), [])
+        self.refuse()
+
+    def test_a_converted_release_recording_indel_order_is_refused_naming_the_remedy(self) -> None:
+        self.convert(INDEL_WARNING, SKIP)
+        amend_to_complete(self.fx)
+
+        (change,) = self.changes()
+        self.assertIn("variant_table.indel_order", change)
+        self.assertIn("rebuild from source", change)
+        with self.assertRaises(amendment.AmendmentError):
+            self.refuse()
+
+    def test_the_indel_order_refusal_ends_once_the_completion_phase_has_published(self) -> None:
+        self.convert(INDEL_WARNING, SKIP)
+        amend_to_complete(self.fx)
+        completion = paths.record_path(STORE_ID, "completion-register", root=self.fx.root)
+        run.write_record_atomically({"step": "completion-register", "inputs": []}, completion)
+
+        self.assertNotIn("indel_order", "".join(self.changes()))
+
+    def edit_register(self, edit) -> None:
+        register_p = paths.record_path(STORE_ID, "register", root=self.fx.root)
+        record = run.read_record(register_p) or {}
+        edit(record)
+        run.write_record_atomically(record, register_p)
+
+    def test_a_null_rewrite_block_is_refused(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+        self.edit_register(lambda r: r.update(rewrite=None))
+
+        self.assertIn("`rewrite` block", "".join(self.changes()))
+
+    def test_a_rewrite_block_without_its_record_is_refused(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+        self.edit_register(lambda r: r["rewrite"].pop("record"))
+
+        self.assertIn("rewrite.record", "".join(self.changes()))
+
+    def test_a_rewrite_block_naming_another_stores_record_is_refused(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+        self.edit_register(lambda r: r["rewrite"].update(record=str(self.fx.root / "OGS-00043/records/rewrite-release.json")))
+
+        self.assertIn("rewrite.record", "".join(self.changes()))
+
+    def test_an_input_naming_another_stores_rewrite_record_under_any_filename_is_refused(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+        other = str(self.fx.root / "OGS-00043/records/rewrite-release.txt")
+        self.edit_register(lambda r: r["inputs"].append(other))
+
+        (change,) = self.changes()
+        self.assertIn(other, change)
+
+    def test_a_relocated_artifact_root_is_still_accepted(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+        moved = str(self.fx.tmp / "elsewhere" / STORE_ID / "records" / "rewrite-release.json")
+
+        def relocate(record: dict) -> None:
+            record["rewrite"]["record"] = moved
+            record["inputs"] = [moved if i.endswith("rewrite-release.json") else i for i in record["inputs"]]
+
+        self.edit_register(relocate)
+        self.assertEqual(self.changes(), [])
+
+    def test_a_converted_release_is_still_held_to_the_build_it_converted(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+        build_yaml = self.fx.registry / STORE_ID / "build.yaml"
+        document = yaml.safe_load(build_yaml.read_text())
+        document["build"]["options"]["source-assembly"] = "hg19"
+        build_yaml.write_text(yaml.safe_dump(document))
+
+        (change,) = self.changes()
+        self.assertIn("build phase step 'build'", change)
+
+    def test_a_converted_release_without_its_rewrite_record_is_refused(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+        self.rewrite_record_path().unlink()
+
+        (change,) = self.changes()
+        self.assertIn("rewrite-release", change)
+        self.assertIn("no record", change)
+        with self.assertRaises(amendment.AmendmentError):
+            self.refuse()
+
+    def test_a_rewrite_record_naming_another_store_is_refused(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+        record = run.read_record(self.rewrite_record_path()) or {}
+        record["store_id"] = "OGS-00043"
+        run.write_record_atomically(record, self.rewrite_record_path())
+
+        (change,) = self.changes()
+        self.assertIn("OGS-00043", change)
+        with self.assertRaises(amendment.AmendmentError):
+            self.refuse()
+
+    def test_an_unreadable_rewrite_record_is_refused(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+        self.rewrite_record_path().write_text("not json")
+
+        (change,) = self.changes()
+        self.assertIn("rewrite-release", change)
+
+    def test_a_register_record_that_claims_a_rewrite_without_listing_it_is_refused(self) -> None:
+        self.convert()
+        amend_to_complete(self.fx)
+        register_p = paths.record_path(STORE_ID, "register", root=self.fx.root)
+        record = run.read_record(register_p) or {}
+        record["inputs"] = [i for i in record["inputs"] if not i.endswith("rewrite-release.json")]
+        run.write_record_atomically(record, register_p)
+
+        (change,) = self.changes()
+        self.assertIn("rewrite-release", change)
 
 
 if __name__ == "__main__":

@@ -79,6 +79,7 @@ from ogstores.bundle import Bundle
 from ogstores.plan import (
     ASSOCIATION_COVERAGE_FLAG,
     BUILD_PHASE,
+    COMPLETION_PHASE,
     REGISTER_STEPS,
     Step,
     plan,
@@ -88,6 +89,9 @@ from ogstores.plan import (
 # The steps whose argv made a published Store; every other step is a
 # re-runnable in-place addition to it.
 STORE_WRITING_STEPS: frozenset[str] = run.STORE_PRODUCING_STEPS | {run.VARIANT_REFERENCE_STEP}
+
+#: The validator rule a `--convert-legacy` rewrite records when it leaves indels spelt sorted.
+INDEL_ORDER_RULE: str = "variant_table.indel_order"
 
 #: The flag #341 added to every Ragged build step, in both renderings a recipe
 #: or a plan may use (`--flag value` and `--flag=value`).
@@ -166,7 +170,93 @@ def _legacy_admission_record_amendment(
     return recorded == before or _legacy_coverage_amendment(before, recorded, b)
 
 
-def _phase_changes(b: Bundle, phase: str, register: dict[str, Any], root: Path) -> list[str]:
+def _registered_inputs(register: dict[str, Any]) -> list[Path]:
+    """The records a published phase's register record registered (`inputs`), parsed once."""
+    return [Path(str(p)) for p in register.get("inputs") or []]
+
+
+def _is_rewrite_record_of(path: Path, store_id: str) -> bool:
+    """Whether `path` is `<root>/<store_id>/records/rewrite-release.json` under any artifact root."""
+    return (
+        path.name == f"{run.REWRITE_RELEASE_STEP}.json"
+        and path.parent.name == "records"
+        and path.parent.parent.name == store_id
+    )
+
+
+def _rewrite_changes(b: Bundle, phase: str, register: dict[str, Any], inputs: list[Path], root: Path) -> list[str]:
+    """Whether a published phase's rewrite is the record `publish_rewrite` left, and names this Store (#527).
+
+    A release `publish_rewrite` published (ADR 0042) keeps the replaced
+    release's `inputs` and adds `records/rewrite-release.json`, and writes a
+    `rewrite` block naming it (`rewrite.record`). The Store-writing steps are
+    still compared to the records of the release the conversion converted
+    (`_phase_changes`): that release's `build` record is the Store's data
+    lineage, and the rewrite is not a build. What the rewrite adds is held
+    here. A register record with neither marker is not a rewritten release and
+    is not asked for one. With either, both must identify this Store's own
+    `rewrite-release` record (a relocated artifact root is allowed), no input
+    may be another Store's rewrite record or one under another filename, and
+    that record must exist, be readable, and name this Store.
+    """
+    store_id = b.store_id
+    stems = [p for p in inputs if p.stem == run.REWRITE_RELEASE_STEP]
+    if not stems and "rewrite" not in register:
+        return []
+    path = paths.record_path(store_id, run.REWRITE_RELEASE_STEP, root=root)
+    changes: list[str] = []
+    own = [p for p in stems if _is_rewrite_record_of(p, store_id)]
+    for other in stems:
+        if other not in own:
+            changes.append(f"{store_id}: {phase} phase lists {other}, which is not {store_id}'s {path.name}")
+    if not own:
+        changes.append(f"{store_id}: {phase} phase records a rewrite, but its inputs do not list {path.name}")
+    block = register.get("rewrite")
+    if not isinstance(block, dict):
+        changes.append(f"{store_id}: {phase} phase lists {path.name}, but records no `rewrite` block ({block!r})")
+    elif not isinstance(block.get("record"), str) or not _is_rewrite_record_of(Path(block["record"]), store_id):
+        changes.append(
+            f"{store_id}: {phase} phase `rewrite.record` {block.get('record')!r} is not {store_id}'s {path.name}"
+        )
+    if changes:
+        return changes
+    try:
+        record = _read_record(path)
+    except ValueError as exc:
+        return [f"{store_id}: {phase} phase rewrite cannot be compared: {exc}"]
+    if record is None:
+        return [f"{store_id}: {phase} phase was published from a rewritten release, but there is no record at {path}"]
+    if record.get("step") != run.REWRITE_RELEASE_STEP or record.get("store_id") != store_id:
+        return [
+            f"{store_id}: {phase} phase rewrite record {path} is for step {record.get('step')!r} of "
+            f"{record.get('store_id')!r}, not {run.REWRITE_RELEASE_STEP!r} of {store_id}"
+        ]
+    return []
+
+
+def _indel_order_changes(b: Bundle, register: dict[str, Any]) -> list[str]:
+    """Refuse completing a converted Store whose rewrite recorded `variant_table.indel_order` (#527, ADR 0037 amended).
+
+    The rewrite's deviations are in the register record `publish_rewrite`
+    wrote (`rewrite.deviations`), never the Store's manifest (ADR 0023). A
+    Store that spells some indels sorted would gain panel indels spelt
+    reference first beside them, and a deletion could appear under two ALIDs;
+    the engine does not refuse it, so this does, before anything is written.
+    """
+    block = register.get("rewrite")
+    deviations = block.get("deviations") if isinstance(block, dict) else None
+    if isinstance(deviations, list) and INDEL_ORDER_RULE in deviations:
+        return [
+            f"{b.store_id}: its published release is a conversion that records `{INDEL_ORDER_RULE}`, so its "
+            "indels may be spelt sorted and completing it can duplicate deletions; the owner ruled (25 Nov "
+            "2026) that it is completed only after a rebuild from source"
+        ]
+    return []
+
+
+def _phase_changes(
+    b: Bundle, phase: str, register: dict[str, Any], inputs: list[Path], root: Path
+) -> list[str]:
     """How the bundle's plan of one published phase's Store-writing steps differs from their records."""
     store_id = b.store_id
     plans: dict[Path, dict[str, Step]] = {}
@@ -180,7 +270,7 @@ def _phase_changes(b: Bundle, phase: str, register: dict[str, Any], root: Path) 
     if not phase_plan:
         return [f"{store_id}: its {phase} phase is published, but the bundle no longer plans one"]
     planned = [name for name in phase_plan if name in STORE_WRITING_STEPS]
-    registered = [Path(str(p)).stem for p in register.get("inputs") or []]
+    registered = [p.stem for p in inputs]
     registered = [name for name in registered if name in STORE_WRITING_STEPS]
     changes = [
         f"{store_id}: {phase} phase step {name!r} is planned, but its published release has no such step"
@@ -296,6 +386,10 @@ def bundle_changes(b: Bundle, artifact_root: Path | str) -> list[str]:
         return []
     root = Path(artifact_root)
     changes: list[str] = []
+    try:
+        completion_published = _read_record(paths.record_path(b.store_id, REGISTER_STEPS[COMPLETION_PHASE], root=root)) is not None
+    except ValueError:
+        completion_published = True  # it exists; its own comparison below reports why it cannot be read
     for phase, register_step in REGISTER_STEPS.items():
         try:
             register = _read_record(paths.record_path(b.store_id, register_step, root=root))
@@ -305,7 +399,11 @@ def bundle_changes(b: Bundle, artifact_root: Path | str) -> list[str]:
         else:
             if register is None:
                 continue
-            changes += _phase_changes(b, phase, register, root)
+            inputs = _registered_inputs(register)
+            changes += _rewrite_changes(b, phase, register, inputs, root)
+            changes += _phase_changes(b, phase, register, inputs, root)
+            if phase == BUILD_PHASE and not completion_published:
+                changes += _indel_order_changes(b, register)
         if phase == BUILD_PHASE:
             changes += _membership_changes(b, root)
     return changes
