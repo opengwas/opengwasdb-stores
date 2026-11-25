@@ -217,8 +217,8 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # #344) at opengwasdb 0.10.0: `register` wrote this record, the build took
     # 855 s and validate 89 s (964.505 s across the run's steps), and the Store
     # it published holds 21,327,043 variants where the 0.1.0 Store it replaced
-    # held 21,230,615. Null is again what no step reported; the Store's
-    # manifest declares format 0.2.2.
+    # held 21,230,615. No step reported the format; it is the 0.2.2 that
+    # `opengwasdb info` read from the Store (#512's backfill).
     "OGS-00003": {
         "format_version": "0.2.2",
         "n_analyses": 10,
@@ -265,8 +265,8 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # Store held 14,763,864, a build of 1,844 s and a validate of 153 s
     # (2,029.08 s across the run's steps). Still `passed_with_warnings` on
     # GCST003898's EAF orientation, now with 99 overlapping variants where it
-    # read 120. Null is what no step reported: the build and validate records
-    # carry no format_version, association count or store size, and `register`
+    # read 120. The build and validate records carry no format_version (it is
+    # what `opengwasdb info` read, #512's backfill), association count or store size, and `register`
     # no longer invents any of them. `variant_reference: provided` and
     # `rsid_conflicts` are the documented conditional keys for a Hybrid build
     # over a recipe naming an existing panel, and the Store is format 0.2.2.
@@ -321,8 +321,8 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # that the Store records its bundle's region table (#224, opengwas#430,
     # stores#459): `register` wrote this record, and the counts are the ones the
     # migrated record left null -- 10 Analyses, 171,006 variants and 202,803
-    # associations, the same build the August record described. Null is what no
-    # step reported.
+    # associations, the same build the August record described. No step
+    # reported the format; it is what `opengwasdb info` read (#512's backfill).
     "OGS-00007": {
         "format_version": "0.2.1",
         "n_analyses": 10,

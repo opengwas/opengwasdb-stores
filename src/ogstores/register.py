@@ -839,8 +839,10 @@ def harvest_observed_measurements(
 
     # A step's report wins; otherwise the engine's own `info` names the format
     # (#512). A failure is recorded by the caller, never defaulted.
-    if format_version is None and store_dir is not None and store_dir.is_dir():
+    if format_version is None:
         try:
+            if store_dir is None or not store_dir.is_dir():
+                raise ValueError(f"no Store directory to read the format from: {store_dir}")
             format_version = read_format_version(store_dir)
         except ValueError as exc:
             if unread is not None:
@@ -1657,7 +1659,6 @@ __all__ = [
     "OBSERVED_FIELDS",
     "RHO_STEP",
     "STORE_FACT_FIELDS",
-    "read_format_version",
     "RSID_CONFLICT_FIELDS",
     "VALIDATOR_NAME",
     "ArgvDriftError",
@@ -1676,6 +1677,7 @@ __all__ = [
     "finish_build_phase_publication",
     "forced_completion",
     "harvest_observed_measurements",
+    "read_format_version",
     "store_facts",
     "normalize_executed_argv_for_staging",
     "normalize_executed_argv_for_variant_reference",

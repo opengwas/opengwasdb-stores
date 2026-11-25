@@ -472,9 +472,10 @@ step's stdout JSON under the keys opengwasdb prints there: `format_version`,
 `n_variants`, `n_analyses`, `n_associations`, `association_coverage` and
 `reference_assembly`. A key the step does not print is recorded as `null`,
 except `format_version`, which `register` then reads from the published Store
-with `opengwasdb info --format json`, through `ogstores.store_info.store_info` (lifted out of readiness)
-(a step's report wins; a failed `info` leaves `null` and records the reason in
-`register.json` as `format_version_unread`, #512);
+with `opengwasdb info --format json`, through `ogstores.store_info.store_info`
+(lifted out of readiness; a step's report wins; a failed `info`, or no Store
+directory to read, leaves `null` and records the reason in `register.json` as
+`format_version_unread`, #512);
 nothing else is read from the Store or its `manifest.json`, and `register` never
 derives `n_associations` from `n_variants × n_analyses`, which counts matrix
 cells rather than associations (#322). A key present with a malformed value is

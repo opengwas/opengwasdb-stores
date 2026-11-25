@@ -31,14 +31,14 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
 from pathlib import Path
 from typing import Any, Callable
+from unittest.mock import patch
 
 import yaml
 
-
-from ogstores import bundle, manifest, paths, register, store_info as store_info_module, run
+from ogstores import bundle, manifest, paths, register, run
+from ogstores import store_info as store_info_module
 from ogstores.bundle import Bundle
 from ogstores.plan import OBSERVED_VIEW_CHECK_STEP, Step, plan
 from ogstores.register import (
@@ -736,7 +736,7 @@ class TestStoreFacts(unittest.TestCase):
         self.assertIsNone(observed["has_rho"])
 
     def test_format_version_comes_from_info_when_no_step_reported_it(self) -> None:
-        """`register` reads `opengwasdb info --format json` on the Store, through readiness's reader (#512)."""
+        """`register` reads `opengwasdb info --format json` on the Store, through `ogstores.store_info` (#512)."""
         b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00067")
         write_store_files(paths.partial_store_path("OGS-00067", root=artifact_root), {"manifest.json": b"{}"})
         set_build_stdout("OGS-00067", artifact_root, {"n_analyses": 2})
@@ -781,6 +781,17 @@ class TestStoreFacts(unittest.TestCase):
         self.assertIsNone(val_data["observed"]["format_version"])
         record = run.load_record("OGS-00069", "register", root=artifact_root)
         self.assertIn("no such store", record["format_version_unread"])
+
+    def test_a_missing_store_directory_records_why_the_format_is_null(self) -> None:
+        b, stores_root, artifact_root = create_test_bundle_and_records(self.td, "OGS-00071")
+        paths.partial_store_path("OGS-00071", root=artifact_root).rmdir()
+        set_build_stdout("OGS-00071", artifact_root, {"n_analyses": 2})
+
+        val_data = register_release(b, registry_root=stores_root, artifact_root=artifact_root, publish=False)
+
+        self.assertIsNone(val_data["observed"]["format_version"])
+        record = run.load_record("OGS-00071", "register", root=artifact_root)
+        self.assertIn("no Store directory", record["format_version_unread"])
 
     def test_a_failed_read_is_not_a_default(self) -> None:
         b, _, _ = create_test_bundle_and_records(self.td, "OGS-00070")

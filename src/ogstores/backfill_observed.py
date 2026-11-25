@@ -16,7 +16,8 @@
   `null` when no register record says which steps built the Store;
 - `format_version` from `opengwasdb info --format json` on the Store, through
   `ogstores.store_info.store_info`, which `readiness` re-exports (the one reader, ADR 0023): the command's report
-  replaces what the record holds. A Store whose `info` fails is refused;
+  fills a `null`. A recorded value is never overwritten: a Store whose `info`
+  disagrees with it, or whose `info` fails, is refused;
 - `n_top_hits` as `null`, until opengwas/opengwasdb#488 reports the counts.
 
 A bundle whose Store is not under the Artifact Root is reported by name as
@@ -263,6 +264,13 @@ def backfill_bundle(bundle_obj: Bundle, artifact_root: Path, *, dry_run: bool) -
     except (Refused, ValueError, NotImplementedError) as exc:
         return Outcome(store_id, "refuse", str(exc))
 
+    recorded = observed.get("format_version")
+    if recorded is not None and recorded != facts["format_version"]:
+        return Outcome(
+            store_id, "refuse",
+            f"`observed.format_version` records {recorded!r} but `opengwasdb info` reports "
+            f"{facts['format_version']!r}; the backfill fills a null and overwrites nothing",
+        )
     changes = {
         key: (observed.get(key, ABSENT), facts[key])
         for key in BACKFILL_FIELDS

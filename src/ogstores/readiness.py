@@ -29,7 +29,6 @@ from __future__ import annotations
 
 import csv
 import io
-import json
 import subprocess
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -43,8 +42,8 @@ from opengwasdb.model import analyses as opengwasdb_analyses
 from ogstores import bundle as bundle_module
 from ogstores import engine, paths
 from ogstores.bundle import Bundle
-from ogstores.store_info import store_info
 from ogstores.manifest import EXCLUDE_COLUMN, classify_exclusion
+from ogstores.store_info import store_info
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 

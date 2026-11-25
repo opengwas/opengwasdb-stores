@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import contextlib
 import io
-import os
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -32,12 +32,12 @@ import tempfile
 import unittest
 from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import yaml
 
-from unittest.mock import patch
-
-from ogstores import backfill_observed, paths, run, store_info as store_info_module
+from ogstores import backfill_observed, paths, run
+from ogstores import store_info as store_info_module
 
 REPO_ROOT: Path = Path(__file__).resolve().parents[2]
 NEW_KEYS: tuple[str, ...] = ("format_version", "store_bytes", "has_hm3", "has_rho", "n_top_hits")
@@ -277,6 +277,25 @@ class BackfillTest(unittest.TestCase):
         self.assertEqual(status, 1)
         self.assertIn("cannot open", printed.getvalue())
         self.assertEqual(self.record("OGS-00042"), before)
+
+    def test_a_recorded_format_version_is_kept_when_info_agrees_and_refused_when_it_differs(self) -> None:
+        agreeing = VALIDATION_TEMPLATE.replace("format_version: null", "format_version: 0.2.3")
+        (self.registry / "OGS-00041" / "validation.yaml").write_text(agreeing, encoding="utf-8")
+        disagreeing = VALIDATION_TEMPLATE.replace("format_version: null", "format_version: 0.1.0")
+        (self.registry / "OGS-00042" / "validation.yaml").write_text(disagreeing, encoding="utf-8")
+
+        printed = io.StringIO()
+        with contextlib.redirect_stdout(printed):
+            status = backfill_observed.main(self.arguments())
+
+        self.assertEqual(status, 1)
+        self.assertEqual(
+            yaml.safe_load(self.record("OGS-00041"))["observed"]["format_version"], "0.2.3"
+        )
+        self.assertEqual(self.record("OGS-00042"), disagreeing, "never overwritten")
+        self.assertIn("OGS-00042: refuse", printed.getvalue())
+        self.assertIn("'0.1.0'", printed.getvalue())
+        self.assertIn("'0.2.3'", printed.getvalue())
 
     def test_a_second_run_changes_nothing(self) -> None:
         self.backfill()
