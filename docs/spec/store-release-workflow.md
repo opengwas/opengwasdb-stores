@@ -158,15 +158,46 @@ build:
 post:
   top_hits: true                   # met by build-dense-vcf itself on Dense; Ragged plans build-ragged-top-hits
   overview: true                   # Dense/Hybrid only; Ragged's envelope excludes overview.html
+  clumps: true                     # opengwasdb clump, every layout, 0.3.0 only (#526)
+  ld_stores:                       # required with clumps; never defaulted
+    AFR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR
+    EUR: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR
 ```
 
 `post` carries only the choices a Release makes differently from the defaults:
-`rho: false` and `validate: true`. `plan()` applies those defaults when a recipe
+`rho: false`, `clumps: false` and `validate: true`. `plan()` applies those defaults when a recipe
 omits them, and a recipe that states either key still wins. `top_hits` and
 `overview` are always explicit because they genuinely vary between releases --
 `overview` especially, since Ragged's closed Store envelope excludes
 `overview.html` and defaulting it on would re-enable a step the planner then
 refuses (ADR 0027, issue #128).
+
+**`post.clumps` and the LD Store mapping (#526).** `post.clumps: true` plans
+`opengwasdb clump <store> --ld-store ANCESTRY=PATH …`, the in-place Clumps of the
+Store's 5e-8 tier (opengwasdb ADR 0106, spec §18.1). It is planned as `post.rho` is, by
+the same `_post_steps` and in the completion phase as well as the build phase, after
+`top-hits` and `rho` and before `overview` and `validate`, on every layout (the engine
+clumps Dense, Ragged and Hybrid Stores at 0.3.0). Like `rho` it is a re-runnable in-place
+addition (ADR 0034).
+
+The mapping is the recipe's `post.ld_stores`, a mapping from Assigned Ancestry to the LD
+Store's path, **explicit and never defaulted**. It sits in the recipe, not in
+`ogstores.yaml`, because it is a build input that the bundle freezes, as `besd_prefix`
+is: the bundle then names exactly the LD Stores a Store's Clumps were made against, and
+`plan()` stays a pure function of the bundle and the artifact root, so `stores.tsv`'s
+`build_command` and the runtime guard need no second source of configuration. A recipe
+with `post.clumps: true` and no mapping is refused at planning, and by the bundle check,
+naming `post.ld_stores`. The pairs are rendered sorted by ancestry. The LD Stores are
+`hgdp1kgp-v2-AFR`, `-AMR`, `-EAS`, `-EUR` and `-SAS` and `panukb-EUR-k15` under
+`/data/opengwasdb/ld-stores/`. An Analysis whose ancestry has no LD Store is not filtered
+here: the engine counts it unclumped and reports it under `not_clumped.no_ld_store`.
+
+The planned `validate` carries the same `--ld-store` pairs when `post.clumps` is declared,
+so that `clumps.reclump` runs instead of being reported as a skip. `register` records
+`observed.has_clumps` (null when the recipe plans no `clump` step, as `has_rho`) and the
+`n_loci_5e8` and `n_unclumped_5e8` the step's JSON printed; the engine prints both as null
+when it clumped nothing, which is recorded as null. The runtime guard probes `clump` like
+any command a scheduled plan names.
 
 A Reference-Completed release completes its own Store under its id (ADR 0037). It is the same file plus a `complete` block, with `completion_state: reference_completed` and no `derived_from`: the `build` block builds and publishes the Observed-Only Store, and the `complete` block then completes that published Store and replaces it. The recipe names no Store path, because completion's source is the id's own Store path. `bundle.check()` requires both blocks of such a bundle and names the one that is missing. `plan()` plans it for every layout (`plan.py` below). A Ragged release's `complete` options must name the `ld-panel` and `ancestry` it completes against, and the Observed-View Check is given both (below). A bundle that carries `sidecars/sparse_regions.tsv` records those regions in its Store: `plan()` gives the table to its build step as `--regions`, and refuses a `build` option that renders the same flag (#459, opengwas/opengwasdb#430). The completion phase takes no such flag: it reads the `regions.tsv` the build kept. A bundle that records none plans exactly as it did before #459.
 
@@ -358,7 +389,7 @@ unchanged.
 ```python
 @dataclass(frozen=True)
 class Step:
-    name: str               # build|complete|top-hits|rho|overview|validate, or completion-<step>
+    name: str               # build|complete|top-hits|rho|clump|overview|validate, or completion-<step>
     argv: list[str]
     inputs: list[Path]
     outputs: list[Path]
@@ -563,7 +594,7 @@ An interrupted Dense completion resumes rather than restarts; `complete-hybrid` 
 - once the build phase has published (`records/register.json`), its Store-writing steps, `variant-reference` if planned and `build`, must be the steps its register record registered (its `inputs`), each planned with the argv its own record planned (`planned_argv`, which `register` held the executed argv to). One difference is tolerated, and only this one (#341, ADR 0040): a recorded argv that names no `--association-coverage` matches a planned argv that differs by the declaration-derived `--association-coverage <release.yaml value>` pair alone, because a Store published before that flag existed would otherwise be refused the completion #224 wants for it, for a reason that is not a rebuild. A recorded argv that names a coverage -- another value included -- is compared whole, as is every other token. A second difference is tolerated on the same terms (#428, ADR 0037 amended): a recorded argv that is the plan without its composed `--admission-record <artifact-root>/<id>/store.opengwasdb.admission` pair, at the record's own root, matches (`plan.planned_before_admission_record`), and so does one without that pair and the coverage pair both, for a Ragged record that predates #341 too. The flag names where the builder writes its Admission record, beside the Store; it changes no Store data, and every Store published before #428 has a `build` record that names none. A recorded argv that names an Admission record, at any path, is compared whole. The manifest the bundle's `analyses.tsv` makes now must be byte-for-byte the one the Store was built from, `work/analyses.tsv`, and must exclude the same Analyses (`work/analyses.exclusions.json`). Neither published file is optional: a missing derived build manifest, and an exclusion audit sidecar that is missing, unreadable, or does not list its dropped Analyses by `analysis_id`, are each refused as a membership that cannot be compared, naming the file, never read as no exclusions. Only a missing register record means a phase has not published: one that exists but is not a readable JSON object is refused as a phase that cannot be compared, naming it, and so is such a step record;
 - once the completion phase has published (`records/completion-register.json`), the same holds for its `complete`.
 
-Post steps (`top-hits`, `rho`, `indexed-subset-<name>`, `overview`, `validate`, and their completion-phase counterparts) are re-runnable in-place additions (ADR 0034, opengwasdb ADR 0061), so a new declaration, or a planner that has changed their argv since, is not refused. Observed-only and two-id releases are not checked: they behave as before #305. Nothing enforces accepted-bundle immutability of `release.yaml`'s prose and provenance, for any bundle; review does. Gaining a `complete` block passes, because the build phase plans what the bundle planned as `observed_only`. A record names the artifact root it was written under (`record_path`), and the bundle is planned under that root for the comparison, so a release copied to another root still matches. The refusal lists each change:
+Post steps (`top-hits`, `rho`, `clump`, `indexed-subset-<name>`, `overview`, `validate`, and their completion-phase counterparts) are re-runnable in-place additions (ADR 0034, opengwasdb ADR 0061), so a new declaration, or a planner that has changed their argv since, is not refused. Observed-only and two-id releases are not checked: they behave as before #305. Nothing enforces accepted-bundle immutability of `release.yaml`'s prose and provenance, for any bundle; review does. Gaining a `complete` block passes, because the build phase plans what the bundle planned as `observed_only`. A record names the artifact root it was written under (`record_path`), and the bundle is planned under that root for the comparison, so a release copied to another root still matches. The refusal lists each change:
 - a step's changed tokens, with their flag, `` `--min-cor 0.0` became `--min-cor 0.5` ``;
 - a Store-writing step planned but not published, or published but no longer planned;
 - each Analysis added, removed, changed (naming its columns), newly excluded or no longer excluded.
@@ -671,7 +702,7 @@ One Snakefile for the whole registry, not one per release. It scans `stores/*/` 
 Dependency wiring only, per ADR 0023. It contains no source column name, no manifest translation, and no layout branch. `get_artifact_root()` is the one configuration read: it resolves the artifact root through `paths.artifact_root()`, so the workflow never takes it from a Build Recipe (issue #126).
 
 ```text
-build_manifest ──> build ──> top_hits (Ragged only) ──> rho ──> indexed-subset-<name> ──> overview ──> validate ──> register
+build_manifest ──> build ──> top_hits (Ragged only) ──> rho ──> clump ──> indexed-subset-<name> ──> overview ──> validate ──> register
 ```
 
 `build_manifest` is the derived build manifest's rule (ADR 0025). **It reruns when its content would change, not when its input's mtime does** (#339): its input function marks the bundle's `analyses.tsv` `ancient()` when `build_manifest_is_current` holds, so a fresh checkout or a rewrite with the same bytes schedules nothing, and a changed `analyses.tsv` still schedules it and the build phase (the published guard then refuses an unforced run). The comparison is made per job, in memory, and never writes `work/`. A content mismatch forces the rerun whatever the mtimes: Snakemake's own decision is by mtime, so for each release the run names, and every registered parent it derives from, whose `work/` outputs exist but are not current (changed content, an unreadable or corrupt sidecar, other line endings), the entry point adds the release's `work/analyses.tsv` to its internal `--forcerun` list, in the dry run, the preflight and the real run. A stale parent is rerun, never replaced: an unforced run of a published parent with changed membership is refused by the published guard. An unforced run of a published release with changed membership is refused the same way; an unpublished one rebuilds. Nothing is written while the DAG is built. Only the entry point does this: a direct `snakemake` run still decides `build_manifest` by mtime for a changed manifest (it is `ancient` only when the content is unchanged), so there a changed `analyses.tsv` with an older mtime schedules nothing. `build.yaml` and `release.yaml` are not Snakemake inputs of any rule. **Two rules together.** An unforced run reruns `build_manifest` only when its content would change. A forced named release always rebuilds, whatever its mtimes or content: the entry point adds Snakemake `--forcerun` itself (`release.forced_run_outputs`) for each forced release's build manifest, where its first step reads one, and its first planned step's record. The whole build phase reruns, and through its `register` record the completion phase of a release that completes its own Store. Only the ids `--config force=1` applies to are forced, in the dry run and the real run alike; an operator still cannot pass `--forcerun` (`UNSAFE_OPTIONS`). It runs before every observed-only build command, because `plan()` names the manifest it writes as the build step's first input. A release with a carried Column Map also has a `column_map` rule, which stages the map where the build's `--column-map` names it (#292); it writes no record, like `build_manifest`. A release that records its regions also has a `sparse_regions` rule, which copies `sidecars/sparse_regions.tsv` to `work/sparse_regions.tsv`, the file `plan()` names as its build's `--regions`; only the step that reads it depends on it, so a release that records none, and every completion phase, schedules no such job (#459). A run whose staged copy is not the bundle's bytes restages it before the build, for every release it will build -- a dependency parent's included -- as the entry point already forces a stale derived manifest (#339): Snakemake decides by mtime, so a run would otherwise build from a copy of a table since changed (`release.stale_regions_outputs`). A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail; completion consumes only a parent Store, so it depends on no manifest step.
@@ -679,12 +710,12 @@ build_manifest ──> build ──> top_hits (Ragged only) ──> rho ──> 
 A release that completes its own Store (ADR 0037) runs both phases in one run. Its build phase is the chain above. Its completion phase then starts from the build phase's `register` record, because it completes the Store that phase published:
 
 ```text
-register ──> complete ──> completion-rho ──> completion-indexed-subset-<name> ──> completion-overview ──> completion-validate ──> completion-observed-view-check ──> completion-register
+register ──> complete ──> completion-rho ──> completion-clump ──> completion-indexed-subset-<name> ──> completion-overview ──> completion-validate ──> completion-observed-view-check ──> completion-register
 ```
 
 Completion-phase steps share the `step` rule, under their own `{step}` values. `completion-register` is a rule of its own, `completion_register`, which calls `register_release(..., phase="completion")`, passing `force` only in a forced run (`register.forced_completion`, below). `all` and the id's target alias depend on that record, so naming the id runs both phases. The existing rules' bodies, and the inputs of every build-phase job, are exactly what they were before ADR 0037. Snakemake's default rerun triggers compare a rule's code and a job's input set with what it recorded, so a Store built before then is not rescheduled when its bundle gains a `complete` block (#305).
 
-Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
+Post-steps are conditional on `post` and on the selected command's Store-format support: `rho` is Dense-only, `clump` is planned for every layout and needs `post.ld_stores`, and `overview` is Dense/Hybrid-only because the documented Ragged envelope excludes `overview.html`. A declared `indexed_subsets` list inserts one `build-indexed-subset` Step per declaration between those inline index steps and `overview`/`validate`, so overview reports the subsets and validation audits them. `rho` defaults off and `validate` defaults on, so a Build Recipe names only the steps it chooses differently (ADR 0027, issue #128). A two-id Reference-Completed child substitutes `complete` for `build` and takes the supported tail. Each rule's shell is the `Step`'s argv via `run.py`; each rule's output is the step's record file.
 
 **The validate step's worker count (stores#358).** `opengwasdb validate --n-workers N` (opengwasdb#315) spreads each Dense grid's band pass across an ordered fork pool and reports exactly what one process reports, so a published Store is validated in parallel with no change to its verdict. The planned `validate` step carries `--n-workers N` with the count the release declares as `n-workers` in its `build.options`; a completion phase's `completion-validate` takes the `complete.options` count first and the build's otherwise (`plan.declared_worker_count`). `build-dense-top-hits` takes the same flag (opengwasdb#313), which an operator passes when running it by hand to add an index to an existing Dense Store (a Dense build plans no standalone step, stores#357); `build-ragged-top-hits` takes none and is planned without it. A release that declares none gets no flag, so the engine's default of one worker runs: the planner invents no count. A declared count that is not a positive integer is refused when the plan is made. The step's argv is not among those the amendment check compares (`build`, `complete` and the variant-reference stage), so a published release's plan changing here amends nothing. A Ragged or Hybrid release declaring the option is given it too: the flag is the same command's, and the engine reads it as the band-pass pool that only a Dense grid fills.
 
@@ -857,10 +888,10 @@ derived   store_id  label  layout  completion_state  status  derived_from  trial
           n_analyses  n_manifest  n_excluded  first_author  publication_pmid
           tissue  context  assigned_ancestry  sample_size  source_url
 observed  format_version  n_variants  n_associations  store_bytes
-          has_hm3  has_rho  n_top_hits  build_elapsed_s  validate_status
+          has_hm3  has_rho  has_clumps  n_top_hits  build_elapsed_s  validate_status
 ```
 
-`has_hm3` and `has_rho` are `true`, `false`, or empty when the Validation Record
+`has_hm3`, `has_rho` and `has_clumps` are `true`, `false`, or empty when the Validation Record
 does not say; `n_top_hits` is the recorded mapping as compact JSON, empty while
 it is `null` (#502). `bundle.observed_flag` and `bundle.top_hit_counts_text` are
 the one rule for both, which the Analysis Catalog reads too.

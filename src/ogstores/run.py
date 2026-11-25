@@ -7,7 +7,7 @@ planned argv, so drift between what was documented and what ran is caught.
 
 Staged release transaction lifecycle (ADR 0022, ADR 0023):
 * Staged isolation: All release execution steps ('build' / 'complete' -> 'top-hits'
-  -> 'rho' -> 'overview' -> 'validate') execute against `store.opengwasdb.partial`.
+  -> 'rho' -> 'clump' -> 'overview' -> 'validate') execute against `store.opengwasdb.partial`.
 * Variant-reference pre-stage (#145/#147): 'variant-reference' is not store-producing
   and takes no staging rewrite. If its declared destination already exists at runtime
   no subprocess runs and a success record is written with `skipped: true`; otherwise
@@ -115,9 +115,10 @@ VALID_STEP_NAMES: frozenset[str] = frozenset({
     "variant-reference",
     "top-hits",
     "rho",
+    "clump",
     "overview",
     "validate",
-    *(completion_step_name(name) for name in ("rho", "overview", "validate")),
+    *(completion_step_name(name) for name in ("rho", "clump", "overview", "validate")),
     OBSERVED_VIEW_CHECK_STEP,
     *REGISTER_STEPS.values(),
     # A rewrite `ogstores.publish_rewrite` records from the operator's evidence (#533).

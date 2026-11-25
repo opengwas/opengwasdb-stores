@@ -141,7 +141,10 @@ CONDITIONAL_OBSERVED_MAPPINGS: dict[str, tuple[str, ...]] = {
 # `ogstores.backfill_observed`, after #498 rewrites the Stores.
 COMPLETION_STATE_FIELD = "completion_state"
 POSTDATED_OBSERVED_FIELDS: frozenset[str] = frozenset(
-    {COMPLETION_STATE_FIELD, "association_coverage", "reference_assembly", "has_hm3", "has_rho", "n_top_hits"}
+    {
+        COMPLETION_STATE_FIELD, "association_coverage", "reference_assembly", "has_hm3", "has_rho", "n_top_hits",
+        "has_clumps", "n_loci_5e8", "n_unclumped_5e8",
+    }
 )
 # The same for `build_environment`: `engines`, every engine a phase used and
 # the steps each ran, is written from #410 on. A record committed before it

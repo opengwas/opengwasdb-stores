@@ -33,8 +33,13 @@ pixi run index                                             # regenerate master l
 A release target must be an ID currently registered under `stores/`; use
 `stores.tsv` to find valid IDs. IDs shown in commands are real targets, not
 placeholders. Post-steps follow the selected command's Store-format support:
-`rho` is Dense-only, and `overview` is Dense/Hybrid-only because Ragged's
-closed Store envelope excludes `overview.html`.
+`rho` is Dense-only, `overview` is Dense/Hybrid-only because Ragged's
+closed Store envelope excludes `overview.html`, and `clump` (`post.clumps: true`)
+is planned for every layout, after `rho`, at format 0.3.0. It needs an explicit
+`post.ld_stores` mapping (`ANCESTRY: /data/opengwasdb/ld-stores/<name>`), which
+is never defaulted; `validate` is given the same `--ld-store` pairs so that
+`clumps.reclump` runs. A recipe that declares `post.clumps` with no mapping is
+refused at planning.
 
 `pixi run release` and `pixi run release-dry` run `workflow/release.py`, the
 supported entry point (#195). Around one Snakemake run it:
@@ -120,7 +125,7 @@ own Store (ADR 0037). One `pixi run release <ID>` does both phases, with no
    completed Store keeps the id as its Store identity and has its own release
    identity, `<ID>-completed`.
 
-The completion phase's records are `complete`, `completion-rho`,
+The completion phase's records are `complete`, `completion-rho`, `completion-clump`,
 `completion-indexed-subset-<name>`, `completion-overview`,
 `completion-validate`, `completion-observed-view-check` and
 `completion-register`. They never overwrite the

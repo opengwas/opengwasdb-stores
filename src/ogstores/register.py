@@ -94,6 +94,11 @@ OBSERVED_FIELDS: tuple[str, ...] = (
     # the publishing phase that ran and succeeded, never from the Store (#502).
     "has_hm3",
     "has_rho",
+    # Whether the phase's `clump` step ran and succeeded (null when the recipe plans
+    # none), and the counts that step printed: null unless it ran (#526).
+    "has_clumps",
+    "n_loci_5e8",
+    "n_unclumped_5e8",
     # Top-hit counts keyed by threshold: null when `post.top_hits` is false, and
     # null until opengwas/opengwasdb#488 reports them, since no step prints them.
     "n_top_hits",
@@ -618,26 +623,37 @@ def _reported_rsid_conflicts(record: Mapping[str, Any]) -> dict[str, Any] | None
     return {key: reported.get(key) for key in RSID_CONFLICT_FIELDS}
 
 
-def _reported_association_count(
-    payload: dict[str, Any], step_name: str, where: str
+def _reported_count(
+    payload: dict[str, Any], key: str, step_name: str, where: str, *, nullable: bool = False
 ) -> int | None:
-    """The step's reported `n_associations`, or None when the step printed no such key.
+    """The step's reported count `key`, or None when the step printed no such key.
 
     A present value must be a non-negative integer that is not a bool: a string,
     float, list, negative or boolean is malformed, and recording it as None
     would present "opengwasdb reported something else" as "opengwasdb reported
-    nothing" (#322).
+    nothing" (#322). A JSON null is malformed too, unless the caller says the
+    engine prints it for a count it did not compute (`nullable`): `clump` does
+    when it clumped nothing (#526).
     """
-    if "n_associations" not in payload:
+    if key not in payload:
         return None
-    value = payload["n_associations"]
+    value = payload[key]
+    if value is None and nullable:
+        return None
     if type(value) is not int or value < 0:
         raise ObservedMeasurementError(
-            f"The {step_name} step's record {where} carries n_associations={value!r} in its "
+            f"The {step_name} step's record {where} carries {key}={value!r} in its "
             "stdout JSON; opengwasdb reports it as a non-negative integer, so register "
             "refuses rather than recording null for a value that was present (#322)"
         )
     return value
+
+
+def _reported_association_count(
+    payload: dict[str, Any], step_name: str, where: str
+) -> int | None:
+    """The step's reported `n_associations`, or None when the step printed no such key."""
+    return _reported_count(payload, "n_associations", step_name, where)
 
 
 def _reported_observed_text(
@@ -691,9 +707,26 @@ def require_declared_association_coverage(
 # Variant Subset `audit_indexed_subsets.DEFAULT_SUBSET_NAME`.
 RHO_STEP: str = "rho"
 
+# The post step `has_clumps` reports (#526), and the counts its JSON prints.
+CLUMP_STEP: str = "clump"
+CLUMP_COUNT_FIELDS: tuple[str, ...] = ("n_loci_5e8", "n_unclumped_5e8")
+
 # The `observed` keys #502 added, which `ogstores.backfill_observed` writes into
 # records registered before them.
 STORE_FACT_FIELDS: tuple[str, ...] = ("store_bytes", "has_hm3", "has_rho", "n_top_hits")
+
+
+def _phase_step(
+    planned_steps: list[Step], step_records: Mapping[str, Mapping[str, Any]], name: str
+) -> tuple[str, Mapping[str, Any] | None] | None:
+    """The phase's planned step `name` (or its completion-phase counterpart) and its record.
+
+    None when the phase plans no such step; the record is None when it plans one and has none.
+    """
+    planned = [step.name for step in planned_steps if step.name in (name, completion_step_name(name))]
+    if not planned:
+        return None
+    return planned[0], step_records.get(planned[0])
 
 
 def _step_built(
@@ -708,10 +741,10 @@ def _step_built(
     `unplanned` when the phase plans no such step; None when it plans one and
     no record says how it ended.
     """
-    planned = [step.name for step in planned_steps if step.name in (name, completion_step_name(name))]
-    if not planned:
+    found = _phase_step(planned_steps, step_records, name)
+    if found is None:
         return unplanned
-    record = step_records.get(planned[0])
+    record = found[1]
     if record is None:
         return None
     return record.get("success") is True and record.get("exit_code") == 0
@@ -745,6 +778,30 @@ def store_facts(
         # `post.top_hits: false` builds no Top-Hit Index, so null there is final.
         "n_top_hits": None,
     }
+
+
+def clump_facts(
+    planned_steps: list[Step],
+    step_records: Mapping[str, Mapping[str, Any]],
+) -> dict[str, Any]:
+    """`has_clumps`, `n_loci_5e8` and `n_unclumped_5e8` of the phase: whether `clump` ran, and the counts it printed (#526).
+
+    A recipe that plans no `clump` step says nothing about Clumps built by hand, so
+    `has_clumps` is then null, never false (as `has_rho`). The counts are the engine's
+    own, read from the step's stdout JSON and never computed here: a step that printed
+    no such key, or null (it clumped nothing), records null; a present value that is not a non-negative integer is
+    refused, since null would read as "reported nothing" (#322).
+    """
+    built = _step_built(planned_steps, step_records, CLUMP_STEP, unplanned=None)
+    facts: dict[str, Any] = {"has_clumps": built, "n_loci_5e8": None, "n_unclumped_5e8": None}
+    if built is not True:
+        return facts
+    step_name, record = _phase_step(planned_steps, step_records, CLUMP_STEP)  # type: ignore[misc]
+    where = record.get("record_path") or f"records/{step_name}.json"
+    payload = _extract_json_from_text(record.get("stdout", "")) or {}
+    for key in CLUMP_COUNT_FIELDS:
+        facts[key] = _reported_count(payload, key, step_name, where, nullable=True)
+    return facts
 
 
 def read_format_version(store_dir: Path) -> str:
@@ -890,6 +947,7 @@ def harvest_observed_measurements(
         "association_coverage": association_coverage,
         "reference_assembly": reference_assembly,
         **store_facts(planned_steps, step_records, store_dir),
+        **clump_facts(planned_steps, step_records),
         "build_elapsed_s": round(total_elapsed, 3),
         "validate_status": validate_status,
         "completion_state": published_completion_state(bundle_obj, phase),
@@ -1770,6 +1828,8 @@ __all__ = [
     "OBSERVED_FIELDS",
     "RHO_STEP",
     "STORE_FACT_FIELDS",
+    "CLUMP_STEP",
+    "clump_facts",
     "RSID_CONFLICT_FIELDS",
     "VALIDATOR_NAME",
     "ArgvDriftError",

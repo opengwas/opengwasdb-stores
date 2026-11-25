@@ -82,9 +82,11 @@ completes against, and an `observed_only` one declares none (below). `command` n
 passed through verbatim: option semantics remain opaque here. Store Release
 Build's bounded worker-count interpretation is recorded in ADR 0023's
 stores#358 amendment. `post` is the registry's own vocabulary -- `top_hits`,
-`overview`, `rho` and `validate`, each `true` or `false`, the steps
+`overview`, `rho`, `clumps` and `validate`, each `true` or `false`, and `ld_stores`, the
+LD Store mapping `post.clumps` needs (a mapping from each Assigned Ancestry to the LD
+Store's path, both non-empty strings: `bundle.ld_store_mapping_problem`, #526), the steps
 `ogstores.plan` plans (a Dense build meets `top_hits: true` itself, as it writes the
-Top-Hit Index inline, so that plan has no standalone step for it, stores#357) -- so an unknown key or a non-boolean is refused. An
+Top-Hit Index inline, so that plan has no standalone step for it, stores#357) -- so an unknown key, a non-boolean flag or a malformed mapping is refused. An
 `indexed_subsets` entry takes only the Release Bundle contract's keys
 (`name`, `resource_id`, `variant_list`, `reference_assembly`, `checksum`,
 `options`). The recipe carries no artifact root

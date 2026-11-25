@@ -367,6 +367,65 @@ class TestPlanDense(unittest.TestCase):
             ),
         )
 
+    def _clumps_bundle(self, post: dict) -> Bundle:
+        return Bundle(
+            store_id="OGS-00003",
+            root=Path("stores/OGS-00003"),
+            release=self.bundle_00003.release,
+            build={**without_indexed_subsets(self.bundle_00003.build), "post": post},
+            analyses_path=self.bundle_00003.analyses_path,
+        )
+
+    def test_clumps_planned_after_rho_with_ld_stores_and_validated(self) -> None:
+        """`post.clumps` plans `clump` after top-hits and rho, as `rho` is planned (#526); validate gets the same --ld-store pairs."""
+        bundle = self._clumps_bundle(
+            {
+                "top_hits": True,
+                "rho": True,
+                "clumps": True,
+                "ld_stores": {"EUR": "/ld/EUR", "AFR": "/ld/AFR"},
+                "overview": True,
+                "validate": True,
+            }
+        )
+        steps = plan(bundle)
+        record_check()
+        self.assertEqual([s.name for s in steps], ["build", "rho", "clump", "overview", "validate"])
+        store_p = Path("/data/opengwasdb/stores/OGS-00003/store.opengwasdb")
+        pairs = ["--ld-store", "AFR=/ld/AFR", "--ld-store", "EUR=/ld/EUR"]
+        record_check()
+        self.assertEqual(
+            steps[2],
+            Step(
+                name="clump",
+                argv=["opengwasdb", "clump", str(store_p), *pairs],
+                inputs=[store_p],
+                outputs=[store_p],
+            ),
+        )
+        record_check()
+        self.assertEqual(steps[4].argv[:5], ["opengwasdb", "validate", str(store_p), "--format", "json"])
+        self.assertEqual(steps[4].argv[-4:], pairs)
+
+    def test_clumps_without_ld_store_mapping_refused(self) -> None:
+        """A recipe declaring `post.clumps` with no LD Store mapping is refused at planning, naming it."""
+        for post in (
+            {"clumps": True, "validate": True},
+            {"clumps": True, "ld_stores": {}, "validate": True},
+        ):
+            with self.assertRaises(ValueError) as ctx:
+                plan(self._clumps_bundle(post))
+            record_check()
+            self.assertIn("post.clumps", str(ctx.exception))
+            self.assertIn("ld_stores", str(ctx.exception))
+
+    def test_ld_stores_without_clumps_is_inert(self) -> None:
+        """A declared mapping with clumps off plans no clump step and no --ld-store on validate."""
+        steps = plan(self._clumps_bundle({"clumps": False, "ld_stores": {"EUR": "/ld/EUR"}, "validate": True}))
+        record_check()
+        self.assertNotIn("clump", [s.name for s in steps])
+        self.assertNotIn("--ld-store", steps[-1].argv)
+
     def test_post_flags_selective_toggle(self) -> None:
         """Individual post flags toggle corresponding steps on and off."""
         bundle_val_only = Bundle(
@@ -2708,7 +2767,7 @@ class TestPostDefaults(unittest.TestCase):
     def test_default_values(self) -> None:
         """Only rho and validate are defaults; top_hits and overview are not."""
         record_check()
-        self.assertEqual(POST_DEFAULTS, {"rho": False, "validate": True})
+        self.assertEqual(POST_DEFAULTS, {"rho": False, "clumps": False, "validate": True})
 
     def test_absence_falls_back_to_defaults(self) -> None:
         """A recipe that omits rho/validate still plans validate and no rho."""
