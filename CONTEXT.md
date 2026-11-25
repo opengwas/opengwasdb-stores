@@ -94,7 +94,7 @@ The workflow that turns an accepted Release Bundle into a built, validated and p
 _Avoid_: Phase A, release pipeline, build phase
 
 **Release Bundle**:
-The Store Registry directory `stores/<store-id>/` that Manifest Generation and Store Release Build meet at, and the only thing they share: `release.yaml` (identity, lineage, Release Status and provenance), `build.yaml` (the Build Recipe), `analyses.tsv` (the Release Manifest), `validation.yaml` (the Validation Record), sidecars, and, for a Source Collection read through a Column Map, that map (in `column_maps/`, checksummed by the Build Recipe). Manifest Generation emits it as a candidate, a human accepts it, and Store Release Build consumes it. A candidate and an accepted Release Bundle are the same thing at different Release Statuses. An accepted Release Bundle is immutable, with one exception: an Observed-Only bundle may gain a completion block to declare reference completion (ADR 0037).
+The Store Registry directory `stores/<store-id>/` that Manifest Generation and Store Release Build meet at, and the only thing they share: `release.yaml` (identity, lineage, Release Status and provenance), `build.yaml` (the Build Recipe), `analyses.tsv` (the Release Manifest), `validation.yaml` (the Validation Record), sidecars, and, for a Source Collection read through a Column Map, that map (in `column_maps/`, checksummed by the Build Recipe). Manifest Generation emits it as a candidate, a human accepts it, and Store Release Build consumes it. A candidate and an accepted Release Bundle are the same thing at different Release Statuses. An accepted Release Bundle is immutable, except in exactly two ways, neither of which changes its membership: an Observed-Only bundle may gain a completion block to declare reference completion (ADR 0037), and observations about its built Store may be recorded into its Validation Record's `observed` block (#502).
 _Avoid_: Release Manifest Candidate, candidate bundle (as a separate kind), release directory
 
 **Release Manifest**:
@@ -137,6 +137,10 @@ _Avoid_: validation (a Store Audit reads a built Store; validation is Store Rele
 The storage organisation used for a Store Release, such as dense observed-only, dense reference-completed, ragged observed-only, ragged reference-completed, or hybrid.
 _Avoid_: source format
 
+**Yardstick**:
+The fixed query workload, run against one representative Store of each GWAS Store Layout and each kind of LD Store, once at the finish of every epic that changes the engine, to show how query time, peak memory and size change as the engine changes. Not a gate: it records.
+_Avoid_: benchmark (the opengwasdb `benchmarks/` harnesses are one-off), performance test, gate
+
 **Store Composition Rule**:
 A release-level admission rule deciding which Analyses may share one Store's variant axis, applied after every other membership decision. A shared Store admits only Analyses whose rows were MAF-filtered (ADR 0033); an otherwise admissible Analysis it refuses is excluded as `not_maf_filtered` and belongs in a separate Store Release.
 _Avoid_: routing rule, panel policy
@@ -172,6 +176,10 @@ _Avoid_: emit (a Store), publish (a candidate)
 **Artifact Root**:
 The deployment-configured directory under which every Store Release's Release Artifacts live, one directory per Store Release id (`<artifact-root>/<store-id>/`). It is not a Release Bundle field: a bundle is immutable once accepted, so the root resolves from deployment configuration -- a workflow config override, the `OPENGWASDB_ARTIFACT_ROOT` environment variable, the repository `ogstores.yaml`, then the built-in default -- so one bundle can be built on CI, a laptop, or the production host.
 _Avoid_: output directory, data root
+
+**Artifact Root check**:
+The read-only comparison of the Store Registry with the Artifact Root on one host, run as `pixi run check-artifact-root` (stores #510). It reports a built or validated bundle with no Store at its path, a release directory with no bundle, a Store whose bundle says it is not built or is retired, a broken `by-label` link, and a pending publication or staged Store. It never changes the registry or the disk, and its dated report is committed; the readiness view reads only committed records, so this is the one check that looks at the disk.
+_Avoid_: reconcile (the Store Audit's), audit
 
 **Work Root**:
 Where Manifest Generation keeps its working files for one Store Release, `<output.work_root>/<store-id>/`: its freeze and preflight reports, resolver manifest, log, the run's resolver index and resolution receipt, and the rendered bundle before it is emitted. Resolution Records are not kept here but in the Resolution Area. Store Release Build never reads a Work Root.

@@ -264,7 +264,8 @@ The one thing Phase A writes is the **derived build manifest** under the artifac
 
 The package is shared by both phases. Its module surfaces are `bundle.py`,
 `plan.py`, `paths.py`, `manifest.py`, `run.py`, `index.py`, `register.py`,
-`resources.py`, `runtime.py`, `release.py` and `readiness.py`;
+`resources.py`, `runtime.py`, `release.py`, `readiness.py` and
+`artifact_root_check.py`;
 `_pdeath_supervisor.py` is an internal helper `run.py` uses to contain a
 detached build's process group (ADR 0026).
 
@@ -545,7 +546,7 @@ Snakemake's own handling of SIGTERM would wait for running jobs to finish, which
 
 An interrupted Dense completion resumes rather than restarts; `complete-hybrid` and `complete-ragged` keep no checkpoint, so an interrupted Hybrid or Ragged completion starts again from the published Observed-Only Store. Snakemake reruns the missing or incomplete completion-phase record, as it reruns any step. `complete-dense` keeps a checkpoint beside the staged Store it writes, `<ID>/.store.opengwasdb.partial.checkpoint`, and refuses to start while one exists. Before `run.execute_step` starts a fresh `complete-dense`, it records the step's planned argv, atomically, in `<ID>/work/complete.started.json` (`paths.completion_start_path`), and it removes that record once a completion finishes. When the checkpoint exists, `execute_step` runs `opengwasdb complete-dense-resume <checkpoint>` in place of the planned `complete-dense` (`run.resume_argv_for_completion`), passing on a planned `--n-workers`, but only if the recorded argv is the one planned now. A different plan is refused, naming its changed tokens; so is a checkpoint with no record, which this workflow did not start, or an older one did. The record also names the engine commit that started the completion, and a resume under another one is refused naming both (#253). A record written before the engine was recorded names none: its checkpoint resumes only when every step record of the completion's phase names one engine and that engine is the one installed, and is otherwise refused, naming the engines the records name and the installed one (#410). A refused resume writes nothing, so the interrupted run's records, the start record and the checkpoint stay as they were, and installing the right engine afterwards still resumes it (`run.ResumeRefusedError`). That holds at `run.execute_step`, but not through `pixi run release` for a checkpoint whose start record names no engine: Snakemake removes the interrupted run's `records/complete.json`, so the phase has no step record naming an engine, and such a checkpoint is refused whatever engine is installed. `--config force=1` discards it. None existed when #410 landed. A completion step's own `--n-workers`, rendered from `complete.options` as every option is, sizes three pools of the engine's completion (opengwasdb#321): the LD-block pool, the checkpoint-merge pool and the write pool, in which a Dense row band is coded and written in one pass (a Ragged completion's write pool assembles its Analyses and writes the CSR); completion's output does not depend on it, and its default is one worker. The completion command receives this option verbatim; validation reuses and checks the declared count under [ADR 0023's stores#358 amendment](../adr/0023-the-registry-store-seam-is-a-command-line.md). Resuming a checkpoint is the one step that continues another engine's output; every other step, a `complete-dense` started afresh included, may run under a newer engine than wrote the phase's earlier records. Either refusal runs nothing, keeps the checkpoint, and says that `--config force=1` discards it. Only stores' own planned argv is compared, so no `opengwasdb` option, checkpoint key or default is restated here (ADR 0023). `register` accepts the substitution and records `resumed: true`. Nothing but a forced run discards a checkpoint, a planned `--overwrite` included: a forced run's preflight removes the checkpoint and its record, because it rebuilds the Store the checkpoint was computed from, and then rebuilds both phases.
 
-**The one amendment an accepted bundle allows** (#305, ADR 0037). An accepted Release Bundle is immutable, except that an `observed_only` bundle may gain a `complete` block and switch to `completion_state: reference_completed`. That is how a Store published before its bundle declared completion is completed under its id. Before any job runs, `amendment.refuse_changed_bundles` holds a bundle that now completes its own Store (`Bundle.completes_own_store`), and whose build phase has published, to the Store it published. The baseline is the published release's records, never its Store, and only what made that Store:
+**The amendment an accepted bundle allows** (#305, ADR 0037). An accepted Release Bundle may change in exactly two ways, and neither changes its membership. An `observed_only` bundle may gain a `complete` block and switch to `completion_state: reference_completed`, which this section covers. And observations about the built Store may be recorded into its Validation Record's `observed` block (#502; see the schema's `validation.yaml` section). The first amendment is how a Store published before its bundle declared completion is completed under its id. Before any job runs, `amendment.refuse_changed_bundles` holds a bundle that now completes its own Store (`Bundle.completes_own_store`), and whose build phase has published, to the Store it published. The baseline is the published release's records, never its Store, and only what made that Store:
 - once the build phase has published (`records/register.json`), its Store-writing steps, `variant-reference` if planned and `build`, must be the steps its register record registered (its `inputs`), each planned with the argv its own record planned (`planned_argv`, which `register` held the executed argv to). One difference is tolerated, and only this one (#341, ADR 0040): a recorded argv that names no `--association-coverage` matches a planned argv that differs by the declaration-derived `--association-coverage <release.yaml value>` pair alone, because a Store published before that flag existed would otherwise be refused the completion #224 wants for it, for a reason that is not a rebuild. A recorded argv that names a coverage -- another value included -- is compared whole, as is every other token. A second difference is tolerated on the same terms (#428, ADR 0037 amended): a recorded argv that is the plan without its composed `--admission-record <artifact-root>/<id>/store.opengwasdb.admission` pair, at the record's own root, matches (`plan.planned_before_admission_record`), and so does one without that pair and the coverage pair both, for a Ragged record that predates #341 too. The flag names where the builder writes its Admission record, beside the Store; it changes no Store data, and every Store published before #428 has a `build` record that names none. A recorded argv that names an Admission record, at any path, is compared whole. The manifest the bundle's `analyses.tsv` makes now must be byte-for-byte the one the Store was built from, `work/analyses.tsv`, and must exclude the same Analyses (`work/analyses.exclusions.json`). Neither published file is optional: a missing derived build manifest, and an exclusion audit sidecar that is missing, unreadable, or does not list its dropped Analyses by `analysis_id`, are each refused as a membership that cannot be compared, naming the file, never read as no exclusions. Only a missing register record means a phase has not published: one that exists but is not a readable JSON object is refused as a phase that cannot be compared, naming it, and so is such a step record;
 - once the completion phase has published (`records/completion-register.json`), the same holds for its `complete`.
 
@@ -816,8 +817,13 @@ derived   store_id  label  layout  completion_state  status  derived_from  trial
           n_analyses  n_manifest  n_excluded  first_author  publication_pmid
           tissue  context  assigned_ancestry  sample_size  source_url
 observed  format_version  n_variants  n_associations  store_bytes
-          build_elapsed_s  validate_status
+          has_hm3  has_rho  n_top_hits  build_elapsed_s  validate_status
 ```
+
+`has_hm3` and `has_rho` are `true`, `false`, or empty when the Validation Record
+does not say; `n_top_hits` is the recorded mapping as compact JSON, empty while
+it is `null` (#502). `bundle.observed_flag` and `bundle.top_hit_counts_text` are
+the one rule for both, which the Analysis Catalog reads too.
 
 `n_analyses` is admitted membership; `n_manifest` and `n_excluded` keep the
 excluded manifest rows visible (issue #217).
@@ -882,6 +888,80 @@ rendered to `docs/store-release-readiness.md`.
 
 Two commands per store matter, and they are different kinds of thing. The **generator command log** (`inventory.tsv` + config to bundle) is recorded by the generator into `release.yaml` as `generator.commands`. The **build command** (bundle to store) is *derived by `plan()`*, the same function the workflow renders its rules from. A hand-maintained list would be wrong within a month.
 
+### The Artifact Root check (issue #510)
+
+`readiness.py` and `index` read git, never the Artifact Root, so nothing they
+render can say that a Store a bundle registers has gone from disk. OGS-00022
+and OGS-00023 were registered `validated` on 21 October at paths that never
+existed, and nobody noticed for three days. `artifact_root_check.py`, run as
+`pixi run check-artifact-root`, is the one place the registry is compared with
+the disk. It is not a reconcile: that word is the Store Audit's, which checks
+one Store against its own records.
+
+It reads the bundles through `readiness.discover_bundles` and every path
+through `paths` (`artifact_root()`, `store_path`, `store_dir`,
+`publication_marker`, `partial_store_path`, `by_label_dir`), and reports five
+categories:
+
+1. **Registered but missing**: a `built` or `validated` bundle with no Store at
+   `<root>/<id>/store.opengwasdb`.
+2. **On disk but unregistered**: a release directory `<root>/<id>` with no
+   bundle. Only Store Release ids are release directories, so `catalog/`,
+   `by-label/` and `.tmp/` are not read as releases.
+3. **Status disagreement**: a Store present while its bundle is `candidate` or
+   `accepted`, or `superseded` or `withdrawn`. It is reported, not judged: a
+   release that completes its own Store is `accepted` while its Observed-Only
+   Store is published.
+4. **Broken `by-label` link**: a link under `<root>/by-label/` whose target is
+   missing.
+5. **Stray state**: `publication.json`, or a staged Store
+   (`store.opengwasdb.partial*`, `.store.opengwasdb.partial*`, the set
+   `tools/relocate_store.py` refuses to move), worded as the entry point's
+   refusals and its dry run word them. When a run holds the release's lock,
+   the finding names the holder. The lock is probed as the dry run probes it,
+   with `release.lock_holder`: a non-blocking shared lock, taken and released
+   at once, which creates and writes nothing. A `pixi run release` that tries
+   its exclusive lock in that instant is refused as if a run were in progress.
+
+A Store is present when its path exists, by `lstat`, the test the entry
+point's refusal of a published release makes. A release that completes its own
+Store is published twice under one id (ADR 0037), both times at that path, so
+the test does not change for it.
+
+It exits 1 when it finds category 1 or 4, 0 otherwise, and 2 when it refuses,
+naming the cause and writing no report: an Artifact Root that is not a
+directory, an `OSError` while reading it or the registry, a registry that is
+missing or holds no bundle (every release directory would read as
+unregistered), a Release Status the check's split into built, unbuilt and
+retired does not cover, or a report path under the Artifact Root, through a
+link or not. It never writes under the Artifact Root and never changes a bundle;
+fixing a finding (rebuild, withdraw, finish a publication) is the operator's
+decision. `--json` and `--markdown` write the report, which the run on the
+production host commits as `docs/artifact-root-check.json` and
+`docs/artifact-root-check.md`. The report records the UTC time, the host, the
+Artifact Root (resolved, so a link's target is compared with one spelling of
+it), the registry's `git rev-parse HEAD` and whether its tree was dirty, and
+each finding with its category, Store id and Release Status.
+It records no path outside `<root>/<id>`: a `by-label` link is named by its
+label and its target's Store id, and a lock by its holder.
+
+The report is its own file rather than a channel of the readiness view. The
+view's `built_membership` channel compares a published Store's Analysis IDs
+with admitted membership, and its `missing` there means "no published artifact
+recorded" in the ledger. Presence on disk is a different question, asked on
+one host at one time, and folding it in would change what that channel means.
+
+**When to run it.** On the host that holds the Artifact Root:
+
+- before and after any migration or re-registration that changes Artifact Root
+  paths (a relocation, a move to new ids, re-registering a bundle at a new
+  path), so the run before records what was there and the run after shows
+  nothing was lost;
+- at the finish of a Store epic, so the epic's last commit records the disk it
+  leaves.
+
+Commit the report each time. The release workflow does not run it.
+
 ### Planned and executed argv are different facts
 
 `plan()` is rendered two ways, and they carry different amounts of the truth:
@@ -925,6 +1005,8 @@ The field-by-field format is defined once in
 this section records only how the workflow produces it.
 
 Assembled by `register` from the step records: the JSON each build command already prints, plus `opengwasdb validate`'s verdict. `n_associations`, `association_coverage` and `reference_assembly` come from that JSON under exactly those keys, with the same precedence `n_variants` and `n_analyses` use; a key opengwasdb does not print is `null`, never a derived value or one read from the Store (#322). A key present with a malformed value fails registration: `n_associations` must be a non-negative integer and the other two non-empty strings, so "opengwasdb reported something else" is never recorded as "opengwasdb reported nothing". A reported `association_coverage` must also equal the release's declaration: the builder was given that value (`--association-coverage`), so a Store at another coverage is not the Store the bundle describes, and `register` refuses it with `AssociationCoverageMismatchError`, naming the reported value and the declared one, before anything is written (#341). A record written before opengwasdb printed the key keeps its `null`: an absent key is an older runtime's output, not a mismatch.
+
+`register` also records four facts about the Store it publishes, none of them read from the Store (#502). `store_bytes` is the size on disk of the Store being published, the staged one that publication renames into place unchanged or the one already there, summed from a stat of each file; a stat opens no Store file, so it is no Store read under ADR 0023. `has_hm3` and `has_rho` come from the publishing phase's plan and its step records: `true` when the Build Recipe plans the HM3 Indexed Variant Subset step or the `rho` step and it succeeded. A recipe that declares no HM3 subset records `has_hm3: false`; one that runs no `rho` step records `has_rho: null`, because a Rho Matrix built by hand outside the recipe is not recorded. `n_top_hits` is `null`, since no step prints a top-hit count, until opengwas/opengwasdb#488's `opengwasdb info --json` reports the counts; `n_variants` and `n_associations` become complete from the same command. The schema defines each field and its `null`.
 
 The verdict is read from `opengwasdb validate --format json`, which the planned validate step requests (opengwasdb#175). It prints one object, `{"ok", "errors", "warnings"}`, to which opengwasdb v0.6.0 adds `findings` (opengwas/opengwasdb#378): one `{"rule", "severity", "target", "message"}` per record of the run, each error, warning and skipped rule, from which `errors` and `warnings` are projected. The record follows from `ok`, `errors` and `warnings` exactly:
 - `status` and `checks.store` are `failed` when `ok` is false, `passed_with_warnings` when `warnings` is non-empty, and `passed` otherwise;

@@ -1,0 +1,654 @@
+{
+  "schema": 1,
+  "workload_id": "yardstick-4",
+  "workload_sha256": "1c1c1ee66fb38c7805039d0be302c8495073130927a5cdb056b90f7bf75b97f9",
+  "opengwasdb": {
+    "version": "0.14.1",
+    "revision": "1230629a2c0958851f8ed5e1bcc8db9472b7516a"
+  },
+  "ogstores": {
+    "version": "0.37.2.dev1+g7c8b431dd817d101c05c11d1b0751c4d7c3af8ee.d20261124",
+    "commit": "0a407083c956a26f0c5bf61dea604de7f9c648ac",
+    "dirty": false
+  },
+  "host": {
+    "name": "app-dc3-ogws-p0.services.bris.ac.uk",
+    "cpu_count": 224
+  },
+  "load_average": {
+    "before": [
+      42.16,
+      29.57,
+      22.3
+    ],
+    "after": [
+      71.33,
+      74.34,
+      61.41
+    ]
+  },
+  "started_utc": "2026-11-24T20:52:27Z",
+  "ended_utc": "2026-11-24T21:09:13Z",
+  "duration_s": 1006.1,
+  "over_budget": false,
+  "local_utc_offset_minutes": 0,
+  "veeam_window": false,
+  "repetitions": {
+    "default": 5,
+    "analysis_full": 3,
+    "analysis_full_observed_only": 3,
+    "variants_table": 1,
+    "analyses_table": 3,
+    "resolve": 3
+  },
+  "stores": [
+    {
+      "store_id": "OGS-00009",
+      "layout": "dense",
+      "coverage": "gwas",
+      "status": "measured",
+      "measures": {
+        "open": {
+          "status": "measured",
+          "first_read_ms": 2248.354,
+          "median_ms": 147.787,
+          "p95_ms": 156.931,
+          "reps": 5
+        },
+        "phewas_rsid": {
+          "status": "measured",
+          "first_read_ms": 119.142,
+          "median_ms": 77.071,
+          "p95_ms": 83.167,
+          "reps": 5,
+          "result_count": 2514,
+          "first_result_count": 2514
+        },
+        "phewas_alid": {
+          "status": "measured",
+          "first_read_ms": 81.09,
+          "median_ms": 69.518,
+          "p95_ms": 78.159,
+          "reps": 5,
+          "result_count": 350,
+          "first_result_count": 350
+        },
+        "phewas_position": {
+          "status": "measured",
+          "first_read_ms": 69.582,
+          "median_ms": 77.922,
+          "p95_ms": 79.652,
+          "reps": 5,
+          "result_count": 2514,
+          "first_result_count": 2514
+        },
+        "analysis_full": {
+          "status": "measured",
+          "first_read_ms": 18539.778,
+          "median_ms": 12777.295,
+          "p95_ms": 13629.238,
+          "reps": 3,
+          "result_count": 9912269,
+          "first_result_count": 9912269
+        },
+        "analyses_table": {
+          "status": "measured",
+          "first_read_ms": 0.068,
+          "median_ms": 0.022,
+          "p95_ms": 0.031,
+          "reps": 3,
+          "result_count": 2514,
+          "first_result_count": 2514
+        },
+        "variants_table": {
+          "status": "measured",
+          "first_read_ms": 36325.936,
+          "median_ms": 36085.952,
+          "p95_ms": 36085.952,
+          "reps": 1,
+          "result_count": 11191070,
+          "first_result_count": 11191070
+        },
+        "resolve": {
+          "status": "measured",
+          "first_read_ms": 97.57,
+          "median_ms": 8.452,
+          "p95_ms": 8.723,
+          "reps": 3,
+          "result_count": 2514,
+          "first_result_count": 2514
+        },
+        "region_100kb": {
+          "status": "measured",
+          "first_read_ms": 187.942,
+          "median_ms": 180.432,
+          "p95_ms": 193.863,
+          "reps": 5,
+          "result_count": 1073832,
+          "first_result_count": 1073832
+        },
+        "lookup_1x100": {
+          "status": "measured",
+          "first_read_ms": 59.905,
+          "median_ms": 56.115,
+          "p95_ms": 57.928,
+          "reps": 5,
+          "result_count": 99,
+          "first_result_count": 99
+        },
+        "lookup_100x1": {
+          "status": "measured",
+          "first_read_ms": 270.378,
+          "median_ms": 279.722,
+          "p95_ms": 295.547,
+          "reps": 5,
+          "result_count": 95,
+          "first_result_count": 95
+        },
+        "lookup_10x100": {
+          "status": "measured",
+          "first_read_ms": 367.705,
+          "median_ms": 358.685,
+          "p95_ms": 401.147,
+          "reps": 5,
+          "result_count": 999,
+          "first_result_count": 999
+        },
+        "lookup_100x10": {
+          "status": "measured",
+          "first_read_ms": 457.654,
+          "median_ms": 502.823,
+          "p95_ms": 553.181,
+          "reps": 5,
+          "result_count": 932,
+          "first_result_count": 932
+        },
+        "lookup_100x100": {
+          "status": "measured",
+          "first_read_ms": 3269.084,
+          "median_ms": 3798.924,
+          "p95_ms": 3970.64,
+          "reps": 5,
+          "result_count": 9295,
+          "first_result_count": 9295
+        },
+        "analysis_full_observed_only": {
+          "status": "measured",
+          "first_read_ms": 11441.032,
+          "median_ms": 13595.742,
+          "p95_ms": 15366.311,
+          "reps": 3,
+          "result_count": 5349214,
+          "first_result_count": 5349214
+        },
+        "top_hits": {
+          "status": "measured",
+          "first_read_ms": 24.883,
+          "median_ms": 12.022,
+          "p95_ms": 15.038,
+          "reps": 5,
+          "result_count": 3752,
+          "first_result_count": 3752,
+          "path": "index"
+        },
+        "range_by_analysis": {
+          "status": "not_applicable",
+          "reason": "range_by_analysis is a Ragged query"
+        },
+        "rho": {
+          "status": "not_applicable",
+          "reason": "the Store has no Rho Matrix"
+        },
+        "rho_row": {
+          "status": "not_applicable",
+          "reason": "the Store has no Rho Matrix"
+        },
+        "rho_matrix": {
+          "status": "not_applicable",
+          "reason": "the Store has no Rho Matrix"
+        },
+        "analysis_hm3": {
+          "subset": "hm3",
+          "detail": "",
+          "analysis_id": "ukb-b-10001",
+          "status": "measured",
+          "first_read_ms": 455.722,
+          "median_ms": 416.009,
+          "p95_ms": 450.706,
+          "reps": 5,
+          "result_count": 1189911,
+          "warm_result_count": 1189911,
+          "subset_n_variants": 1206088,
+          "subset_n_analyses": 2514,
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1206088,
+          "subset_absent_count": 815,
+          "subset_reference_assembly": "hg38",
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"
+        },
+        "region": {
+          "status": "measured",
+          "first_read_ms": 2469.1,
+          "median_ms": 2416.255,
+          "p95_ms": 3274.023,
+          "reps": 5,
+          "result_count": 11366579,
+          "first_result_count": 11366579
+        },
+        "bytes_on_disk": {
+          "status": "measured",
+          "bytes": 61882085184,
+          "source": "walk"
+        },
+        "peak_rss": {
+          "status": "measured",
+          "baseline_mb": 183.5,
+          "peak_mb": 1042.2,
+          "delta_mb": 858.7,
+          "result_count": 9912269
+        }
+      }
+    },
+    {
+      "store_id": "OGS-00011",
+      "layout": "hybrid",
+      "coverage": "gwas",
+      "status": "measured",
+      "measures": {
+        "open": {
+          "status": "measured",
+          "first_read_ms": 2115.791,
+          "median_ms": 348.888,
+          "p95_ms": 393.85,
+          "reps": 5
+        },
+        "phewas_rsid": {
+          "status": "measured",
+          "first_read_ms": 127.08,
+          "median_ms": 33.382,
+          "p95_ms": 35.819,
+          "reps": 5,
+          "result_count": 32,
+          "first_result_count": 32
+        },
+        "phewas_alid": {
+          "status": "measured",
+          "first_read_ms": 47.571,
+          "median_ms": 32.196,
+          "p95_ms": 33.954,
+          "reps": 5,
+          "result_count": 1673,
+          "first_result_count": 1673
+        },
+        "phewas_position": {
+          "status": "measured",
+          "first_read_ms": 29.119,
+          "median_ms": 29.191,
+          "p95_ms": 33.868,
+          "reps": 5,
+          "result_count": 32,
+          "first_result_count": 32
+        },
+        "analysis_full": {
+          "status": "measured",
+          "first_read_ms": 26514.204,
+          "median_ms": 19446.187,
+          "p95_ms": 21127.692,
+          "reps": 3,
+          "result_count": 2420299,
+          "first_result_count": 2420299
+        },
+        "analyses_table": {
+          "status": "measured",
+          "first_read_ms": 0.728,
+          "median_ms": 0.021,
+          "p95_ms": 0.133,
+          "reps": 3,
+          "result_count": 3245,
+          "first_result_count": 3245
+        },
+        "variants_table": {
+          "status": "measured",
+          "first_read_ms": 182121.846,
+          "median_ms": 217328.518,
+          "p95_ms": 217328.518,
+          "reps": 1,
+          "result_count": 47920778,
+          "first_result_count": 47920778
+        },
+        "resolve": {
+          "status": "measured",
+          "first_read_ms": 425.721,
+          "median_ms": 0.281,
+          "p95_ms": 0.474,
+          "reps": 3,
+          "result_count": 32,
+          "first_result_count": 32
+        },
+        "region_100kb": {
+          "status": "measured",
+          "first_read_ms": 276.322,
+          "median_ms": 273.558,
+          "p95_ms": 283.583,
+          "reps": 5,
+          "result_count": 1027888,
+          "first_result_count": 1027888
+        },
+        "lookup_1x100": {
+          "status": "measured",
+          "first_read_ms": 791.935,
+          "median_ms": 768.37,
+          "p95_ms": 817.656,
+          "reps": 5,
+          "result_count": 1,
+          "first_result_count": 1
+        },
+        "lookup_100x1": {
+          "status": "measured",
+          "first_read_ms": 618.952,
+          "median_ms": 184.402,
+          "p95_ms": 188.538,
+          "reps": 5,
+          "result_count": 4,
+          "first_result_count": 4
+        },
+        "lookup_10x100": {
+          "status": "measured",
+          "first_read_ms": 1766.104,
+          "median_ms": 1603.663,
+          "p95_ms": 1675.973,
+          "reps": 5,
+          "result_count": 18,
+          "first_result_count": 18
+        },
+        "lookup_100x10": {
+          "status": "measured",
+          "first_read_ms": 619.725,
+          "median_ms": 545.539,
+          "p95_ms": 582.278,
+          "reps": 5,
+          "result_count": 202,
+          "first_result_count": 202
+        },
+        "lookup_100x100": {
+          "status": "measured",
+          "first_read_ms": 5030.105,
+          "median_ms": 4744.541,
+          "p95_ms": 4810.803,
+          "reps": 5,
+          "result_count": 2134,
+          "first_result_count": 2134
+        },
+        "analysis_full_observed_only": {
+          "status": "measured",
+          "first_read_ms": 19060.053,
+          "median_ms": 17555.177,
+          "p95_ms": 19324.553,
+          "reps": 3,
+          "result_count": 2420299,
+          "first_result_count": 2420299
+        },
+        "top_hits": {
+          "status": "measured",
+          "first_read_ms": 39.926,
+          "median_ms": 11.663,
+          "p95_ms": 13.608,
+          "reps": 5,
+          "result_count": 160,
+          "first_result_count": 160,
+          "path": "scan"
+        },
+        "range_by_analysis": {
+          "status": "not_applicable",
+          "reason": "range_by_analysis is a Ragged query"
+        },
+        "rho": {
+          "status": "not_applicable",
+          "reason": "the Store has no Rho Matrix"
+        },
+        "rho_row": {
+          "status": "not_applicable",
+          "reason": "the Store has no Rho Matrix"
+        },
+        "rho_matrix": {
+          "status": "not_applicable",
+          "reason": "the Store has no Rho Matrix"
+        },
+        "analysis_hm3": {
+          "subset": "hm3",
+          "detail": "",
+          "analysis_id": "GCST000998",
+          "status": "measured",
+          "first_read_ms": 569.944,
+          "median_ms": 498.149,
+          "p95_ms": 690.867,
+          "reps": 5,
+          "result_count": 1054203,
+          "warm_result_count": 1054203,
+          "subset_n_variants": 1189603,
+          "subset_n_analyses": 3245,
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1189603,
+          "subset_absent_count": 152,
+          "subset_reference_assembly": "hg38",
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398"
+        },
+        "region": {
+          "status": "measured",
+          "first_read_ms": 3208.194,
+          "median_ms": 1750.528,
+          "p95_ms": 1840.12,
+          "reps": 5,
+          "result_count": 10439447,
+          "first_result_count": 10439447
+        },
+        "bytes_on_disk": {
+          "status": "measured",
+          "bytes": 151212126606,
+          "source": "walk"
+        },
+        "peak_rss": {
+          "status": "measured",
+          "baseline_mb": 268.6,
+          "peak_mb": 1266.4,
+          "delta_mb": 997.8,
+          "result_count": 2420299
+        }
+      }
+    },
+    {
+      "store_id": "OGS-00027",
+      "layout": "ragged",
+      "coverage": "cis",
+      "status": "measured",
+      "measures": {
+        "open": {
+          "status": "measured",
+          "first_read_ms": 2218.267,
+          "median_ms": 427.834,
+          "p95_ms": 499.653,
+          "reps": 5
+        },
+        "phewas_rsid": {
+          "status": "measured",
+          "first_read_ms": 43.213,
+          "median_ms": 24.377,
+          "p95_ms": 25.687,
+          "reps": 5,
+          "result_count": 16,
+          "first_result_count": 16
+        },
+        "phewas_alid": {
+          "status": "measured",
+          "first_read_ms": 25.631,
+          "median_ms": 27.498,
+          "p95_ms": 29.146,
+          "reps": 5,
+          "result_count": 23,
+          "first_result_count": 23
+        },
+        "phewas_position": {
+          "status": "measured",
+          "first_read_ms": 21.432,
+          "median_ms": 24.814,
+          "p95_ms": 27.484,
+          "reps": 5,
+          "result_count": 16,
+          "first_result_count": 16
+        },
+        "analysis_full": {
+          "status": "measured",
+          "first_read_ms": 27.39,
+          "median_ms": 20.855,
+          "p95_ms": 27.311,
+          "reps": 3,
+          "result_count": 7533,
+          "first_result_count": 7533
+        },
+        "analyses_table": {
+          "status": "measured",
+          "first_read_ms": 0.48,
+          "median_ms": 0.478,
+          "p95_ms": 1.193,
+          "reps": 3,
+          "result_count": 19250,
+          "first_result_count": 19250
+        },
+        "variants_table": {
+          "status": "measured",
+          "first_read_ms": 34533.203,
+          "median_ms": 33399.444,
+          "p95_ms": 33399.444,
+          "reps": 1,
+          "result_count": 8927061,
+          "first_result_count": 8927061
+        },
+        "resolve": {
+          "status": "measured",
+          "first_read_ms": 72.784,
+          "median_ms": 0.459,
+          "p95_ms": 0.729,
+          "reps": 3,
+          "result_count": 16,
+          "first_result_count": 16
+        },
+        "region_100kb": {
+          "status": "measured",
+          "first_read_ms": 22.738,
+          "median_ms": 23.534,
+          "p95_ms": 25.091,
+          "reps": 5,
+          "result_count": 3347,
+          "first_result_count": 3347
+        },
+        "lookup_1x100": {
+          "status": "measured",
+          "first_read_ms": 433.767,
+          "median_ms": 433.608,
+          "p95_ms": 446.565,
+          "reps": 5,
+          "result_count": 1,
+          "first_result_count": 1
+        },
+        "lookup_100x1": {
+          "status": "measured",
+          "first_read_ms": 76.016,
+          "median_ms": 72.239,
+          "p95_ms": 74.564,
+          "reps": 5,
+          "result_count": 1,
+          "first_result_count": 1
+        },
+        "lookup_10x100": {
+          "status": "measured",
+          "first_read_ms": 544.471,
+          "median_ms": 556.755,
+          "p95_ms": 592.789,
+          "reps": 5,
+          "result_count": 10,
+          "first_result_count": 10
+        },
+        "lookup_100x10": {
+          "status": "measured",
+          "first_read_ms": 162.156,
+          "median_ms": 135.915,
+          "p95_ms": 148.702,
+          "reps": 5,
+          "result_count": 9,
+          "first_result_count": 9
+        },
+        "lookup_100x100": {
+          "status": "measured",
+          "first_read_ms": 910.745,
+          "median_ms": 944.871,
+          "p95_ms": 989.175,
+          "reps": 5,
+          "result_count": 100,
+          "first_result_count": 100
+        },
+        "top_hits": {
+          "status": "measured",
+          "first_read_ms": 38.889,
+          "median_ms": 21.333,
+          "p95_ms": 23.818,
+          "reps": 5,
+          "result_count": 83,
+          "first_result_count": 83,
+          "path": "scan"
+        },
+        "range_by_analysis": {
+          "status": "measured",
+          "first_read_ms": 88.346,
+          "median_ms": 48.875,
+          "p95_ms": 55.338,
+          "reps": 5,
+          "result_count": 85594,
+          "first_result_count": 85594
+        },
+        "rho": {
+          "status": "not_applicable",
+          "reason": "the Store has no Rho Matrix"
+        },
+        "rho_row": {
+          "status": "not_applicable",
+          "reason": "the Store has no Rho Matrix"
+        },
+        "rho_matrix": {
+          "status": "not_applicable",
+          "reason": "the Store has no Rho Matrix"
+        },
+        "analysis_hm3": {
+          "status": "not_applicable",
+          "reason": "a Ragged Store has no Indexed Variant Subset"
+        },
+        "region": {
+          "status": "measured",
+          "first_read_ms": 59.777,
+          "median_ms": 51.125,
+          "p95_ms": 52.123,
+          "reps": 5,
+          "result_count": 41790,
+          "first_result_count": 41790
+        },
+        "bytes_on_disk": {
+          "status": "measured",
+          "bytes": 2632389815,
+          "source": "walk"
+        },
+        "peak_rss": {
+          "status": "measured",
+          "baseline_mb": 228.4,
+          "peak_mb": 235.7,
+          "delta_mb": 7.3,
+          "result_count": 7533
+        }
+      }
+    }
+  ],
+  "guard_violations": [],
+  "fixture_build": {
+    "status": "measured",
+    "layout": "dense",
+    "seconds": 2.943
+  }
+}

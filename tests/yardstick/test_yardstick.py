@@ -107,18 +107,16 @@ class WorkloadFileTest(unittest.TestCase):
             [(s["store_id"], s["layout"], s["status"]) for s in loaded["stores"]],
             [
                 ("OGS-00009", "dense", "measured"),
-                ("OGS-00027", "ragged", "measured"),
-                ("OGS-00006", "ragged", "measured"),
                 ("OGS-00011", "hybrid", "measured"),
+                ("OGS-00027", "ragged", "measured"),
             ],
         )
 
-    def test_hm3_is_measured_only_on_the_stores_that_have_it(self) -> None:
+    def test_hm3_is_listed_on_every_layout(self) -> None:
+        # A Ragged Store lists it and records `not_applicable` (tests/yardstick/test_yardstick_measures.py).
         by_id = {s["store_id"]: s for s in workload_spec.load()["stores"]}
-        self.assertIn("analysis_hm3", by_id["OGS-00009"]["measures"])
-        self.assertIn("analysis_hm3", by_id["OGS-00011"]["measures"])
-        self.assertNotIn("analysis_hm3", by_id["OGS-00027"]["measures"])
-        self.assertNotIn("analysis_hm3", by_id["OGS-00006"]["measures"])
+        for store_id in ("OGS-00009", "OGS-00011", "OGS-00027"):
+            self.assertIn("analysis_hm3", by_id[store_id]["measures"])
 
     def test_unknown_measure_is_refused(self) -> None:
         bad = copy.deepcopy(workload_spec.load())
@@ -128,7 +126,7 @@ class WorkloadFileTest(unittest.TestCase):
 
     def test_pending_store_with_measures_is_refused(self) -> None:
         bad = copy.deepcopy(workload_spec.load())
-        bad["stores"][3] = {**PENDING, "measures": ["open"]}
+        bad["stores"][1] = {**PENDING, "measures": ["open"]}
         with self.assertRaisesRegex(workload_spec.WorkloadError, "OGS-00011"):
             workload_spec.check(bad)
 
@@ -740,12 +738,12 @@ class RunnerGuardTest(unittest.TestCase):
 
     def test_over_budget_is_decided_on_the_unrounded_time_and_exits_2(self) -> None:
         pending_only = {**fixture_workload(), "stores": [dict(PENDING)]}
-        for elapsed, over, code in ((600.01, True, 2), (600.0, False, 0)):
+        for elapsed, over, code in ((1800.01, True, 2), (1800.0, False, 0)):
             with self.subTest(elapsed=elapsed):
                 clock = iter([0.0])
                 with mock.patch.object(runner, "_now", lambda: next(clock, elapsed)):
                     result = runner.run(pending_only, scratch=Path(tempfile.mkdtemp(dir=self.root)))
-                self.assertEqual((result["over_budget"], result["duration_s"]), (over, 600.0))
+                self.assertEqual((result["over_budget"], result["duration_s"]), (over, 1800.0))
                 out = Path(tempfile.mkdtemp(dir=self.root))
                 with mock.patch.object(runner, "run", return_value=result), mock.patch.object(
                     workload_spec, "load", return_value=pending_only

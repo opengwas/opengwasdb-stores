@@ -113,7 +113,7 @@ setuptools-scm = ">=8,<9"
 # (tests/architecture/): they hold this repository's components.yaml and engine
 # imports to the same rules the site draws them by. Its `dependencies` are
 # empty, so it brings nothing else in.
-og-dev-hub = { git = "https://github.com/opengwas/og-dev-hub", rev = "029ceede941f38ba6b6c5153773974027063e82c" }
+og-dev-hub = { git = "https://github.com/opengwas/og-dev-hub", rev = "8464af7246e4ba027ee7dca540068f5d267cedeb" }
 
 [feature.workflow.dependencies]
 # Phase A orchestration. The DAG only wires dependencies and resource requests;
@@ -204,6 +204,14 @@ catalog = { cmd = "python3 -m analysis_catalog", default-environment = "dev" }
 #     --output /data/opengwasdb/work/.../evidence/372/reconciliation.json
 audit-store = { cmd = "python3 -m ogstores.audit" }
 
+# The Artifact Root check (#510): read-only, it compares the committed Release
+# Bundles with the Artifact Root on this host and exits 1 for a registered Store
+# that is missing or a broken by-label link. Run it before and after a change
+# to Artifact Root paths and at a Store epic's finish, and commit the report.
+#
+#   pixi run check-artifact-root --json docs/artifact-root-check.json --markdown docs/artifact-root-check.md
+check-artifact-root = { cmd = "python3 -m ogstores.artifact_root_check" }
+
 # Lossless SE re-encode for one registered Store Release (#326). The stores
 # lane of opengwas/opengwasdb#326: it resolves the Artifact Root through
 # `ogstores`, takes the release's exclusive lock, refuses a release transaction
@@ -257,6 +265,9 @@ test-r = { cmd = "python3 tests/run_all_tests.py --only r" }
 concordance-run = { cmd = "python3 -m manifest_generation.run_concordance_study" }
 bundle-check = { cmd = "python3 -m manifest_generation.check_bundles" }
 audit-indexed-subsets = { cmd = "python3 -m ogstores.audit_indexed_subsets" }
+# Writes #502's Store facts into the Validation Records registered before them.
+# Run once, after #498 rewrites the Stores; `--dry-run` writes nothing.
+backfill-observed = { cmd = "python3 -m ogstores.backfill_observed" }
 env-check = { cmd = "python3 tools/env_check.py" }
 engine-update = { cmd = "python3 -m ogstores.engine_update" }
 worktree-prune = { cmd = "python3 tools/prune_worktrees.py" }
@@ -291,8 +302,8 @@ index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 [feature.reporting.tasks]
 # Render the reports under docs/reports/ and copy each to the docs/ name the
 # project site serves. The site itself (`pixi run site`, `site-data`,
-# `site-publish`, `architecture`) is og-dev-hub's (og-dev-hub#7): it reads this
-# repository's docs/, stores/ and docs/_epics/ from its clone of main.
+# `architecture`) is og-dev-hub's (og-dev-hub#7): it reads this repository's
+# stores/ and docs/_yardstick/ from its clone of main.
 docs = { cmd = "bash tools/build-site.sh" }
 # The full `docs` task needs raw GWAS Catalog source data that is not tracked
 # in this repository (resources/data/*.tsv, "download separately" per
