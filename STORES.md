@@ -6,7 +6,7 @@ Generated master list of Store Releases in this registry.
 
 | Store ID | Label | Trial | Layout | Completion | Status | Format | Analyses (admitted) | Excluded | Variants | Associations | Validated |
 |:---|:---|:---|:---|:---|:---|:---|:---|---:|---:|---:|:---|
-| `OGS-00001` | pilot-10 | true | ragged | observed_only (completion pending) | built | 0.2.0 | 10 | 0 | 86,376 | 86,373 | passed |
+| `OGS-00001` | pilot-10 | true | ragged | reference_completed | built | 0.3.0 | 10 | 0 | 118,103 | 118,100 | passed |
 | `OGS-00002` | pilot-10-completed | true | ragged | reference_completed | superseded | 0.2.0 | 10 | 0 | 123,895 | 123,892 | passed |
 | `OGS-00003` | r13-pilot-20 | true | dense | observed_only | built | 0.2.2 | 10 | 0 | 21,327,043 | - | passed |
 | `OGS-00004` | eur-hybrid-pilot-10 | true | hybrid | observed_only | built | 0.2.2 | 9 | 1 | 23,726,262 | - | passed |

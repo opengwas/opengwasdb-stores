@@ -183,20 +183,29 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
     # read from each Store on 25 Nov 2026 (#512's backfill).
     # OGS-00001's counts match the earlier records it replaces, and OGS-00002's
     # are its re-completion's: imputation inside its 23 cis regions only.
+    # OGS-00001 was then rebuilt and completed by one forced run on 25 Nov 2026 at
+    # opengwasdb 69c2945 (0.17.0), the first Ragged self-completion and 0.3.0
+    # release of this Store (#514): its record is the completion's, a 118,103
+    # variant Reference-Completed Store (86,376 observed, 31,727 imputed, none
+    # missing) whose `build_elapsed_s` (204.217) sums all five steps: build 7.136,
+    # validate 3.855, complete 162.085, completion-validate 3.307 and the
+    # Observed-View Check 27.834. Its counts differ from OGS-00002's last completion
+    # only in indels, whose ALIDs spell the reference allele first (opengwasdb
+    # ADR 0079).
     "OGS-00001": {
-        "format_version": "0.2.0",
+        "format_version": "0.3.0",
         "n_analyses": 10,
-        "n_variants": 86376,
-        "n_associations": 86373,
+        "n_variants": 118103,
+        "n_associations": 118100,
         "association_coverage": "cis",
         "reference_assembly": None,
-        "store_bytes": 8717914,
+        "store_bytes": 14663368,
         "has_hm3": False,
         "has_rho": None,
         "n_top_hits": None,
-        "build_elapsed_s": 14.603,
+        "build_elapsed_s": 204.217,
         "validate_status": "passed",
-        "completion_state": "observed_only",
+        "completion_state": "reference_completed",
     },
     "OGS-00002": {
         "format_version": "0.2.0",
@@ -440,7 +449,8 @@ class TestCommittedValidationRecords(unittest.TestCase):
         """Every record registered through the workflow keeps its observed block, exactly pinned.
 
         OGS-00003 is pinned as the #232 forced rebuild recorded it, OGS-00001
-        and OGS-00002 as the #348 and #460 re-registrations recorded them, and
+        as #514's forced 0.3.0 self-completion recorded it, OGS-00002 as the
+        #348 and #460 re-registrations recorded them, and
         OGS-00004 and OGS-00005 as the #232 forced rebuilds recorded them.
         """
         self.assertEqual(set(GOLDEN_OBSERVED), set(ALREADY_REGISTERED) | set(REREGISTERED))
