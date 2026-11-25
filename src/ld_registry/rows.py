@@ -79,6 +79,22 @@ def representation(kind: Any, provenance: Mapping[str, Any]) -> str | None:
     return f"pairwise r ({', '.join(parts)})"
 
 
+def panel_representation(ld: Mapping[str, Any]) -> str | None:
+    """What an LD panel holds, from its declaration's `ld` mapping (#540): per-block eigendecompositions."""
+    if ld.get("representation") != "eigendecomposition":
+        return None
+    target = ld.get("components_cumvar_target")
+    return "per-block eigendecomposition (.ldeig.npz)" + ("" if target is None else f", {target} cumulative variance")
+
+
+def keyed(values: Mapping[str, Value]) -> dict[str, Value]:
+    """`values` in `COLUMNS` order, a column it does not name `None`; a key that is no column is an error."""
+    unknown = [key for key in values if key not in COLUMNS]
+    if unknown:
+        raise ValueError(f"not an ld-resources.tsv column: {', '.join(unknown)}")
+    return {column: values.get(column) for column in COLUMNS}
+
+
 def ld_values(record: Mapping[str, Any]) -> dict[str, Value]:
     """One valid record's values, typed, in `COLUMNS` order; `None` where the record holds none."""
     provenance: Mapping[str, Any] = record.get("provenance") or {}
@@ -100,7 +116,7 @@ def ld_values(record: Mapping[str, Any]) -> dict[str, Value]:
         "format_version": provenance.get("format_version"),
         "representation": representation(record.get("kind"), provenance),
         "n_variants": provenance.get("n_variants"),
-        "n_blocks": None,  # an LD panel's (#540)
+        "n_blocks": None,  # an LD panel's, from its declaration (`ld_registry.panels`, #540)
         "store_bytes": measured.get("store_bytes"),
         "genotype_bytes": None,  # a Genotype Store's (#539)
         "r_scale": provenance.get("r_scale"),
@@ -121,18 +137,30 @@ def ld_values(record: Mapping[str, Any]) -> dict[str, Value]:
     return {column: values[column] for column in COLUMNS}
 
 
+def text_row(values: Mapping[str, Value]) -> dict[str, str]:
+    """One row's values as text, `None` as an empty cell."""
+    return {column: "" if value is None else str(value) for column, value in values.items()}
+
+
 def ld_row(record: Mapping[str, Any]) -> dict[str, str]:
     """One record's `ld-resources.tsv` row: each value as text, `None` as an empty cell."""
-    return {column: "" if value is None else str(value) for column, value in ld_values(record).items()}
+    return text_row(ld_values(record))
 
 
-def render_tsv(records: Iterable[Mapping[str, Any]]) -> str:
-    """`ld-resources.tsv`: a header, then one row per record in id order."""
+def merged_values(
+    records: Iterable[Mapping[str, Any]], panels: Iterable[Mapping[str, Value]] = ()
+) -> list[Mapping[str, Value]]:
+    """The records' values and the LD panels' rows (`ld_registry.panels`), together in id order."""
+    return sorted([*(ld_values(r) for r in records), *panels], key=lambda values: str(values["ld_id"]))
+
+
+def render_tsv(records: Iterable[Mapping[str, Any]], panels: Iterable[Mapping[str, Value]] = ()) -> str:
+    """`ld-resources.tsv`: a header, then one row per record and per LD panel in id order."""
     output = io.StringIO()
     writer = csv.DictWriter(output, fieldnames=COLUMNS, delimiter="\t", lineterminator="\n")
     writer.writeheader()
-    for record in sorted(records, key=lambda r: str(r.get("ld_id"))):
-        writer.writerow(ld_row(record))
+    for values in merged_values(records, panels):
+        writer.writerow(text_row(values))
     return output.getvalue()
 
 
@@ -146,7 +174,7 @@ def _md_cell(column: str, value: Value) -> str:
     return str(value).replace("|", "\\|")
 
 
-def render_md_section(records: Iterable[Mapping[str, Any]]) -> str:
+def render_md_section(records: Iterable[Mapping[str, Any]], panels: Iterable[Mapping[str, Value]] = ()) -> str:
     """`STORES.md`'s LD section, which `ogstores.index.generate_index` places after the Store Releases."""
     lines = [
         "## LD resources",
@@ -157,8 +185,7 @@ def render_md_section(records: Iterable[Mapping[str, Any]]) -> str:
         "| " + " | ".join(heading for heading, _ in MD_COLUMNS) + " |",
         "|" + "|".join("---:" if column in NUMERIC_MD_COLUMNS else ":---" for _, column in MD_COLUMNS) + "|",
     ]
-    for record in sorted(records, key=lambda r: str(r.get("ld_id"))):
-        values = ld_values(record)
+    for values in merged_values(records, panels):
         lines.append("| " + " | ".join(_md_cell(column, values[column]) for _, column in MD_COLUMNS) + " |")
     lines.append("")
     return "\n".join(lines)

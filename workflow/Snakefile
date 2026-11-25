@@ -71,6 +71,9 @@ REGISTRY_ROOT: Path = Path(config.get("registry_root", "stores"))
 if not REGISTRY_ROOT.is_dir() and (Path.cwd() / "stores").is_dir():
     REGISTRY_ROOT = Path.cwd() / "stores"
 
+# The LD panels' declarations, which `index` lists in ld-resources.tsv (#540).
+LD_PANEL_RESOURCES: Path = Path("resources", "reference-resources")
+
 ALL_STORE_IDS: list[str] = sorted([
     d.name for d in REGISTRY_ROOT.iterdir()
     if d.is_dir() and paths.is_valid_store_id(d.name) and (d / "release.yaml").is_file()
@@ -483,11 +486,13 @@ rule index:
         # a rule without one always runs, so `index-ci` regenerates every view
         # on a fresh checkout instead of trusting its files' mtimes.
         sorted(str(p) for p in (REGISTRY_ROOT / "ld").glob("OGL-*/record.yaml")),
+        # The LD panels' declarations (#540): their rows are listed beside the records.
+        sorted(str(p) for p in LD_PANEL_RESOURCES.glob("*/resource.yaml")),
     run:
         index_repo_root = Path(workflow.basedir).parent if hasattr(workflow, "basedir") else Path.cwd()
         index.generate_index(
             registry_root=REGISTRY_ROOT,
             repo_root=index_repo_root,
             artifact_root=config.get("artifact_root"),
-            ld_section=ld_index.generate_ld_index(REGISTRY_ROOT / "ld", index_repo_root),
+            ld_section=ld_index.generate_ld_index(REGISTRY_ROOT / "ld", index_repo_root, index_repo_root / LD_PANEL_RESOURCES),
         )

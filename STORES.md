@@ -80,3 +80,9 @@ Generated from the LD Store Registry's records in `stores/ld/` (docs/spec/ld-sto
 | LD ID | Label | Kind | Status | Ancestry | n | k | Format | Variants | Bytes | Licence |
 |:---|:---|:---|:---|:---|---:|---:|:---|---:|---:|:---|
 | `OGL-00001` | hgdp1kgp-v2-EUR-k10 | ld_store | served | EUR | 665 | 10 | 0.1.0 | 8,586,889 | 79,278,843,340 | to confirm |
+| `OGL-00013` | ukb-hg38-eur-ld | ld_panel | available | EUR | 49,766 | - | - | - | - | restricted: UK Biobank |
+| `OGL-00014` | hgdp1kgp-hg38-ld (AFR) | ld_panel | available | AFR | 804 | - | - | 14,136,388 | 61,615,133,621 | to confirm |
+| `OGL-00015` | hgdp1kgp-hg38-ld (EAS) | ld_panel | available | EAS | 817 | - | - | 8,728,585 | 37,595,218,297 | to confirm |
+| `OGL-00016` | hgdp1kgp-hg38-ld (SAS) | ld_panel | available | SAS | 783 | - | - | 9,618,254 | 38,938,295,375 | to confirm |
+| `OGL-00017` | hgdp1kgp-hg38-amr-ld | ld_panel | available | AMR | 345 | - | - | 12,669,255 | 21,012,529,996 | to confirm |
+| `OGL-00018` | hgdp1kgp-hg38-eur-calibration | ld_panel | available | EUR | 771 | - | - | 9,783,946 | 37,123,596,583 | to confirm |

@@ -35,6 +35,11 @@ description: >
   (`values`, `vectors`), which is what completion consumes, beside a `.afreq`,
   an `.ldeig.rds` and optional `.unphased.vcor1.gz` LD matrices it does not
   read.
+ld_ids:
+  EUR: OGL-00013
+used_for: reference completion (opengwasdb complete-dense)
+licence: "restricted: UK Biobank"
+index_notes: "production EUR completion panel (stores#219, #312); MAF >= 0.005; variants and bytes are not declared: the directory is not read by the registry"
 status: available
 notes: >
   Owner approval: issue #219 comment 6132878514 chose this panel for UKB-B

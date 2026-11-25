@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from ld_registry.panels import panel_rows
 from ld_registry.record import RecordError, load_records
 from ld_registry.rows import render_md_section, render_tsv
 
@@ -25,11 +26,21 @@ class InvalidRecords(ValueError):
         super().__init__("the LD Store Registry has invalid records:\n" + "\n".join(f"  {e}" for e in errors))
 
 
-def generate_ld_index(ld_root: Path | str, repo_root: Path | str) -> str:
-    """Write `<repo_root>/ld-resources.tsv` from the records under `ld_root`; return the STORES.md section."""
+class IdCollision(ValueError):
+    """An LD panel's id is a record's: an id is assigned once (ADR 0022, ADR 0042)."""
+
+
+def generate_ld_index(ld_root: Path | str, repo_root: Path | str, resources_root: Path | str) -> str:
+    """Write `<repo_root>/ld-resources.tsv` from the records under `ld_root` and the LD panels declared
+    under `resources_root` (a `resources/reference-resources` directory); return the STORES.md section."""
     records, errors = load_records(Path(ld_root))
     if errors:
         raise InvalidRecords(errors)
-    (Path(repo_root) / TSV_FILENAME).write_text(render_tsv(records), encoding="utf-8")
-    return render_md_section(records)
+    panels = panel_rows(resources_root)
+    record_ids = {record["ld_id"] for record in records}
+    clashes = [f"{row['ld_id']} is a record's and the panel {row['label']}'s" for row in panels if row["ld_id"] in record_ids]
+    if clashes:
+        raise IdCollision("an LD id is assigned once:\n" + "\n".join(f"  {c}" for c in clashes))
+    (Path(repo_root) / TSV_FILENAME).write_text(render_tsv(records, panels), encoding="utf-8")
+    return render_md_section(records, panels)
 

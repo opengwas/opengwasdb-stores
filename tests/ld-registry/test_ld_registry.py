@@ -39,6 +39,7 @@ import yaml
 
 from ld_registry import index as ld_index
 from ld_registry import record, rows, writer
+from panel_declarations import copy_declarations
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -410,7 +411,9 @@ class TestTheIndex(RegistryCase):
         shutil.copy(RECORD, ld_root / "OGL-00001" / "record.yaml")
 
     def test_the_committed_records_regenerate_the_committed_tsv(self) -> None:
-        ld_index.generate_ld_index(REPO_ROOT / "stores" / "ld", self.tmp)
+        # The LD panels' rows (#540) come from the declarations under resources/.
+        # Only `self.tmp` is written; the declarations are read in place.
+        ld_index.generate_ld_index(REPO_ROOT / "stores" / "ld", self.tmp, REPO_ROOT / "resources" / "reference-resources")
         committed = (REPO_ROOT / "ld-resources.tsv").read_text(encoding="utf-8")
         self.assertEqual(
             (self.tmp / "ld-resources.tsv").read_text(encoding="utf-8"), committed,
@@ -425,7 +428,8 @@ class TestTheIndex(RegistryCase):
     def test_a_hand_edit_leaves_a_dirty_tree_after_regeneration(self) -> None:
         repo = self.tmp / "repo"
         shutil.copytree(REPO_ROOT / "stores" / "ld", repo / "stores" / "ld")
-        ld_index.generate_ld_index(repo / "stores" / "ld", repo)
+        resources = copy_declarations(repo)
+        ld_index.generate_ld_index(repo / "stores" / "ld", repo, resources)
         git = ["git", "-C", str(repo), "-c", "user.name=t", "-c", "user.email=t@t"]
         subprocess.run([*git, "init", "-q"], check=True)
         subprocess.run([*git, "add", "."], check=True)
@@ -433,7 +437,7 @@ class TestTheIndex(RegistryCase):
         tsv = repo / "ld-resources.tsv"
         tsv.write_text(tsv.read_text(encoding="utf-8").replace("\tserved\t", "\tretired\t"), encoding="utf-8")
         subprocess.run([*git, "commit", "-qam", "a hand edit"], check=True)
-        ld_index.generate_ld_index(repo / "stores" / "ld", repo)
+        ld_index.generate_ld_index(repo / "stores" / "ld", repo, resources)
         status = subprocess.run([*git, "status", "--porcelain"], capture_output=True, text=True, check=True).stdout
         self.assertEqual(status.strip(), "M ld-resources.tsv")
 
@@ -442,7 +446,7 @@ class TestTheIndex(RegistryCase):
         document["status"] = "live"
         write_yaml(self.path, document)
         with self.assertRaises(ld_index.InvalidRecords) as caught:
-            ld_index.generate_ld_index(self.ld_root, self.tmp)
+            ld_index.generate_ld_index(self.ld_root, self.tmp, self.tmp / "resources" / "reference-resources")
         self.assertIn(str(self.path), str(caught.exception))
         self.assertIn("status", str(caught.exception))
         self.assertFalse((self.tmp / "ld-resources.tsv").exists(), "nothing is written from a broken registry")
@@ -461,7 +465,7 @@ class TestTheIndex(RegistryCase):
                 else:
                     target.write_text("x\n", encoding="utf-8")
                 with self.assertRaises(ld_index.InvalidRecords) as caught:
-                    ld_index.generate_ld_index(ld_root, self.tmp)
+                    ld_index.generate_ld_index(ld_root, self.tmp, self.tmp / "resources" / "reference-resources")
                 self.assertIn(str(target), str(caught.exception))
 
 
