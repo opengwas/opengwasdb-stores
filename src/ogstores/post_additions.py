@@ -442,8 +442,11 @@ def _judge_rewrite_warnings(a: Assessment, validate_record: Mapping[str, Any]) -
         raise PostAdditionRefused(
             "the validator printed warnings without `findings`, so none can be told to be a recorded deviation"
         )
+    carried = rewrite.get("carried_warnings")
     _deviations, _carried, unrecorded = publish_rewrite.judge_findings(
-        findings or [], convert_legacy=bool(rewrite.get("convert_legacy"))
+        findings or [],
+        convert_legacy=bool(rewrite.get("convert_legacy")),
+        replaced_warnings=[w for w in carried if isinstance(w, str)] if isinstance(carried, list) else [],
     )
     if unrecorded:
         shown = "\n  ".join(f"{f['rule']}: {f['message']}" for f in unrecorded[:10])

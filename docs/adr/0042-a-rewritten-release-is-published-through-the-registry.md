@@ -147,9 +147,12 @@ It leaves the Release Status as it is, as `register` does.
   refuses and names the remedy: `pixi run release <ID> --resolve-snapshot
   restore`, then, if it was staged, moving the `.partial` release back to its
   staged path. Ctrl-C and SIGTERM unwind without leaving either.
-- A converted release's native warnings refuse it. On the engine's own 0.2.0
-  Dense fixtures `eaf_orientation.unverified` is one. If a hosted Store raises
-  one, its publication goes back to the owner, as #520 says.
+- A native warning is accepted only when the replaced Validation Record carried
+  it unchanged (amended 25 Nov 2026, the owner's ruling in the orchestrating
+  session, for #499; see the amendment below). On the engine's own 0.2.0 Dense
+  fixtures `eaf_orientation.unverified` is one; a hosted Store that raises one
+  its replaced record lacked goes back to the owner, as #520 says. The post
+  steps later added to the release (#528) accept the same carried warnings.
 - Each conversion is validated twice until the engine prints the rewrite's
   verdict.
 - **What remains unproven, and the engine follow-up that closes it.**
@@ -164,8 +167,8 @@ It leaves the Release Status as it is, as `register` does.
     rewrite's source `release_id`, its engine commit and its `deviations`.
     The registry would then compare them instead of trusting mtimes.
 - OGS-00011's rewrite (#499) carries a native `eaf_orientation.unverified`
-  warning, which the rewrite preserves, so this route refuses it. Whether to
-  publish it is the owner's call when #499 reaches publication.
+  warning, which the rewrite preserves. Its replaced record carries the same
+  warning, so the route accepts it as carried (see the amendment below).
 
 ## Amendment, 25 Nov 2026: a carried warning is accepted
 
@@ -176,6 +179,5 @@ warning's exact `message`, equal to one of the replaced record's `warnings`: a
 0.2.x record keeps no rule or target, but the message names the finding, the
 Analysis and the count. A recorded copy accepts one finding. Deviations keep
 their rule. The verdict names the accepted warnings in the `rewrite` block's
-`carried_warnings`, beside `deviations`. This replaces the Consequences bullet
-that refuses a 0.2.3 rewrite's native warnings: OGS-00011's
+`carried_warnings`, beside `deviations`. OGS-00011's
 `eaf_orientation.unverified` on GCST90271757 is carried, so #499 publishes.
