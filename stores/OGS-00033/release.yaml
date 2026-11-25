@@ -89,4 +89,12 @@ notes: 'The candidate pool is 550 Analyses across 96 publications. EBI publishes
   build therefore passes --on-rsid-conflict drop: every stored variant reaching one of the 280 keys is
   stored with no rsID (also when the other allele order names it) and is still found by ALID and by
   position; the build reports them in its rsid_conflicts record. Membership and every Analysis column
-  are unchanged.'
+  are unchanged.
+
+  Its hm3 declaration gains overflow-only: skip (2026-11-25), as OGS-00011''s did on the owner
+  decision of 2026-10-23 and OGS-00004''s and OGS-00005''s on 2026-11-18 (opengwas/opengwasdb#271):
+  HapMap3 variants that reach only the shared/overflow axis cannot be indexed by the Dense Component, so
+  the subset leaves them out and records how many. The forced release of 2026-11-25 (#524) built the
+  Hybrid Store, then its indexed-subset-hm3 Step refused for 18,778 such variants (exit 1 at 18:45:02 UTC after 1 h 41 min); the
+  build had succeeded. Those variants stay in the Store and are found by ALID and by position; only
+  the hm3 subset omits them.'
