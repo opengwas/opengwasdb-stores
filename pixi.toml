@@ -300,6 +300,13 @@ materialise-gwas-ssf-ragged = { cmd = "Rscript src/manifest_generation/providers
 # Running snakemake directly bypasses that guard.
 release = { cmd = "python3 workflow/release.py" }
 release-dry = { cmd = "python3 workflow/release.py --dry-run" }
+# Publish a release `opengwasdb rewrite-release` staged beside the published one
+# (#533, ADR 0042): records the operator's run of the rewrite from its evidence
+# files, validates the staged release, and publishes it through the release
+# transaction, archiving the 0.2.x release under replaced/<UTC>/.
+#
+#   pixi run publish-rewrite OGS-00015 --staged <store dir>/store.opengwasdb.0.3.0 --evidence <prefix>
+publish-rewrite = { cmd = "python3 -m ogstores.publish_rewrite" }
 index = { cmd = "snakemake --snakefile workflow/Snakefile --cores 1 index" }
 
 [feature.reporting.tasks]
