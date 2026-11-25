@@ -73,4 +73,20 @@ notes: 'The candidate pool is 550 Analyses across 96 publications. EBI publishes
 
 
   Review: 4 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
-  (#203); see sidecars/exclusions.tsv'
+  (#203); see sidecars/exclusions.tsv
+
+  2026-11-25: build recipe gains on-rsid-conflict: drop (issues #520, #524). The first forced run of
+  this bundle (release OGS-00033 at 4c1cdf88, opengwasdb 0.20.0, slot 524b) refused in build after 24
+  minutes: "Hybrid single-pass build: two source variants case-fold to one routing key
+  ''1:46934387:G:A'' with different rsids: (''1'', 46934387, ''G'', ''A'') names ''rs9333012'' but
+  (''1'', 46934387, ''g'', ''a'') names ''rs71500102''". Six included Analyses, GCST90014293 to
+  GCST90014298 (PMID 34187551), spell every allele in lower case (about 12.99 million rows each); the
+  engine upper-cases alleles for identity, so their data route correctly, but the rsID harvest
+  compares the names two spellings of one key carry. A scan of all 194 sources found 280 such keys,
+  all across files (the six lower-case Analyses against 16 others) and none within one file; evidence
+  in scratch/524-casefold/ (conflicts.tsv). The owner decided on 25 Nov 2026, in the #520
+  orchestration, to blank those rsIDs and keep all 194 Analyses, as OGS-00011''s recipe does. The
+  build therefore passes --on-rsid-conflict drop: every stored variant reaching one of the 280 keys is
+  stored with no rsID (also when the other allele order names it) and is still found by ALID and by
+  position; the build reports them in its rsid_conflicts record. Membership and every Analysis column
+  are unchanged.'
