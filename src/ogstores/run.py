@@ -105,6 +105,8 @@ from ogstores.plan import (
 )
 
 VARIANT_REFERENCE_STEP: str = "variant-reference"
+#: `opengwasdb rewrite-release`, and the step `ogstores.publish_rewrite` records it as (#533).
+REWRITE_RELEASE_STEP: str = "rewrite-release"
 # The completion phase of a release that completes its own Store names its
 # post steps and its register apart from the build phase's (ADR 0037).
 VALID_STEP_NAMES: frozenset[str] = frozenset({
@@ -118,6 +120,8 @@ VALID_STEP_NAMES: frozenset[str] = frozenset({
     *(completion_step_name(name) for name in ("rho", "overview", "validate")),
     OBSERVED_VIEW_CHECK_STEP,
     *REGISTER_STEPS.values(),
+    # A rewrite `ogstores.publish_rewrite` records from the operator's evidence (#533).
+    REWRITE_RELEASE_STEP,
     "unknown",
 })
 UNAVAILABLE: str = engine.UNAVAILABLE
@@ -693,7 +697,7 @@ def _remove_path_if_exists(p: Path) -> None:
         pass
 
 
-def _fsync_dir(dir_path: Path) -> None:
+def fsync_dir(dir_path: Path) -> None:
     """Best-effort fsync of a directory to persist directory metadata on POSIX."""
     try:
         fd = os.open(str(dir_path), os.O_RDONLY | os.O_DIRECTORY)
@@ -714,7 +718,7 @@ def record_text(record_data: dict[str, Any]) -> str:
     return json.dumps(record_data, indent=2, sort_keys=False) + "\n"
 
 
-def _write_record_atomically(record_data: dict[str, Any], record_p: Path) -> None:
+def write_record_atomically(record_data: dict[str, Any], record_p: Path) -> None:
     """Atomically write record_data to record_p using a temp file + os.replace."""
     record_p.parent.mkdir(parents=True, exist_ok=True)
     temp_p = record_p.with_name(f".{record_p.name}.tmp.{os.getpid()}.{time.time_ns()}")
@@ -724,7 +728,30 @@ def _write_record_atomically(record_data: dict[str, Any], record_p: Path) -> Non
         f.flush()
         os.fsync(f.fileno())
     os.replace(temp_p, record_p)
-    _fsync_dir(record_p.parent)
+    fsync_dir(record_p.parent)
+
+
+# The names before #533 made them public, kept for callers on branches in flight (#520).
+_fsync_dir = fsync_dir
+_write_record_atomically = write_record_atomically
+
+
+def read_record(record_p: Path) -> dict[str, Any] | None:
+    """A step record, None only when there is no such file (#533).
+
+    A record that exists but is not a readable JSON object raises ValueError,
+    naming it: read as missing, a register record would make its published
+    phase look unpublished (#305). `load_record` is the lenient reader.
+    """
+    try:
+        record = json.loads(record_p.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as exc:
+        raise ValueError(f"the record {record_p} cannot be read: {exc}") from exc
+    if not isinstance(record, dict):
+        raise ValueError(f"the record {record_p} is not a JSON object")
+    return record
 
 
 def _recover_pending_backup(store_id: str, root: Path) -> None:
@@ -754,7 +781,7 @@ def _recover_pending_backup(store_id: str, root: Path) -> None:
     if not _lstat_exists(target_p):
         # Interrupted after moving target -> backup but before publishing partial.
         backup_p.rename(target_p)
-        _fsync_dir(target_p.parent)
+        fsync_dir(target_p.parent)
     else:
         # The new Store was published but the old one never archived.
         archived = target_p.parent / paths.REPLACED_DIRNAME / utc_stamp() / target_p.name
@@ -762,8 +789,8 @@ def _recover_pending_backup(store_id: str, root: Path) -> None:
             raise FileExistsError(f"Cannot archive {backup_p}: {archived} already exists")
         archived.parent.mkdir(parents=True, exist_ok=True)
         backup_p.rename(archived)
-        _fsync_dir(archived.parent)
-        _fsync_dir(target_p.parent)
+        fsync_dir(archived.parent)
+        fsync_dir(target_p.parent)
 
 
 def _safe_publish_partial_store(
@@ -787,7 +814,7 @@ def _safe_publish_partial_store(
         raise FileNotFoundError(f"Partial store artifact does not exist at {partial_p}")
 
     target_p.parent.mkdir(parents=True, exist_ok=True)
-    _fsync_dir(target_p.parent)
+    fsync_dir(target_p.parent)
 
     if _lstat_exists(target_p):
         if not force:
@@ -806,15 +833,15 @@ def _safe_publish_partial_store(
             )
         try:
             target_p.rename(backup_p)
-            _fsync_dir(target_p.parent)
+            fsync_dir(target_p.parent)
             partial_p.rename(target_p)
-            _fsync_dir(target_p.parent)
+            fsync_dir(target_p.parent)
         except BaseException as exc:
             # Rollback: restore backup if target_p is missing
             if _lstat_exists(backup_p) and not _lstat_exists(target_p):
                 try:
                     backup_p.rename(target_p)
-                    _fsync_dir(target_p.parent)
+                    fsync_dir(target_p.parent)
                 except Exception:
                     pass
             raise RuntimeError(
@@ -827,8 +854,8 @@ def _safe_publish_partial_store(
         try:
             archive.mkdir(parents=True, exist_ok=True)
             backup_p.rename(archived_store)
-            _fsync_dir(archive)
-            _fsync_dir(target_p.parent)
+            fsync_dir(archive)
+            fsync_dir(target_p.parent)
         except Exception as exc:
             raise RuntimeError(
                 f"Published {target_p}, but could not archive the Store it replaced: it "
@@ -836,7 +863,7 @@ def _safe_publish_partial_store(
             ) from exc
     else:
         partial_p.rename(target_p)
-        _fsync_dir(target_p.parent)
+        fsync_dir(target_p.parent)
 
 
 def _terminate_process_group(
@@ -958,6 +985,12 @@ def utc_stamp(when: datetime.datetime | None = None) -> str:
     """A forced run's UTC stamp, `YYYYMMDDTHHMMSSZ`: sortable and safe in a path (#195)."""
     moment = when or datetime.datetime.now(datetime.timezone.utc)
     return moment.astimezone(datetime.timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+
+
+def utc_timestamp(when: datetime.datetime | None = None) -> str:
+    """The UTC time a step record holds, ISO 8601 ending `Z`: `2026-11-25T15:02:14.123456Z`."""
+    moment = when or datetime.datetime.now(datetime.timezone.utc)
+    return moment.astimezone(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def force_requested(value: Any) -> bool:
@@ -1174,19 +1207,33 @@ def prepare_release_run(
     for root, store_id in releases:
         if store_id not in forced_ids or not _lstat_exists(paths.store_path(store_id, root=root)):
             continue
-        snapshot = paths.force_snapshot_path(store_id, run_stamp, root=root)
-        # Copied under a hidden name, then renamed, so a half-copied snapshot is
-        # never mistaken for a complete one.
-        staging = snapshot.with_name(f".{snapshot.name}.copying")
-        records = paths.records_dir(store_id, root=root)
+        snapshots.append(snapshot_records(store_id, root, run_stamp))
+    return snapshots
+
+
+def snapshot_records(store_id: str, root: Path | str, stamp: str) -> Path:
+    """Copy `records/` to `records.before-force-<stamp>/`, keeping mtimes, and return it (#195).
+
+    Copied under a hidden name, then renamed, so a half-copied snapshot is
+    never mistaken for a complete one. Only the copy: `prepare_release_run`
+    also refuses and discards what a forced rebuild replaces, and
+    `ogstores.publish_rewrite` takes the snapshot alone (#533).
+    """
+    snapshot = paths.force_snapshot_path(store_id, stamp, root=root)
+    staging = snapshot.with_name(f".{snapshot.name}.copying")
+    records = paths.records_dir(store_id, root=root)
+    try:
         if records.is_dir():
             shutil.copytree(records, staging, symlinks=True)
         else:
             staging.mkdir(parents=True)
-        staging.rename(snapshot)
-        _fsync_dir(snapshot.parent)
-        snapshots.append(snapshot)
-    return snapshots
+    except BaseException:
+        # A half copy is no snapshot: remove it, so nothing is left to resolve.
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
+    staging.rename(snapshot)
+    fsync_dir(snapshot.parent)
+    return snapshot
 
 
 def archive_force_snapshot(snapshot: Path, archive_dir: Path | None = None) -> Path:
@@ -1198,8 +1245,8 @@ def archive_force_snapshot(snapshot: Path, archive_dir: Path | None = None) -> P
         raise FileExistsError(f"Cannot archive {snapshot}: {destination} already exists")
     archive.mkdir(parents=True, exist_ok=True)
     snapshot.rename(destination)
-    _fsync_dir(archive)
-    _fsync_dir(snapshot.parent)
+    fsync_dir(archive)
+    fsync_dir(snapshot.parent)
     return destination
 
 
@@ -1211,7 +1258,7 @@ def restore_force_snapshot(snapshot: Path) -> Path:
     if _lstat_exists(records):
         records.rename(aside)
     snapshot.rename(records)
-    _fsync_dir(snapshot.parent)
+    fsync_dir(snapshot.parent)
     if _lstat_exists(aside):
         shutil.rmtree(aside)
     return records
@@ -1332,7 +1379,7 @@ def _record_completion_start(
     resumed completion, and any other step, records nothing.
     """
     if step.name == "complete" and executed_argv[1:2] == [COMPLETE_DENSE]:
-        _write_record_atomically(
+        write_record_atomically(
             {
                 "planned_argv": list(step.argv),
                 "checkpoint": str(paths.completion_checkpoint_path(store_id, root=root)),
@@ -1428,7 +1475,7 @@ def execute_step(
                 record_path=str(record_p),
                 published_store=None,
             )
-            _write_record_atomically(err_res.to_dict(), record_p)
+            write_record_atomically(err_res.to_dict(), record_p)
         raise val_err
 
     # 2. Publication gating: reject publish=True on non-validate steps
@@ -1458,7 +1505,7 @@ def execute_step(
             record_path=str(record_p),
             published_store=None,
         )
-        _write_record_atomically(err_res.to_dict(), record_p)
+        write_record_atomically(err_res.to_dict(), record_p)
         raise ValueError(err_msg)
 
     target_store_p = paths.store_path(store_id, root=resolved_root)
@@ -1481,7 +1528,7 @@ def execute_step(
             shutil.rmtree(partial_store_p)
         elif _lstat_exists(partial_store_p):
             partial_store_p.unlink()
-        _fsync_dir(partial_store_p.parent)
+        fsync_dir(partial_store_p.parent)
 
     # 5. Prepare executed argv (with staging rewrite) and provenance
     try:
@@ -1520,7 +1567,7 @@ def execute_step(
             record_path=str(record_p),
             published_store=None,
         )
-        _write_record_atomically(err_res.to_dict(), record_p)
+        write_record_atomically(err_res.to_dict(), record_p)
         raise rewrite_err
 
     planned_argv = list(step.argv)
@@ -1564,7 +1611,7 @@ def execute_step(
                 record_path=str(record_p),
                 published_store=None,
             )
-            _write_record_atomically(refused.to_dict(), record_p)
+            write_record_atomically(refused.to_dict(), record_p)
             raise
         skip_result = StepResult(
             step=step.name,
@@ -1588,7 +1635,7 @@ def execute_step(
             skipped=True,
             skip_reason="provided",
         )
-        _write_record_atomically(skip_result.to_dict(), record_p)
+        write_record_atomically(skip_result.to_dict(), record_p)
         return skip_result
 
     _record_completion_start(step, executed_argv, store_id, resolved_root, ogdb_rev)
@@ -1742,7 +1789,7 @@ def execute_step(
             else:
                 try:
                     os.replace(ref_partial_p, ref_target_p)
-                    _fsync_dir(ref_target_p.parent)
+                    fsync_dir(ref_target_p.parent)
                 except BaseException as exc:
                     success = False
                     exit_code = 1
@@ -1809,7 +1856,7 @@ def execute_step(
         published_store=published_store_str,
     )
 
-    _write_record_atomically(result.to_dict(), record_p)
+    write_record_atomically(result.to_dict(), record_p)
 
     # 10. Re-raise interruption, missing command, publication error, or StepExecutionError
     if interrupted:
@@ -2070,6 +2117,12 @@ __all__ = [
     "load_record",
     "pending_force_snapshots",
     "prepare_release_run",
+    "read_record",
+    "snapshot_records",
+    "utc_timestamp",
+    "write_record_atomically",
+    "fsync_dir",
+    "REWRITE_RELEASE_STEP",
     "publish_store",
     "record_text",
     "refuse_pending_force_snapshots",
