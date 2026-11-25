@@ -28,8 +28,8 @@ Generated master list of Store Releases in this registry.
 | `OGS-00025` | 2023-chen-full-east-asian | false | ragged | observed_only | validated | 0.3.0 | 1,038 | 0 | 1,129,442 | 7,086,100 | passed_with_warnings |
 | `OGS-00026` | 2023-chen-full-south-asian | false | ragged | observed_only | validated | 0.3.0 | 971 | 0 | 1,283,165 | 6,391,106 | passed_with_warnings |
 | `OGS-00027` | eqtlgen-full | false | ragged | observed_only | validated | 0.3.0 | 19,250 | 0 | 8,925,496 | 127,045,069 | passed |
-| `OGS-00032` | eas-hybrid-full | false | hybrid | observed_only | accepted | - | 379 | 330 | - | - | passed_with_warnings |
-| `OGS-00033` | afr-hybrid-full | false | hybrid | observed_only | accepted | - | 194 | 164 | - | - | passed_with_warnings |
+| `OGS-00032` | eas-hybrid-full | false | hybrid | observed_only | accepted | 0.3.0 | 379 | 330 | 17,889,288 | - | passed_with_warnings |
+| `OGS-00033` | afr-hybrid-full | false | hybrid | observed_only | accepted | 0.3.0 | 194 | 164 | 34,465,821 | - | passed_with_warnings |
 
 ## Derived membership summaries
 
