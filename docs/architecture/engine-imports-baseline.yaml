@@ -159,6 +159,10 @@ imports:
     name: opengwasdb.layouts.dense.indexed_subsets.open_indexed_subset
   - file: src/yardstick/measure.py
     name: opengwasdb.query.query_store
+  - file: src/yardstick/runner.py
+    name: opengwasdb.model.manifest.StoreManifest
+  - file: src/yardstick/runner.py
+    name: opengwasdb.store.open.ships_index
   - file: tools/benchmarks/observed-view-check.py
     name: opengwasdb.encoding.DenseEafPlane
   - file: tools/benchmarks/observed-view-check.py

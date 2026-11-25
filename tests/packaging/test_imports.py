@@ -78,6 +78,12 @@ EXEMPT_TESTS: dict[str, str] = {
         "tools/check_changelog.py and tools/release.py, the release-versioning entry points (#386), "
         "which are scripts rather than importable modules",
     "tests/workflow/test_release_faults.py": "Store Release Build tests importing their sibling test module",
+    "tests/audit/test_audit_reconcile.py":
+        "the audit suites' layouts.py, which builds a fixture Store in format 0.2.x and 0.3.0; the directory is not a package",
+    "tests/audit/test_audit_attribute.py":
+        "the audit suites' layouts.py, which builds a fixture Store in format 0.2.x and 0.3.0; the directory is not a package",
+    "tests/audit/test_observed_view_axis_map.py":
+        "tools/benchmarks/observed-view-check.py (a hyphenated script) and the audit suites' layouts.py",
 }
 
 # This file spells out the patterns it looks for, so it does not scan itself.

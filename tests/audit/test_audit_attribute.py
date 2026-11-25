@@ -48,14 +48,20 @@ import zarr
 
 from opengwasdb.encoding.plan import Z_MISSING
 from opengwasdb.model.manifest import StoreManifest
-from opengwasdb.variants.axis import write_variant_axis
 from opengwasdb.variants.normalise import CanonicalVariant
 
-from ogstores import audit
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import layouts  # noqa: E402
+
+from ogstores import audit  # noqa: E402
 
 STORE_ID = "OGS-00092"
 
 n_checks = 0
+
+#: The layout the builders write, set per test by `AttributeTestCase.setUp`: format 0.3.0
+#: or 0.2.x (what hosted releases are until opengwas/opengwasdb-stores#498's rebuild).
+LAYOUT = "0.3"
 
 
 def record_check() -> None:
@@ -270,7 +276,7 @@ def write_dense_component(
     """
     dense = store / "dense"
     dense.mkdir()
-    write_variant_axis(dense, [variants[row] for row in dense_rows], {})
+    layouts.write_dense_axis(dense, [variants[row] for row in dense_rows], {}, LAYOUT)
     np.save(dense / "dense_to_shared.npy", np.asarray(dense_rows, dtype="int32"))
     if observed is None:
         return dense
@@ -289,7 +295,7 @@ def write_dense_component(
         {
             "store_id": f"{store_id}-dense",
             "release_id": store_id,
-            "format_version": "0.2.0",
+            "format_version": layouts.FORMAT_VERSION[LAYOUT],
             "primary_layout": "dense",
             "association_coverage": "full",
             "completion_state": "observed_only",
@@ -315,7 +321,7 @@ def write_manifest(store: Path, provenance: dict, *, store_id: str = STORE_ID) -
         {
             "store_id": store_id,
             "release_id": store_id,
-            "format_version": "0.2.0",
+            "format_version": layouts.FORMAT_VERSION[LAYOUT],
             "primary_layout": "hybrid",
             "association_coverage": "full",
             "completion_state": "observed_only",
@@ -361,7 +367,7 @@ def build_store(
         }
     store = root / store_id / "store.opengwasdb"
     store.mkdir(parents=True)
-    write_variant_axis(store, variants, {})
+    layouts.write_axis(store, variants, {}, LAYOUT)
     reference = root / f"{store_id}-reference-EUR-variants.txt.gz"
     write_reference(reference, [variants[row].alid for row in dense_rows])
     write_dense_component(
@@ -401,7 +407,11 @@ def tree_digests(root: Path) -> dict[str, tuple[int, int, str]]:
 
 
 class AttributeTestCase(unittest.TestCase):
+    LAYOUT = "0.3"
+
     def setUp(self) -> None:
+        global LAYOUT
+        LAYOUT = self.LAYOUT
         self.tmp = Path(tempfile.mkdtemp(prefix="ogstores_audit_attribute_"))
         self.evidence = self.tmp / "evidence"
 
@@ -915,11 +925,11 @@ class TestFailLoudly(AttributeTestCase):
 
 def main() -> None:
     suite = unittest.TestSuite()
-    for case in (
+    for case in layouts.twin_for_each_layout(globals(), (
         TestAttributionReport,
         TestDeduplication,
         TestFailLoudly,
-    ):
+    )):
         suite.addTests(unittest.defaultTestLoader.loadTestsFromTestCase(case))
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

@@ -238,9 +238,11 @@ def test_the_fixture_holds_imputed_cells(store: Path) -> None:
     check(all(imputed[index].sum() == len(ANALYSES) for index in IMPUTED),
           "a panel-only variant is not flagged imputed")
     manifest = comparison.store_metadata(store)
-    # A completion the pinned engine writes is 0.2.3 (n_missing_se_out_of_range, opengwasdb#338).
-    check(manifest["format_version"] == "0.2.3",
-          f"the fixture is not a format-0.2.3 Store: {manifest['format_version']}")
+    # A completion writes the format the pinned engine does (0.2.3 added
+    # n_missing_se_out_of_range, opengwasdb#338; 0.3.0 the sidecars, opengwasdb#467).
+    from opengwasdb.store.open import CURRENT_FORMAT_VERSION
+    check(manifest["format_version"] == CURRENT_FORMAT_VERSION,
+          f"the fixture is not a format-{CURRENT_FORMAT_VERSION} Store: {manifest['format_version']}")
     check(manifest["completion_state"] == "reference_completed",
           f"the fixture is not Reference-Completed: {manifest['completion_state']}")
     check(manifest["has_imputed_plane"] is True, "the fixture has no imputed plane")
