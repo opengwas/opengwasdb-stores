@@ -115,7 +115,7 @@ notes: 'Completion adds no new Analyses -- analyses.tsv here is unchanged from p
   the owner''s decision of 25 Nov 2026 this Store was retired as the Superseded entry above planned. At
   09:41:52 UTC records/ moved to /data/opengwasdb/stores/OGS-00002/replaced/20261125T094152Z/records/ and the
   committed validation.yaml was copied beside it (sha256 8488779954aa3547...), and at 09:41:57 UTC
-  store.opengwasdb (its arrays: 101 files, 11,739,154 bytes) was deleted, after the orchestrator''s
-  `lsof +D` on it printed nothing. The archive
-  keeps records/ and validation.yaml, as the earlier archives do. The Release Status stays superseded.
+  store.opengwasdb (its arrays: 101 files, 11,739,154 bytes) was deleted, after the orchestrator''s `lsof +D`
+  on it printed nothing. The archive keeps records/ and validation.yaml. The earlier archives under replaced/
+  were left as they were. The Release Status stays superseded.
   '

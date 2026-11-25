@@ -33,8 +33,9 @@ This suite asserts the container migration:
      the format-0.1.0 Store each of them described, so their pins carry the null
      `format_version` `register` records when no step reports one. OGS-00004
      left the migrated group with that run. OGS-00003 was rebuilt again by
-     #514's forced 0.3.0 run of 25 Nov 2026, so its pin carries format 0.3.0
-     and `has_rho` true.
+     #514's forced 0.3.0 runs of 25 Nov 2026, so its pin carries format 0.3.0
+     and `has_rho` true; the same runs rebuilt OGS-00007 and rebuilt and
+     self-completed OGS-00001 at format 0.3.0.
   4. No migrated record remains: OGS-00004 was the last one, and the forced
      rebuild of 18 Nov 2026 (issue #232) replaced it with `register`'s own
      output. A migrated record recorded every measurement it does not have as
@@ -456,10 +457,11 @@ class TestCommittedValidationRecords(unittest.TestCase):
     def test_already_registered_records_keep_their_observed_measurements(self) -> None:
         """Every record registered through the workflow keeps its observed block, exactly pinned.
 
-        OGS-00003 is pinned as #514's forced 0.3.0 rebuild recorded it, OGS-00001
-        as #514's forced 0.3.0 self-completion recorded it, OGS-00002 as the
-        #348 and #460 re-registrations recorded them, and
-        OGS-00004 and OGS-00005 as the #232 forced rebuilds recorded them.
+        OGS-00003 and OGS-00007 are pinned as #514's forced 0.3.0 rebuilds
+        recorded them, OGS-00001 as #514's forced 0.3.0 self-completion recorded
+        it, OGS-00002 as the #348 and #460 re-registrations recorded it, OGS-00004
+        and OGS-00005 as the #232 forced rebuilds recorded them, and OGS-00006 as
+        #224's re-completion recorded it.
         """
         self.assertEqual(set(GOLDEN_OBSERVED), set(REREGISTERED))
         for store_id, expected in GOLDEN_OBSERVED.items():
