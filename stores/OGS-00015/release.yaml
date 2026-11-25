@@ -158,6 +158,31 @@ notes: |
   describes the published Store. Human scientific acceptance remains pending.
   Release Status stays validated.
 
+  Converted to format 0.3.0 (issues #520 and #525, 2026-11-25). The owner approved converting the
+  priority Stores in place, and publishing them, provided validation shows only the recorded deviation
+  warnings (opengwas/opengwasdb-stores#520). This Reference-Completed Store was converted from 0.2.0 by
+  `opengwasdb rewrite-release --convert-legacy --not-lifted --n-workers 16` at engine 0.20.0 (c8ebe4ca),
+  from 22:02:39 to 22:44:20 UTC, exit 0, in 41 min 40 s wall (peak RSS 25,940,788 kB). The converter
+  read 11,650,615 rows x 241 Analyses, 2,314,706 of them rows no cell is observed in (the panel rows
+  completion added), asked the source 140 questions (9 ALID probes, 22 range probes, 16 Indexed Variant
+  Subset questions, 3 rsID misses, and a range PheWAS narrowed to 10,000 of 222,793 variants on
+  chromosome 1) and asked the staged release the same ones: every answer matches. It was published
+  through `pixi run publish-rewrite OGS-00015` (#533), which validated the staged release (the
+  completion validation ran at engine 0.21.0, 931ac166) and moved it into place at 22:47:35 UTC
+  (2 min 38 s wall); the 0.2.0 Store is archived, kept, at replaced/20261125T224500Z (8.2 GB).
+  Validation passed with warnings: no errors, no carried warnings, and one warning, the accepted
+  deviation `side_tables.se_exceptions_rounded` (3,046,179 of 3,074,915 se exceptions are exactly what a
+  float16 plane stores, issue #355; a rebuild from source fixes it). The manifest also records
+  `variant_table.indel_order`, which validate does not report. Counts are unchanged: 241 Analyses,
+  11,650,615 variants; store_bytes 8,186,328,068 to 8,345,242,232. build_elapsed_s 56,648.413 is the
+  0.2.0 record's 53,992.996 plus 2,655.417 s for the conversion (2,500 s) and the staged release's
+  validation. The Store reads without pysam and carries no variant_offsets.npy; it keeps index.sqlite
+  for completion_quality (ADR 0102). Reads of an Analysis (9,335,534 observed and 2,208,722 imputed
+  cells), an rsID lookup and PheWAS (observed cells), a chr1:16,103-150,000 range PheWAS (144,359
+  imputed cells) and an imputed panel variant's PheWAS (241 imputed cells) return the same z, se, eaf
+  and status as the 0.2.0 archive. Its Reference-Completed state and its Release Status, validated, are
+  unchanged.
+
 accepted_at: '2026-10-14T01:27:47Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
