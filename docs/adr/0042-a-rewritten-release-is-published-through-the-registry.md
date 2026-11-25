@@ -176,8 +176,10 @@ The owner ruled on 25 Nov 2026 (in the orchestrating session, for #499) that
 the route also accepts a warning the replaced Validation Record carried
 unchanged, and still refuses every new or changed warning. "Unchanged" is the
 warning's exact `message`, equal to one of the replaced record's `warnings`: a
-0.2.x record keeps no rule or target, but the message names the finding, the
-Analysis and the count. A recorded copy accepts one finding. Deviations keep
+0.2.x record keeps no rule or target, so the match is exact text. Every warning
+a 0.3.0 rewrite can emit names its subject, except
+`variant_table.lifted_contig`'s "N not judged", which carries only a count. A
+deviation rule is never carried. A recorded copy accepts one finding. Deviations keep
 their rule. The verdict names the accepted warnings in the `rewrite` block's
 `carried_warnings`, beside `deviations`. OGS-00011's
 `eaf_orientation.unverified` on GCST90271757 is carried, so #499 publishes.

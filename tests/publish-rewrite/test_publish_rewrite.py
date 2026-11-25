@@ -474,25 +474,29 @@ class TestRefusals(PublishRewriteCase):
         self.assertEqual(record["rewrite"]["deviations"], [])
         self.assertEqual(record["warnings"], [UNRECORDED_WARNING["message"]])
 
-    def test_a_carried_warning_with_another_count_or_subject_is_refused(self) -> None:
-        self.carry(UNRECORDED_WARNING["message"])
-        for changed in (
-            UNRECORDED_WARNING["message"].replace("general Dense", "only 12 variants overlap; general Dense"),
-            UNRECORDED_WARNING["message"].replace("analysis 'a'", "analysis 'b'"),
-        ):
-            with self.subTest(changed=changed):
-                fx = Fixture(Path(tempfile.mkdtemp(dir=os.environ.get("TMPDIR"))))
-                self.addCleanup(shutil.rmtree, fx.tmp, True)
-                fx.validation_yaml.write_text(self.fx.validation_yaml.read_text())
-                fx.stage(finding(UNRECORDED_WARNING["rule"], "warning", changed), flags=())
-                with self.assertRaises(RewritePublicationRefused) as caught:
-                    fx.publish()
-                self.assertIn(changed, str(caught.exception))
-
-    def test_a_carried_warning_fired_twice_is_refused_once_over(self) -> None:
-        self.carry(UNRECORDED_WARNING["message"])
-        self.fx.stage(UNRECORDED_WARNING, UNRECORDED_WARNING, flags=())
-        self.assertRefusedUnchanged("1 warning(s)", UNRECORDED_WARNING["message"])
+    def test_judge_findings_table(self) -> None:
+        w = UNRECORDED_WARNING["message"]
+        warn = lambda rule, message: finding(rule, "warning", message)  # noqa: E731
+        base = warn("eaf_orientation.unverified", w)
+        cases = {
+            "carried": ([base], dict(replaced_warnings=[w]), [w], 0),
+            "changed count": ([warn(base["rule"], w + "; only 12 variants")], dict(replaced_warnings=[w]), [], 1),
+            "changed subject": ([warn(base["rule"], w.replace("'a'", "'b'"))], dict(replaced_warnings=[w]), [], 1),
+            "fired twice": ([base, base], dict(replaced_warnings=[w]), [w], 1),
+            "new": ([base], dict(replaced_warnings=["another"]), [], 1),
+            "empty record": ([base], dict(replaced_warnings=[]), [], 1),
+            "null record": ([base], dict(replaced_warnings=None), [], 1),
+            "non-list record": ([base], dict(replaced_warnings=w), [], 1),
+            "deviation rule, recorded text, plain rewrite": (
+                [INDEL_WARNING], dict(replaced_warnings=[INDEL_WARNING["message"]]), [], 1),
+        }
+        for name, (findings, kwargs, carried, unrecorded) in cases.items():
+            with self.subTest(name):
+                deviations, got, refused = publish_rewrite.judge_findings(findings, convert_legacy=False, **kwargs)
+                self.assertEqual((deviations, got, len(refused)), ([], carried, unrecorded))
+        deviations, got, refused = publish_rewrite.judge_findings(
+            [INDEL_WARNING], convert_legacy=True, replaced_warnings=[INDEL_WARNING["message"]])
+        self.assertEqual((deviations, got, refused), (["variant_table.indel_order"], [], []))
 
     def test_a_new_warning_the_replaced_record_lacks_is_refused(self) -> None:
         self.carry(UNRECORDED_WARNING["message"])

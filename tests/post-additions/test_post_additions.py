@@ -551,7 +551,7 @@ class TestRewrittenStores(PostAdditionsCase):
     def test_a_native_warning_refuses_a_converted_store(self) -> None:
         self.rewritten(convert_legacy=True)
         self.fx.write_verdict(verdict(NATIVE_WARNING))
-        self.assert_refused("eaf_orientation.unverified", "not a deviation its rewrite records")
+        self.assert_refused("eaf_orientation.unverified", "neither a deviation its rewrite records")
 
     def test_a_recorded_deviation_is_accepted_and_the_rewrite_kept(self) -> None:
         self.rewritten(convert_legacy=True)

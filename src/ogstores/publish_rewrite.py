@@ -31,11 +31,11 @@ One call, under the release's run lock:
    validated its release too, but prints only errors and keeps no verdict;
 4. refuses any validation error, and any warning that is neither a deviation
    the conversion records nor one the replaced Validation Record carried
-   unchanged (its exact message, once per recorded copy): a deviation is
+   unchanged (its exact message, once per recorded copy). A deviation is
    accepted only from a `--convert-legacy` rewrite and only under one of the
-   three rules a conversion records. On a
-   0.3.0 release each is an error unless the release records it
-   (opengwasdb's `Rule.finding`), so a warning under one is the record's;
+   three rules a conversion records; a deviation rule is never carried. On a
+   0.3.0 release each is an error unless the release records it (opengwasdb's
+   `Rule.finding`), so a warning under one is the record's;
 5. writes `publication.json` (`register.begin_publication`) and hands it to
    `register.complete_publication`, so the old Store is archived under
    `replaced/<UTC>/` with its records and Validation Record.
@@ -416,28 +416,31 @@ def judge_findings(
     findings: list[Mapping[str, str]],
     *,
     convert_legacy: bool,
-    replaced_warnings: list[str] | None = None,
+    replaced_warnings: Any = None,
 ) -> tuple[list[str], list[str], list[Mapping[str, str]]]:
     """The deviations the warnings are, the warnings carried, and the warnings that are neither.
 
     A warning is a recorded deviation only on a `--convert-legacy` rewrite and
-    only under one of `DEVIATION_RULES`. It is carried when the replaced
-    Validation Record holds it unchanged: its `message`, which names the rule's
-    finding, the Analysis and the count, equal to one of the record's
-    `warnings` (a 0.2.x record keeps no rule or target, only that text). Each
+    only under one of `DEVIATION_RULES`. A warning under any other rule is
+    carried when the replaced Validation Record holds it unchanged: its
+    `message` is exact text equal to one of the record's `warnings` (a 0.2.x
+    record keeps no rule or target, only that text). A deviation rule is never
+    carried, so a 0.2.3 rewrite refuses one even if its text was recorded. Each
     recorded warning carries one finding, so a warning that fired twice where
-    the record has it once is not carried (#533, the owner's 25 Nov 2026 ruling).
+    the record has it once is not carried (#533, the owner's 25 Nov 2026
+    ruling). `replaced_warnings` is the record's raw `warnings` value: a list
+    of strings is used as it is, anything else is empty.
     """
     deviations: set[str] = set()
     carried: list[str] = []
     unrecorded: list[Mapping[str, str]] = []
-    available = list(replaced_warnings or [])
+    available = [w for w in replaced_warnings if isinstance(w, str)] if isinstance(replaced_warnings, list) else []
     for item in findings:
         if item["severity"] != "warning":
             continue
         if convert_legacy and item["rule"] in DEVIATION_RULES:
             deviations.add(item["rule"])
-        elif item["message"] in available:
+        elif item["rule"] not in DEVIATION_RULES and item["message"] in available:
             available.remove(item["message"])
             carried.append(item["message"])
         else:
@@ -745,7 +748,7 @@ def publish_rewrite(
         status, warnings, deviations, carried = _judge_validation(
             validate_record,
             convert_legacy=p.evidence.convert_legacy,
-            replaced_warnings=[w for w in replaced if isinstance(w, str)] if isinstance(replaced, list) else [],
+            replaced_warnings=replaced,
         )
         validation, marker = _assemble(p, validate_record or {}, status, warnings, deviations, carried, snapshot)
         published["validation"] = validation

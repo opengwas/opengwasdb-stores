@@ -429,9 +429,11 @@ def _observed(
 def _judge_rewrite_warnings(a: Assessment, validate_record: Mapping[str, Any]) -> None:
     """A rewritten Store's warnings are held to ADR 0042's deviation rule (`publish_rewrite.judge_findings`).
 
-    A `--convert-legacy` release may warn only under a deviation its
-    conversion records, and a plain 0.2.3 rewrite not at all: a native
-    warning refuses the republication, as it refused the publication.
+    A `--convert-legacy` release may warn under a deviation its conversion
+    records, and a plain 0.2.3 rewrite under none. Any other warning is
+    accepted only as one its publication carried (`rewrite.carried_warnings`,
+    once per recorded copy, never under a deviation rule); the rest refuse the
+    republication, as they refused the publication.
     """
     rewrite = a.register_record.get("rewrite")
     if not isinstance(rewrite, Mapping):
@@ -446,13 +448,13 @@ def _judge_rewrite_warnings(a: Assessment, validate_record: Mapping[str, Any]) -
     _deviations, _carried, unrecorded = publish_rewrite.judge_findings(
         findings or [],
         convert_legacy=bool(rewrite.get("convert_legacy")),
-        replaced_warnings=[w for w in carried if isinstance(w, str)] if isinstance(carried, list) else [],
+        replaced_warnings=carried,
     )
     if unrecorded:
         shown = "\n  ".join(f"{f['rule']}: {f['message']}" for f in unrecorded[:10])
         raise PostAdditionRefused(
-            f"the staged copy has {len(unrecorded)} warning(s) that are not a deviation its rewrite "
-            f"records (ADR 0042):\n  {shown}"
+            f"the staged copy has {len(unrecorded)} warning(s) that are neither a deviation its "
+            f"rewrite records nor a warning its publication carried (ADR 0042):\n  {shown}"
         )
 
 
