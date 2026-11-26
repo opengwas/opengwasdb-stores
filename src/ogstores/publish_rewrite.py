@@ -32,10 +32,12 @@ One call, under the release's run lock:
 4. refuses any validation error, and any warning that is neither a deviation
    the conversion records nor one the replaced Validation Record carried
    unchanged (its exact message, once per recorded copy). A deviation is
-   accepted only from a `--convert-legacy` rewrite and only under one of the
-   three rules a conversion records; a deviation rule is never carried. On a
-   0.3.0 release each is an error unless the release records it (opengwasdb's
-   `Rule.finding`), so a warning under one is the record's;
+   accepted only from a `--convert-legacy` rewrite, only under one of the four
+   rules a conversion records, and only when its message ends in the note
+   `Rule.finding` appends to a recorded deviation: a rule's unrecorded
+   finding can be a plain warning (`variant_table.lifted_contig`'s "not
+   judged"), so the rule alone proves nothing. A deviation rule is never
+   carried;
 5. writes `publication.json` (`register.begin_publication`) and hands it to
    `register.complete_publication`, so the old Store is archived under
    `replaced/<UTC>/` with its records and Validation Record.
@@ -74,15 +76,34 @@ from ogstores.store_size import store_size_on_disk
 REWRITE_STEP: str = run.REWRITE_RELEASE_STEP
 CONVERT_LEGACY_FLAG: str = "--convert-legacy"
 
-#: The rules a `--convert-legacy` conversion can record as deviations, the only
-#: rules `validate` lowers to warnings for one (opengwasdb
-#: `legacy_conversion.DEVIATION_RULES`, #492). A rule the engine adds later is
-#: refused here until it is listed: the safe direction for a copy to drift.
+#: The rules a `--convert-legacy` conversion can record as deviations (opengwasdb
+#: `legacy_conversion.DEVIATION_RULES`, #492, #504). A rule the engine adds
+#: later is refused here until it is listed: the safe direction for a copy to
+#: drift. A warning under one is a deviation only when its message carries the
+#: conversion's note (`CONVERSION_NOTE`): a rule's unrecorded finding can be a
+#: warning of its own (`variant_table.lifted_contig`'s "not judged").
 DEVIATION_RULES: frozenset[str] = frozenset({
     "variant_table.indel_order",
+    "variant_table.lifted_contig",
     "variant_table.source_alid",
     "side_tables.se_exceptions_rounded",
 })
+
+#: The note `Rule.finding` appends, in brackets, to a finding it lowers to a
+#: recorded deviation (opengwasdb `validation/rule.py`, `_converted_deviations`):
+#: `[<_NOTE_HEAD><source format_version> (release <source release_id>)<_NOTE_TAIL>]`.
+_NOTE_HEAD = (
+    "a deviation recorded by ogdb rewrite-release --convert-legacy, which converted "
+    "this release from format_version "
+)
+_NOTE_TAIL = "); a rebuild from source fixes it]"
+
+
+def carries_conversion_note(message: str) -> bool:
+    """Whether `message` ends in the note a recorded deviation's finding carries, exactly."""
+    head, marker, rest = message.rpartition(" [" + _NOTE_HEAD)
+    version, mid, release = rest.partition(" (release ")
+    return bool(head and marker and version and mid and release.endswith(_NOTE_TAIL) and len(release) > len(_NOTE_TAIL))
 
 #: A release `rewrite-release` reads is of the 0.2 series (0.2.3, or 0.2.0-0.2.2 converted).
 SOURCE_FORMAT_SERIES: str = "0.2."
@@ -420,12 +441,14 @@ def judge_findings(
 ) -> tuple[list[str], list[str], list[Mapping[str, str]]]:
     """The deviations the warnings are, the warnings carried, and the warnings that are neither.
 
-    A warning is a recorded deviation only on a `--convert-legacy` rewrite and
-    only under one of `DEVIATION_RULES`. A warning under any other rule is
+    A warning is a recorded deviation only on a `--convert-legacy` rewrite,
+    under one of `DEVIATION_RULES`, and with the conversion's note on its
+    message (`carries_conversion_note`). A warning under any other rule is
     carried when the replaced Validation Record holds it unchanged: its
     `message` is exact text equal to one of the record's `warnings` (a 0.2.x
     record keeps no rule or target, only that text). A deviation rule is never
-    carried, so a 0.2.3 rewrite refuses one even if its text was recorded. Each
+    carried, so a 0.2.3 rewrite, or a conversion's deviation-rule warning
+    without the note, is refused even if its text was recorded. Each
     recorded warning carries one finding, so a warning that fired twice where
     the record has it once is not carried (#533, the owner's 25 Nov 2026
     ruling). `replaced_warnings` is the record's raw `warnings` value: a list
@@ -438,7 +461,7 @@ def judge_findings(
     for item in findings:
         if item["severity"] != "warning":
             continue
-        if convert_legacy and item["rule"] in DEVIATION_RULES:
+        if convert_legacy and item["rule"] in DEVIATION_RULES and carries_conversion_note(item["message"]):
             deviations.add(item["rule"])
         elif item["rule"] not in DEVIATION_RULES and item["message"] in available:
             available.remove(item["message"])
