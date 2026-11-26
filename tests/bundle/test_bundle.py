@@ -386,6 +386,24 @@ class TestBundleContract(unittest.TestCase):
         "OGS-00016": AT_0_23_0,
     }
 
+    def test_ogs_00011_record_is_the_in_place_recount_rho_and_clumps_at_the_lock(self) -> None:
+        """#532 recounted OGS-00011's top-hit counts and added Rho and Clumps in place at the locked engine."""
+        loaded = bundle.load("OGS-00011", registry_root=REPO_ROOT / "stores")
+        validation = loaded.validation
+        record_check()
+        self.assertEqual(validation["validator"]["version"], f"opengwasdb@{self.AT_LOCK}")
+        observed = validation["observed"]
+        record_check()
+        self.assertEqual(
+            (observed["n_analyses"], observed["has_rho"], observed["has_clumps"], observed["n_loci_5e8"]),
+            (3245, True, True, 327706),
+        )
+        record_check()
+        self.assertEqual(
+            validation["post_additions"][0]["steps"],
+            ["completion-recount-top-hits", "completion-rho", "completion-clump", "completion-overview"],
+        )
+
     def assert_mvp_built_record(self, store_id: str, n_analyses: int) -> None:
         """Register's passing Validation Record, over the frozen-input one.
 
