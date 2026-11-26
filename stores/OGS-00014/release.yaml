@@ -86,6 +86,31 @@ notes: |-
   unchanged and still describes the pre-flip Store. This breaks the rule that a published Store is
   never rewritten; it is a one-off for a wrong value, not a precedent.
 
+  Converted to format 0.3.0 (issues #520 and #525, 2026-11-26). The owner approved converting the
+  priority Stores in place, and publishing them, provided validation shows only the recorded deviation
+  warnings (opengwas/opengwasdb-stores#520). This Reference-Completed Store was converted from 0.2.0 by
+  `opengwasdb rewrite-release --convert-legacy --not-lifted --n-workers 16` at engine 0.20.0 (c8ebe4ca),
+  from 20:42:20 to 23:54:41 UTC on 25 Nov, exit 0, in 3 h 12 min 20 s wall (peak RSS 71,838,772 kB). The
+  converter read 30,380,465 rows x 1,053 Analyses, 2,520,199 of them rows no cell is observed in (the
+  panel rows completion added), asked the source 140 questions (9 ALID probes, 22 range probes, 16
+  Indexed Variant Subset questions, 3 rsID misses, and a range PheWAS narrowed to 2,374 of 549,660
+  variants on chromosome 1) and asked the staged release the same ones: every answer matches. It was
+  published through `pixi run publish-rewrite OGS-00014` (#533), which validated the staged release (the
+  completion validation ran at engine 0.21.0, 931ac166) and moved it into place at 00:10:35 UTC on 26
+  Nov (10 min 35 s wall); the 0.2.0 Store is archived, kept, at replaced/20261126T000004Z (79 GB).
+  Validation passed with warnings: no errors, no carried warnings, and one warning, the accepted
+  deviation `side_tables.se_exceptions_rounded` (17,658,738 of 17,712,199 se exceptions are exactly what
+  a float16 plane stores, issue #355; a rebuild from source fixes it). The manifest also records
+  `variant_table.indel_order`, which validate does not report. Counts are unchanged: 1,053 Analyses,
+  30,380,465 variants; store_bytes 79,148,773,458 to 79,170,630,489. build_elapsed_s 477,632.974 is the
+  0.2.0 record's 465,461.595 plus 12,171.379 s for the conversion (11,540 s) and the staged release's
+  validation. The Store reads without pysam and carries no variant_offsets.npy; it keeps index.sqlite
+  for completion_quality (ADR 0102). Reads of an Analysis (27,860,258 observed and 2,480,502 imputed
+  cells), an rsID lookup and PheWAS (observed cells), a chr1:16,257-150,000 range PheWAS (6,063
+  observed and 317,900 imputed cells) and an imputed panel variant's PheWAS (811 imputed cells) return
+  the same z, se, eaf and status as the 0.2.0 archive. Its Reference-Completed state and its Release
+  Status, validated, are unchanged.
+
   2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (AMR: the `hgdp1kgp-v2-AMR-k10.store` LD Store). These amendments are the owner's, accepted on #522.
 accepted_at: '2026-10-14T08:39:20Z'
 source_snapshot:

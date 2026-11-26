@@ -16,12 +16,12 @@ Generated master list of Store Releases in this registry.
 | `OGS-00008` | ukb-b-pilot-10 | true | dense | observed_only | candidate | - | 10 | 0 | - | - | - | - |
 | `OGS-00009` | ukb-b-full | false | dense | reference_completed | validated | 0.2.0 | 2,514 | 0 | 11,191,070 | - | - | passed |
 | `OGS-00011` | eur-hybrid-full | false | hybrid | reference_completed | validated | 0.3.0 | 3,245 | 1,641 | 47,920,732 | - | - | passed_with_warnings |
-| `OGS-00012` | mvp-phs002453-eur | false | dense | reference_completed | validated | 0.2.0 | 1,669 | 0 | 20,548,967 | - | - | passed |
-| `OGS-00013` | mvp-phs002453-afr | false | dense | reference_completed | validated | 0.2.0 | 1,368 | 0 | 40,200,979 | - | - | passed |
-| `OGS-00014` | mvp-phs002453-amr | false | dense | reference_completed | validated | 0.2.0 | 1,053 | 0 | 30,380,465 | - | - | passed |
-| `OGS-00015` | mvp-phs002453-eas | false | dense | reference_completed | validated | 0.2.0 | 241 | 0 | 11,650,615 | - | - | passed |
-| `OGS-00016` | mvp-phs002453-meta-observed-only | false | dense | observed_only | validated | 0.2.0 | 1,691 | 0 | 27,929,380 | - | - | passed |
-| `OGS-00017` | r13-full | false | dense | reference_completed | validated | 0.2.0 | 2,754 | 0 | 21,549,493 | - | - | passed |
+| `OGS-00012` | mvp-phs002453-eur | false | dense | reference_completed | validated | 0.3.0 | 1,669 | 0 | 20,548,967 | - | - | passed_with_warnings |
+| `OGS-00013` | mvp-phs002453-afr | false | dense | reference_completed | validated | 0.3.0 | 1,368 | 0 | 40,200,979 | - | - | passed_with_warnings |
+| `OGS-00014` | mvp-phs002453-amr | false | dense | reference_completed | validated | 0.3.0 | 1,053 | 0 | 30,380,465 | - | - | passed_with_warnings |
+| `OGS-00015` | mvp-phs002453-eas | false | dense | reference_completed | validated | 0.3.0 | 241 | 0 | 11,650,615 | - | - | passed_with_warnings |
+| `OGS-00016` | mvp-phs002453-meta-observed-only | false | dense | observed_only | validated | 0.3.0 | 1,691 | 0 | 27,929,380 | - | - | passed_with_warnings |
+| `OGS-00017` | r13-full | false | dense | reference_completed | validated | 0.3.0 | 2,754 | 0 | 21,549,493 | - | - | passed_with_warnings |
 | `OGS-00022` | eur-hybrid-pilot-10-completed | true | hybrid | reference_completed | validated | - | 9 | 1 | - | - | - | passed |
 | `OGS-00023` | eur-hybrid-quant-pilot-10-completed | true | hybrid | reference_completed | validated | - | 10 | 0 | - | - | - | passed |
 | `OGS-00024` | 2023-chen-full-african | false | ragged | observed_only (completion pending) | validated | 0.3.0 | 1,034 | 0 | 6,755,355 | 30,640,279 | - | passed_with_warnings |

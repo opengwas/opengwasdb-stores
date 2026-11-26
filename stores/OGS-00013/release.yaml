@@ -46,6 +46,31 @@ notes: |-
 
   Cost. The 1,580-block imputation took 21.5 h where OGS-00015's 1,120 blocks took 1 h 55 m at the same runtime, and the size difference accounts for it. The two complete-dense records differ 5.7x in Analyses, 1.6x in panel variants, 1.4x in blocks, 3.5x in union-axis variants and 8.2x in imputed cells, at twice the workers. Measured against the cells completion streams and encodes, union-axis variants times Analyses, they differ 19.6x; halving that for twice the workers predicts 9.8x the time and the run took 11.2x, so the per-worker rate is 22,200 axis cells a second here against 25,300 for OGS-00015 and 24,500 for OGS-00014. The remaining 12% falls on a host shared with other builds and validations through that night, at a load of about 14 to 28. Validate has the same shape: 16x OGS-00015's time against the same 19.6x.
 
+  Converted to format 0.3.0 (issues #520 and #525, 2026-11-25). The owner approved converting the
+  priority Stores in place, and publishing them, provided validation shows only the recorded deviation
+  warnings (opengwas/opengwasdb-stores#520). This Reference-Completed Store was converted from 0.2.0 by
+  `opengwasdb rewrite-release --convert-legacy --not-lifted --n-workers 16` at engine 0.20.0 (c8ebe4ca),
+  from 15:02:14 to 20:42:07 UTC, exit 0, in 5 h 39 min 53 s wall (peak RSS 98,910,560 kB). The converter
+  read 40,200,979 rows x 1,368 Analyses, 3,236,003 of them rows no cell is observed in (the panel rows
+  completion added), asked the source 142 questions (9 ALID probes, 22 range probes, 16 Indexed Variant
+  Subset questions, 3 rsID misses, and a range PheWAS narrowed to 1,827 of 742,868 variants on
+  chromosome 1) and asked the staged release the same ones: every answer matches. It was published
+  through `pixi run publish-rewrite OGS-00013` (#533), which validated the staged release (the
+  completion validation ran at engine 0.21.0, 931ac166) and moved it into place at 20:57:19 UTC
+  (14 min 23 s wall); the 0.2.0 Store is archived, kept, at replaced/20261125T204300Z (129 GB).
+  Validation passed with warnings: no errors, no carried warnings, and one warning, the accepted
+  deviation `side_tables.se_exceptions_rounded` (40,459,462 of 40,464,780 se exceptions are exactly what
+  a float16 plane stores, issue #355; a rebuild from source fixes it). The manifest also records
+  `variant_table.indel_order`, which validate does not report. Counts are unchanged: 1,368 Analyses,
+  40,200,979 variants; store_bytes 128,928,377,157 to 128,658,851,842. build_elapsed_s 398,460.459 is
+  the 0.2.0 record's 377,208.773 plus 21,251.686 s for the conversion (20,393 s) and the staged
+  release's validation. The Store reads without pysam and carries no variant_offsets.npy; it keeps
+  index.sqlite for completion_quality (ADR 0102). Reads of an Analysis (36,951,662 observed and
+  3,200,719 imputed cells), an rsID lookup and PheWAS (observed cells), a chr1:11,063-100,000 range
+  PheWAS (51,713 observed and 729,147 imputed cells) and an imputed panel variant's PheWAS (1,367
+  imputed cells) return the same z, se, eaf and status as the 0.2.0 archive. Its Reference-Completed
+  state and its Release Status, validated, are unchanged.
+
   2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (AFR: the `hgdp1kgp-v2-AFR-k10.store` LD Store). These amendments are the owner's, accepted on #522.
 
 accepted_at: '2026-10-14T08:39:12Z'
