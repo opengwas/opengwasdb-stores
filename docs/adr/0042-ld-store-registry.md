@@ -87,8 +87,9 @@ imports `ld_registry`.
 - The acceptance compares `ld info` exactly, but for the build's own fields
   and five diagnostic statistics of the PC Check's scan (`ratio`,
   `rest_null_q99`, `rest_share`, `window_null_q99`, `window_share`), held to
-  a relative tolerance of 1e-9 (the owner, 25 November 2026, ruling on #541's
-  acceptance run). Their last digits depend on the numerical library: the
+  a relative tolerance of 1e-9 (proposed by the orchestration run on #541's
+  acceptance run; confirmed by the owner, Gibran Hemani (`explodecomputer`), on
+  26 November 2026, in issuecomment-7186922497 on #541). Their last digits depend on the numerical library: the
   rebuilds of OGL-00009 at opengwasdb 0.20.0 differ from it at about 1e-15.
   The PCs used, the scan's `pc` and `window`, `pc_check.dropped` and every
   value the Store holds are compared exactly, and a difference within the
