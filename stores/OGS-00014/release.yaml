@@ -110,6 +110,8 @@ notes: |-
   observed and 317,900 imputed cells) and an imputed panel variant's PheWAS (811 imputed cells) return
   the same z, se, eaf and status as the 0.2.0 archive. Its Reference-Completed state and its Release
   Status, validated, are unchanged.
+
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (AMR: the `hgdp1kgp-v2-AMR-k10.store` LD Store). These amendments are the owner's, accepted on #522.
 accepted_at: '2026-10-14T08:39:20Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z

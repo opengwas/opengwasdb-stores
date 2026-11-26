@@ -1,31 +1,31 @@
 status: passed
-validated_at: '2026-11-13T00:12:45.065846Z'
+validated_at: '2026-11-25T15:40:01.117680Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@9c98a52d33b5c999ce94649bb9d518014b516424
+  version: opengwasdb@c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
 build_environment:
-  opengwasdb_version: 0.9.1
-  opengwasdb_commit: 9c98a52d33b5c999ce94649bb9d518014b516424
+  opengwasdb_version: 0.20.0
+  opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
   python_version: 3.12.15
   platform: Linux-4.18.0-553.177.1.el8_10.x86_64-x86_64-with-glibc2.28
   engines:
-  - opengwasdb_commit: 9c98a52d33b5c999ce94649bb9d518014b516424
-    opengwasdb_version: 0.9.1
+  - opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
+    opengwasdb_version: 0.20.0
     steps:
     - build
     - validate
 observed:
-  format_version: 0.2.0
+  format_version: 0.3.0
   n_analyses: 19250
-  n_variants: 8927061
-  n_associations: 127112772
+  n_variants: 8925496
+  n_associations: 127045069
   association_coverage: cis
   reference_assembly: null
-  store_bytes: 2632389815
+  store_bytes: 2685295678
   has_hm3: false
   has_rho: null
   n_top_hits: null
-  build_elapsed_s: 1465.411
+  build_elapsed_s: 1362.152
   validate_status: passed
   completion_state: observed_only
 checks:
@@ -194,5 +194,5 @@ acceptance:
     analysis_targets: sidecars/analysis_targets.tsv
   warnings: []
 replaced:
-  archive: /data/opengwasdb/stores/OGS-00027/replaced/20261112T234803Z
-  replaced_at: '2026-11-13T00:12:45.065846Z'
+  archive: /data/opengwasdb/stores/OGS-00027/replaced/20261125T151658Z
+  replaced_at: '2026-11-25T15:40:01.117680Z'

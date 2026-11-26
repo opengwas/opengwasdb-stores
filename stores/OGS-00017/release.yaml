@@ -143,3 +143,5 @@ notes: |
   cells) and an imputed panel variant's PheWAS (2,754 imputed cells) return the same z, se, eaf and
   status as the 0.2.0 archive. Its Reference-Completed state is unchanged, and so is the Release
   Status, validated. A rebuild from source remains the owner's call for the `indel_order` deviation.
+
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner's, accepted on #522. Every Analysis is unassigned, so the declaration yields no Clumps (`not_clumped.no_assigned_ancestry`) until the Analyses carry an Assigned Ancestry; EUR is mapped only because a mapping is required.

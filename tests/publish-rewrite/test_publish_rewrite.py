@@ -524,6 +524,25 @@ class TestRefusals(PublishRewriteCase):
             [INDEL_WARNING], convert_legacy=True, replaced_warnings=[INDEL_WARNING["message"]])
         self.assertEqual((deviations, got, refused), (["variant_table.indel_order"], [], []))
 
+    def test_a_deviation_needs_the_conversions_note_on_all_four_rules(self) -> None:
+        note = INDEL_WARNING["message"][INDEL_WARNING["message"].index(" ["):]
+        rules = sorted(publish_rewrite.DEVIATION_RULES)
+        self.assertEqual(len(rules), 4)
+        self.assertIn("variant_table.lifted_contig", rules)
+        for rule in rules:
+            plain = finding(rule, "warning", "1271 not judged (no source ALID)")
+            noted = finding(rule, "warning", "1271 not judged (no source ALID)" + note)
+            lookalike = finding(rule, "warning", "1271 not judged [a deviation recorded by someone else]")
+            with self.subTest(rule):
+                self.assertEqual(publish_rewrite.judge_findings([noted], convert_legacy=True)[0], [rule])
+                for refused in (plain, lookalike):
+                    deviations, _, unrecorded = publish_rewrite.judge_findings([refused], convert_legacy=True)
+                    self.assertEqual((deviations, unrecorded), ([], [refused]))
+                    # The text being recorded in the replaced record does not make it one.
+                    deviations, carried, unrecorded = publish_rewrite.judge_findings(
+                        [refused], convert_legacy=True, replaced_warnings=[refused["message"]])
+                    self.assertEqual((deviations, carried, unrecorded), ([], [], [refused]))
+
     def test_a_new_warning_the_replaced_record_lacks_is_refused(self) -> None:
         self.carry(UNRECORDED_WARNING["message"])
         new = finding("rho.unverified", "warning", "a new warning V")

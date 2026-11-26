@@ -98,4 +98,30 @@ notes: 'Every probe of the genome-wide BESD file set, one Analysis each. The Sto
   /data/opengwasdb/stores/OGS-00027/replaced/20261112T234803Z/; on the owner''s decision of 2026-11-12
   its arrays were deleted, so the archive keeps its records/ and validation.yaml, as ADR 0037 keeps on an
   unforced replacement, and the change stays dated and evidenced. The Store stays observed_only and the
-  Release Status is unchanged at validated.'
+  Release Status is unchanged at validated.
+
+  Rebuilt at format 0.3.0 (issues #520 and #524, 2026-11-25). The owner approved rebuilding the
+  priority Stores at format 0.3.0 on 25 Nov 2026 (opengwas/opengwasdb-stores#498), and this one by a
+  forced run on this host: `pixi run -e workflow release OGS-00027 --config force=1`, after
+  `release-dry`, from 4c1cdf88 with opengwasdb 0.20.0 (c8ebe4ca), from 15:16:52 to 15:40:05 UTC, exit
+  0, in 23 m 14 s wall (peak RSS 25,907,636 kB; load average 15.15 before and 27.01 after, with other
+  jobs on the host). Steps: build 1,257.9 s, validate 104.2 s (build_elapsed_s 1,362.2; the 0.2.0
+  build took 1,465.4 s). The Store is observed_only, stamped format 0.3.0, and carries the 0.3.0
+  envelope (the variable-length ALID, position and source_alid sidecars; no variant_offsets.npy and no
+  index.sqlite; no regions.tsv, which this cis bundle never had); it reads without pysam. Counts
+  against the 0.2.0 build: 19,250 Analyses (unchanged), variants 8,927,061 to 8,925,496, associations
+  127,112,772 to 127,045,069. The Admission record examined 127,339,354 rows and dropped 7,444 as
+  se_unusable and 219,138 as off_axis, which together account for the 0.2.0 count exactly (127,339,354
+  less 226,582 is 127,112,772), and 67,703 more as lift_off_primary: rows whose lifted site the chain
+  places on an alt, random or unplaced contig, which a Store does not hold (opengwasdb ADR 0072,
+  #376). That rule is new at 0.3.0 and is the whole difference, 67,703 associations and 1,565
+  variants. In ENSG00000258227, the Analysis with the most such rows, the 826 rows only the 0.2.0
+  Store holds are all on 7_KI270803v1_alt. On three sampled Analyses (ENSG00000223972,
+  ENSG00000166321, ENSG00000184319), every row is shared and z, SE and EAF equal the 0.2.0 values
+  exactly. The Trait positions are lifted as in the previous build: 19,199 of 19,250, the other 51
+  named in store.opengwasdb.admission/trait_positions_unlifted.tsv. validate reports no errors and no
+  warnings. The Validation Record is the one `register` wrote. The 0.2.0 Store it replaced is archived
+  under /data/opengwasdb/stores/OGS-00027/replaced/20261125T151658Z/, kept because the run was forced
+  (#309); deleting it is the owner''s call. The Release Status is unchanged at validated.
+
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00006 (the EUR Ragged Store), whose `ld-panel` and `ancestry` it takes. It also adds `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.'

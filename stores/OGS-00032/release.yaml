@@ -2,9 +2,10 @@ store_id: OGS-00032
 label: eas-hybrid-full
 association_coverage: gwas
 access_posture: public
-status: candidate
+status: validated
 derived_from: null
 created_at: '2026-11-05T18:09:28Z'
+accepted_at: '2026-11-25T15:05:36Z'
 source_snapshot_id: gwas-catalog-ssf-eas-hybrid-2026-11-05
 source_snapshot:
   inventory_snapshot_id: gwas-catalog-ssf-eas-hybrid-2026-11-05
@@ -69,4 +70,16 @@ notes: 'The candidate pool is 852 Analyses across 139 publications. EBI publishe
 
 
   Review: 132 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
-  (#203); see sidecars/exclusions.tsv'
+  (#203); see sidecars/exclusions.tsv
+
+  Its hm3 declaration gains overflow-only: skip (2026-11-25), as OGS-00011''s did on the owner
+  decision of 2026-10-23 and OGS-00004''s and OGS-00005''s on 2026-11-18 (opengwas/opengwasdb#271):
+  HapMap3 variants that reach only the shared/overflow axis cannot be indexed by the Dense Component, so
+  the subset leaves them out and records how many. The forced release of 2026-11-25 (#524) built the
+  Hybrid Store, then its indexed-subset-hm3 Step refused for 111,003 such variants (exit 1 at 18:16:38 UTC after 1 h 25 min); the
+  build had succeeded. Those variants stay in the Store and are found by ALID and by position; only
+  the hm3 subset omits them.
+
+  Built at format 0.3.0 (#520, #524; 2026-11-25). On the owner''s approval of 2026-11-25, this Store''s first publication is a forced release from source at opengwasdb 0.20.0 (c8ebe4ca), as a Hybrid Observed-Only Store. It ran as two invocations, because the hm3 subset refused the first time (above): the build ran from 2026-11-25 16:52:05 to 18:16:11 UTC (5,045.8 s) in the forced release that exited 1 at the subset Step, and its staged Store was kept; the second run, `pixi run -e workflow release OGS-00032` without force from worktree 524, resumed at indexed-subset-hm3 and ran 18:57:30 to 19:06:47 UTC (whole invocation 18:57:15 to 19:06:51 UTC, exit 0, 9 min 36 s wall, peak RSS 7.4 GB, load 69 to 116), exit 0. Step timings: build 5,045.8 s; indexed-subset-hm3 170.0 s; overview 1.4 s; validate 373.8 s; build_elapsed_s in the Validation Record, 5,591.1 s, sums the four Steps and counts the build once. It holds 17,889,288 shared variants (10,912,248 on the Dense panel, 6,977,040 off-panel) and 295,584,322 Ragged Overflow associations, 16.0 GB. Admission: 3,338,478,885 source rows examined, 2,674,036,991 admitted; dropped 537,234,387 below the MAF floor, 82,183,934 below the info threshold, 33,622,380 conflicting duplicates, 10,175,003 with no MAF, 1,208,964 unharmonised GWAS-SSF indels (indel_ssf_hm_columns, ADR 0072/0079), 16,423 collapsed duplicates and 803 indels by hm_code. hm3 subset: requested 1,206,903, resolved 1,064,383, absent 31,517, overflow-only skipped 111,003. No rsID conflicts (policy refuse, 0 keys). validate reports no errors and one warning (the Analyses were resolved with opengwasdb 0.3.3), status passed_with_warnings; `audit-store reconcile` exits 0 with no errors. Nothing was replaced: there was no earlier Store to archive. The Release Status was accepted when `register` finished and is moved to built, then validated, by hand on 2026-11-25, the owner''s ruling in the #520 orchestration (the lifecycle graph passes through built).
+
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00015 (EAS), the Dense Store on the same panel and ancestry; `n-workers` is OGS-00011''s, the completed Hybrid. It also adds `post.rho` and `post.clumps` with `post.ld_stores` (EAS: the `hgdp1kgp-v2-EAS-k10.store` LD Store). These amendments are the owner''s, accepted on #522.'
