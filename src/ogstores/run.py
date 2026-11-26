@@ -118,7 +118,9 @@ VALID_STEP_NAMES: frozenset[str] = frozenset({
     "clump",
     "overview",
     "validate",
-    *(completion_step_name(name) for name in ("rho", "clump", "overview", "validate")),
+    # The in-place route's recount of a completed Hybrid's top-hit counts (#532).
+    "recount-top-hits",
+    *(completion_step_name(name) for name in ("rho", "clump", "overview", "validate", "recount-top-hits")),
     OBSERVED_VIEW_CHECK_STEP,
     *REGISTER_STEPS.values(),
     # A rewrite `ogstores.publish_rewrite` records from the operator's evidence (#533).

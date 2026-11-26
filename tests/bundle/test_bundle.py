@@ -302,11 +302,10 @@ class TestBundleContract(unittest.TestCase):
         build_environment = loaded.validation["build_environment"]
         record_check()
         self.assertEqual(build_environment["opengwasdb_version"], "0.20.0")
+        # The Clumps were added in place (#532), so the record's validator is the
+        # 0.23.0 engine's, while `build_environment` still names the build's.
         record_check()
-        self.assertEqual(
-            loaded.validation["validator"]["version"],
-            f"opengwasdb@{build_environment['opengwasdb_commit']}",
-        )
+        self.assertEqual(loaded.validation["validator"]["version"], f"opengwasdb@{self.AT_0_23_0}")
         observed = loaded.validation["observed"]
         record_check()
         self.assertEqual(
@@ -368,19 +367,23 @@ class TestBundleContract(unittest.TestCase):
     # The completions of OGS-00012, OGS-00013, OGS-00014 and OGS-00015 each
     # published a Store of their own, and register wrote the record for what it
     # published (ADR 0037).
-    # Written at the locked engine; when the lock moves, pin the literal commit.
+    # A record written at the locked engine is pinned through `engine.locked_commit`;
+    # when the lock moves, its pin becomes the literal commit, as these did when the
+    # lock moved to 0.26.0 for opengwasdb#509.
     AT_LOCK = engine.locked_commit(REPO_ROOT / "pixi.lock")
+    #: engine 0.23.0, the lock of #531's and #532's in-place additions.
+    AT_0_23_0 = "e97f07b51094e4635db571f72407fcdb7f8d56e7"
     MVP_RECORD_RUNTIME = {
         # The records of OGS-00012, -13, -14, -15 and -16 are the in-place Rho and
-        # Clumps additions' (#531, #532), validated at the locked engine. Each
+        # Clumps additions' (#531, #532), validated at engine 0.23.0. Each
         # Store was converted to format 0.3.0 by `publish-rewrite` first (#525);
         # validate warns of the one accepted deviation
         # (side_tables.se_exceptions_rounded).
-        "OGS-00012": AT_LOCK,
-        "OGS-00013": AT_LOCK,
-        "OGS-00014": AT_LOCK,
-        "OGS-00015": AT_LOCK,
-        "OGS-00016": AT_LOCK,
+        "OGS-00012": AT_0_23_0,
+        "OGS-00013": AT_0_23_0,
+        "OGS-00014": AT_0_23_0,
+        "OGS-00015": AT_0_23_0,
+        "OGS-00016": AT_0_23_0,
     }
 
     def assert_mvp_built_record(self, store_id: str, n_analyses: int) -> None:

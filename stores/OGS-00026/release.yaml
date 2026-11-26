@@ -114,3 +114,27 @@ notes: |
   (#309); deleting it is the owner's call. The Release Status is unchanged at validated.
 
   2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00024 and OGS-00025 (no completed SAS Store exists): the same study (Chen 2023), the same `hgdp1kgp-hg38/panel`, and that panel's `SAS/` population; the panel choice is the orchestrator's (recorded on #520). It also adds `post.clumps` with `post.ld_stores` (SAS: the `hgdp1kgp-v2-SAS-k10.store` LD Store). These amendments are the owner's, accepted on #522.
+
+  Completed in place at format 0.3.0, with Clumps (issues #520 and #532, 2026-11-26). The owner approved
+  the run on 26 Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow
+  release OGS-00026` at engine 0.23.0 (e97f07b5, with #533e) ran `complete` (541.8 s), `completion-clump`
+  (6.0 s), `completion-validate` (19.8 s) and `completion-observed-view-check` (161.4 s) and published: 12
+  min 53.3 s wall, peak RSS 3,413,668 kB, load average 55 before and 61 after. The completion panel is
+  hgdp1kgp-hg38's SAS population (the orchestrator's choice, recorded on #520), and the Clumps use the
+  hgdp1kgp-v2-SAS LD Store. Times: 14:39:41 to 14:52:35 UTC. The completion phase published the completed
+  Store, `OGS-00026-completed` as its release identity, in place of the Observed-Only Store; it takes no
+  force (ADR 0037). Counts, Observed-Only to completed: variants 1,283,165 to 2,746,673, associations
+  6,391,106 to 8,353,513, store_bytes 189,861,305 to 316,011,169; 971 Analyses, identical. The
+  Observed-View Check passed (max |dz|, |dse|, |deaf| all 0.0, no failures, 158.9 s;
+  axis order preserved). Clumps: n_loci_5e8 469, n_unclumped_5e8 634 (all absent from the hgdp1kgp-v2-SAS
+  LD Store, none ambiguous); the p_5e_08 tier holds 4,918 rows, 3,378 with a Clump Lead and 1,540 without
+  (the imputed rows and the 634 absent markers). validate reports no errors and 972 warnings: 971
+  EAF-orientation (one per Analysis, as before) and the note that the Analyses were resolved with
+  opengwasdb 0.1.0, both carried from the Observed-Only record. The Validation Record is the one
+  `register` wrote. Read without pysam: the envelope equals the closed 0.3.0 Reference-Completed Ragged
+  set (index.sqlite for `completion_quality`, regions.tsv, no variant_offsets.npy); variant_count equals
+  the record; 200 observed source SNV rows of each of three Analyses match z (worst |dz| 0.00049); an
+  imputed cell reads (GCST90203093 at 2:171424861:C:T (z -0.001, se 0.146, eaf 0.648)); the Clumps read.
+  The Observed-Only Store, its records and its Validation Record are archived at
+  /data/opengwasdb/stores/OGS-00026/replaced/20261126T145230Z/. The Release Status is unchanged at
+  validated.
