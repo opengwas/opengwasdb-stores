@@ -25,7 +25,8 @@ from collections.abc import Iterable
 from pathlib import Path
 
 import ld_registry
-from ld_registry.index import declaration_files, resources_root_of
+from ld_registry.index import resources_root_of
+from ld_registry.panels import declaration_files
 from ld_registry.record import LD_ROOT
 from ogstores import bundle as release_bundle
 

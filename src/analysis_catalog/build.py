@@ -16,7 +16,8 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-from ld_registry.index import IdCollision, PanelError, resource_rows, resources_root_of
+from ld_registry.index import IdCollision, resource_rows, resources_root_of
+from ld_registry.panels import PanelError
 from ld_registry.record import LD_ROOT, InvalidRecords
 from ogstores import bundle as release_bundle
 from ogstores.paths import is_valid_store_id
