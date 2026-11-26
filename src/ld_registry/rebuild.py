@@ -35,7 +35,15 @@ from typing import Any
 
 from ld_registry import record
 from ld_registry.argv import options, rewrite_value, values
-from ld_registry.recipe import CommandRunner, Copier, require_plan_only, run_command, run_in_environment, stage_copy
+from ld_registry.recipe import (
+    CommandRunner,
+    Copier,
+    require_plan_only,
+    run_command,
+    run_in_environment,
+    stage_copy,
+    validate_command,
+)
 from ogstores.store_info import Runner
 
 ENGINE_SUBCOMMANDS = ("build", "import", "validate")
@@ -212,7 +220,7 @@ def plan_rebuild(
     if not any(argv[2] == "validate" for argv in rewritten):
         build = next(argv for argv in rewritten if argv[2] in BUILDERS)
         threads = values(build, "--threads")
-        rewritten += (("opengwasdb", "ld", "validate", *(("--threads", threads[-1]) if threads else ()), str(store)),)
+        rewritten += (validate_command(store, threads[-1] if threads else None),)
     return Rebuild(store, tuple(copies.items()), rewritten, Path(location), recorded)
 
 

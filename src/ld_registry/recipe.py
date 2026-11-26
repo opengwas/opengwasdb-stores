@@ -132,6 +132,11 @@ class Plan:
         return "opengwasdb ld build --genotypes" if self.kind == "genotype_store" else "opengwasdb ld build"
 
 
+def validate_command(store: Path | str, threads: int | str | None = None) -> tuple[str, ...]:
+    """`opengwasdb ld validate [--threads N] <store>`: the validation every recipe and rebuild runs."""
+    return ("opengwasdb", "ld", "validate", *(("--threads", str(threads)) if threads is not None else ()), str(store))
+
+
 def plan_build(kind: str, panel: str, out: Path, inputs: Inputs, threads: int | None = None) -> Plan:
     """The build of `panel`'s Store of `kind` into the directory `out`, as `out/<panel id>-k10.store`."""
     if kind not in record.KINDS:
@@ -172,7 +177,7 @@ def plan_build(kind: str, panel: str, out: Path, inputs: Inputs, threads: int | 
         "--info-min", INFO_MIN,
         "--threads", str(threads),
     ]  # fmt: skip
-    validate = ("opengwasdb", "ld", "validate", "--threads", str(threads), str(store))
+    validate = validate_command(store, threads)
     checksums_from = None
     if kind == "genotype_store" and inputs.ld_stores_root is not None:
         checksums_from = inputs.ld_stores_root / store_name(panel)

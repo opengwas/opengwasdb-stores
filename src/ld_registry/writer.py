@@ -35,7 +35,7 @@ from ld_registry.argv import values as argv_values
 from ld_registry.ids import require_valid_ld_id
 from ld_registry.provenance import ld_info, provenance_sha256, record_provenance, source_sha256
 from ogstores.store_info import Runner
-from ogstores.store_size import store_size_on_disk
+from ogstores.store_size import store_size_on_disk, walk_no_follow
 
 HEADER = (
     "# LD Store record (docs/spec/ld-store-registry.md, ADR 0042).\n"
@@ -80,16 +80,12 @@ def _differences(existing: dict[str, Any], computed: dict[str, Any]) -> list[str
     return differ
 
 
-def _raise(error: OSError) -> None:
-    raise error
-
-
 def links(location: Path) -> dict[str, str]:
     """Every link under the Store, by its path in the Store, and its target with
     every link resolved. The walk follows no link; a dangling link is refused,
     and an unreadable directory raises rather than being skipped."""
     found: dict[str, str] = {}
-    for root, directories, files in os.walk(location, onerror=_raise):  # never descends a linked directory
+    for root, directories, files in walk_no_follow(location):
         for name in directories + files:
             entry = Path(root) / name
             if not entry.is_symlink():
