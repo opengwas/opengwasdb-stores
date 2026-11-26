@@ -134,6 +134,23 @@ class TempCase(unittest.TestCase):
         self._tmp.cleanup()
 
 
+class TestTheEnginesPlanOnlyInputs(TempCase):
+    """Base for tests that must reach the engine probe: the plan's inputs are small temporary files,
+    since the real ones (TEN's paths) exist on the build host only and are refused first when absent."""
+
+    def local_plan(self, **changes: Any) -> importing.ImportPlan:
+        held = tempfile.TemporaryDirectory()  # apart from self.tmp, which some tests assert stays empty
+        self.addCleanup(held.cleanup)
+        root = Path(held.name)
+        inputs: dict[str, Path] = {}
+        for name in importing.INPUTS:
+            inputs[name] = root / TEN[name].name
+            inputs[name].write_text(name, encoding="utf-8")
+        parts = root / "blocks"
+        parts.mkdir()
+        return ten_plan(**{**inputs, "parts": parts, **changes})
+
+
 class TestTheAncestryGate(unittest.TestCase):
     """Seam 1: the engine's importer reads EUR alone until ogld#104."""
 
@@ -200,12 +217,12 @@ class TestTheRecipesCommandLine(unittest.TestCase):
                                                 inputs={n: {"path": str(TEN[n])} for n in importing.INPUTS}))
 
 
-class TestTheEnginesPlanOnly(TempCase):
+class TestTheEnginesPlanOnly(TestTheEnginesPlanOnlyInputs):
     """Seam 4: the engine is probed with `import --plan-only --help`; its own "No such option" is a named refusal."""
 
     def test_an_engine_without_it_is_refused_naming_the_change(self) -> None:
         helps, commands = old_engine(), Commands()
-        plan = ten_plan(out=self.tmp / "x.store", work=self.tmp / "work", plan_only=True)
+        plan = self.local_plan(out=self.tmp / "x.store", work=self.tmp / "work", plan_only=True)
         with self.assertRaises(RecipeRefusal) as caught:
             importing.plan_store(plan, run=commands, help_runner=helps)
         self.assertIn("--plan-only", str(caught.exception))
@@ -215,7 +232,7 @@ class TestTheEnginesPlanOnly(TempCase):
         self.assertEqual(sorted(self.tmp.iterdir()), [])
 
     def test_a_probe_that_fails_otherwise_is_refused_with_its_error(self) -> None:
-        plan = ten_plan(out=self.tmp / "x.store", work=self.tmp / "work", plan_only=True)
+        plan = self.local_plan(out=self.tmp / "x.store", work=self.tmp / "work", plan_only=True)
         with self.assertRaises(RecipeRefusal) as caught:
             importing.plan_store(plan, run=Commands(), help_runner=Helps(1, "ImportError: zarr"))
         self.assertIn(shlex.join(PROBE), str(caught.exception))
@@ -226,14 +243,14 @@ class TestTheEnginesPlanOnly(TempCase):
         def missing(argv):
             raise FileNotFoundError(2, "No such file or directory", "opengwasdb")
 
-        plan = ten_plan(out=self.tmp / "x.store", work=self.tmp / "work", plan_only=True)
+        plan = self.local_plan(out=self.tmp / "x.store", work=self.tmp / "work", plan_only=True)
         with self.assertRaises(RecipeRefusal) as caught:
             importing.plan_store(plan, run=Commands(), help_runner=missing)
         self.assertIn(shlex.join(PROBE), str(caught.exception))
         self.assertIn("No such file", str(caught.exception))
 
     def test_another_missing_option_is_not_plan_only(self) -> None:
-        plan = ten_plan(out=self.tmp / "x.store", work=self.tmp / "work", plan_only=True)
+        plan = self.local_plan(out=self.tmp / "x.store", work=self.tmp / "work", plan_only=True)
         with self.assertRaises(RecipeRefusal) as caught:
             importing.plan_store(plan, run=Commands(), help_runner=Helps(2, "No such option '--help'."))
         self.assertNotIn(recipe.PLAN_ONLY_CHANGE, str(caught.exception))
@@ -241,7 +258,7 @@ class TestTheEnginesPlanOnly(TempCase):
     def test_an_engine_with_it_runs_the_plan_only_import_and_writes_no_record(self) -> None:
         helps, commands = Helps(), Commands()
         out = self.tmp / "replan" / "panukb-EUR-k15.store"
-        plan = ten_plan(out=out, work=self.tmp / "replan" / "work", plan_only=True)
+        plan = self.local_plan(out=out, work=self.tmp / "replan" / "work", plan_only=True)
         written = importing.plan_store(plan, run=commands, help_runner=helps)
         self.assertEqual(written, self.tmp / "replan" / "work" / "plan.json")
         self.assertEqual(commands.seen, [list(plan.command)])
@@ -253,8 +270,8 @@ class TestTheEnginesPlanOnly(TempCase):
         out = self.tmp / "x.store"
         out.mkdir()
         for name, plan, needle in (
-            ("an output that exists", ten_plan(out=out, work=self.tmp / "w", plan_only=True), str(out)),
-            ("a missing input", ten_plan(out=self.tmp / "y.store", work=self.tmp / "w", plan_only=True,
+            ("an output that exists", self.local_plan(out=out, work=self.tmp / "w", plan_only=True), str(out)),
+            ("a missing input", self.local_plan(out=self.tmp / "y.store", work=self.tmp / "w", plan_only=True,
                                          variants=self.tmp / "none.tsv.bgz"), "none.tsv.bgz"),
         ):
             with self.subTest(name):
@@ -266,7 +283,7 @@ class TestTheEnginesPlanOnly(TempCase):
 
     def test_a_full_plan_is_not_a_plan_only_run(self) -> None:
         with self.assertRaises(ValueError):
-            importing.plan_store(ten_plan(out=self.tmp / "x.store"), run=Commands(), help_runner=Helps())
+            importing.plan_store(self.local_plan(out=self.tmp / "x.store"), run=Commands(), help_runner=Helps())
 
 
 class TestTheFullImport(TempCase):
@@ -532,8 +549,7 @@ class TestRebuildingAnImport(TempCase):
         self.assertIn("/data/opengwasdb/work/ogld/scratch/10/panukb-EUR-k15.store", notes, "the relocation is disclosed")
 
     def test_a_plan_only_rebuild_runs_its_import_with_the_option_into_the_new_directory(self) -> None:
-        document = self.committed()
-        self.records({key: document[key] for key in ("ld_id", "kind", "rebuild", "location")})
+        document = self.records_with_local_inputs()
         out = self.tmp / "replan"
         commands, helps = Commands(), Helps()
         rebuilt = rebuild.rebuild_store(self.ld_root, "OGL-00012", out, run=commands, copy=self.fail_copy,
@@ -553,9 +569,26 @@ class TestRebuildingAnImport(TempCase):
     def fail_copy(self, *args, **kwargs):
         raise AssertionError("an import copies nothing: its work directory is an output")
 
-    def test_a_full_rebuild_runs_the_import_then_its_validate(self) -> None:
+    def records_with_local_inputs(self) -> dict[str, Any]:
+        """OGL-00012's committed record, its `rebuild` inputs moved to small temporary files (the real ones
+        are on the build host only), recorded in the temporary registry; returns the moved record."""
         document = self.committed()
+        moved: dict[str, str] = {}
+        for name, entry in document["rebuild"]["inputs"].items():
+            local = self.tmp / "inputs" / Path(entry["path"]).name
+            local.parent.mkdir(parents=True, exist_ok=True)
+            local.write_text(name, encoding="utf-8")
+            moved[entry["path"]] = str(local)
+        text = yaml.safe_dump(document["rebuild"], sort_keys=False)
+        for original, local in moved.items():
+            text = text.replace(original, local)
+        rebuild_section = yaml.safe_load(text)
+        document = {**document, "rebuild": rebuild_section}
         self.records({key: document[key] for key in ("ld_id", "kind", "rebuild", "location")})
+        return document
+
+    def test_a_full_rebuild_runs_the_import_then_its_validate(self) -> None:
+        document = self.records_with_local_inputs()
         out = self.tmp / "full"
         commands = Commands()
         rebuilt = rebuild.rebuild_store(self.ld_root, "OGL-00012", out, run=commands, copy=self.fail_copy)
@@ -565,8 +598,7 @@ class TestRebuildingAnImport(TempCase):
         self.assertIsNone(rebuilt.keep)
 
     def test_a_plan_only_rebuild_on_an_old_engine_is_refused_before_anything_runs(self) -> None:
-        document = self.committed()
-        self.records({key: document[key] for key in ("ld_id", "kind", "rebuild", "location")})
+        document = self.records_with_local_inputs()
         commands = Commands()
         with self.assertRaises(RecipeRefusal) as caught:
             rebuild.rebuild_store(self.ld_root, "OGL-00012", self.tmp / "r", run=commands, plan_only=True,
