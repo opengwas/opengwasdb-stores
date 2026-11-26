@@ -380,8 +380,8 @@ class TestBundleContract(unittest.TestCase):
         "OGS-00013": "931ac16690de9538be203f9cdbb2eb46caa895f4",
         # OGS-00014's record is `publish-rewrite`'s (#525), as OGS-00013's is.
         "OGS-00014": "931ac16690de9538be203f9cdbb2eb46caa895f4",
-        # OGS-00015's record is `publish-rewrite`'s (#525), as OGS-00013's is.
-        "OGS-00015": "931ac16690de9538be203f9cdbb2eb46caa895f4",
+        # OGS-00015's record is the in-place Rho and Clumps addition's (#531), validated at engine 0.23.0.
+        "OGS-00015": "e97f07b51094e4635db571f72407fcdb7f8d56e7",
     }
 
     def assert_mvp_built_record(self, store_id: str, n_analyses: int) -> None:

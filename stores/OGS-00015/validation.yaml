@@ -1,8 +1,8 @@
 status: passed_with_warnings
-validated_at: '2026-11-25T22:47:35.164458Z'
+validated_at: '2026-11-26T12:43:41.666441Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@931ac16690de9538be203f9cdbb2eb46caa895f4
+  version: opengwasdb@e97f07b51094e4635db571f72407fcdb7f8d56e7
 build_environment:
   opengwasdb_version: 0.20.0
   opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
@@ -13,9 +13,12 @@ build_environment:
     opengwasdb_version: 0.20.0
     steps:
     - rewrite-release
-  - opengwasdb_commit: 931ac16690de9538be203f9cdbb2eb46caa895f4
-    opengwasdb_version: 0.21.0
+  - opengwasdb_commit: e97f07b51094e4635db571f72407fcdb7f8d56e7
+    opengwasdb_version: 0.23.0
     steps:
+    - completion-rho
+    - completion-clump
+    - completion-overview
     - completion-validate
 observed:
   format_version: 0.3.0
@@ -24,14 +27,14 @@ observed:
   n_associations: null
   association_coverage: gwas
   reference_assembly: null
-  store_bytes: 8345242232
+  store_bytes: 8346603332
   has_hm3: true
-  has_rho: null
-  has_clumps: null
-  n_loci_5e8: null
-  n_unclumped_5e8: null
+  has_rho: true
+  has_clumps: true
+  n_loci_5e8: 191
+  n_unclumped_5e8: 842
   n_top_hits: null
-  build_elapsed_s: 56648.413
+  build_elapsed_s: 56756.285
   validate_status: passed_with_warnings
   completion_state: reference_completed
 checks:
@@ -57,8 +60,8 @@ acceptance:
   reference_overlap: null
   store_composition: null
 replaced:
-  archive: /data/opengwasdb/stores/OGS-00015/replaced/20261125T224500Z
-  replaced_at: '2026-11-25T22:47:35.164458Z'
+  archive: /data/opengwasdb/stores/OGS-00015/replaced/20261126T123913Z
+  replaced_at: '2026-11-26T12:43:41.666441Z'
 rewrite:
   record: /data/opengwasdb/stores/OGS-00015/records/rewrite-release.json
   staged: /data/opengwasdb/stores/OGS-00015/store.opengwasdb.0.3.0
@@ -79,3 +82,16 @@ rewrite:
   deviations:
   - side_tables.se_exceptions_rounded
   carried_warnings: []
+post_additions:
+- added_at: '2026-11-26T12:43:41.666441Z'
+  steps:
+  - completion-rho
+  - completion-clump
+  - completion-overview
+  records:
+  - /data/opengwasdb/stores/OGS-00015/records/completion-rho.json
+  - /data/opengwasdb/stores/OGS-00015/records/completion-clump.json
+  - /data/opengwasdb/stores/OGS-00015/records/completion-overview.json
+  - /data/opengwasdb/stores/OGS-00015/records/completion-validate.json
+  release_id: 0ab1573e-11a4-4990-b189-dd7ac98f6280
+  replaced_archive: /data/opengwasdb/stores/OGS-00015/replaced/20261126T123913Z
