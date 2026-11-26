@@ -73,6 +73,21 @@ notes: |-
 
   2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (AFR: the `hgdp1kgp-v2-AFR-k10.store` LD Store). These amendments are the owner's, accepted on #522.
 
+  Rho and Clumps added in place (issues #520 and #532, 2026-11-26). The owner approved the run on 26
+  Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow release
+  OGS-00013` (ADR 0043, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb
+  build-dense-rho` (962.7 s, 935,028 Analysis pairs), `opengwasdb clump --ld-store
+  AFR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-AFR/hgdp1kgp-v2-AFR-k10.store` (317.1 s), the overview
+  (1.7 s) and validate (1,130.6 s), from 13:27:10 to 14:07:33 UTC (40 min 23 s wall, peak RSS
+  27,870,192 kB; 1-minute load average 127 at the start, 92 at the end (mean 115, up to 158)). The new
+  record is `passed_with_warnings` for the one warning it had, the accepted se float16 deviation with
+  its conversion's note; no new warning. has_clumps is true, has_rho is true; n_loci_5e8 67,395 and
+  n_unclumped_5e8 1,182,983 (all absent from the LD Store, none ambiguous); the p_5e_08 tier holds
+  2,738,794 rows, 1,284,522 with a Clump Lead; store_bytes 128,658,851,842 to 128,668,735,739. Read
+  without pysam, rho_matrix is 1,368 x 1,368 and every off-diagonal pair is finite, rho_row gives
+  1,367 pairs, the Clumps read, and z, se and eaf of three Analyses equal the archived Store's. The
+  previous Store, records and Validation Record are archived at replaced/20261126T132714Z.
+
 accepted_at: '2026-10-14T08:39:12Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z
