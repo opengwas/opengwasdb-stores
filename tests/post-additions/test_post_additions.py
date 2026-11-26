@@ -114,7 +114,10 @@ def verdict(*findings: dict[str, str]) -> dict[str, Any]:
 
 
 NATIVE_WARNING = finding("eaf_orientation.unverified", "warning", "analysis 'a' stores EAF whose orientation is unverified")
-DEVIATION_WARNING = finding("variant_table.source_alid", "warning", "no row carries a source_alid [a recorded deviation]")
+DEVIATION_WARNING = finding("variant_table.source_alid", "warning", (
+    "no row carries a source_alid [a deviation recorded by ogdb rewrite-release --convert-legacy, "
+    "which converted this release from format_version 0.2.0 (release obs); a rebuild from source fixes it]"
+))
 
 
 def tree(root: Path) -> dict[str, tuple[int, bytes]]:

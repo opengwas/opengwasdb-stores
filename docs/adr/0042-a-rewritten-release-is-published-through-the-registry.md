@@ -147,7 +147,7 @@ It leaves the Release Status as it is, as `register` does.
   refuses and names the remedy: `pixi run release <ID> --resolve-snapshot
   restore`, then, if it was staged, moving the `.partial` release back to its
   staged path. Ctrl-C and SIGTERM unwind without leaving either.
-- A native warning is accepted only when the replaced Validation Record carried
+- A deviation is accepted only with the conversion's note (amended 26 Nov 2026). A native warning is accepted only when the replaced Validation Record carried
   it unchanged (amended 25 Nov 2026, the owner's ruling in the orchestrating
   session, for #499; see the amendment below). On the engine's own 0.2.0 Dense
   fixtures `eaf_orientation.unverified` is one; a hosted Store that raises one
@@ -183,3 +183,19 @@ deviation rule is never carried. A recorded copy accepts one finding. Deviations
 their rule. The verdict names the accepted warnings in the `rewrite` block's
 `carried_warnings`, beside `deviations`. OGS-00011's
 `eaf_orientation.unverified` on GCST90271757 is carried, so #499 publishes.
+
+## Amendment, 26 Nov 2026: a deviation carries the conversion's note
+
+The owner's rulings of 25 Nov 2026
+(<https://github.com/opengwas/opengwasdb-stores/issues/520#issuecomment-7185997253>)
+had the engine record `variant_table.lifted_contig` as a lifted conversion's
+deviation (opengwasdb#504), so the route lists it: four deviation rules.
+The route's premise, that each deviation rule "is an error unless the release
+records it", is false for that rule: its unrecorded "not judged" finding is a
+warning on every release. So a warning is a recorded deviation only when it is
+under a deviation rule, from a `--convert-legacy` rewrite, and its message ends
+in the note `Rule.finding` appends to a lowered finding
+(`[a deviation recorded by ogdb rewrite-release --convert-legacy, which
+converted this release from format_version <v> (release <id>); a rebuild from
+source fixes it]`). This applies to all four rules. A release converted before
+#504 records no `lifted_contig` deviation, so its plain warning is refused.
