@@ -93,3 +93,18 @@ imports `ld_registry`.
   The PCs used, the scan's `pc` and `window`, `pc_check.dropped` and every
   value the Store holds are compared exactly, and a difference within the
   tolerance is still reported.
+- The Pan-UKB import recipe lives here too (#542). The owner, Gibran Hemani
+  (`explodecomputer`), ruled its scope on 25 November 2026, in a comment on
+  opengwas/opengwasdb-stores#542 (issuecomment-7176102258):
+  `opengwasdb ld import` gains `--plan-only`, which writes the plan and the
+  lifted tables with no network access, in opengwasdb, replacing ogld#102's
+  private `run._plan` driver; `tools/ld-stores/` runs the import, full or
+  plan-only, through the command line alone, and writes the record after a
+  full import, with a runnable `rebuild` naming its inputs; every ancestry but
+  EUR is refused, naming ogld#104; and the Hail variant export stays in
+  opengwasdb as input preparation, like #541's plink2 conversion. Its
+  acceptance is a plan-only re-plan from OGL-00012's recorded inputs, compared
+  with ogld#10's plan chromosome by chromosome, with no download, run once the
+  owner has approved it. The writer pins a `rebuild`'s inputs from the Store's
+  own `source.sha256`, and an imported matrix's rebuild is accepted on the
+  field-by-field comparison alone, without the HGDP+1kGP provenance checks.

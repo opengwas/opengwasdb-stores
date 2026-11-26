@@ -15,12 +15,15 @@ before anything is written.
 The build that made a Store also writes its `rebuild` (#541), when given one:
 as given, validated, and never changed silently. A record that already holds a
 `rebuild`, whether a person or a build wrote it, keeps it: a different one is
-refused, naming each field that differs.
+refused, naming each field that differs. The writer pins each `rebuild.inputs`
+digest, given or kept, from the Store's `source.sha256`: a digest given must be
+that one, and each input's path must be the one its commands read (#542).
 """
 
 from __future__ import annotations
 
 import os
+import shlex
 from collections.abc import Callable
 from pathlib import Path
 from typing import Any, NamedTuple
@@ -28,6 +31,7 @@ from typing import Any, NamedTuple
 import yaml
 
 from ld_registry import record
+from ld_registry.argv import values as argv_values
 from ld_registry.ids import require_valid_ld_id
 from ld_registry.provenance import ld_info, provenance_sha256, record_provenance
 from ogstores.store_info import Runner
@@ -164,6 +168,50 @@ def _rebuild_differences(existing: Any, given: dict[str, Any]) -> list[str]:
     return [f"rebuild.{key}" for key in sorted(set(existing) | set(given)) if existing.get(key) != given.get(key)]
 
 
+def _flag_values(commands: Any, flag: str) -> list[str]:
+    """Every value the recorded commands give `flag`, as `--flag value` or `--flag=value`."""
+    values: list[str] = []
+    for command in commands if isinstance(commands, list) else []:
+        try:
+            argv = shlex.split(command)
+        except (ValueError, AttributeError):
+            continue
+        values += argv_values(argv, flag)
+    return values
+
+
+def _pin_inputs(rebuild: Any, info: dict[str, Any]) -> tuple[Any, list[str]]:
+    """`rebuild` with each input's sha256 from the Store's `source.sha256`, and every problem with its inputs.
+
+    The writer is the one reader of `source.sha256` (#542). An input whose
+    digest the Store does not hold, or whose given digest is not the Store's, is
+    a problem naming `rebuild.inputs.<name>.sha256`; one whose path is not the
+    one value the commands give `--<name>` names `rebuild.inputs.<name>.path`.
+    """
+    inputs = rebuild.get("inputs") if isinstance(rebuild, dict) else None
+    if not isinstance(inputs, dict):
+        return rebuild, []
+    recorded = (info.get("source") or {}).get("sha256") or {}
+    pinned: dict[str, Any] = {}
+    problems: list[str] = []
+    for name, entry in inputs.items():
+        if not isinstance(entry, dict):
+            pinned[name] = entry  # the record's validation names it
+            continue
+        read = sorted(set(_flag_values(rebuild.get("commands"), f"--{name}")))
+        if read != [entry.get("path")]:
+            problems.append(f"rebuild.inputs.{name}.path: {entry.get('path')!r}, but rebuild.commands read "
+                            f"--{name} as {', '.join(map(repr, read)) or 'nothing'}")
+        digest = recorded.get(name)
+        if not isinstance(digest, str):
+            problems.append(f"rebuild.inputs.{name}.sha256: the Store's source.sha256 holds no {name}")
+        elif entry.get("sha256", digest) != digest:
+            problems.append(f"rebuild.inputs.{name}.sha256: {entry['sha256']!r}, but the Store read {name} as "
+                            f"{digest!r} (source.sha256)")
+        pinned[name] = {**entry, "sha256": digest} if isinstance(digest, str) else entry
+    return {**rebuild, "inputs": pinned}, problems
+
+
 def write_record(
     ld_root: Path | str,
     ld_id: str,
@@ -200,18 +248,23 @@ def write_record(
             **({"links": linked} if linked else {}),
         },
     }
+    # The given rebuild, or the one the record keeps, with its inputs pinned from the Store.
+    pinned, unread = _pin_inputs(rebuild if rebuild is not None else existing.get("rebuild"), info)
     differ = _differences(existing, computed)
     if rebuild is not None:
-        differ += _rebuild_differences(existing.get("rebuild"), rebuild)
+        differ += _rebuild_differences(existing.get("rebuild"), pinned)
     if differ:
         raise WriterRefusal(
             f"{path}: {', '.join(differ)}: the Store at {location} is not the Store this record describes; "
             "a published Store never changes, so another Store needs a record of its own"
         )
+    if unread:
+        raise WriterRefusal(f"{path}: {'; '.join(unread)}: a rebuild names its inputs as its commands read them "
+                            "and the Store pinned them")
 
     written = {**existing, "ld_id": ld_id, **{name: computed[name] for name in record.WRITER_FIELDS}}
-    if rebuild is not None:
-        written["rebuild"] = rebuild
+    if pinned is not None:
+        written["rebuild"] = pinned
     order = [f.name for f in record.FIELDS if "." not in f.name]
     document = {key: written[key] for key in order if key in written}
     document.update((key, value) for key, value in written.items() if key not in document)

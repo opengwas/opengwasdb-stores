@@ -94,22 +94,23 @@ actually built it. It is not a Release Bundle's Build Recipe.
 | field | value |
 |---|---|
 | `repository` | the repository the commands run in, such as `opengwas/ogld` |
-| `version` | the version of that repository they run at. One the recipe writes names a commit, as `git describe` does: it refuses a checkout with uncommitted changes or untracked files |
+| `version` | the version of that repository they run at. One the recipe writes names a commit, as `git describe` does: it refuses a checkout with uncommitted changes or untracked files. A person writing it for a Store built before the registry names every release that ran, and what each did, when more than one did, as OGL-00012's does |
 | `script` | the script the commands run, relative to the repository; for a build run through the engine's command line, the subcommand, such as `ogld build --genotypes` |
 | `commands` | the commands, in order, as run from the repository's root |
+| `inputs` | optional: each file the commands read, by the engine's name for it (the option `--<name>` the commands give it), as its absolute `path` and its `sha256` in lower-case hex. An import records its four (`metadata`, `variants`, `chain`, `fasta`). The writer pins each `sha256` from the Store's own `source.sha256`, and checks each `path` against the commands (below; #542) |
 
-All four are required. `commands` holds only commands that can be run; a step
+The first four are required. `commands` holds only commands that can be run; a step
 known only as prose, such as one reconstructed for a Store built before the
 registry, goes in the record's `notes`, naming its source.
 
 **A runnable `rebuild`** is one whose every command is the engine's:
-`opengwasdb ld build` or `opengwasdb ld validate`, after an optional
-`pixi run -e <environment>`, with exactly one build, of the record's
-`location`. `ogld <subcommand>`, the engine's former name, is read as
+`opengwasdb ld build`, `opengwasdb ld import` or `opengwasdb ld validate`,
+after an optional `pixi run -e <environment>`, with exactly one build or
+import, of the record's `location`. `ogld <subcommand>`, the engine's former name, is read as
 `opengwasdb ld <subcommand>` and runs at the engine the lock pins. A command
 holds no shell syntax (`&&`, `;`, `|`, a redirection): each runs as one argv.
-OGL-00006's `rebuild` runs `ogld derive-partners` and OGL-00012's
-`ogld import`, so each is a record of what built the Store, and not runnable.
+OGL-00006's `rebuild` runs `ogld derive-partners`, so it is a record of what
+built the Store, and not runnable.
 OGL-00001 to OGL-00005's runs `scripts/build_hgdp1kgp.py`, and is not runnable
 either; but the obstacle to rebuilding them is the engine. They were built at
 ogld 0.0.1.dev292 without Partner Rows (their provenance has no `t_partner`),
@@ -118,6 +119,18 @@ an LD Store equal to them; their records' `notes` say so. OGL-00007 to
 OGL-00011's `rebuild` is runnable. A Genotype Store's rebuild copies its staged
 inputs from the original's directory, so it needs that directory to exist;
 their `notes` say so too.
+
+OGL-00012's `rebuild` is runnable too (#542): #10's own `ogld import` and
+`ogld validate`, which run as `opengwasdb ld import` and `validate` by the
+rule above, with its four inputs and their digests. Its `repository`,
+`opengwas/ogld`, and `version` are what made it: the import ran at 0.8.0
+until chr15 was refused (ogld#102), and the same command, resumed at 0.8.1,
+re-planned chr15, closed chr15 to chr22, joined and validated, so `version`
+names both releases and what each did. One thing differs from what ran: #10
+wrote the Store in scratch and moved it to its `location` on the same
+filesystem, so the commands name the `location` and a work directory beside it
+(`<dir>/work`, which never existed), which a rebuild moves with the Store. Its
+`notes` say so, and give the run's logs and where the variant table came from.
 
 ### `provenance`
 
@@ -228,6 +241,15 @@ pixi run -e dev python3 -m ld_registry write <ld_id> <location> [--ld-root store
   different one is refused, naming each field that differs, so a rewrite
   never changes it silently. Without the option, a `rebuild` a person wrote is
   kept.
+- **The writer pins `rebuild.inputs` from the Store (#542).** It is the one
+  reader of the Store's `source.sha256`, through `opengwasdb ld info`. For each
+  input of the `rebuild`, given or kept, it writes `sha256` as the digest the
+  Store holds of `<name>`; a digest already written must be that one. An input
+  the Store holds no digest of, or whose digest differs, is refused, naming
+  `rebuild.inputs.<name>.sha256`. Each `path` must be the one value the
+  commands give `--<name>` (`--<name> <path>` or `--<name>=<path>`); a path
+  they give another value, or never read, is refused, naming
+  `rebuild.inputs.<name>.path`. Each refusal comes before anything is written.
 - It then checks the record and exits 1, naming each field, while the record
   breaks the spec: a new record does so until a person has written its fields.
 
@@ -281,6 +303,75 @@ pixi run ld-stores build --kind ld_store|genotype_store --panel AMR --out <dir> 
   missing input, an id whose record already holds a Store, and a checkout
   with uncommitted changes or untracked files.
 
+## The import recipe
+
+`tools/ld-stores/ld_stores.py import` (#542) imports a Pan-UKB LD Store
+through `opengwasdb ld import` (opengwasdb build-inputs §12), as ogld#10 did by
+hand, and writes its record.
+
+```text
+pixi run ld-stores import --ancestry EUR --metadata <bm-metadata.json> --variants <variants.tsv.bgz> \
+    --chain <hg19ToHg38.over.chain.gz> --fasta <hg38.fa.gz> --work <work> --out <store> \
+    [--parts <dir>] [--delete-parts] [--download-workers N] [--threads N] (--ld-id OGL-NNNNN | --plan-only)
+```
+
+- **`--ancestry`** is EUR alone. The engine's importer reads Pan-UKB EUR (its
+  source URL, panel and n are fixed), so every other ancestry is refused,
+  naming opengwas/ogld#104, until the importer takes one.
+- **Its inputs** are the BlockMatrix metadata, the variant table, the chain
+  and the FASTA. The variant table is exported from Pan-UKB's
+  `UKBB.<ancestry>.ldadj.variant.ht` with Hail by opengwasdb's
+  `scripts/ld/export_panukb_variants.py`; that export stays in opengwasdb,
+  input preparation as the plink2 conversion is (owner, 25 November 2026).
+- **Its command line** is the engine's, in #10's order: `opengwasdb ld import
+  <store> --work <work> --metadata … --variants … --chain … --fasta …`, then
+  `--parts`, `--delete-parts`, `--download-workers` and `--threads` when given;
+  an option not given is the engine's default.
+- **A full import** runs it, then `opengwasdb ld validate` once (at
+  `--threads` when given), each in the recipe's environment, then the writer,
+  with `rebuild` set to this repository, the commit `git describe` names,
+  `script` `opengwasdb ld import`, those two commands, and the four inputs by
+  path, the section every recipe writes (`recipe.rebuild_section`); the writer
+  pins their digests from the Store, and refuses a Store that holds no digest
+  of one before its record is written. It refuses, before running anything,
+  what every recipe that writes a record does
+  (`recipe.refuse_before_recording`): a Store that exists, a missing input, an
+  id whose record already holds a Store, and a dirty checkout. A person then writes the record's label, status, licence and use.
+- **`--plan-only`** runs `opengwasdb ld import … --plan-only` alone: the
+  engine writes `<work>/plan.json` and each chromosome's lifted table, with no
+  network access, and creates no Store. It writes no record. The same command
+  without `--plan-only` resumes from that plan. It refuses a Store that exists
+  and a missing input first. The engine is probed with
+  `opengwasdb ld import --plan-only --help` (`recipe.require_plan_only`): it
+  exits 0 when the option exists, and an engine without it answers with its
+  CLI's own "No such option" error naming `--plan-only`, which is refused,
+  naming the change that adds it; any other failure of the probe is refused
+  with its own error, and nothing else is tried. To run against an engine
+  other than the lock's, put its `opengwasdb` first on `PATH`.
+
+### Comparing plans
+
+```text
+pixi run ld-stores compare-plan <plan.json> <reference.json>
+```
+
+It compares an import's plan with a reference plan, both `plan.json` as the
+engine writes them, field by field (`ld_registry.compare.plan_differences`):
+each chromosome's `parts`, `losses`, `far_bp` and `source_variants`, and any
+other key its entry holds; a chromosome one plan lacks; the Store's `far_bp`;
+and the identity, its `inputs` (the four digests) included. Every difference is
+printed, reference then plan, and every one fails, exiting 1, except
+`identity.out`, the output path the plan pins, which differs between runs by
+design and is reported as the run's own. A long list, such as a chromosome's
+parts, is shown by its length.
+
+**OGL-00012's acceptance** (#542) is a plan-only re-plan from its record,
+`pixi run ld-stores rebuild OGL-00012 --out <dir> --plan-only`, compared with
+#10's plan (`/data/opengwasdb/work/orchestrate/ogld-88/results/10/plan-final.json`,
+chr15 re-planned at 0.8.1), with no download: the same comparison ogld#102
+made. A real re-plan reads about 1.4 GB of inputs and writes about 35 GB of
+lifted tables, and needs the owner's approval of its command, host and budget.
+
 ## Rebuilding from a record
 
 ```text
@@ -295,6 +386,18 @@ sidecar pins them as the original does; a `--pgen` brings its psam and pvar.
 A record whose commands validate nothing, such as OGL-00007 to OGL-00011's, is
 validated once after its build, at the build's threads; one whose commands
 validate is not validated again. The commands run in the recipe's environment.
+An import's `--work` is an output: it moves with the Store and is never copied.
+A recorded `--work` that is not under the Store's directory cannot move with
+it, so the record is refused, naming that work directory, rather than
+re-planned or rebuilt into the original's. An option is read the same way
+whether written `--flag value` or `--flag=value` (`ld_registry.argv`), here
+and by the writer's check of `rebuild.inputs`.
+
+With `--plan-only`, a record whose build is an import (OGL-00012's) runs that
+import alone, rewritten the same way, with `--plan-only`: it writes the plan
+and the lifted tables under `<dir>`, and no Store, and nothing is validated or
+compared. The engine is probed for the option first, as for `import`.
+A record whose build is `opengwasdb ld build` is refused with `--plan-only`.
 
 It refuses an output that exists, an output inside any recorded Store's
 `location` or inside a Genotype Store's directory, each compared once every
@@ -338,7 +441,9 @@ After the rebuild, whose own commands validated it, it compares
   `counts.near_pairs` and its PC Diagnostic. The checks that need the engine's
   internals (every validation rule by name, the autosomes held, the direct
   decoder against zarr) stay in opengwasdb's `ld-acceptance-stores`, which
-  takes any LD Store path.
+  takes any LD Store path. An imported matrix (`source.kind` `ld_matrix`,
+  such as OGL-00012) is not an HGDP+1kGP Store, and its acceptance is the
+  comparison alone (#542).
 
 Every difference, the build's own included, is printed. `pixi run ld-stores
 compare <original> <rebuilt> [--keep <file>]` is the same acceptance of two

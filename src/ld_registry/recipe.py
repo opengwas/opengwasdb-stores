@@ -25,20 +25,21 @@ from __future__ import annotations
 
 import hashlib
 import os
+import re
 import shlex
 import shutil
 import stat
 import subprocess
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 from ld_registry import REPO_ROOT, record
 from ld_registry.provenance import ld_info
 from ld_registry.writer import Written, write_record
-from ogstores.store_info import Runner
+from ogstores.store_info import Runner, run_engine
 from ogstores.store_size import store_size_on_disk
 
 REPOSITORY = "opengwas/opengwasdb-stores"
@@ -122,6 +123,11 @@ class Plan:
     def commands(self) -> tuple[tuple[str, ...], ...]:
         return (self.build, self.validate)
 
+    @property
+    def script(self) -> str:
+        """The record's `rebuild.script`: the engine subcommand the build runs."""
+        return "opengwasdb ld build --genotypes" if self.kind == "genotype_store" else "opengwasdb ld build"
+
 
 def plan_build(kind: str, panel: str, out: Path, inputs: Inputs, threads: int | None = None) -> Plan:
     """The build of `panel`'s Store of `kind` into the directory `out`, as `out/<panel id>-k10.store`."""
@@ -170,14 +176,27 @@ def plan_build(kind: str, panel: str, out: Path, inputs: Inputs, threads: int | 
     return Plan(kind, store, tuple(copies), tuple(build), validate, checksums_from)
 
 
-def rebuild_section(plan: Plan, version: str, environment: str) -> dict[str, Any]:
-    """The record's `rebuild`: this repository, its version, and the engine commands as run from its root."""
-    return {
+def rebuild_section(
+    commands: Sequence[Sequence[str]],
+    version: str,
+    environment: str,
+    script: str,
+    inputs: Mapping[str, Mapping[str, str]] | None = None,
+) -> dict[str, Any]:
+    """The record's `rebuild` a recipe writes: this repository at `version`, `script`, the engine `commands`
+    as run from its root, and the files they read (`inputs`, by name, each its `path`) when given.
+
+    The writer pins each input's sha256 from the Store's own `source.sha256` (#542).
+    """
+    section: dict[str, Any] = {
         "repository": REPOSITORY,
         "version": version,
-        "script": "opengwasdb ld build --genotypes" if plan.kind == "genotype_store" else "opengwasdb ld build",
-        "commands": [shlex.join(["pixi", "run", "-e", environment, *command]) for command in plan.commands],
+        "script": script,
+        "commands": [shlex.join(["pixi", "run", "-e", environment, *command]) for command in commands],
     }
+    if inputs is not None:
+        section["inputs"] = {name: dict(entry) for name, entry in inputs.items()}
+    return section
 
 
 class RecipeRefusal(ValueError):
@@ -207,6 +226,84 @@ def run_in_environment(commands: Sequence[Sequence[str]], store: Path, run: Comm
     for command in commands:
         run(command, {**ENVIRONMENT, "TMPDIR": str(tmpdir)})
     shutil.rmtree(tmpdir)
+
+
+#: The engine change that adds `opengwasdb ld import --plan-only` (#542).
+PLAN_ONLY_CHANGE = "opengwas/opengwasdb#502 (opengwasdb-stores#542)"
+#: The probe: an engine without the option refuses it by its CLI's own error before printing any help.
+PLAN_ONLY_PROBE = ("opengwasdb", "ld", "import", "--plan-only", "--help")
+
+
+def require_plan_only(runner: Runner | None = None) -> None:
+    """Refuse an engine without `opengwasdb ld import --plan-only`, from the CLI's own answer.
+
+    The probe `PLAN_ONLY_PROBE` exits 0 when the option exists. An engine without
+    it exits non-zero with its "No such option" error naming `--plan-only`, which
+    is refused naming `PLAN_ONLY_CHANGE`; any other failure, an engine not on
+    PATH included, is refused with its own error. Nothing is tried instead.
+    """
+    try:
+        done = run_engine(PLAN_ONLY_PROBE, runner=runner)
+    except OSError as exc:
+        raise RecipeRefusal(f"`{shlex.join(PLAN_ONLY_PROBE)}` could not run: {exc}") from exc
+    if done.returncode == 0:
+        return
+    said = f"{done.stderr}\n{done.stdout}"
+    if re.search(r"No such option\W*--plan-only\b", said, re.IGNORECASE):
+        raise RecipeRefusal(
+            f"the engine on PATH has no `opengwasdb ld import --plan-only`, which {PLAN_ONLY_CHANGE} adds; "
+            "run against an engine with it, or wait for the lock to move to one"
+        )
+    raise RecipeRefusal(f"`{shlex.join(PLAN_ONLY_PROBE)}` exited {done.returncode}: {said.strip()}")
+
+
+class Recording(NamedTuple):
+    """What a record's `rebuild` names besides the commands: the commit, and the pixi environment."""
+
+    version: str
+    environment: str
+
+
+def refuse_before_running(store: Path, inputs: Iterable[Path], *, staged: Iterable[Path] = ()) -> None:
+    """Every recipe's prelude: a Store that exists, a staged input that exists, and a missing input are refused."""
+    if store.exists():
+        raise RecipeRefusal(f"{store} exists; a Store is never replaced")
+    present = [str(target) for target in staged if target.exists()]
+    if present:
+        raise RecipeRefusal(f"{', '.join(present)} exist; a build stages its own inputs")
+    missing = [str(path) for path in inputs if not path.exists()]
+    if missing:
+        raise RecipeRefusal(f"missing inputs: {', '.join(missing)}")
+
+
+def refuse_before_recording(
+    store: Path,
+    inputs: Iterable[Path],
+    *,
+    ld_root: Path,
+    ld_id: str,
+    staged: Iterable[Path] = (),
+    version: str | None = None,
+    environment: str | None = None,
+) -> Recording:
+    """The prelude of a recipe that writes `ld_id`'s record, and what that record's `rebuild` names.
+
+    Beyond `refuse_before_running`, it refuses an id whose record already holds
+    a Store (that record describes another Store, and the writer would refuse it
+    after the run), and a dirty checkout. It returns the version
+    (`repository_version`) and environment (`PIXI_ENVIRONMENT_NAME`, default
+    `dev`) the record names, either given.
+    """
+    refuse_before_running(store, inputs, staged=staged)
+    path = record.record_path(Path(ld_root), ld_id)
+    if path.exists():
+        document, _ = record.read_document(path)
+        if document and document.get("location"):
+            raise RecipeRefusal(f"{path}: {ld_id} already records the Store at {document['location']}")
+    return Recording(
+        version or repository_version(),
+        environment or os.environ.get("PIXI_ENVIRONMENT_NAME", "dev"),
+    )
 
 
 def sha256_of(path: Path) -> str:
@@ -317,30 +414,17 @@ def build_store(
 ) -> Written:
     """Stage, build, validate, and write `ld_id`'s record with the build's `rebuild`.
 
-    It refuses, before running anything, an output that exists, a missing
-    input, an id whose record already holds a Store (that record describes
-    another Store, and the writer would refuse it after the build), and a
-    dirty checkout. A staged copy whose sha256 is not the LD Store's refuses
-    the build, and the copies staged so far are removed.
+    It refuses, before running anything, what `refuse_before_recording` does. A
+    staged copy whose sha256 is not the LD Store's refuses the build, and the
+    copies staged so far are removed.
     """
-    if plan.store.exists():
-        raise RecipeRefusal(f"{plan.store} exists; a build never replaces a Store")
-    present = [str(target) for _, target in plan.copies if target.exists()]
-    if present:
-        raise RecipeRefusal(f"{', '.join(present)} exist; a build stages its own inputs")
     read = [Path(value) for flag, value in zip(plan.build, plan.build[1:]) if flag in ("--pgen", "--keep", "--pcs")]
-    inputs = [source for source, _ in plan.copies] if plan.copies else read
-    missing = [str(path) for path in inputs if not path.exists()]
-    if missing:
-        raise RecipeRefusal(f"missing inputs: {', '.join(missing)}")
-    path = record.record_path(Path(ld_root), ld_id)
-    if path.exists():
-        document, _ = record.read_document(path)
-        if document and document.get("location"):
-            raise RecipeRefusal(f"{path}: {ld_id} already records the Store at {document['location']}")
+    recording = refuse_before_recording(
+        plan.store, [source for source, _ in plan.copies] if plan.copies else read,
+        staged=[target for _, target in plan.copies], ld_root=Path(ld_root), ld_id=ld_id,
+        version=version, environment=environment,
+    )
     checksums = staged_checksums(plan, info_runner)
-    version = version or repository_version()
-    environment = environment or os.environ.get("PIXI_ENVIRONMENT_NAME", "dev")
     # Every target was refused above if it existed, so whatever is at one now, a partial copy
     # included, staging made; so are the directories `_made_by_staging` names. Nothing else is removed.
     made = _made_by_staging(plan)
@@ -358,5 +442,5 @@ def build_store(
     run_in_environment(plan.commands, plan.store, run)
     return write_record(
         ld_root, ld_id, plan.store, runner=info_runner, size=size,
-        rebuild=rebuild_section(plan, version, environment),
+        rebuild=rebuild_section(plan.commands, *recording, plan.script),
     )
