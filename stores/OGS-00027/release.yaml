@@ -126,4 +126,17 @@ notes: 'Every probe of the genome-wide BESD file set, one Analysis each. The Sto
 
   2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00006 (the EUR Ragged Store), whose `ld-panel` and `ancestry` it takes. It also adds `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.
 
-  2026-11-26: completion withdrawn from the recipe (#532, epic #520). `complete` refused at 14:53 UTC: this Store carries a per-association N plane, and Ragged completion would drop it (ADR 0067). The owner ruled on 26 Nov 2026 (AskUserQuestion in the orchestrating session) that OGS-00027 stays Observed-Only and gets Clumps in place now. It is completed once opengwas/opengwasdb#507 carries N through. The recipe therefore has no `complete` block and `completion_state: observed_only`, and keeps `post.clumps` with `post.ld_stores` (EUR). The published Store is unchanged by this amendment.'
+  2026-11-26: completion withdrawn from the recipe (#532, epic #520). `complete` refused at 14:53 UTC: this Store carries a per-association N plane, and Ragged completion would drop it (ADR 0067). The owner ruled on 26 Nov 2026 (AskUserQuestion in the orchestrating session) that OGS-00027 stays Observed-Only and gets Clumps in place now. It is completed once opengwas/opengwasdb#507 carries N through. The recipe therefore has no `complete` block and `completion_state: observed_only`, and keeps `post.clumps` with `post.ld_stores` (EUR). The published Store is unchanged by this amendment.
+
+  Clumps added in place (issues #520 and #532, 2026-11-26). The owner ruled on 26 Nov 2026 that this
+  Store stays Observed-Only and gets Clumps now, after the forced completion refused (see the
+  paragraph above) and approved the run. An unforced `pixi run -e workflow release OGS-00027` (ADR
+  0043, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb clump --ld-store
+  EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store` (89.9 s) and validate
+  (113.6 s), from 15:06:58 to 15:10:29 UTC (3 min 31 s wall, peak RSS 3,791,860 kB; 1-minute load
+  average 53 at the start, 57 on average over the run). The new record is `passed`, with no warnings
+  or errors, has_clumps true, n_loci_5e8 111,673 and n_unclumped_5e8 1,173,039 (all absent from the LD
+  Store, none ambiguous); store_bytes 2,685,295,678 to 2,699,279,507. Read without pysam, the p_5e_08
+  tier''s Clumps hold 7,822,750 rows (6,649,711 with a Clump Lead) and z, se and eaf of three Analyses
+  equal the archived Store''s. The previous Store, records and Validation Record are archived at
+  replaced/20261126T150701Z.'

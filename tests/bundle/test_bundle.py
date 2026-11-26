@@ -302,11 +302,10 @@ class TestBundleContract(unittest.TestCase):
         build_environment = loaded.validation["build_environment"]
         record_check()
         self.assertEqual(build_environment["opengwasdb_version"], "0.20.0")
+        # The Clumps were added in place (#532), so the record's validator is the
+        # locked engine's, while `build_environment` still names the build's.
         record_check()
-        self.assertEqual(
-            loaded.validation["validator"]["version"],
-            f"opengwasdb@{build_environment['opengwasdb_commit']}",
-        )
+        self.assertEqual(loaded.validation["validator"]["version"], f"opengwasdb@{self.AT_LOCK}")
         observed = loaded.validation["observed"]
         record_check()
         self.assertEqual(
