@@ -88,7 +88,7 @@ components:
     name: LD Store Registry
     container: gwas_orchestration
     stages: [publish]
-    summary: One record per LD Store, its writer from the Store's provenance, the generated ld-resources.tsv (ADR 0042), and the HGDP+1kGP build recipe that writes records (#541).
+    summary: One record per LD Store, its writer from the Store's provenance, the generated ld-resources.tsv (ADR 0042), the HGDP+1kGP build recipe (#541) and the Pan-UKB import (#542), each writing its records.
     paths: [src/ld_registry/, tools/ld-stores/]
   - id: analysis_catalog
     name: Analysis Catalog

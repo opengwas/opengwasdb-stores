@@ -27,6 +27,7 @@ Run from the repository root:
 from __future__ import annotations
 
 import csv
+import io
 import json
 import os
 import shutil
@@ -72,6 +73,12 @@ def stub_runner(payload: dict[str, Any], seen: list[list[str]] | None = None):
         return subprocess.CompletedProcess(argv, 0, stdout=json.dumps(payload), stderr="")
 
     return run
+
+
+def tsv_row(document: dict[str, Any]) -> dict[str, str]:
+    """A record's row of `ld-resources.tsv`, as `rows.render_tsv` writes it."""
+    (row,) = csv.DictReader(io.StringIO(rows.render_tsv([document])), delimiter="\t")
+    return row
 
 
 def write_yaml(path: Path, document: Any) -> Path:
@@ -256,7 +263,7 @@ class TestTheWriter(RegistryCase):
         self.assertEqual(written["measured"]["store_bytes"], 79279262640)
         self.assertEqual(written["location"], LOCATION)
 
-        row = rows.ld_row(written)
+        row = tsv_row(written)
         for column, value in {
             "ld_id": "OGL-00001",
             "label": "hgdp1kgp-v2-EUR-k10",
@@ -471,7 +478,7 @@ class TestRows(unittest.TestCase):
         self.assertEqual(len(self.spec_columns()), 32, "the draft's 31 columns, and #537's `default`")
         self.assertEqual(list(rows.COLUMNS), self.spec_columns())
         self.assertEqual(list(rows.ld_values(literal_record())), self.spec_columns())
-        self.assertEqual(list(rows.ld_row(literal_record())), self.spec_columns())
+        self.assertEqual(list(tsv_row(literal_record())), self.spec_columns())
 
     def test_values_are_typed_and_a_missing_value_is_none(self) -> None:
         values = rows.ld_values(literal_record())
@@ -662,7 +669,7 @@ class TestGenotypeStores(RegistryCase):
         self.assertEqual(values["representation"], "pgen + sidecar, r computed per query")
         self.assertEqual(values["genotype_bytes"], 3551447413)
         self.assertEqual(values["store_bytes"], 1297730705, "the sidecar's alone")
-        self.assertEqual(rows.ld_row(document)["genotype_bytes"], "3551447413")
+        self.assertEqual(tsv_row(document)["genotype_bytes"], "3551447413")
         self.assertIsNone(rows.ld_values(literal_record())["genotype_bytes"])
 
 
@@ -731,7 +738,7 @@ class TestTheDefault(RegistryCase):
         self.assertEqual(rows.ld_values(document)["default"], 1)
         self.assertIsInstance(rows.ld_values(document)["default"], int)
         self.assertEqual(list(rows.ld_values(document))[-1], "default")
-        (row,) = csv.DictReader(rows.render_tsv([document]).splitlines(), delimiter="\t")
+        (row,) = csv.DictReader(io.StringIO(rows.render_tsv([document])), delimiter="\t")
         self.assertEqual(row["default"], "1")
 
     def test_a_served_record_may_declare_the_default(self) -> None:
@@ -1136,7 +1143,7 @@ class TestAnImportedStore(RegistryCase):
 
     def test_its_row_renders_source_from_the_documented_fields(self) -> None:
         self.write_panukb()
-        row = rows.ld_row(self.read())
+        row = tsv_row(self.read())
         for column, value in {
             "ld_id": "OGL-00012",
             "label": "panukb-EUR-k15",

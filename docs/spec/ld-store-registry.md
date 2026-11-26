@@ -55,7 +55,7 @@ the writer owns.
 | `provenance` | writer | yes | the Store's own provenance; below |
 | `provenance_sha256` | writer | yes | the sha256, in lower-case hex, of the provenance as `opengwasdb ld info` prints it, in canonical form: `json.dumps(info, sort_keys=True, separators=(",", ":"))`, encoded as UTF-8 |
 | `measured.store_bytes` | writer | yes | the bytes of every regular file under `location`, from an `lstat` of each (`ogstores.store_size.store_size_on_disk`). No link is followed, to a file or a directory, so an overlay's bytes are its own files alone; an unreadable directory is an error, never skipped. A Genotype Store's is its sidecar alone |
-| `measured.links` | writer | no | every symbolic link under `location`, by its path in the Store (such as `near` or `variants/x`), and its target with every link resolved (an absolute path). The walk follows no link; a dangling link is refused, and an unreadable directory is an error, never skipped. Written when the Store has any; such a Store is an overlay |
+| `measured.links` | writer | no | every symbolic link under `location`, by its path in the Store (such as `near` or `variants/x`), and its target with every link resolved (an absolute path). The walk follows no link (`ogstores.store_size.walk_no_follow`, the walk `store_bytes` takes); a dangling link is refused, and an unreadable directory is an error, never skipped. Written when the Store has any; such a Store is an overlay |
 | `measured.genotype_bytes` | writer | a Genotype Store | the bytes of the pgen, psam and pvar files its provenance pins, from a stat of each; below. An LD Store has none |
 
 Any other key is an error, so a misspelt field is refused rather than ignored.
@@ -95,7 +95,7 @@ actually built it. It is not a Release Bundle's Build Recipe.
 |---|---|
 | `repository` | the repository the commands run in, such as `opengwas/ogld` |
 | `version` | the version of that repository they run at. One the recipe writes names a commit, as `git describe` does: it refuses a checkout with uncommitted changes or untracked files. A person writing it for a Store built before the registry names every release that ran, and what each did, when more than one did, as OGL-00012's does |
-| `script` | the script the commands run, relative to the repository; for a build run through the engine's command line, the subcommand, such as `ogld build --genotypes` |
+| `script` | the script the commands run, relative to the repository; for a build run through the engine's command line, the subcommand, such as `opengwasdb ld build --genotypes` |
 | `commands` | the commands, in order, as run from the repository's root |
 | `inputs` | optional: each file the commands read, by the engine's name for it (the option `--<name>` the commands give it), as its absolute `path` and its `sha256` in lower-case hex. An import records its four (`metadata`, `variants`, `chain`, `fasta`). The writer pins each `sha256` from the Store's own `source.sha256`, and checks each `path` against the commands (below; #542) |
 

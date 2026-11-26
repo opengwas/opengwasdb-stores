@@ -651,8 +651,9 @@ class TestRebuildingFromARecord(TempCase):
     def test_the_plan_names_its_validation(self) -> None:
         """Acceptance validates the rebuilt Store at the build's threads, whether or not the record did."""
         self.records(ogl_00009())
-        rebuilt = self.rebuild("OGL-00009", self.tmp / "o")
-        self.assertEqual(list(rebuilt.validate), ["opengwasdb", "ld", "validate", "--threads", "8", str(rebuilt.store)])
+        commands = Commands()
+        rebuilt = self.rebuild("OGL-00009", self.tmp / "o", commands)
+        self.assertEqual(commands.seen[-1], ["opengwasdb", "ld", "validate", "--threads", "8", str(rebuilt.store)])
 
 
 class TestTheAcceptanceComparison(unittest.TestCase):

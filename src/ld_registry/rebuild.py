@@ -71,11 +71,6 @@ class Rebuild:
     original: Path
     recorded_sha256: str | None
 
-    @property
-    def validate(self) -> tuple[str, ...]:
-        """The command among `commands` that validates the rebuilt Store."""
-        return next(argv for argv in self.commands if argv[2] == "validate")
-
     def _builders(self, flag: str) -> Path | None:
         """The path the build or import gives `flag`, its last when it gives several."""
         build = next(argv for argv in self.commands if argv[2] in BUILDERS)
