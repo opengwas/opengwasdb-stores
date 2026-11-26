@@ -163,3 +163,4 @@ GCST90840174	GCST90840174	quantitative	ancestry	ancestry_unassigned	gate_reason=
 GCST90840175	GCST90840175	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90840176	GCST90840176	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
 GCST90840177	GCST90840177	quantitative	ancestry	ancestry_unassigned	gate_reason=residual	success	true
+GCST90278111	GCST90278111	quantitative	effect_scale	mis_scaled_z	data defect, the source's beta is mis-scaled (about -5.6e5 at p = 0.054 with standard_error 0.07); n_hits_5e8 = 20,689,282 of 20,689,282 variants, median |z| = 3.2e6; excluded 2026-11-26 by owner ruling (#520, #532)	success	true
