@@ -371,19 +371,16 @@ class TestBundleContract(unittest.TestCase):
     # Written at the locked engine; when the lock moves, pin the literal commit.
     AT_LOCK = engine.locked_commit(REPO_ROOT / "pixi.lock")
     MVP_RECORD_RUNTIME = {
-        # OGS-00016's record is `publish-rewrite`'s: #525 converted the Store to
-        # format 0.3.0 at engine 0.20.0, and validate warns of the one accepted
-        # deviation (side_tables.se_exceptions_rounded).
-        "OGS-00016": "c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4",
-        # OGS-00012's record is `publish-rewrite`'s (#525), as OGS-00013's is.
-        "OGS-00012": "931ac16690de9538be203f9cdbb2eb46caa895f4",
-        # OGS-00013's record is `publish-rewrite`'s (#525): converted to format
-        # 0.3.0 at engine 0.20.0, its completion validated at 0.21.0 (931ac166).
-        "OGS-00013": "931ac16690de9538be203f9cdbb2eb46caa895f4",
-        # OGS-00014's record is `publish-rewrite`'s (#525), as OGS-00013's is.
-        "OGS-00014": "931ac16690de9538be203f9cdbb2eb46caa895f4",
-        # OGS-00015's record is the in-place Rho and Clumps addition's (#531), validated at engine 0.23.0.
+        # The records of OGS-00012, -13, -14, -15 and -16 are the in-place Rho and
+        # Clumps additions' (#531, #532), validated at the locked engine. Each
+        # Store was converted to format 0.3.0 by `publish-rewrite` first (#525);
+        # validate warns of the one accepted deviation
+        # (side_tables.se_exceptions_rounded).
+        "OGS-00012": AT_LOCK,
+        "OGS-00013": AT_LOCK,
+        "OGS-00014": AT_LOCK,
         "OGS-00015": AT_LOCK,
+        "OGS-00016": AT_LOCK,
     }
 
     def assert_mvp_built_record(self, store_id: str, n_analyses: int) -> None:

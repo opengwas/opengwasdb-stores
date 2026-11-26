@@ -342,11 +342,14 @@ GOLDEN_OBSERVED: dict[str, dict[str, object]] = {
         "n_associations": 57448827,
         "association_coverage": "signals_only",
         "reference_assembly": None,
-        "store_bytes": 1682988626,
+        "store_bytes": 1683609576,
         "has_hm3": False,
         "has_rho": None,
         "n_top_hits": None,
-        "build_elapsed_s": 5341.383,
+        "has_clumps": True,
+        "n_loci_5e8": 4389,
+        "n_unclumped_5e8": 63690,
+        "build_elapsed_s": 5349.309,
         "validate_status": "passed_with_warnings",
         "completion_state": "reference_completed",
     },
@@ -461,12 +464,16 @@ class TestCommittedValidationRecords(unittest.TestCase):
         """The validator version is the opengwasdb revision the record's build_environment names."""
         for store_id in STORES:
             record = self.load(store_id)
-            commit = record["build_environment"].get("opengwasdb_commit")
+            environment = record["build_environment"]
+            commit = environment.get("opengwasdb_commit")
             self.assertTrue(commit, f"{store_id} must record an opengwasdb commit")
-            self.assertEqual(
+            # A post step added in place (#531, #532) validates at a later engine
+            # than the build, which the record keeps in `engines` beside the build's.
+            recorded = {commit, *(e.get("opengwasdb_commit") for e in environment.get("engines") or [])}
+            self.assertIn(
                 record["validator"]["version"],
-                f"opengwasdb@{commit}",
-                f"{store_id}.validator.version must name the recorded opengwasdb revision",
+                {f"opengwasdb@{c}" for c in recorded},
+                f"{store_id}.validator.version must name a recorded opengwasdb revision",
             )
 
     def test_already_registered_records_keep_their_observed_measurements(self) -> None:
@@ -476,7 +483,8 @@ class TestCommittedValidationRecords(unittest.TestCase):
         recorded them, OGS-00001 as #514's forced 0.3.0 self-completion recorded
         it, OGS-00002 as the #348 and #460 re-registrations recorded it, OGS-00004
         and OGS-00005 as the #232 forced rebuilds recorded them, and OGS-00006 as
-        #524's forced 0.3.0 rebuild and re-completion recorded it.
+        #524's forced 0.3.0 rebuild and re-completion recorded it, with the Clumps
+        #532 added in place.
         """
         self.assertEqual(set(GOLDEN_OBSERVED), set(REREGISTERED))
         for store_id, expected in GOLDEN_OBSERVED.items():

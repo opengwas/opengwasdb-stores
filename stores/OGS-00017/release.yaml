@@ -145,3 +145,19 @@ notes: |
   Status, validated. A rebuild from source remains the owner's call for the `indel_order` deviation.
 
   2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner's, accepted on #522. Every Analysis is unassigned, so the declaration yields no Clumps (`not_clumped.no_assigned_ancestry`) until the Analyses carry an Assigned Ancestry; EUR is mapped only because a mapping is required.
+
+  Rho and Clumps added in place (issues #520 and #532, 2026-11-26). The owner approved the run on 26
+  Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow release
+  OGS-00017` (ADR 0043, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb
+  build-dense-rho` (1,346.4 s, 3,790,881 Analysis pairs), `opengwasdb clump --ld-store
+  EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store` (7.7 s), the overview (3.0
+  s) and validate (1,232.7 s), from 15:40:21 to 16:23:44 UTC (43 min 23 s wall, peak RSS 28,199,420
+  kB; 1-minute load average 57 at the start, 63 at the end (mean 70, up to 97)). The new record is
+  `passed_with_warnings` for the one warning it had, the accepted se float16 deviation with its
+  conversion's note; no new warning. has_clumps is true, has_rho is true; no Clump Lead or locus:
+  every Analysis is unassigned (`not_clumped.no_assigned_ancestry` 2,754), so n_loci_5e8 stays blank;
+  the p_5e_08 tier holds 3,722,223 rows, none with a Clump Lead; store_bytes 138,893,403,126 to
+  138,909,730,010. Read without pysam, rho_matrix is 2,754 x 2,754 and every off-diagonal pair is
+  finite, rho_row gives 2,753 pairs, the Clumps read, and z, se and eaf of three Analyses equal the
+  archived Store's. The previous Store, records and Validation Record are archived at
+  replaced/20261126T154025Z.

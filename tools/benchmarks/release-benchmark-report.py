@@ -480,6 +480,7 @@ def run_generic_shapes(
     *,
     reps: int,
     output_path: Path,
+    max_start_load: float | None = None,
 ) -> dict[str, Any]:
     """Run the core generic harness for one Store and return its shape block.
 
@@ -504,6 +505,10 @@ def run_generic_shapes(
         "--output",
         str(output_path),
     ]
+    if max_start_load is not None:
+        # The harness waits for a quiet host before timing (default load 3), which a
+        # shared host never offers; 0 records at the current load instead (#532).
+        command += ["--max-start-load", str(max_start_load)]
     if anchor.exposure:
         command += ["--exposure", anchor.exposure]
     if anchor.phewas_alid:
@@ -571,6 +576,7 @@ def build_report(
     reps: int,
     hm3_only: bool,
     work_dir: Path,
+    max_start_load: float | None = None,
 ) -> dict[str, Any]:
     """Measure every Store and assemble the aggregate report artifact."""
     work_dir.mkdir(parents=True, exist_ok=True)
@@ -600,6 +606,7 @@ def build_report(
             records.append(entry)
             continue
 
+        load_before = os.getloadavg()
         entry["hm3_extract"] = measure_hm3(core, store, store_path, reps=reps)
 
         if store.ragged:
@@ -642,7 +649,12 @@ def build_report(
                     anchors[store.store_id],
                     reps=reps,
                     output_path=work_dir / f"{store.store_id}.shapes.json",
+                    max_start_load=max_start_load,
                 )
+        entry["load_average"] = {
+            "before": [round(x, 2) for x in load_before],
+            "after": [round(x, 2) for x in os.getloadavg()],
+        }
         records.append(entry)
 
     summary: dict[str, int] = {}
@@ -660,6 +672,7 @@ def build_report(
         "epic": "opengwas/opengwasdb-stores#214",
         "measured_at": _now(),
         "reps": reps,
+        "max_start_load": max_start_load,
         "hm3_only": hm3_only,
         "artifact_root": str(artifact_root),
         "hm3_source": "benchmarks._query_shapes.measure_hm3_extract",
@@ -705,6 +718,7 @@ def render_markdown(report: dict[str, Any]) -> str:
         f"- opengwasdb fingerprint: `{core.get('opengwasdb_fingerprint', '')}`",
         f"- artifact root: `{report.get('artifact_root', '')}`",
         f"- repetitions: {report.get('reps', '')}",
+        f"- max start load (harness wait; 0 = recorded at the current load): {report.get('max_start_load')}",
         f"- HM3 timing source: `{report.get('hm3_source', '')}`",
         f"- shapes source: `{report.get('shapes_source', '')}`",
         "",
@@ -736,6 +750,11 @@ def render_markdown(report: dict[str, Any]) -> str:
             + " |"
         )
 
+    loads = [(e.get("store_id"), e.get("load_average")) for e in report.get("stores", []) if e.get("load_average")]
+    if loads:
+        lines += ["", "## Load average (1, 5, 15 min) before and after each Store", ""]
+        for store_id, load in loads:
+            lines.append(f"- {store_id}: {load['before']} to {load['after']}")
     lines += [
         "",
         "## Summary",
@@ -829,6 +848,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--reps", type=int, default=5)
     parser.add_argument(
+        "--max-start-load",
+        type=float,
+        default=None,
+        metavar="LOAD",
+        help="passed to the shapes harness: wait for a 1-minute load below LOAD before each "
+        "timing (harness default 3; 0 records at the current load, which each Store's "
+        "load_average then documents)",
+    )
+    parser.add_argument(
         "--hm3-only",
         action="store_true",
         help="measure HM3 for every Store and skip the seven-shape harness",
@@ -877,6 +905,7 @@ def main(argv: list[str] | None = None) -> int:
             reps=args.reps,
             hm3_only=args.hm3_only,
             work_dir=work_dir,
+            max_start_load=args.max_start_load,
         )
 
     _write(Path(args.output), json.dumps(report, indent=2, sort_keys=True) + "\n")
