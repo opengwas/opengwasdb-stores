@@ -31,6 +31,26 @@ paths, for example `opengwasdb_514_canaries_benchmark_2026-11-25.{json,md}` for
 #514's three 0.3.0 canaries. The aggregate stays stale for those Stores until
 #518 is fixed and `--all` is run again.
 
+A report recorded at load, not on a quiet host (#532): the shapes harness waits for a
+1-minute load below 3 before each timing, which this shared host does not reach for
+days, so `--max-start-load 0` (passed through to the harness) records at the current
+load, and each Store's `load_average` (1, 5 and 15 minutes, before and after) sits in the
+JSON and the report. `opengwasdb_532_dense_rho_benchmark_2026-11-26.{json,md}` holds the
+seven Dense Stores that gained Rho (OGS-00009, -12, -13, -14, -15, -16, -17), measured
+at the pinned engine e97f07b5 at a load average of 42 to 80:
+
+```bash
+pixi run -e dev python tools/benchmarks/release-benchmark-report.py \
+  --opengwasdb-checkout /path/to/opengwasdb@e97f07b5 \
+  --store OGS-00009 --store OGS-00012 --store OGS-00013 --store OGS-00014 \
+  --store OGS-00015 --store OGS-00016 --store OGS-00017 --reps 5 --max-start-load 0 \
+  --output docs/benchmark-output/opengwasdb_532_dense_rho_benchmark_2026-11-26.json \
+  --report docs/benchmark-output/opengwasdb_532_dense_rho_benchmark_2026-11-26.md
+```
+
+Timings taken at load are inflated and noisy; compare them with a quiet-host run only
+in kind. The seven shapes' medians are in each Store's `shapes.timings` in the JSON.
+
 HM3 benchmark absence (`missing`, `not_applicable`, `unsupported`) is operational
 evidence, not a Store validation failure; see
 [`docs/spec/store-release-workflow.md`](../spec/store-release-workflow.md).

@@ -63,6 +63,23 @@ notes: |-
   `backfill-observed` after the publication (#525, 533c), because the 0.2.0 record predates #307.
 
   2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner's, accepted on #522. It stays Observed-Only (owner, 2026-11-25): completing a converted Store under the indel_order deviation can duplicate deletions, so it is completed after a rebuild from source. Every Analysis is unassigned, so the declaration yields no Clumps (`not_clumped.no_assigned_ancestry`) until the Analyses carry an Assigned Ancestry; EUR is mapped only because a mapping is required.
+
+  Rho and Clumps added in place (issues #520 and #532, 2026-11-26). The owner approved the run on 26
+  Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow release
+  OGS-00016` (ADR 0043, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb
+  build-dense-rho` (761.8 s, 1,428,895 Analysis pairs), `opengwasdb clump --ld-store
+  EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store` (6.5 s), the overview (2.3
+  s) and validate (1,023.8 s), from 14:38:41 to 15:08:45 UTC (30 min 5 s wall, peak RSS 23,877,776 kB;
+  1-minute load average 66 at the start, 62 at the end (mean 69, up to 100)). The new record is
+  `passed_with_warnings` for the one warning it had, the accepted se float16 deviation with its
+  conversion's note; no new warning. The Store stays Observed-Only (no completion, owner 25 Nov 2026).
+  has_clumps is true, has_rho is true; no Clump Lead or locus: every Analysis is unassigned, so the
+  declaration yields no Clumps (`not_clumped.no_assigned_ancestry` 1,691) as the 25 Nov paragraph
+  says, and n_loci_5e8 stays blank; the p_5e_08 tier holds 5,990,491 rows, none with a Clump Lead;
+  store_bytes 125,171,758,813 to 125,178,949,048. Read without pysam, rho_matrix is 1,691 x 1,691 and
+  every off-diagonal pair is finite, rho_row gives 1,690 pairs, the Clumps read, and z, se and eaf of
+  three Analyses equal the archived Store's. The previous Store, records and Validation Record are
+  archived at replaced/20261126T143845Z.
 accepted_at: '2026-10-14T08:39:26Z'
 source_snapshot:
   metadata_root: /data/opengwasdb/work/epic232/220/metadata-refresh-parent-baf141c-20261013T123913Z

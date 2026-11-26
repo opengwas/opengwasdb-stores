@@ -113,7 +113,7 @@ GCST90271956	true	ancestry_unassigned	passed	4837477	passed	not_listed	passed	ea
 GCST90274715			passed	20395631	passed	not_listed	passed	eaf_orientation=passed gate_reason=ok r=0.8929180461628858	passed	assigned_ancestry=AFR gate_reason=ok	not_applicable	
 GCST90277997	true	ancestry_unassigned	passed	8582246	passed	not_listed	passed	eaf_orientation=unverified gate_reason=residual r=None	failed	assigned_ancestry=none gate_reason=residual	not_applicable	
 GCST90278110			passed	20717514	passed	not_listed	passed	eaf_orientation=passed gate_reason=ok r=0.8737260842670904	passed	assigned_ancestry=AFR gate_reason=ok	passed	status=estimated reason=none sd=1.1143457278601838
-GCST90278111			passed	20690129	passed	not_listed	passed	eaf_orientation=passed gate_reason=ok r=0.8735068797095779	passed	assigned_ancestry=AFR gate_reason=ok	passed	status=estimated reason=none sd=1.1017563329027467
+GCST90278111	true	mis_scaled_z	passed	20690129	passed	not_listed	passed	eaf_orientation=passed gate_reason=ok r=0.8735068797095779	passed	assigned_ancestry=AFR gate_reason=ok	passed	status=estimated reason=none sd=1.1017563329027467
 GCST90278112			passed	20697552	passed	not_listed	passed	eaf_orientation=passed gate_reason=ok r=0.873206256836887	passed	assigned_ancestry=AFR gate_reason=ok	passed	status=estimated reason=none sd=1.1175041850092835
 GCST90278113			passed	20683359	passed	not_listed	passed	eaf_orientation=passed gate_reason=ok r=0.8734076898368099	passed	assigned_ancestry=AFR gate_reason=ok	passed	status=estimated reason=none sd=1.101803070504583
 GCST90295952			passed	14079198	passed	not_listed	passed	eaf_orientation=passed gate_reason=ok r=0.8573727158425294	passed	assigned_ancestry=AFR gate_reason=ok	passed	status=estimated reason=none sd=0.9881424929159073

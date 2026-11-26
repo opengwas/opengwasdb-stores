@@ -196,4 +196,18 @@ notes: 'Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), sc
 
 
 
-  2026-11-25: recipe amended (#530, epic #520) to add `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.'
+  2026-11-25: recipe amended (#530, epic #520) to add `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.
+
+  Clumps added in place (issues #520 and #532, 2026-11-26). The owner approved the run on 26 Nov 2026
+  (command, host, budget and publication effect). An unforced `pixi run -e workflow release OGS-00006`
+  (ADR 0043, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb clump --ld-store
+  EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store` (21.4 s) and validate
+  (79.1 s), from 13:02:30 to 13:04:21 UTC (1 min 51 s wall, peak RSS 3,075,508 kB; 1-minute load
+  average 53 at the start, 68 at the end (mean 66)). The new record is `passed_with_warnings` for the
+  1,397 EAF-orientation warnings it already had, no others (a plain rebuild with no `rewrite` block,
+  so the in-place judge applies no deviation rule and adds none). has_clumps is true; n_loci_5e8 4,389
+  and n_unclumped_5e8 63,690 (all absent from the LD Store, none ambiguous); the p_5e_08 tier holds
+  382,194 rows, 294,016 with a Clump Lead; store_bytes 1,682,988,626 to 1,683,609,576. Read without
+  pysam, Ragged: no Rho, the Clumps read, and z, se and eaf of three Analyses equal the archived
+  Store''s. The previous Store, records and Validation Record are archived at
+  replaced/20261126T130235Z.'

@@ -107,3 +107,25 @@ notes: |
   at validated.
 
   2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00015 (EAS), the Dense Store on the same panel and ancestry. It also adds `post.clumps` with `post.ld_stores` (EAS: the `hgdp1kgp-v2-EAS-k10.store` LD Store). These amendments are the owner's, accepted on #522.
+
+  Completed in place at format 0.3.0, with Clumps (issues #520 and #532, 2026-11-26). The owner approved
+  the run on 26 Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow
+  release OGS-00025` at engine 0.23.0 (e97f07b5, with #533e) ran `complete` (431.9 s), `completion-clump`
+  (6.2 s), `completion-validate` (24.6 s) and `completion-observed-view-check` (187.0 s) and published: 11
+  min 34.8 s wall, peak RSS 3,141,388 kB, load average 126 before and 63 after. Times: 14:27:56 to
+  14:39:31 UTC. The completion phase published the completed Store, `OGS-00025-completed` as its release
+  identity, in place of the Observed-Only Store; it takes no force (ADR 0037). Counts, Observed-Only to
+  completed: variants 1,129,442 to 2,293,885, associations 7,086,100 to 8,557,552, store_bytes 179,352,272
+  to 280,497,904; 1038 Analyses, identical. The Observed-View Check passed (max |dz|, |dse|, |deaf| all
+  0.0, no failures, 184.9 s; axis order preserved). Clumps: n_loci_5e8 404,
+  n_unclumped_5e8 461 (all absent from the hgdp1kgp-v2-EAS LD Store, none ambiguous); the p_5e_08 tier
+  holds 2,692 rows, 1,934 with a Clump Lead and 758 without (the imputed rows and the 461 absent markers).
+  validate reports no errors and 1,039 warnings: 1,038 EAF-orientation (one per Analysis, as before) and
+  the note that the Analyses were resolved with opengwasdb 0.1.0, both carried from the Observed-Only
+  record. The Validation Record is the one `register` wrote. Read without pysam: the envelope equals the
+  closed 0.3.0 Reference-Completed Ragged set (index.sqlite for `completion_quality`, regions.tsv, no
+  variant_offsets.npy); variant_count equals the record; 200 observed source SNV rows of each of three
+  Analyses match z (worst |dz| 0.00049); an imputed cell reads (GCST90203092 at 7:98425309:GTA:G (z 0.576,
+  se 0.333, eaf 0.938)); the Clumps read. The Observed-Only Store, its records and its Validation Record
+  are archived at /data/opengwasdb/stores/OGS-00025/replaced/20261126T143926Z/. The Release Status is
+  unchanged at validated.

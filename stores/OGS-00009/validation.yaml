@@ -1,5 +1,5 @@
 status: passed_with_warnings
-validated_at: '2026-11-26T10:40:26.378356Z'
+validated_at: '2026-11-26T15:40:13.508438Z'
 validator:
   name: opengwasdb validate
   version: opengwasdb@e97f07b51094e4635db571f72407fcdb7f8d56e7
@@ -13,6 +13,9 @@ build_environment:
     opengwasdb_version: 0.23.0
     steps:
     - rewrite-release
+    - completion-rho
+    - completion-clump
+    - completion-overview
     - completion-validate
 observed:
   format_version: 0.3.0
@@ -21,14 +24,14 @@ observed:
   n_associations: null
   association_coverage: null
   reference_assembly: null
-  store_bytes: 61438583342
+  store_bytes: 61462766669
   has_hm3: true
-  has_rho: null
-  has_clumps: null
-  n_loci_5e8: null
-  n_unclumped_5e8: null
+  has_rho: true
+  has_clumps: true
+  n_loci_5e8: 76821
+  n_unclumped_5e8: 732086
   n_top_hits: null
-  build_elapsed_s: 167434.802
+  build_elapsed_s: 168358.604
   validate_status: passed_with_warnings
   completion_state: reference_completed
 checks:
@@ -89,8 +92,8 @@ acceptance:
     no AF-assigned ancestry records were supplied; checks.ancestry=not_run (run `opengwasdb
     assign-ancestry` before acceptance/build, #222)'
 replaced:
-  archive: /data/opengwasdb/stores/OGS-00009/replaced/20261126T102436Z
-  replaced_at: '2026-11-26T10:40:26.378356Z'
+  archive: /data/opengwasdb/stores/OGS-00009/replaced/20261126T150853Z
+  replaced_at: '2026-11-26T15:40:13.508438Z'
 rewrite:
   record: /data/opengwasdb/stores/OGS-00009/records/rewrite-release.json
   staged: /data/opengwasdb/stores/OGS-00009/store.opengwasdb.0.3.0
@@ -113,3 +116,16 @@ rewrite:
   - variant_table.lifted_contig
   - variant_table.source_alid
   carried_warnings: []
+post_additions:
+- added_at: '2026-11-26T15:40:13.508438Z'
+  steps:
+  - completion-rho
+  - completion-clump
+  - completion-overview
+  records:
+  - /data/opengwasdb/stores/OGS-00009/records/completion-rho.json
+  - /data/opengwasdb/stores/OGS-00009/records/completion-clump.json
+  - /data/opengwasdb/stores/OGS-00009/records/completion-overview.json
+  - /data/opengwasdb/stores/OGS-00009/records/completion-validate.json
+  release_id: b607e5d9-cd41-46d6-8d8e-92abce072f4a
+  replaced_archive: /data/opengwasdb/stores/OGS-00009/replaced/20261126T150853Z

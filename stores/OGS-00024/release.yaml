@@ -115,3 +115,29 @@ notes: |
   was forced (#309); deleting it is the owner's call. The Release Status is unchanged at validated.
 
   2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00013 (AFR), the Dense Store on the same panel and ancestry. It also adds `post.clumps` with `post.ld_stores` (AFR: the `hgdp1kgp-v2-AFR-k10.store` LD Store). These amendments are the owner's, accepted on #522.
+
+  Completed in place at format 0.3.0, with Clumps (issues #520 and #532, 2026-11-26). The owner approved
+  the run on 26 Nov 2026 (command, host, budget and publication effect). The first attempt (an unforced
+  `pixi run -e workflow release OGS-00024`, started before the #533e fix) ran `complete` (3,520.3 s),
+  `completion-clump` (29.3 s), `completion-validate` (99.2 s) and `completion-observed-view-check` (373.5
+  s), then refused at `completion_register` for want of a build-phase `clump` record (1 h 7 min 39 s wall,
+  peak RSS 14,385,212 kB, load average 74 before and 76 after). Its logs are in
+  logs/532/OGS-00024/attempt-register-refused/. The Observed-Only Store stayed published and nothing was
+  archived. After #533e the unforced run resumed at `completion_register` and published in 29 s (peak RSS
+  415 MB; load 66 to 123), 14:27:17 to 14:27:47 UTC. Times: 2026-11-26 13:03:37 to 14:11:16 UTC. The
+  completion phase published the completed Store, `OGS-00024-completed` as its release identity, in place
+  of the Observed-Only Store; it takes no force (ADR 0037). Counts, Observed-Only to completed: variants
+  6,755,355 to 12,703,501, associations 30,640,279 to 53,236,797, store_bytes 977,550,128 to
+  1,592,364,649; 1034 Analyses, identical. The Observed-View Check passed (max |dz|, |dse|, |deaf| all
+  0.0, no failures, 370.5 s; the child's variant order is not the parent's, and every parent row maps). Clumps: n_loci_5e8 4005, n_unclumped_5e8 1226 (all absent from the hgdp1kgp-v2-AFR
+  LD Store, none ambiguous); the p_5e_08 tier holds 14,314 rows, 12,224 with a Clump Lead and 2,090
+  without (the imputed rows and the 1226 absent markers). validate reports no errors and 1,030 warnings:
+  1,029 EAF-orientation (one per Analysis, as before) and the note that the Analyses were resolved with
+  opengwasdb 0.1.0, both carried from the Observed-Only record. The Validation Record is the one
+  `register` wrote. Read without pysam: the envelope equals the closed 0.3.0 Reference-Completed Ragged
+  set (index.sqlite for `completion_quality`, regions.tsv, no variant_offsets.npy); variant_count equals
+  the record; 200 observed source SNV rows of each of three Analyses match z (worst |dz| 0.00049); an
+  imputed cell reads (GCST90201021 at 3:183590199:C:CTT (z -0.271, se 0.438, eaf 0.952)); the Clumps read.
+  The Observed-Only Store, its records and its Validation Record are archived at
+  /data/opengwasdb/stores/OGS-00024/replaced/20261126T142741Z/. The Release Status is unchanged at
+  validated.
