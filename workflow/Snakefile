@@ -64,6 +64,9 @@ from ogstores.plan import (
     plan,
     release_register,
 )
+# The LD Store Registry writes ld-resources.tsv for the index rule (#536).
+from ld_registry import index as ld_index
+from ld_registry.record import LD_ROOT as LD_RECORDS
 
 REGISTRY_ROOT: Path = Path(config.get("registry_root", "stores"))
 if not REGISTRY_ROOT.is_dir() and (Path.cwd() / "stores").is_dir():
@@ -477,9 +480,19 @@ rule index:
         [str(REGISTRY_ROOT / sid / "release.yaml") for sid in ALL_STORE_IDS],
         [str(REGISTRY_ROOT / sid / "build.yaml") for sid in ALL_STORE_IDS],
         [str(REGISTRY_ROOT / sid / "analyses.tsv") for sid in ALL_STORE_IDS],
+        # The LD Store Registry's records (#536). The rule declares no output:
+        # a rule without one always runs, so `index-ci` regenerates every view
+        # on a fresh checkout instead of trusting its files' mtimes.
+        sorted(str(p) for p in (REGISTRY_ROOT / "ld").glob("OGL-*/record.yaml")),
+        # The LD panels' declarations (#540): their rows are listed beside the records.
+        sorted(str(p) for p in ld_index.resources_root_of(LD_RECORDS).glob("*/resource.yaml")),
     run:
+        index_repo_root = Path(workflow.basedir).parent if hasattr(workflow, "basedir") else Path.cwd()
         index.generate_index(
             registry_root=REGISTRY_ROOT,
-            repo_root=Path(workflow.basedir).parent if hasattr(workflow, "basedir") else Path.cwd(),
+            repo_root=index_repo_root,
             artifact_root=config.get("artifact_root"),
+            ld_section=ld_index.generate_ld_index(
+                REGISTRY_ROOT / "ld", index_repo_root, ld_index.resources_root_of(index_repo_root / LD_RECORDS),
+            ),
         )

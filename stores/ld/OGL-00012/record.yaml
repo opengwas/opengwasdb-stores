@@ -1,0 +1,130 @@
+# LD Store record (docs/spec/ld-store-registry.md, ADR 0042).
+# kind, location, provenance, provenance_sha256 and measured are written by
+# `python3 -m ld_registry write`; a person writes every other field, and the
+# writer keeps it as written.
+ld_id: OGL-00012
+kind: ld_store
+label: panukb-EUR-k15
+status: built
+licence: CC BY 4.0
+used_for: Data API LD (large-panel EUR)
+issue: ogld#10
+notes: 'imported from Pan-UKB''s published LD matrix, not built from genotypes; served only after ogdb-api#194 and ogdb-api#195. chr1-14 were written by ogld 0.8.0 and chr15-22 and the join by 0.8.1 (owner ruling, ogld#10), so the provenance''s software.ogld reads 0.8.1; its build.wall_seconds is the last run''s, not the ~56 h of running in all. rebuild: these are #10''s own commands (/data/opengwasdb/work/orchestrate/ogld-88/scripts/run10.sh, results/10/import-time.txt and validate-time.txt), `ogld <sub>` being read as `opengwasdb ld <sub>`: the import ran at 0.8.0 until chr15 was refused (ogld#102), then the same command resumed at 0.8.1, which re-planned chr15, closed chr15-22 and joined, and 0.8.1 validated; 0.8.0''s plan differs from 0.8.1''s on chr15 alone (3 invalid_frequency). One change from what ran: #10 wrote the Store at /data/opengwasdb/work/ogld/scratch/10/panukb-EUR-k15.store with --work /data/opengwasdb/work/ogld/scratch/10/work and moved it here on the same filesystem, so the commands name its location and a work directory beside it (/data/opengwasdb/ld-stores/panukb-EUR-k15/work, which never existed), which a rebuild moves into its new directory. Its four inputs are recorded with the digests its source.sha256 holds (each file re-hashed equal on 25 November 2026). The variants table was exported from Pan-UKB''s UKBB.EUR.ldadj.variant.ht by ogld''s scripts/export_panukb_variants.py (now opengwasdb''s scripts/ld/) with Hail 0.2.120 on 22 November 2026; its command line is not recorded, and the Hail log (/data/opengwasdb/work/ogld/scratch/10/hail/hail-export.log) holds the query it ran. A full rebuild downloads about 13.9 TB; the acceptance is `pixi run ld-stores rebuild OGL-00012 --out <dir> --plan-only`, its plan compared with #10''s (/data/opengwasdb/work/orchestrate/ogld-88/results/10/plan-final.json) by `pixi run ld-stores compare-plan` (#542)'
+rebuild:
+  repository: opengwas/ogld
+  version: 0.8.0 (the plan and chr1-14), 0.8.1 (chr15-22, the join and the validation)
+  script: ogld import
+  commands:
+  - pixi run -e dev ogld import /data/opengwasdb/ld-stores/panukb-EUR-k15/panukb-EUR-k15.store --work /data/opengwasdb/ld-stores/panukb-EUR-k15/work --metadata /data/opengwasdb/work/ogld/scratch/88/downloads/bm-metadata.json --variants /data/opengwasdb/work/ogld/scratch/10/variants-autosomes.tsv.bgz --chain /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz --fasta /data/opengwasdb/work/ogld/scratch/10/downloads/hg38.fa.gz --parts /data/opengwasdb/work/ogld/scratch/88/blocks --delete-parts --download-workers 8 --threads 16
+  - pixi run -e dev ogld validate --threads 16 /data/opengwasdb/ld-stores/panukb-EUR-k15/panukb-EUR-k15.store
+  inputs:
+    metadata:
+      path: /data/opengwasdb/work/ogld/scratch/88/downloads/bm-metadata.json
+      sha256: 80090e3ffe90add91d5f917d3cbd25b80ff125e6f76c973b8cce004b4e718d2d
+    variants:
+      path: /data/opengwasdb/work/ogld/scratch/10/variants-autosomes.tsv.bgz
+      sha256: 11b72c8b46ee3f5cb00b881acd8b25eb75f42b6b28f91d1c3028374e0e8ac1ad
+    chain:
+      path: /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz
+      sha256: 5c0598e500ceb5a78c73086929e8ef993aec309bcafb595139b53d440b125a1d
+    fasta:
+      path: /data/opengwasdb/work/ogld/scratch/10/downloads/hg38.fa.gz
+      sha256: c1dd87068c254eb53d944f71e51d1311964fce8de24d6fc0effc9c61c01527d4
+location: /data/opengwasdb/ld-stores/panukb-EUR-k15/panukb-EUR-k15.store
+provenance:
+  source_kind: ld_matrix
+  source_description:
+    displaced_by_chromosome:
+      '1': 315
+      '10': 662
+      '11': 5026
+      '12': 0
+      '13': 0
+      '14': 0
+      '15': 0
+      '16': 6
+      '17': 0
+      '18': 0
+      '19': 0
+      '2': 4
+      '20': 0
+      '21': 0
+      '22': 0
+      '3': 0
+      '4': 0
+      '5': 0
+      '6': 5503
+      '7': 1
+      '8': 0
+      '9': 863
+    displaced_cap: 10000
+    far_bp_by_chromosome:
+      '1': 8977300
+      '10': 8084271
+      '11': 9839799
+      '12': 9759131
+      '13': 9882939
+      '14': 9998677
+      '15': 9143750
+      '16': 9956141
+      '17': 9946474
+      '18': 9859135
+      '19': 9619901
+      '2': 9354575
+      '20': 9959107
+      '21': 8523810
+      '22': 9591521
+      '3': 9935303
+      '4': 9135850
+      '5': 9952552
+      '6': 8847189
+      '7': 9514744
+      '8': 8937840
+      '9': 8032456
+    far_target_bp: 8000000
+    licence: CC BY 4.0
+    liftover_chain: /data/opengwasdb/reference/liftover/hg19ToHg38.over.chain.gz
+    producer_commit: ca9a04cd4c95ebcd6eb92b2096281508b8becf86
+    qc: 'Pan-UKB published QC: MAC >= 20, INFO > 0.8; not reapplied'
+    transformation: r_ij = C_ij / sqrt(C_ii * C_jj); oriented to engine A1
+    url: https://pan-ukb-us-east-1.s3.us-east-1.amazonaws.com/ld_release/UKBB.EUR.ldadj.bm
+  source_panel: Pan-UKB-EUR
+  ancestry: EUR
+  n: 420542
+  k: 15
+  reference_assembly: GRCh38
+  format_version: 0.2.0
+  r_scale: 2047
+  near_bp: 3000000
+  far_bp: 8032456
+  t_far: 0.001
+  t_partner: 0.001
+  n_variants: 23128732
+  counts:
+    alids_left_out: 27238
+    far_candidates: 941406012182
+    far_pairs: 5479773560
+    near_pairs: 600720253889
+    partner_entries: 72801425594
+  variants_dropped:
+    allele_mismatch: 16470
+    duplicate_reversed_indel: 0
+    invalid_frequency: 6
+    liftover_allele_span: 153
+    liftover_chromosome_or_strand: 3025
+    liftover_displaced: 12380
+    liftover_identity_collision: 594
+    liftover_missing_or_ambiguous: 7744
+    nonfinite_diagonal: 0
+    nonpositive_diagonal: 0
+    zero_variance: 0
+  software:
+    numpy: 2.4.6
+    ogld: 0.8.1
+    zarr: 3.4.2
+    zstd: 1.5.6
+  created_at: '2026-11-25T01:02:27.639100+00:00'
+  wall_seconds: 30258.833604020067
+provenance_sha256: fa1eebcdf922d6c4ae6bec94ae8ebcc974af314fff1508d6e008bcdd37306431
+measured:
+  store_bytes: 675025258262

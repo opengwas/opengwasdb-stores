@@ -16,6 +16,18 @@ ld:
   block_file: ld_regions_hg38.tsv
   components_retained: variance_driven
   components_cumvar_target: 0.99
+  n_variants:
+    AFR: 14136388
+    EAS: 8728585
+    SAS: 9618254
+  n_blocks:
+    AFR: 1580
+    EAS: 1120
+    SAS: 1267
+  bytes:
+    AFR: 61615133621
+    EAS: 37595218297
+    SAS: 38938295375
 source:
   cohort: HGDP + 1kGP harmonised callset
   n_individuals:
@@ -35,6 +47,13 @@ description: >
   `ukb-hg38-eur-ld`, but variant identifiers are canonical store ALIDs
   (`chr:pos:a1:a2`) rather than the EUR panel's `chr:pos_ref_alt`, so allele
   orientation is unambiguous at rest.
+ld_ids:
+  AFR: OGL-00014
+  EAS: OGL-00015
+  SAS: OGL-00016
+used_for: reference completion (opengwasdb complete-dense)
+licence: to confirm
+index_notes: "MAC >= 50; repaired in place 2026-11-02 (stores#348); ADR 0020"
 status: available
 notes: >
   Structurally lower-powered than the EUR panel: HGDP+1kGP provides roughly

@@ -18,6 +18,12 @@ ld:
   components_retained: variance_driven
   components_cumvar_target: 0.99
   component_floor: 250
+  n_variants:
+    AMR: 12669255
+  n_blocks:
+    AMR: 1357
+  bytes:
+    AMR: 21012529996
 source:
   cohort: gnomAD v3.1.2 HGDP+1kGP harmonised callset, 1kGP Phase 3 AMR samples only
   n_individuals:
@@ -42,6 +48,11 @@ description: >
   format and canonical ALIDs as `hgdp1kgp-hg38-ld`. Each block's TSV also
   carries the source record's REF and ALT, which an ALID alone cannot name
   (#348).
+ld_ids:
+  AMR: OGL-00017
+used_for: reference completion (opengwasdb complete-dense)
+licence: to confirm
+index_notes: "EUR block layout; MAF >= 0.01; owner-approved 2026-10-22 (stores#241)"
 status: available
 notes: >
   Owner-approved on 2026-10-22 (#241) as the best AMR reference available until

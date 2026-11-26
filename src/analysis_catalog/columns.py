@@ -7,6 +7,8 @@ are in (`INDEXES`, `SEARCH`), which is faster than maintaining them per insert.
 
 from __future__ import annotations
 
+from ld_registry.rows import COLUMN_TYPES
+
 # column -> SQLite type, in table order.
 STORE_COLUMNS: dict[str, str] = {
     "store_id": "TEXT PRIMARY KEY",
@@ -93,6 +95,19 @@ ANALYSIS_COLUMNS: dict[str, str] = {
     **DERIVED_COLUMNS,
 }
 
+# The LD Store Registry's columns in its order, typed by `ld_registry.rows.COLUMN_TYPES`,
+# which refuses a column without a type. A missing value is NULL, never 0 or '' (#537).
+_LD_SQL_TYPES = {"text": "TEXT", "integer": "INTEGER", "real": "REAL"}
+LD_RESOURCES_COLUMNS: dict[str, str] = {
+    column: (
+        "TEXT PRIMARY KEY" if column == "ld_id"
+        # 1 for the record that declares itself its ancestry's default.
+        else 'INTEGER CHECK ("default" IN (1))' if column == "default"
+        else _LD_SQL_TYPES[kind]
+    )
+    for column, kind in COLUMN_TYPES.items()
+}
+
 # The columns a listing can be sorted or filtered by, each with an index on (column, id) for
 # `ORDER BY col, id` and keyset paging. `id` itself has a partial index of its own
 # (`INDEXES`): the primary key covers placeholder rows too, so it cannot serve a
@@ -114,14 +129,22 @@ COUNT_DIMENSIONS: dict[str, str] = {
 }
 
 
-def _create(table: str, columns: dict[str, str]) -> str:
-    body = ",\n    ".join(f"{name} {kind}" for name, kind in columns.items())
-    return f"CREATE TABLE {table} (\n    {body}\n)"
+def quoted(name: str) -> str:
+    """A column name as an SQL identifier: `default` is a keyword."""
+    return '"' + name.replace('"', '""') + '"'
+
+
+def _create(table: str, columns: dict[str, str], suffix: str = "") -> str:
+    body = ",\n    ".join(f"{quoted(name)} {kind}" for name, kind in columns.items())
+    return f"CREATE TABLE {table} (\n    {body}\n){suffix}"
 
 
 DDL: tuple[str, ...] = (
     _create("stores", STORE_COLUMNS),
     _create("analyses", ANALYSIS_COLUMNS),
+    # Few rows, clustered by id in the table's own b-tree: a lookup by `ld_id` reads
+    # the table alone, with no separate key index to fetch (ADR 0041).
+    _create("ld_resources", LD_RESOURCES_COLUMNS, " WITHOUT ROWID"),
     _create("selection", {
         "store_id": "TEXT PRIMARY KEY",
         "decision": "TEXT NOT NULL CHECK (decision IN ('listed', 'placeholder', 'excluded', 'refused'))",
