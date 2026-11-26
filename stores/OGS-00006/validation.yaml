@@ -1,8 +1,8 @@
 status: passed_with_warnings
-validated_at: '2026-11-25T17:02:09.866820Z'
+validated_at: '2026-11-26T13:04:19.603875Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
+  version: opengwasdb@e97f07b51094e4635db571f72407fcdb7f8d56e7
 build_environment:
   opengwasdb_version: 0.20.0
   opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
@@ -13,8 +13,12 @@ build_environment:
     opengwasdb_version: 0.20.0
     steps:
     - complete
-    - completion-validate
     - completion-observed-view-check
+  - opengwasdb_commit: e97f07b51094e4635db571f72407fcdb7f8d56e7
+    opengwasdb_version: 0.23.0
+    steps:
+    - completion-clump
+    - completion-validate
 observed:
   format_version: 0.3.0
   n_analyses: 1400
@@ -22,13 +26,16 @@ observed:
   n_associations: 57448827
   association_coverage: signals_only
   reference_assembly: null
-  store_bytes: 1682988626
+  store_bytes: 1683609576
   has_hm3: false
   has_rho: null
   n_top_hits: null
-  build_elapsed_s: 5341.383
+  build_elapsed_s: 5349.309
   validate_status: passed_with_warnings
   completion_state: reference_completed
+  has_clumps: true
+  n_loci_5e8: 4389
+  n_unclumped_5e8: 63690
 checks:
   store: passed_with_warnings
 warnings:
@@ -2828,5 +2835,14 @@ warnings:
   overlap the reference, fewer than 500'
 errors: []
 replaced:
-  archive: /data/opengwasdb/stores/OGS-00006/replaced/20261125T170209Z
-  replaced_at: '2026-11-25T17:02:09.866820Z'
+  archive: /data/opengwasdb/stores/OGS-00006/replaced/20261126T130235Z
+  replaced_at: '2026-11-26T13:04:19.603875Z'
+post_additions:
+- added_at: '2026-11-26T13:04:19.603875Z'
+  steps:
+  - completion-clump
+  records:
+  - /data/opengwasdb/stores/OGS-00006/records/completion-clump.json
+  - /data/opengwasdb/stores/OGS-00006/records/completion-validate.json
+  release_id: OGS-00006-completed
+  replaced_archive: /data/opengwasdb/stores/OGS-00006/replaced/20261126T130235Z
