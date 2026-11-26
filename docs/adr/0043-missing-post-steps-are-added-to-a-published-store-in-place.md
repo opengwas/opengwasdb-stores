@@ -255,3 +255,25 @@ adds:
   renamed, not copied. It shares the unchanged blocks with the published copy.
   It costs the blocks the added steps rewrote, and its own inodes and
   metadata, and nothing deletes it.
+
+## Amendment, 26 Nov 2026: a completed Hybrid's additions begin with a recount
+
+`complete-hybrid` left a Hybrid's `n_hits_5e8`, `n_hits_5e6` and `n_hits_5e4`
+stale, and the engine now fails the release for it (`analyses.top_hit_counts`,
+opengwasdb#509). The owner ruled (item 10,
+<https://github.com/opengwas/opengwasdb-stores/issues/520#issuecomment-7202276131>)
+that the recount runs inside this route: reflink copy, recount, then the
+missing post steps, validate and publish, the old Store archived.
+
+When this route adds anything to a completed Hybrid, its plan begins with
+`opengwasdb recount-top-hits <Store>` (`recount-top-hits`, or
+`completion-recount-top-hits` in a completion phase), before the addable steps
+and the overview. It is not an addition and does not make a release this
+mode's: like the overview, it accompanies additions, so the principle that this
+route adds only missing steps stands. The trigger is every such run, not the
+engine that wrote the Store, because the command is idempotent (it writes only
+a table whose counts change) and takes seconds. `plan()` never holds the step:
+a fresh or forced build's `complete-hybrid` recounts itself. A completed
+Hybrid that needs only a recount, with nothing to add, is not taken by this
+route; that is a follow-up if one turns up. The step's record, elapsed time
+and the register's `inputs` are like any step this run ran.

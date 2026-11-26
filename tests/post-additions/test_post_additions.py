@@ -77,7 +77,7 @@ N_LOCI = 3
 STUB = """#!{python}
 import json, sys
 from pathlib import Path
-known = ("info", "validate", "build-dense-rho", "clump", "regenerate-overview")
+known = ("info", "validate", "build-dense-rho", "clump", "regenerate-overview", "recount-top-hits")
 command = sys.argv[1]
 if sys.argv[2:] == ["--help"]:
     sys.exit(0 if command in known else 2)
@@ -96,6 +96,8 @@ elif command == "build-dense-rho":
 elif command == "clump":
     (store / "clumps").write_text(" ".join(sys.argv[3:]) + "\\n")
     print(json.dumps({{"n_loci_5e8": {n_loci}, "n_unclumped_5e8": 0}}))
+elif command == "recount-top-hits":
+    (store / "recount").write_text("after-rho" if (store / "rho").exists() else "before-rho")
 elif command == "regenerate-overview":
     (store / "overview.html").write_text("rho" if (store / "rho").exists() else "no rho")
 else:
@@ -411,6 +413,91 @@ class TestAdding(PostAdditionsCase):
             {"completion_state": "reference_completed", "complete": {"command": "complete-dense"}}
         ))
         self.assertIsNone(self.fx.assess())
+
+
+class TestRecountTopHits(PostAdditionsCase):
+    """A completed Hybrid's additions begin with `recount-top-hits` (opengwasdb#509, #532, ADR 0043)."""
+
+    def completed_hybrid(self) -> None:
+        """The fixture's Store stands for a completed Hybrid; `plan()` and the stub engine are the same."""
+        patcher = mock.patch.object(post_additions, "_completed_hybrid", return_value=True)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_the_plan_recounts_before_rho_clump_and_overview(self) -> None:
+        self.completed_hybrid()
+        before = self.fx.state()
+
+        code, out, err = self.release(STORE_ID, "--dry-run")
+
+        self.assertEqual(code, 0, out + err)
+        planned = [line.split(":", 1)[0].strip() for line in out.splitlines() if line.startswith("  ")]
+        self.assertEqual(planned, ["recount-top-hits", "rho", "clump", "overview", "validate", "register"], out)
+        self.assertIn(f"recount-top-hits: opengwasdb recount-top-hits {self.fx.store}", out)
+        self.assert_untouched(before)
+
+    def test_a_run_recounts_first_and_records_it(self) -> None:
+        self.completed_hybrid()
+
+        written = self.add()
+
+        assert written is not None
+        self.assertEqual((self.fx.store / "recount").read_text(), "before-rho")
+        self.assertEqual(written[post_additions.BLOCK][0]["steps"], ["recount-top-hits", "rho", "clump", "overview"])
+        record = run.read_record(paths.record_path(STORE_ID, "recount-top-hits", root=self.fx.root))
+        self.assertEqual(record["exit_code"], 0)
+        register_record = run.read_record(paths.record_path(STORE_ID, "register", root=self.fx.root))
+        self.assertEqual(
+            [Path(p).stem for p in register_record["inputs"]],
+            ["build", "indexed-subset-hm3", "recount-top-hits", "rho", "clump", "overview", "validate"],
+        )
+        # Its seconds are in the elapsed sum, like any step this run ran.
+        ran = sum(
+            run.read_record(paths.record_path(STORE_ID, s, root=self.fx.root))["elapsed_seconds"]
+            for s in ("recount-top-hits", "rho", "clump", "overview", "validate")
+        )
+        self.assertAlmostEqual(written["observed"]["build_elapsed_s"], round(100.0 - 10.0 - 10.0 + ran, 3), places=3)
+        # The route does not reschedule it, and a fresh plan never holds it.
+        self.assertTrue(post_additions.current(self.fx.bundle(), self.fx.root))
+        self.assertNotIn("recount-top-hits", [s.name for s in plan(self.fx.bundle(), artifact_root=self.fx.root)])
+
+    def test_a_failing_recount_publishes_nothing(self) -> None:
+        self.completed_hybrid()
+        before = self.fx.state()
+        # The staged copy is a reflink of the published Store, so the marker reaches it from there.
+        (self.fx.store / "stub-fail-recount-top-hits").write_text("")
+        before = self.fx.state()
+        self.assert_refused("recount-top-hits failed on purpose")
+
+    def test_nothing_is_recounted_for_a_release_that_is_not_a_completed_hybrid(self) -> None:
+        planned = [s.name for s in self.fx.assess().steps]
+        self.assertNotIn("recount-top-hits", planned)
+
+    def test_the_trigger_is_a_completed_hybrid_and_the_completion_phase_names_it(self) -> None:
+        from types import SimpleNamespace
+
+        def release(layout: str, completion_state: str, own: bool) -> Any:
+            return SimpleNamespace(
+                store_id=STORE_ID, layout=layout, completion_state=completion_state, completes_own_store=own
+            )
+
+        hybrid = release("hybrid", "reference_completed", True)
+        step = post_additions._recount_step(hybrid, "completion", self.fx.root)
+        assert step is not None
+        self.assertEqual((step.name, step.phase), ("completion-recount-top-hits", "completion"))
+        self.assertEqual(step.argv, ["opengwasdb", "recount-top-hits", str(self.fx.store)])
+        # A completed Hybrid that published once, a two-id child, is the build phase's.
+        child = post_additions._recount_step(release("hybrid", "reference_completed", False), "build", self.fx.root)
+        assert child is not None
+        self.assertEqual(child.name, "recount-top-hits")
+        for other in (
+            (release("hybrid", "observed_only", False), "build"),
+            (release("dense", "reference_completed", True), "completion"),
+            (release("ragged", "reference_completed", False), "build"),
+        ):
+            self.assertIsNone(post_additions._recount_step(other[0], other[1], self.fx.root))
+        # The Observed-Only phase of a Hybrid that completes its own Store has nothing to recount.
+        self.assertIsNone(post_additions._recount_step(hybrid, "build", self.fx.root))
 
 
 class TestFailures(PostAdditionsCase):
