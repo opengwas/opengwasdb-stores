@@ -1796,6 +1796,69 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         self.assertFalse(paths.publication_marker(b.store_id, root=artifact_root).exists())
         self.assertFalse(paths.partial_store_path(b.store_id, root=artifact_root).exists())
 
+    def build_without_a_step_the_recipe_now_plans(self) -> tuple[Bundle, Path, Path]:
+        """A build published before `post.clumps` joined the recipe (#532, ADR 0043).
+
+        The recipe plans a build-phase `clump`; the published build never ran it,
+        and its register verified only the steps it ran.
+        """
+        b, stores_root, artifact_root = create_test_bundle_and_records(
+            self.td,
+            self.STORE_ID,
+            completion_state="reference_completed",
+            command="complete-dense",
+            options={"ld-panel": "/data/ld", "ancestry": "EUR"},
+            post={
+                "top_hits": False, "rho": False, "clumps": True,
+                "ld_stores": {"EUR": "/ld/EUR"}, "overview": True, "validate": True,
+            },
+        )
+        self.publish_build_phase(b, stores_root, artifact_root)
+        register_p = paths.record_path(b.store_id, "register", root=artifact_root)
+        clump_p = paths.record_path(b.store_id, "clump", root=artifact_root)
+        record = json.loads(register_p.read_text())
+        record["inputs"] = [path for path in record["inputs"] if Path(path).stem != "clump"]
+        register_p.write_text(json.dumps(record))
+        clump_p.unlink()
+        return bundle.load(b.store_id, registry_root=stores_root), stores_root, artifact_root
+
+    def test_a_post_step_added_after_the_build_published_is_not_required_of_it(self) -> None:
+        b, stores_root, artifact_root = self.build_without_a_step_the_recipe_now_plans()
+        planned = plan(b, artifact_root=artifact_root)
+        self.assertIn("clump", [s.name for s in planned if s.phase == "build"], "the recipe plans it")
+
+        written = register_release(b, registry_root=stores_root, artifact_root=artifact_root, phase="completion")
+
+        # The elapsed total is the steps that ran: the build's and the completion's, not the missing one.
+        ran = [s.name for s in planned if paths.record_path(b.store_id, s.name, root=artifact_root).is_file()]
+        self.assertNotIn("clump", ran)
+        self.assertEqual(written["observed"]["build_elapsed_s"], 5.0 * len(ran) - 5.0 * sum(
+            1 for name in ran if name in ("register", "completion-register")))
+
+    def test_an_earlier_register_that_cannot_say_what_it_verified_skips_nothing(self) -> None:
+        """No register record, or one with no `inputs`: the missing `clump` record is required."""
+        for name, damage in (
+            ("missing", lambda record_p: record_p.unlink()),
+            ("no inputs", lambda record_p: record_p.write_text(
+                json.dumps({**json.loads(record_p.read_text()), "inputs": []}))),
+        ):
+            with self.subTest(name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    self.td = Path(tmp)
+                    b, stores_root, artifact_root = self.build_without_a_step_the_recipe_now_plans()
+                    damage(paths.record_path(b.store_id, "register", root=artifact_root))
+                    with self.assertRaises(MissingRecordError) as raised:
+                        register_release(b, registry_root=stores_root, artifact_root=artifact_root, phase="completion")
+                    self.assertIn("'clump'", str(raised.exception))
+
+    def test_an_earlier_step_the_build_verified_is_still_required(self) -> None:
+        b, stores_root, artifact_root = self.build_without_a_step_the_recipe_now_plans()
+        paths.record_path(b.store_id, "build", root=artifact_root).unlink()
+
+        with self.assertRaises(MissingRecordError) as raised:
+            register_release(b, registry_root=stores_root, artifact_root=artifact_root, phase="completion")
+        self.assertIn("'build'", str(raised.exception))
+
     def assert_completion_refused(self, check_stdout: str | None, reason: str) -> None:
         """With this check record stdout (None: no record), the completion phase changes nothing (#309)."""
         b, stores_root, artifact_root = self.built_and_completed(Path(tempfile.mkdtemp(dir=self.td)))

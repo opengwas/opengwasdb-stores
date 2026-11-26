@@ -25,7 +25,7 @@ from opengwasdb.model import analyses as opengwasdb_analyses
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 import ogstores.bundle
-from ogstores import bundle, paths
+from ogstores import bundle, engine, paths
 from ogstores.plan import plan
 
 n_checks = 0
@@ -368,6 +368,8 @@ class TestBundleContract(unittest.TestCase):
     # The completions of OGS-00012, OGS-00013, OGS-00014 and OGS-00015 each
     # published a Store of their own, and register wrote the record for what it
     # published (ADR 0037).
+    # Written at the locked engine; when the lock moves, pin the literal commit.
+    AT_LOCK = engine.locked_commit(REPO_ROOT / "pixi.lock")
     MVP_RECORD_RUNTIME = {
         # OGS-00016's record is `publish-rewrite`'s: #525 converted the Store to
         # format 0.3.0 at engine 0.20.0, and validate warns of the one accepted
@@ -381,7 +383,7 @@ class TestBundleContract(unittest.TestCase):
         # OGS-00014's record is `publish-rewrite`'s (#525), as OGS-00013's is.
         "OGS-00014": "931ac16690de9538be203f9cdbb2eb46caa895f4",
         # OGS-00015's record is the in-place Rho and Clumps addition's (#531), validated at engine 0.23.0.
-        "OGS-00015": "e97f07b51094e4635db571f72407fcdb7f8d56e7",
+        "OGS-00015": AT_LOCK,
     }
 
     def assert_mvp_built_record(self, store_id: str, n_analyses: int) -> None:
