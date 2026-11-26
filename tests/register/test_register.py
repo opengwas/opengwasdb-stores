@@ -1835,6 +1835,22 @@ class TestCompletionPhaseRegistration(unittest.TestCase):
         self.assertEqual(written["observed"]["build_elapsed_s"], 5.0 * len(ran) - 5.0 * sum(
             1 for name in ran if name in ("register", "completion-register")))
 
+    def test_an_earlier_register_that_cannot_say_what_it_verified_skips_nothing(self) -> None:
+        """No register record, or one with no `inputs`: the missing `clump` record is required."""
+        for name, damage in (
+            ("missing", lambda record_p: record_p.unlink()),
+            ("no inputs", lambda record_p: record_p.write_text(
+                json.dumps({**json.loads(record_p.read_text()), "inputs": []}))),
+        ):
+            with self.subTest(name):
+                with tempfile.TemporaryDirectory() as tmp:
+                    self.td = Path(tmp)
+                    b, stores_root, artifact_root = self.build_without_a_step_the_recipe_now_plans()
+                    damage(paths.record_path(b.store_id, "register", root=artifact_root))
+                    with self.assertRaises(MissingRecordError) as raised:
+                        register_release(b, registry_root=stores_root, artifact_root=artifact_root, phase="completion")
+                    self.assertIn("'clump'", str(raised.exception))
+
     def test_an_earlier_step_the_build_verified_is_still_required(self) -> None:
         b, stores_root, artifact_root = self.build_without_a_step_the_recipe_now_plans()
         paths.record_path(b.store_id, "build", root=artifact_root).unlink()
