@@ -13,6 +13,7 @@
   "issue": "opengwas/opengwasdb-stores#212",
   "max_start_load": 0.0,
   "measured_at": "2026-11-26T19:16:31.376180+00:00",
+  "merged": "OGS-00011 was measured in a separate run at 2026-11-26T22:43:27.981096+00:00 and merged here",
   "reps": 5,
   "shape_errors": [],
   "shapes_source": "benchmarks.benchmark_store_comparison (one Store per run)",
@@ -268,6 +269,367 @@
         ]
       },
       "store_id": "OGS-00009"
+    },
+    {
+      "analysis_id": "GCST000028",
+      "artifact_path": "/data/opengwasdb/stores/OGS-00011/store.opengwasdb",
+      "dense_component": true,
+      "hm3_anchor_note": "bundle's first Analysis GCST000028 is not in the Store; anchored on GCST000998",
+      "hm3_extract": {
+        "analysis_id": "GCST000998",
+        "detail": "",
+        "first_read_ms": 716.0,
+        "median_ms": 702.066,
+        "p95_ms": 731.519,
+        "reps": 5,
+        "result_count": 1189670,
+        "status": "measured",
+        "subset": "hm3",
+        "subset_absent_count": 152,
+        "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+        "subset_n_analyses": 3245,
+        "subset_n_variants": 1195931,
+        "subset_reference_assembly": "hg38",
+        "subset_requested_count": 1206903,
+        "subset_resolved_count": 1195931,
+        "warm_result_count": 1189670
+      },
+      "layout": "hybrid",
+      "load_average": {
+        "after": [
+          76.98,
+          74.47,
+          73.41
+        ],
+        "before": [
+          55.27,
+          69.44,
+          71.99
+        ]
+      },
+      "shapes": {
+        "harness": "benchmark_store_comparison",
+        "harness_hm3_extract": {
+          "analysis_id": "GCST000998",
+          "detail": "",
+          "first_read_ms": 638.736,
+          "median_ms": 657.399,
+          "p95_ms": 688.666,
+          "reps": 5,
+          "result_count": 1189670,
+          "status": "measured",
+          "subset": "hm3",
+          "subset_absent_count": 152,
+          "subset_input_sha256": "4a7c82aa625a006ff437dcaa2769b00e056413d54c72e98f7378327c69513398",
+          "subset_n_analyses": 3245,
+          "subset_n_variants": 1195931,
+          "subset_reference_assembly": "hg38",
+          "subset_requested_count": 1206903,
+          "subset_resolved_count": 1195931,
+          "warm_result_count": 1189670
+        },
+        "status": "measured",
+        "timings": [
+          {
+            "first_call_ms": 33911.809,
+            "load_average_after": [
+              79.33,
+              74.34,
+              73.3
+            ],
+            "load_average_before": [
+              58.18,
+              69.06,
+              71.8
+            ],
+            "median_ms": 29330.708,
+            "p95_ms": 30233.232,
+            "query": "bulk",
+            "repetitions": 5,
+            "result_count": 9770696,
+            "timed_out": false,
+            "warm_ms": [
+              29404.809,
+              29330.708,
+              27859.005,
+              30233.232,
+              27873.719
+            ],
+            "warmup_ms": 39755.944
+          },
+          {
+            "first_call_ms": 77.155,
+            "load_average_after": [
+              79.33,
+              74.34,
+              73.3
+            ],
+            "load_average_before": [
+              79.33,
+              74.34,
+              73.3
+            ],
+            "median_ms": 69.665,
+            "p95_ms": 77.725,
+            "query": "phewas",
+            "repetitions": 5,
+            "result_count": 3233,
+            "timed_out": false,
+            "warm_ms": [
+              69.665,
+              77.725,
+              70.448,
+              67.278,
+              63.24
+            ],
+            "warmup_ms": 82.669
+          },
+          {
+            "first_call_ms": 2330.413,
+            "load_average_after": [
+              71.43,
+              73.01,
+              72.89
+            ],
+            "load_average_before": [
+              79.33,
+              74.34,
+              73.3
+            ],
+            "median_ms": 2250.067,
+            "p95_ms": 2358.461,
+            "query": "regional",
+            "repetitions": 5,
+            "result_count": 13188558,
+            "timed_out": false,
+            "warm_ms": [
+              2264.128,
+              2250.067,
+              2243.972,
+              2358.461,
+              2176.374
+            ],
+            "warmup_ms": 10457.722
+          },
+          {
+            "first_call_ms": 315.603,
+            "load_average_after": [
+              71.43,
+              73.01,
+              72.89
+            ],
+            "load_average_before": [
+              71.43,
+              73.01,
+              72.89
+            ],
+            "median_ms": 212.257,
+            "p95_ms": 297.933,
+            "query": "regional_one_analysis",
+            "repetitions": 5,
+            "result_count": 3745,
+            "timed_out": false,
+            "warm_ms": [
+              287.76,
+              297.933,
+              212.257,
+              162.651,
+              176.941
+            ],
+            "warmup_ms": 318.99
+          },
+          {
+            "first_call_ms": 30.362,
+            "load_average_after": [
+              71.43,
+              73.01,
+              72.89
+            ],
+            "load_average_before": [
+              71.43,
+              73.01,
+              72.89
+            ],
+            "median_ms": 12.077,
+            "p95_ms": 15.895,
+            "query": "tophits",
+            "repetitions": 5,
+            "result_count": 580,
+            "timed_out": false,
+            "warm_ms": [
+              15.425,
+              15.895,
+              12.077,
+              10.935,
+              9.477
+            ],
+            "warmup_ms": 31.823
+          },
+          {
+            "first_call_ms": 1322.145,
+            "load_average_after": [
+              68.52,
+              72.38,
+              72.69
+            ],
+            "load_average_before": [
+              71.43,
+              73.01,
+              72.89
+            ],
+            "median_ms": 1292.336,
+            "p95_ms": 1328.548,
+            "query": "random_lookup_10_variants_100_analyses",
+            "repetitions": 5,
+            "result_count": 208,
+            "timed_out": false,
+            "warm_ms": [
+              1322.863,
+              1272.855,
+              1073.364,
+              1328.548,
+              1292.336
+            ],
+            "warmup_ms": 1322.634
+          },
+          {
+            "first_call_ms": 774.871,
+            "load_average_after": [
+              72.4,
+              73.12,
+              72.93
+            ],
+            "load_average_before": [
+              68.52,
+              72.38,
+              72.69
+            ],
+            "median_ms": 745.275,
+            "p95_ms": 771.982,
+            "query": "random_lookup_100_variants_10_analyses",
+            "repetitions": 5,
+            "result_count": 203,
+            "timed_out": false,
+            "warm_ms": [
+              745.275,
+              742.082,
+              744.052,
+              767.896,
+              771.982
+            ],
+            "warmup_ms": 776.482
+          },
+          {
+            "first_call_ms": 2012.843,
+            "load_average_after": [
+              77.99,
+              74.28,
+              73.31
+            ],
+            "load_average_before": [
+              72.4,
+              73.12,
+              72.93
+            ],
+            "median_ms": 2105.56,
+            "p95_ms": 2139.719,
+            "query": "regional_dense_only",
+            "repetitions": 5,
+            "result_count": 12537046,
+            "timed_out": false,
+            "warm_ms": [
+              1873.924,
+              2105.56,
+              2110.595,
+              2139.719,
+              1917.806
+            ],
+            "warmup_ms": 10225.823
+          },
+          {
+            "first_call_ms": 78.822,
+            "load_average_after": [
+              77.99,
+              74.28,
+              73.31
+            ],
+            "load_average_before": [
+              77.99,
+              74.28,
+              73.31
+            ],
+            "median_ms": 43.791,
+            "p95_ms": 45.575,
+            "query": "regional_one_analysis_dense_only",
+            "repetitions": 5,
+            "result_count": 3743,
+            "timed_out": false,
+            "warm_ms": [
+              43.791,
+              45.257,
+              42.689,
+              45.575,
+              42.721
+            ],
+            "warmup_ms": 81.413
+          },
+          {
+            "first_call_ms": 657.468,
+            "load_average_after": [
+              82.55,
+              75.28,
+              73.64
+            ],
+            "load_average_before": [
+              77.99,
+              74.28,
+              73.31
+            ],
+            "median_ms": 650.582,
+            "p95_ms": 663.527,
+            "query": "random_lookup_10_variants_100_analyses_dense_only",
+            "repetitions": 5,
+            "result_count": 659,
+            "timed_out": false,
+            "warm_ms": [
+              663.527,
+              651.756,
+              650.495,
+              641.301,
+              650.582
+            ],
+            "warmup_ms": 659.614
+          },
+          {
+            "first_call_ms": 1641.273,
+            "load_average_after": [
+              79.19,
+              74.86,
+              73.53
+            ],
+            "load_average_before": [
+              82.55,
+              75.28,
+              73.64
+            ],
+            "median_ms": 1232.779,
+            "p95_ms": 1405.19,
+            "query": "random_lookup_100_variants_10_analyses_dense_only",
+            "repetitions": 5,
+            "result_count": 621,
+            "timed_out": false,
+            "warm_ms": [
+              1150.678,
+              1373.186,
+              1405.19,
+              1182.241,
+              1232.779
+            ],
+            "warmup_ms": 1643.802
+          }
+        ]
+      },
+      "store_id": "OGS-00011"
     },
     {
       "analysis_id": "GCST90475091",
@@ -1783,6 +2145,6 @@
     }
   ],
   "summary": {
-    "measured": 7
+    "measured": 8
   }
 }

@@ -15,7 +15,7 @@ Generated master list of Store Releases in this registry.
 | `OGS-00007` | 2018-sun-pilot-10 | true | ragged | observed_only | built | 0.3.0 | 10 | 0 | 159,816 | 189,448 | - | passed |
 | `OGS-00008` | ukb-b-pilot-10 | true | dense | observed_only | candidate | - | 10 | 0 | - | - | - | - |
 | `OGS-00009` | ukb-b-full | false | dense | reference_completed | validated | 0.3.0 | 2,514 | 0 | 11,191,070 | - | true | passed_with_warnings |
-| `OGS-00011` | eur-hybrid-full | false | hybrid | reference_completed | validated | 0.3.0 | 3,245 | 1,641 | 47,920,732 | - | - | passed_with_warnings |
+| `OGS-00011` | eur-hybrid-full | false | hybrid | reference_completed | validated | 0.3.0 | 3,245 | 1,641 | 47,920,732 | - | true | passed_with_warnings |
 | `OGS-00012` | mvp-phs002453-eur | false | dense | reference_completed | validated | 0.3.0 | 1,669 | 0 | 20,548,967 | - | true | passed_with_warnings |
 | `OGS-00013` | mvp-phs002453-afr | false | dense | reference_completed | validated | 0.3.0 | 1,368 | 0 | 40,200,979 | - | true | passed_with_warnings |
 | `OGS-00014` | mvp-phs002453-amr | false | dense | reference_completed | validated | 0.3.0 | 1,053 | 0 | 30,380,465 | - | true | passed_with_warnings |
