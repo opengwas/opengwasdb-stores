@@ -103,13 +103,22 @@ def engine_argv(command: str) -> list[str] | None:
 
 
 def protected_locations(ld_root: Path) -> list[Path]:
-    """Every recorded Store's location, and a Genotype Store's directory, which its pins resolve into."""
+    """Every recorded Store's location, and a Genotype Store's directory, which its pins resolve into.
+
+    Every record read counts, valid or not (`record.load_records`). A record
+    that cannot be read at all could hold any Store, so it is refused, never
+    skipped: no Store is left unprotected.
+    """
+    documents, errors = record.load_records(Path(ld_root), invalid=True)
+    unread = record.unread(errors)
+    if unread:
+        raise RebuildRefusal(
+            "a record that cannot be read could name the Store a rebuild would write into: "
+            + "; ".join(str(error) for error in unread)
+        )
     protected: list[Path] = []
-    if not Path(ld_root).is_dir():
-        return protected
-    for entry in sorted(Path(ld_root).iterdir()):
-        document, _ = record.read_document(record.record_path(Path(ld_root), entry.name))
-        location = document.get("location") if document else None
+    for document in documents:
+        location = document.get("location")
         if isinstance(location, str) and location:
             protected.append(Path(location))
             if document.get("kind") == "genotype_store":

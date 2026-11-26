@@ -37,6 +37,9 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from ld_registry import REPO_ROOT, record
+from ld_registry.argv import options as argv_options
+from ld_registry.argv import values as argv_values
+from ld_registry.ids import require_valid_ld_id
 from ld_registry.provenance import ld_info
 from ld_registry.writer import Written, write_record
 from ogstores.store_info import Runner, run_engine
@@ -288,12 +291,16 @@ def refuse_before_recording(
 ) -> Recording:
     """The prelude of a recipe that writes `ld_id`'s record, and what that record's `rebuild` names.
 
-    Beyond `refuse_before_running`, it refuses an id whose record already holds
-    a Store (that record describes another Store, and the writer would refuse it
-    after the run), and a dirty checkout. It returns the version
+    Beyond `refuse_before_running`, it refuses an id that is not `OGL-` and five
+    digits and one whose record already holds a Store (the writer would refuse
+    either after the run), and a dirty checkout. It returns the version
     (`repository_version`) and environment (`PIXI_ENVIRONMENT_NAME`, default
     `dev`) the record names, either given.
     """
+    try:
+        require_valid_ld_id(ld_id)
+    except ValueError as exc:
+        raise RecipeRefusal(str(exc)) from exc
     refuse_before_running(store, inputs, staged=staged)
     path = record.record_path(Path(ld_root), ld_id)
     if path.exists():
@@ -374,7 +381,7 @@ def staged_checksums(plan: Plan, info_runner: Runner | None) -> dict[Path, str]:
     recorded, pc_file = field("source", "sha256"), field("adjustment", "pc_file", "sha256")
     if not isinstance(recorded, dict):
         raise RecipeRefusal(f"{plan.checksums_from} records no source.sha256: the staged copies cannot be checked")
-    pcs = next(Path(value) for flag, value in zip(plan.build, plan.build[1:]) if flag == "--pcs")
+    pcs = Path(argv_values(plan.build, "--pcs")[0])
     checksums: dict[Path, str] = {}
     for _, target in plan.copies:
         if target == pcs:
@@ -418,7 +425,7 @@ def build_store(
     staged copy whose sha256 is not the LD Store's refuses the build, and the
     copies staged so far are removed.
     """
-    read = [Path(value) for flag, value in zip(plan.build, plan.build[1:]) if flag in ("--pgen", "--keep", "--pcs")]
+    read = [Path(value) for flag, value in argv_options(plan.build) if flag in ("--pgen", "--keep", "--pcs")]
     recording = refuse_before_recording(
         plan.store, [source for source, _ in plan.copies] if plan.copies else read,
         staged=[target for _, target in plan.copies], ld_root=Path(ld_root), ld_id=ld_id,

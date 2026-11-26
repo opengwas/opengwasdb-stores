@@ -383,26 +383,42 @@ def default_errors(records: list[dict[str, Any]], ld_root: Path) -> list[RecordE
     return errors
 
 
-def load_records(ld_root: Path) -> tuple[list[dict[str, Any]], list[RecordError]]:
-    """Every record under `ld_root`, in id order, and every error among them.
+#: The error on an entry of `ld_root` that is no record's directory.
+_NOT_A_RECORD_DIRECTORY = "stores/ld/ holds only 'OGL-\\d{5}' directories"
+
+
+def load_records(ld_root: Path, *, invalid: bool = False) -> tuple[list[dict[str, Any]], list[RecordError]]:
+    """Every valid record under `ld_root`, in id order, and every error among them.
 
     `ld_root` holds only directories named by an id, each holding its record:
-    anything else there, a file or a misnamed directory, is an error.
+    anything else there, a file or a misnamed directory, is an error. With
+    `invalid`, every record read is returned, valid or not; `unread` names the
+    errors that left a record unread.
     """
     records: list[dict[str, Any]] = []
+    valid: list[dict[str, Any]] = []
     errors: list[RecordError] = []
     if not Path(ld_root).is_dir():
         return records, errors
     for entry in sorted(Path(ld_root).iterdir()):
         if entry.is_symlink() or not entry.is_dir() or not is_valid_ld_id(entry.name):
-            errors.append(RecordError(entry, "ld_id", "stores/ld/ holds only 'OGL-\\d{5}' directories"))
+            errors.append(RecordError(entry, "ld_id", _NOT_A_RECORD_DIRECTORY))
             continue
         document, found = load_record(record_path(Path(ld_root), entry.name))
         errors.extend(found)
         if document is not None and not found:
+            valid.append(document)
+        if document is not None and (invalid or not found):
             records.append(document)
-    errors.extend(default_errors(records, Path(ld_root)))
+    errors.extend(default_errors(valid, Path(ld_root)))
     return records, errors
+
+
+def unread(errors: Sequence[RecordError]) -> list[RecordError]:
+    """The errors among `load_records`'s that left a record unread: a `record.yaml` that is missing,
+    a link, unreadable or not a mapping, and an entry of `ld_root` that is no record's directory."""
+    return [error for error in errors if error.field == RECORD_FILENAME or (
+        error.field == "ld_id" and error.message == _NOT_A_RECORD_DIRECTORY)]
 
 
 def _under(target: str, directory: str) -> bool:
