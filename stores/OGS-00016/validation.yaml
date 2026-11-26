@@ -1,8 +1,8 @@
 status: passed_with_warnings
-validated_at: '2026-11-25T19:13:07.973864Z'
+validated_at: '2026-11-26T15:08:43.180412Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
+  version: opengwasdb@e97f07b51094e4635db571f72407fcdb7f8d56e7
 build_environment:
   opengwasdb_version: 0.20.0
   opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
@@ -13,6 +13,12 @@ build_environment:
     opengwasdb_version: 0.20.0
     steps:
     - rewrite-release
+  - opengwasdb_commit: e97f07b51094e4635db571f72407fcdb7f8d56e7
+    opengwasdb_version: 0.23.0
+    steps:
+    - rho
+    - clump
+    - overview
     - validate
 observed:
   format_version: 0.3.0
@@ -21,14 +27,14 @@ observed:
   n_associations: null
   association_coverage: null
   reference_assembly: null
-  store_bytes: 125171758813
+  store_bytes: 125178949048
   has_hm3: true
-  has_rho: null
-  has_clumps: null
+  has_rho: true
+  has_clumps: true
   n_loci_5e8: null
   n_unclumped_5e8: null
   n_top_hits: null
-  build_elapsed_s: 575509.077
+  build_elapsed_s: 576162.806
   validate_status: passed_with_warnings
   completion_state: observed_only
 checks:
@@ -56,8 +62,8 @@ acceptance:
   reference_overlap: null
   store_composition: null
 replaced:
-  archive: /data/opengwasdb/stores/OGS-00016/replaced/20261125T185408Z
-  replaced_at: '2026-11-25T19:13:07.973864Z'
+  archive: /data/opengwasdb/stores/OGS-00016/replaced/20261126T143845Z
+  replaced_at: '2026-11-26T15:08:43.180412Z'
 rewrite:
   record: /data/opengwasdb/stores/OGS-00016/records/rewrite-release.json
   staged: /data/opengwasdb/stores/OGS-00016/store.opengwasdb.0.3.0
@@ -77,3 +83,16 @@ rewrite:
   source_format_version: 0.2.0
   deviations:
   - side_tables.se_exceptions_rounded
+post_additions:
+- added_at: '2026-11-26T15:08:43.180412Z'
+  steps:
+  - rho
+  - clump
+  - overview
+  records:
+  - /data/opengwasdb/stores/OGS-00016/records/rho.json
+  - /data/opengwasdb/stores/OGS-00016/records/clump.json
+  - /data/opengwasdb/stores/OGS-00016/records/overview.json
+  - /data/opengwasdb/stores/OGS-00016/records/validate.json
+  release_id: 6bb8d940-06ed-437d-a0f4-b0435192fd91
+  replaced_archive: /data/opengwasdb/stores/OGS-00016/replaced/20261126T143845Z

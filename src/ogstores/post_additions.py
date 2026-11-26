@@ -19,6 +19,8 @@ for an addable step, a record planned otherwise than the recipe now plans it
 (a changed LD Store mapping). Its plan is those steps in plan order, the
 declared `overview` whenever anything is added (the engine's overview reports
 the Rho Matrix and the Clumps), then the phase's `validate` and its register.
+For a completed Hybrid the plan begins with `recount-top-hits` (ADR 0043,
+amended 26 Nov 2026; opengwasdb#509): never a trigger, never in `plan()`.
 A release whose completion is still to run is not this mode's: completion
 comes first, and the post steps it declares run in its completion phase (ADR
 0037). A release that also lacks any other step's record is left to
@@ -78,6 +80,14 @@ from ogstores.store_size import store_size_on_disk
 #: phase's are `completion-<name>`. A Dense build and every completion build
 #: the Top-Hit Index inline, so they plan no `top-hits` step to add.
 ADDABLE_STEPS: tuple[str, ...] = ("top-hits", "rho", "clump")
+
+#: `opengwasdb recount-top-hits` (opengwasdb#509): corrects a completed Hybrid's
+#: `n_hits_*` in place and regenerates the overview. Never in `plan()`: a fresh
+#: or forced build's `complete-hybrid` recounts itself. This route plans it, as
+#: a companion of the overview, whenever it adds anything to a completed Hybrid
+#: (ADR 0043, amendment 26 Nov 2026), and it runs before every other addition.
+RECOUNT_STEP: str = "recount-top-hits"
+RECOUNT_COMMAND: str = "recount-top-hits"
 
 #: The step regenerated whenever anything is added, and added when its record is missing.
 OVERVIEW_STEP: str = "overview"
@@ -175,6 +185,32 @@ def _publishing_phase(b: bundle.Bundle, root: Path) -> str | None:
     return None if b.completes_own_store else BUILD_PHASE
 
 
+def _completed_hybrid(b: bundle.Bundle, phase: str) -> bool:
+    """Whether the Store `phase` published is a completed Hybrid (read from the plan, ADR 0023)."""
+    return b.layout == "hybrid" and register.published_completion_state(b, phase) == "reference_completed"
+
+
+def _recount_step(b: bundle.Bundle, phase: str, root: Path) -> Step | None:
+    """The `recount-top-hits` step for a completed Hybrid's phase, or None for any other release.
+
+    A fresh or forced build is not this route's, and its `complete-hybrid`
+    recounts. The command is idempotent (it writes only a table whose counts
+    change), so it is planned whenever this route adds anything to a completed
+    Hybrid, not by inspecting the counts or the engine that wrote them.
+    """
+    if not _completed_hybrid(b, phase):
+        return None
+    store_p = paths.store_path(b.store_id, root=root)
+    name = RECOUNT_STEP if phase == BUILD_PHASE else f"{COMPLETION_STEP_PREFIX}{RECOUNT_STEP}"
+    return Step(
+        name=name,
+        argv=["opengwasdb", RECOUNT_COMMAND, str(store_p)],
+        inputs=[store_p],
+        outputs=[store_p],
+        phase=phase,
+    )
+
+
 def _planned_as_now(b: bundle.Bundle, phase: str, step: Step, record: Mapping[str, Any], root: Path) -> bool:
     """Whether the record planned `step` as the recipe plans it now, at the root it was written under."""
     record_root = amendment._record_root(dict(record), b.store_id, root)
@@ -230,6 +266,12 @@ def assess(b: bundle.Bundle, root: Path | str) -> Assessment | None:
     # The engine's overview reports the Rho Matrix and the Clumps: a declared
     # one is regenerated whenever anything is added.
     missing = [s for s in phase_steps if s in added or (_is_overview(s.name) and any(is_addable(a.name) for a in added))]
+    recount = _recount_step(b, phase, root) if missing else None
+    if recount is not None:
+        # Before the first addition, so the Rho Matrix, Clumps and overview see corrected counts.
+        at = phase_steps.index(missing[0])
+        phase_steps = [*phase_steps[:at], recount, *phase_steps[at:]]
+        missing = [recount, *missing]
     # From here the release is this mode's, so its evidence must hold, whatever Snakemake would schedule.
     changes = [] if _succeeded(register_record) else [
         f"{store_id}: its register record {register_step}.json records no successful registration "

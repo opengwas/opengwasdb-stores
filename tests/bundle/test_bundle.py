@@ -303,9 +303,9 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertEqual(build_environment["opengwasdb_version"], "0.20.0")
         # The Clumps were added in place (#532), so the record's validator is the
-        # locked engine's, while `build_environment` still names the build's.
+        # 0.23.0 engine's, while `build_environment` still names the build's.
         record_check()
-        self.assertEqual(loaded.validation["validator"]["version"], f"opengwasdb@{self.AT_LOCK}")
+        self.assertEqual(loaded.validation["validator"]["version"], f"opengwasdb@{self.AT_0_23_0}")
         observed = loaded.validation["observed"]
         record_check()
         self.assertEqual(
@@ -367,22 +367,23 @@ class TestBundleContract(unittest.TestCase):
     # The completions of OGS-00012, OGS-00013, OGS-00014 and OGS-00015 each
     # published a Store of their own, and register wrote the record for what it
     # published (ADR 0037).
-    # Written at the locked engine; when the lock moves, pin the literal commit.
+    # A record written at the locked engine is pinned through `engine.locked_commit`;
+    # when the lock moves, its pin becomes the literal commit, as these did when the
+    # lock moved to 0.26.0 for opengwasdb#509.
     AT_LOCK = engine.locked_commit(REPO_ROOT / "pixi.lock")
+    #: engine 0.23.0, the lock of #531's and #532's in-place additions.
+    AT_0_23_0 = "e97f07b51094e4635db571f72407fcdb7f8d56e7"
     MVP_RECORD_RUNTIME = {
-        # OGS-00016's record is `publish-rewrite`'s: #525 converted the Store to
-        # format 0.3.0 at engine 0.20.0, and validate warns of the one accepted
-        # deviation (side_tables.se_exceptions_rounded).
-        "OGS-00016": "c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4",
-        # OGS-00012's record is `publish-rewrite`'s (#525), as OGS-00013's is.
-        "OGS-00012": "931ac16690de9538be203f9cdbb2eb46caa895f4",
-        # OGS-00013's record is `publish-rewrite`'s (#525): converted to format
-        # 0.3.0 at engine 0.20.0, its completion validated at 0.21.0 (931ac166).
-        "OGS-00013": "931ac16690de9538be203f9cdbb2eb46caa895f4",
-        # OGS-00014's record is `publish-rewrite`'s (#525), as OGS-00013's is.
-        "OGS-00014": "931ac16690de9538be203f9cdbb2eb46caa895f4",
-        # OGS-00015's record is the in-place Rho and Clumps addition's (#531), validated at engine 0.23.0.
-        "OGS-00015": AT_LOCK,
+        # The records of OGS-00012, -13, -14, -15 and -16 are the in-place Rho and
+        # Clumps additions' (#531, #532), validated at engine 0.23.0. Each
+        # Store was converted to format 0.3.0 by `publish-rewrite` first (#525);
+        # validate warns of the one accepted deviation
+        # (side_tables.se_exceptions_rounded).
+        "OGS-00012": AT_0_23_0,
+        "OGS-00013": AT_0_23_0,
+        "OGS-00014": AT_0_23_0,
+        "OGS-00015": AT_0_23_0,
+        "OGS-00016": AT_0_23_0,
     }
 
     def assert_mvp_built_record(self, store_id: str, n_analyses: int) -> None:
