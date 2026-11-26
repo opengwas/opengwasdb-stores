@@ -109,7 +109,7 @@ def plan_import(
         command += ["--threads", str(threads)]
     if plan_only:
         command.append("--plan-only")
-    validate = ("opengwasdb", "ld", "validate", *(("--threads", str(threads)) if threads is not None else ()), str(out))
+    validate = recipe.validate_command(out, threads)
     return ImportPlan(Path(out), Path(work), inputs, tuple(command), validate, plan_only)
 
 

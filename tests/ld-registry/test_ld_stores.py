@@ -20,6 +20,7 @@ Three seams, each with a stub runner, so no test here runs the engine:
 from __future__ import annotations
 
 import copy
+import dataclasses
 import hashlib
 import json
 import os
@@ -414,6 +415,47 @@ class TestTheRecipeBuilds(TempCase):
         self.assertEqual(commands.seen, [])
 
 
+    @staticmethod
+    def equals_form(plan: recipe.Plan) -> recipe.Plan:
+        """`plan` with each input given as `--flag=value`, a form the engine reads as `--flag value`."""
+        build, argv, number = [], list(plan.build), 0
+        while number < len(argv):
+            if argv[number] in ("--pgen", "--keep", "--pcs"):
+                build.append(f"{argv[number]}={argv[number + 1]}")
+                number += 2
+            else:
+                build.append(argv[number])
+                number += 1
+        return dataclasses.replace(plan, build=tuple(build))
+
+    def test_a_build_that_gives_its_inputs_as_flag_equals_value_reads_them(self) -> None:
+        """The recipe reads `plan.build` as the engine does (`argv.values`): the PC File is found to check."""
+        inputs = self.inputs()
+        plan = self.equals_form(recipe.plan_build("genotype_store", "T", self.tmp / "out", inputs))
+        commands = Commands()
+        self.build(plan, commands, info=self.pinned(), checksums=self.checksums(inputs))
+        self.assertEqual([argv[2] for argv in commands.seen[1:3]], ["build", "validate"])
+
+    def test_a_missing_input_given_as_flag_equals_value_is_refused(self) -> None:
+        inputs = self.inputs()
+        (inputs.keep_root / "T.keep").unlink()
+        plan = self.equals_form(recipe.plan_build("ld_store", "T", self.tmp / "out", inputs))
+        commands = Commands()
+        with self.assertRaises(recipe.RecipeRefusal) as caught:
+            self.build(plan, commands)
+        self.assertIn("T.keep", str(caught.exception))
+        self.assertEqual(commands.seen, [], "nothing runs")
+
+    def test_an_invalid_ld_id_is_refused_before_the_build_starts(self) -> None:
+        plan = recipe.plan_build("ld_store", "T", self.tmp / "out", self.inputs())
+        commands = Commands()
+        with self.assertRaises(recipe.RecipeRefusal) as caught:
+            recipe.build_store(plan, self.ld_root, "OGL-1", run=commands, version="v0.47.0", environment="dev",
+                               size=lambda _: 1)
+        self.assertIn("OGL-1", str(caught.exception))
+        self.assertEqual(commands.seen, [], "the build never starts")
+        self.assertFalse(plan.store.exists())
+
 class TestTheRecordedVersion(TempCase):
     """A recorded `rebuild.version` names a commit: a dirty checkout is refused."""
 
@@ -567,6 +609,35 @@ class TestRebuildingFromARecord(TempCase):
                 self.assertIn("inside", str(caught.exception))
                 self.assertEqual(commands.seen, [])
 
+    def test_it_refuses_while_a_record_cannot_be_read(self) -> None:
+        """An unread record could hold any Store, so the rebuild is refused rather than leave it unprotected."""
+        unreadable = self.tmp / "unreadable"
+        for name, write, needle in (
+            ("malformed YAML", lambda root: record.record_path(root, "OGL-00001").write_text("location: [unclosed\n"),
+             "OGL-00001"),
+            ("not a mapping", lambda root: record.record_path(root, "OGL-00001").write_text("- a list\n"), "OGL-00001"),
+            ("a directory no id names", lambda root: (root / "notes").mkdir(), "notes"),
+        ):
+            with self.subTest(name):
+                self.ld_root = unreadable / name.replace(" ", "-") / "ld"
+                self.records(ogl_00009())
+                record.record_path(self.ld_root, "OGL-00001").parent.mkdir(parents=True)
+                write(self.ld_root)
+                commands = Commands()
+                with self.assertRaises(rebuild.RebuildRefusal) as caught:
+                    self.rebuild("OGL-00009", unreadable / name.replace(" ", "-") / "out", commands)
+                self.assertIn(needle, str(caught.exception))
+                self.assertEqual(commands.seen, [])
+
+    def test_an_invalid_records_store_is_still_protected(self) -> None:
+        store = self.tmp / "ogld" / "eur.store"
+        self.records(ogl_00009(), {"ld_id": "OGL-00001", "kind": "ld_store", "location": str(store)})
+        commands = Commands()
+        with self.assertRaises(rebuild.RebuildRefusal) as caught:
+            self.rebuild("OGL-00009", store / "rebuilt", commands)
+        self.assertIn("inside", str(caught.exception))
+        self.assertEqual(commands.seen, [])
+
     def test_a_validate_with_threads_is_rewritten_too(self) -> None:
         section = {**ogl_00009()["rebuild"], "commands": [
             OGL_00009_COMMAND, f"pixi run -e dev ogld validate {AMR_GENOTYPE_STORE}"]}
@@ -580,8 +651,9 @@ class TestRebuildingFromARecord(TempCase):
     def test_the_plan_names_its_validation(self) -> None:
         """Acceptance validates the rebuilt Store at the build's threads, whether or not the record did."""
         self.records(ogl_00009())
-        rebuilt = self.rebuild("OGL-00009", self.tmp / "o")
-        self.assertEqual(list(rebuilt.validate), ["opengwasdb", "ld", "validate", "--threads", "8", str(rebuilt.store)])
+        commands = Commands()
+        rebuilt = self.rebuild("OGL-00009", self.tmp / "o", commands)
+        self.assertEqual(commands.seen[-1], ["opengwasdb", "ld", "validate", "--threads", "8", str(rebuilt.store)])
 
 
 class TestTheAcceptanceComparison(unittest.TestCase):

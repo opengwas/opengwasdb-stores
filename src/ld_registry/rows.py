@@ -218,11 +218,6 @@ def text_row(values: Mapping[str, Value]) -> dict[str, str]:
     return {column: "" if value is None else str(value) for column, value in values.items()}
 
 
-def ld_row(record: Mapping[str, Any]) -> dict[str, str]:
-    """One record's `ld-resources.tsv` row: each value as text, `None` as an empty cell."""
-    return text_row(ld_values(record))
-
-
 def merged_values(
     records: Iterable[Mapping[str, Any]], panels: Iterable[Mapping[str, Value]] = ()
 ) -> list[Mapping[str, Value]]:

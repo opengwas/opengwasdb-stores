@@ -33,9 +33,9 @@ import yaml
 from ld_registry import record
 from ld_registry.argv import values as argv_values
 from ld_registry.ids import require_valid_ld_id
-from ld_registry.provenance import ld_info, provenance_sha256, record_provenance
+from ld_registry.provenance import ld_info, provenance_sha256, record_provenance, source_sha256
 from ogstores.store_info import Runner
-from ogstores.store_size import store_size_on_disk
+from ogstores.store_size import store_size_on_disk, walk_no_follow
 
 HEADER = (
     "# LD Store record (docs/spec/ld-store-registry.md, ADR 0042).\n"
@@ -80,16 +80,12 @@ def _differences(existing: dict[str, Any], computed: dict[str, Any]) -> list[str
     return differ
 
 
-def _raise(error: OSError) -> None:
-    raise error
-
-
 def links(location: Path) -> dict[str, str]:
     """Every link under the Store, by its path in the Store, and its target with
     every link resolved. The walk follows no link; a dangling link is refused,
     and an unreadable directory raises rather than being skipped."""
     found: dict[str, str] = {}
-    for root, directories, files in os.walk(location, onerror=_raise):  # never descends a linked directory
+    for root, directories, files in walk_no_follow(location):
         for name in directories + files:
             entry = Path(root) / name
             if not entry.is_symlink():
@@ -183,7 +179,7 @@ def _flag_values(commands: Any, flag: str) -> list[str]:
 def _pin_inputs(rebuild: Any, info: dict[str, Any]) -> tuple[Any, list[str]]:
     """`rebuild` with each input's sha256 from the Store's `source.sha256`, and every problem with its inputs.
 
-    The writer is the one reader of `source.sha256` (#542). An input whose
+    It reads `source.sha256` through `provenance.source_sha256`, the field's one reader (#542). An input whose
     digest the Store does not hold, or whose given digest is not the Store's, is
     a problem naming `rebuild.inputs.<name>.sha256`; one whose path is not the
     one value the commands give `--<name>` names `rebuild.inputs.<name>.path`.
@@ -191,7 +187,9 @@ def _pin_inputs(rebuild: Any, info: dict[str, Any]) -> tuple[Any, list[str]]:
     inputs = rebuild.get("inputs") if isinstance(rebuild, dict) else None
     if not isinstance(inputs, dict):
         return rebuild, []
-    recorded = (info.get("source") or {}).get("sha256") or {}
+    recorded = source_sha256(info)
+    if not isinstance(recorded, dict):
+        recorded = {}
     pinned: dict[str, Any] = {}
     problems: list[str] = []
     for name, entry in inputs.items():

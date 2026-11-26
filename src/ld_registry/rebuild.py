@@ -35,7 +35,15 @@ from typing import Any
 
 from ld_registry import record
 from ld_registry.argv import options, rewrite_value, values
-from ld_registry.recipe import CommandRunner, Copier, require_plan_only, run_command, run_in_environment, stage_copy
+from ld_registry.recipe import (
+    CommandRunner,
+    Copier,
+    require_plan_only,
+    run_command,
+    run_in_environment,
+    stage_copy,
+    validate_command,
+)
 from ogstores.store_info import Runner
 
 ENGINE_SUBCOMMANDS = ("build", "import", "validate")
@@ -62,11 +70,6 @@ class Rebuild:
     #: The recorded Store, and the digest its record holds of its provenance.
     original: Path
     recorded_sha256: str | None
-
-    @property
-    def validate(self) -> tuple[str, ...]:
-        """The command among `commands` that validates the rebuilt Store."""
-        return next(argv for argv in self.commands if argv[2] == "validate")
 
     def _builders(self, flag: str) -> Path | None:
         """The path the build or import gives `flag`, its last when it gives several."""
@@ -103,13 +106,22 @@ def engine_argv(command: str) -> list[str] | None:
 
 
 def protected_locations(ld_root: Path) -> list[Path]:
-    """Every recorded Store's location, and a Genotype Store's directory, which its pins resolve into."""
+    """Every recorded Store's location, and a Genotype Store's directory, which its pins resolve into.
+
+    Every record read counts, valid or not (`record.load_records`). A record
+    that cannot be read at all could hold any Store, so it is refused, never
+    skipped: no Store is left unprotected.
+    """
+    documents, errors = record.load_records(Path(ld_root), invalid=True)
+    unread = record.unread(errors)
+    if unread:
+        raise RebuildRefusal(
+            "a record that cannot be read could name the Store a rebuild would write into: "
+            + "; ".join(str(error) for error in unread)
+        )
     protected: list[Path] = []
-    if not Path(ld_root).is_dir():
-        return protected
-    for entry in sorted(Path(ld_root).iterdir()):
-        document, _ = record.read_document(record.record_path(Path(ld_root), entry.name))
-        location = document.get("location") if document else None
+    for document in documents:
+        location = document.get("location")
         if isinstance(location, str) and location:
             protected.append(Path(location))
             if document.get("kind") == "genotype_store":
@@ -203,7 +215,7 @@ def plan_rebuild(
     if not any(argv[2] == "validate" for argv in rewritten):
         build = next(argv for argv in rewritten if argv[2] in BUILDERS)
         threads = values(build, "--threads")
-        rewritten += (("opengwasdb", "ld", "validate", *(("--threads", threads[-1]) if threads else ()), str(store)),)
+        rewritten += (validate_command(store, threads[-1] if threads else None),)
     return Rebuild(store, tuple(copies.items()), rewritten, Path(location), recorded)
 
 

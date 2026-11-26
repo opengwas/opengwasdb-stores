@@ -342,6 +342,15 @@ class TestTheFullImport(TempCase):
         self.assertEqual(commands.seen, [])
 
 
+    def test_an_invalid_ld_id_is_refused_before_the_import_starts(self) -> None:
+        plan = importing.plan_import("EUR", out=self.tmp / "o" / "x.store", work=self.tmp / "o" / "w", **self.inputs())
+        commands = Commands()
+        with self.assertRaises(RecipeRefusal) as caught:
+            importing.import_store(plan, self.ld_root, "OGL-1", run=commands, version="v0.48.0", environment="dev",
+                                   size=lambda _: 1)
+        self.assertIn("OGL-1", str(caught.exception))
+        self.assertEqual(commands.seen, [], "the import never starts")
+
 class TestTheWritersInputs(TempCase):
     """The writer, the one reader of the Store's `source.sha256`, pins each `rebuild.inputs` digest from it;
     a digest given must be that one, and each input's path must be the one the commands read."""
@@ -591,7 +600,7 @@ class TestRebuildingAnImport(TempCase):
         self.assertIn(f"--work={out}/work", planned.commands[0])
         self.assertEqual(planned.work, out / "work")
         full = rebuild.plan_rebuild(self.import_record("/s/d/work", equals=True), out)
-        self.assertEqual(full.validate, ("opengwasdb", "ld", "validate", "--threads", "4", str(out / "x.store")),
+        self.assertEqual(full.commands[-1], ("opengwasdb", "ld", "validate", "--threads", "4", str(out / "x.store")),
                          "the build's `--threads=4` sets the validation's")
 
     def test_a_plan_only_rebuild_of_a_build_is_refused(self) -> None:

@@ -16,8 +16,12 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-import yaml
-from ogstores.resources import ReferenceResourceError, load_resource_declaration
+from ogstores.resources import (
+    DECLARATION_FILENAME,
+    REFERENCE_RESOURCES_DIR,
+    ReferenceResourceError,
+    load_resource_declaration,
+)
 
 from ld_registry.ids import is_valid_ld_id
 from ld_registry.rows import Value, keyed, panel_representation
@@ -25,8 +29,6 @@ from ld_registry.rows import Value, keyed, panel_representation
 PANEL_KIND = "ld_panel"
 #: The `provenance` column of a panel row: it is built from genotypes.
 PANEL_PROVENANCE = "genotypes"
-RESOURCES = Path("resources", "reference-resources")
-DECLARATION = "resource.yaml"
 
 
 class PanelError(ValueError):
@@ -119,12 +121,39 @@ def _rows(where: Path, document: Mapping[str, Any]) -> list[dict[str, Value]]:
                 "source": source.get("cohort"),
                 "licence": document.get("licence"),
                 "location": _location(document, ancestry, several),
-                "record": (RESOURCES / resource_id / DECLARATION).as_posix(),
+                "record": (REFERENCE_RESOURCES_DIR / resource_id / DECLARATION_FILENAME).as_posix(),
                 "notes": document.get("index_notes"),
             }
         )
         for ancestry in ancestries
     ]
+
+
+def _require_resources_root(directory: Path) -> None:
+    if directory.parts[-2:] != REFERENCE_RESOURCES_DIR.parts:
+        raise PanelError(f"{directory}: is not a '{REFERENCE_RESOURCES_DIR.as_posix()}' directory")
+
+
+def _declarations(directory: Path) -> list[tuple[Path, dict[str, Any]]]:
+    """Each `ld_panel` declaration under `directory`, a `resources/reference-resources` directory, and its
+    document: each file parsed once, by `ogstores.resources.load_resource_declaration`."""
+    if not directory.is_dir():
+        return []
+    _require_resources_root(directory)
+    found = []
+    for entry in sorted(directory.iterdir()):
+        where = entry / DECLARATION_FILENAME
+        if not where.is_file():
+            continue
+        try:
+            document = load_resource_declaration(entry.name, directory.parents[1])
+        except ReferenceResourceError as exc:
+            raise PanelError(str(exc)) from exc
+        except (OSError, UnicodeError) as exc:
+            raise PanelError(f"{where}: could not be read: {exc}") from exc
+        if document.get("kind") == PANEL_KIND:
+            found.append((where, document))
+    return found
 
 
 def declaration_files(resources_root: Path | str) -> list[Path]:
@@ -133,19 +162,7 @@ def declaration_files(resources_root: Path | str) -> list[Path]:
     The one place that says which declarations are panels: `panel_rows` reads them, and the Analysis
     Catalog's version hashes them (#537).
     """
-    directory = Path(resources_root)
-    found = []
-    for entry in sorted(directory.iterdir()) if directory.is_dir() else []:
-        where = entry / DECLARATION
-        if not where.is_file():
-            continue
-        try:
-            document = yaml.safe_load(where.read_text(encoding="utf-8"))
-        except (yaml.YAMLError, OSError, UnicodeError) as exc:
-            raise PanelError(f"{where}: could not be read: {exc}") from exc
-        if isinstance(document, dict) and document.get("kind") == PANEL_KIND:
-            found.append(where)
-    return found
+    return [where for where, _ in _declarations(Path(resources_root))]
 
 
 def panel_rows(resources_root: Path | str) -> list[dict[str, Value]]:
@@ -154,16 +171,10 @@ def panel_rows(resources_root: Path | str) -> list[dict[str, Value]]:
     A declaration the registry cannot list is refused, naming its file.
     """
     directory = Path(resources_root)
-    if directory.parts[-2:] != RESOURCES.parts:
-        raise PanelError(f"{directory}: is not a '{RESOURCES.as_posix()}' directory")
-    repo_root = directory.parents[1]
+    _require_resources_root(directory)
     found: list[dict[str, Value]] = []
     where_by_id: dict[str, Path] = {}
-    for where in declaration_files(directory):
-        try:
-            document = load_resource_declaration(where.parent.name, repo_root)
-        except ReferenceResourceError as exc:
-            raise PanelError(str(exc)) from exc
+    for where, document in _declarations(directory):
         for row in _rows(where, document):
             ld_id = str(row["ld_id"])
             if ld_id in where_by_id:

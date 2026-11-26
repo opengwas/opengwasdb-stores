@@ -59,8 +59,12 @@ CATALOG_PACKAGE = "analysis_catalog"
 CATALOG_OGSTORES_SURFACE = {"ogstores", "ogstores.bundle", "ogstores.paths"}
 # It also reads the LD Store Registry's records for its `ld_resources` table (#537, ADR 0042):
 # the index's one list of rows (`ld_registry.index.resource_rows`), the record loader's errors and the
-# column types (`ld_registry.rows.COLUMN_TYPES`), never the writer, the provenance reader or the panel reader.
-CATALOG_LD_REGISTRY_SURFACE = {"ld_registry", "ld_registry.record", "ld_registry.rows", "ld_registry.index"}
+# column types (`ld_registry.rows.COLUMN_TYPES`). Of the panel reader it takes one function for its
+# version, `ld_registry.panels.declaration_files`, which says which declarations to hash, and the error
+# `resource_rows` raises for a panel, `PanelError`. Never the writer or the provenance reader.
+CATALOG_LD_REGISTRY_SURFACE = {
+    "ld_registry", "ld_registry.record", "ld_registry.rows", "ld_registry.index", "ld_registry.panels",
+}
 
 
 def imports_catalog(module: str) -> bool:
@@ -418,8 +422,9 @@ class CatalogLdRegistryBoundaryTest(unittest.TestCase):
         self.assertEqual(sorted(outside), [])
 
     def test_the_catalogs_registry_surface_is_the_readers_only(self) -> None:
-        allowed = ["ld_registry", "ld_registry.record", "ld_registry.record.InvalidRecords", "ld_registry.index.resource_rows", "ld_registry.rows.COLUMN_TYPES"]
-        refused = ["ld_registry.panels", "ld_registry.writer", "ld_registry.writer.write_record", "ld_registry.provenance"]
+        allowed = ["ld_registry", "ld_registry.record", "ld_registry.record.InvalidRecords", "ld_registry.index.resource_rows",
+                   "ld_registry.rows.COLUMN_TYPES", "ld_registry.panels.declaration_files"]
+        refused = ["ld_registry.writer", "ld_registry.writer.write_record", "ld_registry.provenance"]
         self.assertEqual([m for m in allowed if outside_shared_surface(m, CATALOG_LD_REGISTRY_SURFACE, "ld_registry")], [])
         self.assertEqual(
             [m for m in refused if outside_shared_surface(m, CATALOG_LD_REGISTRY_SURFACE, "ld_registry")], refused

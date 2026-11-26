@@ -37,7 +37,10 @@ from pathlib import Path
 from typing import Any, NamedTuple
 
 from ld_registry import REPO_ROOT, record
-from ld_registry.provenance import ld_info
+from ld_registry.argv import options as argv_options
+from ld_registry.argv import values as argv_values
+from ld_registry.ids import require_valid_ld_id
+from ld_registry.provenance import ld_info, pc_file_sha256, source_sha256
 from ld_registry.writer import Written, write_record
 from ogstores.store_info import Runner, run_engine
 from ogstores.store_size import store_size_on_disk
@@ -129,6 +132,11 @@ class Plan:
         return "opengwasdb ld build --genotypes" if self.kind == "genotype_store" else "opengwasdb ld build"
 
 
+def validate_command(store: Path | str, threads: int | str | None = None) -> tuple[str, ...]:
+    """`opengwasdb ld validate [--threads N] <store>`: the validation every recipe and rebuild runs."""
+    return ("opengwasdb", "ld", "validate", *(("--threads", str(threads)) if threads is not None else ()), str(store))
+
+
 def plan_build(kind: str, panel: str, out: Path, inputs: Inputs, threads: int | None = None) -> Plan:
     """The build of `panel`'s Store of `kind` into the directory `out`, as `out/<panel id>-k10.store`."""
     if kind not in record.KINDS:
@@ -169,7 +177,7 @@ def plan_build(kind: str, panel: str, out: Path, inputs: Inputs, threads: int | 
         "--info-min", INFO_MIN,
         "--threads", str(threads),
     ]  # fmt: skip
-    validate = ("opengwasdb", "ld", "validate", "--threads", str(threads), str(store))
+    validate = validate_command(store, threads)
     checksums_from = None
     if kind == "genotype_store" and inputs.ld_stores_root is not None:
         checksums_from = inputs.ld_stores_root / store_name(panel)
@@ -288,12 +296,16 @@ def refuse_before_recording(
 ) -> Recording:
     """The prelude of a recipe that writes `ld_id`'s record, and what that record's `rebuild` names.
 
-    Beyond `refuse_before_running`, it refuses an id whose record already holds
-    a Store (that record describes another Store, and the writer would refuse it
-    after the run), and a dirty checkout. It returns the version
+    Beyond `refuse_before_running`, it refuses an id that is not `OGL-` and five
+    digits and one whose record already holds a Store (the writer would refuse
+    either after the run), and a dirty checkout. It returns the version
     (`repository_version`) and environment (`PIXI_ENVIRONMENT_NAME`, default
     `dev`) the record names, either given.
     """
+    try:
+        require_valid_ld_id(ld_id)
+    except ValueError as exc:
+        raise RecipeRefusal(str(exc)) from exc
     refuse_before_running(store, inputs, staged=staged)
     path = record.record_path(Path(ld_root), ld_id)
     if path.exists():
@@ -364,17 +376,10 @@ def staged_checksums(plan: Plan, info_runner: Runner | None) -> dict[Path, str]:
             "a Genotype Store's staged inputs are checked against its LD Store's source.sha256; name the LD Stores' root"
         )
     provenance = ld_info(plan.checksums_from, runner=info_runner)
-
-    def field(*keys: str) -> Any:
-        value: Any = provenance
-        for key in keys:
-            value = value.get(key) if isinstance(value, dict) else None
-        return value
-
-    recorded, pc_file = field("source", "sha256"), field("adjustment", "pc_file", "sha256")
+    recorded, pc_file = source_sha256(provenance), pc_file_sha256(provenance)
     if not isinstance(recorded, dict):
         raise RecipeRefusal(f"{plan.checksums_from} records no source.sha256: the staged copies cannot be checked")
-    pcs = next(Path(value) for flag, value in zip(plan.build, plan.build[1:]) if flag == "--pcs")
+    pcs = Path(argv_values(plan.build, "--pcs")[0])
     checksums: dict[Path, str] = {}
     for _, target in plan.copies:
         if target == pcs:
@@ -418,7 +423,7 @@ def build_store(
     staged copy whose sha256 is not the LD Store's refuses the build, and the
     copies staged so far are removed.
     """
-    read = [Path(value) for flag, value in zip(plan.build, plan.build[1:]) if flag in ("--pgen", "--keep", "--pcs")]
+    read = [Path(value) for flag, value in argv_options(plan.build) if flag in ("--pgen", "--keep", "--pcs")]
     recording = refuse_before_recording(
         plan.store, [source for source, _ in plan.copies] if plan.copies else read,
         staged=[target for _, target in plan.copies], ld_root=Path(ld_root), ld_id=ld_id,

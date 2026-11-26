@@ -55,7 +55,7 @@ the writer owns.
 | `provenance` | writer | yes | the Store's own provenance; below |
 | `provenance_sha256` | writer | yes | the sha256, in lower-case hex, of the provenance as `opengwasdb ld info` prints it, in canonical form: `json.dumps(info, sort_keys=True, separators=(",", ":"))`, encoded as UTF-8 |
 | `measured.store_bytes` | writer | yes | the bytes of every regular file under `location`, from an `lstat` of each (`ogstores.store_size.store_size_on_disk`). No link is followed, to a file or a directory, so an overlay's bytes are its own files alone; an unreadable directory is an error, never skipped. A Genotype Store's is its sidecar alone |
-| `measured.links` | writer | no | every symbolic link under `location`, by its path in the Store (such as `near` or `variants/x`), and its target with every link resolved (an absolute path). The walk follows no link; a dangling link is refused, and an unreadable directory is an error, never skipped. Written when the Store has any; such a Store is an overlay |
+| `measured.links` | writer | no | every symbolic link under `location`, by its path in the Store (such as `near` or `variants/x`), and its target with every link resolved (an absolute path). The walk follows no link (`ogstores.store_size.walk_no_follow`, the walk `store_bytes` takes); a dangling link is refused, and an unreadable directory is an error, never skipped. Written when the Store has any; such a Store is an overlay |
 | `measured.genotype_bytes` | writer | a Genotype Store | the bytes of the pgen, psam and pvar files its provenance pins, from a stat of each; below. An LD Store has none |
 
 Any other key is an error, so a misspelt field is refused rather than ignored.
@@ -95,7 +95,7 @@ actually built it. It is not a Release Bundle's Build Recipe.
 |---|---|
 | `repository` | the repository the commands run in, such as `opengwas/ogld` |
 | `version` | the version of that repository they run at. One the recipe writes names a commit, as `git describe` does: it refuses a checkout with uncommitted changes or untracked files. A person writing it for a Store built before the registry names every release that ran, and what each did, when more than one did, as OGL-00012's does |
-| `script` | the script the commands run, relative to the repository; for a build run through the engine's command line, the subcommand, such as `ogld build --genotypes` |
+| `script` | the script the commands run, relative to the repository; for a build run through the engine's command line, the subcommand, such as `opengwasdb ld build --genotypes` |
 | `commands` | the commands, in order, as run from the repository's root |
 | `inputs` | optional: each file the commands read, by the engine's name for it (the option `--<name>` the commands give it), as its absolute `path` and its `sha256` in lower-case hex. An import records its four (`metadata`, `variants`, `chain`, `fasta`). The writer pins each `sha256` from the Store's own `source.sha256`, and checks each `path` against the commands (below; #542) |
 
@@ -241,8 +241,10 @@ pixi run -e dev python3 -m ld_registry write <ld_id> <location> [--ld-root store
   different one is refused, naming each field that differs, so a rewrite
   never changes it silently. Without the option, a `rebuild` a person wrote is
   kept.
-- **The writer pins `rebuild.inputs` from the Store (#542).** It is the one
-  reader of the Store's `source.sha256`, through `opengwasdb ld info`. For each
+- **The writer pins `rebuild.inputs` from the Store (#542).** It reads the
+  Store's `source.sha256` through `opengwasdb ld info` and
+  `provenance.source_sha256`, the one reader of that field, which the recipe's
+  check of a Genotype Store's staged copies also uses. For each
   input of the `rebuild`, given or kept, it writes `sha256` as the digest the
   Store holds of `<name>`; a digest already written must be that one. An input
   the Store holds no digest of, or whose digest differs, is refused, naming
@@ -299,9 +301,11 @@ pixi run ld-stores build --kind ld_store|genotype_store --panel AMR --out <dir> 
   succeed), then the writer, with `rebuild` set to this repository, the
   commit `git describe` names, and those two commands. A person then writes
   the record's label, status, licence and use.
-- It refuses, before running anything, a Store or staged input that exists, a
-  missing input, an id whose record already holds a Store, and a checkout
-  with uncommitted changes or untracked files.
+- It refuses, before running anything, an `--ld-id` that is not `OGL-` and
+  five digits, a Store or staged input that exists, a missing input, an id
+  whose record already holds a Store, and a checkout with uncommitted changes
+  or untracked files. It reads its own command line as the engine does, so an
+  input given as `--flag=value` is checked as `--flag value` is.
 
 ## The import recipe
 
@@ -335,8 +339,9 @@ pixi run ld-stores import --ancestry EUR --metadata <bm-metadata.json> --variant
   pins their digests from the Store, and refuses a Store that holds no digest
   of one before its record is written. It refuses, before running anything,
   what every recipe that writes a record does
-  (`recipe.refuse_before_recording`): a Store that exists, a missing input, an
-  id whose record already holds a Store, and a dirty checkout. A person then writes the record's label, status, licence and use.
+  (`recipe.refuse_before_recording`): an `--ld-id` that is not `OGL-` and five
+  digits, a Store that exists, a missing input, an id whose record already
+  holds a Store, and a dirty checkout. A person then writes the record's label, status, licence and use.
 - **`--plan-only`** runs `opengwasdb ld import … --plan-only` alone: the
   engine writes `<work>/plan.json` and each chromosome's lifted table, with no
   network access, and creates no Store. It writes no record. The same command
@@ -401,7 +406,11 @@ A record whose build is `opengwasdb ld build` is refused with `--plan-only`.
 
 It refuses an output that exists, an output inside any recorded Store's
 `location` or inside a Genotype Store's directory, each compared once every
-symbolic link is followed, and a record without a runnable `rebuild`. It writes
+symbolic link is followed, and a record without a runnable `rebuild`. Every
+record under `stores/ld/` that can be read counts, valid or not
+(`record.load_records`); while one cannot be read at all, or `stores/ld/` holds
+an entry that is no record's directory, the rebuild is refused, naming it,
+because that record could name the Store it would write into. It writes
 no record: the rebuilt Store is a new Store, and the record and the original
 Store are only read.
 

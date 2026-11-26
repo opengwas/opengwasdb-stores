@@ -15,9 +15,14 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ld_registry.panels import RESOURCES, PanelError, declaration_files, panel_rows  # noqa: F401  (re-exported)
-from ld_registry.record import InvalidRecords, link_errors, valid_records  # noqa: F401  (re-exported)
+from ogstores.resources import REFERENCE_RESOURCES_DIR
+
+from ld_registry.panels import panel_rows
+from ld_registry.record import InvalidRecords, valid_records
 from ld_registry.rows import Value, merged_values, render_md_section, render_tsv
+
+#: `InvalidRecords` is what `resource_rows` and `generate_ld_index` raise for a record that breaks the spec.
+__all__ = ["IdCollision", "InvalidRecords", "TSV_FILENAME", "generate_ld_index", "resource_rows", "resources_root_of"]
 
 TSV_FILENAME = "ld-resources.tsv"
 
@@ -27,8 +32,9 @@ class IdCollision(ValueError):
 
 
 def resources_root_of(ld_root: Path | str) -> Path:
-    """The `resources/reference-resources` directory of the repository whose records are under `ld_root`."""
-    return Path(ld_root).parent.parent / RESOURCES
+    """The `resources/reference-resources` directory of the repository whose records are under `ld_root`:
+    the one place that finds the LD panels' declarations (the index, the Analysis Catalog, the Snakefile)."""
+    return Path(ld_root).parent.parent / REFERENCE_RESOURCES_DIR
 
 
 def _sources(ld_root: Path | str, resources_root: Path | str) -> tuple[list[dict[str, Any]], list[dict[str, Value]]]:
