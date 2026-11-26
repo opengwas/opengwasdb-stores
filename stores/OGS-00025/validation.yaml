@@ -1,34 +1,38 @@
 status: passed_with_warnings
-validated_at: '2026-11-25T15:16:39.585004Z'
+validated_at: '2026-11-26T14:39:26.690270Z'
 validator:
   name: opengwasdb validate
-  version: opengwasdb@c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
+  version: opengwasdb@e97f07b51094e4635db571f72407fcdb7f8d56e7
 build_environment:
-  opengwasdb_version: 0.20.0
-  opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
+  opengwasdb_version: 0.23.0
+  opengwasdb_commit: e97f07b51094e4635db571f72407fcdb7f8d56e7
   python_version: 3.12.15
   platform: Linux-4.18.0-553.177.1.el8_10.x86_64-x86_64-with-glibc2.28
   engines:
-  - opengwasdb_commit: c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4
-    opengwasdb_version: 0.20.0
+  - opengwasdb_commit: e97f07b51094e4635db571f72407fcdb7f8d56e7
+    opengwasdb_version: 0.23.0
     steps:
-    - build
-    - top-hits
-    - validate
+    - complete
+    - completion-clump
+    - completion-validate
+    - completion-observed-view-check
 observed:
   format_version: 0.3.0
   n_analyses: 1038
-  n_variants: 1129442
-  n_associations: 7086100
+  n_variants: 2293885
+  n_associations: 8557552
   association_coverage: signals_only
   reference_assembly: null
-  store_bytes: 179352272
+  store_bytes: 280497904
   has_hm3: false
   has_rho: null
   n_top_hits: null
-  build_elapsed_s: 190.654
+  has_clumps: true
+  n_loci_5e8: 404
+  n_unclumped_5e8: 461
+  build_elapsed_s: 840.374
   validate_status: passed_with_warnings
-  completion_state: observed_only
+  completion_state: reference_completed
 checks:
   store: passed_with_warnings
 warnings:
@@ -2108,7 +2112,7 @@ warnings:
   overlap the reference, fewer than 500'
 - 'analysis ''GCST90203092'' stores EAF whose orientation is unverified: only 126
   variants overlap the reference, fewer than 500'
-- built with opengwasdb 0.20.0 (c8ebe4ca2e7697f3b723fd89ebb645bb1d221fd4), but its
+- built with opengwasdb 0.23.0 (e97f07b51094e4635db571f72407fcdb7f8d56e7), but its
   Analyses were resolved with opengwasdb 0.1.0 (1ecfd1e7945d4258e5b0585ae9381be5ecbe9373);
   regenerate the candidate under this engine if the resolver changed between them
 errors: []
@@ -2134,5 +2138,5 @@ acceptance:
     build_report: sidecars/build_report.tsv
   warnings: []
 replaced:
-  archive: /data/opengwasdb/stores/OGS-00025/replaced/20261125T151300Z
-  replaced_at: '2026-11-25T15:16:39.585004Z'
+  archive: /data/opengwasdb/stores/OGS-00025/replaced/20261126T143926Z
+  replaced_at: '2026-11-26T14:39:26.690270Z'
