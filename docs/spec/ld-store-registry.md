@@ -241,8 +241,10 @@ pixi run -e dev python3 -m ld_registry write <ld_id> <location> [--ld-root store
   different one is refused, naming each field that differs, so a rewrite
   never changes it silently. Without the option, a `rebuild` a person wrote is
   kept.
-- **The writer pins `rebuild.inputs` from the Store (#542).** It is the one
-  reader of the Store's `source.sha256`, through `opengwasdb ld info`. For each
+- **The writer pins `rebuild.inputs` from the Store (#542).** It reads the
+  Store's `source.sha256` through `opengwasdb ld info` and
+  `provenance.source_sha256`, the one reader of that field, which the recipe's
+  check of a Genotype Store's staged copies also uses. For each
   input of the `rebuild`, given or kept, it writes `sha256` as the digest the
   Store holds of `<name>`; a digest already written must be that one. An input
   the Store holds no digest of, or whose digest differs, is refused, naming

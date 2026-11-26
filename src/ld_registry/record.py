@@ -250,7 +250,13 @@ def record_path(ld_root: Path, ld_id: str) -> Path:
     return Path(ld_root) / ld_id / RECORD_FILENAME
 
 
-def _lookup(document: Mapping[str, Any], dotted: str) -> tuple[bool, Any]:
+def lookup(document: Mapping[str, Any], dotted: str) -> tuple[bool, Any]:
+    """Whether `document` holds the dotted path `dotted` (such as `source.sha256`), and its value there.
+
+    The one walker of a dotted path: a record's fields, and `opengwasdb ld info`'s
+    provenance (`ld_registry.provenance`, `recipe`, `compare`). A step that is
+    not a mapping, or a key that is missing, is `(False, None)`.
+    """
     value: Any = document
     for part in dotted.split("."):
         if not isinstance(value, Mapping) or part not in value:
@@ -301,9 +307,9 @@ def validate(document: Mapping[str, Any], path: Path) -> list[RecordError]:
     declared = {f.name for f in FIELDS}
     for field in FIELDS:
         parent = field.name.rpartition(".")[0]
-        if parent and not isinstance(_lookup(document, parent)[1], Mapping):
+        if parent and not isinstance(lookup(document, parent)[1], Mapping):
             continue  # the parent's own error says it
-        present, value = _lookup(document, field.name)
+        present, value = lookup(document, field.name)
         if not present or value is None:
             if field.required:
                 errors.append(RecordError(path, field.name, "is required"))

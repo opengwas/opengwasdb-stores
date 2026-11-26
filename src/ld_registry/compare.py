@@ -204,10 +204,7 @@ def provenance_problems(info: dict[str, Any], keep_n: int | None = None) -> list
     engine builds holds Partner Rows instead.
     """
     def at(dotted: str) -> Any:
-        value: Any = info
-        for key in dotted.split("."):
-            value = value.get(key) if isinstance(value, dict) else None
-        return value
+        return record.lookup(info, dotted)[1]
 
     def number(value: Any) -> bool:
         return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)

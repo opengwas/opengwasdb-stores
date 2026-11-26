@@ -12,7 +12,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from ld_registry.record import IMPORTED_MATRIX
+from ld_registry.record import IMPORTED_MATRIX, lookup
 from ogstores.store_info import Runner, run_engine_json
 
 #: Each provenance field of a record, and where `opengwasdb ld info` keeps it.
@@ -53,13 +53,25 @@ def provenance_sha256(info: dict[str, Any]) -> str:
     return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
+def source_sha256(info: dict[str, Any]) -> Any:
+    """The Store's `source.sha256`: each input it read, by name, and that input's sha256; None when absent.
+
+    The one reader of the field (#542): the writer pins a rebuild's inputs from
+    it, and the recipe checks a Genotype Store's staged copies against it.
+    """
+    return lookup(info, "source.sha256")[1]
+
+
+def pc_file_sha256(info: dict[str, Any]) -> Any:
+    """The digest of the PC File an LD Store read, `adjustment.pc_file.sha256`, which `source.sha256` lacks."""
+    return lookup(info, "adjustment.pc_file.sha256")[1]
+
+
 def record_provenance(info: dict[str, Any]) -> dict[str, Any]:
     """The record's `provenance` section, from `ld info`'s output. A missing value is refused."""
     provenance: dict[str, Any] = {}
     for field, keys in PROVENANCE_PATHS:
-        value: Any = info
-        for key in keys:
-            value = value.get(key) if isinstance(value, dict) else None
+        value = lookup(info, ".".join(keys))[1]
         if value is None:
             if field in OPTIONAL:
                 continue

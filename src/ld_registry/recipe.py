@@ -40,7 +40,7 @@ from ld_registry import REPO_ROOT, record
 from ld_registry.argv import options as argv_options
 from ld_registry.argv import values as argv_values
 from ld_registry.ids import require_valid_ld_id
-from ld_registry.provenance import ld_info
+from ld_registry.provenance import ld_info, pc_file_sha256, source_sha256
 from ld_registry.writer import Written, write_record
 from ogstores.store_info import Runner, run_engine
 from ogstores.store_size import store_size_on_disk
@@ -371,14 +371,7 @@ def staged_checksums(plan: Plan, info_runner: Runner | None) -> dict[Path, str]:
             "a Genotype Store's staged inputs are checked against its LD Store's source.sha256; name the LD Stores' root"
         )
     provenance = ld_info(plan.checksums_from, runner=info_runner)
-
-    def field(*keys: str) -> Any:
-        value: Any = provenance
-        for key in keys:
-            value = value.get(key) if isinstance(value, dict) else None
-        return value
-
-    recorded, pc_file = field("source", "sha256"), field("adjustment", "pc_file", "sha256")
+    recorded, pc_file = source_sha256(provenance), pc_file_sha256(provenance)
     if not isinstance(recorded, dict):
         raise RecipeRefusal(f"{plan.checksums_from} records no source.sha256: the staged copies cannot be checked")
     pcs = Path(argv_values(plan.build, "--pcs")[0])
