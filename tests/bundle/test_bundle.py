@@ -376,7 +376,8 @@ class TestBundleContract(unittest.TestCase):
         # OGS-00013's record is `publish-rewrite`'s (#525): converted to format
         # 0.3.0 at engine 0.20.0, its completion validated at 0.21.0 (931ac166).
         "OGS-00013": "931ac16690de9538be203f9cdbb2eb46caa895f4",
-        "OGS-00014": "496bfe9cc9bbc85c60718d62aa4c6d43d83af810",
+        # OGS-00014's record is `publish-rewrite`'s (#525), as OGS-00013's is.
+        "OGS-00014": "931ac16690de9538be203f9cdbb2eb46caa895f4",
         # OGS-00015's record is `publish-rewrite`'s (#525), as OGS-00013's is.
         "OGS-00015": "931ac16690de9538be203f9cdbb2eb46caa895f4",
     }
@@ -394,7 +395,7 @@ class TestBundleContract(unittest.TestCase):
         record_check()
         self.assertEqual(
             validation["status"],
-            "passed_with_warnings" if store_id in {"OGS-00012", "OGS-00013", "OGS-00015", "OGS-00016"} else "passed",
+            "passed_with_warnings" if store_id in {"OGS-00012", "OGS-00013", "OGS-00014", "OGS-00015", "OGS-00016"} else "passed",
             store_id,
         )
         record_check()
