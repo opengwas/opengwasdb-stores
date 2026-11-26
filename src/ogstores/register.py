@@ -1571,6 +1571,23 @@ def begin_publication(marker: Mapping[str, Any], root: Path | str) -> None:
     run.fault_boundary("marker-written")
 
 
+def _verified_steps(store_id: str, phase: str, root: Path) -> frozenset[str] | None:
+    """The steps `phase`'s register record verified: the stems of its `inputs`.
+
+    None when the record is missing or unreadable or lists no inputs: that
+    phase cannot say which steps it verified, so none of its planned steps
+    may be skipped (every one is required).
+    """
+    try:
+        record = run.read_record(paths.record_path(store_id, REGISTER_STEPS[phase], root=root))
+    except ValueError:
+        return None
+    inputs = record.get("inputs") if isinstance(record, Mapping) else None
+    if not isinstance(inputs, list) or not inputs:
+        return None
+    return frozenset(Path(str(item)).stem for item in inputs)
+
+
 def register_release(
     bundle_input: Bundle | str,
     *,
@@ -1655,10 +1672,23 @@ def register_release(
         return rec
 
     # The steps of the phases before this one, which their own register
-    # verified; the release's elapsed total counts them (ADR 0037).
-    earlier_records = {
-        step.name: required_record(step) for step in planned[: planned.index(planned_steps[0])]
-    }
+    # verified; the release's elapsed total counts them (ADR 0037). A step the
+    # current plan has there, that has no record and that the earlier register
+    # did not list among its inputs, was added to the recipe after that phase
+    # published (ADR 0043, a `post.*` step): it is skipped, not required (#532).
+    earlier_records: dict[str, dict[str, Any]] = {}
+    verified: dict[str, frozenset[str] | None] = {}
+    for step in planned[: planned.index(planned_steps[0])]:
+        if step.phase not in verified:
+            verified[step.phase] = _verified_steps(store_id, step.phase, resolved_root)
+        said = verified[step.phase]
+        if (
+            said is not None
+            and step.name not in said
+            and run.load_record(store_id, step.name, root=resolved_root) is None
+        ):
+            continue
+        earlier_records[step.name] = required_record(step)
 
     # 1. Load and verify each planned step's record and check argv drift
     for step in planned_steps:
