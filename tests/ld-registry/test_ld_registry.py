@@ -42,6 +42,7 @@ import yaml
 from ld_registry import index as ld_index
 from ld_registry import record, rows, writer
 from panel_declarations import copy_declarations
+from yardstick.fixture import write_ld_records
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 FIXTURES = Path(__file__).resolve().parent / "fixtures"
@@ -1047,9 +1048,7 @@ class TestTheIndexChecksLinks(RegistryCase):
     UNRECORDED = [{"path": SCRATCH_69, "reason": "ogld#69's scratch Partner Rows; not a Store of its own"}]
 
     def registry(self, *documents: dict[str, Any]) -> Path:
-        for document in documents:
-            write_yaml(self.ld_root / document["ld_id"] / "record.yaml", document)
-        return self.ld_root
+        return write_ld_records(self.ld_root, *documents)
 
     def refusals(self, *documents: dict[str, Any]) -> str:
         with self.assertRaises(ld_index.InvalidRecords) as caught:

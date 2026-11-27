@@ -30,6 +30,7 @@ import numpy as np
 import yaml
 
 from ld_registry import compare, rebuild, recipe, record
+from yardstick.fixture import write_pgen_chromosomes
 
 PANEL = "T"
 CHROMS = (21, 22)
@@ -39,8 +40,6 @@ N_VARIANTS = 120
 
 def write_panel(root: Path) -> recipe.Inputs:
     """A panel in the recipe's layout: `pgen/T/chr{21,22}.*`, `keep/T.keep` and `pcs/T.eigenvec`."""
-    import pgenlib
-
     rng = np.random.default_rng(541)
     ids = [f"S{i:03d}" for i in range(N_SAMPLES)]
     (root / "keep").mkdir(parents=True)
@@ -51,22 +50,7 @@ def write_panel(root: Path) -> recipe.Inputs:
         "#IID\t" + "\t".join(f"PC{i + 1}" for i in range(12)) + "\n"
         + "".join(s + "\t" + "\t".join(f"{v:.6f}" for v in row) + "\n" for s, row in zip(ids, pcs))
     )
-    for chrom in CHROMS:
-        prefix = root / "pgen" / PANEL / f"chr{chrom}"
-        prefix.parent.mkdir(parents=True, exist_ok=True)
-        Path(f"{prefix}.psam").write_text("#IID\tSEX\n" + "".join(f"{s}\tNA\n" for s in ids))
-        positions = np.sort(rng.choice(np.arange(10_000_000, 12_000_000), N_VARIANTS, replace=False))
-        lines = ["#CHROM\tPOS\tID\tREF\tALT\tFILTER"]
-        for position in positions:
-            ref, alt = "ACGT"[position % 4], "ACGT"[(position + 1) % 4]
-            lines.append(f"{chrom}\t{position}\t{chrom}:{position}:{ref}:{alt}\t{ref}\t{alt}\tPASS")
-        Path(f"{prefix}.pvar").write_text("\n".join(lines) + "\n")
-        writer = pgenlib.PgenWriter(f"{prefix}.pgen".encode(), N_SAMPLES, N_VARIANTS, False, hardcall_phase_present=True)
-        haplotypes = rng.integers(0, 2, size=2 * N_SAMPLES, dtype=np.int32)
-        for _ in range(N_VARIANTS):  # LD: each variant flips some of its neighbour's alleles
-            haplotypes = np.where(rng.random(2 * N_SAMPLES) < 0.15, 1 - haplotypes, haplotypes).astype(np.int32)
-            writer.append_alleles(haplotypes, all_phased=True)
-        writer.close()
+    write_pgen_chromosomes(root / "pgen" / PANEL, CHROMS, ids, N_VARIANTS, rng)
     return recipe.Inputs(root / "pgen", root / "keep", root / "pcs", chroms=CHROMS, ld_stores_root=root / "stores")
 
 
