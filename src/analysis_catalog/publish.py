@@ -24,6 +24,10 @@ import sqlite3
 from collections.abc import Iterable
 from pathlib import Path
 
+import ld_registry
+from ld_registry.index import resources_root_of
+from ld_registry.panels import declaration_files
+from ld_registry.record import LD_ROOT
 from ogstores import bundle as release_bundle
 
 from analysis_catalog import BUILDER_VERSION, summary
@@ -33,6 +37,9 @@ KEEP_VERSIONS = 5
 PARTIAL_SUFFIX = ".partial"
 PACKAGE_DIR = Path(__file__).resolve().parent
 OGSTORES_DIR = Path(release_bundle.__file__).resolve().parent
+LD_REGISTRY_DIR = Path(ld_registry.__file__).resolve().parent
+# The LD Store Registry's records sit beside the Release Bundles in the registry (#537).
+LD_DIRNAME = LD_ROOT.name
 # Read in pieces, so hashing a manifest never holds more than this of it.
 CHUNK_SIZE = 1 << 20
 
@@ -84,15 +91,23 @@ def _source_files(package: Path) -> list[Path]:
     return sorted(p for p in package.rglob("*.py") if "__pycache__" not in p.parts)
 
 
+def _feed_tree(digest: "hashlib._Hash", prefix: str, root: Path) -> None:
+    """Hash every file and symlink under `root`, in path order, labelled `<prefix>/<relative path>`."""
+    for path in sorted(p for p in root.rglob("*") if p.is_file() or p.is_symlink()):
+        _feed_file(digest, f"{prefix}/{path.relative_to(root)}", path)
+
+
 def compute_version(registry: Path, store_ids: Iterable[str]) -> str:
     """Hash of everything a decision depends on, and the builder that reads it.
 
     Decisions are a pure function of: the registered store ids; every file of
     every registered Release Bundle directory (`check()` reads them all, so any
     can change a decision); the source of `analysis_catalog` (which includes the
-    serving policy) and of `ogstores` (`check()`, `Bundle`,
-    `partition_membership`); the installed opengwasdb, whose reader parses the
-    manifest; and the summary template, which shapes `summary.html`. They are not
+    serving policy), of `ogstores` (`check()`, `Bundle`,
+    `partition_membership`) and of `ld_registry` (what a row's values are);
+    every file of the LD Store Registry's records (`<registry>/ld/`, #537) and
+    every `ld_panel` declaration the panel rows come from; the installed
+    opengwasdb, whose reader parses the manifest; and the summary template, which shapes `summary.html`. They are not
     hashed themselves, so no manifest row is read to know the version. The build
     time and the registry commit are left out.
     """
@@ -102,14 +117,19 @@ def compute_version(registry: Path, store_ids: Iterable[str]) -> str:
     _feed(digest, "policy", "\n".join(POLICY).encode("utf-8"))
     _feed(digest, "opengwasdb", opengwasdb_identity().encode("utf-8"))
     _feed(digest, "store_ids", "\n".join(ids).encode("utf-8"))
-    for name, package in (("analysis_catalog", PACKAGE_DIR), ("ogstores", OGSTORES_DIR)):
+    for name, package in (
+        ("analysis_catalog", PACKAGE_DIR), ("ogstores", OGSTORES_DIR), ("ld_registry", LD_REGISTRY_DIR),
+    ):
         for source in _source_files(package):
             _feed_file(digest, f"source/{name}/{source.relative_to(package)}", source)
     _feed_file(digest, "summary_template", summary.SOURCE)
+    _feed_tree(digest, LD_DIRNAME, registry / LD_DIRNAME)
+    # The `ld_panel` declarations the panel rows come from (#540), by their resource id.
+    panels = resources_root_of(registry / LD_DIRNAME)
+    for declaration in declaration_files(panels):
+        _feed_file(digest, f"ld_panel/{declaration.parent.name}", declaration)
     for store_id in ids:
-        root = registry / store_id
-        for path in sorted(p for p in root.rglob("*") if p.is_file() or p.is_symlink()):
-            _feed_file(digest, f"{store_id}/{path.relative_to(root)}", path)
+        _feed_tree(digest, store_id, registry / store_id)
     return digest.hexdigest()[:16]
 
 

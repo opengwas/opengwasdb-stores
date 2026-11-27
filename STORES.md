@@ -72,3 +72,28 @@ These bundles pass the Release Bundle gate only because a named exemption tolera
 | `OGS-00001` | 70 blank required Analysis values (tolerated under #134) |
 | `OGS-00002` | 10 analysis_id values containing ':' (tolerated under #319) |
 | `OGS-00002` | 70 blank required Analysis values (tolerated under #134) |
+
+## LD resources
+
+Generated from the LD Store Registry's records in `stores/ld/` (docs/spec/ld-store-registry.md). Every column is in `ld-resources.tsv`. Do not edit by hand; regenerate with `pixi run index`.
+
+| LD ID | Label | Kind | Status | Ancestry | n | k | Format | Variants | Bytes | Licence |
+|:---|:---|:---|:---|:---|---:|---:|:---|---:|---:|:---|
+| `OGL-00001` | hgdp1kgp-v2-EUR-k10 | ld_store | served | EUR | 665 | 10 | 0.1.0 | 8,586,889 | 79,278,843,340 | to confirm |
+| `OGL-00002` | hgdp1kgp-v2-AFR-k10 | ld_store | retiring | AFR | 608 | 10 | 0.1.0 | 14,374,341 | 241,320,984,050 | to confirm |
+| `OGL-00003` | hgdp1kgp-v2-AMR-k10 | ld_store | retiring | AMR | 341 | 10 | 0.1.0 | 7,561,067 | 64,344,553,227 | to confirm |
+| `OGL-00004` | hgdp1kgp-v2-EAS-k10 | ld_store | retiring | EAS | 724 | 10 | 0.1.0 | 7,837,854 | 63,862,446,668 | to confirm |
+| `OGL-00005` | hgdp1kgp-v2-SAS-k10 | ld_store | retiring | SAS | 672 | 10 | 0.1.0 | 8,879,035 | 84,902,373,722 | to confirm |
+| `OGL-00006` | hgdp1kgp-v2-EUR-k10 (Partner Rows) | ld_store | reference | EUR | 665 | 10 | 0.2.0 | 8,586,889 | 478,327,170 | to confirm |
+| `OGL-00007` | hgdp1kgp-v2-EUR-k10 | genotype_store | built | EUR | 665 | 10 | 0.1.0 | 8,586,889 | 1,474,533,909 | to confirm |
+| `OGL-00008` | hgdp1kgp-v2-AFR-k10 | genotype_store | built | AFR | 608 | 10 | 0.1.0 | 14,374,341 | 2,457,647,129 | to confirm |
+| `OGL-00009` | hgdp1kgp-v2-AMR-k10 | genotype_store | built | AMR | 341 | 10 | 0.1.0 | 7,561,067 | 1,297,724,976 | to confirm |
+| `OGL-00010` | hgdp1kgp-v2-EAS-k10 | genotype_store | built | EAS | 724 | 10 | 0.1.0 | 7,837,854 | 1,346,250,670 | to confirm |
+| `OGL-00011` | hgdp1kgp-v2-SAS-k10 | genotype_store | built | SAS | 672 | 10 | 0.1.0 | 8,879,035 | 1,521,230,360 | to confirm |
+| `OGL-00012` | panukb-EUR-k15 | ld_store | built | EUR | 420,542 | 15 | 0.2.0 | 23,128,732 | 675,025,258,262 | CC BY 4.0 |
+| `OGL-00013` | ukb-hg38-eur-ld | ld_panel | available | EUR | 49,766 | - | - | - | - | restricted: UK Biobank |
+| `OGL-00014` | hgdp1kgp-hg38-ld (AFR) | ld_panel | available | AFR | 804 | - | - | 14,136,388 | 61,615,133,621 | to confirm |
+| `OGL-00015` | hgdp1kgp-hg38-ld (EAS) | ld_panel | available | EAS | 817 | - | - | 8,728,585 | 37,595,218,297 | to confirm |
+| `OGL-00016` | hgdp1kgp-hg38-ld (SAS) | ld_panel | available | SAS | 783 | - | - | 9,618,254 | 38,938,295,375 | to confirm |
+| `OGL-00017` | hgdp1kgp-hg38-amr-ld | ld_panel | available | AMR | 345 | - | - | 12,669,255 | 21,012,529,996 | to confirm |
+| `OGL-00018` | hgdp1kgp-hg38-eur-calibration | ld_panel | available | EUR | 771 | - | - | 9,783,946 | 37,123,596,583 | to confirm |

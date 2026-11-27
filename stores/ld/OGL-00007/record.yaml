@@ -1,0 +1,54 @@
+# LD Store record (docs/spec/ld-store-registry.md, ADR 0042).
+# kind, location, provenance, provenance_sha256 and measured are written by
+# `python3 -m ld_registry write`; a person writes every other field, and the
+# writer keeps it as written.
+ld_id: OGL-00007
+kind: genotype_store
+label: hgdp1kgp-v2-EUR-k10
+status: built
+licence: to confirm
+used_for: Data API LD once ogdb-api#180 ships
+issue: ogld#92
+notes: 'ogld validate ok 2026-11-21; read-only; answers equal the EUR LD Store''s on the whole-genome acceptance run; the commands alone do not recreate pgen/ or inputs/ or the build environment: staging the pgen, keep and eigenvec files (sha256 checked) and the per-build environment is done by scripts/build92.sh in /data/opengwasdb/work/orchestrate/ogld-18, outside ogld; pixi run ld-stores rebuild (#541) replays these commands with the staged pgen, keep and eigenvec files copied from this Store''s directory, in that environment, so a rebuild needs this directory to exist'
+rebuild:
+  repository: opengwas/ogld
+  version: 0.5.0
+  script: ogld build --genotypes
+  commands:
+  - pixi run -e dev ogld build /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store --genotypes --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr1.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr2.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr3.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr4.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr5.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr6.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr7.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr8.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr9.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr10.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr11.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr12.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr13.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr14.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr15.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr16.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr17.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr18.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr19.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr20.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr21.pgen --pgen /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/pgen/chr22.pgen --keep /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/inputs/EUR.keep --pcs /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/inputs/EUR.eigenvec --pc-source 'ogld scripts/make_pcs.py on HGDP+1kGP v2 EUR (ADR 0002)' --panel-id hgdp1kgp-v2-EUR --ancestry EUR --genotype-source 'HGDP+1kGP phased v2 (Koenig et al. 2024), EUR, converted by build-inputs §3' --k 10 --k-min 5 --r-scale 511 --t-partner 0.01 --mac-min 20 --info-min none --threads 8
+location: /data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store
+provenance:
+  source_kind: genotypes
+  source_description: HGDP+1kGP phased v2 (Koenig et al. 2024), EUR, converted by build-inputs §3
+  source_panel: hgdp1kgp-v2-EUR
+  ancestry: EUR
+  n: 665
+  k: 10
+  reference_assembly: GRCh38
+  format_version: 0.1.0
+  r_scale: 511
+  near_bp: 3000000
+  far_bp: 10000000
+  t_far: 0.03186544342507645
+  t_partner: 0.01
+  n_variants: 8586889
+  counts:
+    alids_left_out: 40080
+  variants_dropped:
+    duplicate_reversed_indel: 79022
+    filter: 0
+    info: 0
+    mac: 67747610
+    zero_variance: 0
+  software:
+    numpy: 2.4.6
+    ogld: 0.5.0
+    pgenlib: 0.95.1
+    zarr: 3.4.2
+    zstd: 1.5.6
+  created_at: '2026-11-21T20:42:19Z'
+  wall_seconds: 838.336734540062
+provenance_sha256: b1848938d4eac7fda20f01ae16416fd20b839fbae36d385dc69fa300a29a8911
+measured:
+  store_bytes: 1474533909
+  genotype_bytes: 4139037382

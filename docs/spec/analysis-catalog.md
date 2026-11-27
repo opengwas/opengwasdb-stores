@@ -94,6 +94,25 @@ Store refused on a value in its rows is rolled back whole. Memory is set by the
 largest single Store's manifest.
 The columns and their types are `src/analysis_catalog/columns.py`.
 
+- **`ld_resources`**: exactly the rows of `ld-resources.tsv`: one per record of
+  the LD Store Registry (`<registry>/ld/`) and one per ancestry of each LD panel
+  declared under `resources/reference-resources/` (`ld_registry.index.resource_rows`,
+  `docs/spec/ld-store-registry.md`, ADR 0042), in the
+  registry's columns (`ld_registry.rows.COLUMNS`) and in their order. The
+  values are `ld_registry.rows.ld_values`' typed values: whole numbers are
+  `INTEGER`, `t_far` and `t_partner` are `REAL`, the rest `TEXT`, and a value a
+  record does not hold is `NULL`, never `0` or `''`. `default` is `1` for the
+  record that declares itself its ancestry's default, `NULL` otherwise.
+  `default` is an SQL keyword, so a consumer writes it quoted:
+  `WHERE ancestry = ? AND "default" = 1`; a bare `default = 1` is a syntax
+  error. At most one `served` record per ancestry is the default across all
+  kinds, so a consumer choosing an LD Store also filters on `kind`. The
+  table is `WITHOUT ROWID`, clustered by `ld_id`, so a lookup reads no separate
+  key index (ADR 0041). The catalog never parses `ld-resources.tsv`. A record
+  that breaks the LD Store Registry's spec, or any other file in `<registry>/ld/`,
+  refuses the build before anything is written, naming the record; so does an
+  `ld_panel` declaration the registry cannot list, or an id a panel and a
+  record both claim. A count a panel declaration does not hold is `NULL`.
 - **`stores`**: one row per **listed or placeholder** Store Release, with the
   columns of epic #313. `superseded_by` is the successor's Store id for a
   superseded Store and `NULL` for a withdrawn one (`check()` refuses a
@@ -271,8 +290,11 @@ the file is laid out to need few of them:
   inputs, which are everything a decision depends on:
   - the builder's version and the serving policy;
   - the sorted list of registered store ids, so an empty directory changes it;
-  - every `*.py` source file of `analysis_catalog` and of `ogstores` (`check()`,
-    `Bundle`, `partition_membership`, `LEGACY_ANALYSIS_ID_RELEASES`);
+  - every `*.py` source file of `analysis_catalog`, of `ogstores` (`check()`,
+    `Bundle`, `partition_membership`, `LEGACY_ANALYSIS_ID_RELEASES`) and of
+    `ld_registry`, and every file under `<registry>/ld/`, so a record change
+    gives a new version (#537); the `ld_panel` declarations the panel rows come
+    from (not other Reference Resources) are hashed too;
   - the installed opengwasdb, whose reader parses the manifest: its distribution
     version and, when the install records one (`direct_url.json`), its commit;
   - the summary template (`docs/reports/analysis-catalog-summary.qmd`);

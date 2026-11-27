@@ -11,11 +11,14 @@ from __future__ import annotations
 import shutil
 import sqlite3
 import subprocess
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
+from ld_registry.index import IdCollision, resource_rows, resources_root_of
+from ld_registry.panels import PanelError
+from ld_registry.record import LD_ROOT, InvalidRecords
 from ogstores import bundle as release_bundle
 from ogstores.paths import is_valid_store_id
 
@@ -53,6 +56,7 @@ def build_catalog(
         summary.quarto_path()
     commit = registry_commit(registry)
     store_ids = registered_store_ids(registry)
+    ld_rows = ld_resource_rows(registry)
     # The version is a function of the inputs alone, so a rebuild that finds it
     # returns before reading any manifest row.
     version = publish.compute_version(registry, store_ids)
@@ -71,7 +75,7 @@ def build_catalog(
     partial.mkdir(parents=True)
     try:
         decisions = _write_version(
-            partial, registry, store_ids, version=version, built_at=built_at, registry_commit=commit,
+            partial, registry, store_ids, ld_rows, version=version, built_at=built_at, registry_commit=commit,
             previous=(publish.versions_dir(artifact_root) / previous, previous) if previous else None,
         )
         renderer(partial)
@@ -106,6 +110,7 @@ def _write_version(
     directory: Path,
     registry: Path,
     store_ids: list[str],
+    ld_rows: list[Mapping],
     *,
     version: str,
     built_at: str,
@@ -116,7 +121,7 @@ def _write_version(
     decisions = database.write_database(
         path,
         (decide(release_bundle.load(store_id, registry_root=registry), registry) for store_id in store_ids),
-        version=version, built_at=built_at, registry_commit=registry_commit,
+        version=version, built_at=built_at, registry_commit=registry_commit, ld_rows=ld_rows,
     )
     change = None
     if previous is not None:
@@ -136,6 +141,15 @@ def _write_version(
         encoding="utf-8",
     )
     return decisions
+
+
+def ld_resource_rows(registry: Path) -> list[Mapping]:
+    """The rows of `ld-resources.tsv`, read as the index reads them; any error refuses the build."""
+    ld_root = registry / LD_ROOT.name
+    try:
+        return resource_rows(ld_root, resources_root_of(ld_root))
+    except (InvalidRecords, PanelError, IdCollision) as exc:
+        raise CatalogError(str(exc)) from exc
 
 
 def registered_store_ids(registry: Path) -> list[str]:

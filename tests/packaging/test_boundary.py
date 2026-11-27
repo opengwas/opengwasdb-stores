@@ -57,6 +57,14 @@ CONTRACT_AND_SHARED_LAYOUT = {"ogstores", "ogstores.bundle", "ogstores.paths", "
 # it can move to the API's repository.
 CATALOG_PACKAGE = "analysis_catalog"
 CATALOG_OGSTORES_SURFACE = {"ogstores", "ogstores.bundle", "ogstores.paths"}
+# It also reads the LD Store Registry's records for its `ld_resources` table (#537, ADR 0042):
+# the index's one list of rows (`ld_registry.index.resource_rows`), the record loader's errors and the
+# column types (`ld_registry.rows.COLUMN_TYPES`). Of the panel reader it takes one function for its
+# version, `ld_registry.panels.declaration_files`, which says which declarations to hash, and the error
+# `resource_rows` raises for a panel, `PanelError`. Never the writer or the provenance reader.
+CATALOG_LD_REGISTRY_SURFACE = {
+    "ld_registry", "ld_registry.record", "ld_registry.rows", "ld_registry.index", "ld_registry.panels",
+}
 
 
 def imports_catalog(module: str) -> bool:
@@ -161,18 +169,20 @@ def includes_generation(target: str) -> bool:
     return "generate.smk" in target or bool(GENERATION_PATHS.search(target))
 
 
-def outside_shared_surface(module: str, allowed: set[str] = CONTRACT_AND_SHARED_LAYOUT) -> bool:
-    """An `ogstores` import beyond `allowed`.
+def outside_shared_surface(
+    module: str, allowed: set[str] = CONTRACT_AND_SHARED_LAYOUT, root: str = "ogstores"
+) -> bool:
+    """An import from package `root` (`ogstores` by default) beyond `allowed`.
 
     `from ogstores import bundle` names the module `ogstores.bundle`; `from
     ogstores.bundle import check` names a member of it, so a name is allowed
     when it, or its parent other than bare `ogstores`, is listed. Manifest
     Generation's surface is the default; the catalog's is `CATALOG_OGSTORES_SURFACE`.
     """
-    if module.split(".")[0] != "ogstores" or module in allowed:
+    if module.split(".")[0] != root or module in allowed:
         return False
     parent = module.rsplit(".", 1)[0]
-    return parent == "ogstores" or parent not in allowed
+    return parent == root or parent not in allowed
 
 
 class ScannerTest(unittest.TestCase):
@@ -379,6 +389,56 @@ class AnalysisCatalogBoundaryTest(unittest.TestCase):
             for module in imported_modules(path.read_text(encoding="utf-8")):
                 if outside_shared_surface(module, CATALOG_OGSTORES_SURFACE) or GENERATION_MODULES.match(module):
                     offenders.append(f"{relative}: imports {module}")
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+
+class LdStoreRegistryBoundaryTest(unittest.TestCase):
+    """`ld_registry` may import `ogstores`; `ogstores` never imports it (#536, ADR 0042).
+
+    The Snakefile's `index` rule calls both, so it is not checked here.
+    """
+
+    def test_ogstores_never_imports_the_ld_store_registry(self) -> None:
+        offenders = []
+        for path in sorted((REPO_ROOT / "src" / "ogstores").rglob("*.py")):
+            relative = path.relative_to(REPO_ROOT)
+            offenders += [
+                f"{relative}: imports {m}"
+                for m in imported_modules(path.read_text(encoding="utf-8"))
+                if m.split(".")[0] == "ld_registry"
+            ]
+        self.assertEqual(offenders, [], "\n".join(offenders))
+
+
+class CatalogLdRegistryBoundaryTest(unittest.TestCase):
+    """`analysis_catalog` may import `ld_registry`'s readers; `ld_registry` never imports it (#537)."""
+
+    def test_the_catalog_imports_only_the_registrys_readers(self) -> None:
+        imported = set()
+        for path in sorted((REPO_ROOT / "src" / CATALOG_PACKAGE).rglob("*.py")):
+            imported |= {m for m in imported_modules(path.read_text(encoding="utf-8")) if m.split(".")[0] == "ld_registry"}
+        self.assertTrue(imported, "the catalog reads the registry")
+        outside = [m for m in imported if outside_shared_surface(m, CATALOG_LD_REGISTRY_SURFACE, "ld_registry")]
+        self.assertEqual(sorted(outside), [])
+
+    def test_the_catalogs_registry_surface_is_the_readers_only(self) -> None:
+        allowed = ["ld_registry", "ld_registry.record", "ld_registry.record.InvalidRecords", "ld_registry.index.resource_rows",
+                   "ld_registry.rows.COLUMN_TYPES", "ld_registry.panels.declaration_files"]
+        refused = ["ld_registry.writer", "ld_registry.writer.write_record", "ld_registry.provenance"]
+        self.assertEqual([m for m in allowed if outside_shared_surface(m, CATALOG_LD_REGISTRY_SURFACE, "ld_registry")], [])
+        self.assertEqual(
+            [m for m in refused if outside_shared_surface(m, CATALOG_LD_REGISTRY_SURFACE, "ld_registry")], refused
+        )
+        self.assertFalse(outside_shared_surface("os.path", CATALOG_LD_REGISTRY_SURFACE, "ld_registry"))
+
+    def test_the_ld_store_registry_never_imports_the_catalog(self) -> None:
+        offenders = []
+        for path in sorted((REPO_ROOT / "src" / "ld_registry").rglob("*.py")):
+            offenders += [
+                f"{path.relative_to(REPO_ROOT)}: imports {m}"
+                for m in imported_modules(path.read_text(encoding="utf-8"))
+                if imports_catalog(m)
+            ]
         self.assertEqual(offenders, [], "\n".join(offenders))
 
 

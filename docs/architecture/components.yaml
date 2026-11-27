@@ -83,7 +83,13 @@ components:
     container: gwas_registry
     stages: [publish]
     summary: The accepted Release Bundles and the master list of Store Releases.
-    paths: [stores/, stores.tsv, STORES.md, ogstores.yaml]
+    paths: [stores/, stores.tsv, STORES.md, ogstores.yaml, ld-resources.tsv]
+  - id: ld_registry
+    name: LD Store Registry
+    container: gwas_orchestration
+    stages: [publish]
+    summary: One record per LD Store, its writer from the Store's provenance, the generated ld-resources.tsv (ADR 0042), the HGDP+1kGP build recipe (#541) and the Pan-UKB import (#542), each writing its records.
+    paths: [src/ld_registry/, tools/ld-stores/]
   - id: analysis_catalog
     name: Analysis Catalog
     container: catalog

@@ -91,11 +91,17 @@ class RegionsTableRuntimeError(RuntimeError):
     """A Ragged build that records its regions needs an opengwasdb that takes `--regions`."""
 
 
+#: Where the maintained Reference Resources are declared, relative to the repository root.
+REFERENCE_RESOURCES_DIR = Path("resources", "reference-resources")
+#: Each one's declaration, in its own directory under `REFERENCE_RESOURCES_DIR`.
+DECLARATION_FILENAME = "resource.yaml"
+
+
 def _resource_declaration_path(
     resource_id: str, repo_root: Path | str | None = None
 ) -> Path:
     repo = Path(repo_root) if repo_root is not None else paths.REPO_ROOT
-    return repo / "resources" / "reference-resources" / resource_id / "resource.yaml"
+    return repo / REFERENCE_RESOURCES_DIR / resource_id / DECLARATION_FILENAME
 
 
 def load_resource_declaration(

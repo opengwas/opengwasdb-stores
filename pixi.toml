@@ -241,6 +241,10 @@ se-reencode = { cmd = "python3 -m ogstores.se_reencode" }
 #   pixi run eaf-reference-flip OGS-00014
 #   pixi run eaf-reference-flip OGS-00014 --artifact-root /path --registry-root stores
 eaf-reference-flip = { cmd = "python3 -m ogstores.eaf_reference_flip" }
+# The HGDP+1kGP LD Store and Genotype Store recipe (#541): build, rebuild from a
+# record, and compare, through `opengwasdb ld` alone. A real build needs the
+# owner's approval of its command, host and budget.
+ld-stores = { cmd = "python3 tools/ld-stores/ld_stores.py" }
 
 [feature.python.tasks]
 # Manifest Generation: freeze the Source Inventory a release config selects,

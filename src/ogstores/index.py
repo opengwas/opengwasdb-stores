@@ -487,10 +487,15 @@ def generate_index(
     registry_root: Path | str | None = None,
     repo_root: Path | str | None = None,
     artifact_root: Path | str | None = None,
+    ld_section: str | None = None,
 ) -> tuple[Path, Path]:
     """Generate master views, bundle summaries, and by-label symlinks.
 
     Strict seam compliance: reads git, never opens or inspects the artifact root.
+
+    `ld_section` is the LD Store Registry's section of STORES.md, already
+    rendered (#536): it is placed after the Store Releases, so STORES.md keeps
+    one writer while this package never imports the LD Store Registry.
     """
     resolved_repo_root = Path(repo_root).resolve() if repo_root else REPO_ROOT.resolve()
     resolved_registry_root = (
@@ -521,6 +526,8 @@ def generate_index(
 
     # Write STORES.md
     md_content = render_stores_md(bundles, rows, tolerated_gaps=tolerated)
+    if ld_section:
+        md_content += "\n" + ld_section
     stores_md_path = resolved_repo_root / "STORES.md"
     stores_md_path.write_text(md_content, encoding="utf-8")
 
