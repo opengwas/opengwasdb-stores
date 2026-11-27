@@ -11,9 +11,10 @@ import shutil
 import subprocess
 import sys
 import time
+from pathlib import Path
+from typing import Any
 
 from yardstick import proc
-from pathlib import Path
 
 VCF = (
     "##fileformat=VCFv4.2\n"
@@ -81,3 +82,56 @@ def timed_build(scratch: Path, *, timeout: float | None = None) -> dict:
     except subprocess.CalledProcessError as error:
         return {"status": "unavailable", "layout": "dense", "error": (error.stderr or str(error))[-500:]}
     return {"status": "measured", "layout": "dense", "seconds": round(time.perf_counter() - start, 3)}
+
+
+def write_pgen_chromosomes(
+    directory: Path, chroms: tuple[int, ...], sample_ids: list[str], n_variants: int, rng: Any
+) -> list[Path]:
+    """A synthetic phased panel, `chr<N>.pgen`, `.psam` and `.pvar` per chromosome in `directory`.
+
+    `n_variants` variants a chromosome at random positions between 10 and 12 Mb, each
+    flipping some of its neighbour's alleles, so there is LD to measure. Written with
+    pgenlib, the library the readers use; no engine fixture writes a pgen. The LD
+    section's tests (#504) and the registry's tiny build (#541) share it, each with its
+    own `rng` (`numpy.random.Generator`).
+    """
+    import numpy as np
+    import pgenlib
+
+    directory.mkdir(parents=True, exist_ok=True)
+    n_samples = len(sample_ids)
+    pgens = []
+    for chrom in chroms:
+        prefix = directory / f"chr{chrom}"
+        Path(f"{prefix}.psam").write_text("#IID\tSEX\n" + "".join(f"{s}\tNA\n" for s in sample_ids))
+        positions = np.sort(rng.choice(np.arange(10_000_000, 12_000_000), n_variants, replace=False))
+        lines = ["#CHROM\tPOS\tID\tREF\tALT\tFILTER"]
+        for position in positions:
+            ref, alt = "ACGT"[position % 4], "ACGT"[(position + 1) % 4]
+            lines.append(f"{chrom}\t{position}\t{chrom}:{position}:{ref}:{alt}\t{ref}\t{alt}\tPASS")
+        Path(f"{prefix}.pvar").write_text("\n".join(lines) + "\n")
+        writer = pgenlib.PgenWriter(f"{prefix}.pgen".encode(), n_samples, n_variants, False, hardcall_phase_present=True)
+        haplotypes = rng.integers(0, 2, size=2 * n_samples, dtype=np.int32)
+        for _ in range(n_variants):  # LD: each variant flips some of its neighbour's alleles
+            haplotypes = np.where(rng.random(2 * n_samples) < 0.15, 1 - haplotypes, haplotypes).astype(np.int32)
+            writer.append_alleles(haplotypes, all_phased=True)
+        writer.close()
+        pgens.append(Path(f"{prefix}.pgen"))
+    return pgens
+
+
+def write_ld_records(ld_root: Path, *documents: dict[str, Any]) -> Path:
+    """`ld_root` holding each LD Store Registry record at `<ld_id>/record.yaml`, as YAML.
+
+    The registry's tests and the LD section's (#504) share it to lay out a registry from
+    documents; it validates nothing, so a test can write a record the registry refuses.
+    """
+    import yaml
+
+    from ld_registry.record import record_path
+
+    for document in documents:
+        path = record_path(ld_root, document["ld_id"])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(yaml.safe_dump(document, sort_keys=False, allow_unicode=True), encoding="utf-8")
+    return ld_root

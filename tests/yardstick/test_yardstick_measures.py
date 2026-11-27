@@ -56,9 +56,9 @@ def workload_of(*stores: dict) -> dict:
 
 
 class WorkloadCheckTest(unittest.TestCase):
-    def test_the_committed_workload_loads_and_is_yardstick_4(self) -> None:
+    def test_the_committed_workload_loads_and_is_yardstick_6(self) -> None:
         loaded = workload_spec.load()
-        self.assertEqual(loaded["workload_id"], "yardstick-4")
+        self.assertEqual(loaded["workload_id"], "yardstick-6")
         ids = [s["store_id"] for s in loaded["stores"]]
         self.assertEqual(ids, ["OGS-00009", "OGS-00011", "OGS-00027"])
 
