@@ -148,8 +148,9 @@ It leaves the Release Status as it is, as `register` does.
   restore`, then, if it was staged, moving the `.partial` release back to its
   staged path. Ctrl-C and SIGTERM unwind without leaving either.
 - A deviation is accepted only with the conversion's note (amended 26 Nov 2026). A native warning is accepted only when the replaced Validation Record carried
-  it unchanged (amended 25 Nov 2026, the owner's ruling in the orchestrating
-  session, for #499; see the amendment below). On the engine's own 0.2.0 Dense
+  it unchanged (amended 25 Nov 2026, the owner's ruling,
+  [#520 comment 7185997253](https://github.com/opengwas/opengwasdb-stores/issues/520#issuecomment-7185997253)
+  item 4, for #499; see the amendment below). On the engine's own 0.2.0 Dense
   fixtures `eaf_orientation.unverified` is one; a hosted Store that raises one
   its replaced record lacked goes back to the owner, as #520 says. The post
   steps later added to the release (#528) accept the same carried warnings.
@@ -172,7 +173,9 @@ It leaves the Release Status as it is, as `register` does.
 
 ## Amendment, 25 Nov 2026: a carried warning is accepted
 
-The owner ruled on 25 Nov 2026 (in the orchestrating session, for #499) that
+The owner ruled on 25 Nov 2026 (for #499;
+[#520 comment 7185997253](https://github.com/opengwas/opengwasdb-stores/issues/520#issuecomment-7185997253),
+item 4) that
 the route also accepts a warning the replaced Validation Record carried
 unchanged, and still refuses every new or changed warning. "Unchanged" is the
 warning's exact `message`, equal to one of the replaced record's `warnings`: a

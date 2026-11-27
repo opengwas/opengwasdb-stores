@@ -14,9 +14,19 @@ generator:
   commands:
     - Rscript resources/generators/gwas-ssf-ragged/generate.R --config=families/metabolome-plasma-2023/generators/config-south-asian.yaml --mode=emit
 notes: |
-  Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry (issue #31's "run the whole thing" follow-on): single-ancestry selection (ancestry_group: South Asian, matching the candidates table's own store_key partitioning) rather than the pilot's mixed-ancestry-plus-AF-assignment approach, since each store here is already known single-ancestry from the source label. ancestry_assignment stays enabled with the fixed QC panel (issue #28/#29/#30) as a source/AF mislabel QC check, not for splitting.
+  Production-scale sibling of the 2023-chen-pilot-80 pilot (issue #27), scaled up per-ancestry
+  (issue #31's "run the whole thing" follow-on): single-ancestry selection (ancestry_group: South
+  Asian, matching the candidates table's own store_key partitioning) rather than the pilot's
+  mixed-ancestry-plus-AF-assignment approach, since each store here is already known single-ancestry
+  from the source label. ancestry_assignment stays enabled with the fixed QC panel (issue
+  #28/#29/#30) as a source/AF mislabel QC check, not for splitting.
 
-  Built (opengwasdb#100/#101 fixes; opengwasdb@1ecfd1e): 971 analyses, 1,336,174 variants, 6,653,533 associations. 1 duplicate (analysis, variant) pair had conflicting z-scores across two source rows and was dropped entirely for that cell (opengwasdb#101) -- see validation.yaml's warning. Reference completion is currently blocked: complete_ragged_store only enumerates LD blocks via a cis window (trait_chr/trait_bp), which this no-gene-target family has none of, so completion is a no-op (opengwasdb#102). No Reference-Completed sibling exists yet.
+  Built (opengwasdb#100/#101 fixes; opengwasdb@1ecfd1e): 971 analyses, 1,336,174 variants, 6,653,533
+  associations. 1 duplicate (analysis, variant) pair had conflicting z-scores across two source rows
+  and was dropped entirely for that cell (opengwasdb#101) -- see validation.yaml's warning.
+  Reference completion is currently blocked: complete_ragged_store only enumerates LD blocks via a
+  cis window (trait_chr/trait_bp), which this no-gene-target family has none of, so completion is a
+  no-op (opengwasdb#102). No Reference-Completed sibling exists yet.
 
   Release Erratum (issue #133, applied here during the #252 migration): the
   quantitative Analyses stored `n_cases` and `n_controls` as 0 where the counts
@@ -89,11 +99,11 @@ notes: |
   replaced/20261111T235044Z/ were deleted. The archive keeps its records/ and validation.yaml, as
   ADR 0037 keeps on an unforced replacement, so the change stays dated and evidenced.
 
-  Rebuilt at format 0.3.0(issues #520 and #524, 2026-11-25). The owner approved rebuilding the
-  priority Stores at format 0.3.0 on 25 Nov 2026 (opengwas/opengwasdb-stores#498), and this one by a
+  2026-11-25: rebuilt at format 0.3.0 (#524, epic #520). The owner approved rebuilding the
+  priority Stores at format 0.3.0 on 2026-11-25 (opengwas/opengwasdb-stores#498), and this one by a
   forced run on this host: `pixi run -e workflow release OGS-00026 --config force=1`, after
   `release-dry`, at 4c1cdf88 with opengwasdb 0.20.0 (c8ebe4ca), from 15:13:37 to 15:16:46 UTC, exit 0,
-  in 3 m 33 s wall (peak RSS 3,306,220 kB; load average 15.99 before and 15.68 after, with the 0.2.0
+  in 3 min 33 s wall (peak RSS 3,306,220 kB; load average 15.99 before and 15.68 after, with the 0.2.0
   conversions running beside it). Steps: build 154.4 s, top-hits 1.6 s, validate 13.7 s. The Store is
   observed_only, stamped format 0.3.0, and carries the 0.3.0 envelope (the variable-length ALID,
   position and source_alid sidecars, regions.tsv; no variant_offsets.npy and no index.sqlite); it
@@ -113,14 +123,20 @@ notes: |
   /data/opengwasdb/stores/OGS-00026/replaced/20261125T151320Z/, kept because the run was forced
   (#309); deleting it is the owner's call. The Release Status is unchanged at validated.
 
-  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00024 and OGS-00025 (no completed SAS Store exists): the same study (Chen 2023), the same `hgdp1kgp-hg38/panel`, and that panel's `SAS/` population; the panel choice is the orchestrator's (recorded on #520). It also adds `post.clumps` with `post.ld_stores` (SAS: the `hgdp1kgp-v2-SAS-k10.store` LD Store). These amendments are the owner's, accepted on #522.
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block,
+  `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00024
+  and OGS-00025 (no completed SAS Store exists): the same study (Chen 2023), the same
+  `hgdp1kgp-hg38/panel`, and that panel's `SAS/` population; the panel choice is recorded on #520
+  (PR #534). It also adds `post.clumps` with `post.ld_stores` (SAS: the `hgdp1kgp-v2-SAS-k10.store`
+  LD Store). These amendments are the owner's, accepted on #522.
 
-  Completed in place at format 0.3.0, with Clumps (issues #520 and #532, 2026-11-26). The owner approved
-  the run on 26 Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow
-  release OGS-00026` at engine 0.23.0 (e97f07b5, with #533e) ran `complete` (541.8 s), `completion-clump`
+  2026-11-26: completed in place at format 0.3.0, with Clumps (#532, epic #520). The owner approved
+  the run on 2026-11-26 (command, host, budget and publication effect). An unforced `pixi run -e workflow
+  release OGS-00026` at engine 0.23.0 (e97f07b5, with #532's register fix) ran `complete` (541.8 s),
+  `completion-clump`
   (6.0 s), `completion-validate` (19.8 s) and `completion-observed-view-check` (161.4 s) and published: 12
   min 53.3 s wall, peak RSS 3,413,668 kB, load average 55 before and 61 after. The completion panel is
-  hgdp1kgp-hg38's SAS population (the orchestrator's choice, recorded on #520), and the Clumps use the
+  hgdp1kgp-hg38's SAS population (the choice recorded on #520, PR #534), and the Clumps use the
   hgdp1kgp-v2-SAS LD Store. Times: 14:39:41 to 14:52:35 UTC. The completion phase published the completed
   Store, `OGS-00026-completed` as its release identity, in place of the Observed-Only Store; it takes no
   force (ADR 0037). Counts, Observed-Only to completed: variants 1,283,165 to 2,746,673, associations

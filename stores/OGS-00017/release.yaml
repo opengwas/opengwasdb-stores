@@ -36,7 +36,11 @@ generator:
 description: |
   Full FinnGen R13 release: every endpoint in the frozen public summary-statistics manifest (2,754 endpoints -- three inverse-rank-normalised quantitative endpoints plus every case-control endpoint), selected in the manifest's own order. Production-scale sibling of the 20-Analysis r13-pilot-20 trial (OGS-00003); the pilot assessment is the onboarding evidence, and this release carries no analysis cap.
 notes: |
-  Selection is the whole frozen provider manifest, so the release membership is exactly what FinnGen publishes and the pinned manifest checksum makes the Analysis order reproducible. Every endpoint must still be honestly classified by the metadata resolver (a quantitative endpoint with num_cases=N, or a case-control endpoint with positive case and control counts); an endpoint the resolver cannot classify fails the emit rather than being dropped.
+  Selection is the whole frozen provider manifest, so the release membership is exactly what FinnGen
+  publishes and the pinned manifest checksum makes the Analysis order reproducible. Every endpoint
+  must still be honestly classified by the metadata resolver (a quantitative endpoint with
+  num_cases=N, or a case-control endpoint with positive case and control counts); an endpoint the
+  resolver cannot classify fails the emit rather than being dropped.
 
   Release Erratum (2026-10-13, owner-authorized renumbering): this release was
   migrated from OGS-00016 to OGS-00017 so the MVP META observed-only Store can
@@ -116,11 +120,13 @@ notes: |
   Release Erratum (2026-10-28, #383): validation.yaml recorded observed.n_associations as 59347303722.
   That is exactly 2754 x 21549493, n_analyses times n_variants, not a count. `register` multiplied
   the two axes when a Dense step printed no association count (the pre-#322 fallback, removed by
-  #322); this Store was registered before that change reached this branch. The product counts matrix cells, which here include the imputed cells and the off-panel cells completion left missing, so it is not the number of observed associations.
+  #322); this Store was registered before that change reached this branch. The product counts matrix
+  cells, which here include the imputed cells and the off-panel cells completion left missing, so it
+  is not the number of observed associations.
   The value is null until opengwasdb reports an observed count (opengwas/opengwasdb#294). No Store
   was rebuilt or rewritten by this registry metadata correction.
 
-  Converted to format 0.3.0 (issues #520 and #525, 2026-11-25). The owner approved converting the
+  2026-11-25: converted to format 0.3.0 (#525, epic #520). The owner approved converting the
   priority Stores in place, and publishing them, provided validation shows only the recorded deviation
   warnings (opengwas/opengwasdb-stores#520). This Reference-Completed Store was converted from 0.2.0 by
   `opengwasdb rewrite-release --convert-legacy --not-lifted --n-workers 16` at engine 0.20.0 (c8ebe4ca),
@@ -144,11 +150,16 @@ notes: |
   status as the 0.2.0 archive. Its Reference-Completed state is unchanged, and so is the Release
   Status, validated. A rebuild from source remains the owner's call for the `indel_order` deviation.
 
-  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner's, accepted on #522. Every Analysis is unassigned, so the declaration yields no Clumps (`not_clumped.no_assigned_ancestry`) until the Analyses carry an Assigned Ancestry; EUR is mapped only because a mapping is required.
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with
+  `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the
+  owner's, accepted on #522. Every Analysis is unassigned, so the declaration yields no Clumps
+  (`not_clumped.no_assigned_ancestry`) until the Analyses carry an Assigned Ancestry; EUR is mapped
+  only because a mapping is required.
 
-  Rho and Clumps added in place (issues #520 and #532, 2026-11-26). The owner approved the run on 26
-  Nov 2026 (command, host, budget and publication effect). An unforced `pixi run -e workflow release
-  OGS-00017` (ADR 0044, engine 0.23.0, e97f07b5) staged a reflink copy and ran `opengwasdb
+  2026-11-26: Rho and Clumps added in place (#532, epic #520). The owner approved the run on
+  2026-11-26 (command, host, budget and publication effect). An unforced `pixi run -e workflow
+  release
+  OGS-00017` (ADR 0044, engine 0.23.0 (e97f07b5)) staged a reflink copy and ran `opengwasdb
   build-dense-rho` (1,346.4 s, 3,790,881 Analysis pairs), `opengwasdb clump --ld-store
   EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store` (7.7 s), the overview (3.0
   s) and validate (1,232.7 s), from 15:40:21 to 16:23:44 UTC (43 min 23 s wall, peak RSS 28,199,420

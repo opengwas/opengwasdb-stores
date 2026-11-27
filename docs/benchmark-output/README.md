@@ -27,17 +27,22 @@ pixi run -e dev python <stores>/tools/benchmarks/release-benchmark-report.py \
 
 While `--all` aborts on OGS-00004 (#518), a rebuilt Store is benchmarked with
 `--store <id>` into a report dated in its name, never into the aggregate's
-paths, for example `opengwasdb_514_canaries_benchmark_2026-11-25.{json,md}` for
-#514's three 0.3.0 canaries. The aggregate stays stale for those Stores until
-#518 is fixed and `--all` is run again.
+paths. The aggregate stays stale for those Stores until #518 is fixed and `--all` is run
+again. The stopgap reports are:
 
-A report recorded at load, not on a quiet host (#532): the shapes harness waits for a
-1-minute load below 3 before each timing, which this shared host does not reach for
-days, so `--max-start-load 0` (passed through to the harness) records at the current
-load, and each Store's `load_average` (1, 5 and 15 minutes, before and after) sits in the
-JSON and the report. `opengwasdb_532_dense_rho_benchmark_2026-11-26.{json,md}` holds the
-eight Stores that gained Rho (Dense OGS-00009, -12, -13, -14, -15, -16, -17, and Hybrid OGS-00011, measured in a later run and merged into the report), measured
-at engine e97f07b5 at a load average of 42 to 80:
+- `opengwasdb_514_canaries_benchmark_2026-11-25.{json,md}`: #514's three 0.3.0 canaries.
+- `opengwasdb_532_dense_rho_benchmark_2026-11-26.{json,md}`: the seven Dense Stores that
+  gained Rho (OGS-00009, -12, -13, -14, -15, -16, -17) and the Hybrid OGS-00011, measured at
+  engine e97f07b5 (OGS-00011 in a later run, merged into the report).
+- `opengwasdb_532_ogs00032_benchmark_2026-11-27.{json,md}` and
+  `opengwasdb_532_ogs00033_benchmark_2026-11-27.{json,md}`: the rebuilt and completed
+  Hybrids OGS-00032 and OGS-00033, one report each.
+
+The #532 reports were recorded at load, not on a quiet host: the shapes harness waits for a
+1-minute load below 3 before each timing, which this shared host does not reach for days,
+so `--max-start-load 0` (passed through to the harness) records at the current load, and
+each Store's `load_average` (1, 5 and 15 minutes, before and after) sits in the JSON and the
+report. The loads were 42 to 80. For example, the Dense report:
 
 ```bash
 pixi run -e dev python tools/benchmarks/release-benchmark-report.py \

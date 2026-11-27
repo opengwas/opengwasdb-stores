@@ -346,8 +346,10 @@ leaves. Decided on the owner's 25 Nov 2026 ruling on
 (stream D: OGS-00016 is completed after conversion).
 
 **A conversion that records `variant_table.indel_order` is refused**
-(owner's decision, 25 Nov 2026: OGS-00016 stays Observed-Only after conversion
-and is completed only after a rebuild from source). Such a Store may spell
+(owner's decision, 25 Nov 2026,
+[#520 comment 7185997253](https://github.com/opengwas/opengwasdb-stores/issues/520#issuecomment-7185997253)
+item 2: OGS-00016 stays Observed-Only after conversion and is completed only after a rebuild
+from source). Such a Store may spell
 indels sorted, the engine's completion reads it regardless of
 `converted_from`, and it adds panel indels spelt reference first beside them,
 so an overlapping deletion can appear under two ALIDs. The registry learns the

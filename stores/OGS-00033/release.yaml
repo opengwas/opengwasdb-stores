@@ -43,22 +43,27 @@ notes: 'The candidate pool is 550 Analyses across 96 publications. EBI publishes
   550 frozen inventory rows.
 
 
-  Evidence: frozen Source Inventory gwas-catalog-ssf-afr-hybrid-2026-11-05 (sha256 c29b17ba3984ebe31970c124fee747a9fdfcd8ede7a1bfdf56d2d677c102c04a);
-  preflight report /data/opengwasdb/work/gwas-catalog-eas-afr-hybrid/work/OGS-00033/preflight/gwas-catalog-ssf-afr-hybrid-2026-11-05.json;
-  resolution receipt /data/opengwasdb/work/gwas-catalog-eas-afr-hybrid/work/OGS-00033/resolver/resolution_receipt.json
+  Evidence: frozen Source Inventory gwas-catalog-ssf-afr-hybrid-2026-11-05 (sha256
+  c29b17ba3984ebe31970c124fee747a9fdfcd8ede7a1bfdf56d2d677c102c04a);
+  preflight report
+  /data/opengwasdb/work/gwas-catalog-eas-afr-hybrid/work/OGS-00033/preflight/gwas-catalog-ssf-afr-hybrid-2026-11-05.json;
+  resolution receipt
+  /data/opengwasdb/work/gwas-catalog-eas-afr-hybrid/work/OGS-00033/resolver/resolution_receipt.json
   (sha256 afefa4e69ae044647d9986995df2d2fd42396efdddb405a729e0c6a61c586984).
 
 
   Policy: full-reference AF ancestry assignment and source-AF-only quantitative phenotype-SD estimation
   (issue #152); case-control rows use log_or/binary_trait; non-target/unassigned ancestry, orientation
-  failures, unusable source AF and ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv).
+  failures, unusable source AF and ordinary resolution failures are controlled exclusions
+  (sidecars/exclusions.tsv).
 
 
   Store composition (#203): this shared Store admits only Analyses whose rows were MAF-filtered; an included
   Analysis with no applied MAF floor is excluded as not_maf_filtered.
 
 
-  Exclusions by reason: ancestry_not_eur=44, ancestry_unassigned=29, effect_placeholder_rows=44, missing_case_control_counts=3,
+  Exclusions by reason: ancestry_not_eur=44, ancestry_unassigned=29, effect_placeholder_rows=44,
+  missing_case_control_counts=3,
   no_build_eligible_rows=36, not_maf_filtered=4, orientation_failure=4
 
 
@@ -72,21 +77,20 @@ notes: 'The candidate pool is 550 Analyses across 96 publications. EBI publishes
   Review: 3 Analysis/Analyses had incomplete resolved metadata and were excluded; see sidecars/exclusions.tsv
 
 
-  Review: 4 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
+  Review: 4 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as
+  not_maf_filtered
   (#203); see sidecars/exclusions.tsv
 
-  2026-11-25: build recipe gains on-rsid-conflict: drop (issues #520, #524). The first forced run of
-  this bundle (release OGS-00033 at 4c1cdf88, opengwasdb 0.20.0, slot 524b) refused in build after 24
+  2026-11-25: build recipe gains on-rsid-conflict: drop (#524, epic #520). The first forced run of
+  this bundle (release OGS-00033 at 4c1cdf88, opengwasdb 0.20.0) refused in build after 24
   minutes: "Hybrid single-pass build: two source variants case-fold to one routing key
   ''1:46934387:G:A'' with different rsids: (''1'', 46934387, ''G'', ''A'') names ''rs9333012'' but
   (''1'', 46934387, ''g'', ''a'') names ''rs71500102''". Six included Analyses, GCST90014293 to
   GCST90014298 (PMID 34187551), spell every allele in lower case (about 12.99 million rows each); the
   engine upper-cases alleles for identity, so their data route correctly, but the rsID harvest
-  compares the names two spellings of one key carry. A scan of all 194 sources found 280 candidate keys,
-  all across files (the six lower-case Analyses against 16 others) and none within one file (the build
-  later measured 93, below); evidence
-  in scratch/524-casefold/ (conflicts.tsv). The owner decided on 25 Nov 2026, in the #520
-  orchestration, to blank those rsIDs and keep all 194 Analyses, as OGS-00011''s recipe does. The
+  compares the names two spellings of one key carry. The owner decided on 2026-11-25 (#520 comment
+  7185997253, item 1) to blank those rsIDs and keep all 194 Analyses, as OGS-00011''s recipe does.
+  The
   build therefore passes --on-rsid-conflict drop: every stored variant whose key the build finds disputed is
   stored with no rsID (also when the other allele order names it) and is still found by ALID and by
   position; the build reports them in its rsid_conflicts record. Membership and every Analysis column
@@ -96,37 +100,67 @@ notes: 'The candidate pool is 550 Analyses across 96 publications. EBI publishes
   decision of 2026-10-23 and OGS-00004''s and OGS-00005''s on 2026-11-18 (opengwas/opengwasdb#271):
   HapMap3 variants that reach only the shared/overflow axis cannot be indexed by the Dense Component, so
   the subset leaves them out and records how many. The forced release of 2026-11-25 (#524) built the
-  Hybrid Store, then its indexed-subset-hm3 Step refused for 18,778 such variants (exit 1 at 18:45:02 UTC after 1 h 41 min); the
+  Hybrid Store, then its indexed-subset-hm3 Step refused for 18,778 such variants (exit 1 at
+  18:45:02 UTC after 1 h 41 min); the
   build had succeeded. Those variants stay in the Store and are found by ALID and by position; only
   the hm3 subset omits them.
 
-  Built at format 0.3.0 (#520, #524; 2026-11-25). On the owner''s approval of 2026-11-25, this Store''s first publication is a forced release from source at opengwasdb 0.20.0 (c8ebe4ca), as a Hybrid Observed-Only Store. It ran as two invocations, because the hm3 subset refused the first time (above): the build ran from 2026-11-25 17:03:53 to 18:44:35 UTC (6,041.5 s) in the forced release that exited 1 at the subset Step, and its staged Store was kept; the second run, `pixi run -e workflow release OGS-00033` without force from worktree 524, resumed at indexed-subset-hm3 and ran 19:07:10 to 19:15:49 UTC (whole invocation 19:06:57 to 19:15:53 UTC, exit 0, 8 min 56 s wall, peak RSS 6.2 GB, load 137 to 21), exit 0. Step timings: build 6,041.5 s; indexed-subset-hm3 121.6 s; overview 1.2 s; validate 382.5 s; build_elapsed_s in the Validation Record, 6,546.8 s, sums the four Steps and counts the build once. It holds 34,465,821 shared variants (20,600,947 on the Dense panel, 13,864,874 off-panel) and 340,067,052 Ragged Overflow associations, 20.0 GB. Admission: 3,446,034,568 source rows examined, 2,841,753,851 admitted; dropped 601,730,776 below the MAF floor, 791,583 unharmonised GWAS-SSF indels (indel_ssf_hm_columns), 586,186 collapsed and 76,084 conflicting duplicates, 735,877 with no MAF, 360,151 below the info threshold, 58 indels by hm_code and 2 with unusable SE. hm3 subset: requested 1,206,903, resolved 1,185,327, absent 2,798, overflow-only skipped 18,778. Under on-rsid-conflict drop the build blanked 93 stored variants whose admitted rows name them differently (rsid_conflicts: 93 keys, 93 variants); 93 keys blanked. Of the 280 keys the pre-build scan found (scratch/524-casefold/), all are stored and found by ALID and by position: 93 with no rsID and 187 carrying one source''s rsID (logs/524/OGS-00033/rsid-280-split.out, rsid-280-split2.out). The owner accepted the build as built on 2026-11-25: names only, no statistic affected. The earlier scan over-counted: six sources have CRLF headers, so its `rsid` column was never found and it read `variant_id` instead. A rescan with that fixed (2026-11-25, scratch/524-casefold/, logs/524/OGS-00033/rsid-93-confirmed.out) finds 97 disputed keys: the build''s 93 blanked variants and 4 it named (rsid-93-confirmed-diff.out), names only. validate reports no errors and one warning (the Analyses were resolved with opengwasdb 0.3.3), status passed_with_warnings; `audit-store reconcile` exits 0 with no errors. Nothing was replaced: there was no earlier Store to archive. The Release Status was accepted when `register` finished and is moved to built, then validated, by hand on 2026-11-25, the owner''s ruling in the #520 orchestration (the lifecycle graph passes through built).
+  2026-11-25: built at format 0.3.0 (#524, epic #520). On the owner''s approval of 2026-11-25, this
+  Store''s first publication is a forced release from source at opengwasdb 0.20.0 (c8ebe4ca), as a
+  Hybrid Observed-Only Store. It ran as two invocations, because the hm3 subset refused the first
+  time (above): the build ran from 2026-11-25 17:03:53 to 18:44:35 UTC (6,041.5 s) in the forced
+  release that exited 1 at the subset Step, and its staged Store was kept; the second run, `pixi run
+  -e workflow release OGS-00033` without force, resumed at indexed-subset-hm3 and ran 19:07:10 to
+  19:15:49 UTC (whole invocation 19:06:57 to 19:15:53 UTC, exit 0, 8 min 56 s wall, peak RSS 6.2 GB,
+  load 137 to 21), exit 0. Step timings: build 6,041.5 s; indexed-subset-hm3 121.6 s; overview 1.2
+  s; validate 382.5 s; build_elapsed_s in the Validation Record, 6,546.8 s, sums the four Steps and
+  counts the build once. It holds 34,465,821 shared variants (20,600,947 on the Dense panel,
+  13,864,874 off-panel) and 340,067,052 Ragged Overflow associations, 20.0 GB. Admission:
+  3,446,034,568 source rows examined, 2,841,753,851 admitted; dropped 601,730,776 below the MAF
+  floor, 791,583 unharmonised GWAS-SSF indels (indel_ssf_hm_columns), 586,186 collapsed and 76,084
+  conflicting duplicates, 735,877 with no MAF, 360,151 below the info threshold, 58 indels by
+  hm_code and 2 with unusable SE. hm3 subset: requested 1,206,903, resolved 1,185,327, absent 2,798,
+  overflow-only skipped 18,778. Under on-rsid-conflict drop the build blanked 93 stored variants
+  whose admitted rows name them differently (rsid_conflicts: 93 keys, 93 variants); 93 keys blanked.
+  The 93 variants are stored with no rsID and found by ALID and by position. The owner accepted the
+  build as built on 2026-11-25: names only, no statistic affected. A scan of the sources that reads
+  their CRLF headers finds 97 disputed keys: the build''s 93 blanked variants and 4 it named, names
+  only. validate reports no errors and one warning (the Analyses were resolved with opengwasdb
+  0.3.3), status passed_with_warnings; `audit-store reconcile` exits 0 with no errors. Nothing was
+  replaced: there was no earlier Store to archive. The Release Status was accepted when `register`
+  finished and is moved to built, then validated, by hand on 2026-11-25, on the owner''s ruling
+  recorded on #520 (the lifecycle graph passes through built).
 
-  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block, `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00013 (AFR), the Dense Store on the same panel and ancestry; `n-workers` is OGS-00011''s, the completed Hybrid. It also adds `post.rho` and `post.clumps` with `post.ld_stores` (AFR: the `hgdp1kgp-v2-AFR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.
+  2026-11-25: recipe amended (#530, epic #520) to add completion (`complete` block,
+  `completion_state: reference_completed`), with the panel and ancestry from its sibling OGS-00013
+  (AFR), the Dense Store on the same panel and ancestry; `n-workers` is OGS-00011''s, the completed
+  Hybrid. It also adds `post.rho` and `post.clumps` with `post.ld_stores` (AFR: the
+  `hgdp1kgp-v2-AFR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.
 
-  2026-11-26: one Analysis excluded and the release to be rebuilt from source (#520, #532). The clump
+  2026-11-26: one Analysis excluded and the release rebuilt from source (#532, epic #520). The clump
   diagnosis (reports/clumpdiag.md) found that GCST90278111 (Kamiza et al. 2023, LDL cholesterol, AFR,
   PMID 37669986; Analysis 55) has a mis-scaled z: all 20,689,282 of its variants are at 5e-8
   (n_hits_5e8), the median |z| is 3.2e6, and it holds 99.4 % of the Store''s tier rows. Its source''s
   beta is about -5.6e5 at p = 0.054 with a standard error of 0.07, so the beta is mis-scaled while the
   p-value and standard error are plausible. It made `completion-clump` take over 3 h and the killed
-  run reach 4 h; it would also distort `n_loci_5e8` and the overview. The owner ruled on 26 Nov 2026
-  (AskUserQuestion, in the orchestrating session) to exclude it and rebuild OGS-00033 from source with
+  run reach 4 h; it would also distort `n_loci_5e8` and the overview. The owner ruled on 2026-11-26
+  (#520 comment 7202276131, item 8) to exclude it and rebuild OGS-00033 from source with
   force, then complete it; the owner accepted discarding the refused completion''s staged
   `store.opengwasdb.partial`. The row now carries `exclude_from_build: true` and `inclusion_reason`
   (ADR 0025), the exclusions and quality-check sidecars name it under `mis_scaled_z`, and the bundle
   plans 193 Analyses where the published Store has 194. The build keeps `on-rsid-conflict: drop` (the
-  25 Nov ruling). The amendment check refuses an unforced run (membership) and the forced run bypasses
-  it, as ADR 0037 provides. The published Store stays as it is until the forced release replaces it.
+  2026-11-25 ruling). The amendment check refuses an unforced run (membership) and the forced run bypasses
+  it, as ADR 0037 provides. The forced release that followed replaced the published Store, which is
+  archived under replaced/ (paragraph below).
 
-  Rebuilt from source without GCST90278111, then completed, with Rho and Clumps (issues #520 and #532,
-  2026-11-27). The owner ruled on 26 Nov 2026 that GCST90278111 (see the paragraph above) is excluded
+  2026-11-27: rebuilt from source without GCST90278111, then completed, with Rho and Clumps (#532,
+  epic #520). The owner ruled on 2026-11-26 that GCST90278111 (see the paragraph above) is excluded
   and that the Store is rebuilt from source with force, then completed, and accepted discarding the
   refused completion''s staged Store. The first attempt, `release OGS-00033 --config force=1`, had
   been killed in `completion-clump` after 4 h 00 min 03 s (the mis-scaled Analysis; peak RSS 42.6 GB).
   A forced `pixi run -e workflow release OGS-00033 --config force=1` from 839153e0 (engine 0.26.0,
   964ac1b2, with the exclusion of ba34c027, `on-rsid-conflict: drop` kept) then ran from 21:07:57 UTC
-  on 26 Nov to 01:56:09 UTC on 27 Nov (4 h 48 min 12 s wall, peak RSS 64,425,784 kB; 1-minute load
+  on 2026-11-26 to 01:56:09 UTC on 2026-11-27 (4 h 48 min 12 s wall, peak RSS 64,425,784 kB; 1-minute load
   average 81 at the start and 66 at the end, 78 on average, 36 to 129). The build dropped the same 93
   case-fold rsID-conflict keys as before (`rsid_conflicts`: 93 keys, 93 variants, policy drop). It
   built the Observed-Only Store (build 6,341.5 s, rho 353.1 s, clump 12.0 s, indexed-subset-hm3 128.8

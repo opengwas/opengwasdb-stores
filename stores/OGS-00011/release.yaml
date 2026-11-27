@@ -47,7 +47,8 @@ notes: 'The candidate pool is 6,219 Analyses (GWAS Catalog release 2026-11-19). 
   held statistics read from a mislabelled effect column; GCST90014299 to GCST90014304, GCST90444480 and
   GCST90833021, whose p-value test is MR-MEGA (opengwasdb#371, ADR 0085); and GCST90572740 and GCST90572741,
   whose beta/se is deflated against their own p-value (ADR 0069). Eighty-nine join: 66 of the 103 Analyses
-  new to the catalogue; 19 previously excluded as ancestry_unassigned whose sources EBI has since re-harmonised;
+  new to the catalogue; 19 previously excluded as ancestry_unassigned whose sources EBI has since
+  re-harmonised;
   GCST90278455 and GCST90278456, previously ancestry_unassigned, whose sources are unchanged and whose
   ancestry residual now falls below the gate; and GCST90627758 and GCST90627773, which the catalogue now
   records as quantitative. The Dense axis is the reference-first gnomAD generation (opengwasdb ADR 0079,
@@ -64,7 +65,7 @@ notes: 'The candidate pool is 6,219 Analyses (GWAS Catalog release 2026-11-19). 
 
   #487''s gwas-ssf-no-p Column Map is not carried. Without it GCST90446466 is refused at resolution as
   `resolution_failed`, and the recorded detail calls its z deflated; that is the effect-consistency check
-  reading its `p_value`, which holds 1 - p/2 (owner ruling of 2 Nov 2026, opengwasdb#370), not a fault
+  reading its `p_value`, which holds 1 - p/2 (owner ruling of 2026-11-02, opengwasdb#370), not a fault
   in its beta/se. Through the map it resolves at 0.14.1 but fails the ancestry gate (residual 0.219 against
   0.06), so it is excluded either way.
 
@@ -77,29 +78,34 @@ notes: 'The candidate pool is 6,219 Analyses (GWAS Catalog release 2026-11-19). 
   own variant table, 844,992 of 14,564,257 rows carry no rsid where the shared table has one (opengwasdb#481):
   a lookup by rsid over Dense Analyses misses those variants, and a lookup by ALID or position finds
   them. No statistic is affected. The owner approved marking it validated on 2026-11-25, after its
-  benchmark on the published Store (opengwasdb docs/benchmark-output/opengwasdb_ogs00011_hybrid_benchmark.html).
+  benchmark on the published Store (opengwasdb
+  docs/benchmark-output/opengwasdb_ogs00011_hybrid_benchmark.html).
 
 
   Candidate status: human review required before acceptance (issue #153). 3245 included, 1641 excluded
   of 6219 frozen inventory rows.
 
 
-  Evidence: frozen Source Inventory gwas-catalog-ssf-eur-hybrid-2026-11-20 (sha256 020af575451cd7a482b8bf4801465b32c1f807a4d239717b33b0c12009cc98b1);
-  preflight report /data/opengwasdb/work/ogs00011-478-20261121/OGS-00011/preflight/gwas-catalog-ssf-eur-hybrid-2026-11-20.json;
+  Evidence: frozen Source Inventory gwas-catalog-ssf-eur-hybrid-2026-11-20 (sha256
+  020af575451cd7a482b8bf4801465b32c1f807a4d239717b33b0c12009cc98b1);
+  preflight report
+  /data/opengwasdb/work/ogs00011-478-20261121/OGS-00011/preflight/gwas-catalog-ssf-eur-hybrid-2026-11-20.json;
   resolution receipt /data/opengwasdb/work/ogs00011-478-20261121/OGS-00011/resolver/resolution_receipt.json
   (sha256 4453eab4abee7d13664cf9517360b060a0488b2916a7d37f64f703d2cf31fe0b).
 
 
   Policy: full-reference AF ancestry assignment and source-AF-only quantitative phenotype-SD estimation
   (issue #152); case-control rows use log_or/binary_trait; non-target/unassigned ancestry, orientation
-  failures, unusable source AF and ordinary resolution failures are controlled exclusions (sidecars/exclusions.tsv).
+  failures, unusable source AF and ordinary resolution failures are controlled exclusions
+  (sidecars/exclusions.tsv).
 
 
   Store composition (#203): this shared Store admits only Analyses whose rows were MAF-filtered; an included
   Analysis with no applied MAF floor is excluded as not_maf_filtered.
 
 
-  Exclusions by reason: ancestry_not_eur=3, ancestry_unassigned=269, effect_placeholder_rows=48, missing_case_control_counts=18,
+  Exclusions by reason: ancestry_not_eur=3, ancestry_unassigned=269, effect_placeholder_rows=48,
+  missing_case_control_counts=18,
   no_build_eligible_rows=970, not_maf_filtered=149, orientation_failure=159, resolution_failed=25
 
 
@@ -120,20 +126,53 @@ notes: 'The candidate pool is 6,219 Analyses (GWAS Catalog release 2026-11-19). 
   GCST90624704+GCST90624705
 
 
-  Review: 149 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as not_maf_filtered
+  Review: 149 Analysis/Analyses had no MAF floor applied and were excluded from this shared Store as
+  not_maf_filtered
   (#203); see sidecars/exclusions.tsv
 
-  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the owner''s, accepted on #522.
+  2026-11-25: recipe amended (#530, epic #520) to add `post.rho` and `post.clumps` with
+  `post.ld_stores` (EUR: the `hgdp1kgp-v2-EUR-k10.store` LD Store). These amendments are the
+  owner''s, accepted on #522.
 
-  2026-11-25: rewritten to format 0.3.0 (#499, epic #520) by `opengwasdb rewrite-release` (no `--convert-legacy`: the source is 0.2.3) at opengwasdb 0.21.0 (931ac166), from the completed 0.2.3 release OGS-00011-completed. The rewrite took 2 h 35 min (19:15:21-21:50:27Z, peak RSS 85.2 GB), the validation of the result in `publish-rewrite` 35 min 40 s (peak 10.5 GB). The rewrite asked the source and the staged release 142 questions, 9 ALID probes, 20 range probes, 16 Indexed Variant Subset questions and 3 rsID misses; every answer matched. Size 167,840,022,356 to 165,420,689,705 bytes: the fixed-width ALID pair and `variant_offsets.npy` give way to the ALID, position and source_alid sidecars, and the root `index.sqlite` and the Dense Component''s variant table, index files and overview are dropped. The Dense Component reads the shared sidecars through `dense/dense_to_shared.npy`, and keeps `dense/index.sqlite` for `completion_quality`. Counts are unchanged: 3,245 Analyses, 47,920,732 variants. The rsID gap of opengwasdb#481 is closed: the Dense Component''s rows read the shared rsIDs, 844,992 of 14,564,257 rows that carried none in 0.2.3 (none the other way, none that differ); a lookup by rsID over the Dense Component alone found nothing for rs761832497 at 0.2.3 and every Dense Analysis now. `source_alid`, counted over the 47,920,732 rows of the shared table: 47,920,110 rows equal `alid` and 622 are empty, none lifted. The 622 are the rows completion added to the shared axis from the LD panel. The completion log counts 845,652 new panel variants on the Dense axis (14,564,257 rows, against 13,718,605 in the construction reference), and 845,030 of those were already rows of the observed-only shared table, observed in the Ragged Overflow, so they rightly keep their own ALID; 845,030 + 622 = 845,652. The Observed-View Check counts 668 differently: the observed-only release''s shared rows (47,920,778) that no row of the completed axis (47,920,732) carries, so 47,920,778 - 668 + 622 = 47,920,732 and 47,920,110 + 668 = 47,920,778. The 0.2.3 release holds the same state on every row, and the rewrite reads it from the shared table, not from the Dense copy, which was blank (opengwasdb#449). Acceptance criterion 3 of #499 is met by this count. The first reading of it, that 845,030 added rows should be empty, counted the Dense axis''s new rows and not the shared axis''s, and is withdrawn. The manifest''s `provenance.chain_file` is pyliftover_builtin_hg19_hg38 because a Hybrid build records the built-in chain whenever it is given none, and nothing was lifted. The validation keeps its one warning, GCST90271757''s `eaf_orientation.unverified` (345 overlapping variants, fewer than 500), carried unchanged from the 0.2.3 record and recorded under `rewrite.carried_warnings`; the owner ruled on 25 Nov 2026 (AskUserQuestion in the orchestrating session; recorded on #520 and in ADR 0043''s amendment) that this carried warning does not stop publication. It was published with no deviation under `publish-rewrite`; the 0.2.3 Store and its records are archived under replaced/20261125T215224Z.
+  2026-11-25: rewritten to format 0.3.0 (#499, epic #520) by `opengwasdb rewrite-release` (no
+  `--convert-legacy`: the source is 0.2.3) at opengwasdb 0.21.0 (931ac166), from the completed 0.2.3
+  release OGS-00011-completed. The rewrite took 2 h 35 min (19:15:21-21:50:27Z, peak RSS 85.2 GB),
+  the validation of the result in `publish-rewrite` 35 min 40 s (peak 10.5 GB). The rewrite asked
+  the source and the staged release 142 questions, 9 ALID probes, 20 range probes, 16 Indexed
+  Variant Subset questions and 3 rsID misses; every answer matched. Size 167,840,022,356 to
+  165,420,689,705 bytes: the fixed-width ALID pair and `variant_offsets.npy` give way to the ALID,
+  position and source_alid sidecars, and the root `index.sqlite` and the Dense Component''s variant
+  table, index files and overview are dropped. The Dense Component reads the shared sidecars through
+  `dense/dense_to_shared.npy`, and keeps `dense/index.sqlite` for `completion_quality`. Counts are
+  unchanged: 3,245 Analyses, 47,920,732 variants. The rsID gap of opengwasdb#481 is closed: the
+  Dense Component''s rows read the shared rsIDs, 844,992 of 14,564,257 rows that carried none in
+  0.2.3 (none the other way, none that differ); a lookup by rsID over the Dense Component alone
+  found nothing for rs761832497 at 0.2.3 and every Dense Analysis now. `source_alid`, counted over
+  the 47,920,732 rows of the shared table: 47,920,110 rows equal `alid` and 622 are empty, none
+  lifted. The 622 are the rows completion added to the shared axis from the LD panel. The completion
+  log counts 845,652 new panel variants on the Dense axis (14,564,257 rows, against 13,718,605 in
+  the construction reference), and 845,030 of those were already rows of the observed-only shared
+  table, observed in the Ragged Overflow, so they rightly keep their own ALID; 845,030 + 622 =
+  845,652. The Observed-View Check counts 668 differently: the observed-only release''s shared rows
+  (47,920,778) that no row of the completed axis (47,920,732) carries, so 47,920,778 - 668 + 622 =
+  47,920,732 and 47,920,110 + 668 = 47,920,778. The 0.2.3 release holds the same state on every row,
+  and the rewrite reads it from the shared table, not from the Dense copy, which was blank
+  (opengwasdb#449). Acceptance criterion 3 of #499 is met by this count. The manifest''s
+  `provenance.chain_file` is pyliftover_builtin_hg19_hg38 because a Hybrid build records the
+  built-in chain whenever it is given none, and nothing was lifted. The validation keeps its one
+  warning, GCST90271757''s `eaf_orientation.unverified` (345 overlapping variants, fewer than 500),
+  carried unchanged from the 0.2.3 record and recorded under `rewrite.carried_warnings`; the owner
+  ruled on 2026-11-25 (#520 comment 7185997253, item 4; recorded in ADR 0043''s amendment) that this
+  carried warning does not stop publication. It was published with no deviation under
+  `publish-rewrite`; the 0.2.3 Store and its records are archived under replaced/20261125T215224Z.
 
-  Top-hit counts recounted, Rho and Clumps added in place (issues #520 and #532, 2026-11-26). The
-  owner approved the run on 26 Nov 2026 (command, host, budget and publication effect) and the
+  2026-11-26: top-hit counts recounted, Rho and Clumps added in place (#532, epic #520). The
+  owner approved the run on 2026-11-26 (command, host, budget and publication effect) and the
   in-place recount (#520 comment 7202276131, item 10): the stored `n_hits_5e8`, `n_hits_5e6` and
   `n_hits_5e4` of a completed Hybrid were stale (opengwas/opengwasdb#509), and the validator''s rule
   `analyses.top_hit_counts` refused the first attempt (21 Analyses had more loci and unclumped rows
-  than n_hits_5e8). An unforced `pixi run -e workflow release OGS-00011` (ADR 0044, engine 0.26.0,
-  964ac1b2, with 533f) staged a reflink copy and ran `completion-recount-top-hits` (2.6 s),
+  than n_hits_5e8). An unforced `pixi run -e workflow release OGS-00011` (ADR 0044, engine 0.26.0
+  (964ac1b2), with #533) staged a reflink copy and ran `completion-recount-top-hits` (2.6 s),
   `opengwasdb build-dense-rho` (2,144.6 s, 5,263,390 Analysis pairs, the largest of the priority
   Stores), `opengwasdb clump --ld-store
   EUR=/data/opengwasdb/ld-stores/hgdp1kgp-v2-EUR/hgdp1kgp-v2-EUR-k10.store` (590.6 s), the overview
