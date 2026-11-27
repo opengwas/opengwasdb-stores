@@ -89,10 +89,12 @@ HISTORICAL_TABLE_COLUMNS: dict[str, tuple[str, ...]] = {
 # Release Status and evidence each must still carry. The FinnGen completed
 # pilot is not among them: its parent OGS-00003 now holds 10 of the 20 Analyses
 # it was completed from, so the edge would complete the wrong membership.
+# OGS-00022 and OGS-00023 were withdrawn on 27 Nov 2026 (owner): their Store
+# files were lost on 12-14 Sep 2026, before they were registered (#510).
 # (store_id, label, derived_from, status, layout, completion_state, n_analyses)
 MIGRATED_BUNDLES: tuple[tuple[str, str, str | None, str, str, str, int], ...] = (
-    ("OGS-00022", "eur-hybrid-pilot-10-completed", "OGS-00004", "validated", "hybrid", "reference_completed", 10),
-    ("OGS-00023", "eur-hybrid-quant-pilot-10-completed", "OGS-00005", "validated", "hybrid", "reference_completed", 10),
+    ("OGS-00022", "eur-hybrid-pilot-10-completed", "OGS-00004", "withdrawn", "hybrid", "reference_completed", 10),
+    ("OGS-00023", "eur-hybrid-quant-pilot-10-completed", "OGS-00005", "withdrawn", "hybrid", "reference_completed", 10),
     ("OGS-00024", "2023-chen-full-african", None, "validated", "ragged", "observed_only", 1034),
     ("OGS-00025", "2023-chen-full-east-asian", None, "validated", "ragged", "observed_only", 1038),
     ("OGS-00026", "2023-chen-full-south-asian", None, "validated", "ragged", "observed_only", 971),
@@ -355,7 +357,8 @@ class TestMigratedBundlesAreRegistered(unittest.TestCase):
                 self.assertIsInstance(validation, dict)
                 self.assertTrue(validation.get("validator"), "validator evidence kept")
                 self.assertIn("checks", validation)
-                self.assertIn(status, {"built", "validated"})
+                # A withdrawn bundle keeps its validation evidence as history (OGS-00022/23).
+                self.assertIn(status, {"built", "validated", "withdrawn"})
 
     def test_derived_from_resolves_and_carries_the_parent_membership(self) -> None:
         for store_id, _, derived_from, *_ in MIGRATED_BUNDLES:
