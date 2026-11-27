@@ -7,12 +7,13 @@ import json
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 
 import yaml
 
 from ld_registry.ids import is_valid_ld_id
 from ld_registry.record import LD_ROOT
+from yardstick.ld_queries import LD_MATRIX, LD_PROXIES, LD_REGIONS
 from yardstick.result import LD_KINDS, LD_MEASURES, LD_TIMED
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -160,13 +161,9 @@ def check(workload: dict[str, Any]) -> None:
 
 # ---------------------------------------------------------------- the LD section (#504)
 
-#: `matrix_N` reads N of the workload's 500 variants (`yardstick.ld.matrix_inputs`).
-LD_MATRIX = {"matrix_10": 10, "matrix_500": 500}
-LD_MATRIX_N = 500
-#: A region's width; the query is `region(chromosome, centre, width // 2)`, and the reader refuses a
-#: radius over far_bp / 2, so a width over the Store's far_bp is refused before anything runs.
-LD_REGIONS = {"region_1mb": 1_000_000, "region_3mb": 3_000_000}
-LD_PROXIES = {"proxies_1": 1, "proxies_10": 10, "proxies_100": 100}
+# The queries' names and shapes are `yardstick.ld_queries`'s: `LD_MATRIX`, `LD_REGIONS`, `LD_PROXIES`.
+#: How many variants the workload's matrix list holds: the largest `matrix_N`.
+LD_MATRIX_N = max(LD_MATRIX.values())
 LD_CLUMP_KEYS = ("env", "default", "analyses", "file", "sha256", "r2", "kb")
 #: The columns of each Analysis's hits file, in order: its ALID, and the z the clump scores by |z|.
 HITS_COLUMNS = ["alid", "z"]
@@ -293,25 +290,38 @@ def hits_header(data: bytes) -> list[str]:
     return data.split(b"\n", 1)[0].decode("utf-8").rstrip("\r").split("\t")
 
 
-def read_clump(root: Path, names: list[str], file: str) -> tuple[str, dict[str, bytes]]:
+class ClumpRead(NamedTuple):
+    """One read of the clump input: the aggregate `digest`, the manifest's own, and every hits file's bytes."""
+
+    digest: str
+    manifest_sha256: str
+    files: dict[str, bytes]
+
+
+def read_clump(root: Path, names: list[str], file: str, *, manifest: bytes | None = None) -> ClumpRead:
     """One read of the clump input: its digest, and the bytes of every Analysis's hits file it was taken over.
 
     The digest is sha256 over `manifest.json <sha256>` and then `<name>/<file> <sha256>`, one line
-    each, in the order of `names`. The preflight and the worker each read the input once through
-    here, so the worker measures exactly the bytes whose digest it compares with the preflight's.
+    each, in the order of `names`. `manifest` is the manifest's bytes when the caller has read
+    them already (the preflight, which takes `names` from them), so the digest is over the very
+    bytes it parsed; otherwise they are read here, once. The preflight and the worker each read
+    the input once through here, so the worker measures exactly the bytes whose digest it
+    compares with the preflight's.
     """
-    digest = hashlib.sha256(f"manifest.json {sha256(root / 'manifest.json')}\n".encode())
+    manifest_bytes = (root / "manifest.json").read_bytes() if manifest is None else manifest
+    manifest_sha256 = hashlib.sha256(manifest_bytes).hexdigest()
+    digest = hashlib.sha256(f"manifest.json {manifest_sha256}\n".encode())
     files: dict[str, bytes] = {}
     for name in names:
         data = (root / name / file).read_bytes()
         digest.update(f"{name}/{file} {hashlib.sha256(data).hexdigest()}\n".encode())
         files[name] = data
-    return digest.hexdigest(), files
+    return ClumpRead(digest.hexdigest(), manifest_sha256, files)
 
 
 def clump_sha256(root: Path, file: str) -> str:
     """The digest the workload pins (`clump.sha256`): `read_clump`'s, over every Analysis directory in name order."""
-    return read_clump(root, _analysis_directories(root), file)[0]
+    return read_clump(root, _analysis_directories(root), file).digest
 
 
 def clump_input(workload: dict[str, Any], environ: Mapping[str, str] | None = None) -> dict[str, Any]:
@@ -333,8 +343,10 @@ def clump_input(workload: dict[str, Any], environ: Mapping[str, str] | None = No
     manifest = root / "manifest.json"
     if not manifest.is_file():
         raise WorkloadError(f"clump input {root} has no manifest.json")
+    # Read once: the names, the manifest's digest and the aggregate digest all come from these bytes.
+    manifest_bytes = manifest.read_bytes()
     try:
-        named = sorted(f"{a['store']}__{a['analysis_id']}" for a in json.loads(manifest.read_text(encoding="utf-8"))["analyses"])
+        named = sorted(f"{a['store']}__{a['analysis_id']}" for a in json.loads(manifest_bytes.decode("utf-8"))["analyses"])
     except (ValueError, KeyError, TypeError) as error:
         raise WorkloadError(f"clump input {root}: manifest.json does not name its Analyses ({error})") from None
     if len(named) != clump["analyses"]:
@@ -346,9 +358,10 @@ def clump_input(workload: dict[str, Any], environ: Mapping[str, str] | None = No
     for name in named:
         if not (root / name / clump["file"]).is_file():
             raise WorkloadError(f"clump input: {name} has no {clump['file']}")
-    digest, files = read_clump(root, named, clump["file"])
+    read = read_clump(root, named, clump["file"], manifest=manifest_bytes)
+    digest = read.digest
     hits = 0
-    for name, data in files.items():
+    for name, data in read.files.items():
         header = hits_header(data)
         if header != HITS_COLUMNS:
             raise WorkloadError(f"clump input: {name}/{clump['file']}'s header is {header}, not {HITS_COLUMNS}")
@@ -358,7 +371,7 @@ def clump_input(workload: dict[str, Any], environ: Mapping[str, str] | None = No
     return {
         "path": str(root), "source": "env" if configured else "default", "env": clump["env"],
         "file": clump["file"], "analyses": named, "hits": hits,
-        "manifest_sha256": sha256(manifest), "sha256": digest,
+        "manifest_sha256": read.manifest_sha256, "sha256": digest,
     }
 
 

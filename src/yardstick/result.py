@@ -7,12 +7,15 @@ and a reader refuses a version it does not know.
 
 from __future__ import annotations
 
+import math
 import re
 from collections.abc import Callable, Iterable
 from typing import Any
 
 from ld_registry.ids import is_valid_ld_id
 from ld_registry.record import KINDS
+from yardstick.ld_queries import LD_PROXIES, LD_REGIONS
+from yardstick.ld_queries import LD_TIMED as LD_TIMED
 
 SCHEMA_VERSION = 1
 TIMED = (
@@ -22,12 +25,9 @@ TIMED = (
     "analysis_full", "analysis_full_observed_only", "analysis_hm3",
     "top_hits", "range_by_analysis", "rho", "rho_row", "rho_matrix",
 )
-#: The LD section's timed queries (#504), kept apart from `TIMED`: og-dev-hub draws every `TIMED` name
-#: as a GWAS Store measure, and these are measured on LD Stores and Genotype Stores (`result["ld"]`).
-LD_TIMED = (
-    "open", "matrix_10", "matrix_500", "region_1mb", "region_3mb",
-    "proxies_1", "proxies_10", "proxies_100", "clump",
-)
+# The LD section's timed queries (#504), `LD_TIMED`, come from `yardstick.ld_queries`, the table the
+# workload's shapes come from too. They are kept apart from `TIMED`: og-dev-hub draws every `TIMED` name
+# as a GWAS Store measure, and these are measured on LD Stores and Genotype Stores (`result["ld"]`).
 #: Every LD Store is measured on all of these: the timed queries, its size and its peak memory.
 LD_MEASURES = (*LD_TIMED, "bytes_on_disk", "peak_rss")
 #: The kinds the LD section measures: the LD Store Registry's own (docs/spec/ld-store-registry.md).
@@ -62,6 +62,8 @@ def _number(where: str, value: Any, *, integer: bool = False) -> None:
     kinds = (int,) if integer else (int, float)
     if isinstance(value, bool) or not isinstance(value, kinds):
         raise ResultError(f"{where} must be a number, got {value!r}")
+    if not math.isfinite(value):
+        raise ResultError(f"{where} must be finite, got {value!r}")
     if value < 0:
         raise ResultError(f"{where} must not be negative, got {value!r}")
 
@@ -196,13 +198,19 @@ def validate(result: Any, workload: dict[str, Any] | None = None) -> None:
 
 
 #: Whole-number fields an LD record may carry beyond the GWAS ones: sizes and counts.
-LD_COUNTS = ("store_bytes", "genotype_bytes", "absent", "analyses", "hits", "leads")
+LD_COUNTS = ("store_bytes", "genotype_bytes", "absent", "analyses", "hits", "leads", "min_leads")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 
 
 def _sha256(where: str, value: Any) -> None:
     if not (isinstance(value, str) and _SHA256.fullmatch(value)):
         raise ResultError(f"{where} must be 64 lower-case hex characters, got {value!r}")
+
+
+def _whole(where: str, value: Any) -> None:
+    """A whole number of either sign, such as a seed."""
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ResultError(f"{where} must be a whole number, got {value!r}")
 
 
 def _text(where: str, value: Any) -> None:
@@ -216,23 +224,34 @@ def _ld_inputs(inputs: Any) -> None:
     _need("ld.inputs", inputs, "matrix", "region", "proxies", "clump")
     matrix = _object("ld.inputs.matrix", inputs["matrix"])
     _need("ld.inputs.matrix", matrix, "chromosome", "seed", "count", "variants_sha256")
+    _text("ld.inputs.matrix.chromosome", matrix["chromosome"])
+    _whole("ld.inputs.matrix.seed", matrix["seed"])
     _number("ld.inputs.matrix.count", matrix["count"], integer=True)
     _sha256("ld.inputs.matrix.variants_sha256", matrix["variants_sha256"])
     region = _object("ld.inputs.region", inputs["region"])
     _need("ld.inputs.region", region, "chromosome", "centre", "widths_bp")
-    for name, width in _object("ld.inputs.region.widths_bp", region["widths_bp"]).items():
+    _text("ld.inputs.region.chromosome", region["chromosome"])
+    _number("ld.inputs.region.centre", region["centre"], integer=True)
+    widths = _object("ld.inputs.region.widths_bp", region["widths_bp"])
+    if sorted(widths) != sorted(LD_REGIONS):
+        raise ResultError(f"ld.inputs.region.widths_bp must name {sorted(LD_REGIONS)}, got {sorted(map(str, widths))}")
+    for name, width in widths.items():
         _number(f"ld.inputs.region.widths_bp.{name}", width, integer=True)
     proxies = _object("ld.inputs.proxies", inputs["proxies"])
     _need("ld.inputs.proxies", proxies, "r2", "kb", "seeds", "variants_sha256")
+    _number("ld.inputs.proxies.r2", proxies["r2"])
+    _number("ld.inputs.proxies.kb", proxies["kb"])
     seeds = _object("ld.inputs.proxies.seeds", proxies["seeds"])
     digests = _object("ld.inputs.proxies.variants_sha256", proxies["variants_sha256"])
-    for name in (n for n in LD_TIMED if n.startswith("proxies_")):
+    for name in LD_PROXIES:
         _need("ld.inputs.proxies.seeds", seeds, name)
+        _whole(f"ld.inputs.proxies.seeds.{name}", seeds[name])
         _need("ld.inputs.proxies.variants_sha256", digests, name)
         _sha256(f"ld.inputs.proxies.variants_sha256.{name}", digests[name])
     clump = _object("ld.inputs.clump", inputs["clump"])
-    _need("ld.inputs.clump", clump, "path", "analyses", "hits", "sha256")
+    _need("ld.inputs.clump", clump, "path", "analyses", "hits", "manifest_sha256", "sha256")
     _text("ld.inputs.clump.path", clump["path"])
+    _sha256("ld.inputs.clump.manifest_sha256", clump["manifest_sha256"])
     _sha256("ld.inputs.clump.sha256", clump["sha256"])
     _list("ld.inputs.clump.analyses", clump["analyses"])
     _number("ld.inputs.clump.hits", clump["hits"], integer=True)
@@ -254,12 +273,18 @@ def _ld(section: Any) -> None:
     _need("ld.ogquery", ogquery, "version")
     _text("ld.ogquery.version", ogquery["version"])
     _ld_inputs(section["inputs"])
+    seen: set[str] = set()
     for index, value in enumerate(_list("ld.stores", section["stores"])):
         store = _object(f"ld.stores[{index}]", value)
         if not is_valid_ld_id(store.get("ld_id")):
             raise ResultError(f"ld.stores[{index}].ld_id must be an LD Store Registry id, got {store.get('ld_id')!r}")
+        if store["ld_id"] in seen:  # og-dev-hub keys rows by ld_id: a second would hide the first
+            raise ResultError(f"ld.stores[{index}]: duplicate ld_id {store['ld_id']}")
+        seen.add(store["ld_id"])
         where = f"ld.stores[{store['ld_id']}]"
         _need(where, store, "kind", "label", "location", "status", "measures")
+        _text(f"{where}.label", store["label"])
+        _text(f"{where}.location", store["location"])
         if store["kind"] not in LD_KINDS:
             raise ResultError(f"{where}.kind must be one of {LD_KINDS}, got {store['kind']!r}")
         if store["status"] != "measured":
@@ -270,6 +295,8 @@ def _ld(section: Any) -> None:
             _measure(f"{where}.{name}", name, record, LD_TIMED)
             if record["status"] == "not_applicable" and not record.get("reason"):
                 raise ResultError(f"{where}.{name} is not_applicable and gives no reason")
+            if name == "clump" and record["status"] == "measured":
+                _need(f"{where}.clump", record, "analyses", "hits", "leads")
             for key in LD_COUNTS:
                 if key in record:
                     _number(f"{where}.{name}.{key}", record[key], integer=True)
