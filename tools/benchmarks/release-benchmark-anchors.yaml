@@ -63,3 +63,7 @@ stores:
     # first row GCST001404 has no genome-wide hit in the completed Store (n_hits_5e8 0); GCST90278664
     # (Chen 2023 height) has 105,506 hits at 5e-8, from which the harness derives the PheWAS variant
     exposure: GCST90278664
+  OGS-00033:
+    # first row GCST90002248 has 1 hit at 5e-8; GCST90245989 (Yengo 2022 height, 168,193 samples) has
+    # 12,597, from which the harness derives the PheWAS variant
+    exposure: GCST90245989

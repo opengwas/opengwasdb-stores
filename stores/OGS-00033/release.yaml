@@ -117,4 +117,42 @@ notes: 'The candidate pool is 550 Analyses across 96 publications. EBI publishes
   (ADR 0025), the exclusions and quality-check sidecars name it under `mis_scaled_z`, and the bundle
   plans 193 Analyses where the published Store has 194. The build keeps `on-rsid-conflict: drop` (the
   25 Nov ruling). The amendment check refuses an unforced run (membership) and the forced run bypasses
-  it, as ADR 0037 provides. The published Store stays as it is until the forced release replaces it.'
+  it, as ADR 0037 provides. The published Store stays as it is until the forced release replaces it.
+
+  Rebuilt from source without GCST90278111, then completed, with Rho and Clumps (issues #520 and #532,
+  2026-11-27). The owner ruled on 26 Nov 2026 that GCST90278111 (see the paragraph above) is excluded
+  and that the Store is rebuilt from source with force, then completed, and accepted discarding the
+  refused completion''s staged Store. The first attempt, `release OGS-00033 --config force=1`, had
+  been killed in `completion-clump` after 4 h 00 min 03 s (the mis-scaled Analysis; peak RSS 42.6 GB).
+  A forced `pixi run -e workflow release OGS-00033 --config force=1` from 839153e0 (engine 0.26.0,
+  964ac1b2, with the exclusion of ba34c027, `on-rsid-conflict: drop` kept) then ran from 21:07:57 UTC
+  on 26 Nov to 01:56:09 UTC on 27 Nov (4 h 48 min 12 s wall, peak RSS 64,425,784 kB; 1-minute load
+  average 81 at the start and 66 at the end, 78 on average, 36 to 129). The build dropped the same 93
+  case-fold rsID-conflict keys as before (`rsid_conflicts`: 93 keys, 93 variants, policy drop). It
+  built the Observed-Only Store (build 6,341.5 s, rho 353.1 s, clump 12.0 s, indexed-subset-hm3 128.8
+  s, overview 0.9 s, validate 376.2 s) and published it, then completed it (complete 7,170.2 s,
+  completion-rho 339.3 s, completion-clump 10.1 s, completion-indexed-subset-hm3 131.1 s,
+  completion-overview 1.2 s, completion-validate 369.0 s, completion-observed-view-check 1,968.8 s)
+  and published the completed Store, archiving the Store each publication replaced:
+  replaced/20261126T210805Z holds the previous published Observed-Only Store with all 194 Analyses
+  (19,961,863,485 bytes) and replaced/20261127T015603Z the intermediate Observed-Only Store of 193
+  (18,934,949,087 bytes). The completed Store holds 193 Analyses and 35,073,658 shared variants
+  (21,348,955 on the Dense axis, the construction reference plus 748,008 new panel variants, and
+  13,724,703 off-panel), 327,434,261 Ragged Overflow associations, 20,544,309,142 bytes, and
+  `completion_state: reference_completed`; completion imputed 723,679,965 cells. GCST90278111 is not
+  in it. The record is `passed_with_warnings` for one warning, the note that the Analyses were
+  resolved with opengwasdb 0.3.3 while the Store was built with 0.26.0, with no validator finding (the
+  rule `analyses.top_hit_counts` passes). has_rho and has_clumps are true; n_loci_5e8 is 3,677 and
+  n_unclumped_5e8 37,908 (AFR LD Store: 3,956 absent, 38 ambiguous). Clumps now took 10.1 s, where the
+  mis-scaled Analysis had held them over 3 h; the largest n_hits_5e8 is 20,074 (GCST90002350,
+  neutrophil count), where GCST90278111 had 20.7 M. hm3 requested 1,206,903, resolved 1,185,561,
+  absent 2,798, with 18,544 overflow-only variants skipped under `overflow-only: skip`. The
+  Observed-View Check passed (193 Analyses identical, no failures, 1,966.2 s). Read without pysam, the
+  envelope is the closed 0.3.0 Reference-Completed Hybrid set (top level and dense/, with
+  dense/index.sqlite); a hm3 subset read and a Dense-panel variant by lookup, an overflow-only variant
+  (1:1204482:C:T) by phewas that the hm3 read does not return, an imputed cell, Rho (193 x 193, 35,532
+  of 37,056 off-diagonal pairs finite) and the Clumps (4,070 tier rows, 76 with a Clump Lead) all
+  read. `audit-store reconcile` exits 1 with the two errors of stores#544,
+  `panel_partition_disagrees_with_reference` and `reference_overlap_disagrees_with_panel`, counting
+  748,008 Dense rows absent from the construction reference, which is the completion''s own count of
+  new panel variants. The Release Status is unchanged at validated.'
