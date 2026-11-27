@@ -415,6 +415,26 @@ class TestAdding(PostAdditionsCase):
         self.assertIsNone(self.fx.assess())
 
 
+class TestResolverMismatch(PostAdditionsCase):
+    """The resolver-mismatch rule is `staged_publication.republication`'s, as `register`'s is for a run (#520)."""
+
+    def test_the_verdict_agrees_with_register(self) -> None:
+        """One warning naming both engines, `status` raised, `checks.store` validate's own (`register`'s shape)."""
+        record = yaml.safe_load(self.fx.validation_yaml.read_text())
+        record["acceptance"] = {"resolver_engine": {"opengwasdb_commit": "6" * 40, "opengwasdb_version": "0.19.0"}}
+        self.fx.validation_yaml.write_text(yaml.safe_dump(record, sort_keys=False))
+
+        written = self.add()
+
+        assert written is not None
+        self.assertEqual(len(written["warnings"]), 1, written["warnings"])
+        self.assertIn("6" * 40, written["warnings"][0])
+        self.assertIn(ENGINE_COMMIT, written["warnings"][0])
+        self.assertEqual(written["status"], "passed_with_warnings")
+        self.assertEqual(written["checks"], {"store": "passed"}, "validate's own verdict is unchanged")
+        self.assertEqual(written["observed"]["validate_status"], "passed")
+
+
 class TestRecountTopHits(PostAdditionsCase):
     """A completed Hybrid's additions begin with `recount-top-hits` (opengwasdb#509, #532, ADR 0044)."""
 

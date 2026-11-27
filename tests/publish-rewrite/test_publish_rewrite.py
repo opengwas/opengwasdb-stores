@@ -36,6 +36,7 @@ import datetime
 import json
 import os
 import shutil
+import signal
 import subprocess
 import sys
 import tarfile
@@ -47,7 +48,7 @@ from unittest.mock import patch
 
 import yaml
 
-from ogstores import amendment, bundle, manifest, paths, plan, publish_rewrite, run
+from ogstores import amendment, bundle, manifest, paths, plan, publish_rewrite, run, staged_publication
 from ogstores.publish_rewrite import RewritePublicationRefused, publish_rewrite as publish
 
 STORE_ID = "OGS-00042"
@@ -304,6 +305,23 @@ class PublishRewriteCase(unittest.TestCase):
 
 class TestPublishing(PublishRewriteCase):
     """Criterion 1: one call publishes a rewritten release over the published one."""
+
+    def test_the_resolver_mismatch_verdict_agrees_with_register(self) -> None:
+        """One warning naming both engines, `status` raised, `checks.store` validate's own (`register`'s shape, #520)."""
+        fx = self.fx
+        record = yaml.safe_load(fx.validation_yaml.read_text())
+        record["acceptance"] = {"resolver_engine": {"opengwasdb_commit": "6" * 40, "opengwasdb_version": "0.19.0"}}
+        fx.validation_yaml.write_text(yaml.safe_dump(record, sort_keys=False))
+        fx.stage(INDEL_WARNING)
+
+        written = fx.publish()
+
+        assert written is not None
+        mismatch = [w for w in written["warnings"] if "6" * 40 in w]
+        self.assertEqual(len(mismatch), 1, written["warnings"])
+        self.assertIn(ENGINE_COMMIT, mismatch[0])
+        self.assertEqual(written["status"], "passed_with_warnings")
+        self.assertEqual(written["checks"], {"store": "passed_with_warnings"}, "validate's own verdict: the deviation")
 
     def test_one_call_publishes_and_archives_the_replaced_release(self) -> None:
         fx = self.fx
@@ -831,6 +849,37 @@ class TestRollback(PublishRewriteCase):
         self.assertIsNone(fx.publish(), "the next call finishes it from the marker")
         self.assertFalse(paths.publication_marker(STORE_ID, root=fx.root).exists())
         self.assertEqual((fx.store / "data").read_text(), "new release, rewritten")
+
+    def test_sigterm_to_a_library_call_rolls_back(self) -> None:
+        """`staged_publication.publish` owns the handler, so `publish_rewrite()` called as a library unwinds too (#520)."""
+        fx = self.fx
+        fx.stage(INDEL_WARNING)
+        before = fx.snapshot()
+        real = run.fault_boundary
+
+        def term(boundary: str) -> None:
+            if boundary == "rewrite-snapshot-taken":
+                os.kill(os.getpid(), signal.SIGTERM)
+            real(boundary)
+
+        with patch.object(run, "fault_boundary", side_effect=term):
+            with self.assertRaises(staged_publication.Interrupted) as caught:
+                fx.publish()
+        self.assertEqual(caught.exception.state, staged_publication.ROLLED_BACK)
+        self.assertEqual(fx.snapshot(), before, "records/, the Store and the staged release are as they were")
+        self.assertTrue(fx.staged.is_dir())
+        self.assertEqual(run.pending_force_snapshots(STORE_ID, fx.root), [])
+
+    def test_the_two_routes_refuse_a_leftover_in_one_wording(self) -> None:
+        fx = self.fx
+        fx.stage(INDEL_WARNING)
+        partial = paths.partial_store_path(STORE_ID, root=fx.root)
+        partial.mkdir()
+        with self.assertRaises(RewritePublicationRefused) as caught:
+            fx.publish()
+        message = str(caught.exception)
+        self.assertIn(f"{partial} exists: a staged copy no run is publishing", message)
+        self.assertIn("Nothing was written.", message)
 
     def test_a_kill_after_the_snapshot_names_the_snapshot_remedy(self) -> None:
         fx = self.fx
