@@ -59,3 +59,7 @@ stores:
   OGS-00017:
     # first row finngen-r13-AB1_ACTINOMYCOSIS has no genome-wide hit; the harness derives the PheWAS variant from one
     exposure: finngen-r13-AB1_ARTHROPOD_WIDE
+  OGS-00032:
+    # first row GCST001404 has no genome-wide hit in the completed Store (n_hits_5e8 0); GCST90278664
+    # (Chen 2023 height) has 105,506 hits at 5e-8, from which the harness derives the PheWAS variant
+    exposure: GCST90278664
