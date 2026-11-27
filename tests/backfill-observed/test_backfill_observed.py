@@ -123,7 +123,7 @@ def write_bundle(
 
 def write_records(artifact_root: Path, store_id: str, steps: dict[str, bool]) -> None:
     for step, succeeded in steps.items():
-        run._write_record_atomically(
+        run.write_record_atomically(
             {"step": step, "store_id": store_id, "success": succeeded, "exit_code": 0 if succeeded else 1},
             paths.record_path(store_id, step, root=artifact_root),
         )

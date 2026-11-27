@@ -579,11 +579,6 @@ def phase_validate_step(planned_steps: list[Step]) -> str:
     return "validate"
 
 
-# The names before #533 made them public, kept for callers on branches in
-# flight (#520): the Store-fact harvest below is #526's.
-_validate_step = phase_validate_step
-
-
 def published_completion_state(bundle_obj: Bundle, phase: str) -> str:
     """The completion state of the Store a phase's publication publishes (#307, ADR 0037).
 
@@ -880,7 +875,7 @@ def harvest_observed_measurements(
     association_coverage: str | None = None
     reference_assembly: str | None = None
     rsid_conflicts: dict[str, Any] | None = None
-    validate_status, _, _ = validate_verdict(step_records.get(_validate_step(planned_steps)))
+    validate_status, _, _ = validate_verdict(step_records.get(phase_validate_step(planned_steps)))
 
     # 1. Harvest from build or complete record
     producing_step = next((s.name for s in planned_steps if s.name in ("build", "complete")), None)
@@ -1009,7 +1004,7 @@ def _write_yaml_atomically(data: dict[str, Any], dest_path: Path) -> None:
         f.flush()
         os.fsync(f.fileno())
     os.replace(temp_path, dest_path)
-    run._fsync_dir(dest_path.parent)
+    run.fsync_dir(dest_path.parent)
 
 
 # The durable steps of a publication, in order: a crash between any two leaves
@@ -1073,7 +1068,7 @@ def write_text_atomically(text: str, dest_path: Path) -> None:
         f.flush()
         os.fsync(f.fileno())
     os.replace(temp_path, dest_path)
-    run._fsync_dir(dest_path.parent)
+    run.fsync_dir(dest_path.parent)
 
 
 def _record_already_written(record_p: Path, record_data: dict[str, Any]) -> bool:
@@ -1233,7 +1228,7 @@ def remove_publication_marker(store_id: str, root: Path | str) -> None:
     """Remove a finished publication's marker: always the transaction's last step (#195)."""
     marker_p = paths.publication_marker(store_id, root=root)
     marker_p.unlink()
-    run._fsync_dir(marker_p.parent)
+    run.fsync_dir(marker_p.parent)
     run.fault_boundary("marker-removed")
 
 
@@ -1296,7 +1291,7 @@ def complete_publication(
             if not _exists(partial_p):
                 raise stuck("neither the Store nor the staged Store exists")
             partial_p.rename(store_p)
-            run._fsync_dir(store_dir_p)
+            run.fsync_dir(store_dir_p)
             run.fault_boundary("store-published")
         elif _exists(partial_p):
             raise stuck("a Store and a staged Store both exist, but nothing is being replaced")
@@ -1320,23 +1315,23 @@ def complete_publication(
                 if not (_exists(store_p) and _exists(partial_p)):
                     raise stuck("the Store to replace or its replacement is missing")
                 store_p.rename(backup_p)
-                run._fsync_dir(store_dir_p)
+                run.fsync_dir(store_dir_p)
                 run.fault_boundary("store-set-aside")
             if not _exists(store_p):
                 if not _exists(partial_p):
                     raise stuck(f"the old Store is at {backup_p} but the staged Store is missing")
                 partial_p.rename(store_p)
-                run._fsync_dir(store_dir_p)
+                run.fsync_dir(store_dir_p)
                 run.fault_boundary("store-published")
             archive.mkdir(parents=True, exist_ok=True)
             backup_p.rename(archived_store)
-            run._fsync_dir(archive)
-            run._fsync_dir(store_dir_p)
+            run.fsync_dir(archive)
+            run.fsync_dir(store_dir_p)
             if not deleting:
                 run.fault_boundary("old-store-archived")
         if deleting and _exists(archived_store):
             _delete_tree(archived_store)
-            run._fsync_dir(archive)
+            run.fsync_dir(archive)
             run.fault_boundary("old-store-deleted")
 
         snapshot = Path(marker["snapshot"]) if marker["snapshot"] else None
@@ -1365,7 +1360,7 @@ def complete_publication(
     run.fault_boundary("record-written")
     register_record_p = paths.record_path(store_id, register_step, root=resolved_root)
     if not _record_already_written(register_record_p, marker["register_record"]):
-        run._write_record_atomically(marker["register_record"], register_record_p)
+        run.write_record_atomically(marker["register_record"], register_record_p)
     run.fault_boundary("register-record-written")
     if finalize:
         remove_publication_marker(store_id, resolved_root)
@@ -1661,8 +1656,16 @@ def register_release(
     step_records: dict[str, dict[str, Any]] = {}
     any_resumed = False
 
+    def read(step: Step) -> dict[str, Any] | None:
+        """The step's record; None only when there is none. An unreadable one is refused, never read as missing."""
+        run.validate_step_name(step.name)
+        try:
+            return run.read_record(paths.record_path(store_id, step.name, root=resolved_root))
+        except ValueError as exc:
+            raise RegisterError(f"Cannot register release {store_id}: {exc}") from exc
+
     def required_record(step: Step) -> dict[str, Any]:
-        rec = run.load_record(store_id, step.name, root=resolved_root)
+        rec = read(step)
         if rec is None:
             rec_p = paths.record_path(store_id, step.name, root=resolved_root)
             raise MissingRecordError(
@@ -1685,7 +1688,7 @@ def register_release(
         if (
             said is not None
             and step.name not in said
-            and run.load_record(store_id, step.name, root=resolved_root) is None
+            and read(step) is None
         ):
             continue
         earlier_records[step.name] = required_record(step)
@@ -1865,7 +1868,7 @@ def register_release(
 
     # Nothing staged: write the record beside whatever is (or is not) published.
     _write_yaml_atomically(validation_data, val_yaml_path)
-    run._write_record_atomically(register_result, reg_rec_p)
+    run.write_record_atomically(register_result, reg_rec_p)
 
     return validation_data
 

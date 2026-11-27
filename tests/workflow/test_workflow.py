@@ -5112,7 +5112,7 @@ class TestWorkflowCompletingAStorePublishedBefore341(PublishedReleaseCopies):
         if recorded_admission_record is not None:
             record["planned_argv"] = [*record["planned_argv"], "--admission-record", recorded_admission_record]
         if recorded_coverage is not None or recorded_admission_record is not None:
-            run._write_record_atomically(record, record_p)
+            run.write_record_atomically(record, record_p)
         return bundle.load(self.STORE_ID, registry_root=stores), artifacts
 
     def test_a_legacy_store_may_gain_its_completion_but_no_other_amendment(self) -> None:

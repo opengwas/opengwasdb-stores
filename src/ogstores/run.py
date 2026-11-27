@@ -734,11 +734,6 @@ def write_record_atomically(record_data: dict[str, Any], record_p: Path) -> None
     fsync_dir(record_p.parent)
 
 
-# The names before #533 made them public, kept for callers on branches in flight (#520).
-_fsync_dir = fsync_dir
-_write_record_atomically = write_record_atomically
-
-
 def read_record(record_p: Path) -> dict[str, Any] | None:
     """A step record, None only when there is no such file (#533).
 
@@ -1463,8 +1458,8 @@ def execute_step(
                 store_id=store_id,
                 exit_code=1,
                 success=False,
-                start_time=datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
-                end_time=datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+                start_time=utc_timestamp(),
+                end_time=utc_timestamp(),
                 elapsed_seconds=0.0,
                 argv=list(step.argv),
                 planned_argv=list(step.argv),
@@ -1493,8 +1488,8 @@ def execute_step(
             store_id=store_id,
             exit_code=1,
             success=False,
-            start_time=datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
-            end_time=datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+            start_time=utc_timestamp(),
+            end_time=utc_timestamp(),
             elapsed_seconds=0.0,
             argv=list(step.argv),
             planned_argv=list(step.argv),
@@ -1555,8 +1550,8 @@ def execute_step(
             store_id=store_id,
             exit_code=1,
             success=False,
-            start_time=datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
-            end_time=datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+            start_time=utc_timestamp(),
+            end_time=utc_timestamp(),
             elapsed_seconds=0.0,
             argv=list(step.argv),
             planned_argv=list(step.argv),
@@ -1589,7 +1584,7 @@ def execute_step(
     # artifact from before opengwasdb v0.6.0, which every reader there refuses:
     # it is refused here, by its header alone, and left in place.
     if is_variant_reference and ref_target_p is not None and _lstat_exists(ref_target_p):
-        skipped_at = datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z")
+        skipped_at = utc_timestamp()
         # A provided artifact the pinned engine refuses is not provided (#354 there).
         try:
             refuse_unmarked_variant_reference(step.name, ref_target_p)
@@ -1649,7 +1644,7 @@ def execute_step(
 
     # 6. Execute subprocess in its own process group and capture timing/outputs
     start_dt = datetime.datetime.now(datetime.timezone.utc)
-    start_time_iso = start_dt.isoformat().replace("+00:00", "Z")
+    start_time_iso = utc_timestamp(start_dt)
     t0 = time.monotonic()
 
     stdout_captured = ""
@@ -1751,7 +1746,7 @@ def execute_step(
                     pass
         elapsed_seconds = round(time.monotonic() - t0, 3)
         end_dt = datetime.datetime.now(datetime.timezone.utc)
-        end_time_iso = end_dt.isoformat().replace("+00:00", "Z")
+        end_time_iso = utc_timestamp(end_dt)
 
     # A failed exec inside the supervisor is reported by errno. Rebuild the
     # exception the old direct Popen raised, so its class, exit code, stderr,
