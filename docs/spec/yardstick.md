@@ -115,8 +115,16 @@ refuses the whole workload (`WorkloadError`) on an `ld_id` with no record, a
 **Queries**, each through `ogquery.ld.open` (an LD Store read by
 `StoreReader`, a Genotype Store by `GenotypeReader`, ogquery's `genotype`
 extra); nothing in the yardstick imports the engine for LD
-(docs/architecture/engine-imports-baseline.yaml). The sizes are the ticket's
-table, in the shapes of opengwasdb's `scripts/ld/bench/latency.py` (ogld#8):
+(docs/architecture/engine-imports-baseline.yaml). The sizes are
+opengwas/opengwasdb-stores#504's table: `matrix` of 10 and 500 variants,
+`region` 1 and 3 Mb wide, `proxies` of 1, 10 and 100 variants, and `clump` of
+opengwasdb#403's 37 Analyses, in the shapes of opengwasdb's
+`scripts/ld/bench/latency.py` (ogld#8). The names and their order are one table,
+`yardstick.ld_queries`, from which the workload takes the shapes and
+`yardstick.result.LD_TIMED` the names. Matrix and region timings carry over
+from latency.py; clump timings do not compare directly: the yardstick times one
+clump call over the whole batch of 37 Analyses on one reader, where latency.py
+timed each Analysis on its own.
 
 | Measure | What is timed | `result_count` |
 |---|---|---|
@@ -124,8 +132,8 @@ table, in the shapes of opengwasdb's `scripts/ld/bench/latency.py` (ogld#8):
 | `matrix_10`, `matrix_500` | `matrix(alids)` of 10 or 500 variants | the matrix's variants |
 | `region_1mb`, `region_3mb` | `region(chromosome, centre, width / 2)`, 1 or 3 Mb wide | the region's variants |
 | `proxies_1`, `proxies_10`, `proxies_100` | `proxies(alids, r2=0.8, kb=10000)` of 1, 10 or 100 variants | proxy rows |
-| `clump` | one call is `clump(alids, abs(z), r2=0.01, kb=3000)` of each of opengwasdb#403's 37 Analyses in turn | clump rows over the 37; the record adds `analyses`, `hits` and `leads` |
-| `bytes_on_disk` | the Store's size on disk, comparable across kinds: `bytes` is every file a query of the Store can read, links followed and each real file counted once (`ld.bytes_read`), plus, for a Genotype Store, `genotype_bytes`, the pgen, psam and pvar files its provenance pins (`ld_registry.writer.genotype_bytes`). `store_bytes` is the registry's own figure (its records' `measured.store_bytes`, `ogstores.store_size.store_size_on_disk`): a Store's own files, no link followed. The two differ exactly where a Store reads files it does not hold: OGL-00006's `store_bytes` leave out the OGL-00001 `near/` and `far/` and the scratch `partners/` its links read, and its `bytes` count them; a Genotype Store's `bytes` count the pgens beside its sidecar | — |
+| `clump` | one call is `clump(alids, abs(z), r2=0.01, kb=3000)` of each of opengwasdb#403's 37 Analyses in turn. Every Analysis must return at least one lead on every call, the first read included; one that returns none makes the row `unavailable`, naming the Analysis, since a non-empty total could hide it | clump rows over the 37; the record adds `analyses`, `hits`, `leads` (the clumps made, over the 37), `min_leads` (the fewest any Analysis made) and `leads_by_analysis` (each Analysis's), from the last call |
+| `bytes_on_disk` | the Store's size on disk, comparable across kinds: `bytes` is every file a query of the Store can read, links followed, and, for a Genotype Store, the pgen, psam and pvar files its provenance pins; each real file counts once, by its device and inode, whether the walk, a link, a pin or two filesets reach it (`ld.bytes_read`). A Genotype Store also records `genotype_bytes`, the registry's figure for its pins (`ld_registry.writer.genotype_bytes`, which checks each pin first and sums them as the registry does). `store_bytes` is the registry's own figure (its records' `measured.store_bytes`, `ogstores.store_size.store_size_on_disk`): a Store's own files, no link followed. The two differ exactly where a Store reads files it does not hold: OGL-00006's `store_bytes` leave out the OGL-00001 `near/` and `far/` and the scratch `partners/` its links read, and its `bytes` count them; a Genotype Store's `bytes` count the pgens beside its sidecar | — |
 | `peak_rss` | one `region_3mb` read in a fresh interpreter, sampled as the GWAS `peak_rss` is; `query` names it | the region's variants |
 
 `matrix_*` and `proxies_*` records also carry `absent`: requested ALIDs the
@@ -153,7 +161,10 @@ directory that is missing or lacks `manifest.json`; a manifest naming another
 number of Analyses than `clump.analyses`; directories that are not exactly the
 manifest's set; an Analysis without its hits file, or one whose header is not
 `alid`, `z`; and any input whose digest is not the pinned one, so a substitute
-is never measured. The preflight and the worker each read the input once
+is never measured. The preflight reads `manifest.json` once and takes the
+Analyses' names, the manifest's own digest (`manifest_sha256`) and the
+aggregate digest from those same bytes, so a manifest replaced while it is
+checked cannot mix two versions. The preflight and the worker each read the input once
 (`workload.read_clump`): the worker hashes the very bytes it parses and refuses
 them, `unavailable` with a named reason, if their digest is not the one the
 preflight checked, so a file replaced between the two is never measured under
@@ -274,7 +285,7 @@ every `TIMED` name as a GWAS Store measure, and adding the `ld` key changes
 nothing a reader of `stores` reads. It is a new key, not a new shape of an
 old one, so the schema stays version 1 and every earlier result stays valid.
 
-No timing, byte or size field is negative.
+No timing, byte or size field is negative, and none is NaN or infinite.
 
 ## Validator
 
@@ -284,7 +295,7 @@ on the first problem. It refuses: a wrong `schema`; a Store object without
 without `result_count`; an `analysis_hm3` record lacking any
 `measure_hm3_extract` field above; a measured `fixture_build` without `layout`; a revision that is
 not 40 lower-case hex characters; a timestamp that is not `YYYY-MM-DDTHH:MM:SSZ`;
-a load array that is not exactly three non-negative numbers; a missing `first_result_count`; and any negative timing, byte or size.
+a load array that is not exactly three non-negative numbers; a missing `first_result_count`; and any negative timing, byte or size, or a NaN or infinite one.
 Every nested value is checked before it is read: the result object, `opengwasdb`,
 `ogstores`, `host`, `load_average`, `fixture_build`, `stores` and each Store,
 its `measures` and each measure record must be of the shape the schema names,
@@ -296,12 +307,17 @@ shape it keeps: the section must name its reader (`ogquery.version`); `inputs` m
 `matrix` (with `chromosome`, `seed`, `count` and a 64-hex `variants_sha256`),
 `region` (with `chromosome`, `centre` and `widths_bp`), `proxies` (with `r2`,
 `kb`, and a seed and a 64-hex `variants_sha256` for each list) and `clump`
-(with a `path`, `analyses`, `hits` and a 64-hex `sha256`); each Store's
+(with a `path`, `analyses`, `hits`, and 64-hex `manifest_sha256` and `sha256`); each Store's
 `ld_id` must be an LD Store Registry id, and it needs `label` and
 `location`; a measure name outside the LD names is refused; every numeric
 field of a measured record must be non-negative, and its sizes and counts
 (`store_bytes`, `genotype_bytes`, `absent`, `analyses`, `hits`, `leads`)
-whole numbers; and a `not_applicable` must give its `reason`. A Store id that
+whole numbers; a measured `clump` must record its `analyses`, `hits` and
+`leads`; the matrix's and each proxies list's `seed` must be a whole number,
+`widths_bp` must name exactly the region measures, `manifest_sha256` must be
+64-hex, and each Store's `label` and `location` must be text; no `ld_id` may
+appear twice (og-dev-hub keys the LD rows by it, so a second would hide the
+first); and a `not_applicable` must give its `reason`. A Store id that
 is not text is refused, never a crash, when the result is checked against a
 workload. With a `workload` (`yardstick.workload.load()`) it also
 requires every workload Store, with the same status, and every measure that

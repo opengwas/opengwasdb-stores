@@ -14,7 +14,9 @@ Run from the repository root:
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import math
 import os
 import tempfile
 import time
@@ -257,9 +259,35 @@ class LdResolveTest(unittest.TestCase):
     def test_the_input_is_read_once_its_digest_over_the_bytes_read(self) -> None:
         root, wanted = self.input()
         names = sorted(p.name for p in root.iterdir() if p.is_dir())
-        digest, files = workload_spec.read_clump(root, names, "hits.tsv")
-        self.assertEqual(digest, wanted["ld"]["clump"]["sha256"])
-        self.assertEqual(files["OGS-00099__fx0"], (root / "OGS-00099__fx0" / "hits.tsv").read_bytes())
+        read = workload_spec.read_clump(root, names, "hits.tsv")
+        self.assertEqual(read.digest, wanted["ld"]["clump"]["sha256"])
+        self.assertEqual(read.manifest_sha256, hashlib.sha256((root / "manifest.json").read_bytes()).hexdigest())
+        self.assertEqual(read.files["OGS-00099__fx0"], (root / "OGS-00099__fx0" / "hits.tsv").read_bytes())
+
+    def test_a_manifest_swapped_between_reads_is_read_once_never_mixed(self) -> None:
+        """The manifest is read once: its names, its own digest and the aggregate digest all come from those bytes."""
+        root, wanted = self.input()
+        manifest = root / "manifest.json"
+        first = manifest.read_bytes()
+        second = first.replace(b'"kb": 3000', b'"kb": 9999')
+        self.assertNotEqual(first, second)
+        reads = []
+        real_bytes, real_text = Path.read_bytes, Path.read_text
+
+        def swapping(read):
+            def wrapper(path, *args, **kwargs):
+                out = read(path, *args, **kwargs)
+                if path == manifest:
+                    reads.append(path)
+                    manifest.write_bytes(second)  # a writer replaces it right after this read
+                return out
+            return wrapper
+
+        with mock.patch.object(Path, "read_bytes", swapping(real_bytes)), mock.patch.object(Path, "read_text", swapping(real_text)):
+            found = self.resolve(root, wanted)
+        self.assertEqual(len(reads), 1, "the manifest is read once")
+        self.assertEqual(found["manifest_sha256"], hashlib.sha256(first).hexdigest())
+        self.assertEqual(found["sha256"], wanted["ld"]["clump"]["sha256"])
 
 
 def ld_timed(**extra: object) -> dict:
@@ -269,6 +297,7 @@ def ld_timed(**extra: object) -> dict:
 def ld_result_section() -> dict:
     measures = {name: ld_timed() for name in result_spec.LD_TIMED}
     measures["open"] = timed()
+    measures["clump"] = ld_timed(analyses=1, hits=3, leads=2, min_leads=2, leads_by_analysis={"a": 2})
     measures["bytes_on_disk"] = {"status": "measured", "bytes": 10, "source": "walk", "store_bytes": 10}
     measures["peak_rss"] = {"status": "measured", "baseline_mb": 1.0, "peak_mb": 2.0, "delta_mb": 1.0, "result_count": 3}
     digest = "a" * 64
@@ -280,7 +309,7 @@ def ld_result_section() -> dict:
             "region": {"chromosome": "22", "centre": 25_000_000, "widths_bp": {"region_1mb": 1_000_000, "region_3mb": 3_000_000}},
             "proxies": {"r2": 0.8, "kb": 10_000, "seeds": {"proxies_1": 9, "proxies_10": 8, "proxies_100": 8},
                         "variants_sha256": {"proxies_1": digest, "proxies_10": digest, "proxies_100": digest}},
-            "clump": {"path": "/x", "analyses": ["a"], "hits": 1, "sha256": digest},
+            "clump": {"path": "/x", "analyses": ["a"], "hits": 1, "manifest_sha256": digest, "sha256": digest},
         },
         "stores": [{"ld_id": "OGL-00006", "kind": "ld_store", "label": "x", "location": "/x",
                     "status": "measured", "measures": measures}],
@@ -304,6 +333,18 @@ class LdResultTest(unittest.TestCase):
         for path in RESULTS:
             with self.subTest(path.name):
                 result_spec.validate(json.loads(path.read_text(encoding="utf-8")))
+
+    def test_the_ld_names_are_one_table_in_the_order_the_dev_hub_reads(self) -> None:
+        from yardstick import ld_queries
+
+        self.assertEqual(result_spec.LD_TIMED, (
+            "open", "matrix_10", "matrix_500", "region_1mb", "region_3mb",
+            "proxies_1", "proxies_10", "proxies_100", "clump",
+        ))
+        self.assertEqual(result_spec.LD_TIMED, ("open", *ld_queries.LD_MATRIX, *ld_queries.LD_REGIONS, *ld_queries.LD_PROXIES, "clump"))
+        self.assertIs(workload_spec.LD_MATRIX, ld_queries.LD_MATRIX)
+        self.assertIs(workload_spec.LD_REGIONS, ld_queries.LD_REGIONS)
+        self.assertIs(workload_spec.LD_PROXIES, ld_queries.LD_PROXIES)
 
     def test_ld_names_are_not_gwas_measures(self) -> None:
         """og-dev-hub draws every `TIMED` name as a GWAS measure, so LD names keep their own constant."""
@@ -373,6 +414,47 @@ class LdResultTest(unittest.TestCase):
             doc["ld"]["stores"][0]["measures"]["bytes_on_disk"][key] = value
             with self.subTest(key=key, value=value):
                 self.refused(doc, rf"bytes_on_disk.{key} must be a number")
+
+    def test_a_duplicate_ld_id_is_refused_naming_it(self) -> None:
+        doc = self.doc()
+        doc["ld"]["stores"].append(copy.deepcopy(doc["ld"]["stores"][0]))
+        self.refused(doc, r"ld.stores\[1\]: duplicate ld_id OGL-00006")
+
+    def test_evidence_of_the_wrong_type_is_refused_at_its_path(self) -> None:
+        def at(*path):
+            def set_(ld, value):
+                target = ld
+                for key in path[:-1]:
+                    target = target[key]
+                target[path[-1]] = value
+            return set_
+
+        def drop(*path):
+            def pop(ld, _):
+                target = ld
+                for key in path[:-1]:
+                    target = target[key]
+                del target[path[-1]]
+            return pop
+
+        for change, value, message in (
+            (at("inputs", "matrix", "seed"), None, r"ld.inputs.matrix.seed must be a whole number"),
+            (at("inputs", "matrix", "seed"), "8", r"ld.inputs.matrix.seed must be a whole number"),
+            (at("inputs", "proxies", "seeds", "proxies_1"), [], r"ld.inputs.proxies.seeds.proxies_1 must be a whole number"),
+            (at("inputs", "matrix", "count"), 1.5, r"ld.inputs.matrix.count must be a number"),
+            (at("inputs", "matrix", "variants_sha256"), "z" * 64, r"ld.inputs.matrix.variants_sha256 must be 64"),
+            (at("inputs", "region", "widths_bp"), {}, r"ld.inputs.region.widths_bp must name"),
+            (at("stores", 0, "location"), None, r"ld.stores\[OGL-00006\].location must be text"),
+            (drop("inputs", "clump", "manifest_sha256"), None, r"ld.inputs.clump lacks manifest_sha256"),
+            (at("inputs", "clump", "manifest_sha256"), "x", r"ld.inputs.clump.manifest_sha256 must be 64"),
+            (drop("stores", 0, "measures", "clump", "leads"), None, r"ld.stores\[OGL-00006\].clump lacks leads"),
+            (at("stores", 0, "measures", "region_3mb", "median_ms"), math.nan, r"region_3mb.median_ms must be finite"),
+            (at("stores", 0, "measures", "clump", "first_read_ms"), math.inf, r"clump.first_read_ms must be finite"),
+        ):
+            doc = self.doc()
+            change(doc["ld"], value)
+            with self.subTest(message):
+                self.refused(doc, message)
 
     def test_an_ld_id_that_is_not_one_is_refused_not_a_crash(self) -> None:
         wanted = {"stores": [], "ld": {"stores": [{"ld_id": "OGL-00006", "kind": "ld_store"}]}}
@@ -507,13 +589,40 @@ class LdRunnerOnFixtureStoresTest(unittest.TestCase):
         self.assertEqual(result["ld"]["ogquery"], {"version": version("ogquery")})
         self.assertEqual(result["guard_violations"], [])
 
-    def worker_entry(self, **clump: object) -> dict:
+    def worker_entry(self, analyses: Path | None = None, **clump: object) -> dict:
         """What the runner hands the LD Store's worker (`runner._ld_entry`), from the real resolve and preflight."""
-        wanted = pinned(self.variants, self.analyses)
+        analyses = analyses or self.analyses
+        wanted = pinned(self.variants, analyses)
         target = workload_spec.resolve_ld(wanted, self.registry())[0]
-        with mock.patch.dict(os.environ, {"OPENGWASDB_LD_403_ANALYSES": str(self.analyses)}):
+        with mock.patch.dict(os.environ, {"OPENGWASDB_LD_403_ANALYSES": str(analyses)}):
             found = workload_spec.clump_input(wanted)
         return runner._ld_entry(target, wanted["ld"], {**found, **clump})
+
+    def test_the_clump_records_each_analysis_s_leads(self) -> None:
+        measures = ld.measure_ld_store(self.worker_entry(), {"default": 1})
+        clump = measures["clump"]
+        self.assertEqual(sorted(clump["leads_by_analysis"]), sorted(p.name for p in self.analyses.iterdir() if p.is_dir()))
+        self.assertEqual(clump["min_leads"], min(clump["leads_by_analysis"].values()))
+        self.assertEqual(clump["leads"], sum(clump["leads_by_analysis"].values()))
+        self.assertGreater(clump["min_leads"], 0)
+        import ogquery.ld
+
+        store = ogquery.ld.open(self.stores["ld_store"])
+        entry = self.worker_entry()["clump"]
+        hits = workload_spec.read_clump(self.analyses, entry["analyses"], "hits.tsv").files
+        expected = {name: len(store.clump(*ld.parse_hits(name, hits[name]), r2=entry["r2"], kb=entry["kb"]).leads())
+                    for name in entry["analyses"]}
+        store.close()
+        self.assertEqual(clump["leads_by_analysis"], expected, "leads_of counts what Clumps.leads() returns")
+
+    def test_an_analysis_with_no_lead_makes_the_clump_unavailable_naming_it(self) -> None:
+        """The total can be non-empty while one Analysis returns nothing: each must return a lead on every call."""
+        root = ld_fixture.analyses(Path(tempfile.mkdtemp(dir=self.root)) / "403", self.variants)
+        absent = "alid\tz\n" + "".join(f"22:{1_000 + i}:A:C\t7\n" for i in range(5))
+        (root / "OGS-00099__fx1" / "hits.tsv").write_text(absent)
+        measures = ld.measure_ld_store(self.worker_entry(root), {"default": 1})
+        self.assertEqual(measures["clump"]["status"], "unavailable")
+        self.assertIn("OGS-00099__fx1 returned no lead", measures["clump"]["error"])
 
     def test_the_worker_records_proxies_and_clump_not_applicable_on_a_store_claiming_no_partner_rows(self) -> None:
         """No engine builder makes a Store without Partner Rows, so the owner's rule is answered for it, in the worker."""
@@ -538,6 +647,28 @@ class LdRunnerOnFixtureStoresTest(unittest.TestCase):
         for store in result["ld"]["stores"]:
             self.assertEqual({m["status"] for m in store["measures"].values()}, {"unavailable"})
             self.assertIn("budget was already spent", store["measures"]["clump"]["error"])
+
+    def test_a_genotype_stores_pins_count_once_with_the_walk(self) -> None:
+        """A pin the walk already reached, and a pin two filesets share, are each one file, counted once."""
+        root = Path(tempfile.mkdtemp(dir=self.root))
+        sidecar = root / "sidecar.store"
+        sidecar.mkdir()
+        sizes = {"sidecar.store/own.bin": 7, "sidecar.store/inside.pgen": 11, "outside.pgen": 13,
+                 "shared.psam": 17, "x.pvar": 19, "y.pvar": 23}
+        for name, size in sizes.items():
+            (root / name).write_bytes(b"x" * size)
+
+        def pin(name: str) -> dict:
+            return {"path": name, "size": (sidecar / name).stat().st_size}
+
+        provenance = {"filesets": [
+            {"pgen": pin("inside.pgen"), "psam": pin("../shared.psam"), "pvar": pin("../x.pvar")},
+            {"pgen": pin("../outside.pgen"), "psam": pin("../shared.psam"), "pvar": pin("../y.pvar")},
+        ]}
+        record = ld.store_bytes(sidecar, "genotype_store", provenance)
+        self.assertEqual(record["bytes"], sum(sizes.values()), "every real file once")
+        self.assertEqual(record["store_bytes"], 7 + 11)
+        self.assertEqual(record["genotype_bytes"], genotype_bytes(sidecar, provenance), "the registry's figure, as it counts")
 
     def test_an_overlays_size_follows_its_links_and_counts_each_file_once(self) -> None:
         """An overlay's queries read its links' targets, so its size on disk is theirs too (`bytes`), not its own files alone."""

@@ -19,7 +19,7 @@ import argparse
 import hashlib
 import os
 import sys
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 from typing import Any
 
@@ -27,7 +27,8 @@ import ogquery.ld
 from ogquery.ld.format import claims_partner_rows
 
 from yardstick.measure import attempt, sample_peak, time_calls
-from yardstick.workload import HITS_COLUMNS, LD_MATRIX, LD_MATRIX_N, LD_MEASURES, LD_PROXIES, LD_REGIONS, hits_header, read_clump
+from yardstick.ld_queries import LD_MATRIX, LD_PROXIES, LD_REGIONS
+from yardstick.workload import HITS_COLUMNS, LD_MATRIX_N, LD_MEASURES, hits_header, read_clump
 
 #: The queries that read a Store's Partner Rows, which a Store claiming none cannot answer.
 PARTNER_QUERIES = (*LD_PROXIES, "clump")
@@ -82,17 +83,23 @@ def parse_hits(where: str, data: bytes) -> tuple[list[str], Any]:
     return alids, np.asarray(scores, dtype=np.float64)
 
 
-def bytes_read(location: Path) -> int:
+def bytes_read(location: Path, also: Sequence[Path] = ()) -> int:
     """The bytes of every file a query of the Store can read: every file under `location`, links followed.
 
     An overlay's `near/`, `far/` and `partners/` are links into other Stores, and its queries read
-    them, so they count. Each real file counts once, by its device and inode, however many links
-    reach it, and a directory is walked once, so a link cycle ends. A dangling link or an
-    unreadable directory raises rather than being skipped.
+    them, so they count. `also` are files outside the walk its queries read too: a Genotype Store's
+    pinned pgen, psam and pvar files. Each real file counts once, by its device and inode, however
+    many links, pins or filesets reach it, and a directory is walked once, so a link cycle ends. A
+    dangling link or an unreadable directory raises rather than being skipped.
     """
     files: set[tuple[int, int]] = set()
     directories: set[tuple[int, int]] = set()
     total = 0
+    for path in also:
+        status = os.stat(path)
+        if (status.st_dev, status.st_ino) not in files:
+            files.add((status.st_dev, status.st_ino))
+            total += status.st_size
     pending = [location]
     while pending:
         directory = pending.pop()
@@ -124,13 +131,14 @@ def store_bytes(location: Path, kind: str, provenance: dict[str, Any]) -> dict[s
     from ld_registry.writer import genotype_bytes
     from ogstores.store_size import store_size_on_disk
 
-    record: dict[str, Any] = {
-        "status": "measured", "bytes": bytes_read(location), "source": "walk",
-        "store_bytes": store_size_on_disk(location),
-    }
+    pinned: list[Path] = []
+    record: dict[str, Any] = {"status": "measured", "source": "walk", "store_bytes": store_size_on_disk(location)}
     if kind == "genotype_store":
-        genotypes = genotype_bytes(location, provenance)
-        record.update(bytes=record["bytes"] + genotypes, genotype_bytes=genotypes)
+        # The registry's figure, and its check of every pin (present, its recorded size); the
+        # pins it has checked then join the walk's set, so a file reached twice counts once.
+        record["genotype_bytes"] = genotype_bytes(location, provenance)
+        pinned = [location / fileset[part]["path"] for fileset in provenance["filesets"] for part in ("pgen", "psam", "pvar")]
+    record["bytes"] = bytes_read(location, pinned)
     return record
 
 
@@ -176,26 +184,44 @@ def measure_ld_store(entry: dict[str, Any], repetitions: dict[str, int]) -> dict
         def clump() -> dict[str, Any]:
             spec = entry["clump"]
             # One read: the bytes hashed are the bytes parsed, and they must be the preflight's.
-            digest, files = read_clump(Path(spec["path"]), spec["analyses"], spec["file"])
+            digest, _, files = read_clump(Path(spec["path"]), spec["analyses"], spec["file"])
             if digest != spec["sha256"]:
                 raise RuntimeError(f"the clump input changed after it was checked: its sha256 is now {digest}, "
                                    f"the run checked {spec['sha256']}")
-            hits = [parse_hits(f"{name}/{spec['file']}", files[name]) for name in spec["analyses"]]
+            names = spec["analyses"]
+            hits = [parse_hits(f"{name}/{spec['file']}", files[name]) for name in names]
             last: list[Any] = []
 
             def every_analysis() -> list[Any]:
                 last[:] = [store.clump(alids, score, r2=spec["r2"], kb=spec["kb"]) for alids, score in hits]
                 return last
 
-            record = time_calls(every_analysis, reps_of("clump"), count=lambda found: sum(len(c) for c in found))
+            calls = [0]
+
+            def rows_with_a_lead_each(found: list[Any]) -> int:
+                # Every Analysis must return a lead on every call: a non-empty total can hide one that returned none.
+                calls[0] += 1
+                for name, clumps in zip(names, found, strict=True):
+                    if not leads_of(clumps):
+                        raise RuntimeError(f"{name} returned no lead (call {calls[0]} of {reps_of('clump') + 1})")
+                return sum(len(c) for c in found)
+
+            record = time_calls(every_analysis, reps_of("clump"), count=rows_with_a_lead_each)
+            by_analysis = {name: leads_of(clumps) for name, clumps in zip(names, last, strict=True)}
             return {**record, "analyses": len(hits), "hits": sum(len(a) for a, _ in hits),
-                    "leads": sum(len(c.leads()) for c in last)}
+                    "leads": sum(by_analysis.values()), "min_leads": min(by_analysis.values()),
+                    "leads_by_analysis": by_analysis}
 
         take("clump", clump)
         take("bytes_on_disk", lambda: store_bytes(location, entry["kind"], dict(store.provenance)))
     finally:
         store.close()
     return out
+
+
+def leads_of(clumps: Any) -> int:
+    """How many clumps one Analysis made: its rows that lead their own clump (`lead` is the row's own ALID)."""
+    return int((clumps.lead == clumps.alid).sum())
 
 
 def _with_absent(call: Callable[[], Any], reps: int, count: Callable[[Any], int]) -> dict[str, Any]:
