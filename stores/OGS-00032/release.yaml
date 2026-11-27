@@ -98,4 +98,40 @@ notes: 'The candidate pool is 852 Analyses across 139 publications. EBI publishe
   sidecars name them under `mis_scaled_z`, and the bundle plans 369 Analyses where the published Store
   has 379. The amendment check refuses an unforced run (membership) and the forced run bypasses it, as
   ADR 0037 provides. The published Store stays as it is until the forced release replaces it; the
-  replaced Store is archived under replaced/.'
+  replaced Store is archived under replaced/.
+
+  Rebuilt from source without ten defective Analyses, then completed, with Rho and Clumps (issues #520
+  and #532, 2026-11-27). The owner ruled on 26 Nov 2026 that the ten Analyses of PMID 40222985
+  (GCST90454398, -400, -402, -405, -408, -410, -411, -413, -414, -415; see the paragraph above) are
+  excluded and that the Store is rebuilt from source with force, then completed. A forced `pixi run -e
+  workflow release OGS-00032 --config force=1` from a5a57939 (engine 0.26.0, 964ac1b2, with the
+  exclusion of ba34c027) ran from 21:08:22 UTC on 26 Nov to 00:51:26 UTC on 27 Nov (3 h 43 min 03 s
+  wall, peak RSS 45,663,560 kB; 1-minute load average 80 at the start and 46 at the end, 81 on
+  average, 39 to 127). It built the Observed-Only Store (build 4,696.1 s, rho 222.2 s, clump 34.9 s,
+  indexed-subset-hm3 138.4 s, overview 0.9 s, validate 268.0 s) and published it, then completed it
+  (complete 5,846.2 s, completion-rho 229.4 s, completion-clump 39.0 s, completion-indexed-subset-hm3
+  146.5 s, completion-overview 1.1 s, completion-validate 303.9 s, completion-observed-view-check
+  1,374.3 s) and published the completed Store, archiving the Store each publication replaced:
+  replaced/20261126T210829Z holds the previous published Observed-Only Store with all 379 Analyses
+  (15,964,651,320 bytes) and replaced/20261127T005120Z the intermediate Observed-Only Store of 369
+  (14,194,040,270 bytes). The completed Store holds 369 Analyses and 18,286,586 shared variants
+  (11,458,992 on the Dense axis, which is the 10,912,248-variant construction reference plus 546,744
+  new panel variants, and 6,827,594 off-panel), 278,775,501 Ragged Overflow associations,
+  16,382,628,113 bytes, and `completion_state: reference_completed`; completion imputed 981,166,454
+  cells. None of the ten is in it and their sibling GCST90454399 is. The record is
+  `passed_with_warnings` for one warning, the note that the Analyses were resolved with opengwasdb
+  0.3.3 while the Store was built with 0.26.0, with no validator finding (the rule
+  `analyses.top_hit_counts` passes). has_rho and has_clumps are true; n_loci_5e8 is 11,953 and
+  n_unclumped_5e8 162,796 (EAS LD Store: 17,766 absent, 201 ambiguous), and the largest n_hits_5e8 is
+  105,506 (GCST90278664, height), where the ten held 5.9 to 6.2 M each. hm3 requested 1,206,903,
+  resolved 1,064,628, absent 31,515, with 110,760 overflow-only variants skipped under `overflow-only:
+  skip`. The Observed-View Check passed (369 Analyses identical, no failures, 1,371.8 s). Read without
+  pysam, the envelope is the closed 0.3.0 Reference-Completed Hybrid set (top level and dense/, with
+  dense/index.sqlite); a hm3 subset read and a Dense-panel variant by lookup, an overflow-only variant
+  (1:993810:A:G) by phewas that the hm3 read does not return, an imputed cell, Rho (369 x 369, 132,860
+  of 135,792 off-diagonal pairs finite) and the Clumps (18,111 tier rows, 144 with a Clump Lead) all
+  read. `audit-store reconcile` exits 1 with the same two errors as every completed Hybrid,
+  `panel_partition_disagrees_with_reference` and `reference_overlap_disagrees_with_panel`, both
+  counting 546,744 Dense rows absent from the construction reference, which is the completion''s own
+  count of new panel variants and is stores#544''s scope bug, not a Store defect. The Release Status
+  is unchanged at validated.'
