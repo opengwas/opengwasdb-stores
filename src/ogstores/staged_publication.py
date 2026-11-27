@@ -11,9 +11,13 @@ ADR 0044). This module owns what they share, so neither has its own:
 - the rollback: until the marker exists, any failure undoes the staging,
   keeps the mode's evidence in `work/`, and restores `records/` from the
   snapshot, with Ctrl-C and SIGTERM ignored while it runs;
+- SIGTERM as Ctrl-C while `publish` runs, so a library call rolls back too;
+- what a killed run leaves beside the Store, refused in one place
+  (`refuse_leftovers`);
 - the transaction state an interruption leaves (`Interrupted.state`);
 - the record envelope (`republication`): the new Validation Record, the
-  phase's register record and the marker, from `register`'s builders.
+  phase's register record and the marker, from `register`'s builders, with
+  the one resolver-mismatch rule `register` applies.
 
 What each mode stages, and how it judges its verdict, stay the mode's.
 """
@@ -142,6 +146,68 @@ def _roll_back(s: Staging) -> str:
     return "".join(notes)
 
 
+def _terminate(signum: int, _frame: object) -> None:
+    """SIGTERM unwinds like Ctrl-C, so a stopped run rolls back."""
+    raise KeyboardInterrupt(f"signal {signum}")
+
+
+@contextmanager
+def _sigterm_as_interrupt() -> Iterator[None]:
+    try:
+        previous = signal.signal(signal.SIGTERM, _terminate)
+    except ValueError:  # not the main thread: no handler can interrupt it anyway
+        yield
+        return
+    try:
+        yield
+    finally:
+        signal.signal(signal.SIGTERM, previous)
+
+
+def refuse_leftovers(
+    store_id: str,
+    root: Path,
+    refuse: Callable[[str], BaseException],
+    *,
+    staged: Path | None = None,
+    action: str = "publishing a staged copy",
+) -> None:
+    """Refuse what a killed run or an unfinished completion left beside the Store, naming the remedy.
+
+    One owner for both routes. A records snapshot is reported first, with the
+    `.partial` release a killed publication of a staged release leaves beside
+    it (moving it back to `staged`), so neither hides the other. `refuse` makes
+    the route's own exception from the message. Nothing is written.
+    """
+    partial = paths.partial_store_path(store_id, root=root)
+    snapshots = run.pending_force_snapshots(store_id, root)
+    if snapshots:
+        moved = (
+            f" It also left the staged release at {partial}: move it back to {staged} after that."
+            if staged is not None and os.path.lexists(partial) else ""
+        )
+        raise refuse(
+            f"{store_id} holds a forced run's records snapshot, {snapshots[0]}, that no publication "
+            f"finished: a killed run left it. Put records/ back with `pixi run release {store_id} "
+            "--resolve-snapshot restore` (or `delete` it when records/ describes the published "
+            f"Store).{moved} Nothing was written."
+        )
+    for leftover, what in (
+        (paths.publication_marker(store_id, root=root), "a publication no run finished"),
+        (partial, "a staged copy no run is publishing"),
+        (paths.backup_store_path(store_id, root=root), "a replaced Store no publication finished"),
+        (paths.completion_checkpoint_path(store_id, root=root), "an unfinished completion's checkpoint"),
+        (paths.completion_start_path(store_id, root=root), "an unfinished completion's start record"),
+    ):
+        if os.path.lexists(leftover):
+            raise refuse(
+                f"{leftover} exists: {what}. Finish or remove it before {action} for {store_id} "
+                f"(`pixi run release {store_id}` finishes a pending publication; a staged copy a "
+                "route left is a reflink copy or the staged release itself, so look before deleting). "
+                "Nothing was written."
+            )
+
+
 def publish(s: Staging) -> None:
     """Snapshot, stage, work, marker, finalize; before the marker, any failure is rolled back.
 
@@ -150,6 +216,11 @@ def publish(s: Staging) -> None:
     came. From the marker on nothing is undone: `finish` carries it out and
     removes it last, and the same call recovers it in the next run.
     """
+    with _sigterm_as_interrupt():
+        _publish(s)
+
+
+def _publish(s: Staging) -> None:
     marker_p = paths.publication_marker(s.store_id, root=s.root)
     try:
         run.snapshot_records(s.store_id, s.root, s.stamp)
@@ -205,13 +276,26 @@ def republication(
     verdict, the replaced record's `acceptance`, and the archive the old
     release goes to, then the `carried` blocks of the replaced records that
     are not already set, then the mode's `blocks`, in both records.
+
+    `status` is `validate`'s verdict, which stays `checks.store`. Where the
+    engine that wrote the Store is not the one that resolved its Analyses, the
+    record gains `register`'s resolver-mismatch warning and a passing verdict
+    becomes `passed_with_warnings`: the one place the rule is applied for the
+    staged routes, as `register_release` applies it for a run.
     """
     store_id = b.store_id
     archive = paths.replaced_dir(store_id, stamp, root=root)
     previous = b.validation if isinstance(b.validation, Mapping) else {}
+    acceptance = register.acceptance_evidence(previous)
+    checks_store = status
+    mismatch = register.resolver_mismatch(acceptance, wrote_store)
+    if mismatch is not None:
+        warnings = [*warnings, mismatch]
+        if status == "passed":
+            status = "passed_with_warnings"
     validation = register.build_validation_record(
         status=status,
-        checks_store=status,
+        checks_store=checks_store,
         validated_at=now,
         validator=validator,
         wrote_store=wrote_store,
@@ -219,7 +303,7 @@ def republication(
         observed=observed,
         warnings=list(warnings),
         errors=[],
-        acceptance=register.acceptance_evidence(previous),
+        acceptance=acceptance,
         replaced={"archive": str(archive), "replaced_at": now},
     )
     register_step = REGISTER_STEPS[phase]
@@ -262,5 +346,6 @@ __all__ = [
     "ROLLED_BACK",
     "Staging",
     "publish",
+    "refuse_leftovers",
     "republication",
 ]

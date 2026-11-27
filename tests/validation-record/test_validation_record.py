@@ -468,12 +468,22 @@ class TestCommittedValidationRecords(unittest.TestCase):
             commit = environment.get("opengwasdb_commit")
             self.assertTrue(commit, f"{store_id} must record an opengwasdb commit")
             # A post step added in place (#531, #532) validates at a later engine
-            # than the build, which the record keeps in `engines` beside the build's.
-            recorded = {commit, *(e.get("opengwasdb_commit") for e in environment.get("engines") or [])}
-            self.assertIn(
-                record["validator"]["version"],
-                {f"opengwasdb@{c}" for c in recorded},
-                f"{store_id}.validator.version must name a recorded opengwasdb revision",
+            # than the build, which the record keeps in `engines` beside the build's:
+            # the validator is the engine whose `steps` include the final validate.
+            engines = environment.get("engines") or []
+            final = next(
+                (name for name in ("completion-validate", "validate")
+                 if any(name in (e.get("steps") or []) for e in engines)),
+                None,
+            )
+            expected = (
+                {e.get("opengwasdb_commit") for e in engines if final in (e.get("steps") or [])}
+                if final else {commit}
+            )
+            self.assertEqual(
+                {record["validator"]["version"]},
+                {f"opengwasdb@{c}" for c in expected},
+                f"{store_id}.validator.version must name the engine that ran its final validate",
             )
 
     def test_already_registered_records_keep_their_observed_measurements(self) -> None:

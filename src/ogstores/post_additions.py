@@ -56,7 +56,6 @@ from __future__ import annotations
 import json
 import os
 import shutil
-import signal
 import subprocess
 import tempfile
 from dataclasses import dataclass, field
@@ -343,28 +342,6 @@ def refuse_without_reflink(directory: Path) -> None:
         )
 
 
-def _refuse_leftovers(store_id: str, root: Path) -> None:
-    """Refuse what a killed run or an unfinished completion left beside the Store, naming the remedy."""
-    for leftover, what in (
-        (paths.publication_marker(store_id, root=root), "a publication no run finished"),
-        (paths.partial_store_path(store_id, root=root), "a staged Store no run is publishing"),
-        (paths.backup_store_path(store_id, root=root), "a replaced Store no publication finished"),
-        (paths.completion_checkpoint_path(store_id, root=root), "an unfinished completion's checkpoint"),
-        (paths.completion_start_path(store_id, root=root), "an unfinished completion's start record"),
-    ):
-        if os.path.lexists(leftover):
-            raise PostAdditionRefused(
-                f"{leftover} exists: {what}. Finish or remove it before adding post steps to "
-                f"{store_id}; a staged Store this mode left is a reflink copy, safe to delete. Nothing was written."
-            )
-    snapshots = run.pending_force_snapshots(store_id, root)
-    if snapshots:
-        raise PostAdditionRefused(
-            f"{store_id} holds a records snapshot, {snapshots[0]}, that no publication finished: "
-            f"`pixi run release {store_id} --resolve-snapshot restore|delete` resolves it. Nothing was written."
-        )
-
-
 def preflight(a: Assessment, *, registry_root: Path, lock: Path | None = None, probe: bool = True) -> dict[str, Any]:
     """Every check before the first write; returns the published Store's `info`.
 
@@ -372,7 +349,9 @@ def preflight(a: Assessment, *, registry_root: Path, lock: Path | None = None, p
     Store: the dry run's checks write nothing.
     """
     store_id, root = a.store_id, a.root
-    _refuse_leftovers(store_id, root)
+    staged_publication.refuse_leftovers(
+        store_id, root, PostAdditionRefused, action="adding post steps"
+    )
     store_p = paths.store_path(store_id, root=root)
     try:
         # `run`'s no-follow guard: the release directory and every Store path in the transaction.
@@ -557,10 +536,6 @@ def _assemble(a: Assessment, r: _Run, stamp: str, snapshot: Path) -> tuple[dict[
         raise PostAdditionRefused(f"`opengwasdb info` cannot read the staged copy {partial}: {exc}") from exc
     previous = dict(a.bundle.validation)
     wrote_store = register.recorded_engine(a.register_record)
-    mismatch = register.resolver_mismatch(register.acceptance_evidence(previous), wrote_store)
-    if mismatch is not None:
-        warnings = [*warnings, mismatch]
-        status = "passed_with_warnings"
     now = run.utc_timestamp()
     ran = [step.name for step in a.steps]
     addition = {
@@ -603,11 +578,6 @@ def _assemble(a: Assessment, r: _Run, stamp: str, snapshot: Path) -> tuple[dict[
         carried_validation=previous,
         carried_register={k: v for k, v in a.register_record.items() if k != "format_version_unread"},
     )
-
-
-def _terminate(signum: int, _frame: object) -> None:
-    """SIGTERM unwinds like Ctrl-C, so a stopped run removes the staged copy and puts records/ back."""
-    raise KeyboardInterrupt(f"signal {signum}")
 
 
 def add_post_steps(
@@ -672,27 +642,23 @@ def add_post_steps(
         record = _record(paths.record_path(store_id, step.name, root=root))
         if record is not None:
             r.replaced[step.name] = record
-    previous_term = signal.signal(signal.SIGTERM, _terminate)
-    try:
-        staged_publication.publish(staged_publication.Staging(
-            store_id=store_id,
-            root=root,
-            stamp=stamp,
-            stage=stage,
-            unstage=unstage,
-            work=work,
-            refuse=refuse,
-            evidence=lambda: [] if r.failed is None else [staged_publication.Evidence(
-                r.failed,
-                paths.work_dir(store_id, root=root) / f"post-additions-refused-{stamp}-{r.failed.name}",
-                "failed step's record",
-            )],
-            clear=tuple(paths.record_path(store_id, step.name, root=root) for step in a.steps),
-            boundaries=(SNAPSHOT_BOUNDARY, STAGED_BOUNDARY),
-            finish=finish,
-        ))
-    finally:
-        signal.signal(signal.SIGTERM, previous_term)
+    staged_publication.publish(staged_publication.Staging(
+        store_id=store_id,
+        root=root,
+        stamp=stamp,
+        stage=stage,
+        unstage=unstage,
+        work=work,
+        refuse=refuse,
+        evidence=lambda: [] if r.failed is None else [staged_publication.Evidence(
+            r.failed,
+            paths.work_dir(store_id, root=root) / f"post-additions-refused-{stamp}-{r.failed.name}",
+            "failed step's record",
+        )],
+        clear=tuple(paths.record_path(store_id, step.name, root=root) for step in a.steps),
+        boundaries=(SNAPSHOT_BOUNDARY, STAGED_BOUNDARY),
+        finish=finish,
+    ))
     return result["validation"]
 
 

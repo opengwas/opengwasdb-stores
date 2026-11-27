@@ -759,6 +759,10 @@ def render_markdown(report: dict[str, Any]) -> str:
             + " |"
         )
 
+    notes = [(e.get("store_id"), e["hm3_anchor_note"]) for e in report.get("stores", []) if e.get("hm3_anchor_note")]
+    if notes:
+        lines += ["", "## HM3 anchors"] + ["", *(f"- {store_id}: {note}" for store_id, note in notes)]
+
     loads = [(e.get("store_id"), e.get("load_average")) for e in report.get("stores", []) if e.get("load_average")]
     if loads:
         lines += ["", "## Load average (1, 5, 15 min) before and after each Store", ""]

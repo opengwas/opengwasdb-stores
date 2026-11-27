@@ -59,7 +59,6 @@ import os
 import re
 import shlex
 import shutil
-import signal
 import sys
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
@@ -307,38 +306,6 @@ def _already_published(store_id: str, staged: Path, root: Path) -> bool:
         return False
     published = _info(paths.store_path(store_id, root=root), "published Store")
     return _field(published, "release_id", "published Store") == rewrite.get("release_id")
-
-
-def _refuse_leftovers(store_id: str, staged: Path, root: Path) -> None:
-    """Refuse what a killed run or an unfinished completion left beside the Store, naming the remedy.
-
-    A snapshot is reported first, with the `.partial` release a killed
-    publication of a rewrite leaves beside it, so neither hides the other.
-    """
-    partial = paths.partial_store_path(store_id, root=root)
-    snapshots = run.pending_force_snapshots(store_id, root)
-    if snapshots:
-        moved = (
-            f" It also left the staged release at {partial}: move it back to {staged} after that."
-            if os.path.lexists(partial) else ""
-        )
-        raise RewritePublicationRefused(
-            f"{store_id} holds a forced run's records snapshot, {snapshots[0]}, that no publication "
-            f"finished: a killed run left it. Put records/ back with `pixi run release {store_id} "
-            "--resolve-snapshot restore` (or `delete` it when records/ describes the published "
-            f"Store).{moved}"
-        )
-    for leftover, what in (
-        (partial, "a staged release no run is publishing"),
-        (paths.backup_store_path(store_id, root=root), "a replaced Store no publication finished"),
-        (paths.completion_checkpoint_path(store_id, root=root), "an unfinished completion's checkpoint"),
-        (paths.completion_start_path(store_id, root=root), "an unfinished completion's start record"),
-    ):
-        if os.path.lexists(leftover):
-            raise RewritePublicationRefused(
-                f"{leftover} exists: {what}. A rewrite published now would replace the Store it "
-                f"belongs to, so finish or discard it first (`pixi run release {store_id}`)"
-            )
 
 
 def _refuse_unpublishable(
@@ -691,7 +658,9 @@ def _prepare(
 ) -> _Publication:
     """Every check before the first write (module docstring, step 2)."""
     store_id = b.store_id
-    _refuse_leftovers(store_id, staged, root)
+    staged_publication.refuse_leftovers(
+        store_id, root, RewritePublicationRefused, staged=staged, action="publishing a rewrite"
+    )
     if not staged.is_dir() or staged.is_symlink():
         raise RewritePublicationRefused(f"there is no staged release at {staged}: nothing to publish")
     evidence = read_evidence(evidence_prefix)
@@ -817,11 +786,6 @@ def publish_rewrite(
     return published["validation"]
 
 
-def _terminate(signum: int, _frame: object) -> None:
-    """SIGTERM unwinds like Ctrl-C, so a stopped run puts back what it moved."""
-    raise KeyboardInterrupt(f"signal {signum}")
-
-
 def parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         prog="publish-rewrite",
@@ -841,7 +805,6 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parse_args(argv)
     root = paths.artifact_root()
-    signal.signal(signal.SIGTERM, _terminate)
     locks = release.ReleaseLocks(root)
     try:
         locks.acquire(args.store_id)

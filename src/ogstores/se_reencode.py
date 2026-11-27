@@ -397,7 +397,7 @@ def _finalize_incomplete_record(
     finalized["end_time"] = _utc_now()
     record_path = paths.record_path(store_id, RECORD_STEP, root=artifact_root)
     try:
-        run._write_record_atomically(finalized, record_path)
+        run.write_record_atomically(finalized, record_path)
     except OSError as exc:
         raise ReencodeRefusal(
             f"{store_id} is correct but finalizing the incomplete record "
@@ -474,7 +474,7 @@ def _apply(
     )
     record_path = paths.record_path(store_id, RECORD_STEP, root=artifact_root)
     try:
-        run._write_record_atomically(record, record_path)
+        run.write_record_atomically(record, record_path)
     except OSError as exc:
         print(
             f"se-reencode: {store_id} was re-encoded ({len(results)} array(s) changed) "
