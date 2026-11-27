@@ -36,8 +36,12 @@ A report recorded at load, not on a quiet host (#532): the shapes harness waits 
 days, so `--max-start-load 0` (passed through to the harness) records at the current
 load, and each Store's `load_average` (1, 5 and 15 minutes, before and after) sits in the
 JSON and the report. `opengwasdb_532_dense_rho_benchmark_2026-11-26.{json,md}` holds the
-eight Stores that gained Rho (Dense OGS-00009, -12, -13, -14, -15, -16, -17, and Hybrid OGS-00011, measured in a later run and merged into the report), measured
-at engine e97f07b5 at a load average of 42 to 80:
+seven Dense Stores that gained Rho (OGS-00009, -12, -13, -14, -15, -16, -17), measured
+at engine e97f07b5 at a load average of 42 to 80. OGS-00011, a Hybrid, was measured in a
+later run and has its own report, `opengwasdb_532_ogs00011_benchmark_2026-11-26.{json,md}`
+(the same command with `--store OGS-00011`; its bundle's first Analysis is not in the Store,
+so its HM3 anchor is the Store's first, which the report names). The generated Markdown comes
+from each JSON with the tool's `render_markdown`; no report is hand-merged:
 
 ```bash
 pixi run -e dev python tools/benchmarks/release-benchmark-report.py \
