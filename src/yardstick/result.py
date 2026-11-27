@@ -8,7 +8,11 @@ and a reader refuses a version it does not know.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable, Iterable
 from typing import Any
+
+from ld_registry.ids import is_valid_ld_id
+from ld_registry.record import KINDS
 
 SCHEMA_VERSION = 1
 TIMED = (
@@ -18,6 +22,16 @@ TIMED = (
     "analysis_full", "analysis_full_observed_only", "analysis_hm3",
     "top_hits", "range_by_analysis", "rho", "rho_row", "rho_matrix",
 )
+#: The LD section's timed queries (#504), kept apart from `TIMED`: og-dev-hub draws every `TIMED` name
+#: as a GWAS Store measure, and these are measured on LD Stores and Genotype Stores (`result["ld"]`).
+LD_TIMED = (
+    "open", "matrix_10", "matrix_500", "region_1mb", "region_3mb",
+    "proxies_1", "proxies_10", "proxies_100", "clump",
+)
+#: Every LD Store is measured on all of these: the timed queries, its size and its peak memory.
+LD_MEASURES = (*LD_TIMED, "bytes_on_disk", "peak_rss")
+#: The kinds the LD section measures: the LD Store Registry's own (docs/spec/ld-store-registry.md).
+LD_KINDS = KINDS
 STATUSES = ("measured", "unavailable", "not_applicable")
 TOP_LEVEL = (
     "schema", "workload_id", "workload_sha256", "opengwasdb", "ogstores", "host", "load_average",
@@ -76,7 +90,7 @@ def _need(where: str, record: dict[str, Any], *keys: str) -> None:
             raise ResultError(f"{where} lacks {key}")
 
 
-def _measure(where: str, name: str, record: Any) -> None:
+def _measure(where: str, name: str, record: Any, timed: tuple[str, ...] = TIMED) -> None:
     record = _object(where, record)
     status = record.get("status")
     if status not in STATUSES:
@@ -87,7 +101,7 @@ def _measure(where: str, name: str, record: Any) -> None:
         return
     if status == "not_applicable":
         return
-    if name in TIMED:
+    if name in timed:
         _need(where, record, "first_read_ms", "median_ms", "p95_ms", "reps")
         for key in ("first_read_ms", "median_ms", "p95_ms"):
             _number(f"{where}.{key}", record[key])
@@ -175,18 +189,122 @@ def validate(result: Any, workload: dict[str, Any] | None = None) -> None:
     for violation in violations:
         if not (isinstance(violation, dict) and {"store_id", "problem"} <= violation.keys()):
             raise ResultError("guard_violations entries are {store_id, problem}")
+    if "ld" in result:
+        _ld(result["ld"])
     if workload is not None:
         _against(result, workload)
 
 
+#: Whole-number fields an LD record may carry beyond the GWAS ones: sizes and counts.
+LD_COUNTS = ("store_bytes", "genotype_bytes", "absent", "analyses", "hits", "leads")
+_SHA256 = re.compile(r"[0-9a-f]{64}")
+
+
+def _sha256(where: str, value: Any) -> None:
+    if not (isinstance(value, str) and _SHA256.fullmatch(value)):
+        raise ResultError(f"{where} must be 64 lower-case hex characters, got {value!r}")
+
+
+def _text(where: str, value: Any) -> None:
+    if not isinstance(value, str) or not value:
+        raise ResultError(f"{where} must be text, got {value!r}")
+
+
+def _ld_inputs(inputs: Any) -> None:
+    """What the run read, as the schema names it: each list's rule and digest, the regions, the clump input."""
+    inputs = _object("ld.inputs", inputs)
+    _need("ld.inputs", inputs, "matrix", "region", "proxies", "clump")
+    matrix = _object("ld.inputs.matrix", inputs["matrix"])
+    _need("ld.inputs.matrix", matrix, "chromosome", "seed", "count", "variants_sha256")
+    _number("ld.inputs.matrix.count", matrix["count"], integer=True)
+    _sha256("ld.inputs.matrix.variants_sha256", matrix["variants_sha256"])
+    region = _object("ld.inputs.region", inputs["region"])
+    _need("ld.inputs.region", region, "chromosome", "centre", "widths_bp")
+    for name, width in _object("ld.inputs.region.widths_bp", region["widths_bp"]).items():
+        _number(f"ld.inputs.region.widths_bp.{name}", width, integer=True)
+    proxies = _object("ld.inputs.proxies", inputs["proxies"])
+    _need("ld.inputs.proxies", proxies, "r2", "kb", "seeds", "variants_sha256")
+    seeds = _object("ld.inputs.proxies.seeds", proxies["seeds"])
+    digests = _object("ld.inputs.proxies.variants_sha256", proxies["variants_sha256"])
+    for name in (n for n in LD_TIMED if n.startswith("proxies_")):
+        _need("ld.inputs.proxies.seeds", seeds, name)
+        _need("ld.inputs.proxies.variants_sha256", digests, name)
+        _sha256(f"ld.inputs.proxies.variants_sha256.{name}", digests[name])
+    clump = _object("ld.inputs.clump", inputs["clump"])
+    _need("ld.inputs.clump", clump, "path", "analyses", "hits", "sha256")
+    _text("ld.inputs.clump.path", clump["path"])
+    _sha256("ld.inputs.clump.sha256", clump["sha256"])
+    _list("ld.inputs.clump.analyses", clump["analyses"])
+    _number("ld.inputs.clump.hits", clump["hits"], integer=True)
+
+
+def _ld(section: Any) -> None:
+    """The LD section (#504): optional, so every result written before it stays valid.
+
+    Stricter than a GWAS Store's records, which keep their committed shape: the section names
+    the reader that ran (`ogquery.version`) and what it read (`_ld_inputs`), each Store its
+    registry id, every numeric field of a measured record is non-negative and every size and
+    count a whole number, and a `not_applicable` gives its reason. A value of the wrong shape
+    is a refusal naming its path, never a crash.
+    """
+    section = _object("ld", section)
+    _need("ld", section, "repetitions", "ogquery", "inputs", "stores")
+    _object("ld.repetitions", section["repetitions"])
+    ogquery = _object("ld.ogquery", section["ogquery"])
+    _need("ld.ogquery", ogquery, "version")
+    _text("ld.ogquery.version", ogquery["version"])
+    _ld_inputs(section["inputs"])
+    for index, value in enumerate(_list("ld.stores", section["stores"])):
+        store = _object(f"ld.stores[{index}]", value)
+        if not is_valid_ld_id(store.get("ld_id")):
+            raise ResultError(f"ld.stores[{index}].ld_id must be an LD Store Registry id, got {store.get('ld_id')!r}")
+        where = f"ld.stores[{store['ld_id']}]"
+        _need(where, store, "kind", "label", "location", "status", "measures")
+        if store["kind"] not in LD_KINDS:
+            raise ResultError(f"{where}.kind must be one of {LD_KINDS}, got {store['kind']!r}")
+        if store["status"] != "measured":
+            raise ResultError(f"{where}.status must be measured, got {store['status']!r}")
+        for name, record in _object(f"{where}.measures", store["measures"]).items():
+            if name not in LD_MEASURES:
+                raise ResultError(f"{where}: unknown measure {name!r}")
+            _measure(f"{where}.{name}", name, record, LD_TIMED)
+            if record["status"] == "not_applicable" and not record.get("reason"):
+                raise ResultError(f"{where}.{name} is not_applicable and gives no reason")
+            for key in LD_COUNTS:
+                if key in record:
+                    _number(f"{where}.{name}.{key}", record[key], integer=True)
+            for key, field in record.items():
+                if isinstance(field, (int, float)) and not isinstance(field, bool):
+                    _number(f"{where}.{name}.{key}", field)
+
+
+def _complete(
+    noun: str, key: str, got: Iterable[dict[str, Any]], wanted: Iterable[dict[str, Any]],
+    fields: tuple[str, ...], measures_of: Callable[[dict[str, Any]], Iterable[str]],
+) -> None:
+    """Every Store the workload names is in the result, agreeing on `fields`, with every measure it lists."""
+    for store in got:
+        if not isinstance(store[key], str):
+            raise ResultError(f"a {noun}'s {key} must be text, got {store[key]!r}")
+    by_id = {s[key]: s for s in got}
+    for entry in wanted:
+        found = by_id.get(entry[key])
+        if found is None:
+            raise ResultError(f"result lacks {noun} {entry[key]}")
+        for field in fields:
+            if found[field] != entry[field]:
+                raise ResultError(f"{entry[key]}: {field} {found[field]}, workload says {entry[field]}")
+        for name in measures_of(entry):
+            if name not in found["measures"]:
+                raise ResultError(f"{entry[key]} lacks measure {name}")
+
+
 def _against(result: dict[str, Any], workload: dict[str, Any]) -> None:
-    by_id = {s["store_id"]: s for s in result["stores"]}
-    for wanted in workload["stores"]:
-        got = by_id.get(wanted["store_id"])
-        if got is None:
-            raise ResultError(f"result lacks Store {wanted['store_id']}")
-        if got["status"] != wanted["status"]:
-            raise ResultError(f"{wanted['store_id']}: status {got['status']}, workload says {wanted['status']}")
-        for name in wanted.get("measures") or []:
-            if name not in got["measures"]:
-                raise ResultError(f"{wanted['store_id']} lacks measure {name}")
+    _complete("Store", "store_id", result["stores"], workload["stores"], ("status",),
+              lambda entry: entry.get("measures") or [])
+    wanted_ld = (workload.get("ld") or {}).get("stores") or []
+    if not wanted_ld:
+        return
+    if "ld" not in result:
+        raise ResultError("result lacks its ld section")
+    _complete("LD Store", "ld_id", result["ld"]["stores"], wanted_ld, ("kind",), lambda entry: LD_MEASURES)

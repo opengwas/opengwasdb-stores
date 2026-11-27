@@ -3,6 +3,10 @@
 One fixed query workload, run at the finish of every epic that changes opengwasdb, or ogquery once it exists (opengwas/opengwasdb#487, #506), so that a performance trend
 compares like with like (#390). opengwasdb's `benchmarks/` holds one-off
 harnesses; the yardstick is the single workload this repository re-runs.
+It is the one recurring measurement, of GWAS and LD Stores alike (#504):
+opengwasdb's `scripts/ld/bench/latency.py`, `serving.py` and the other bench
+scripts stay one-off investigations (HTTP targets, serving memory), and
+nothing schedules them.
 
 Run it with `pixi run yardstick`. It writes
 `docs/_yardstick/<UTC start, YYYYMMDDTHHMMSSZ>-<opengwasdb version>.json`. It
@@ -25,6 +29,8 @@ result means, so a change bumps `workload_id`, and this section says why.
 | OGS-00009 | Dense | gwas, Reference-Completed, with `hm3` | measured |
 | OGS-00011 | Hybrid | gwas, Reference-Completed, with `hm3` | measured |
 | OGS-00027 | Ragged | cis | measured |
+
+`yardstick-6` adds the LD section of opengwas/opengwasdb-stores#504 (below, "The LD section"): one LD Store and one Genotype Store, measured in the same run and written to the same result file, under its own `ld` key. The GWAS section is `yardstick-4`'s unchanged, Stores, inputs and measures alike, so its timings compare with `yardstick-4` results as they stand. `yardstick-5` was the same section measuring OGL-00001, which has no Partner Rows; it was committed (opengwas/opengwasdb-stores@6d3c354b) but never run for a committed result, and the id is not reused.
 
 `yardstick-4` is the workload of opengwas/opengwasdb-stores#503: one Store per GWAS Store Layout, every query type the engine's facade exposes, and a fixed set of scattered inputs, so that a trend across engine versions compares like with like. It changes what is measured, so every earlier result describes a different workload:
 
@@ -80,6 +86,102 @@ A fixed query that returns no rows is refused: a measure on an empty result
 measures nothing, so it is recorded `unavailable` with its error. Every call is
 checked, the first read included, and so is the `peak_rss` read; a failure to
 walk the Store (`bytes_on_disk`) is `unavailable` too, never a partial total.
+
+## The LD section
+
+The workload's `ld` key, and the result's (#504). It measures the two kinds the
+LD Store Registry records (docs/spec/ld-store-registry.md), both HGDP+1kGP EUR
+k = 10 with Partner Rows, so the kind is the only difference:
+
+| ld_id | Kind | Partner Rows | Status |
+|---|---|---|---|
+| OGL-00006 | `ld_store` | format 0.2.0, `t_partner` 0.01 | measured |
+| OGL-00007 | `genotype_store` | sidecar, `t_partner` 0.01 | measured |
+
+OGL-00006 is the EUR LD Store with its Partner Rows (status `reference`), not
+OGL-00001, the served one: OGL-00001 is format 0.1.0 and has none, so it
+answers neither `proxies` nor `clump` (owner, 27 November 2026). OGL-00006 is
+an overlay whose `near/` and `far/` link into OGL-00001, so it reads the same
+pairs.
+
+**Where a Store is.** The workload names an LD Store by `ld_id` and `kind`
+alone. `workload.resolve_ld` reads the registry through
+`ld_registry.record.valid_records` (`ld_registry.record.LD_ROOT`) and takes
+each Store's `location` and `far_bp`; no path to an LD Store is written in this
+package. The runner resolves every entry before it measures anything, and
+refuses the whole workload (`WorkloadError`) on an `ld_id` with no record, a
+`kind` its record contradicts, or a region wider than the Store's `far_bp`.
+
+**Queries**, each through `ogquery.ld.open` (an LD Store read by
+`StoreReader`, a Genotype Store by `GenotypeReader`, ogquery's `genotype`
+extra); nothing in the yardstick imports the engine for LD
+(docs/architecture/engine-imports-baseline.yaml). The sizes are the ticket's
+table, in the shapes of opengwasdb's `scripts/ld/bench/latency.py` (ogld#8):
+
+| Measure | What is timed | `result_count` |
+|---|---|---|
+| `open` | `ogquery.ld.open(location)` then `close()` | — |
+| `matrix_10`, `matrix_500` | `matrix(alids)` of 10 or 500 variants | the matrix's variants |
+| `region_1mb`, `region_3mb` | `region(chromosome, centre, width / 2)`, 1 or 3 Mb wide | the region's variants |
+| `proxies_1`, `proxies_10`, `proxies_100` | `proxies(alids, r2=0.8, kb=10000)` of 1, 10 or 100 variants | proxy rows |
+| `clump` | one call is `clump(alids, abs(z), r2=0.01, kb=3000)` of each of opengwasdb#403's 37 Analyses in turn | clump rows over the 37; the record adds `analyses`, `hits` and `leads` |
+| `bytes_on_disk` | the Store's size on disk, comparable across kinds: `bytes` is every file a query of the Store can read, links followed and each real file counted once (`ld.bytes_read`), plus, for a Genotype Store, `genotype_bytes`, the pgen, psam and pvar files its provenance pins (`ld_registry.writer.genotype_bytes`). `store_bytes` is the registry's own figure (its records' `measured.store_bytes`, `ogstores.store_size.store_size_on_disk`): a Store's own files, no link followed. The two differ exactly where a Store reads files it does not hold: OGL-00006's `store_bytes` leave out the OGL-00001 `near/` and `far/` and the scratch `partners/` its links read, and its `bytes` count them; a Genotype Store's `bytes` count the pgens beside its sidecar | — |
+| `peak_rss` | one `region_3mb` read in a fresh interpreter, sampled as the GWAS `peak_rss` is; `query` names it | the region's variants |
+
+`matrix_*` and `proxies_*` records also carry `absent`: requested ALIDs the
+Variant Set does not hold.
+
+**Fixed inputs.** `python -m yardstick.ld pick <location>` draws the lists
+once, read-only, and the workload records them. `matrix.variants` is 500
+variants at seeded rows (seed 8) of chr22, latency.py's chr22 draw: the same
+draw over the same Variant Set picks the same variants, so `matrix_500` is
+ogld#8's. `matrix_10` is every 50th of them. Each `proxies.variants` list is a
+genome-wide draw of 1, 10 or 100 rows, at the first seed from 8 whose draw has
+a proxy (`proxies.seeds`): seed 8's one variant has none, and an empty answer
+measures nothing. The regions are centred on chr22:25,000,000, latency.py's
+first centre. OGL-00006 and OGL-00007 hold one Variant Set, so both are read
+with the same variants.
+
+**The clump's input** is outside every repository:
+`$OPENGWASDB_LD_403_ANALYSES`, else the workload's `clump.default`
+(`/data/opengwasdb/work/ogld/realdata/403-analyses`), holding `manifest.json`
+and one `<store>__<analysis_id>` directory per Analysis it names, each with its
+`hits.tsv`. The workload pins it: `clump.sha256` is
+`workload.clump_sha256`, over the manifest's and every hits file's sha256 in
+name order. `workload.clump_input` refuses, before anything is measured, a
+directory that is missing or lacks `manifest.json`; a manifest naming another
+number of Analyses than `clump.analyses`; directories that are not exactly the
+manifest's set; an Analysis without its hits file, or one whose header is not
+`alid`, `z`; and any input whose digest is not the pinned one, so a substitute
+is never measured. The preflight and the worker each read the input once
+(`workload.read_clump`): the worker hashes the very bytes it parses and refuses
+them, `unavailable` with a named reason, if their digest is not the one the
+preflight checked, so a file replaced between the two is never measured under
+the old checksum. Both check the header with one parser
+(`workload.hits_header`); the worker reads each row as exactly those two
+fields, never by position alone.
+
+**Not applicable.** Nothing opens a Store before its timed worker, so `open`'s
+first read is the Store's first open. After timing it, the worker opens the
+Store its queries run on and asks ogquery's own rule,
+`ogquery.ld.format.claims_partner_rows`, of that Store's provenance: a
+recorded `t_partner` and, for an LD Store, format 0.2.0 or later, or a
+Genotype Store's sidecar. A Store that claims no Partner Rows cannot answer
+`proxies` or `clump` (ld-store §13), so the worker records those four
+`not_applicable` with that reason. A worker that never runs says nothing: when
+the budget is spent first, every row is `unavailable`, naming the budget. A
+Store whose `location` does not exist, or that ogquery cannot open, has every
+measure `unavailable`, never skipped.
+
+**Method.** As the GWAS Stores', through the same loop (`runner._workers`):
+each Store's timed measures in one fresh worker (`python -m yardstick.worker
+ld`), its peak RSS in another (`ld_rss`), both within the run's budget; one
+first read kept apart, then `ld.repetitions` warm reads (`default` 5, `clump`
+3, because one clump reads the 37 Analyses' 1.6 million hits). The read-only
+guard is the GWAS Stores': the top-level entries of `location` before the
+first worker, compared after each. Resolving the registry and
+hashing the clump input are part of the run: they count in `duration_s` and
+the budget.
 
 ## Read-only guarantee
 
@@ -145,6 +247,7 @@ a new version.
 | `stores` | one object per workload Store, below |
 | `guard_violations` | optional list of `{store_id, problem}`: what the runner found changed beside a Store (empty on a clean run) |
 | `fixture_build` | optional: `{status: measured, layout, seconds}` or `{status: unavailable, error}` |
+| `ld` | optional, present when the workload has an LD section (#504): `repetitions`; `ogquery`, `{version}` of the reader that ran; `inputs`, what the run read (`matrix` and `proxies` with their seeds and each list's `variants_sha256`, the sha256 of its ALIDs one a line; `region` with its widths; `clump` with its `path`, `source` (`env` or `default`), `analyses`, `hits`, `manifest_sha256` and `sha256`, over the manifest's and every hits file's digest in name order); and `stores`, one object per LD Store, below |
 
 A Store object has `store_id`, `layout`, `coverage` and `status`. A `pending`
 Store has a `reason`. A `measured` Store has `measures`, an object keyed by
@@ -163,6 +266,14 @@ measure name, each with a `status` of `measured`, `unavailable` (with an
 - `peak_rss`: `baseline_mb`, `peak_mb`, `delta_mb`, `result_count`;
 - `not_applicable`: a `reason` (the validator does not require it; the runner always writes it). New keys are added to the schema, never renamed or removed: og-dev-hub reads it through `yardstick.result`.
 
+An LD Store object has `ld_id`, `kind` (the registry's `ld_registry.record.KINDS`),
+`label`, `location`, `status` (`measured`) and `measures`, keyed by the LD
+measure names above, each record of the same shape as a GWAS one. The LD
+query names are `yardstick.result.LD_TIMED`, not `TIMED`: og-dev-hub draws
+every `TIMED` name as a GWAS Store measure, and adding the `ld` key changes
+nothing a reader of `stores` reads. It is a new key, not a new shape of an
+old one, so the schema stays version 1 and every earlier result stays valid.
+
 No timing, byte or size field is negative.
 
 ## Validator
@@ -179,7 +290,21 @@ Every nested value is checked before it is read: the result object, `opengwasdb`
 its `measures` and each measure record must be of the shape the schema names,
 and one that is not is a `ResultError` naming its path (`stores[0] must be an
 object`) rather than an exception escaping the validator. A value of the wrong
-shape is a refusal, never a crash (#390). With a `workload` (`yardstick.workload.load()`) it also
+shape is a refusal, never a crash (#390). An `ld` section is checked the same way, by path (`ld.stores[OGL-00006].clump
+lacks result_count`), and more strictly than the GWAS records, whose committed
+shape it keeps: the section must name its reader (`ogquery.version`); `inputs` must hold
+`matrix` (with `chromosome`, `seed`, `count` and a 64-hex `variants_sha256`),
+`region` (with `chromosome`, `centre` and `widths_bp`), `proxies` (with `r2`,
+`kb`, and a seed and a 64-hex `variants_sha256` for each list) and `clump`
+(with a `path`, `analyses`, `hits` and a 64-hex `sha256`); each Store's
+`ld_id` must be an LD Store Registry id, and it needs `label` and
+`location`; a measure name outside the LD names is refused; every numeric
+field of a measured record must be non-negative, and its sizes and counts
+(`store_bytes`, `genotype_bytes`, `absent`, `analyses`, `hits`, `leads`)
+whole numbers; and a `not_applicable` must give its `reason`. A Store id that
+is not text is refused, never a crash, when the result is checked against a
+workload. With a `workload` (`yardstick.workload.load()`) it also
 requires every workload Store, with the same status, and every measure that
-Store lists. The project site's collector reads results through it. Load a
+Store lists, and, when the workload has an LD section, every LD Store, of the
+workload's `kind`, with every LD measure (one completeness check serves both). The project site's collector reads results through it. Load a
 workload with `yardstick.workload.load()`; `check()` raises `WorkloadError`.
